@@ -36,7 +36,7 @@ All colors MUST be HSL.
     --input: 220 13% 91%;
     --ring: 220 85% 55%;
 
-    --radius: 0.5rem;
+    --radius: 1.5rem;
 
     /* Status colors - tons profissionais e distintos */
     --status-novo: 220 85% 55%;
@@ -113,6 +113,7 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --radius: 1.5rem;
   }
 }
 
