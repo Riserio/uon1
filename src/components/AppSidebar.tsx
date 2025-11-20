@@ -85,9 +85,9 @@ export function AppSidebar() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
-                    <NavLink to="/contratos" activeClassName="bg-primary text-primary-foreground">
+                    <NavLink to="/termos" activeClassName="bg-primary text-primary-foreground">
                       <FileText className="h-4 w-4" />
-                      {!collapsed && <span>Contratos</span>}
+                      {!collapsed && <span>Termos de Aceite</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

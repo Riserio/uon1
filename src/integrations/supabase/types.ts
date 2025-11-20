@@ -410,56 +410,6 @@ export type Database = {
           },
         ]
       }
-      contratos: {
-        Row: {
-          ativo: boolean | null
-          corretora_id: string | null
-          created_at: string | null
-          created_by: string
-          data_fim: string | null
-          data_inicio: string | null
-          descricao: string | null
-          id: string
-          numero_contrato: string
-          updated_at: string | null
-          valor_mensal: number | null
-        }
-        Insert: {
-          ativo?: boolean | null
-          corretora_id?: string | null
-          created_at?: string | null
-          created_by: string
-          data_fim?: string | null
-          data_inicio?: string | null
-          descricao?: string | null
-          id?: string
-          numero_contrato: string
-          updated_at?: string | null
-          valor_mensal?: number | null
-        }
-        Update: {
-          ativo?: boolean | null
-          corretora_id?: string | null
-          created_at?: string | null
-          created_by?: string
-          data_fim?: string | null
-          data_inicio?: string | null
-          descricao?: string | null
-          id?: string
-          numero_contrato?: string
-          updated_at?: string | null
-          valor_mensal?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contratos_corretora_id_fkey"
-            columns: ["corretora_id"]
-            isOneToOne: false
-            referencedRelation: "corretoras"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       corretoras: {
         Row: {
           cep: string | null
@@ -1371,6 +1321,90 @@ export type Database = {
           },
         ]
       }
+      termos: {
+        Row: {
+          arquivo_nome: string
+          arquivo_url: string
+          ativo: boolean | null
+          created_at: string | null
+          created_by: string
+          descricao: string | null
+          id: string
+          obrigatorio: boolean | null
+          ordem: number | null
+          titulo: string
+          updated_at: string | null
+        }
+        Insert: {
+          arquivo_nome: string
+          arquivo_url: string
+          ativo?: boolean | null
+          created_at?: string | null
+          created_by: string
+          descricao?: string | null
+          id?: string
+          obrigatorio?: boolean | null
+          ordem?: number | null
+          titulo: string
+          updated_at?: string | null
+        }
+        Update: {
+          arquivo_nome?: string
+          arquivo_url?: string
+          ativo?: boolean | null
+          created_at?: string | null
+          created_by?: string
+          descricao?: string | null
+          id?: string
+          obrigatorio?: boolean | null
+          ordem?: number | null
+          titulo?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      termos_aceitos: {
+        Row: {
+          aceito_em: string | null
+          id: string
+          ip_address: string | null
+          termo_id: string
+          user_agent: string | null
+          vistoria_id: string
+        }
+        Insert: {
+          aceito_em?: string | null
+          id?: string
+          ip_address?: string | null
+          termo_id: string
+          user_agent?: string | null
+          vistoria_id: string
+        }
+        Update: {
+          aceito_em?: string | null
+          id?: string
+          ip_address?: string | null
+          termo_id?: string
+          user_agent?: string | null
+          vistoria_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "termos_aceitos_termo_id_fkey"
+            columns: ["termo_id"]
+            isOneToOne: false
+            referencedRelation: "termos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "termos_aceitos_vistoria_id_fkey"
+            columns: ["vistoria_id"]
+            isOneToOne: false
+            referencedRelation: "vistorias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -1470,7 +1504,6 @@ export type Database = {
           cof: string | null
           completed_at: string | null
           condutor_veiculo: string | null
-          contrato_id: string | null
           corretora_id: string | null
           created_at: string
           created_by: string
@@ -1539,7 +1572,6 @@ export type Database = {
           cof?: string | null
           completed_at?: string | null
           condutor_veiculo?: string | null
-          contrato_id?: string | null
           corretora_id?: string | null
           created_at?: string
           created_by: string
@@ -1608,7 +1640,6 @@ export type Database = {
           cof?: string | null
           completed_at?: string | null
           condutor_veiculo?: string | null
-          contrato_id?: string | null
           corretora_id?: string | null
           created_at?: string
           created_by?: string
@@ -1668,13 +1699,6 @@ export type Database = {
             columns: ["atendimento_id"]
             isOneToOne: false
             referencedRelation: "atendimentos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vistorias_contrato_id_fkey"
-            columns: ["contrato_id"]
-            isOneToOne: false
-            referencedRelation: "contratos"
             referencedColumns: ["id"]
           },
           {
