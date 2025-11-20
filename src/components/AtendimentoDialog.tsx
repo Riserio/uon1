@@ -570,14 +570,13 @@ export function AtendimentoDialog({
               )}
             </TabsList>
 
-            <div className="flex-1 overflow-y-auto mt-4">
-              <TabsContent value="geral" className="mt-0">
-                <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="corretora">Corretora *</Label>
-              <Popover open={corretoraSearchOpen} onOpenChange={setCorretoraSearchOpen}>
-                <PopoverTrigger asChild>
+            <TabsContent value="geral" className="mt-0">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="corretora">Corretora *</Label>
+                    <Popover open={corretoraSearchOpen} onOpenChange={setCorretoraSearchOpen}>
+                      <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     role="combobox"
@@ -795,19 +794,17 @@ export function AtendimentoDialog({
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit">Salvar</Button>
-          </div>
-                </form>
-              </TabsContent>
+                <div className="flex justify-end gap-2 pt-4 border-t">
+                  <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit">Salvar</Button>
+                </div>
+              </form>
+            </TabsContent>
 
-              {atendimento && (
-                <>
-                  {/* Nova Aba: Dados Pessoais */}
-                  {vistoriaData.tipo_atendimento === 'sinistro' && (
+              {/* Nova Aba: Dados Pessoais */}
+              {vistoriaData.tipo_atendimento === 'sinistro' && (
                     <TabsContent value="dados_pessoais" className="mt-0 space-y-6 p-4">
                       {/* Dados do Sinistro */}
                       <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
@@ -984,130 +981,143 @@ export function AtendimentoDialog({
                           type="button" 
                           onClick={handleSalvarCustos}
                         >
-                          Salvar Dados
-                        </Button>
-                      </div>
-                    </TabsContent>
-                  )}
+                    Salvar Dados
+                  </Button>
+                </div>
+              </TabsContent>
+            )}
 
-                  <TabsContent value="andamentos" className="mt-0">
-                    <AndamentosList atendimentoId={atendimento.id} />
-                  </TabsContent>
+              <TabsContent value="andamentos" className="mt-0">
+                {atendimento?.id ? (
+                  <AndamentosList atendimentoId={atendimento.id} />
+                ) : (
+                  <div className="p-4 text-center text-muted-foreground">
+                    Salve o atendimento para adicionar andamentos
+                  </div>
+                )}
+              </TabsContent>
 
-                  <TabsContent value="anexos" className="mt-0">
-                    <div className="p-4">
-                      <AnexosUpload
-                        atendimentoId={atendimento.id}
-                        anexos={anexos}
-                        onAnexosChange={setAnexos}
+              <TabsContent value="anexos" className="mt-0">
+                {atendimento?.id ? (
+                  <div className="p-4">
+                    <AnexosUpload
+                      atendimentoId={atendimento.id}
+                      anexos={anexos}
+                      onAnexosChange={setAnexos}
+                    />
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-muted-foreground">
+                    Salve o atendimento para adicionar anexos
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="custos" className="mt-0">
+                <div className="p-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="custo_oficina">Custo Oficina</Label>
+                      <CurrencyInput
+                        id="custo_oficina"
+                        value={custos.custo_oficina}
+                        onValueChange={(values) => 
+                          setCustos({ ...custos, custo_oficina: values.floatValue || 0 })
+                        }
                       />
                     </div>
-                  </TabsContent>
-
-                  <TabsContent value="custos" className="mt-0">
-                    <div className="p-4 space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="custo_oficina">Custo Oficina</Label>
-                          <CurrencyInput
-                            id="custo_oficina"
-                            value={custos.custo_oficina}
-                            onValueChange={(values) => 
-                              setCustos({ ...custos, custo_oficina: values.floatValue || 0 })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="custo_reparo">Custo Reparo</Label>
-                          <CurrencyInput
-                            id="custo_reparo"
-                            value={custos.custo_reparo}
-                            onValueChange={(values) => 
-                              setCustos({ ...custos, custo_reparo: values.floatValue || 0 })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="custo_acordo">Custo Acordo</Label>
-                          <CurrencyInput
-                            id="custo_acordo"
-                            value={custos.custo_acordo}
-                            onValueChange={(values) => 
-                              setCustos({ ...custos, custo_acordo: values.floatValue || 0 })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="custo_terceiros">Custo Terceiros</Label>
-                          <CurrencyInput
-                            id="custo_terceiros"
-                            value={custos.custo_terceiros}
-                            onValueChange={(values) => 
-                              setCustos({ ...custos, custo_terceiros: values.floatValue || 0 })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="custo_perda_total">Custo Perda Total</Label>
-                          <CurrencyInput
-                            id="custo_perda_total"
-                            value={custos.custo_perda_total}
-                            onValueChange={(values) => 
-                              setCustos({ ...custos, custo_perda_total: values.floatValue || 0 })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="custo_perda_parcial">Custo Perda Parcial</Label>
-                          <CurrencyInput
-                            id="custo_perda_parcial"
-                            value={custos.custo_perda_parcial}
-                            onValueChange={(values) => 
-                              setCustos({ ...custos, custo_perda_parcial: values.floatValue || 0 })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="valor_franquia">Valor Franquia</Label>
-                          <CurrencyInput
-                            id="valor_franquia"
-                            value={custos.valor_franquia}
-                            onValueChange={(values) => 
-                              setCustos({ ...custos, valor_franquia: values.floatValue || 0 })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="valor_indenizacao">Valor Indenização</Label>
-                          <CurrencyInput
-                            id="valor_indenizacao"
-                            value={custos.valor_indenizacao}
-                            onValueChange={(values) => 
-                              setCustos({ ...custos, valor_indenizacao: values.floatValue || 0 })
-                            }
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-end pt-4 border-t">
-                        <Button onClick={handleSalvarCustos}>
-                          Salvar Custos
-                        </Button>
-                      </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custo_reparo">Custo Reparo</Label>
+                      <CurrencyInput
+                        id="custo_reparo"
+                        value={custos.custo_reparo}
+                        onValueChange={(values) => 
+                          setCustos({ ...custos, custo_reparo: values.floatValue || 0 })
+                        }
+                      />
                     </div>
-                  </TabsContent>
+                    <div className="space-y-2">
+                      <Label htmlFor="custo_acordo">Custo Acordo</Label>
+                      <CurrencyInput
+                        id="custo_acordo"
+                        value={custos.custo_acordo}
+                        onValueChange={(values) => 
+                          setCustos({ ...custos, custo_acordo: values.floatValue || 0 })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custo_terceiros">Custo Terceiros</Label>
+                      <CurrencyInput
+                        id="custo_terceiros"
+                        value={custos.custo_terceiros}
+                        onValueChange={(values) => 
+                          setCustos({ ...custos, custo_terceiros: values.floatValue || 0 })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custo_perda_total">Custo Perda Total</Label>
+                      <CurrencyInput
+                        id="custo_perda_total"
+                        value={custos.custo_perda_total}
+                        onValueChange={(values) => 
+                          setCustos({ ...custos, custo_perda_total: values.floatValue || 0 })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custo_perda_parcial">Custo Perda Parcial</Label>
+                      <CurrencyInput
+                        id="custo_perda_parcial"
+                        value={custos.custo_perda_parcial}
+                        onValueChange={(values) => 
+                          setCustos({ ...custos, custo_perda_parcial: values.floatValue || 0 })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="valor_franquia">Valor Franquia</Label>
+                      <CurrencyInput
+                        id="valor_franquia"
+                        value={custos.valor_franquia}
+                        onValueChange={(values) => 
+                          setCustos({ ...custos, valor_franquia: values.floatValue || 0 })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="valor_indenizacao">Valor Indenização</Label>
+                      <CurrencyInput
+                        id="valor_indenizacao"
+                        value={custos.valor_indenizacao}
+                        onValueChange={(values) => 
+                          setCustos({ ...custos, valor_indenizacao: values.floatValue || 0 })
+                        }
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end pt-4 border-t">
+                    <Button onClick={handleSalvarCustos}>
+                      Salvar Custos
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
 
-                  {(userRole === 'admin' || userRole === 'superintendente') && (
-                    <TabsContent value="historico" className="mt-0">
-                      <HistoricoList atendimentoId={atendimento.id} />
-                    </TabsContent>
-                  )}
-                </>
-              )}
-            </div>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
+              <TabsContent value="historico" className="mt-0">
+                {atendimento?.id ? (
+                  <HistoricoList atendimentoId={atendimento.id} />
+                ) : (
+                  <div className="p-4 text-center text-muted-foreground">
+                    Salve o atendimento para ver o histórico
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }

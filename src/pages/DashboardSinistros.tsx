@@ -22,6 +22,7 @@ export default function DashboardSinistros() {
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState('all');
   const [corretoraStats, setCorretoraStats] = useState<any[]>([]);
+  const [fluxoData, setFluxoData] = useState<any[]>([]);
 
   useEffect(() => {
     loadCorretoras();
@@ -74,6 +75,38 @@ export default function DashboardSinistros() {
         tipos[tipo].custo += (Number(v.custo_oficina) || 0) + (Number(v.custo_reparo) || 0);
       });
       setTipoData(Object.entries(tipos).map(([name, data]: any) => ({ name, value: data.count, custo: data.custo })));
+
+      // Carregar distribuição por fluxos
+      const { data: atendimentosData } = await supabase
+        .from('atendimentos')
+        .select('fluxo_id, fluxos(nome)')
+        .not('arquivado', 'eq', true);
+      
+      if (atendimentosData) {
+        const fluxos: any = {};
+        atendimentosData.forEach((a: any) => {
+          const fluxoNome = a.fluxos?.nome || 'Sem fluxo';
+          if (!fluxos[fluxoNome]) fluxos[fluxoNome] = 0;
+          fluxos[fluxoNome]++;
+        });
+        setFluxoData(Object.entries(fluxos).map(([name, value]) => ({ name, value })));
+      }
+
+      // Carregar distribuição por fluxos
+      const { data: atendimentos } = await supabase
+        .from('atendimentos')
+        .select('fluxo_id, fluxos(nome)')
+        .not('arquivado', 'eq', true);
+      
+      if (atendimentos) {
+        const fluxos: any = {};
+        atendimentos.forEach((a: any) => {
+          const fluxoNome = a.fluxos?.nome || 'Sem fluxo';
+          if (!fluxos[fluxoNome]) fluxos[fluxoNome] = 0;
+          fluxos[fluxoNome]++;
+        });
+        setFluxoData(Object.entries(fluxos).map(([name, value]) => ({ name, value })));
+      }
     } catch (error) {
       toast.error('Erro ao carregar dashboard');
     } finally {
@@ -126,9 +159,10 @@ export default function DashboardSinistros() {
           <Card className="bg-gradient-to-br from-amber-500/10 to-amber-500/5"><CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><Wrench className="h-4 w-4" />Perda Parcial</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-amber-600">{formatCurrency(stats.custoPerdaParcial)}</div></CardContent></Card>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card><CardHeader><CardTitle>Status</CardTitle></CardHeader><CardContent><ResponsiveContainer width="100%" height={300}><PieChart><Pie data={statusData} cx="50%" cy="50%" outerRadius={100} dataKey="value" label>{statusData.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></CardContent></Card>
           <Card><CardHeader><CardTitle>Por Tipo</CardTitle></CardHeader><CardContent><ResponsiveContainer width="100%" height={300}><BarChart data={tipoData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" angle={-45} textAnchor="end" height={100} /><YAxis /><Tooltip /><Bar dataKey="value" fill="#3b82f6" /></BarChart></ResponsiveContainer></CardContent></Card>
+          <Card><CardHeader><CardTitle>Distribuição por Fluxos</CardTitle></CardHeader><CardContent><ResponsiveContainer width="100%" height={300}><PieChart><Pie data={fluxoData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`} outerRadius={80} fill="#8884d8" dataKey="value">{fluxoData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></CardContent></Card>
         </div>
       </div>
     </div>
