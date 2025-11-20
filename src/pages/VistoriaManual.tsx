@@ -602,6 +602,68 @@ export default function VistoriaManual() {
                 </div>
               </div>
 
+              {/* Vinculação */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Vinculação</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Corretora</Label>
+                    <Select
+                      value={formData.corretora_id}
+                      onValueChange={(value) => setFormData({...formData, corretora_id: value, contrato_id: ''})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a corretora" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {corretoras.map(corretora => (
+                          <SelectItem key={corretora.id} value={corretora.id}>
+                            {corretora.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Contrato</Label>
+                    <Select
+                      value={formData.contrato_id}
+                      onValueChange={(value) => setFormData({...formData, contrato_id: value})}
+                      disabled={!formData.corretora_id}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o contrato" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {contratos.map(contrato => (
+                          <SelectItem key={contrato.id} value={contrato.id}>
+                            {contrato.numero_contrato} {contrato.descricao && `- ${contrato.descricao}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Responsável</Label>
+                    <Select
+                      value={formData.responsavel_id}
+                      onValueChange={(value) => setFormData({...formData, responsavel_id: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {responsaveis.map(responsavel => (
+                          <SelectItem key={responsavel.id} value={responsavel.id}>
+                            {responsavel.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
               {/* Upload de Fotos */}
               <div>
                 <h3 className="text-lg font-semibold mb-4">Fotos do Veículo (4 obrigatórias)</h3>
