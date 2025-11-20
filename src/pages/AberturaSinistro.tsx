@@ -115,7 +115,7 @@ export default function AberturaSinistro() {
             created_by: user?.id,
             atendimento_id: atendimento.id,
             tipo_vistoria: 'sinistro',
-            tipo_abertura: 'interna',
+            tipo_abertura: 'interno',
             tipo_sinistro: formData.tipo_sinistro,
             cliente_nome: formData.cliente_nome,
             cliente_cpf: formData.cliente_cpf,
