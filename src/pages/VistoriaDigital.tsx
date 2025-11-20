@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,24 @@ export default function VistoriaDigital() {
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [creating, setCreating] = useState(false);
+  const [corretoras, setCorretoras] = useState<any[]>([]);
+  const [selectedCorretora, setSelectedCorretora] = useState('');
+  const [clienteCpf, setClienteCpf] = useState('');
+
+  useEffect(() => {
+    loadCorretoras();
+  }, []);
+
+  const loadCorretoras = async () => {
+    const { data } = await supabase
+      .from('corretoras')
+      .select('id, nome')
+      .order('nome');
+    
+    if (data) {
+      setCorretoras(data);
+    }
+  };
 
   const createVistoria = async () => {
     setCreating(true);
@@ -28,13 +46,15 @@ export default function VistoriaDigital() {
       if (!user) throw new Error('Usuário não autenticado');
 
       // Criar vistoria
-      const { data: vistoria, error: vistoriaError } = await supabase
+      const { data: vistoria, error: vistoriaError} = await supabase
         .from('vistorias')
         .insert({
           tipo_abertura: 'digital',
           tipo_vistoria: tipoVistoria,
           status: 'aguardando_fotos',
-          created_by: user.id
+          created_by: user.id,
+          corretora_id: selectedCorretora || null,
+          cliente_cpf: clienteCpf || null
         })
         .select()
         .single();
@@ -181,6 +201,32 @@ export default function VistoriaDigital() {
                       </Label>
                     </div>
                   </RadioGroup>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <Label>Corretora</Label>
+                    <select
+                      value={selectedCorretora}
+                      onChange={(e) => setSelectedCorretora(e.target.value)}
+                      className="w-full border rounded-md p-2"
+                    >
+                      <option value="">Selecione a corretora</option>
+                      {corretoras.map((c) => (
+                        <option key={c.id} value={c.id}>{c.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label>CPF do Cliente (opcional)</Label>
+                    <Input
+                      value={clienteCpf}
+                      onChange={(e) => setClienteCpf(e.target.value)}
+                      placeholder="000.000.000-00"
+                      maxLength={14}
+                    />
+                  </div>
                 </div>
 
                 <Button

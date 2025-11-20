@@ -34,9 +34,61 @@ const handler = async (req: Request): Promise<Response> => {
     // Analisar cada foto com IA
     const analises = [];
     const danosDetectados: string[] = [];
+    let placa = '';
+    let modelo = '';
 
     for (const foto of fotos) {
       console.log('Analisando foto:', foto.posicao);
+      
+      // Primeira análise: detectar placa e modelo (especialmente na foto frontal)
+      if (foto.posicao === 'frontal') {
+        const placaResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              {
+                role: 'system',
+                content: 'Você é um especialista em OCR de placas e identificação de veículos. Extraia APENAS a placa do veículo (formato ABC-1234 ou ABC1D234) e o modelo/marca do veículo.'
+              },
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Identifique a PLACA e o MODELO/MARCA do veículo nesta imagem. Responda APENAS no formato: PLACA: XXX-0000 | MODELO: Marca Modelo Ano'
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: { url: foto.url }
+                  }
+                ]
+              }
+            ]
+          })
+        });
+
+        if (placaResponse.ok) {
+          const placaData = await placaResponse.json();
+          const placaTexto = placaData.choices?.[0]?.message?.content || '';
+          
+          // Extrair placa
+          const placaMatch = placaTexto.match(/PLACA:\s*([A-Z]{3}[-]?\d{1}[A-Z0-9]{1}\d{2})/i);
+          if (placaMatch) {
+            placa = placaMatch[1].toUpperCase();
+          }
+          
+          // Extrair modelo
+          const modeloMatch = placaTexto.match(/MODELO:\s*(.+?)(?:\||$)/i);
+          if (modeloMatch) {
+            modelo = modeloMatch[1].trim();
+          }
+        }
+      }
       
       const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
@@ -121,16 +173,30 @@ const handler = async (req: Request): Promise<Response> => {
     const resumoData = await resumoResponse.json();
     const observacoesIA = resumoData.choices?.[0]?.message?.content || 'Resumo não disponível';
 
-    // Atualizar vistoria com análise completa
+    // Atualizar vistoria com análise completa e dados do veículo
+    const updateData: any = {
+      status: 'concluida',
+      analise_ia: { analises, resumo: observacoesIA },
+      danos_detectados: Array.from(new Set(danosDetectados)),
+      observacoes_ia: observacoesIA,
+      completed_at: new Date().toISOString()
+    };
+
+    if (placa) {
+      updateData.veiculo_placa = placa;
+    }
+    if (modelo) {
+      updateData.veiculo_modelo = modelo;
+      // Tentar extrair marca
+      const marcaMatch = modelo.match(/^([A-Za-z]+)/);
+      if (marcaMatch) {
+        updateData.veiculo_marca = marcaMatch[1];
+      }
+    }
+
     const { error: updateError } = await supabase
       .from('vistorias')
-      .update({
-        status: 'concluida',
-        analise_ia: { analises, resumo: observacoesIA },
-        danos_detectados: Array.from(new Set(danosDetectados)),
-        observacoes_ia: observacoesIA,
-        completed_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', vistoria_id);
 
     if (updateError) throw updateError;
