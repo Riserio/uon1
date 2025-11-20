@@ -1,7 +1,7 @@
 import { Atendimento } from '@/types/atendimento';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, User, Pencil, Trash2, Archive, Eye, Send, Clock, AlertCircle, Camera, ExternalLink, FileText } from 'lucide-react';
+import { Pencil, Trash2, Archive, Eye, Send, Clock, ExternalLink, FileText, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useEffect } from 'react';
 import { EnviarEmailDialog } from './EnviarEmailDialog';
@@ -100,161 +100,151 @@ export function AtendimentoCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        "bg-card border rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow duration-150 cursor-grab active:cursor-grabbing",
+        "group bg-card border rounded-md hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing",
         isDragging && "scale-105 shadow-lg ring-2 ring-primary/20",
-        isConcluido && "bg-muted/50 border-muted-foreground/20 opacity-75",
-        !isConcluido && isOverdue && "border-destructive bg-destructive/5 shadow-destructive/10"
+        isConcluido && "opacity-60",
+        !isConcluido && isOverdue && "border-destructive/50"
       )}
     >
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 mb-1">
-          <Badge variant="secondary" className="text-xs font-mono">
-            #{atendimento.numero}
+      <div className="p-3 space-y-2.5">
+        {/* Title */}
+        <h3 
+          className="text-sm font-medium text-foreground leading-snug line-clamp-2 cursor-pointer hover:text-primary transition-colors pr-8"
+          onClick={onEdit}
+        >
+          {atendimento.assunto}
+        </h3>
+
+        {/* Meta info - compact row */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-mono">#{atendimento.numero}</span>
+          <span>•</span>
+          <span className="truncate">{atendimento.responsavel}</span>
+          {atendimento.tags && atendimento.tags.length > 0 && (
+            <>
+              <span>•</span>
+              <span className="truncate">{atendimento.tags[0]}</span>
+            </>
+          )}
+        </div>
+
+        {/* Status indicators */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Badge 
+            className={cn(
+              "text-xs h-5 px-1.5 font-normal",
+              priorityColors[atendimento.prioridade]
+            )} 
+            variant="outline"
+          >
+            {atendimento.prioridade}
           </Badge>
-        </div>
-        <div className="flex items-start justify-between gap-2">
-          <h4 className="font-medium text-sm line-clamp-2">{atendimento.assunto}</h4>
-          <div className="flex gap-1 shrink-0">
-            {statusPrazo > 0 && (
-              <Badge 
-                variant={isOverdue ? "destructive" : "outline"} 
-                className="text-xs font-semibold"
-              >
-                {isOverdue ? (
-                  <><AlertCircle className="h-3 w-3 mr-1" />Vencido</>
-                ) : (
-                  <><Clock className="h-3 w-3 mr-1" />{hoursRemaining}h</>
-                )}
-              </Badge>
-            )}
-            <Badge variant="outline" className={cn("text-xs font-semibold", priorityColors[atendimento.prioridade])}>
-              {atendimento.prioridade}
+          
+          {!isConcluido && hoursRemaining !== null && hoursRemaining <= 8 && (
+            <Badge 
+              variant={isOverdue ? "destructive" : "secondary"}
+              className={cn("text-xs h-5 px-1.5", !isOverdue && "bg-muted/50 text-muted-foreground border-0")}
+            >
+              <Clock className="w-3 h-3 mr-1" />
+              {isOverdue ? `${Math.abs(hoursRemaining)}h` : `${hoursRemaining}h`}
             </Badge>
-          </div>
-        </div>
-
-        <div className="space-y-1.5 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <User className="h-3 w-3" />
-            <span className="truncate">{atendimento.corretora}</span>
-          </div>
-          {atendimento.contato && (
-            <div className="flex items-center gap-1.5">
-              <Calendar className="h-3 w-3" />
-              <span className="truncate">{atendimento.contato}</span>
-            </div>
           )}
-          {atendimento.dataRetorno && (
-            <div className="flex items-center gap-1.5 text-primary font-medium">
-              <Calendar className="h-3 w-3" />
-              <span className="truncate">
-                Follow-up: {new Date(atendimento.dataRetorno).toLocaleDateString('pt-BR')}
-              </span>
-            </div>
-          )}
-          <div className="flex items-center gap-1.5 text-[10px]">
-            <span>
-              Criado: {new Date(atendimento.createdAt).toLocaleDateString('pt-BR', { 
-                day: '2-digit', 
-                month: '2-digit',
-                year: '2-digit'
-              })}
-            </span>
-            {atendimento.dataConcluido && (
-              <span className="text-green-600 font-semibold">
-                • Concluído: {new Date(atendimento.dataConcluido).toLocaleDateString('pt-BR', { 
-                  day: '2-digit', 
-                  month: '2-digit',
-                  year: '2-digit'
-                })}
-                {atendimento.fluxoConcluido && (
-                  <span className="ml-1">({atendimento.fluxoConcluido})</span>
-                )}
-              </span>
-            )}
-          </div>
-        </div>
 
-        {atendimento.tags && atendimento.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {atendimento.tags.slice(0, 3).map((tag, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center px-2 py-0.5 rounded-md bg-secondary text-xs"
-              >
-                {tag}
-              </span>
-            ))}
-            {atendimento.tags.length > 3 && (
-              <span className="text-xs text-muted-foreground">+{atendimento.tags.length - 3}</span>
-            )}
-          </div>
+          {isConcluido && (
+            <Badge className="text-xs h-5 px-1.5 bg-status-concluido/10 text-status-concluido border-status-concluido/20">
+              ✓ Concluído
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {/* Action buttons - show on hover */}
+      <div className="px-3 pb-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onEdit}
+          className="h-7 w-7 p-0 hover:bg-muted"
+          title="Editar"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+
+        {onViewAndamentos && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onViewAndamentos}
+            className="h-7 w-7 p-0 hover:bg-muted"
+            title="Ver andamentos"
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </Button>
         )}
 
-        <div className="flex items-center gap-1 pt-1">
-          <Button variant="ghost" size="sm" onClick={onEdit} className="h-7 px-2">
-            <Pencil className="h-3 w-3" />
-          </Button>
-          {onViewAndamentos && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={onViewAndamentos} 
-              className="h-7 px-2"
-              title="Visualizar andamentos"
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setEmailDialogOpen(true)}
+          className="h-7 w-7 p-0 hover:bg-muted"
+          title="Enviar email"
+        >
+          <Send className="h-3.5 w-3.5" />
+        </Button>
+
+        {vistoria && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/vistorias/${vistoria.id}`)}
+              className="h-7 w-7 p-0 hover:bg-muted"
+              title="Ver vistoria"
             >
-              <Eye className="h-3 w-3" />
+              <Camera className="h-3.5 w-3.5" />
             </Button>
-          )}
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setEmailDialogOpen(true)}
-            className="h-7 px-2"
-            title="Comunicar cliente"
-          >
-            <Send className="h-3 w-3" />
-          </Button>
-          {vistoria && (
-            <>
+            
+            {vistoria.link_token && vistoria.status === 'aguardando_fotos' && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate(`/vistorias/${vistoria.id}`)}
-                className="h-7 px-2 text-purple-600 hover:text-purple-700"
-                title="Ver vistoria"
+                onClick={async () => {
+                  const link = `${window.location.origin}/vistoria/${vistoria.link_token}`;
+                  await navigator.clipboard.writeText(link);
+                  toast.success('Link copiado');
+                }}
+                className="h-7 w-7 p-0 hover:bg-muted"
+                title="Copiar link"
               >
-                <Camera className="h-3 w-3" />
+                <FileText className="h-3.5 w-3.5" />
               </Button>
-              {vistoria.link_token && vistoria.status === 'aguardando_fotos' && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    const link = `${window.location.origin}/vistoria/${vistoria.link_token}`;
-                    navigator.clipboard.writeText(link);
-                    toast.success('Link de vistoria copiado!');
-                  }}
-                  className="h-7 px-2 text-blue-600 hover:text-blue-700"
-                  title="Copiar link de vistoria"
-                >
-                  <FileText className="h-3 w-3" />
-                </Button>
-              )}
-            </>
-          )}
-          {atendimento.status === 'concluido' && onArquivar && (
-            <Button variant="ghost" size="sm" onClick={onArquivar} className="h-7 px-2 text-blue-600 hover:text-blue-700">
-              <Archive className="h-3 w-3" />
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={onDelete} className="h-7 px-2 text-destructive hover:text-destructive">
-            <Trash2 className="h-3 w-3" />
+            )}
+          </>
+        )}
+
+        <div className="flex-1" />
+
+        {onArquivar && atendimento.status === 'concluido' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onArquivar}
+            className="h-7 w-7 p-0 hover:bg-muted"
+            title="Arquivar"
+          >
+            <Archive className="h-3.5 w-3.5" />
           </Button>
-          <div className="ml-auto text-xs text-muted-foreground">
-            {atendimento.responsavel}
-          </div>
-        </div>
+        )}
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onDelete}
+          className="h-7 w-7 p-0 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+          title="Deletar"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
       </div>
     </div>
     </>
