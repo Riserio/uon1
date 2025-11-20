@@ -20,6 +20,7 @@ export interface Claim {
   status: string;
   statusColor: string;
   observacoes: string | null;
+  veiculo_placa?: string | null;
   custo_oficina?: number | null;
   custo_reparo?: number | null;
   custo_acordo?: number | null;
@@ -101,7 +102,14 @@ export function ClaimCard({ claim, onEdit }: ClaimCardProps) {
           {claim.assunto}
         </p>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            <div>
+              <p className="text-xs text-muted-foreground">Placa</p>
+              <p className="font-medium text-foreground">{claim.veiculo_placa || 'N/A'}</p>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
             <div>

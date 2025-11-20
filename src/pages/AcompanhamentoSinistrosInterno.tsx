@@ -77,6 +77,7 @@ export default function AcompanhamentoSinistrosInterno() {
         .from('vistorias')
         .select(`
           atendimento_id,
+          veiculo_placa,
           custo_oficina,
           custo_reparo,
           custo_acordo,
@@ -125,6 +126,7 @@ export default function AcompanhamentoSinistrosInterno() {
           status: atendimento.status,
           statusColor: statusConfig?.cor || '#6b7280',
           observacoes: atendimento.observacoes,
+          veiculo_placa: vistoria?.veiculo_placa,
           custo_oficina: vistoria?.custo_oficina,
           custo_reparo: vistoria?.custo_reparo,
           custo_acordo: vistoria?.custo_acordo,
