@@ -1,7 +1,7 @@
 import { Atendimento } from '@/types/atendimento';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, Archive, Eye, Send, Clock, ExternalLink, FileText, Camera } from 'lucide-react';
+import { Pencil, Trash2, Archive, Eye, Send, Clock, ExternalLink, FileText, Camera, Truck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useEffect } from 'react';
 import { EnviarEmailDialog } from './EnviarEmailDialog';
@@ -66,6 +66,12 @@ export function AtendimentoCard({
     cliente_email?: string;
     cof?: string;
   } | null>(null);
+  const [fotosStatus, setFotosStatus] = useState<{
+    total: number;
+    aprovadas: number;
+    reprovadas: number;
+    pendentes: number;
+  } | null>(null);
 
   useEffect(() => {
     loadVistoria();
@@ -99,6 +105,21 @@ export function AtendimentoCard({
     
     if (data) {
       setVistoria(data);
+      
+      // Buscar status das fotos
+      const { data: fotosData } = await supabase
+        .from('vistoria_fotos')
+        .select('status_aprovacao')
+        .eq('vistoria_id', data.id);
+      
+      if (fotosData && fotosData.length > 0) {
+        const total = fotosData.length;
+        const aprovadas = fotosData.filter(f => f.status_aprovacao === 'aprovada').length;
+        const reprovadas = fotosData.filter(f => f.status_aprovacao === 'reprovada').length;
+        const pendentes = fotosData.filter(f => f.status_aprovacao === 'pendente').length;
+        
+        setFotosStatus({ total, aprovadas, reprovadas, pendentes });
+      }
     }
   };
 
@@ -247,6 +268,24 @@ export function AtendimentoCard({
           {isConcluido && (
             <Badge className="text-[10px] h-4 px-1.5 rounded bg-status-concluido/10 text-status-concluido border-status-concluido/20">
               ✓ Concluído
+            </Badge>
+          )}
+
+          {/* Ícone de status de vistoria */}
+          {fotosStatus && fotosStatus.total > 0 && (
+            <Badge 
+              variant="outline"
+              className={cn(
+                "text-[10px] h-4 px-1.5 rounded flex items-center gap-0.5",
+                fotosStatus.aprovadas === fotosStatus.total ? "bg-green-500/10 text-green-600 border-green-500/20" :
+                fotosStatus.reprovadas > 0 ? "bg-orange-500/10 text-orange-600 border-orange-500/20" :
+                "bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
+              )}
+              title={`${fotosStatus.aprovadas}/${fotosStatus.total} aprovadas`}
+            >
+              <Truck className="w-2.5 h-2.5" />
+              {fotosStatus.aprovadas === fotosStatus.total ? 'Aprovada' : 
+               fotosStatus.reprovadas > 0 ? 'Pendente' : 'Aguardando'}
             </Badge>
           )}
         </div>

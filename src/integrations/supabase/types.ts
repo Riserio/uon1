@@ -1346,40 +1346,52 @@ export type Database = {
         Row: {
           analise_ia: Json | null
           analise_manual: boolean | null
+          aprovada_em: string | null
+          aprovada_por: string | null
           arquivo_nome: string
           arquivo_tamanho: number | null
           arquivo_url: string
           created_at: string
           id: string
+          observacao_reprovacao: string | null
           ordem: number
           posicao: string
           status_analise: string | null
+          status_aprovacao: string | null
           vistoria_id: string
         }
         Insert: {
           analise_ia?: Json | null
           analise_manual?: boolean | null
+          aprovada_em?: string | null
+          aprovada_por?: string | null
           arquivo_nome: string
           arquivo_tamanho?: number | null
           arquivo_url: string
           created_at?: string
           id?: string
+          observacao_reprovacao?: string | null
           ordem: number
           posicao: string
           status_analise?: string | null
+          status_aprovacao?: string | null
           vistoria_id: string
         }
         Update: {
           analise_ia?: Json | null
           analise_manual?: boolean | null
+          aprovada_em?: string | null
+          aprovada_por?: string | null
           arquivo_nome?: string
           arquivo_tamanho?: number | null
           arquivo_url?: string
           created_at?: string
           id?: string
+          observacao_reprovacao?: string | null
           ordem?: number
           posicao?: string
           status_analise?: string | null
+          status_aprovacao?: string | null
           vistoria_id?: string
         }
         Relationships: [
