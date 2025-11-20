@@ -410,6 +410,56 @@ export type Database = {
           },
         ]
       }
+      contratos: {
+        Row: {
+          ativo: boolean | null
+          corretora_id: string | null
+          created_at: string | null
+          created_by: string
+          data_fim: string | null
+          data_inicio: string | null
+          descricao: string | null
+          id: string
+          numero_contrato: string
+          updated_at: string | null
+          valor_mensal: number | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          corretora_id?: string | null
+          created_at?: string | null
+          created_by: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          id?: string
+          numero_contrato: string
+          updated_at?: string | null
+          valor_mensal?: number | null
+        }
+        Update: {
+          ativo?: boolean | null
+          corretora_id?: string | null
+          created_at?: string | null
+          created_by?: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          id?: string
+          numero_contrato?: string
+          updated_at?: string | null
+          valor_mensal?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contratos_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       corretoras: {
         Row: {
           cep: string | null
@@ -1407,7 +1457,10 @@ export type Database = {
       vistorias: {
         Row: {
           analise_ia: Json | null
+          assinatura_url: string | null
           atendimento_id: string | null
+          atestado_obito_url: string | null
+          bo_url: string | null
           cliente_cpf: string | null
           cliente_email: string | null
           cliente_nome: string | null
@@ -1416,9 +1469,13 @@ export type Database = {
           cnh_url: string | null
           cof: string | null
           completed_at: string | null
+          condutor_veiculo: string | null
+          contrato_id: string | null
           corretora_id: string | null
           created_at: string
           created_by: string
+          crlv_fotos_urls: string[] | null
+          croqui_acidente_url: string | null
           custo_acordo: number | null
           custo_oficina: number | null
           custo_perda_parcial: number | null
@@ -1426,21 +1483,33 @@ export type Database = {
           custo_reparo: number | null
           custo_terceiros: number | null
           danos_detectados: string[] | null
+          data_evento: string | null
           data_incidente: string | null
           dias_validade: number | null
           endereco: string | null
+          fez_bo: boolean | null
+          foi_hospital: boolean | null
+          hora_evento: string | null
           horario_fim: string | null
           horario_inicio: string | null
           id: string
           latitude: number | null
+          laudo_alcoolemia_url: string | null
+          laudo_medico_url: string | null
           link_expires_at: string | null
           link_token: string | null
+          local_tem_camera: boolean | null
           longitude: number | null
+          motorista_faleceu: boolean | null
+          narrar_fatos: string | null
           numero: number
           observacoes_ia: string | null
+          placa_terceiro: string | null
+          policia_foi_local: boolean | null
           relato_incidente: string | null
           relatorio_url: string | null
           status: string
+          tem_terceiros: boolean | null
           tipo_abertura: string
           tipo_sinistro: string | null
           tipo_vistoria: string
@@ -1453,10 +1522,14 @@ export type Database = {
           veiculo_marca: string | null
           veiculo_modelo: string | null
           veiculo_placa: string | null
+          vitima_ou_causador: string | null
         }
         Insert: {
           analise_ia?: Json | null
+          assinatura_url?: string | null
           atendimento_id?: string | null
+          atestado_obito_url?: string | null
+          bo_url?: string | null
           cliente_cpf?: string | null
           cliente_email?: string | null
           cliente_nome?: string | null
@@ -1465,9 +1538,13 @@ export type Database = {
           cnh_url?: string | null
           cof?: string | null
           completed_at?: string | null
+          condutor_veiculo?: string | null
+          contrato_id?: string | null
           corretora_id?: string | null
           created_at?: string
           created_by: string
+          crlv_fotos_urls?: string[] | null
+          croqui_acidente_url?: string | null
           custo_acordo?: number | null
           custo_oficina?: number | null
           custo_perda_parcial?: number | null
@@ -1475,21 +1552,33 @@ export type Database = {
           custo_reparo?: number | null
           custo_terceiros?: number | null
           danos_detectados?: string[] | null
+          data_evento?: string | null
           data_incidente?: string | null
           dias_validade?: number | null
           endereco?: string | null
+          fez_bo?: boolean | null
+          foi_hospital?: boolean | null
+          hora_evento?: string | null
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
           latitude?: number | null
+          laudo_alcoolemia_url?: string | null
+          laudo_medico_url?: string | null
           link_expires_at?: string | null
           link_token?: string | null
+          local_tem_camera?: boolean | null
           longitude?: number | null
+          motorista_faleceu?: boolean | null
+          narrar_fatos?: string | null
           numero?: number
           observacoes_ia?: string | null
+          placa_terceiro?: string | null
+          policia_foi_local?: boolean | null
           relato_incidente?: string | null
           relatorio_url?: string | null
           status?: string
+          tem_terceiros?: boolean | null
           tipo_abertura: string
           tipo_sinistro?: string | null
           tipo_vistoria: string
@@ -1502,10 +1591,14 @@ export type Database = {
           veiculo_marca?: string | null
           veiculo_modelo?: string | null
           veiculo_placa?: string | null
+          vitima_ou_causador?: string | null
         }
         Update: {
           analise_ia?: Json | null
+          assinatura_url?: string | null
           atendimento_id?: string | null
+          atestado_obito_url?: string | null
+          bo_url?: string | null
           cliente_cpf?: string | null
           cliente_email?: string | null
           cliente_nome?: string | null
@@ -1514,9 +1607,13 @@ export type Database = {
           cnh_url?: string | null
           cof?: string | null
           completed_at?: string | null
+          condutor_veiculo?: string | null
+          contrato_id?: string | null
           corretora_id?: string | null
           created_at?: string
           created_by?: string
+          crlv_fotos_urls?: string[] | null
+          croqui_acidente_url?: string | null
           custo_acordo?: number | null
           custo_oficina?: number | null
           custo_perda_parcial?: number | null
@@ -1524,21 +1621,33 @@ export type Database = {
           custo_reparo?: number | null
           custo_terceiros?: number | null
           danos_detectados?: string[] | null
+          data_evento?: string | null
           data_incidente?: string | null
           dias_validade?: number | null
           endereco?: string | null
+          fez_bo?: boolean | null
+          foi_hospital?: boolean | null
+          hora_evento?: string | null
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
           latitude?: number | null
+          laudo_alcoolemia_url?: string | null
+          laudo_medico_url?: string | null
           link_expires_at?: string | null
           link_token?: string | null
+          local_tem_camera?: boolean | null
           longitude?: number | null
+          motorista_faleceu?: boolean | null
+          narrar_fatos?: string | null
           numero?: number
           observacoes_ia?: string | null
+          placa_terceiro?: string | null
+          policia_foi_local?: boolean | null
           relato_incidente?: string | null
           relatorio_url?: string | null
           status?: string
+          tem_terceiros?: boolean | null
           tipo_abertura?: string
           tipo_sinistro?: string | null
           tipo_vistoria?: string
@@ -1551,6 +1660,7 @@ export type Database = {
           veiculo_marca?: string | null
           veiculo_modelo?: string | null
           veiculo_placa?: string | null
+          vitima_ou_causador?: string | null
         }
         Relationships: [
           {
@@ -1558,6 +1668,13 @@ export type Database = {
             columns: ["atendimento_id"]
             isOneToOne: false
             referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vistorias_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos"
             referencedColumns: ["id"]
           },
           {

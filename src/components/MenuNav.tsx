@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Home, LayoutDashboard, Building2, Users, UserCircle, UsersRound, Calendar, LogOut, Megaphone, Settings, FileText, Mail, ClipboardList, Camera, FileX, TrendingUp } from 'lucide-react';
+import { Home, LayoutDashboard, Building2, Users, UserCircle, UsersRound, Calendar, LogOut, Megaphone, Settings, FileText, Mail, ClipboardList, Camera, FileX, TrendingUp, FileSignature } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
@@ -48,6 +48,12 @@ export default function MenuNav() {
             <Link to="/corretoras" className="cursor-pointer">
               <Building2 className="mr-2 h-4 w-4" />
               <span>Corretoras</span>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link to="/contratos" className="cursor-pointer">
+              <FileSignature className="mr-2 h-4 w-4" />
+              <span>Contratos</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>

@@ -15,6 +15,7 @@ import Dashboard from "./pages/Dashboard";
 import DashboardAnalytics from "./pages/DashboardAnalytics";
 import Corretoras from "./pages/Corretoras";
 import Contatos from "./pages/Contatos";
+import Contratos from "./pages/Contratos";
 import Usuarios from "./pages/Usuarios";
 import Equipes from "./pages/Equipes";
 import Agenda from "./pages/Agenda";
@@ -110,6 +111,7 @@ const App = () => (
             <Route path="/performance/individual" element={<ProtectedRoute><IndividualPerformance /></ProtectedRoute>} />
             <Route path="/performance/corretoras" element={<ProtectedRoute><DesempenhoCorretoras /></ProtectedRoute>} />
             <Route path="/corretoras" element={<ProtectedRoute><Corretoras /></ProtectedRoute>} />
+            <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />
             <Route path="/administradora" element={<ProtectedRoute><AdminRoute><Administradora /></AdminRoute></ProtectedRoute>} />
             <Route path="/contatos" element={<ProtectedRoute><Contatos /></ProtectedRoute>} />
             <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
