@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Search, FileSearch, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { MaskedInput } from '@/components/ui/masked-input';
 
 export default function AcompanhamentoSinistro() {
   const [busca, setBusca] = useState('');
@@ -78,10 +78,12 @@ export default function AcompanhamentoSinistro() {
         <Card className="shadow-xl mb-8">
           <CardContent className="p-4 sm:p-6">
             <div className="flex gap-2">
-              <Input
-                placeholder="Digite a placa ou CPF"
+              <MaskedInput
+                format="AAA-####"
+                mask="_"
+                placeholder="Digite a placa (ex: ABC-1234) ou CPF"
                 value={busca}
-                onChange={(e) => setBusca(e.target.value.toUpperCase())}
+                onValueChange={(values) => setBusca(values.value.toUpperCase())}
                 onKeyPress={(e) => e.key === 'Enter' && handleBuscar()}
                 className="flex-1"
               />

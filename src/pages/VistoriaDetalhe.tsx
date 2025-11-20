@@ -5,10 +5,20 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { ArrowLeft, Download, Eye, FileText, Camera } from 'lucide-react';
+import { ArrowLeft, Download, Eye, FileText, Camera, Check, X, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { generateVistoriaPDF } from '@/components/VistoriaPDF';
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle 
+} from '@/components/ui/alert-dialog';
 
 export default function VistoriaDetalhe() {
   const { id } = useParams();
@@ -18,6 +28,8 @@ export default function VistoriaDetalhe() {
   const [loading, setLoading] = useState(true);
   const [corretora, setCorretora] = useState<any>(null);
   const [administradora, setAdministradora] = useState<any>(null);
+  const [reanaliseDialogOpen, setReanaliseDialogOpen] = useState(false);
+  const [fotoReprovar, setFotoReprovar] = useState<string | null>(null);
 
   useEffect(() => {
     loadVistoria();
@@ -110,6 +122,66 @@ export default function VistoriaDetalhe() {
       lateral_direita: 'Lateral Direita'
     };
     return nomes[posicao] || posicao;
+  };
+
+  const handleAprovarFoto = async (fotoId: string) => {
+    try {
+      const { error } = await supabase
+        .from('vistoria_fotos')
+        .update({ 
+          status_analise: 'aprovada',
+          analise_manual: true 
+        })
+        .eq('id', fotoId);
+
+      if (error) throw error;
+
+      toast.success('Foto aprovada com sucesso!');
+      loadVistoria();
+    } catch (error) {
+      console.error('Erro ao aprovar foto:', error);
+      toast.error('Erro ao aprovar foto');
+    }
+  };
+
+  const handleReprovarFoto = async (fotoId: string) => {
+    try {
+      const { error } = await supabase
+        .from('vistoria_fotos')
+        .update({ 
+          status_analise: 'reprovada',
+          analise_manual: true 
+        })
+        .eq('id', fotoId);
+
+      if (error) throw error;
+
+      // Reabrir link da vistoria
+      const linkExpiresAt = new Date();
+      linkExpiresAt.setDate(linkExpiresAt.getDate() + 7); // 7 dias
+
+      const { error: vistoriaError } = await supabase
+        .from('vistorias')
+        .update({
+          status: 'aguardando_fotos',
+          link_expires_at: linkExpiresAt.toISOString()
+        })
+        .eq('id', id);
+
+      if (vistoriaError) throw vistoriaError;
+
+      toast.success('Foto reprovada. Link da vistoria foi reaberto para reenvio.');
+      setReanaliseDialogOpen(false);
+      loadVistoria();
+    } catch (error) {
+      console.error('Erro ao reprovar foto:', error);
+      toast.error('Erro ao reprovar foto');
+    }
+  };
+
+  const confirmarReprovacao = (fotoId: string) => {
+    setFotoReprovar(fotoId);
+    setReanaliseDialogOpen(true);
   };
 
   if (loading) {

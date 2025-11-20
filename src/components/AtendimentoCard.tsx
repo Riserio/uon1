@@ -47,7 +47,15 @@ export function AtendimentoCard({
 }: AtendimentoCardProps) {
   const navigate = useNavigate();
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [vistoria, setVistoria] = useState<{ id: string; link_token?: string; status: string } | null>(null);
+  const [vistoria, setVistoria] = useState<{ 
+    id: string; 
+    link_token?: string; 
+    status: string;
+    veiculo_placa?: string;
+    cliente_nome?: string;
+    tipo_sinistro?: string;
+    cof?: string;
+  } | null>(null);
 
   useEffect(() => {
     loadVistoria();
@@ -56,7 +64,7 @@ export function AtendimentoCard({
   const loadVistoria = async () => {
     const { data } = await supabase
       .from('vistorias')
-      .select('id, link_token, status')
+      .select('id, link_token, status, veiculo_placa, cliente_nome, tipo_sinistro, cof')
       .eq('atendimento_id', atendimento.id)
       .limit(1)
       .single();
@@ -114,6 +122,32 @@ export function AtendimentoCard({
         >
           {atendimento.assunto}
         </h3>
+        
+        {/* Vistoria Info */}
+        {vistoria && (
+          <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
+            {vistoria.veiculo_placa && (
+              <span className="flex items-center gap-1">
+                <span className="font-medium">Placa:</span> {vistoria.veiculo_placa}
+              </span>
+            )}
+            {vistoria.cliente_nome && (
+              <span className="flex items-center gap-1">
+                • <span className="font-medium">Cliente:</span> {vistoria.cliente_nome}
+              </span>
+            )}
+            {vistoria.cof && (
+              <span className="flex items-center gap-1">
+                • <span className="font-medium">COF:</span> {vistoria.cof}
+              </span>
+            )}
+            {vistoria.tipo_sinistro && (
+              <span className="flex items-center gap-1">
+                • <span className="font-medium">Tipo:</span> {vistoria.tipo_sinistro}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Meta info - compact row */}
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
