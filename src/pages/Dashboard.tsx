@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { TrendingUp, Clock, CheckCircle2, AlertCircle, Megaphone, ExternalLink, Plus, Mail, Users, Check, Calendar, ClipboardList } from "lucide-react";
+import { TrendingUp, Clock, CheckCircle2, AlertCircle, Megaphone, ExternalLink, Plus, Mail, Users, Check, Calendar, ClipboardList, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Atendimento } from "@/types/atendimento";
@@ -64,19 +64,18 @@ export default function Dashboard() {
   const [logoUrl] = useLocalStorage<string>('app-logo-url', '');
   const unreadMessages = useUnreadMessages();
   const pendingUsers = usePendingUsers();
-  const { overdueCount, overdueList } = useOverdueAtendimentos();
-  
+  const {
+    overdueCount,
+    overdueList
+  } = useOverdueAtendimentos();
   const [statusFinalizados, setStatusFinalizados] = useState<Set<string>>(new Set());
   const [statusBacklog, setStatusBacklog] = useState<Set<string>>(new Set());
   const [statusEmAndamento, setStatusEmAndamento] = useState<Set<string>>(new Set());
-  
   useEffect(() => {
     const loadStatusGroups = async () => {
-      const { data } = await supabase
-        .from('status_config')
-        .select('nome, tipo_etapa')
-        .eq('ativo', true);
-      
+      const {
+        data
+      } = await supabase.from('status_config').select('nome, tipo_etapa').eq('ativo', true);
       if (data) {
         setStatusFinalizados(new Set(data.filter(s => s.tipo_etapa === 'finalizado').map(s => s.nome)));
         setStatusBacklog(new Set(data.filter(s => s.tipo_etapa === 'backlog').map(s => s.nome)));
@@ -85,65 +84,40 @@ export default function Dashboard() {
     };
     loadStatusGroups();
   }, []);
-  
+
   // Capitalize user name
-  const userName = user?.user_metadata?.nome ? 
-    user.user_metadata.nome.charAt(0).toUpperCase() + user.user_metadata.nome.slice(1) 
-    : '';
-    
+  const userName = user?.user_metadata?.nome ? user.user_metadata.nome.charAt(0).toUpperCase() + user.user_metadata.nome.slice(1) : '';
   useEffect(() => {
     if (user) {
       loadData();
 
       // Subscribe to real-time changes for eventos
-      const eventosChannel = supabase
-        .channel('dashboard_eventos_changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'eventos',
-          },
-          () => {
-            loadCompromissos();
-          }
-        )
-        .subscribe();
+      const eventosChannel = supabase.channel('dashboard_eventos_changes').on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'eventos'
+      }, () => {
+        loadCompromissos();
+      }).subscribe();
 
       // Subscribe to real-time changes for atendimentos (for compromissos)
-      const atendimentosChannel = supabase
-        .channel('dashboard_atendimentos_changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'atendimentos',
-          },
-          () => {
-            loadAtendimentos();
-            loadCompromissos();
-          }
-        )
-        .subscribe();
+      const atendimentosChannel = supabase.channel('dashboard_atendimentos_changes').on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'atendimentos'
+      }, () => {
+        loadAtendimentos();
+        loadCompromissos();
+      }).subscribe();
 
       // Subscribe to real-time changes for comunicados
-      const comunicadosChannel = supabase
-        .channel('dashboard_comunicados_changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'comunicados',
-          },
-          () => {
-            loadComunicados();
-          }
-        )
-        .subscribe();
-
+      const comunicadosChannel = supabase.channel('dashboard_comunicados_changes').on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'comunicados'
+      }, () => {
+        loadComunicados();
+      }).subscribe();
       return () => {
         supabase.removeChannel(eventosChannel);
         supabase.removeChannel(atendimentosChannel);
@@ -335,10 +309,11 @@ export default function Dashboard() {
 
   // Atendimentos por Responsável
   const [profiles, setProfiles] = useState<Record<string, string>>({});
-  
   useEffect(() => {
     const loadProfiles = async () => {
-      const { data } = await supabase.from('profiles').select('id, nome');
+      const {
+        data
+      } = await supabase.from('profiles').select('id, nome');
       if (data) {
         const profileMap = data.reduce((acc, p) => {
           acc[p.id] = p.nome;
@@ -349,7 +324,6 @@ export default function Dashboard() {
     };
     loadProfiles();
   }, []);
-
   const responsavelMap = new Map<string, number>();
   atendimentos.forEach(a => {
     if (a.responsavel) {
@@ -364,12 +338,10 @@ export default function Dashboard() {
 
   // Atendimentos concluídos por fluxo
   const fluxoMap = new Map<string, number>();
-  atendimentos
-    .filter(a => a.dataConcluido && a.fluxoConcluido)
-    .forEach(a => {
-      const nomeFluxo = a.fluxoConcluido || 'Sem fluxo';
-      fluxoMap.set(nomeFluxo, (fluxoMap.get(nomeFluxo) || 0) + 1);
-    });
+  atendimentos.filter(a => a.dataConcluido && a.fluxoConcluido).forEach(a => {
+    const nomeFluxo = a.fluxoConcluido || 'Sem fluxo';
+    fluxoMap.set(nomeFluxo, (fluxoMap.get(nomeFluxo) || 0) + 1);
+  });
   const fluxosData = Array.from(fluxoMap.entries()).map(([name, value]) => ({
     name,
     value
@@ -418,13 +390,9 @@ export default function Dashboard() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-2">
                 <div className="flex items-center gap-3 md:gap-4">
-                  {logoUrl ? (
-                    <img src={logoUrl} alt="Logo" className="h-8 md:h-12 object-contain" />
-                  ) : (
-                    <div className="h-8 w-8 md:h-12 md:w-12 rounded-full bg-primary/20 flex items-center justify-center">
-                      <TrendingUp className="h-4 w-4 md:h-6 md:w-6 text-primary" />
-                    </div>
-                  )}
+                  {logoUrl ? <img src={logoUrl} alt="Logo" className="h-8 md:h-12 object-contain" /> : <div className="h-8 w-8 md:h-12 md:w-12 rounded-full bg-primary/20 flex items-center justify-center">
+                      <Target className="h-4 w-4 md:h-6 md:w-6 text-primary" />
+                    </div>}
                   <div>
                     <h1 className="text-xl md:text-3xl font-bold">
                       {getGreeting()}, {userName || 'Usuário'}!
@@ -451,39 +419,31 @@ export default function Dashboard() {
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <div className="h-8 w-8 rounded-lg bg-purple-500/20 flex items-center justify-center relative">
                       <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                      {(unreadMessages > 0 || ((userRole === 'admin' || userRole === 'superintendente' || userRole === 'administrativo') && pendingUsers > 0) || compromissos.length > 0 || overdueCount > 0) && (
-                        <div className="absolute -top-1 -right-1 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] font-bold text-white">
-                          {unreadMessages + ((userRole === 'admin' || userRole === 'superintendente' || userRole === 'administrativo') ? pendingUsers : 0) + compromissos.length + overdueCount}
-                        </div>
-                      )}
+                      {(unreadMessages > 0 || (userRole === 'admin' || userRole === 'superintendente' || userRole === 'administrativo') && pendingUsers > 0 || compromissos.length > 0 || overdueCount > 0) && <div className="absolute -top-1 -right-1 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] font-bold text-white">
+                          {unreadMessages + (userRole === 'admin' || userRole === 'superintendente' || userRole === 'administrativo' ? pendingUsers : 0) + compromissos.length + overdueCount}
+                        </div>}
                     </div>
                     <span>Compromissos de Hoje</span>
                   </CardTitle>
                   <CardDescription className="mt-1">Seus compromissos agendados para hoje</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  {unreadMessages > 0 && (
-                    <Link to="/mensagens">
+                  {unreadMessages > 0 && <Link to="/mensagens">
                       <Badge variant="destructive" className="cursor-pointer hover:bg-destructive/80">
                         <Mail className="h-3 w-3 mr-1" />
                         {unreadMessages}
                       </Badge>
-                    </Link>
-                  )}
-                  {(userRole === 'admin' || userRole === 'superintendente' || userRole === 'administrativo') && pendingUsers > 0 && (
-                    <Link to="/usuarios">
+                    </Link>}
+                  {(userRole === 'admin' || userRole === 'superintendente' || userRole === 'administrativo') && pendingUsers > 0 && <Link to="/usuarios">
                       <Badge variant="destructive" className="cursor-pointer hover:bg-destructive/80">
                         <Users className="h-3 w-3 mr-1" />
                         {pendingUsers}
                       </Badge>
-                    </Link>
-                  )}
-                  {compromissos.length > 0 && (
-                    <Badge variant="destructive" className="cursor-pointer hover:bg-destructive/80">
+                    </Link>}
+                  {compromissos.length > 0 && <Badge variant="destructive" className="cursor-pointer hover:bg-destructive/80">
                       <Calendar className="h-3 w-3 mr-1" />
                       {compromissos.length}
-                    </Badge>
-                  )}
+                    </Badge>}
                 </div>
               </div>
             </CardHeader>
@@ -498,71 +458,56 @@ export default function Dashboard() {
                   <p className="text-sm text-muted-foreground">Nenhum compromisso para hoje</p>
                 </div> : <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2">
                   {compromissos.map(compromisso => {
-                    const horarioFormatado = format(parseISO(compromisso.horario_inicio), "HH:mm", { locale: ptBR });
-                    const horarioFimFormatado = compromisso.horario_fim 
-                      ? format(parseISO(compromisso.horario_fim), "HH:mm", { locale: ptBR })
-                      : null;
-                    
-                    return (
-                      <Card key={compromisso.id} className="hover:shadow-md transition-all duration-200 border bg-card/50 backdrop-blur">
+                const horarioFormatado = format(parseISO(compromisso.horario_inicio), "HH:mm", {
+                  locale: ptBR
+                });
+                const horarioFimFormatado = compromisso.horario_fim ? format(parseISO(compromisso.horario_fim), "HH:mm", {
+                  locale: ptBR
+                }) : null;
+                return <Card key={compromisso.id} className="hover:shadow-md transition-all duration-200 border bg-card/50 backdrop-blur">
                         <CardContent className="p-4">
                           <div className="flex gap-3">
                             <div className="w-1 rounded-full flex-shrink-0" style={{
-                              backgroundColor: compromisso.cor
-                            }} />
+                        backgroundColor: compromisso.cor
+                      }} />
                             <div className="flex-1 space-y-2 min-w-0">
                               <div>
                                 <div className="flex items-center gap-2 justify-between">
                                   <h4 className="font-semibold text-sm truncate flex-1">{compromisso.titulo}</h4>
-                                  {compromisso.tipo === 'atendimento' && compromisso.prioridade && (
-                                    <Badge variant={compromisso.prioridade === 'Alta' ? 'destructive' : compromisso.prioridade === 'Média' ? 'default' : 'secondary'} className="text-xs shrink-0">
+                                  {compromisso.tipo === 'atendimento' && compromisso.prioridade && <Badge variant={compromisso.prioridade === 'Alta' ? 'destructive' : compromisso.prioridade === 'Média' ? 'default' : 'secondary'} className="text-xs shrink-0">
                                       {compromisso.prioridade}
-                                    </Badge>
-                                  )}
+                                    </Badge>}
                                 </div>
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
                                   <Badge variant="secondary" className="text-xs px-2 py-0">
                                     {horarioFormatado}
                                   </Badge>
-                                  {horarioFimFormatado && (
-                                    <>
+                                  {horarioFimFormatado && <>
                                       <span>-</span>
                                       <Badge variant="secondary" className="text-xs px-2 py-0">
                                         {horarioFimFormatado}
                                       </Badge>
-                                    </>
-                                  )}
+                                    </>}
                                   <Badge variant="outline" className="text-xs px-2 py-0">
                                     {compromisso.tipo === 'evento' ? '📅 Evento' : '📞 Follow-up'}
                                   </Badge>
                                 </div>
                               </div>
-                              {compromisso.local && (
-                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              {compromisso.local && <p className="text-xs text-muted-foreground flex items-center gap-1">
                                   <span className="font-medium">📍</span>
                                   {compromisso.local}
-                                </p>
-                              )}
-                              {compromisso.descricao && (
-                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                </p>}
+                              {compromisso.descricao && <p className="text-xs text-muted-foreground line-clamp-2">
                                   {compromisso.descricao}
-                                </p>
-                              )}
-                              <Button 
-                                size="icon" 
-                                variant="default" 
-                                className="h-8 w-8" 
-                                onClick={() => handleConcluirCompromisso(compromisso)}
-                                title="Concluir"
-                              >
+                                </p>}
+                              <Button size="icon" variant="default" className="h-8 w-8" onClick={() => handleConcluirCompromisso(compromisso)} title="Concluir">
                                 <Check className="h-4 w-4" />
                               </Button>
                             </div>
                           </div>
                         </CardContent>
-                      </Card>
-                    );
-                  })}
+                      </Card>;
+              })}
                 </div>}
             </CardContent>
           </Card>
@@ -755,38 +700,23 @@ export default function Dashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <defs>
-                        {statusData.map((entry, index) => (
-                          <linearGradient key={`gradient-${index}`} id={`statusGradient${index}`} x1="0" y1="0" x2="0" y2="1">
+                        {statusData.map((entry, index) => <linearGradient key={`gradient-${index}`} id={`statusGradient${index}`} x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor={entry.color} stopOpacity={0.9} />
                             <stop offset="100%" stopColor={entry.color} stopOpacity={0.6} />
-                          </linearGradient>
-                        ))}
+                          </linearGradient>)}
                       </defs>
-                      <Pie 
-                        data={statusData} 
-                        cx="50%" 
-                        cy="50%" 
-                        labelLine={false} 
-                        label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={95} 
-                        innerRadius={50}
-                        fill="#8884d8" 
-                        dataKey="value"
-                        animationBegin={0}
-                        animationDuration={800}
-                      >
-                        {statusData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={`url(#statusGradient${index})`} />
-                        ))}
+                      <Pie data={statusData} cx="50%" cy="50%" labelLine={false} label={({
+                          name,
+                          percent
+                        }) => `${name}: ${(percent * 100).toFixed(0)}%`} outerRadius={95} innerRadius={50} fill="#8884d8" dataKey="value" animationBegin={0} animationDuration={800}>
+                        {statusData.map((entry, index) => <Cell key={`cell-${index}`} fill={`url(#statusGradient${index})`} />)}
                       </Pie>
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--card))', 
+                      <Tooltip contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px',
                           boxShadow: 'var(--shadow-lg)'
-                        }}
-                      />
+                        }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -801,38 +731,23 @@ export default function Dashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <defs>
-                        {fluxosData.map((entry, index) => (
-                          <linearGradient key={`gradient-fluxo-${index}`} id={`fluxoGradient${index}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={`hsl(var(--chart-${(index % 5) + 1}))`} stopOpacity={0.9} />
-                            <stop offset="100%" stopColor={`hsl(var(--chart-${(index % 5) + 1}))`} stopOpacity={0.6} />
-                          </linearGradient>
-                        ))}
+                        {fluxosData.map((entry, index) => <linearGradient key={`gradient-fluxo-${index}`} id={`fluxoGradient${index}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={`hsl(var(--chart-${index % 5 + 1}))`} stopOpacity={0.9} />
+                            <stop offset="100%" stopColor={`hsl(var(--chart-${index % 5 + 1}))`} stopOpacity={0.6} />
+                          </linearGradient>)}
                       </defs>
-                      <Pie 
-                        data={fluxosData} 
-                        cx="50%" 
-                        cy="50%" 
-                        labelLine={false} 
-                        label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={95} 
-                        innerRadius={50}
-                        fill="#8884d8" 
-                        dataKey="value"
-                        animationBegin={0}
-                        animationDuration={800}
-                      >
-                        {fluxosData.map((entry, index) => (
-                          <Cell key={`cell-fluxo-${index}`} fill={`url(#fluxoGradient${index})`} />
-                        ))}
+                      <Pie data={fluxosData} cx="50%" cy="50%" labelLine={false} label={({
+                          name,
+                          percent
+                        }) => `${name}: ${(percent * 100).toFixed(0)}%`} outerRadius={95} innerRadius={50} fill="#8884d8" dataKey="value" animationBegin={0} animationDuration={800}>
+                        {fluxosData.map((entry, index) => <Cell key={`cell-fluxo-${index}`} fill={`url(#fluxoGradient${index})`} />)}
                       </Pie>
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--card))', 
+                      <Tooltip contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px',
                           boxShadow: 'var(--shadow-lg)'
-                        }}
-                      />
+                        }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -853,30 +768,19 @@ export default function Dashboard() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                      <XAxis 
-                        dataKey="name" 
-                        stroke="hsl(var(--muted-foreground))"
-                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                      />
-                      <YAxis 
-                        stroke="hsl(var(--muted-foreground))"
-                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--card))', 
+                      <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" tick={{
+                          fill: 'hsl(var(--muted-foreground))'
+                        }} />
+                      <YAxis stroke="hsl(var(--muted-foreground))" tick={{
+                          fill: 'hsl(var(--muted-foreground))'
+                        }} />
+                      <Tooltip contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px',
                           boxShadow: 'var(--shadow-lg)'
-                        }}
-                      />
-                      <Bar 
-                        dataKey="value" 
-                        fill="url(#barGradient)"
-                        radius={[8, 8, 0, 0]}
-                        animationBegin={0}
-                        animationDuration={800}
-                      />
+                        }} />
+                      <Bar dataKey="value" fill="url(#barGradient)" radius={[8, 8, 0, 0]} animationBegin={0} animationDuration={800} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -894,43 +798,26 @@ export default function Dashboard() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={priorityData} layout="vertical">
                     <defs>
-                      {priorityData.map((entry, index) => (
-                        <linearGradient key={`priority-gradient-${index}`} id={`priorityGradient${index}`} x1="0" y1="0" x2="1" y2="0">
+                      {priorityData.map((entry, index) => <linearGradient key={`priority-gradient-${index}`} id={`priorityGradient${index}`} x1="0" y1="0" x2="1" y2="0">
                           <stop offset="0%" stopColor={entry.color} stopOpacity={0.9} />
                           <stop offset="100%" stopColor={entry.color} stopOpacity={0.5} />
-                        </linearGradient>
-                      ))}
+                        </linearGradient>)}
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                    <XAxis 
-                      type="number" 
-                      stroke="hsl(var(--muted-foreground))"
-                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                    />
-                    <YAxis 
-                      dataKey="name" 
-                      type="category" 
-                      stroke="hsl(var(--muted-foreground))"
-                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                      width={100}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))', 
+                    <XAxis type="number" stroke="hsl(var(--muted-foreground))" tick={{
+                        fill: 'hsl(var(--muted-foreground))'
+                      }} />
+                    <YAxis dataKey="name" type="category" stroke="hsl(var(--muted-foreground))" tick={{
+                        fill: 'hsl(var(--muted-foreground))'
+                      }} width={100} />
+                    <Tooltip contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px',
                         boxShadow: 'var(--shadow-lg)'
-                      }}
-                    />
-                    <Bar 
-                      dataKey="value"
-                      radius={[0, 8, 8, 0]}
-                      animationBegin={0}
-                      animationDuration={800}
-                    >
-                      {priorityData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={`url(#priorityGradient${index})`} />
-                      ))}
+                      }} />
+                    <Bar dataKey="value" radius={[0, 8, 8, 0]} animationBegin={0} animationDuration={800}>
+                      {priorityData.map((entry, index) => <Cell key={`cell-${index}`} fill={`url(#priorityGradient${index})`} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -954,38 +841,23 @@ export default function Dashboard() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                      <XAxis 
-                        dataKey="name" 
-                        stroke="hsl(var(--muted-foreground))"
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                        angle={-45}
-                        textAnchor="end"
-                        height={80}
-                      />
-                      <YAxis 
-                        stroke="hsl(var(--muted-foreground))"
-                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--card))', 
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                          boxShadow: 'var(--shadow-lg)'
-                        }}
-                      />
-                      <Legend 
-                        wrapperStyle={{ paddingTop: '20px' }}
-                        iconType="circle"
-                      />
-                      <Bar 
-                        dataKey="value" 
-                        name="Atendimentos" 
-                        fill="url(#teamGradient)"
-                        radius={[8, 8, 0, 0]}
-                        animationBegin={0}
-                        animationDuration={800}
-                      />
+                      <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" tick={{
+                        fill: 'hsl(var(--muted-foreground))',
+                        fontSize: 12
+                      }} angle={-45} textAnchor="end" height={80} />
+                      <YAxis stroke="hsl(var(--muted-foreground))" tick={{
+                        fill: 'hsl(var(--muted-foreground))'
+                      }} />
+                      <Tooltip contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                        boxShadow: 'var(--shadow-lg)'
+                      }} />
+                      <Legend wrapperStyle={{
+                        paddingTop: '20px'
+                      }} iconType="circle" />
+                      <Bar dataKey="value" name="Atendimentos" fill="url(#teamGradient)" radius={[8, 8, 0, 0]} animationBegin={0} animationDuration={800} />
                     </BarChart>
                   </ResponsiveContainer> : <div className="flex items-center justify-center h-full text-muted-foreground">
                     Nenhum responsável atribuído ainda
@@ -1001,8 +873,7 @@ export default function Dashboard() {
                 <CardDescription>Visualização de conclusões em cada fluxo de trabalho</CardDescription>
               </CardHeader>
               <CardContent className="h-[420px] pt-6">
-                {fluxosData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
+                {fluxosData.length > 0 ? <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={fluxosData} layout="vertical">
                       <defs>
                         <linearGradient id="fluxoGradient" x1="0" y1="0" x2="1" y2="0">
@@ -1011,45 +882,26 @@ export default function Dashboard() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                      <XAxis 
-                        type="number" 
-                        stroke="hsl(var(--muted-foreground))"
-                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                      />
-                      <YAxis 
-                        dataKey="name" 
-                        type="category" 
-                        stroke="hsl(var(--muted-foreground))"
-                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                        width={150}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--card))', 
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                          boxShadow: 'var(--shadow-lg)'
-                        }}
-                      />
-                      <Legend 
-                        wrapperStyle={{ paddingTop: '20px' }}
-                        iconType="circle"
-                      />
-                      <Bar 
-                        dataKey="value" 
-                        name="Concluídos" 
-                        fill="url(#fluxoGradient)"
-                        radius={[0, 8, 8, 0]}
-                        animationBegin={0}
-                        animationDuration={800}
-                      />
+                      <XAxis type="number" stroke="hsl(var(--muted-foreground))" tick={{
+                        fill: 'hsl(var(--muted-foreground))'
+                      }} />
+                      <YAxis dataKey="name" type="category" stroke="hsl(var(--muted-foreground))" tick={{
+                        fill: 'hsl(var(--muted-foreground))'
+                      }} width={150} />
+                      <Tooltip contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                        boxShadow: 'var(--shadow-lg)'
+                      }} />
+                      <Legend wrapperStyle={{
+                        paddingTop: '20px'
+                      }} iconType="circle" />
+                      <Bar dataKey="value" name="Concluídos" fill="url(#fluxoGradient)" radius={[0, 8, 8, 0]} animationBegin={0} animationDuration={800} />
                     </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                  </ResponsiveContainer> : <div className="flex items-center justify-center h-full text-muted-foreground">
                     Nenhum atendimento concluído em fluxos ainda
-                  </div>
-                )}
+                  </div>}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1074,54 +926,34 @@ export default function Dashboard() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                    <XAxis 
-                      dataKey="date" 
-                      stroke="hsl(var(--muted-foreground))"
-                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                      angle={-45}
-                      textAnchor="end"
-                      height={80}
-                    />
-                    <YAxis 
-                      stroke="hsl(var(--muted-foreground))"
-                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))', 
+                    <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" tick={{
+                        fill: 'hsl(var(--muted-foreground))',
+                        fontSize: 11
+                      }} angle={-45} textAnchor="end" height={80} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" tick={{
+                        fill: 'hsl(var(--muted-foreground))'
+                      }} />
+                    <Tooltip contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px',
                         boxShadow: 'var(--shadow-lg)'
-                      }}
-                    />
-                    <Legend 
-                      wrapperStyle={{ paddingTop: '20px' }}
-                      iconType="circle"
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="criados" 
-                      stroke="hsl(var(--chart-1))" 
-                      strokeWidth={2.5}
-                      name="Criados"
-                      dot={{ fill: 'hsl(var(--chart-1))', r: 4 }}
-                      activeDot={{ r: 6 }}
-                      fill="url(#lineGradient1)"
-                      animationBegin={0}
-                      animationDuration={1000}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="concluidos" 
-                      stroke="hsl(var(--status-concluido))" 
-                      strokeWidth={2.5}
-                      name="Concluídos"
-                      dot={{ fill: 'hsl(var(--status-concluido))', r: 4 }}
-                      activeDot={{ r: 6 }}
-                      fill="url(#lineGradient2)"
-                      animationBegin={200}
-                      animationDuration={1000}
-                    />
+                      }} />
+                    <Legend wrapperStyle={{
+                        paddingTop: '20px'
+                      }} iconType="circle" />
+                    <Line type="monotone" dataKey="criados" stroke="hsl(var(--chart-1))" strokeWidth={2.5} name="Criados" dot={{
+                        fill: 'hsl(var(--chart-1))',
+                        r: 4
+                      }} activeDot={{
+                        r: 6
+                      }} fill="url(#lineGradient1)" animationBegin={0} animationDuration={1000} />
+                    <Line type="monotone" dataKey="concluidos" stroke="hsl(var(--status-concluido))" strokeWidth={2.5} name="Concluídos" dot={{
+                        fill: 'hsl(var(--status-concluido))',
+                        r: 4
+                      }} activeDot={{
+                        r: 6
+                      }} fill="url(#lineGradient2)" animationBegin={200} animationDuration={1000} />
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>

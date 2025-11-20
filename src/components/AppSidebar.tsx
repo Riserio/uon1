@@ -32,7 +32,7 @@ export function AppSidebar() {
         </SidebarHeader>
         
         {/* Custom Toggle Button - Half outside sidebar, anchored to top */}
-        <button onClick={toggleSidebar} className="absolute -right-3 top-4 z-[70] h-7 w-7 rounded-full bg-sidebar-accent border border-border flex items-center justify-center hover:bg-sidebar-accent/80 transition-colors shadow-md" aria-label="Alternar sidebar">
+        <button onClick={toggleSidebar} aria-label="Alternar sidebar" className="absolute -right-3 top-4 z-[70] h-7 w-7 rounded-full bg-sidebar-accent border border-border items-center justify-center hover:bg-sidebar-accent/80 transition-colors shadow-md flex flex-row">
           {collapsed ? <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-sidebar-foreground">
               <path d="M4 2L8 6L4 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg> : <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-sidebar-foreground">
