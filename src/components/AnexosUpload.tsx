@@ -179,7 +179,8 @@ export function AnexosUpload({ atendimentoId, anexos, onAnexosChange }: AnexosUp
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
+      {/* Área de Upload */}
+      <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
         <Input
           type="file"
           multiple
@@ -189,105 +190,128 @@ export function AnexosUpload({ atendimentoId, anexos, onAnexosChange }: AnexosUp
           id="file-upload"
           accept="*/*"
         />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => document.getElementById('file-upload')?.click()}
-          disabled={uploading}
-          className="w-full gap-2"
-        >
-          <Upload className="h-4 w-4" />
-          {uploading ? 'Enviando arquivos...' : 'Adicionar Arquivos'}
-        </Button>
+        <div className="space-y-3">
+          <div className="flex justify-center">
+            <div className="rounded-full bg-primary/10 p-4">
+              <Upload className="h-6 w-6 text-primary" />
+            </div>
+          </div>
+          <div>
+            <p className="text-sm font-medium">
+              {uploading ? 'Enviando arquivos...' : 'Arraste arquivos ou clique para selecionar'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Máximo 20MB por arquivo
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => document.getElementById('file-upload')?.click()}
+            disabled={uploading}
+            className="gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            {uploading ? 'Enviando...' : 'Selecionar Arquivos'}
+          </Button>
+        </div>
       </div>
 
+      {/* Lista de Arquivos */}
       {anexos.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            {anexos.length} arquivo{anexos.length !== 1 ? 's' : ''} anexado{anexos.length !== 1 ? 's' : ''}
-          </p>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">
+              Arquivos anexados ({anexos.length})
+            </p>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {anexos.map((anexo) => {
-            const isImage = isImageFile(anexo.tipo_arquivo);
-            
-            return (
-              <div
-                key={anexo.id}
-                className="relative group border rounded-lg overflow-hidden bg-muted hover:bg-muted/80 transition-colors"
-              >
-                {isImage ? (
-                  <div className="aspect-square relative">
-                    <img
-                      src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/atendimento-anexos/${anexo.arquivo_url}`}
-                      alt={anexo.arquivo_nome}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        // Fallback se a imagem não carregar (bucket privado)
-                        const img = e.target as HTMLImageElement;
-                        getFileUrl(anexo.arquivo_url).then(url => {
-                          if (url) img.src = url;
-                        });
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                      <div className="flex gap-2">
+            {anexos.map((anexo) => {
+              const isImage = isImageFile(anexo.tipo_arquivo);
+              
+              return (
+                <div
+                  key={anexo.id}
+                  className="relative group border rounded-lg overflow-hidden bg-card hover:shadow-md transition-shadow"
+                >
+                  {isImage ? (
+                    <div className="aspect-square relative bg-muted">
+                      <img
+                        src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/atendimento-anexos/${anexo.arquivo_url}`}
+                        alt={anexo.arquivo_nome}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const img = e.target as HTMLImageElement;
+                          getFileUrl(anexo.arquivo_url).then(url => {
+                            if (url) img.src = url;
+                          });
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/60 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="icon"
+                            onClick={() => handleDownload(anexo)}
+                            className="h-9 w-9"
+                            title="Baixar arquivo"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => handleRemoveAnexo(anexo)}
+                            className="h-9 w-9"
+                            title="Remover arquivo"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="aspect-square flex flex-col items-center justify-center p-4 bg-muted/50">
+                      <FileText className="h-12 w-12 text-muted-foreground mb-3" />
+                      <div className="flex gap-1 mt-auto">
                         <Button
                           type="button"
-                          variant="secondary"
+                          variant="ghost"
                           size="icon"
                           onClick={() => handleDownload(anexo)}
                           className="h-8 w-8"
+                          title="Baixar arquivo"
                         >
                           <Download className="h-4 w-4" />
                         </Button>
                         <Button
                           type="button"
-                          variant="destructive"
+                          variant="ghost"
                           size="icon"
                           onClick={() => handleRemoveAnexo(anexo)}
-                          className="h-8 w-8"
+                          className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                          title="Remover arquivo"
                         >
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
+                  )}
+                  <div className="p-2 border-t bg-background">
+                    <p className="text-xs font-medium truncate" title={anexo.arquivo_nome}>
+                      {anexo.arquivo_nome}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatFileSize(anexo.arquivo_tamanho)}
+                    </p>
                   </div>
-                ) : (
-                  <div className="aspect-square flex flex-col items-center justify-center p-4">
-                    <FileText className="h-12 w-12 text-muted-foreground mb-2" />
-                    <div className="flex gap-2 mt-auto">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDownload(anexo)}
-                        className="h-8 w-8"
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveAnexo(anexo)}
-                        className="h-8 w-8"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                <div className="p-2 border-t bg-background">
-                  <p className="text-xs font-medium truncate">{anexo.arquivo_nome}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatFileSize(anexo.arquivo_tamanho)}
-                  </p>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
       )}
     </div>
   );
