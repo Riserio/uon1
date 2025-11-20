@@ -74,18 +74,21 @@ export default function MenuNav() {
           {/* Equipes removido - agora está em Usuários */}
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Ferramentas</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Sinistros</DropdownMenuLabel>
           <DropdownMenuItem asChild>
             <Link to="/sinistros/novo" className="cursor-pointer">
               <FileX className="mr-2 h-4 w-4" />
-              <span>Abertura de Sinistro</span>
+              <span>Sinistro</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link to="/sinistros/acompanhamento" className="cursor-pointer">
               <ClipboardList className="mr-2 h-4 w-4" />
-              <span>Acompanhamento de Sinistros</span>
+              <span>Acompanhamento</span>
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <Link to="/vistorias" className="cursor-pointer">
               <Camera className="mr-2 h-4 w-4" />
