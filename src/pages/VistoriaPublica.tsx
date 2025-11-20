@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Camera, CheckCircle2, Upload, ArrowRight, ArrowLeft } from 'lucide-react';
+import { VistoriaOverlay } from '@/components/VistoriaOverlay';
 
 const POSICOES = [
   { id: 'frontal', nome: 'Frontal', descricao: 'Tire uma foto da frente do veículo' },
@@ -18,12 +19,14 @@ const POSICOES = [
 export default function VistoriaPublica() {
   const { token } = useParams();
   const [vistoria, setVistoria] = useState<any>(null);
+  const [corretora, setCorretora] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
   const [fotos, setFotos] = useState<{ [key: string]: File }>({});
   const [fotoPreviews, setFotoPreviews] = useState<{ [key: string]: string }>({});
   const [uploading, setUploading] = useState(false);
   const [geolocation, setGeolocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [showOverlay, setShowOverlay] = useState(true);
 
   useEffect(() => {
     loadVistoria();
@@ -34,7 +37,7 @@ export default function VistoriaPublica() {
     try {
       const { data, error } = await supabase
         .from('vistorias')
-        .select('*')
+        .select('*, corretoras(*)')
         .eq('link_token', token)
         .gt('link_expires_at', new Date().toISOString())
         .single();
@@ -46,6 +49,15 @@ export default function VistoriaPublica() {
       }
 
       setVistoria(data);
+      if (data.corretora_id) {
+        const { data: corretoraData } = await supabase
+          .from('corretoras')
+          .select('*')
+          .eq('id', data.corretora_id)
+          .single();
+        
+        if (corretoraData) setCorretora(corretoraData);
+      }
     } catch (error) {
       console.error('Erro ao carregar vistoria:', error);
       toast.error('Erro ao carregar vistoria');
@@ -213,6 +225,12 @@ export default function VistoriaPublica() {
           <CardContent className="p-8 text-center">
             <CheckCircle2 className="h-20 w-20 text-green-600 mx-auto mb-6" />
             <h2 className="text-3xl font-bold mb-4">Vistoria Concluída!</h2>
+            
+            <div className="bg-white/90 dark:bg-gray-900/90 p-6 rounded-lg mb-6">
+              <p className="text-sm text-muted-foreground mb-2">Número do Sinistro</p>
+              <p className="text-4xl font-bold text-primary">#{vistoria.numero}</p>
+            </div>
+
             <p className="text-muted-foreground mb-6">
               Suas fotos foram enviadas com sucesso. Nossa equipe analisará as imagens e entrará em contato em breve.
             </p>
@@ -234,14 +252,26 @@ export default function VistoriaPublica() {
   const fotoAtual = fotoPreviews[posicaoAtual.id];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-primary via-primary/90 to-primary/80 p-6">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8 text-white">
-          <h1 className="text-4xl font-bold mb-2">Vistoria Digital</h1>
-          <p className="text-blue-100">
+        {/* Header with Corretora Logo */}
+        <div className="text-center mb-8">
+          {corretora?.logo_url && (
+            <div className="mb-6 flex justify-center">
+              <img 
+                src={corretora.logo_url} 
+                alt={corretora.nome}
+                className="h-16 w-auto object-contain bg-white/10 backdrop-blur-sm rounded-lg p-3"
+              />
+            </div>
+          )}
+          <h1 className="text-4xl font-bold mb-2 text-white">Vistoria Digital</h1>
+          <p className="text-white/80 text-lg">
             {vistoria.tipo_vistoria === 'sinistro' ? 'Sinistro' : 'Reativação'}
           </p>
+          {corretora?.nome && (
+            <p className="text-white/70 text-sm mt-2">{corretora.nome}</p>
+          )}
         </div>
 
         {/* Progress */}
@@ -308,16 +338,21 @@ export default function VistoriaPublica() {
                 </div>
               </div>
             ) : (
-              <div>
-                <Label htmlFor={`foto-${posicaoAtual.id}`} className="cursor-pointer">
-                  <div className="border-2 border-dashed border-primary/30 rounded-lg p-12 text-center hover:border-primary transition-colors bg-gradient-to-br from-primary/5 to-primary/10">
-                    <Camera className="h-20 w-20 mx-auto mb-4 text-primary" />
-                    <p className="text-lg font-semibold mb-2">
-                      Tire uma foto {posicaoAtual.nome.toLowerCase()}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Toque para abrir a câmera
-                    </p>
+              <div className="relative">
+                <Label htmlFor={`foto-${posicaoAtual.id}`} className="cursor-pointer block">
+                  <div className="border-2 border-dashed border-primary/30 rounded-lg overflow-hidden relative aspect-video bg-gradient-to-br from-primary/5 to-primary/10 hover:border-primary transition-colors">
+                    {showOverlay && (
+                      <VistoriaOverlay posicao={posicaoAtual.id as 'frontal' | 'traseira' | 'lateral_esquerda' | 'lateral_direita'} />
+                    )}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+                      <Camera className="h-16 w-16 text-primary mb-3" />
+                      <p className="text-lg font-semibold text-foreground">
+                        Tire uma foto {posicaoAtual.nome.toLowerCase()}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Alinhe o veículo com o gabarito
+                      </p>
+                    </div>
                   </div>
                 </Label>
                 <Input
