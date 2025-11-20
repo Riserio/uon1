@@ -34,6 +34,7 @@ import VistoriaPublicaCaptura from './pages/VistoriaPublicaCaptura';
 import VistoriaPublicaConclusao from './pages/VistoriaPublicaConclusao';
 import Administradora from "./pages/Administradora";
 import AberturaSinistro from './pages/AberturaSinistro';
+import DashboardSinistros from './pages/DashboardSinistros';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -88,6 +89,8 @@ const App = () => (
             <Route path="/vistoria/:token/captura" element={<VistoriaPublicaCaptura />} />
             <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
             <Route path="/sinistros/novo" element={<ProtectedRoute><AberturaSinistro /></ProtectedRoute>} />
+            <Route path="/abertura-sinistro" element={<ProtectedRoute><AberturaSinistro /></ProtectedRoute>} />
+            <Route path="/dashboard-sinistros" element={<ProtectedRoute><DashboardSinistros /></ProtectedRoute>} />
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/atendimentos" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/vistorias" element={<ProtectedRoute><Vistorias /></ProtectedRoute>} />
