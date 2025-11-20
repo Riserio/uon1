@@ -703,7 +703,7 @@ export function AtendimentoDialog({
               </div>
               {atendimento && (
                 <Button 
-                  variant="secondary"
+                  variant="default"
                   onClick={() => setShowConclusaoDialog(true)}
                   className="shrink-0"
                 >

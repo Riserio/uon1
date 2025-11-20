@@ -416,88 +416,15 @@ const Index = () => {
         data: statusConfig
       } = await supabase.from('status_config').select('is_final, tipo_etapa, fluxo_id, nome').eq('nome', newStatus).eq('fluxo_id', atendimentoData?.fluxo_id || selectedFluxoId).eq('ativo', true).single();
       console.log('Status config:', statusConfig, 'for status:', newStatus);
-      if (statusConfig?.is_final) {
-        // Mark as completed and record which fluxo it was completed in
-        updateData.data_concluido = new Date().toISOString();
-        if (statusConfig.fluxo_id) {
-          updateData.fluxo_concluido_id = statusConfig.fluxo_id;
-
-          // Get fluxo name and check if should create next automatically
-          const {
-            data: fluxoData
-          } = await supabase.from('fluxos').select('nome, gera_proximo_automatico, proximo_fluxo_id').eq('id', statusConfig.fluxo_id).single();
-          if (fluxoData) {
-            updateData.fluxo_concluido_nome = fluxoData.nome;
-
-            // Check if should create next atendimento automatically
-            if (fluxoData.gera_proximo_automatico && fluxoData.proximo_fluxo_id) {
-              console.log('Criando próximo atendimento automaticamente no fluxo:', fluxoData.proximo_fluxo_id);
-
-              // Get the current atendimento data to copy
-              const {
-                data: currentAtendimento
-              } = await supabase.from('atendimentos').select('*').eq('id', id).single();
-              if (currentAtendimento) {
-                // Get the first status of the next fluxo
-                const {
-                  data: firstStatus
-                } = await supabase.from('status_config').select('nome').eq('fluxo_id', fluxoData.proximo_fluxo_id).eq('ativo', true).order('ordem').limit(1).single();
-                if (firstStatus) {
-                  // Create new atendimento in the next fluxo
-                  const {
-                    data: newAtendimento,
-                    error: createError
-                  } = await supabase.from('atendimentos').insert({
-                    assunto: currentAtendimento.assunto,
-                    corretora_id: currentAtendimento.corretora_id,
-                    contato_id: currentAtendimento.contato_id,
-                    responsavel_id: currentAtendimento.responsavel_id,
-                    user_id: currentAtendimento.user_id,
-                    prioridade: currentAtendimento.prioridade,
-                    observacoes: currentAtendimento.observacoes,
-                    tags: currentAtendimento.tags,
-                    fluxo_id: fluxoData.proximo_fluxo_id,
-                    status: firstStatus.nome,
-                    status_changed_at: new Date().toISOString()
-                  }).select().single();
-                  if (!createError && newAtendimento) {
-                    console.log('Novo atendimento criado:', newAtendimento.id);
-
-                    // Register creation in history
-                    const {
-                      data: session
-                    } = await supabase.auth.getSession();
-                    if (session?.session) {
-                      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/registrar-historico-atendimento`, {
-                        method: 'POST',
-                        headers: {
-                          'Authorization': `Bearer ${session.session.access_token}`,
-                          'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                          atendimento_id: newAtendimento.id,
-                          acao: 'Criação automática do fluxo anterior'
-                        })
-                      });
-                    }
-                  }
-                }
-              }
-            }
-          }
-          console.log('Marcando como concluído:', updateData);
-        }
-      }
+      // Don't mark as completed on drag - only manual button should do that
+      // The trigger will handle workflow progression automatically
+      
       const {
-        error
+        error: updateError
       } = await supabase.from('atendimentos').update(updateData).eq('id', id);
-      if (error) throw error;
+      if (updateError) throw updateError;
       await loadAtendimentos();
-      if (statusConfig?.is_final) {
-        sonnerToast.success(`Atendimento concluído no fluxo ${updateData.fluxo_concluido_nome}!`);
-      } else {
-        sonnerToast.success('Status atualizado!');
-      }
+      sonnerToast.success('Status atualizado!');
     } catch (error: any) {
       console.error('Erro ao atualizar status:', error);
       sonnerToast.error('Erro ao atualizar status');
