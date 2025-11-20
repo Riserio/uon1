@@ -994,18 +994,18 @@ export function AtendimentoDialog({
                 )}
               </TabsContent>
 
-              <TabsContent value="anexos" className="mt-0">
+              <TabsContent value="anexos" className="mt-0 p-4">
                 {atendimento?.id ? (
-                  <div className="p-4">
-                    <AnexosUpload
-                      atendimentoId={atendimento.id}
-                      anexos={anexos}
-                      onAnexosChange={setAnexos}
-                    />
-                  </div>
+                  <AnexosUpload
+                    atendimentoId={atendimento.id}
+                    anexos={anexos}
+                    onAnexosChange={setAnexos}
+                  />
                 ) : (
-                  <div className="p-4 text-center text-muted-foreground">
-                    Salve o atendimento para adicionar anexos
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Paperclip className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p className="text-lg font-medium">Anexos indisponíveis</p>
+                    <p className="text-sm mt-2">Salve o atendimento primeiro para adicionar anexos</p>
                   </div>
                 )}
               </TabsContent>
