@@ -11,7 +11,8 @@ import {
   FileText, 
   Mail, 
   ClipboardList, 
-  Send 
+  Camera,
+  FileX
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
@@ -167,8 +168,16 @@ export function AppSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
+                    <NavLink to="/sinistros/novo" activeClassName="bg-primary text-primary-foreground">
+                      <FileX className="h-4 w-4" />
+                      {!collapsed && <span>Abertura de Sinistro</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
                     <NavLink to="/vistorias" activeClassName="bg-primary text-primary-foreground">
-                      <Send className="h-4 w-4" />
+                      <Camera className="h-4 w-4" />
                       {!collapsed && <span>Vistorias</span>}
                     </NavLink>
                   </SidebarMenuButton>
@@ -209,7 +218,7 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <NavLink to="/emails" activeClassName="bg-primary text-primary-foreground">
-                      <Send className="h-4 w-4" />
+                      <Mail className="h-4 w-4" />
                       {!collapsed && <span>E-mails</span>}
                     </NavLink>
                   </SidebarMenuButton>

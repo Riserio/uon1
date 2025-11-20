@@ -23,6 +23,9 @@ export default function VistoriaDigital() {
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState('');
   const [clienteCpf, setClienteCpf] = useState('');
+  const [horarioInicio, setHorarioInicio] = useState('08:00');
+  const [horarioFim, setHorarioFim] = useState('18:00');
+  const [diasValidade, setDiasValidade] = useState(2);
 
   useEffect(() => {
     loadCorretoras();
@@ -54,7 +57,10 @@ export default function VistoriaDigital() {
           status: 'aguardando_fotos',
           created_by: user.id,
           corretora_id: selectedCorretora || null,
-          cliente_cpf: clienteCpf || null
+          cliente_cpf: clienteCpf || null,
+          horario_inicio: horarioInicio,
+          horario_fim: horarioFim,
+          dias_validade: diasValidade
         })
         .select()
         .single();
@@ -226,6 +232,51 @@ export default function VistoriaDigital() {
                       placeholder="000.000.000-00"
                       maxLength={14}
                     />
+                  </div>
+                </div>
+
+                {/* Configurações de Horário e Validade */}
+                <div className="space-y-4 border rounded-lg p-4 bg-muted/50">
+                  <h3 className="font-semibold text-sm">Configurações de Validade do Link</h3>
+                  
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label className="text-xs">Horário Início</Label>
+                      <Input
+                        type="time"
+                        value={horarioInicio}
+                        onChange={(e) => setHorarioInicio(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        A partir de que horas
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Horário Fim</Label>
+                      <Input
+                        type="time"
+                        value={horarioFim}
+                        onChange={(e) => setHorarioFim(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Até que horas
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Dias de Validade</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={diasValidade}
+                        onChange={(e) => setDiasValidade(parseInt(e.target.value))}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Quantos dias ativo
+                      </p>
+                    </div>
                   </div>
                 </div>
 

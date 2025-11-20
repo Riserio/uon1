@@ -1347,13 +1347,18 @@ export type Database = {
           cliente_email: string | null
           cliente_nome: string | null
           cliente_telefone: string | null
+          cnh_dados: Json | null
+          cnh_url: string | null
           completed_at: string | null
           corretora_id: string | null
           created_at: string
           created_by: string
           danos_detectados: string[] | null
           data_incidente: string | null
+          dias_validade: number | null
           endereco: string | null
+          horario_fim: string | null
+          horario_inicio: string | null
           id: string
           latitude: number | null
           link_expires_at: string | null
@@ -1381,13 +1386,18 @@ export type Database = {
           cliente_email?: string | null
           cliente_nome?: string | null
           cliente_telefone?: string | null
+          cnh_dados?: Json | null
+          cnh_url?: string | null
           completed_at?: string | null
           corretora_id?: string | null
           created_at?: string
           created_by: string
           danos_detectados?: string[] | null
           data_incidente?: string | null
+          dias_validade?: number | null
           endereco?: string | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
           id?: string
           latitude?: number | null
           link_expires_at?: string | null
@@ -1415,13 +1425,18 @@ export type Database = {
           cliente_email?: string | null
           cliente_nome?: string | null
           cliente_telefone?: string | null
+          cnh_dados?: Json | null
+          cnh_url?: string | null
           completed_at?: string | null
           corretora_id?: string | null
           created_at?: string
           created_by?: string
           danos_detectados?: string[] | null
           data_incidente?: string | null
+          dias_validade?: number | null
           endereco?: string | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
           id?: string
           latitude?: number | null
           link_expires_at?: string | null

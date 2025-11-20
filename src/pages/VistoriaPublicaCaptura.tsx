@@ -194,7 +194,26 @@ export default function VistoriaPublicaCaptura() {
         .eq('vistoria_id', vistoria.id);
 
       if (fotosList && fotosList.length === 4) {
-        // Chamar edge function para análise
+        // Processar OCR da CNH primeiro
+        if (cnhUrl) {
+          const { data: ocrData } = await supabase.functions.invoke('ocr-cnh', {
+            body: { image_url: cnhUrl }
+          });
+
+          if (ocrData?.success && ocrData?.data) {
+            // Atualizar vistoria com dados da CNH
+            await supabase
+              .from('vistorias')
+              .update({
+                cnh_dados: ocrData.data,
+                cliente_nome: ocrData.data.nome || vistoria.cliente_nome,
+                cliente_cpf: ocrData.data.cpf || vistoria.cliente_cpf
+              })
+              .eq('id', vistoria.id);
+          }
+        }
+
+        // Chamar edge function para análise do veículo
         await supabase.functions.invoke('analisar-vistoria-ia', {
           body: {
             vistoria_id: vistoria.id,
@@ -202,8 +221,7 @@ export default function VistoriaPublicaCaptura() {
               id: f.id,
               posicao: f.posicao,
               url: f.arquivo_url
-            })),
-            cnh_url: cnhUrl
+            }))
           }
         });
       }
