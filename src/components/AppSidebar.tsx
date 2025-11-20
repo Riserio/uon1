@@ -167,6 +167,14 @@ export function AppSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
+                    <NavLink to="/vistorias" activeClassName="bg-primary text-primary-foreground">
+                      <Send className="h-4 w-4" />
+                      {!collapsed && <span>Vistorias</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
                     <NavLink to="/agenda" activeClassName="bg-primary text-primary-foreground">
                       <Calendar className="h-4 w-4" />
                       {!collapsed && <span>Agenda</span>}
