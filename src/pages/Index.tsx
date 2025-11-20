@@ -65,14 +65,16 @@ const Index = () => {
     loadStatusPrazo();
     loadUserRole();
 
-    // Subscribe to realtime changes for atendimentos
+    // Subscribe to realtime changes - with debounce to avoid constant reloads
     const atendimentosChannel = supabase.channel('atendimentos_changes').on('postgres_changes', {
       event: '*',
       schema: 'public',
       table: 'atendimentos'
-    }, payload => {
-      console.log('Realtime update:', payload);
-      loadAtendimentos();
+    }, () => {
+      // Only reload if dialog is not open to avoid losing user input
+      if (!dialogOpen) {
+        loadAtendimentos();
+      }
     }).subscribe();
 
     // Subscribe to realtime changes for status_config
@@ -82,13 +84,13 @@ const Index = () => {
       table: 'status_config'
     }, () => {
       loadStatusPrazo();
-      loadAtendimentos();
     }).subscribe();
+    
     return () => {
       supabase.removeChannel(atendimentosChannel);
       supabase.removeChannel(statusConfigChannel);
     };
-  }, [selectedFluxoId]);
+  }, [selectedFluxoId, dialogOpen]);
   const loadAtendimentos = async () => {
     try {
       const {
