@@ -339,7 +339,6 @@ export default function Termos() {
                     <SelectValue placeholder="Todas as corretoras" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todas as corretoras</SelectItem>
                     {corretoras.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                     ))}
@@ -357,7 +356,6 @@ export default function Termos() {
                     <SelectValue placeholder="Todos os tipos" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos os tipos</SelectItem>
                     {TIPOS_SINISTRO.map((tipo) => (
                       <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
                     ))}
