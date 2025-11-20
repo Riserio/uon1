@@ -8,10 +8,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Mail, History, Building2, Upload } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Mail, History, Building2, Upload, Settings } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import InputMask from 'react-input-mask';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { UploadCorretorasDialog } from '@/components/UploadCorretorasDialog';
 import { EnviarEmailSMTPDialog } from '@/components/EnviarEmailSMTPDialog';
 import { CorretoraHistoricoDialog } from '@/components/CorretoraHistoricoDialog';
@@ -31,9 +31,11 @@ interface Corretora {
   estado?: string;
   responsavel?: string;
   observacoes?: string;
+  logo_url?: string;
 }
 
 export default function Corretoras() {
+  const navigate = useNavigate();
   const [corretoras, setCorretoras] = useState<Corretora[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Corretora | null>(null);
@@ -44,6 +46,7 @@ export default function Corretoras() {
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   const [selectedCorretoraForHistory, setSelectedCorretoraForHistory] = useState<{ id: string; nome: string } | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
 
   useEffect(() => {
     fetchCorretoras();
@@ -104,37 +107,86 @@ export default function Corretoras() {
     }
   };
 
+  const handleLogoUpload = async (corretoraId: string) => {
+    if (!logoFile) return null;
+
+    try {
+      setUploadingLogo(true);
+      const fileExt = logoFile.name.split('.').pop();
+      const fileName = `${corretoraId}/logo.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('logos')
+        .upload(fileName, logoFile, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('logos')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Erro ao fazer upload do logo:', error);
+      toast.error('Erro ao fazer upload do logo');
+      return null;
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!formData.nome || !formData.cnpj || !formData.susep) {
       toast.error('Nome, CNPJ e SUSEP são obrigatórios');
       return;
     }
 
-    if (editingItem) {
-      const { error } = await supabase
-        .from('corretoras')
-        .update(formData)
-        .eq('id', editingItem.id);
-      
-      if (error) {
-        toast.error('Erro ao atualizar corretora');
-      } else {
+    try {
+      let logoUrl = formData.logo_url;
+
+      if (editingItem) {
+        // Upload logo if provided
+        if (logoFile) {
+          const uploadedUrl = await handleLogoUpload(editingItem.id);
+          if (uploadedUrl) logoUrl = uploadedUrl;
+        }
+
+        const { error } = await supabase
+          .from('corretoras')
+          .update({ ...formData, logo_url: logoUrl })
+          .eq('id', editingItem.id);
+        
+        if (error) throw error;
         toast.success('Corretora atualizada!');
-        setDialogOpen(false);
-        fetchCorretoras();
-      }
-    } else {
-      const { error } = await supabase
-        .from('corretoras')
-        .insert([{ ...formData, nome: formData.nome! }]);
-      
-      if (error) {
-        toast.error('Erro ao criar corretora');
       } else {
+        const { data: newCorretora, error: insertError } = await supabase
+          .from('corretoras')
+          .insert([{ ...formData, nome: formData.nome! }])
+          .select()
+          .single();
+        
+        if (insertError) throw insertError;
+
+        // Upload logo after creating
+        if (logoFile && newCorretora) {
+          const uploadedUrl = await handleLogoUpload(newCorretora.id);
+          if (uploadedUrl) {
+            await supabase
+              .from('corretoras')
+              .update({ logo_url: uploadedUrl })
+              .eq('id', newCorretora.id);
+          }
+        }
+
         toast.success('Corretora criada!');
-        setDialogOpen(false);
-        fetchCorretoras();
       }
+
+      setDialogOpen(false);
+      setLogoFile(null);
+      fetchCorretoras();
+    } catch (error) {
+      console.error('Erro ao salvar corretora:', error);
+      toast.error('Erro ao salvar corretora');
     }
   };
 
@@ -185,14 +237,25 @@ export default function Corretoras() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-          <Building2 className="h-6 w-6 text-primary" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+            <Building2 className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold">Corretoras</h1>
+            <p className="text-sm text-muted-foreground">Gerencie suas corretoras e informações</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-3xl font-bold">Corretoras</h1>
-          <p className="text-sm text-muted-foreground">Gerencie suas corretoras e informações</p>
-        </div>
+        
+        <Button
+          onClick={() => navigate('/administradora')}
+          variant="outline"
+          className="border-primary hover:bg-primary/10 gap-2"
+        >
+          <Settings className="h-4 w-4" />
+          Administradora
+        </Button>
       </div>
 
       <Card>
@@ -364,6 +427,31 @@ export default function Corretoras() {
                       value={formData.observacoes || ''}
                       onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
                     />
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    <Label htmlFor="logo">Logo da Corretora</Label>
+                    <div className="flex items-center gap-4">
+                      {(formData.logo_url || logoFile) && (
+                        <img 
+                          src={logoFile ? URL.createObjectURL(logoFile) : formData.logo_url} 
+                          alt="Logo preview" 
+                          className="h-16 w-16 object-contain border rounded"
+                        />
+                      )}
+                      <Input
+                        id="logo"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) setLogoFile(file);
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      A logo será exibida nos relatórios e no link público de vistoria
+                    </p>
                   </div>
                 </div>
                 <div className="flex justify-end gap-2">
