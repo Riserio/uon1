@@ -18,8 +18,8 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
         decimalSeparator=","
         prefix="R$ "
         decimalScale={2}
-        fixedDecimalScale
         allowNegative={false}
+        valueIsNumericString
         className={cn(className)}
       />
     );
