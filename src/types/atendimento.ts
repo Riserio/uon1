@@ -18,6 +18,7 @@ export interface Atendimento {
   dataConcluido?: string;
   fluxoConcluido?: string;
   fluxoConcluidoId?: string;
+  fluxoId?: string;
   createdAt: string;
   updatedAt: string;
 }
