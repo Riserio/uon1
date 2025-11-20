@@ -68,6 +68,7 @@ export default function VistoriaManual() {
   const [loading, setLoading] = useState(false);
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
+  const [contratos, setContratos] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     // Veículo
     veiculo_placa: '',
@@ -87,6 +88,7 @@ export default function VistoriaManual() {
     data_incidente: '',
     // Vinculação
     corretora_id: '',
+    contrato_id: '',
     responsavel_id: '',
   });
 
@@ -94,6 +96,12 @@ export default function VistoriaManual() {
     loadCorretoras();
     loadResponsaveis();
   }, []);
+
+  useEffect(() => {
+    if (formData.corretora_id) {
+      loadContratos(formData.corretora_id);
+    }
+  }, [formData.corretora_id]);
 
   const loadCorretoras = async () => {
     try {
@@ -121,6 +129,25 @@ export default function VistoriaManual() {
       setResponsaveis(data || []);
     } catch (error) {
       console.error('Erro ao carregar responsáveis:', error);
+    }
+  };
+
+  const loadContratos = async (corretoraId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('contratos')
+        .select('id, numero_contrato, descricao')
+        .eq('corretora_id', corretoraId)
+        .eq('ativo', true)
+        .order('numero_contrato');
+
+      if (error) throw error;
+      setContratos(data || []);
+      if (data && data.length > 0) {
+        setFormData(prev => ({ ...prev, contrato_id: data[0].id }));
+      }
+    } catch (error) {
+      console.error('Erro ao carregar contratos:', error);
     }
   };
 
@@ -224,6 +251,7 @@ export default function VistoriaManual() {
           status: 'em_analise',
           created_by: user.id,
           corretora_id: formData.corretora_id || null,
+          contrato_id: formData.contrato_id || null,
           latitude,
           longitude,
           endereco,
