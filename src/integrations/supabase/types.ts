@@ -861,6 +861,7 @@ export type Database = {
       fluxos: {
         Row: {
           ativo: boolean
+          cor: string | null
           created_at: string
           descricao: string | null
           gera_proximo_automatico: boolean
@@ -872,6 +873,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          cor?: string | null
           created_at?: string
           descricao?: string | null
           gera_proximo_automatico?: boolean
@@ -883,6 +885,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          cor?: string | null
           created_at?: string
           descricao?: string | null
           gera_proximo_automatico?: boolean

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Search, FileSearch, CheckCircle2, Clock, AlertCircle, Car, User, Calendar, Phone, Mail, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatCPF, formatPlaca } from '@/lib/validators';
+import { cn } from '@/lib/utils';
 
 export default function AcompanhamentoSinistro() {
   const [busca, setBusca] = useState('');
@@ -66,15 +67,40 @@ export default function AcompanhamentoSinistro() {
       setVistoriaData(vistoriaResult);
       setAtendimento(vistoriaResult.atendimentos);
 
-      // Buscar andamentos
+      // Buscar andamentos e histórico
       if (vistoriaResult.atendimentos?.id) {
         const { data: andamentosData } = await supabase
           .from('andamentos')
           .select('*, profiles!andamentos_created_by_fkey(nome)')
           .eq('atendimento_id', vistoriaResult.atendimentos.id)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: true });
 
-        setAndamentos(andamentosData || []);
+        const { data: historicoData } = await supabase
+          .from('atendimentos_historico')
+          .select('*')
+          .eq('atendimento_id', vistoriaResult.atendimentos.id)
+          .contains('campos_alterados', ['status'])
+          .order('created_at', { ascending: true });
+
+        // Combinar andamentos e histórico de status
+        const combinedTimeline = [
+          ...(andamentosData || []).map((a: any) => ({
+            id: a.id,
+            type: 'andamento',
+            descricao: a.descricao,
+            created_at: a.created_at,
+            created_by: a.profiles?.nome || 'Sistema'
+          })),
+          ...(historicoData || []).map((h: any) => ({
+            id: h.id,
+            type: 'status_change',
+            descricao: `Status alterado: ${(h.valores_anteriores as any)?.status || 'N/A'} → ${(h.valores_novos as any)?.status || 'N/A'}`,
+            created_at: h.created_at,
+            created_by: h.user_nome
+          }))
+        ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+        setAndamentos(combinedTimeline);
       }
 
       // Buscar status públicos
@@ -309,32 +335,52 @@ export default function AcompanhamentoSinistro() {
               </Card>
             )}
 
-            {/* Histórico de Andamentos */}
+            {/* Histórico de Andamentos e Mudanças de Status */}
             {andamentos.length > 0 && (
               <Card className="shadow-lg border-0">
                 <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
                   <CardTitle className="flex items-center gap-3">
                     <FileText className="h-6 w-6 text-purple-600" />
-                    Histórico de Andamentos
+                    Histórico Completo
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
                   <div className="space-y-4">
-                    {andamentos.map((andamento) => (
+                    {andamentos.map((item: any, index: number) => (
                       <div 
-                        key={andamento.id}
-                        className="p-4 border-l-4 border-purple-500 bg-purple-50/50 rounded-r-lg"
+                        key={item.id}
+                        className={cn(
+                          "p-4 rounded-r-lg relative",
+                          item.type === 'status_change' 
+                            ? "border-l-4 border-blue-500 bg-blue-50/50" 
+                            : "border-l-4 border-purple-500 bg-purple-50/50"
+                        )}
                       >
+                        {/* Linha conectora */}
+                        {index < andamentos.length - 1 && (
+                          <div className="absolute left-0 top-full w-[4px] h-4 bg-gray-200" />
+                        )}
+                        
                         <div className="flex items-start justify-between mb-2">
-                          <span className="text-sm font-medium text-purple-900">
-                            {andamento.profiles?.nome || 'Sistema'}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "text-sm font-medium",
+                              item.type === 'status_change' ? "text-blue-900" : "text-purple-900"
+                            )}>
+                              {item.created_by}
+                            </span>
+                            {item.type === 'status_change' && (
+                              <Badge variant="outline" className="text-xs border-blue-500 text-blue-700">
+                                Mudança de Status
+                              </Badge>
+                            )}
+                          </div>
                           <span className="text-xs text-gray-500">
-                            {new Date(andamento.created_at).toLocaleString('pt-BR')}
+                            {new Date(item.created_at).toLocaleString('pt-BR')}
                           </span>
                         </div>
                         <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                          {andamento.descricao}
+                          {item.descricao}
                         </p>
                       </div>
                     ))}

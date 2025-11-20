@@ -11,6 +11,7 @@ interface Fluxo {
   descricao: string | null;
   ordem: number;
   ativo: boolean;
+  cor: string;
 }
 
 interface FluxoSelectorProps {
@@ -64,7 +65,7 @@ export function FluxoSelector({ selectedFluxoId, onFluxoSelect, onConfigureFluxo
 
   return (
     <ScrollArea className="w-full whitespace-nowrap">
-      <div className="flex items-center gap-2 px-1 py-2">
+      <div className="flex items-center gap-3 px-1 py-2">
         {fluxos.map((fluxo, index) => {
           const isActive = selectedFluxoId === fluxo.id;
           const isPassed = fluxos.findIndex(f => f.id === selectedFluxoId) > index;
@@ -72,10 +73,35 @@ export function FluxoSelector({ selectedFluxoId, onFluxoSelect, onConfigureFluxo
           return (
             <div key={fluxo.id} className="flex items-center">
               {index > 0 && (
-                <div className={cn(
-                  "h-[2px] w-12 mx-2 transition-colors",
-                  isPassed || isActive ? "bg-primary" : "bg-border"
-                )} />
+                <div className="flex items-center gap-1 mx-2">
+                  <div 
+                    className={cn(
+                      "h-[2px] w-8 transition-all duration-300",
+                      isPassed || isActive ? "bg-current" : "bg-border"
+                    )}
+                    style={{ 
+                      color: isPassed || isActive ? fluxos[index - 1].cor : undefined 
+                    }}
+                  />
+                  <div 
+                    className={cn(
+                      "w-2 h-2 rounded-full transition-all duration-300",
+                      isPassed || isActive ? "bg-current scale-100" : "bg-border scale-75"
+                    )}
+                    style={{ 
+                      color: isPassed || isActive ? fluxo.cor : undefined 
+                    }}
+                  />
+                  <div 
+                    className={cn(
+                      "h-[2px] w-8 transition-all duration-300",
+                      isActive ? "bg-current" : "bg-border"
+                    )}
+                    style={{ 
+                      color: isActive ? fluxo.cor : undefined 
+                    }}
+                  />
+                </div>
               )}
               <Button
                 variant={isActive ? "default" : "outline"}
@@ -83,12 +109,37 @@ export function FluxoSelector({ selectedFluxoId, onFluxoSelect, onConfigureFluxo
                 onClick={() => onFluxoSelect(fluxo.id)}
                 title={fluxo.descricao || fluxo.nome}
                 className={cn(
-                  "h-9 px-6 rounded-full font-medium transition-all whitespace-nowrap",
-                  isActive && "shadow-md",
-                  isPassed && !isActive && "border-primary text-primary bg-primary/5"
+                  "h-10 px-6 rounded-full font-medium transition-all whitespace-nowrap relative overflow-hidden group",
+                  isActive && "shadow-lg border-2",
+                  isPassed && !isActive && "border-2 bg-opacity-10"
                 )}
+                style={{
+                  backgroundColor: isActive ? fluxo.cor : isPassed ? `${fluxo.cor}15` : undefined,
+                  borderColor: (isActive || isPassed) ? fluxo.cor : undefined,
+                  color: isActive ? '#ffffff' : isPassed ? fluxo.cor : undefined,
+                }}
               >
-                {fluxo.nome}
+                {isActive && (
+                  <div 
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"
+                    style={{ 
+                      backgroundSize: '200% 100%',
+                      animation: 'shimmer 2s infinite'
+                    }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-2">
+                  <div 
+                    className={cn(
+                      "w-2 h-2 rounded-full transition-all",
+                      isActive && "animate-pulse"
+                    )}
+                    style={{ 
+                      backgroundColor: isActive ? '#ffffff' : fluxo.cor 
+                    }}
+                  />
+                  {fluxo.nome}
+                </span>
               </Button>
             </div>
           );
