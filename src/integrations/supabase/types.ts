@@ -1353,6 +1353,12 @@ export type Database = {
           corretora_id: string | null
           created_at: string
           created_by: string
+          custo_acordo: number | null
+          custo_oficina: number | null
+          custo_perda_parcial: number | null
+          custo_perda_total: number | null
+          custo_reparo: number | null
+          custo_terceiros: number | null
           danos_detectados: string[] | null
           data_incidente: string | null
           dias_validade: number | null
@@ -1370,8 +1376,11 @@ export type Database = {
           relatorio_url: string | null
           status: string
           tipo_abertura: string
+          tipo_sinistro: string | null
           tipo_vistoria: string
           updated_at: string
+          valor_franquia: number | null
+          valor_indenizacao: number | null
           veiculo_ano: string | null
           veiculo_chassi: string | null
           veiculo_cor: string | null
@@ -1392,6 +1401,12 @@ export type Database = {
           corretora_id?: string | null
           created_at?: string
           created_by: string
+          custo_acordo?: number | null
+          custo_oficina?: number | null
+          custo_perda_parcial?: number | null
+          custo_perda_total?: number | null
+          custo_reparo?: number | null
+          custo_terceiros?: number | null
           danos_detectados?: string[] | null
           data_incidente?: string | null
           dias_validade?: number | null
@@ -1409,8 +1424,11 @@ export type Database = {
           relatorio_url?: string | null
           status?: string
           tipo_abertura: string
+          tipo_sinistro?: string | null
           tipo_vistoria: string
           updated_at?: string
+          valor_franquia?: number | null
+          valor_indenizacao?: number | null
           veiculo_ano?: string | null
           veiculo_chassi?: string | null
           veiculo_cor?: string | null
@@ -1431,6 +1449,12 @@ export type Database = {
           corretora_id?: string | null
           created_at?: string
           created_by?: string
+          custo_acordo?: number | null
+          custo_oficina?: number | null
+          custo_perda_parcial?: number | null
+          custo_perda_total?: number | null
+          custo_reparo?: number | null
+          custo_terceiros?: number | null
           danos_detectados?: string[] | null
           data_incidente?: string | null
           dias_validade?: number | null
@@ -1448,8 +1472,11 @@ export type Database = {
           relatorio_url?: string | null
           status?: string
           tipo_abertura?: string
+          tipo_sinistro?: string | null
           tipo_vistoria?: string
           updated_at?: string
+          valor_franquia?: number | null
+          valor_indenizacao?: number | null
           veiculo_ano?: string | null
           veiculo_chassi?: string | null
           veiculo_cor?: string | null

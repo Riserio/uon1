@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import InputMask from 'react-input-mask';
-import { FileText, ArrowLeft } from 'lucide-react';
+import { FileText, ArrowLeft, AlertTriangle, TrendingUp } from 'lucide-react';
 
 export default function AberturaSinistro() {
   const navigate = useNavigate();
