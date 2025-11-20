@@ -12,51 +12,74 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    console.log('=== INICIANDO CRIAÇÃO DE DADOS DE TESTE ===');
+    
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    
+    console.log('Criando cliente Supabase com service role...');
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
 
     const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
+      console.error('❌ Authorization header ausente');
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Missing authorization header' 
+      }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const token = authHeader.replace('Bearer ', '');
+    console.log('Autenticando usuário...');
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
 
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid user' }), {
+      console.error('❌ Erro de autenticação:', userError);
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Invalid user',
+        details: userError 
+      }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Limpando dados de teste...');
+    console.log('✅ Usuário autenticado:', user.id);
+    console.log('🧹 Limpando dados de teste existentes...');
 
-    // Limpar dados de teste (apenas vistorias e atendimentos de teste)
+    // Limpar dados de teste usando service role (bypassa RLS)
     await supabase.from('andamentos').delete().like('descricao', '%TESTE%');
     await supabase.from('vistorias').delete().like('cliente_nome', '%Teste%');
     await supabase.from('atendimentos').delete().like('assunto', '%TESTE%');
 
-    console.log('Criando dados de teste...');
+    console.log('🔍 Buscando fluxo ativo...');
 
     // Buscar fluxo ativo
-    const { data: fluxo } = await supabase
+    const { data: fluxo, error: fluxoError } = await supabase
       .from('fluxos')
       .select('id, nome')
       .eq('ativo', true)
       .limit(1)
       .single();
 
-    if (!fluxo) {
+    if (fluxoError || !fluxo) {
+      console.error('❌ Erro ao buscar fluxo:', fluxoError);
       throw new Error('Nenhum fluxo ativo encontrado');
     }
 
+    console.log('✅ Fluxo encontrado:', fluxo.nome);
+
     // Buscar primeiro status do fluxo
-    const { data: primeiroStatus } = await supabase
+    const { data: primeiroStatus, error: statusError } = await supabase
       .from('status_config')
       .select('nome')
       .eq('fluxo_id', fluxo.id)
@@ -65,16 +88,21 @@ const handler = async (req: Request): Promise<Response> => {
       .limit(1)
       .single();
 
-    if (!primeiroStatus) {
+    if (statusError || !primeiroStatus) {
+      console.error('❌ Erro ao buscar status:', statusError);
       throw new Error('Nenhum status encontrado para o fluxo');
     }
 
+    console.log('✅ Status inicial:', primeiroStatus.nome);
+
     // Buscar corretora
-    const { data: corretora } = await supabase
+    const { data: corretora, error: corretoraError } = await supabase
       .from('corretoras')
       .select('id')
       .limit(1)
-      .single();
+      .maybeSingle();
+
+    console.log('Corretora:', corretora ? '✅ Encontrada' : '⚠️  Nenhuma encontrada');
 
     const dadosTeste = [
       {
@@ -186,8 +214,14 @@ const handler = async (req: Request): Promise<Response> => {
 
     const criadosComSucesso = [];
 
-    for (const dado of dadosTeste) {
+    console.log(`📝 Criando ${dadosTeste.length} registros de teste...`);
+
+    for (let i = 0; i < dadosTeste.length; i++) {
+      const dado = dadosTeste[i];
+      console.log(`\n--- Criando registro ${i + 1}/${dadosTeste.length} ---`);
+      
       // Criar atendimento
+      console.log('Criando atendimento...');
       const { data: atendimento, error: atendimentoError } = await supabase
         .from('atendimentos')
         .insert({
@@ -203,11 +237,14 @@ const handler = async (req: Request): Promise<Response> => {
         .single();
 
       if (atendimentoError) {
-        console.error('Erro ao criar atendimento:', atendimentoError);
+        console.error('❌ Erro ao criar atendimento:', atendimentoError);
         continue;
       }
 
+      console.log('✅ Atendimento criado, protocolo:', atendimento.numero);
+
       // Criar vistoria
+      console.log('Criando vistoria...');
       const { data: vistoria, error: vistoriaError } = await supabase
         .from('vistorias')
         .insert({
@@ -232,19 +269,28 @@ const handler = async (req: Request): Promise<Response> => {
         .single();
 
       if (vistoriaError) {
-        console.error('Erro ao criar vistoria:', vistoriaError);
+        console.error('❌ Erro ao criar vistoria:', vistoriaError);
+        // Deletar atendimento órfão
+        await supabase.from('atendimentos').delete().eq('id', atendimento.id);
         continue;
       }
 
+      console.log('✅ Vistoria criada, número:', vistoria.numero);
+
       // Criar andamentos
+      console.log(`Criando ${dado.andamentos.length} andamentos...`);
       for (const andamento of dado.andamentos) {
-        await supabase
+        const { error: andamentoError } = await supabase
           .from('andamentos')
           .insert({
             atendimento_id: atendimento.id,
             created_by: user.id,
             descricao: andamento
           });
+        
+        if (andamentoError) {
+          console.error('⚠️  Erro ao criar andamento:', andamentoError);
+        }
       }
 
       criadosComSucesso.push({
@@ -253,7 +299,12 @@ const handler = async (req: Request): Promise<Response> => {
         placa: dado.veiculo.placa,
         cpf: dado.cliente.cpf
       });
+
+      console.log(`✅ Registro ${i + 1} criado com sucesso!`);
     }
+
+    console.log(`\n✅ Total de registros criados: ${criadosComSucesso.length}`);
+    console.log('=== FIM DA CRIAÇÃO ===\n');
 
     return new Response(
       JSON.stringify({
@@ -266,7 +317,9 @@ const handler = async (req: Request): Promise<Response> => {
       }
     );
   } catch (error) {
-    console.error('Error:', error);
+    console.error('❌ ERRO FATAL:', error);
+    console.error('Stack trace:', error instanceof Error ? error.stack : 'N/A');
+    
     return new Response(
       JSON.stringify({ 
         success: false,

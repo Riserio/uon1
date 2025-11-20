@@ -104,6 +104,7 @@ export default function AcompanhamentoSinistro() {
       }
 
       if (!vistoriaResult && !atendimentoData) {
+        console.log('❌ Nenhum resultado encontrado');
         toast.error('Nenhum sinistro encontrado com esses dados');
         setVistoriaData(null);
         setAtendimento(null);
@@ -111,6 +112,12 @@ export default function AcompanhamentoSinistro() {
         setAndamentos([]);
         return;
       }
+
+      console.log('✅ Dados encontrados:', { 
+        vistoria: !!vistoriaResult, 
+        atendimento: !!atendimentoData,
+        fluxo_id: atendimentoData?.fluxo_id 
+      });
 
       setVistoriaData(vistoriaResult);
       setAtendimento(atendimentoData);
@@ -150,17 +157,28 @@ export default function AcompanhamentoSinistro() {
 
         setAndamentos(combinedTimeline);
 
+        console.log('📋 Andamentos combinados:', combinedTimeline.length);
+
         // Buscar status públicos configurados para o fluxo
         if (atendimentoData.fluxo_id) {
-          const { data: statusData } = await supabase
+          const { data: statusData, error: statusError } = await supabase
             .from('status_publicos_config')
             .select('*')
             .eq('fluxo_id', atendimentoData.fluxo_id)
             .eq('visivel_publico', true)
             .order('ordem_exibicao');
 
-          setStatusPublicos(statusData || []);
+          if (statusError) {
+            console.error('❌ Erro ao buscar status públicos:', statusError);
+          } else {
+            console.log('📊 Status públicos encontrados:', statusData?.length || 0);
+            setStatusPublicos(statusData || []);
+          }
+        } else {
+          console.warn('⚠️  Atendimento sem fluxo_id configurado');
         }
+      } else {
+        console.warn('⚠️  Vistoria encontrada mas sem atendimento vinculado');
       }
 
       toast.success('Sinistro encontrado!');
@@ -354,7 +372,7 @@ export default function AcompanhamentoSinistro() {
             </Card>
 
             {/* Linha do Tempo de Status */}
-            {statusPublicos.length > 0 && (
+            {statusPublicos.length > 0 ? (
               <Card className="shadow-2xl border-0 overflow-hidden">
                 <div className="bg-gradient-to-r from-primary to-primary/60 p-1">
                   <CardHeader className="bg-card">
@@ -419,6 +437,18 @@ export default function AcompanhamentoSinistro() {
                       );
                     })}
                   </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="shadow-lg border-0">
+                <CardContent className="p-8 text-center">
+                  <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-lg text-muted-foreground">
+                    Linha do tempo não configurada para este fluxo.
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Entre em contato com o suporte para mais informações.
+                  </p>
                 </CardContent>
               </Card>
             )}
