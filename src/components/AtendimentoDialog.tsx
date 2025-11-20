@@ -537,10 +537,14 @@ export function AtendimentoDialog({
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="grid w-full grid-cols-5 mb-4">
+            <TabsList className="grid w-full grid-cols-6 mb-4">
               <TabsTrigger value="geral" className="gap-2">
                 <FileText className="h-4 w-4" />
                 Geral
+              </TabsTrigger>
+              <TabsTrigger value="dados_pessoais" className="gap-2" onClick={() => atendimento && loadVistoriaCustos(atendimento.id)}>
+                <User className="h-4 w-4" />
+                Dados Pessoais
               </TabsTrigger>
               <TabsTrigger value="andamentos" className="gap-2">
                 <MessageSquare className="h-4 w-4" />
@@ -550,7 +554,7 @@ export function AtendimentoDialog({
                 <Paperclip className="h-4 w-4" />
                 Anexos
               </TabsTrigger>
-              <TabsTrigger value="custos" className="gap-2" onClick={() => atendimento && loadVistoriaCustos(atendimento.id)}>
+              <TabsTrigger value="custos" className="gap-2">
                 <DollarSign className="h-4 w-4" />
                 Custos
               </TabsTrigger>
@@ -793,262 +797,163 @@ export function AtendimentoDialog({
               </form>
             </TabsContent>
 
-              <TabsContent value="andamentos" className="mt-0">
-                {atendimento?.id ? (
-                  <AndamentosList atendimentoId={atendimento.id} />
-                ) : (
-                  <div className="p-4 text-center text-muted-foreground">
-                    Salve o atendimento para adicionar andamentos
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="anexos" className="mt-0">
-                {atendimento?.id ? (
-                  <div className="p-4">
-                    <AnexosUpload
-                      atendimentoId={atendimento.id}
-                      anexos={anexos}
-                      onAnexosChange={setAnexos}
-                    />
-                  </div>
-                ) : (
-                  <div className="p-4 text-center text-muted-foreground">
-                    Salve o atendimento para adicionar anexos
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="custos" className="mt-0 space-y-6 p-4 overflow-y-auto max-h-[calc(90vh-300px)]">
+              <TabsContent value="dados_pessoais" className="mt-0 space-y-6 p-4 overflow-y-auto max-h-[calc(90vh-300px)]">
                 {/* Dados do Sinistro - apenas se tipo_atendimento === 'sinistro' */}
                 {vistoriaData.tipo_atendimento === 'sinistro' && (
-                  <>
-                    <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
-                      <h4 className="font-medium">Dados do Sinistro</h4>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="data_incidente">Data do Incidente</Label>
-                          <Input
-                            id="data_incidente"
-                            type="date"
-                            value={vistoriaData.data_incidente}
-                            onChange={(e) => setVistoriaData({ ...vistoriaData, data_incidente: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="cof">COF</Label>
-                          <Input
-                            id="cof"
-                            value={vistoriaData.cof}
-                            onChange={(e) => setVistoriaData({ ...vistoriaData, cof: e.target.value })}
-                            placeholder="Código de Ocorrência"
-                          />
-                        </div>
-                      </div>
-
+                  <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                    <h4 className="font-medium">Dados do Sinistro</h4>
+                    
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="relato_incidente">Relato do Incidente</Label>
-                        <Textarea
-                          id="relato_incidente"
-                          value={vistoriaData.relato_incidente}
-                          onChange={(e) => setVistoriaData({ ...vistoriaData, relato_incidente: e.target.value })}
-                          rows={4}
-                          placeholder="Descreva o que aconteceu..."
+                        <Label htmlFor="data_incidente">Data do Incidente</Label>
+                        <Input
+                          id="data_incidente"
+                          type="date"
+                          value={vistoriaData.data_incidente}
+                          onChange={(e) => setVistoriaData({ ...vistoriaData, data_incidente: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="cof">COF</Label>
+                        <Input
+                          id="cof"
+                          value={vistoriaData.cof}
+                          onChange={(e) => setVistoriaData({ ...vistoriaData, cof: e.target.value })}
+                          placeholder="Código de Ocorrência"
                         />
                       </div>
                     </div>
 
-                    {/* Dados do Veículo */}
-                    <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
-                      <h4 className="font-medium">Dados do Veículo</h4>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="veiculo_placa">Placa *</Label>
-                          <Input
-                            id="veiculo_placa"
-                            value={vistoriaData.veiculo_placa}
-                            onChange={(e) => {
-                              const value = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
-                              const formatted = value.length > 3 && !value.includes('-') 
-                                ? value.slice(0, 3) + '-' + value.slice(3, 7)
-                                : value;
-                              setVistoriaData({ ...vistoriaData, veiculo_placa: formatted });
-                            }}
-                            placeholder="ABC-1234"
-                            maxLength={8}
-                            className={vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa) ? 'border-destructive' : ''}
-                          />
-                          {vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa) && (
-                            <p className="text-xs text-destructive">Placa inválida</p>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="veiculo_marca">Marca</Label>
-                          <Input
-                            id="veiculo_marca"
-                            value={vistoriaData.veiculo_marca}
-                            onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_marca: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="veiculo_modelo">Modelo</Label>
-                          <Input
-                            id="veiculo_modelo"
-                            value={vistoriaData.veiculo_modelo}
-                            onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_modelo: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="veiculo_ano">Ano</Label>
-                          <Input
-                            id="veiculo_ano"
-                            value={vistoriaData.veiculo_ano}
-                            onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_ano: e.target.value })}
-                            placeholder="2020/2021"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="veiculo_cor">Cor</Label>
-                          <Input
-                            id="veiculo_cor"
-                            value={vistoriaData.veiculo_cor}
-                            onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_cor: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="veiculo_chassi">Chassi</Label>
-                          <Input
-                            id="veiculo_chassi"
-                            value={vistoriaData.veiculo_chassi}
-                            onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_chassi: e.target.value.toUpperCase() })}
-                            maxLength={17}
-                            placeholder="17 caracteres"
-                          />
-                        </div>
-                      </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="relato_incidente">Relato do Incidente</Label>
+                      <Textarea
+                        id="relato_incidente"
+                        value={vistoriaData.relato_incidente}
+                        onChange={(e) => setVistoriaData({ ...vistoriaData, relato_incidente: e.target.value })}
+                        rows={4}
+                        placeholder="Descreva o que aconteceu..."
+                      />
                     </div>
-
-                    {/* Dados do Cliente */}
-                    <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
-                      <h4 className="font-medium">Dados do Cliente</h4>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="cliente_nome">Nome Completo</Label>
-                          <Input
-                            id="cliente_nome"
-                            value={vistoriaData.cliente_nome}
-                            onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_nome: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="cliente_cpf">CPF</Label>
-                          <MaskedInput
-                            id="cliente_cpf"
-                            format="###.###.###-##"
-                            mask="_"
-                            value={vistoriaData.cliente_cpf}
-                            onValueChange={(values) => setVistoriaData({ ...vistoriaData, cliente_cpf: values.value })}
-                            placeholder="000.000.000-00"
-                            className={vistoriaData.cliente_cpf && !validateCPF(vistoriaData.cliente_cpf) ? 'border-destructive' : ''}
-                          />
-                          {vistoriaData.cliente_cpf && !validateCPF(vistoriaData.cliente_cpf) && (
-                            <p className="text-xs text-destructive">CPF inválido</p>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="cliente_telefone">Telefone</Label>
-                          <MaskedInput
-                            id="cliente_telefone"
-                            format="(##) #####-####"
-                            mask="_"
-                            value={vistoriaData.cliente_telefone}
-                            onValueChange={(values) => setVistoriaData({ ...vistoriaData, cliente_telefone: values.value })}
-                            placeholder="(00) 00000-0000"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="cliente_email">Email</Label>
-                          <Input
-                            id="cliente_email"
-                            type="email"
-                            value={vistoriaData.cliente_email}
-                            onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_email: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
 
-                {/* Custos e Valores - sempre visível */}
+                {/* Dados do Veículo */}
                 <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
-                  <h4 className="font-medium">Custos e Valores</h4>
+                  <h4 className="font-medium">Dados do Veículo</h4>
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="custo_oficina_tab">Custo Oficina</Label>
-                      <CurrencyInput
-                        id="custo_oficina_tab"
-                        value={custos.custo_oficina}
-                        onValueChange={(values) => setCustos({ ...custos, custo_oficina: values?.floatValue || 0 })}
+                      <Label htmlFor="veiculo_placa">Placa</Label>
+                      <Input
+                        id="veiculo_placa"
+                        value={vistoriaData.veiculo_placa}
+                        onChange={(e) => {
+                          const value = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+                          const formatted = value.length > 3 && !value.includes('-') 
+                            ? value.slice(0, 3) + '-' + value.slice(3, 7)
+                            : value;
+                          setVistoriaData({ ...vistoriaData, veiculo_placa: formatted });
+                        }}
+                        placeholder="ABC-1234"
+                        maxLength={8}
+                        className={vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa) ? 'border-destructive' : ''}
+                      />
+                      {vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa) && (
+                        <p className="text-xs text-destructive">Placa inválida</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="veiculo_marca">Marca</Label>
+                      <Input
+                        id="veiculo_marca"
+                        value={vistoriaData.veiculo_marca}
+                        onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_marca: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="custo_reparo_tab">Custo Reparo</Label>
-                      <CurrencyInput
-                        id="custo_reparo_tab"
-                        value={custos.custo_reparo}
-                        onValueChange={(values) => setCustos({ ...custos, custo_reparo: values?.floatValue || 0 })}
+                      <Label htmlFor="veiculo_modelo">Modelo</Label>
+                      <Input
+                        id="veiculo_modelo"
+                        value={vistoriaData.veiculo_modelo}
+                        onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_modelo: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="custo_acordo_tab">Custo Acordo</Label>
-                      <CurrencyInput
-                        id="custo_acordo_tab"
-                        value={custos.custo_acordo}
-                        onValueChange={(values) => setCustos({ ...custos, custo_acordo: values?.floatValue || 0 })}
+                      <Label htmlFor="veiculo_ano">Ano</Label>
+                      <Input
+                        id="veiculo_ano"
+                        value={vistoriaData.veiculo_ano}
+                        onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_ano: e.target.value })}
+                        placeholder="2020/2021"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="custo_terceiros_tab">Custo Terceiros</Label>
-                      <CurrencyInput
-                        id="custo_terceiros_tab"
-                        value={custos.custo_terceiros}
-                        onValueChange={(values) => setCustos({ ...custos, custo_terceiros: values?.floatValue || 0 })}
+                      <Label htmlFor="veiculo_cor">Cor</Label>
+                      <Input
+                        id="veiculo_cor"
+                        value={vistoriaData.veiculo_cor}
+                        onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_cor: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="custo_perda_total_tab">Perda Total</Label>
-                      <CurrencyInput
-                        id="custo_perda_total_tab"
-                        value={custos.custo_perda_total}
-                        onValueChange={(values) => setCustos({ ...custos, custo_perda_total: values?.floatValue || 0 })}
+                      <Label htmlFor="veiculo_chassi">Chassi</Label>
+                      <Input
+                        id="veiculo_chassi"
+                        value={vistoriaData.veiculo_chassi}
+                        onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_chassi: e.target.value.toUpperCase() })}
+                        maxLength={17}
+                        placeholder="17 caracteres"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dados do Cliente */}
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                  <h4 className="font-medium">Dados do Cliente</h4>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="cliente_nome">Nome Completo</Label>
+                      <Input
+                        id="cliente_nome"
+                        value={vistoriaData.cliente_nome}
+                        onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_nome: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="custo_perda_parcial_tab">Perda Parcial</Label>
-                      <CurrencyInput
-                        id="custo_perda_parcial_tab"
-                        value={custos.custo_perda_parcial}
-                        onValueChange={(values) => setCustos({ ...custos, custo_perda_parcial: values?.floatValue || 0 })}
+                      <Label htmlFor="cliente_cpf">CPF</Label>
+                      <MaskedInput
+                        id="cliente_cpf"
+                        format="###.###.###-##"
+                        mask="_"
+                        value={vistoriaData.cliente_cpf}
+                        onValueChange={(values) => setVistoriaData({ ...vistoriaData, cliente_cpf: values.value })}
+                        placeholder="000.000.000-00"
+                        className={vistoriaData.cliente_cpf && !validateCPF(vistoriaData.cliente_cpf) ? 'border-destructive' : ''}
+                      />
+                      {vistoriaData.cliente_cpf && !validateCPF(vistoriaData.cliente_cpf) && (
+                        <p className="text-xs text-destructive">CPF inválido</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cliente_telefone">Telefone</Label>
+                      <MaskedInput
+                        id="cliente_telefone"
+                        format="(##) #####-####"
+                        mask="_"
+                        value={vistoriaData.cliente_telefone}
+                        onValueChange={(values) => setVistoriaData({ ...vistoriaData, cliente_telefone: values.value })}
+                        placeholder="(00) 00000-0000"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="valor_franquia_tab">Valor Franquia</Label>
-                      <CurrencyInput
-                        id="valor_franquia_tab"
-                        value={custos.valor_franquia}
-                        onValueChange={(values) => setCustos({ ...custos, valor_franquia: values?.floatValue || 0 })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="valor_indenizacao_tab">Valor Indenização</Label>
-                      <CurrencyInput
-                        id="valor_indenizacao_tab"
-                        value={custos.valor_indenizacao}
-                        onValueChange={(values) => setCustos({ ...custos, valor_indenizacao: values?.floatValue || 0 })}
+                      <Label htmlFor="cliente_email">Email</Label>
+                      <Input
+                        id="cliente_email"
+                        type="email"
+                        value={vistoriaData.cliente_email}
+                        onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_email: e.target.value })}
                       />
                     </div>
                   </div>
@@ -1075,6 +980,113 @@ export function AtendimentoDialog({
                     </Button>
                   </div>
                 )}
+              </TabsContent>
+
+              
+              <TabsContent value="andamentos" className="mt-0">
+                {atendimento?.id ? (
+                  <AndamentosList atendimentoId={atendimento.id} />
+                ) : (
+                  <div className="p-4 text-center text-muted-foreground">
+                    Salve o atendimento para adicionar andamentos
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="anexos" className="mt-0">
+                {atendimento?.id ? (
+                  <div className="p-4">
+                    <AnexosUpload
+                      atendimentoId={atendimento.id}
+                      anexos={anexos}
+                      onAnexosChange={setAnexos}
+                    />
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-muted-foreground">
+                    Salve o atendimento para adicionar anexos
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="custos" className="mt-0 p-4">
+                <div className="space-y-4">
+                  <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                    <h4 className="font-medium">Custos e Valores</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="custo_oficina_tab">Custo Oficina</Label>
+                        <CurrencyInput
+                          id="custo_oficina_tab"
+                          value={custos.custo_oficina}
+                          onValueChange={(values) => setCustos({ ...custos, custo_oficina: values?.floatValue || 0 })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="custo_reparo_tab">Custo Reparo</Label>
+                        <CurrencyInput
+                          id="custo_reparo_tab"
+                          value={custos.custo_reparo}
+                          onValueChange={(values) => setCustos({ ...custos, custo_reparo: values?.floatValue || 0 })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="custo_acordo_tab">Custo Acordo</Label>
+                        <CurrencyInput
+                          id="custo_acordo_tab"
+                          value={custos.custo_acordo}
+                          onValueChange={(values) => setCustos({ ...custos, custo_acordo: values?.floatValue || 0 })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="custo_terceiros_tab">Custo Terceiros</Label>
+                        <CurrencyInput
+                          id="custo_terceiros_tab"
+                          value={custos.custo_terceiros}
+                          onValueChange={(values) => setCustos({ ...custos, custo_terceiros: values?.floatValue || 0 })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="custo_perda_total_tab">Perda Total</Label>
+                        <CurrencyInput
+                          id="custo_perda_total_tab"
+                          value={custos.custo_perda_total}
+                          onValueChange={(values) => setCustos({ ...custos, custo_perda_total: values?.floatValue || 0 })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="custo_perda_parcial_tab">Perda Parcial</Label>
+                        <CurrencyInput
+                          id="custo_perda_parcial_tab"
+                          value={custos.custo_perda_parcial}
+                          onValueChange={(values) => setCustos({ ...custos, custo_perda_parcial: values?.floatValue || 0 })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="valor_franquia_tab">Valor Franquia</Label>
+                        <CurrencyInput
+                          id="valor_franquia_tab"
+                          value={custos.valor_franquia}
+                          onValueChange={(values) => setCustos({ ...custos, valor_franquia: values?.floatValue || 0 })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="valor_indenizacao_tab">Valor Indenização</Label>
+                        <CurrencyInput
+                          id="valor_indenizacao_tab"
+                          value={custos.valor_indenizacao}
+                          onValueChange={(values) => setCustos({ ...custos, valor_indenizacao: values?.floatValue || 0 })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-4 border-t">
+                    <Button onClick={handleSalvarCustos}>
+                      Salvar Custos
+                    </Button>
+                  </div>
+                </div>
               </TabsContent>
 
               <TabsContent value="andamentos" className="mt-0">
