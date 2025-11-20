@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Plus, Edit, Trash2, FileText, Upload, ExternalLink } from 'lucide-react';
@@ -33,7 +34,7 @@ export default function Termos() {
   const [formData, setFormData] = useState({
     titulo: '',
     descricao: '',
-    tipo_sinistro: '',
+    tipo_sinistro: [] as string[],
     corretora_id: '',
     ativo: true,
     obrigatorio: true,
@@ -167,7 +168,7 @@ export default function Termos() {
     setFormData({
       titulo: termo.titulo,
       descricao: termo.descricao || '',
-      tipo_sinistro: termo.tipo_sinistro || '',
+      tipo_sinistro: termo.tipo_sinistro || [],
       corretora_id: termo.corretora_id || '',
       ativo: termo.ativo,
       obrigatorio: termo.obrigatorio,
@@ -198,7 +199,7 @@ export default function Termos() {
     setFormData({
       titulo: '',
       descricao: '',
-      tipo_sinistro: '',
+      tipo_sinistro: [],
       corretora_id: '',
       ativo: true,
       obrigatorio: true,
@@ -266,10 +267,10 @@ export default function Termos() {
                     <p className="text-sm font-semibold">{termo.corretoras.nome}</p>
                   </div>
                 )}
-                {termo.tipo_sinistro && (
+                {termo.tipo_sinistro && termo.tipo_sinistro.length > 0 && (
                   <div>
-                    <p className="text-sm text-muted-foreground">Tipo de Sinistro</p>
-                    <p className="text-sm font-semibold">{termo.tipo_sinistro}</p>
+                    <p className="text-sm text-muted-foreground">Tipos de Sinistro</p>
+                    <p className="text-sm font-semibold">{termo.tipo_sinistro.join(', ')}</p>
                   </div>
                 )}
                 {termo.descricao && (
@@ -347,20 +348,36 @@ export default function Termos() {
               </div>
 
               <div>
-                <Label>Tipo de Sinistro</Label>
-                <Select
-                  value={formData.tipo_sinistro}
-                  onValueChange={(value) => setFormData({ ...formData, tipo_sinistro: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos os tipos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIPOS_SINISTRO.map((tipo) => (
-                      <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Tipos de Sinistro</Label>
+                <div className="space-y-2 mt-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                  {TIPOS_SINISTRO.map((tipo) => (
+                    <div key={tipo} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`tipo-${tipo}`}
+                        checked={formData.tipo_sinistro.includes(tipo)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setFormData({
+                              ...formData,
+                              tipo_sinistro: [...formData.tipo_sinistro, tipo]
+                            });
+                          } else {
+                            setFormData({
+                              ...formData,
+                              tipo_sinistro: formData.tipo_sinistro.filter((t) => t !== tipo)
+                            });
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`tipo-${tipo}`} className="cursor-pointer font-normal">
+                        {tipo}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Deixe vazio para aplicar a todos os tipos
+                </p>
               </div>
             </div>
 

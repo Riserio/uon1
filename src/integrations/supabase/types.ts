@@ -1333,7 +1333,7 @@ export type Database = {
           id: string
           obrigatorio: boolean | null
           ordem: number | null
-          tipo_sinistro: string | null
+          tipo_sinistro: string[] | null
           titulo: string
           updated_at: string | null
         }
@@ -1348,7 +1348,7 @@ export type Database = {
           id?: string
           obrigatorio?: boolean | null
           ordem?: number | null
-          tipo_sinistro?: string | null
+          tipo_sinistro?: string[] | null
           titulo: string
           updated_at?: string | null
         }
@@ -1363,7 +1363,7 @@ export type Database = {
           id?: string
           obrigatorio?: boolean | null
           ordem?: number | null
-          tipo_sinistro?: string | null
+          tipo_sinistro?: string[] | null
           titulo?: string
           updated_at?: string | null
         }
