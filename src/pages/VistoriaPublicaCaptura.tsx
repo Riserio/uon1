@@ -1,13 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Camera, CheckCircle2, Upload, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Camera, CheckCircle2, Upload, ArrowRight, ArrowLeft, X, FileText } from 'lucide-react';
 import { VistoriaOverlay } from '@/components/VistoriaOverlay';
+import { Progress } from '@/components/ui/progress';
 
 const POSICOES = [
   { id: 'frontal', nome: 'Frontal', descricao: 'Tire uma foto da frente do veículo' },
@@ -19,6 +18,8 @@ const POSICOES = [
 export default function VistoriaPublicaCaptura() {
   const { token } = useParams();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cnhInputRef = useRef<HTMLInputElement>(null);
   const [vistoria, setVistoria] = useState<any>(null);
   const [corretora, setCorretora] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -29,6 +30,7 @@ export default function VistoriaPublicaCaptura() {
   const [geolocation, setGeolocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [cnhFile, setCnhFile] = useState<File | null>(null);
   const [cnhPreview, setCnhPreview] = useState<string | null>(null);
+  const [showCnhStep, setShowCnhStep] = useState(true);
 
   useEffect(() => {
     loadVistoria();
@@ -105,10 +107,14 @@ export default function VistoriaPublicaCaptura() {
   };
 
   const nextStep = () => {
+    const posicaoAtual = POSICOES[currentStep];
+    if (!fotos[posicaoAtual.id]) {
+      toast.error('Por favor, tire a foto antes de continuar');
+      return;
+    }
+    
     if (currentStep < POSICOES.length - 1) {
       setCurrentStep(currentStep + 1);
-    } else {
-      handleUpload();
     }
   };
 
@@ -116,6 +122,15 @@ export default function VistoriaPublicaCaptura() {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
+  };
+
+  const removeFoto = (posicaoId: string) => {
+    const newFotos = { ...fotos };
+    const newPreviews = { ...fotoPreviews };
+    delete newFotos[posicaoId];
+    delete newPreviews[posicaoId];
+    setFotos(newFotos);
+    setFotoPreviews(newPreviews);
   };
 
   const handleUpload = async () => {
@@ -131,7 +146,6 @@ export default function VistoriaPublicaCaptura() {
 
     setUploading(true);
     try {
-      // Upload da CNH
       const cnhFileName = `${vistoria.id}/cnh_${Date.now()}.${cnhFile.name.split('.').pop()}`;
       const { error: cnhUploadError } = await supabase.storage
         .from('vistorias')
@@ -143,7 +157,6 @@ export default function VistoriaPublicaCaptura() {
         .from('vistorias')
         .getPublicUrl(cnhFileName);
 
-      // Upload das fotos do veículo
       for (const [posicao, file] of Object.entries(fotos)) {
         const fileName = `${vistoria.id}/${posicao}_${Date.now()}.${file.name.split('.').pop()}`;
         
@@ -157,7 +170,6 @@ export default function VistoriaPublicaCaptura() {
           .from('vistorias')
           .getPublicUrl(fileName);
 
-        // Salvar registro da foto
         const { error: fotoError } = await supabase
           .from('vistoria_fotos')
           .insert({
@@ -172,62 +184,19 @@ export default function VistoriaPublicaCaptura() {
         if (fotoError) throw fotoError;
       }
 
-      // Atualizar vistoria com status e geolocalização
-      const { error: updateError } = await supabase
+      await supabase
         .from('vistorias')
         .update({
           status: 'em_analise',
+          cnh_url: cnhUrl,
           latitude: geolocation?.latitude,
           longitude: geolocation?.longitude,
-          endereco: geolocation 
-            ? `Lat: ${geolocation.latitude.toFixed(6)}, Long: ${geolocation.longitude.toFixed(6)}`
-            : null
+          completed_at: new Date().toISOString()
         })
         .eq('id', vistoria.id);
 
-      if (updateError) throw updateError;
-
-      // Buscar fotos e iniciar análise
-      const { data: fotosList } = await supabase
-        .from('vistoria_fotos')
-        .select('*')
-        .eq('vistoria_id', vistoria.id);
-
-      if (fotosList && fotosList.length === 4) {
-        // Processar OCR da CNH primeiro
-        if (cnhUrl) {
-          const { data: ocrData } = await supabase.functions.invoke('ocr-cnh', {
-            body: { image_url: cnhUrl }
-          });
-
-          if (ocrData?.success && ocrData?.data) {
-            // Atualizar vistoria com dados da CNH
-            await supabase
-              .from('vistorias')
-              .update({
-                cnh_dados: ocrData.data,
-                cliente_nome: ocrData.data.nome || vistoria.cliente_nome,
-                cliente_cpf: ocrData.data.cpf || vistoria.cliente_cpf
-              })
-              .eq('id', vistoria.id);
-          }
-        }
-
-        // Chamar edge function para análise do veículo
-        await supabase.functions.invoke('analisar-vistoria-ia', {
-          body: {
-            vistoria_id: vistoria.id,
-            fotos: fotosList.map(f => ({
-              id: f.id,
-              posicao: f.posicao,
-              url: f.arquivo_url
-            }))
-          }
-        });
-      }
-
-      toast.success('Fotos enviadas com sucesso!');
-      navigate(`/vistoria/${token}/conclusao`);
+      toast.success('Vistoria enviada com sucesso!');
+      navigate(`/vistoria/${token}/concluida`);
     } catch (error) {
       console.error('Erro ao enviar fotos:', error);
       toast.error('Erro ao enviar fotos');
@@ -236,204 +205,176 @@ export default function VistoriaPublicaCaptura() {
     }
   };
 
+  const progressPercentage = ((Object.keys(fotos).length / POSICOES.length) * 100);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center p-6">
-        <div className="text-white text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Carregando vistoria...</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-primary via-primary/90 to-primary/80 flex items-center justify-center p-6">
+        <Card className="max-w-md shadow-2xl">
+          <CardContent className="p-8 text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary mx-auto mb-4"></div>
+            <p className="text-lg font-semibold">Carregando vistoria...</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   const posicaoAtual = POSICOES[currentStep];
-  const fotoAtual = fotoPreviews[posicaoAtual.id];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 p-6">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8 text-white">
-          {corretora?.logo_url && (
-            <img 
-              src={corretora.logo_url} 
-              alt={corretora.nome}
-              className="h-12 mx-auto mb-4 brightness-0 invert"
-            />
-          )}
-          <h1 className="text-4xl font-bold mb-2">Vistoria Digital</h1>
-          <p className="text-blue-100">
-            {vistoria.tipo_vistoria === 'sinistro' ? 'Sinistro' : 'Reativação'} - #{vistoria.numero}
-          </p>
-        </div>
-
-        {/* Progress */}
-        <div className="mb-8">
-          <div className="flex justify-between mb-2 text-white text-sm">
-            <span>Progresso</span>
-            <span>{currentStep + 1} de {POSICOES.length}</span>
-          </div>
-          <div className="w-full bg-white/20 rounded-full h-3">
-            <div
-              className="bg-white h-3 rounded-full transition-all duration-500"
-              style={{ width: `${((currentStep + 1) / POSICOES.length) * 100}%` }}
-            />
-          </div>
-        </div>
-
-        {/* CNH Section - Before taking photos */}
-        {currentStep === 0 && !cnhFile && (
-          <Card className="shadow-2xl mb-6">
-            <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
-              <CardTitle className="text-xl text-center">
-                Primeiro, anexe sua CNH
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <Label htmlFor="cnh-upload" className="cursor-pointer">
-                <div className="border-2 border-dashed border-primary/30 rounded-lg p-8 text-center hover:border-primary transition-colors bg-gradient-to-br from-primary/5 to-primary/10">
-                  <Upload className="h-12 w-12 mx-auto mb-3 text-primary" />
-                  <p className="font-semibold mb-2">Clique para anexar sua CNH</p>
-                  <p className="text-sm text-muted-foreground">
-                    Tire uma foto clara da sua CNH
-                  </p>
-                </div>
-              </Label>
-              <Input
-                id="cnh-upload"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleCnhSelect}
-                className="hidden"
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* CNH Preview */}
-        {cnhPreview && (
-          <Card className="shadow-2xl mb-6">
-            <CardContent className="p-4">
-              <img src={cnhPreview} alt="CNH" className="w-full rounded-lg" />
-              <Button
-                onClick={() => {
-                  setCnhFile(null);
-                  setCnhPreview(null);
-                }}
-                variant="outline"
-                className="w-full mt-3"
-              >
-                Tirar outra foto da CNH
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Vehicle Photos */}
-        {cnhFile && (
-          <Card className="shadow-2xl">
-            <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
-              <CardTitle className="text-2xl text-center">
-                {posicaoAtual.nome}
-              </CardTitle>
-              <p className="text-muted-foreground text-center">
-                {posicaoAtual.descricao}
-              </p>
-            </CardHeader>
-            <CardContent className="p-6">
-              {fotoAtual ? (
-                <div className="space-y-4">
-                  <div className="relative">
-                    <img
-                      src={fotoAtual}
-                      alt={posicaoAtual.nome}
-                      className="w-full rounded-lg shadow-lg"
-                    />
-                    <VistoriaOverlay posicao={posicaoAtual.id as any} />
-                  </div>
-                  <div className="flex gap-3">
-                    {currentStep > 0 && (
-                      <Button
-                        onClick={prevStep}
-                        variant="outline"
-                        className="flex-1"
-                      >
-                        <ArrowLeft className="h-4 w-4 mr-2" />
-                        Anterior
-                      </Button>
-                    )}
-                    <Button
-                      onClick={nextStep}
-                      disabled={uploading}
-                      className="flex-1 bg-gradient-to-r from-primary to-primary/80"
-                    >
-                      {uploading ? (
-                        'Enviando...'
-                      ) : currentStep === POSICOES.length - 1 ? (
-                        <>
-                          <Upload className="h-4 w-4 mr-2" />
-                          Finalizar
-                        </>
-                      ) : (
-                        <>
-                          Próxima
-                          <ArrowRight className="h-4 w-4 ml-2" />
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <Label htmlFor={`foto-${posicaoAtual.id}`} className="cursor-pointer">
-                    <div className="border-2 border-dashed border-primary/30 rounded-lg p-12 text-center hover:border-primary transition-colors bg-gradient-to-br from-primary/5 to-primary/10 relative">
-                      <VistoriaOverlay posicao={posicaoAtual.id as any} />
-                      <Camera className="h-20 w-20 mx-auto mb-4 text-primary relative z-10" />
-                      <p className="text-lg font-semibold mb-2 relative z-10">
-                        Tire uma foto {posicaoAtual.nome.toLowerCase()}
-                      </p>
-                      <p className="text-sm text-muted-foreground relative z-10">
-                        Toque para abrir a câmera
-                      </p>
-                    </div>
-                  </Label>
-                  <Input
-                    id={`foto-${posicaoAtual.id}`}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  {currentStep > 0 && (
-                    <Button
-                      onClick={prevStep}
-                      variant="outline"
-                      className="w-full mt-4"
-                    >
-                      <ArrowLeft className="h-4 w-4 mr-2" />
-                      Voltar
-                    </Button>
-                  )}
-                </div>
+    <div className="min-h-screen bg-gradient-to-br from-primary via-primary/90 to-primary/80 p-4 md:p-6">
+      <div className="container mx-auto max-w-4xl space-y-6">
+        <Card className="shadow-xl">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              {corretora?.logo_url && (
+                <img src={corretora.logo_url} alt={corretora.nome} className="h-12 object-contain" />
               )}
+              <div>
+                <h1 className="text-2xl font-bold">Vistoria Digital</h1>
+                <p className="text-muted-foreground">Sinistro #{vistoria.numero}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {cnhPreview && (
+          <Card className="shadow-xl">
+            <CardContent className="p-6 space-y-2">
+              <div className="flex justify-between text-sm font-medium">
+                <span>Progresso</span>
+                <span>{Object.keys(fotos).length}/{POSICOES.length} fotos</span>
+              </div>
+              <Progress value={progressPercentage} className="h-3" />
             </CardContent>
           </Card>
         )}
 
-        {/* Instruções */}
-        <Card className="mt-6 bg-white/10 backdrop-blur border-white/20 text-white">
-          <CardContent className="p-4">
-            <h3 className="font-semibold mb-2">📋 Instruções:</h3>
-            <ul className="text-sm space-y-1 list-disc list-inside">
-              <li>Tire fotos em local bem iluminado</li>
-              <li>Enquadre todo o veículo na foto</li>
-              <li>Evite sombras e reflexos</li>
-              <li>Mantenha o celular na horizontal</li>
-              <li>Alinhe o veículo com o gabarito exibido</li>
-            </ul>
+        <Card className="shadow-2xl">
+          <CardContent className="p-6 md:p-8 space-y-6">
+            {showCnhStep && !cnhPreview ? (
+              <div className="space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="flex justify-center mb-4">
+                    <div className="bg-primary/10 p-4 rounded-full">
+                      <FileText className="h-12 w-12 text-primary" />
+                    </div>
+                  </div>
+                  <h2 className="text-2xl font-bold">Documento de Identificação</h2>
+                  <p className="text-muted-foreground">Primeiro, tire uma foto da sua CNH</p>
+                </div>
+                <div className="relative aspect-video bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-xl overflow-hidden border-4 border-dashed border-primary/30">
+                  <input ref={cnhInputRef} type="file" accept="image/*" capture="environment" onChange={handleCnhSelect} className="hidden" />
+                  <button onClick={() => cnhInputRef.current?.click()} className="absolute inset-0 flex flex-col items-center justify-center gap-4 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                    <div className="bg-primary/10 backdrop-blur-sm p-6 rounded-full">
+                      <Camera className="h-16 w-16 text-primary" />
+                    </div>
+                    <p className="text-lg font-semibold">Tirar Foto da CNH</p>
+                  </button>
+                </div>
+              </div>
+            ) : showCnhStep && cnhPreview ? (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold flex items-center gap-2">
+                    <CheckCircle2 className="h-6 w-6 text-green-600" />
+                    CNH Capturada
+                  </h2>
+                  <Button variant="ghost" size="sm" onClick={() => { setCnhFile(null); setCnhPreview(null); }}>
+                    <X className="h-4 w-4 mr-2" />Refazer
+                  </Button>
+                </div>
+                <div className="relative rounded-xl overflow-hidden border-4 border-green-500 shadow-lg">
+                  <img src={cnhPreview} alt="CNH" className="w-full" />
+                </div>
+                <Button onClick={() => setShowCnhStep(false)} className="w-full" size="lg">
+                  Continuar para Fotos do Veículo<ArrowRight className="h-5 w-5 ml-2" />
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold">{posicaoAtual.nome}</h2>
+                    <p className="text-muted-foreground">{posicaoAtual.descricao}</p>
+                  </div>
+                  <div className="bg-primary/10 px-4 py-2 rounded-full">
+                    <span className="font-bold text-primary">{currentStep + 1}/{POSICOES.length}</span>
+                  </div>
+                </div>
+
+                {!fotoPreviews[posicaoAtual.id] ? (
+                  <div className="relative aspect-video bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl overflow-hidden shadow-2xl">
+                    <VistoriaOverlay posicao={posicaoAtual.id as any} />
+                    <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} className="hidden" />
+                    <button onClick={() => fileInputRef.current?.click()} className="absolute inset-0 flex items-center justify-center">
+                      <div className="bg-white/20 backdrop-blur-md p-8 rounded-full hover:bg-white/30 transition-colors">
+                        <Camera className="h-20 w-20 text-white drop-shadow-lg" />
+                      </div>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="relative rounded-xl overflow-hidden border-4 border-green-500 shadow-lg">
+                      <img src={fotoPreviews[posicaoAtual.id]} alt={posicaoAtual.nome} className="w-full" />
+                      <div className="absolute top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-full font-semibold shadow-lg flex items-center gap-2">
+                        <CheckCircle2 className="h-5 w-5" />Foto OK
+                      </div>
+                    </div>
+                    <Button variant="outline" onClick={() => { removeFoto(posicaoAtual.id); fileInputRef.current?.click(); }} className="w-full">
+                      <Camera className="h-4 w-4 mr-2" />Tirar Nova Foto
+                    </Button>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={prevStep} disabled={currentStep === 0} size="lg" className="flex-1">
+                    <ArrowLeft className="h-5 w-5 mr-2" />Anterior
+                  </Button>
+                  <Button onClick={nextStep} disabled={!fotos[posicaoAtual.id]} size="lg" className="flex-1">
+                    {currentStep === POSICOES.length - 1 ? 'Concluir' : 'Próxima'}<ArrowRight className="h-5 w-5 ml-2" />
+                  </Button>
+                </div>
+
+                <div className="pt-6 border-t">
+                  <p className="text-sm font-medium mb-3">Fotos:</p>
+                  <div className="grid grid-cols-4 gap-3">
+                    {POSICOES.map((pos, idx) => (
+                      <button key={pos.id} onClick={() => setCurrentStep(idx)} className={`relative aspect-square rounded-lg overflow-hidden border-3 transition-all ${currentStep === idx ? 'border-primary ring-2 ring-primary' : fotos[pos.id] ? 'border-green-500' : 'border-gray-300 dark:border-gray-700 opacity-50'}`}>
+                        {fotoPreviews[pos.id] ? (
+                          <>
+                            <img src={fotoPreviews[pos.id]} alt={pos.nome} className="w-full h-full object-cover" />
+                            {currentStep !== idx && (
+                              <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                                <CheckCircle2 className="h-6 w-6 text-white drop-shadow-lg" />
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="w-full h-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                            <Camera className="h-6 w-6 text-gray-400" />
+                          </div>
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-xs py-1.5 px-1 text-center font-medium">
+                          {pos.nome.split(' ')[0]}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {Object.keys(fotos).length === POSICOES.length && (
+                  <Button onClick={handleUpload} disabled={uploading} className="w-full bg-green-600 hover:bg-green-700" size="lg">
+                    {uploading ? (
+                      <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />Enviando...</>
+                    ) : (
+                      <><Upload className="h-5 w-5 mr-2" />Enviar Vistoria</>
+                    )}
+                  </Button>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
