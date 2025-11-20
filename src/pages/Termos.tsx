@@ -314,7 +314,7 @@ export default function Termos() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingTermo ? 'Editar Termo' : 'Novo Termo'}</DialogTitle>
           </DialogHeader>
