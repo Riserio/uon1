@@ -252,8 +252,8 @@ export default function VistoriaPublicaCaptura() {
   const posicaoAtual = POSICOES[currentStep];
 
   return (
-    <div className="min-h-screen bg-background p-3 md:p-6">
-      <div className="container mx-auto max-w-2xl space-y-3">
+    <div className="min-h-screen bg-background p-2 sm:p-3 md:p-6">
+      <div className="container mx-auto max-w-2xl space-y-2 sm:space-y-3">
         <Card className="border-border/40">
           <CardContent className="p-3 md:p-4">
             <div className="flex items-center gap-2 md:gap-3">

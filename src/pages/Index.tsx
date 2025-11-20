@@ -19,10 +19,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { useOverdueAtendimentos } from '@/hooks/useOverdueAtendimentos';
 import { toUTC, now } from '@/utils/dateUtils';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Settings2, Workflow } from 'lucide-react';
+import { Settings2, Workflow, Link2 } from 'lucide-react';
 import { FluxoSelector } from '@/components/FluxoSelector';
 import { WorkflowConfigDialog } from '@/components/WorkflowConfigDialog';
 import { FluxoVisualizationDialog } from '@/components/FluxoVisualizationDialog';
+import { AcompanhamentoLinkDialog } from '@/components/AcompanhamentoLinkDialog';
 const Index = () => {
   const isMobile = useIsMobile();
   const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
@@ -41,6 +42,7 @@ const Index = () => {
   const [statusConfigOpen, setStatusConfigOpen] = useState(false);
   const [workflowConfigOpen, setWorkflowConfigOpen] = useState(false);
   const [fluxoVisualizationOpen, setFluxoVisualizationOpen] = useState(false);
+  const [acompanhamentoLinkOpen, setAcompanhamentoLinkOpen] = useState(false);
   const [selectedFluxoId, setSelectedFluxoId] = useState<string | null>(null);
   const [statusPrazo, setStatusPrazo] = useState<Record<string, number>>({});
   const [userRole, setUserRole] = useState<string>('');
@@ -678,10 +680,36 @@ const Index = () => {
             <div className="flex items-center gap-2">
               <AlertasDialog overdueCount={overdueCount} />
               {canManageStatus && <>
-                  <Button variant="outline" size="icon" onClick={() => setFluxoVisualizationOpen(true)} title="Visualizar Fluxo Completo">
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => setAcompanhamentoLinkOpen(true)} 
+                    title="Link de Acompanhamento para Clientes"
+                  >
+                    <Link2 className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => navigate('/configuracao-status-publico')} 
+                    title="Configurar Status Públicos"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => setFluxoVisualizationOpen(true)} 
+                    title="Visualizar Fluxo Completo"
+                  >
                     <Workflow className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="icon" onClick={() => setWorkflowConfigOpen(true)} title="Configurar Fluxos e Status">
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => setWorkflowConfigOpen(true)} 
+                    title="Configurar Fluxos e Status"
+                  >
                     <Settings2 className="h-4 w-4" />
                   </Button>
                 </>}
@@ -720,9 +748,19 @@ const Index = () => {
       loadStatusPrazo();
       loadAtendimentos();
       refreshOverdue();
-    }} />
+     }} />
 
-      <FluxoVisualizationDialog open={fluxoVisualizationOpen} onOpenChange={setFluxoVisualizationOpen} />
-    </div>;
+      <FluxoVisualizationDialog 
+        open={fluxoVisualizationOpen} 
+        onOpenChange={setFluxoVisualizationOpen} 
+      />
+      
+      <AcompanhamentoLinkDialog 
+        open={acompanhamentoLinkOpen} 
+        onOpenChange={setAcompanhamentoLinkOpen} 
+      />
+    </div>
+  );
 };
+
 export default Index;

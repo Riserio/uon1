@@ -32,6 +32,8 @@ import VistoriaDetalhe from "./pages/VistoriaDetalhe";
 import VistoriaPublicaLanding from './pages/VistoriaPublicaLanding';
 import VistoriaPublicaCaptura from './pages/VistoriaPublicaCaptura';
 import VistoriaPublicaConclusao from './pages/VistoriaPublicaConclusao';
+import AcompanhamentoSinistro from './pages/AcompanhamentoSinistro';
+import ConfiguracaoStatusPublico from './pages/ConfiguracaoStatusPublico';
 import Administradora from "./pages/Administradora";
 import AberturaSinistro from './pages/AberturaSinistro';
 import DashboardSinistros from './pages/DashboardSinistros';
@@ -88,6 +90,8 @@ const App = () => (
             <Route path="/vistoria/:token" element={<VistoriaPublicaLanding />} />
             <Route path="/vistoria/:token/captura" element={<VistoriaPublicaCaptura />} />
             <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
+            <Route path="/acompanhamento" element={<AcompanhamentoSinistro />} />
+            <Route path="/configuracao-status-publico" element={<ProtectedRoute><ConfiguracaoStatusPublico /></ProtectedRoute>} />
             <Route path="/sinistros/novo" element={<ProtectedRoute><AberturaSinistro /></ProtectedRoute>} />
             <Route path="/abertura-sinistro" element={<ProtectedRoute><AberturaSinistro /></ProtectedRoute>} />
             <Route path="/dashboard-sinistros" element={<ProtectedRoute><DashboardSinistros /></ProtectedRoute>} />
