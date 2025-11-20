@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AndamentosList } from '@/components/AndamentosList';
 import { AnexosUpload } from '@/components/AnexosUpload';
-import { Check, ChevronsUpDown, FileText, MessageSquare, Paperclip, History } from 'lucide-react';
+import { Check, ChevronsUpDown, FileText, MessageSquare, Paperclip, History, DollarSign } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
@@ -63,12 +63,26 @@ export function AtendimentoDialog({
   const [filteredCorretoras, setFilteredCorretoras] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('geral');
   const { userRole } = useAuth();
+  
+  // Estados para custos
+  const [vistoriaId, setVistoriaId] = useState<string | null>(null);
+  const [custos, setCustos] = useState({
+    custo_oficina: 0,
+    custo_reparo: 0,
+    custo_acordo: 0,
+    custo_terceiros: 0,
+    custo_perda_total: 0,
+    custo_perda_parcial: 0,
+    valor_franquia: 0,
+    valor_indenizacao: 0,
+  });
 
   useEffect(() => {
     if (atendimento) {
       setFormData(atendimento);
       setPrimeiroAndamento('');
       setAnexos([]);
+      loadVistoriaCustos(atendimento.id);
     } else {
       setFormData({
         corretora: '',
@@ -84,10 +98,47 @@ export function AtendimentoDialog({
       setAnexos([]);
       setParecerFinal('');
       setEmailConclusao('');
+      setVistoriaId(null);
+      setCustos({
+        custo_oficina: 0,
+        custo_reparo: 0,
+        custo_acordo: 0,
+        custo_terceiros: 0,
+        custo_perda_total: 0,
+        custo_perda_parcial: 0,
+        valor_franquia: 0,
+        valor_indenizacao: 0,
+      });
     }
     setCorretoraSearch('');
     setFilteredCorretoras([]);
   }, [atendimento, open]);
+  
+  const loadVistoriaCustos = async (atendimentoId: string) => {
+    try {
+      const { data } = await supabase
+        .from('vistorias')
+        .select('id, custo_oficina, custo_reparo, custo_acordo, custo_terceiros, custo_perda_total, custo_perda_parcial, valor_franquia, valor_indenizacao')
+        .eq('atendimento_id', atendimentoId)
+        .single();
+      
+      if (data) {
+        setVistoriaId(data.id);
+        setCustos({
+          custo_oficina: data.custo_oficina || 0,
+          custo_reparo: data.custo_reparo || 0,
+          custo_acordo: data.custo_acordo || 0,
+          custo_terceiros: data.custo_terceiros || 0,
+          custo_perda_total: data.custo_perda_total || 0,
+          custo_perda_parcial: data.custo_perda_parcial || 0,
+          valor_franquia: data.valor_franquia || 0,
+          valor_indenizacao: data.valor_indenizacao || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao carregar custos:', error);
+    }
+  };
 
   useEffect(() => {
     if (corretoraSearch.length >= 3) {
@@ -99,6 +150,53 @@ export function AtendimentoDialog({
       setFilteredCorretoras([]);
     }
   }, [corretoraSearch, corretoras]);
+  
+  const handleSalvarCustos = async () => {
+    if (!atendimento?.id) {
+      toast.error('Atendimento não encontrado');
+      return;
+    }
+
+    try {
+      if (vistoriaId) {
+        // Atualizar vistoria existente
+        const { error } = await supabase
+          .from('vistorias')
+          .update(custos)
+          .eq('id', vistoriaId);
+
+        if (error) throw error;
+      } else {
+        // Criar nova vistoria
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          toast.error('Usuário não autenticado');
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('vistorias')
+          .insert({
+            atendimento_id: atendimento.id,
+            created_by: user.id,
+            tipo_vistoria: 'digital',
+            tipo_abertura: 'interno',
+            status: 'rascunho',
+            ...custos,
+          })
+          .select('id')
+          .single();
+
+        if (error) throw error;
+        if (data) setVistoriaId(data.id);
+      }
+
+      toast.success('Custos salvos com sucesso');
+    } catch (error) {
+      console.error('Erro ao salvar custos:', error);
+      toast.error('Erro ao salvar custos');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -419,6 +517,107 @@ export function AtendimentoDialog({
                         anexos={anexos}
                         onAnexosChange={setAnexos}
                       />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="custos" className="mt-0">
+                    <div className="p-4 space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="custo_oficina">Custo Oficina</Label>
+                          <Input
+                            id="custo_oficina"
+                            type="number"
+                            step="0.01"
+                            value={custos.custo_oficina}
+                            onChange={(e) => setCustos({ ...custos, custo_oficina: Number(e.target.value) })}
+                            placeholder="R$ 0,00"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="custo_reparo">Custo Reparo</Label>
+                          <Input
+                            id="custo_reparo"
+                            type="number"
+                            step="0.01"
+                            value={custos.custo_reparo}
+                            onChange={(e) => setCustos({ ...custos, custo_reparo: Number(e.target.value) })}
+                            placeholder="R$ 0,00"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="custo_acordo">Custo Acordo</Label>
+                          <Input
+                            id="custo_acordo"
+                            type="number"
+                            step="0.01"
+                            value={custos.custo_acordo}
+                            onChange={(e) => setCustos({ ...custos, custo_acordo: Number(e.target.value) })}
+                            placeholder="R$ 0,00"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="custo_terceiros">Custo Terceiros</Label>
+                          <Input
+                            id="custo_terceiros"
+                            type="number"
+                            step="0.01"
+                            value={custos.custo_terceiros}
+                            onChange={(e) => setCustos({ ...custos, custo_terceiros: Number(e.target.value) })}
+                            placeholder="R$ 0,00"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="custo_perda_total">Custo Perda Total</Label>
+                          <Input
+                            id="custo_perda_total"
+                            type="number"
+                            step="0.01"
+                            value={custos.custo_perda_total}
+                            onChange={(e) => setCustos({ ...custos, custo_perda_total: Number(e.target.value) })}
+                            placeholder="R$ 0,00"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="custo_perda_parcial">Custo Perda Parcial</Label>
+                          <Input
+                            id="custo_perda_parcial"
+                            type="number"
+                            step="0.01"
+                            value={custos.custo_perda_parcial}
+                            onChange={(e) => setCustos({ ...custos, custo_perda_parcial: Number(e.target.value) })}
+                            placeholder="R$ 0,00"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="valor_franquia">Valor Franquia</Label>
+                          <Input
+                            id="valor_franquia"
+                            type="number"
+                            step="0.01"
+                            value={custos.valor_franquia}
+                            onChange={(e) => setCustos({ ...custos, valor_franquia: Number(e.target.value) })}
+                            placeholder="R$ 0,00"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="valor_indenizacao">Valor Indenização</Label>
+                          <Input
+                            id="valor_indenizacao"
+                            type="number"
+                            step="0.01"
+                            value={custos.valor_indenizacao}
+                            onChange={(e) => setCustos({ ...custos, valor_indenizacao: Number(e.target.value) })}
+                            placeholder="R$ 0,00"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-end pt-4 border-t">
+                        <Button onClick={handleSalvarCustos}>
+                          Salvar Custos
+                        </Button>
+                      </div>
                     </div>
                   </TabsContent>
 
