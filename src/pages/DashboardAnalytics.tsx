@@ -31,6 +31,7 @@ import {
   Activity,
   ClipboardList,
   UserCheck,
+  Building2,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -92,6 +93,7 @@ export default function DashboardAnalytics() {
   const [metasDialogOpen, setMetasDialogOpen] = useState(false);
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
+  const [dashboardMode, setDashboardMode] = useState<'individual' | 'global'>('individual');
 
   const userName = user?.user_metadata?.nome
     ? user.user_metadata.nome.charAt(0).toUpperCase() + user.user_metadata.nome.slice(1)
@@ -125,7 +127,8 @@ export default function DashboardAnalytics() {
         .from('atendimentos')
         .select(`
           *,
-          responsavel:profiles(nome)
+          responsavel:profiles(nome),
+          corretora:corretoras(id, nome)
         `)
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
@@ -146,6 +149,8 @@ export default function DashboardAnalytics() {
         data_concluido: item.data_concluido,
         fluxo_concluido_nome: item.fluxo_concluido_nome,
         fluxo_concluido_id: item.fluxo_concluido_id,
+        corretora_id: item.corretora_id,
+        corretora: item.corretora,
       }));
 
       setAtendimentos(mapped);
@@ -159,16 +164,83 @@ export default function DashboardAnalytics() {
     try {
       const { data, error } = await supabase
         .from('status_config')
-        .select('id, nome, cor, prazo_horas, ordem, ativo, is_final')
+        .select('*')
         .eq('ativo', true)
         .order('ordem');
 
       if (error) throw error;
       setStatusConfigs(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar configurações de status:', error);
+    } catch (error: any) {
+      console.error('Erro ao carregar status:', error);
+      toast.error('Erro ao carregar configurações de status');
     }
   };
+
+  // Calcular dados por corretora
+  const getCorretorasData = () => {
+    const corretorasMap = new Map();
+
+    atendimentos.forEach((atendimento: any) => {
+      if (!atendimento.corretora_id) return;
+
+      const corretoraId = atendimento.corretora_id;
+      const corretoraName = atendimento.corretora?.nome || 'Sem Corretora';
+
+      if (!corretorasMap.has(corretoraId)) {
+        corretorasMap.set(corretoraId, {
+          id: corretoraId,
+          nome: corretoraName,
+          total: 0,
+          concluidos: 0,
+          vencidos: 0,
+          tempoTotal: 0,
+          prioridadeAlta: 0,
+          prioridadeMedia: 0,
+          prioridadeBaixa: 0,
+        });
+      }
+
+      const corretora = corretorasMap.get(corretoraId);
+      corretora.total++;
+
+      if (atendimento.data_concluido) {
+        corretora.concluidos++;
+        const tempo = differenceInHours(
+          new Date(atendimento.data_concluido),
+          new Date(atendimento.created_at)
+        );
+        corretora.tempoTotal += tempo;
+      }
+
+      // Verificar vencidos
+      const statusConfig = statusConfigs.find(
+        (c) => c.nome.toLowerCase() === atendimento.status.toLowerCase()
+      );
+      if (statusConfig && statusConfig.prazo_horas > 0) {
+        const hours = differenceInHours(
+          new Date(),
+          new Date(atendimento.status_changed_at || atendimento.created_at)
+        );
+        if (hours > statusConfig.prazo_horas) {
+          corretora.vencidos++;
+        }
+      }
+
+      // Contar prioridades
+      if (atendimento.prioridade === 'Alta') corretora.prioridadeAlta++;
+      else if (atendimento.prioridade === 'Média') corretora.prioridadeMedia++;
+      else if (atendimento.prioridade === 'Baixa') corretora.prioridadeBaixa++;
+    });
+
+    return Array.from(corretorasMap.values()).map((c) => ({
+      ...c,
+      tempoMedio: c.concluidos > 0 ? Math.round(c.tempoTotal / c.concluidos) : 0,
+      taxaConclusao: c.total > 0 ? Math.round((c.concluidos / c.total) * 100) : 0,
+      taxaVencidos: c.total > 0 ? Math.round((c.vencidos / c.total) * 100) : 0,
+    }));
+  };
+
+  const corretorasData = getCorretorasData();
 
   // Distribuição por status
   const statusDistribution = statusConfigs.map((config) => {
@@ -468,6 +540,24 @@ export default function DashboardAnalytics() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg">
+                <Button
+                  variant={dashboardMode === 'individual' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setDashboardMode('individual')}
+                >
+                  <UserCheck className="h-4 w-4 mr-2" />
+                  Desempenho Individual
+                </Button>
+                <Button
+                  variant={dashboardMode === 'global' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setDashboardMode('global')}
+                >
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  Desempenho Global
+                </Button>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -618,6 +708,9 @@ export default function DashboardAnalytics() {
           </Card>
         </div>
 
+        {/* Conteúdo condicional baseado no modo */}
+        {dashboardMode === 'individual' ? (
+          <>
         {/* Charts */}
         <Tabs defaultValue="distribution" className="space-y-4">
           <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 h-auto p-2 bg-muted">
@@ -1112,6 +1205,171 @@ export default function DashboardAnalytics() {
             </div>
           </TabsContent>
         </Tabs>
+        </>
+        ) : (
+          /* Dashboard Global - Desempenho por Corretoras */
+          <div className="space-y-6">
+            {/* Top Corretoras */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Ranking de Corretoras - Volume
+                </CardTitle>
+                <CardDescription>Top 10 corretoras por volume de atendimentos</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={corretorasData.sort((a, b) => b.total - a.total).slice(0, 10)}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="nome" angle={-45} textAnchor="end" height={120} />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="total" fill="#3b82f6" name="Total" />
+                    <Bar dataKey="concluidos" fill="#10b981" name="Concluídos" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Taxa de Conclusão */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  Taxa de Conclusão por Corretora
+                </CardTitle>
+                <CardDescription>Performance de conclusão de atendimentos</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={corretorasData.sort((a, b) => b.taxaConclusao - a.taxaConclusao).slice(0, 10)}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="nome" angle={-45} textAnchor="end" height={120} />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="taxaConclusao" fill="#10b981" name="Taxa de Conclusão (%)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Tempo Médio */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Tempo Médio de Atendimento
+                </CardTitle>
+                <CardDescription>Tempo médio em horas por corretora</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={corretorasData.filter(c => c.concluidos > 0).sort((a, b) => a.tempoMedio - b.tempoMedio).slice(0, 10)}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="nome" angle={-45} textAnchor="end" height={120} />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="tempoMedio" fill="#f59e0b" name="Tempo Médio (horas)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Atendimentos Vencidos */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5" />
+                  Atendimentos Vencidos por Corretora
+                </CardTitle>
+                <CardDescription>Distribuição de atendimentos em atraso</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={corretorasData.filter(c => c.vencidos > 0).sort((a, b) => b.vencidos - a.vencidos).slice(0, 10)}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="nome" angle={-45} textAnchor="end" height={120} />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="vencidos" fill="#ef4444" name="Vencidos" />
+                    <Bar dataKey="taxaVencidos" fill="#f97316" name="Taxa (%)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Distribuição de Prioridades */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Distribuição de Prioridades por Corretora</CardTitle>
+                <CardDescription>Prioridades dos atendimentos em cada corretora</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={corretorasData.sort((a, b) => b.total - a.total).slice(0, 10)}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="nome" angle={-45} textAnchor="end" height={120} />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="prioridadeAlta" stackId="a" fill="#ef4444" name="Alta" />
+                    <Bar dataKey="prioridadeMedia" stackId="a" fill="#f59e0b" name="Média" />
+                    <Bar dataKey="prioridadeBaixa" stackId="a" fill="#10b981" name="Baixa" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Tabela Resumo */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Resumo Geral por Corretora</CardTitle>
+                <CardDescription>Visão consolidada de todas as métricas</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">Corretora</th>
+                        <th className="text-center p-2">Total</th>
+                        <th className="text-center p-2">Concluídos</th>
+                        <th className="text-center p-2">Taxa (%)</th>
+                        <th className="text-center p-2">Vencidos</th>
+                        <th className="text-center p-2">Tempo Médio (h)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {corretorasData.sort((a, b) => b.total - a.total).map((corretora, index) => (
+                        <tr key={corretora.id} className="border-b hover:bg-muted/50">
+                          <td className="p-2">{corretora.nome}</td>
+                          <td className="text-center p-2">{corretora.total}</td>
+                          <td className="text-center p-2">{corretora.concluidos}</td>
+                          <td className="text-center p-2">
+                            <Badge variant={corretora.taxaConclusao >= 80 ? 'default' : 'destructive'}>
+                              {corretora.taxaConclusao}%
+                            </Badge>
+                          </td>
+                          <td className="text-center p-2">
+                            <span className={corretora.vencidos > 0 ? 'text-destructive font-semibold' : ''}>
+                              {corretora.vencidos}
+                            </span>
+                          </td>
+                          <td className="text-center p-2">{corretora.tempoMedio}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
       <PerformanceMetasDialog
