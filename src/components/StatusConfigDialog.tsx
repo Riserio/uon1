@@ -305,11 +305,15 @@ export function StatusConfigDialog({ open, onOpenChange, onStatusChange, embedde
       
       const maxOrdem = Math.max(...statuses.map(s => s.ordem), 0);
       
+      // Gerar nome único baseado no timestamp
+      const timestamp = Date.now();
+      const novoNome = `Novo Status ${timestamp}`;
+      
       // Usar o primeiro fluxo como padrão
       const { data, error } = await supabase
         .from('status_config')
         .insert({
-          nome: 'Novo Status',
+          nome: novoNome,
           cor: '#3b82f6',
           prazo_horas: 24,
           ordem: maxOrdem + 1,
