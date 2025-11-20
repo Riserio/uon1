@@ -31,6 +31,7 @@ interface Corretora {
   estado?: string;
   responsavel?: string;
   observacoes?: string;
+  logo_url?: string;
 }
 
 export default function Corretoras() {
@@ -164,6 +165,36 @@ export default function Corretoras() {
     );
   };
 
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingLogo(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('logos')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('logos')
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, logo_url: publicUrl });
+      toast.success('Logo enviada com sucesso!');
+    } catch (error) {
+      console.error('Erro ao enviar logo:', error);
+      toast.error('Erro ao enviar logo');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   const toggleSelectAll = () => {
     if (selectedCorretoras.length === paginatedCorretoras.length) {
       setSelectedCorretoras([]);
@@ -200,6 +231,15 @@ export default function Corretoras() {
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
             <CardTitle>Lista de Corretoras</CardTitle>
               <div className="flex gap-2">
+                <Link to="/administradora">
+                  <Button
+                    variant="outline"
+                    className="border-primary/50 hover:bg-primary/10"
+                  >
+                    <Building2 className="h-4 w-4 mr-2" />
+                    Administradora
+                  </Button>
+                </Link>
                 <UploadCorretorasDialog onSuccess={fetchCorretoras} />
                 {selectedCorretoras.length > 0 && (
                   <Button
@@ -364,6 +404,38 @@ export default function Corretoras() {
                       value={formData.observacoes || ''}
                       onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
                     />
+                  </div>
+
+                  {/* Upload de Logo */}
+                  <div className="grid gap-2">
+                    <Label>Logo da Corretora</Label>
+                    <div className="flex items-center gap-4">
+                      {formData.logo_url && (
+                        <img 
+                          src={formData.logo_url} 
+                          alt="Logo" 
+                          className="h-16 w-auto object-contain border rounded p-2"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <Label htmlFor="logo-upload" className="cursor-pointer">
+                          <div className="border-2 border-dashed rounded-lg p-4 hover:border-primary transition-colors text-center">
+                            <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground">
+                              {uploadingLogo ? 'Enviando...' : 'Clique para fazer upload da logo'}
+                            </p>
+                          </div>
+                        </Label>
+                        <Input
+                          id="logo-upload"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="hidden"
+                          disabled={uploadingLogo}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="flex justify-end gap-2">
