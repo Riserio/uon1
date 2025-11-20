@@ -28,6 +28,7 @@ export default function AberturaSinistro() {
     veiculo_cor: '',
     data_incidente: '',
     relato_incidente: '',
+    tipo_sinistro: '',
     solicitarVistoria: false
   });
 
@@ -36,6 +37,13 @@ export default function AberturaSinistro() {
     setLoading(true);
 
     try {
+      // Validar tipo de sinistro
+      if (!formData.tipo_sinistro) {
+        toast.error('Por favor, selecione o tipo de sinistro');
+        setLoading(false);
+        return;
+      }
+
       // Buscar primeiro fluxo e primeiro status
       const { data: fluxos } = await supabase
         .from('fluxos')
@@ -71,12 +79,12 @@ export default function AberturaSinistro() {
         .from('atendimentos')
         .insert({
           user_id: user?.id,
-          assunto: `Sinistro - ${formData.veiculo_placa} - ${formData.cliente_nome}`,
-          observacoes: `Data do Incidente: ${formData.data_incidente}\n\nRelato:\n${formData.relato_incidente}\n\nVeículo: ${formData.veiculo_marca} ${formData.veiculo_modelo} ${formData.veiculo_ano} - ${formData.veiculo_cor}\nPlaca: ${formData.veiculo_placa}\n\nCliente: ${formData.cliente_nome}\nCPF: ${formData.cliente_cpf}\nTelefone: ${formData.cliente_telefone}\nEmail: ${formData.cliente_email}`,
+          assunto: `Sinistro ${formData.tipo_sinistro} - ${formData.veiculo_placa} - ${formData.cliente_nome}`,
+          observacoes: `Tipo: ${formData.tipo_sinistro}\nData do Incidente: ${formData.data_incidente}\n\nRelato:\n${formData.relato_incidente}\n\nVeículo: ${formData.veiculo_marca} ${formData.veiculo_modelo} ${formData.veiculo_ano} - ${formData.veiculo_cor}\nPlaca: ${formData.veiculo_placa}\n\nCliente: ${formData.cliente_nome}\nCPF: ${formData.cliente_cpf}\nTelefone: ${formData.cliente_telefone}\nEmail: ${formData.cliente_email}`,
           status: primeiroStatus,
           fluxo_id: primeiroFluxoId,
           prioridade: 'Alta',
-          tags: ['sinistro']
+          tags: ['sinistro', formData.tipo_sinistro.toLowerCase()]
         })
         .select()
         .single();
@@ -137,6 +145,32 @@ export default function AberturaSinistro() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Tipo de Sinistro */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg border-b pb-2">Tipo de Sinistro</h3>
+              <div>
+                <Label htmlFor="tipo_sinistro">Tipo de Sinistro *</Label>
+                <Select
+                  value={formData.tipo_sinistro}
+                  onValueChange={(value) => setFormData({ ...formData, tipo_sinistro: value })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo de sinistro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Colisão">Colisão</SelectItem>
+                    <SelectItem value="Roubo/Furto">Roubo/Furto</SelectItem>
+                    <SelectItem value="Incêndio">Incêndio</SelectItem>
+                    <SelectItem value="Danos a Terceiros">Danos a Terceiros</SelectItem>
+                    <SelectItem value="Fenômenos Naturais">Fenômenos Naturais</SelectItem>
+                    <SelectItem value="Vidros">Vidros</SelectItem>
+                    <SelectItem value="Outros">Outros</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             {/* Dados do Cliente */}
             <div className="space-y-4">
               <h3 className="font-semibold text-lg border-b pb-2">Dados do Cliente</h3>

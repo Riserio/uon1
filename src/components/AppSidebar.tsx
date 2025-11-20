@@ -171,8 +171,16 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <NavLink to="/sinistros/novo" activeClassName="bg-primary text-primary-foreground">
-                      <FileX className="h-4 w-4" />
+                      <AlertTriangle className="h-4 w-4" />
                       {!collapsed && <span>Abertura de Sinistro</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink to="/dashboard-sinistros" activeClassName="bg-primary text-primary-foreground">
+                      <TrendingUp className="h-4 w-4" />
+                      {!collapsed && <span>Dashboard Sinistros</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
