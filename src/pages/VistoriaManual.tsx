@@ -171,6 +171,36 @@ export default function VistoriaManual() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
+      // Buscar primeiro fluxo e primeiro status
+      const { data: fluxos } = await supabase
+        .from('fluxos')
+        .select('id')
+        .eq('ativo', true)
+        .order('ordem')
+        .limit(1);
+
+      if (!fluxos || fluxos.length === 0) {
+        toast.error('Nenhum fluxo ativo encontrado');
+        return;
+      }
+
+      const primeiroFluxoId = fluxos[0].id;
+
+      const { data: statusList } = await supabase
+        .from('status_config')
+        .select('nome')
+        .eq('fluxo_id', primeiroFluxoId)
+        .eq('ativo', true)
+        .order('ordem')
+        .limit(1);
+
+      if (!statusList || statusList.length === 0) {
+        toast.error('Nenhum status ativo encontrado para o fluxo');
+        return;
+      }
+
+      const primeiroStatus = statusList[0].nome;
+
       // Obter geolocalização
       let latitude, longitude, endereco;
       try {
@@ -180,7 +210,6 @@ export default function VistoriaManual() {
         latitude = position.coords.latitude;
         longitude = position.coords.longitude;
         
-        // Reverse geocoding simplificado (pode ser melhorado com API)
         endereco = `Lat: ${latitude.toFixed(6)}, Long: ${longitude.toFixed(6)}`;
       } catch (error) {
         console.error('Erro ao obter localização:', error);
@@ -194,10 +223,23 @@ export default function VistoriaManual() {
           tipo_vistoria: tipoVistoria,
           status: 'em_analise',
           created_by: user.id,
+          corretora_id: formData.corretora_id || null,
           latitude,
           longitude,
           endereco,
-          ...formData
+          cliente_nome: formData.cliente_nome,
+          cliente_cpf: formData.cliente_cpf,
+          cliente_email: formData.cliente_email,
+          cliente_telefone: formData.cliente_telefone,
+          veiculo_placa: formData.veiculo_placa,
+          veiculo_marca: formData.veiculo_marca,
+          veiculo_modelo: formData.veiculo_modelo,
+          veiculo_ano: formData.veiculo_ano,
+          veiculo_cor: formData.veiculo_cor,
+          veiculo_chassi: formData.veiculo_chassi,
+          tipo_sinistro: formData.tipo_sinistro,
+          relato_incidente: formData.relato_incidente,
+          data_incidente: formData.data_incidente,
         })
         .select()
         .single();
@@ -235,41 +277,25 @@ export default function VistoriaManual() {
         if (fotoError) throw fotoError;
       }
 
-      // Buscar o primeiro fluxo ativo e criar atendimento
-      const { data: fluxos, error: fluxosError } = await supabase
-        .from('fluxos')
-        .select('id')
-        .eq('ativo', true)
-        .order('ordem')
-        .limit(1);
+      // Criar atendimento vinculado (reutilizando variáveis já definidas)
+      const { data: atendimento, error: atendimentoError } = await supabase
+        .from('atendimentos')
+        .insert({
+          user_id: user.id,
+          corretora_id: formData.corretora_id || null,
+          responsavel_id: formData.responsavel_id || null,
+          assunto: `Vistoria ${tipoVistoria === 'sinistro' ? 'Sinistro' : 'Reativação'} - ${formData.veiculo_placa || 'Placa não informada'}`,
+          prioridade: 'Média',
+          observacoes: formData.relato_incidente,
+          tags: ['pendente_vistoria'],
+          tipo_atendimento: 'sinistro',
+          fluxo_id: primeiroFluxoId,
+          status: primeiroStatus,
+        })
+        .select()
+        .single();
 
-      if (fluxosError) throw fluxosError;
-
-      if (fluxos && fluxos.length > 0) {
-        const fluxoId = fluxos[0].id;
-        const { data: statusList, error: statusError } = await supabase
-          .from('status_config')
-          .select('nome')
-          .eq('fluxo_id', fluxoId)
-          .eq('ativo', true)
-          .order('ordem')
-          .limit(1);
-
-        if (statusError) throw statusError;
-
-        if (statusList && statusList.length > 0) {
-          await supabase.from('atendimentos').insert({
-            user_id: user.id,
-            assunto: `Sinistro - ${formData.tipo_sinistro} - ${formData.veiculo_placa}`,
-            prioridade: 'Alta',
-            status: statusList[0].nome,
-            fluxo_id: fluxoId,
-            tipo_atendimento: 'sinistro',
-            tags: ['sinistro', formData.tipo_sinistro.toLowerCase(), 'pendente_vistoria'],
-            observacoes: `Vistoria manual criada.\nTipo: ${formData.tipo_sinistro}\nCliente: ${formData.cliente_nome}\nVeículo: ${formData.veiculo_marca} ${formData.veiculo_modelo} ${formData.veiculo_ano} (${formData.veiculo_placa})\nRelato: ${formData.relato_incidente}`
-          });
-        }
-      }
+      if (atendimentoError) throw atendimentoError;
 
       toast.success('Vistoria manual criada com sucesso!');
       navigate(`/vistorias/${vistoria.id}`);

@@ -537,38 +537,36 @@ export function AtendimentoDialog({
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className={cn("grid w-full", atendimento ? (vistoriaData.tipo_atendimento === 'sinistro' ? "grid-cols-6" : "grid-cols-5") : "grid-cols-1")}>
+            <TabsList className={cn("grid w-full", vistoriaData.tipo_atendimento === 'sinistro' ? "grid-cols-6" : "grid-cols-5")}>
               <TabsTrigger value="geral" className="gap-2">
                 <FileText className="h-4 w-4" />
                 Geral
               </TabsTrigger>
-              {atendimento && (
-                <>
-                  {vistoriaData.tipo_atendimento === 'sinistro' && (
-                    <TabsTrigger value="dados_pessoais" className="gap-2" onClick={() => loadVistoriaCustos(atendimento.id)}>
-                      <User className="h-4 w-4" />
-                      Dados Pessoais
-                    </TabsTrigger>
-                  )}
-                  <TabsTrigger value="andamentos" className="gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    Andamentos
-                  </TabsTrigger>
-                  <TabsTrigger value="anexos" className="gap-2">
-                    <Paperclip className="h-4 w-4" />
-                    Anexos
-                  </TabsTrigger>
-                  <TabsTrigger value="custos" className="gap-2" onClick={() => loadVistoriaCustos(atendimento.id)}>
-                    <DollarSign className="h-4 w-4" />
-                    Custos
-                  </TabsTrigger>
-                  {(userRole === 'admin' || userRole === 'superintendente') && (
-                    <TabsTrigger value="historico" className="gap-2">
-                      <History className="h-4 w-4" />
-                      Histórico
-                    </TabsTrigger>
-                  )}
-                </>
+              {vistoriaData.tipo_atendimento === 'sinistro' && (
+                <TabsTrigger value="dados_pessoais" className="gap-2" onClick={() => atendimento && loadVistoriaCustos(atendimento.id)}>
+                  <User className="h-4 w-4" />
+                  Dados Pessoais
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="andamentos" className="gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Andamentos
+              </TabsTrigger>
+              <TabsTrigger value="anexos" className="gap-2">
+                <Paperclip className="h-4 w-4" />
+                Anexos
+              </TabsTrigger>
+              {vistoriaData.tipo_atendimento === 'sinistro' && (
+                <TabsTrigger value="custos" className="gap-2" onClick={() => atendimento && loadVistoriaCustos(atendimento.id)}>
+                  <DollarSign className="h-4 w-4" />
+                  Custos
+                </TabsTrigger>
+              )}
+              {userRole === 'admin' && (
+                <TabsTrigger value="historico" className="gap-2">
+                  <History className="h-4 w-4" />
+                  Histórico
+                </TabsTrigger>
               )}
             </TabsList>
 

@@ -72,10 +72,14 @@ export function AtendimentoCard({
     reprovadas: number;
     pendentes: number;
   } | null>(null);
+  const [corretoraNome, setCorretoraNome] = useState<string>('');
+  const [responsavelNome, setResponsavelNome] = useState<string>('');
 
   useEffect(() => {
     loadVistoria();
-  }, [atendimento.id]);
+    loadCorretora();
+    loadResponsavel();
+  }, [atendimento.id, atendimento.corretoraId, atendimento.responsavel]);
 
   const loadVistoria = async () => {
     const { data } = await supabase
@@ -120,6 +124,25 @@ export function AtendimentoCard({
         
         setFotosStatus({ total, aprovadas, reprovadas, pendentes });
       }
+    }
+  };
+
+  const loadCorretora = async () => {
+    if (atendimento.corretoraId) {
+      const { data } = await supabase
+        .from('corretoras')
+        .select('nome')
+        .eq('id', atendimento.corretoraId)
+        .single();
+      
+      if (data) setCorretoraNome(data.nome);
+    }
+  };
+
+  const loadResponsavel = async () => {
+    if (atendimento.responsavel) {
+      // Já temos o nome do responsável no atendimento
+      setResponsavelNome(atendimento.responsavel);
     }
   };
 
@@ -230,16 +253,29 @@ export function AtendimentoCard({
           </div>
         )}
 
-        {/* Meta info - compact row */}
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <span className="font-mono opacity-60">#{atendimento.numero}</span>
-          <span className="opacity-40">•</span>
-          <span className="truncate max-w-[120px]">{atendimento.responsavel}</span>
+        {/* Meta info - incluindo corretora e responsável */}
+        <div className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono opacity-60">#{atendimento.numero}</span>
+            {corretoraNome && (
+              <>
+                <span className="opacity-40">•</span>
+                <span className="truncate max-w-[120px]" title={corretoraNome}>{corretoraNome}</span>
+              </>
+            )}
+          </div>
+          {responsavelNome && (
+            <div className="flex items-center gap-1.5">
+              <span className="opacity-60">Resp:</span>
+              <span className="truncate max-w-[120px]" title={responsavelNome}>{responsavelNome}</span>
+            </div>
+          )}
           {atendimento.tags && atendimento.tags.length > 0 && (
-            <>
-              <span className="opacity-40">•</span>
-              <span className="truncate px-1 py-0.5 rounded bg-muted/50 text-[10px]">{atendimento.tags[0]}</span>
-            </>
+            <div className="flex items-center gap-1 flex-wrap">
+              {atendimento.tags.slice(0, 2).map((tag, idx) => (
+                <span key={idx} className="truncate px-1 py-0.5 rounded bg-muted/50 text-[10px]">{tag}</span>
+              ))}
+            </div>
           )}
         </div>
 
