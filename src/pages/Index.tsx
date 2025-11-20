@@ -411,20 +411,36 @@ const Index = () => {
         status_changed_at: new Date().toISOString()
       };
 
-      // Check if this is a final status (completion) - use the atendimento's fluxo_id
+      // Check if this is a final status - use the atendimento's fluxo_id
       const {
         data: statusConfig
       } = await supabase.from('status_config').select('is_final, tipo_etapa, fluxo_id, nome').eq('nome', newStatus).eq('fluxo_id', atendimentoData?.fluxo_id || selectedFluxoId).eq('ativo', true).single();
-      console.log('Status config:', statusConfig, 'for status:', newStatus);
-      // Don't mark as completed on drag - only manual button should do that
-      // The trigger will handle workflow progression automatically
-      
+
+      // Update the status
       const {
         error: updateError
       } = await supabase.from('atendimentos').update(updateData).eq('id', id);
       if (updateError) throw updateError;
+      
+      // If it's a final status, check if workflow will change and update UI
+      if (statusConfig?.is_final && atendimentoData?.fluxo_id) {
+        const { data: fluxoData } = await supabase
+          .from('fluxos')
+          .select('gera_proximo_automatico, proximo_fluxo_id')
+          .eq('id', atendimentoData.fluxo_id)
+          .single();
+        
+        // If workflow will change automatically, update the selected fluxo to follow the card
+        if (fluxoData?.gera_proximo_automatico && fluxoData.proximo_fluxo_id) {
+          setSelectedFluxoId(fluxoData.proximo_fluxo_id);
+          sonnerToast.success('Card movido para o próximo fluxo!');
+        }
+      }
+      
       await loadAtendimentos();
-      sonnerToast.success('Status atualizado!');
+      if (!statusConfig?.is_final) {
+        sonnerToast.success('Status atualizado!');
+      }
     } catch (error: any) {
       console.error('Erro ao atualizar status:', error);
       sonnerToast.error('Erro ao atualizar status');
