@@ -25,6 +25,7 @@ import Emails from "./pages/Emails";
 import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 import IndividualPerformance from "./pages/IndividualPerformance";
+import DesempenhoCorretoras from "./pages/DesempenhoCorretoras";
 import Vistorias from "./pages/Vistorias";
 import VistoriaDigital from "./pages/VistoriaDigital";
 import VistoriaManual from "./pages/VistoriaManual";
@@ -106,6 +107,8 @@ const App = () => (
             <Route path="/dashboard" element={<Navigate to="/" replace />} />
             <Route path="/dashboard-analytics" element={<ProtectedRoute><DashboardAnalytics /></ProtectedRoute>} />
             <Route path="/desempenho-individual" element={<ProtectedRoute><IndividualPerformance /></ProtectedRoute>} />
+            <Route path="/performance/individual" element={<ProtectedRoute><IndividualPerformance /></ProtectedRoute>} />
+            <Route path="/performance/corretoras" element={<ProtectedRoute><DesempenhoCorretoras /></ProtectedRoute>} />
             <Route path="/corretoras" element={<ProtectedRoute><Corretoras /></ProtectedRoute>} />
             <Route path="/administradora" element={<ProtectedRoute><AdminRoute><Administradora /></AdminRoute></ProtectedRoute>} />
             <Route path="/contatos" element={<ProtectedRoute><Contatos /></ProtectedRoute>} />

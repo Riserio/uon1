@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft, Upload, X, Save } from 'lucide-react';
 import { MaskedInput } from '@/components/ui/masked-input';
+import { useAuth } from '@/hooks/useAuth';
 
 const MARCAS = [
   'Audi', 'BMW', 'Chevrolet', 'Citroën', 'Fiat', 'Ford', 'Honda', 'Hyundai', 
@@ -60,10 +61,13 @@ const getAnosDisponiveis = () => {
 
 export default function VistoriaManual() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [tipoVistoria, setTipoVistoria] = useState<'sinistro' | 'reativacao'>('sinistro');
   const [fotos, setFotos] = useState<File[]>([]);
   const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [corretoras, setCorretoras] = useState<any[]>([]);
+  const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     // Veículo
     veiculo_placa: '',
@@ -81,7 +85,44 @@ export default function VistoriaManual() {
     tipo_sinistro: '',
     relato_incidente: '',
     data_incidente: '',
+    // Vinculação
+    corretora_id: '',
+    responsavel_id: '',
   });
+
+  useEffect(() => {
+    loadCorretoras();
+    loadResponsaveis();
+  }, []);
+
+  const loadCorretoras = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('corretoras')
+        .select('*')
+        .order('nome');
+
+      if (error) throw error;
+      setCorretoras(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar corretoras:', error);
+    }
+  };
+
+  const loadResponsaveis = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, nome')
+        .eq('ativo', true)
+        .order('nome');
+
+      if (error) throw error;
+      setResponsaveis(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar responsáveis:', error);
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
