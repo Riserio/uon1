@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Camera, FileText, Eye, Download, BarChart3, Search } from 'lucide-react';
+import { Camera, FileText, Eye, Download, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -27,7 +26,6 @@ export default function Vistorias() {
   const navigate = useNavigate();
   const [vistorias, setVistorias] = useState<Vistoria[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     loadVistorias();
@@ -74,108 +72,199 @@ export default function Vistorias() {
     return tipo === 'sinistro' ? 'Sinistro' : 'Reativação';
   };
 
-  const filteredVistorias = vistorias.filter(v => 
-    v.cliente_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    v.veiculo_placa?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    v.numero.toString().includes(searchTerm)
-  );
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              Histórico de Vistorias
+              Vistorias Veiculares
             </h1>
             <p className="text-muted-foreground mt-1">
-              {filteredVistorias.length} vistoria{filteredVistorias.length !== 1 ? 's' : ''} encontrada{filteredVistorias.length !== 1 ? 's' : ''}
+              Gerencie vistorias digitais e manuais com análise por IA
             </p>
           </div>
           <div className="flex gap-3">
-            <Button onClick={() => navigate('/vistorias/dashboard')} variant="outline" size="lg" className="gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Dashboard
-            </Button>
-            <Button onClick={() => navigate('/vistorias/nova/manual')} variant="outline" size="lg" className="gap-2">
+            <Button
+              onClick={() => navigate('/vistorias/nova/manual')}
+              variant="outline"
+              size="lg"
+              className="gap-2"
+            >
               <FileText className="h-5 w-5" />
-              Manual
+              Vistoria Manual
             </Button>
-            <Button onClick={() => navigate('/vistorias/nova/digital')} size="lg" className="gap-2 bg-gradient-to-r from-primary to-primary/80">
+            <Button
+              onClick={() => navigate('/vistorias/nova/digital')}
+              size="lg"
+              className="gap-2 bg-gradient-to-r from-primary to-primary/80"
+            >
               <Camera className="h-5 w-5" />
-              Digital
+              Vistoria Digital
             </Button>
           </div>
         </div>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input placeholder="Buscar por cliente, placa ou número..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Carregando vistorias...</p>
-          </div>
-        ) : filteredVistorias.length === 0 ? (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <Camera className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
-              <h3 className="text-lg font-semibold mb-2">{searchTerm ? 'Nenhuma vistoria encontrada' : 'Nenhuma vistoria cadastrada'}</h3>
-              <p className="text-muted-foreground mb-6">{searchTerm ? 'Tente outro termo de busca' : 'Comece criando uma nova vistoria'}</p>
-              {!searchTerm && (
-                <div className="flex gap-3 justify-center">
-                  <Button onClick={() => navigate('/vistorias/nova/manual')} variant="outline"><FileText className="h-4 w-4 mr-2" />Vistoria Manual</Button>
-                  <Button onClick={() => navigate('/vistorias/nova/digital')}><Camera className="h-4 w-4 mr-2" />Vistoria Digital</Button>
-                </div>
-              )}
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total de Vistorias
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-primary">
+                {vistorias.length}
+              </div>
             </CardContent>
           </Card>
-        ) : (
-          <div className="space-y-3">
-            {filteredVistorias.map((vistoria) => (
-              <Card key={vistoria.id} className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50" onClick={() => navigate(`/vistorias/${vistoria.id}`)}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <Badge variant="outline" className="font-mono font-semibold">#{vistoria.numero}</Badge>
-                        <Badge className={getStatusColor(vistoria.status)}>{getStatusLabel(vistoria.status)}</Badge>
-                        <Badge variant="outline">
-                          {vistoria.tipo_abertura === 'digital' ? <><Camera className="h-3 w-3 mr-1" /> Digital</> : <><FileText className="h-3 w-3 mr-1" /> Manual</>}
-                        </Badge>
-                        <Badge variant="outline">{getTipoLabel(vistoria.tipo_vistoria)}</Badge>
+
+          <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Concluídas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">
+                {vistorias.filter(v => v.status === 'concluida').length}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-yellow-500/10 to-yellow-500/5 border-yellow-500/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Aguardando
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-yellow-600">
+                {vistorias.filter(v => v.status === 'aguardando_fotos').length}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-purple-500/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Em Análise
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-purple-600">
+                {vistorias.filter(v => v.status === 'em_analise').length}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Lista de Vistorias */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Histórico de Vistorias</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="text-center py-12 text-muted-foreground">
+                Carregando vistorias...
+              </div>
+            ) : vistorias.length === 0 ? (
+              <div className="text-center py-12">
+                <Camera className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
+                <p className="text-muted-foreground mb-4">
+                  Nenhuma vistoria cadastrada ainda
+                </p>
+                <Button
+                  onClick={() => navigate('/vistorias/nova/digital')}
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Criar Primeira Vistoria
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {vistorias.map((vistoria) => (
+                  <Card
+                    key={vistoria.id}
+                    className="hover:shadow-md transition-all cursor-pointer"
+                    onClick={() => navigate(`/vistorias/${vistoria.id}`)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="flex flex-col">
+                            <span className="text-sm text-muted-foreground">
+                              Vistoria #{vistoria.numero}
+                            </span>
+                            <span className="font-semibold">
+                              {vistoria.cliente_nome || 'Cliente não informado'}
+                            </span>
+                            <span className="text-sm text-muted-foreground">
+                              {vistoria.veiculo_placa} - {vistoria.veiculo_modelo}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-3">
+                          <Badge variant={vistoria.tipo_abertura === 'digital' ? 'default' : 'secondary'}>
+                            {vistoria.tipo_abertura === 'digital' ? (
+                              <><Camera className="h-3 w-3 mr-1" /> Digital</>
+                            ) : (
+                              <><FileText className="h-3 w-3 mr-1" /> Manual</>
+                            )}
+                          </Badge>
+                          
+                          <Badge variant="outline">
+                            {getTipoLabel(vistoria.tipo_vistoria)}
+                          </Badge>
+                          
+                          <Badge className={getStatusColor(vistoria.status)}>
+                            {getStatusLabel(vistoria.status)}
+                          </Badge>
+                          
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/vistorias/${vistoria.id}`);
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            
+                            {vistoria.status === 'concluida' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // TODO: Exportar PDF
+                                }}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <p className="font-semibold text-lg">{vistoria.cliente_nome || 'Cliente não informado'}</p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {vistoria.veiculo_placa || 'Placa não informada'} • {vistoria.veiculo_modelo || 'Modelo não informado'}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Criada em {format(new Date(vistoria.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      
+                      <div className="mt-3 text-xs text-muted-foreground">
+                        Criada em {format(new Date(vistoria.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
                         {vistoria.completed_at && ` • Concluída em ${format(new Date(vistoria.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/vistorias/${vistoria.id}`); }}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      {vistoria.status === 'concluida' && (
-                        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/vistorias/${vistoria.id}`); }}>
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

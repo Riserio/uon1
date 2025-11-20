@@ -11,9 +11,7 @@ import {
   FileText, 
   Mail, 
   ClipboardList, 
-  ClipboardCheck,
-  Send,
-  AlertTriangle
+  Send 
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
@@ -169,16 +167,8 @@ export function AppSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
-                    <NavLink to="/sinistros/dashboard" activeClassName="bg-primary text-primary-foreground">
-                      <AlertTriangle className="h-4 w-4" />
-                      {!collapsed && <span>Sinistros</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
                     <NavLink to="/vistorias" activeClassName="bg-primary text-primary-foreground">
-                      <ClipboardCheck className="h-4 w-4" />
+                      <Send className="h-4 w-4" />
                       {!collapsed && <span>Vistorias</span>}
                     </NavLink>
                   </SidebarMenuButton>
