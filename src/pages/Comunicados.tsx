@@ -189,28 +189,20 @@ export default function Comunicados() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-      <div className="container mx-auto p-6 space-y-8 max-w-7xl">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate(-1)}
-              className="hover:bg-accent"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-4xl font-bold flex items-center gap-3 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                <Megaphone className="h-10 w-10 text-primary" />
-                Comunicados
-              </h1>
-              <p className="text-muted-foreground mt-2">
-                Gerencie e publique comunicados para toda a equipe
-              </p>
-            </div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Megaphone className="h-7 w-7 text-primary" />
+              </div>
+              Comunicados
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Gerencie e publique comunicados para toda a equipe
+            </p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
