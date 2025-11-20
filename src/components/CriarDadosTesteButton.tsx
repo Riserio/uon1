@@ -10,19 +10,40 @@ export const CriarDadosTesteButton = () => {
   const handleCriarDados = async () => {
     setIsLoading(true);
     try {
+      console.log('Iniciando criação de dados de teste...');
+      
       const { data, error } = await supabase.functions.invoke('criar-dados-teste');
 
-      if (error) throw error;
-
-      toast.success(data.message);
-      
-      if (data.registros && data.registros.length > 0) {
-        console.log('Registros criados:', data.registros);
-        toast.info(`Protocolos criados: ${data.registros.map((r: any) => r.protocolo).join(', ')}`);
+      if (error) {
+        console.error('Erro na função:', error);
+        throw error;
       }
-    } catch (error) {
+
+      console.log('Resposta da função:', data);
+
+      if (data.success) {
+        toast.success(data.message);
+        
+        if (data.registros && data.registros.length > 0) {
+          console.log('Registros criados:', data.registros);
+          
+          // Mostrar os protocolos criados
+          const protocolos = data.registros.map((r: any) => `#${r.protocolo}`).join(', ');
+          toast.info(`Protocolos criados: ${protocolos}`, {
+            duration: 10000,
+          });
+
+          // Recarregar a página após 2 segundos
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        }
+      } else {
+        throw new Error(data.error || 'Erro desconhecido');
+      }
+    } catch (error: any) {
       console.error('Erro ao criar dados de teste:', error);
-      toast.error('Erro ao criar dados de teste');
+      toast.error(error.message || 'Erro ao criar dados de teste. Verifique o console para mais detalhes.');
     } finally {
       setIsLoading(false);
     }
