@@ -1,12 +1,13 @@
 import { Atendimento } from '@/types/atendimento';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, User, Pencil, Trash2, Archive, Eye, Send, Clock, AlertCircle, Camera, ExternalLink } from 'lucide-react';
+import { Calendar, User, Pencil, Trash2, Archive, Eye, Send, Clock, AlertCircle, Camera, ExternalLink, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useEffect } from 'react';
 import { EnviarEmailDialog } from './EnviarEmailDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 interface AtendimentoCardProps {
   atendimento: Atendimento;
@@ -46,7 +47,7 @@ export function AtendimentoCard({
 }: AtendimentoCardProps) {
   const navigate = useNavigate();
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [vistoriaLink, setVistoriaLink] = useState<string | null>(null);
+  const [vistoria, setVistoria] = useState<{ id: string; link_token?: string; status: string } | null>(null);
 
   useEffect(() => {
     loadVistoria();
@@ -55,13 +56,13 @@ export function AtendimentoCard({
   const loadVistoria = async () => {
     const { data } = await supabase
       .from('vistorias')
-      .select('id')
+      .select('id, link_token, status')
       .eq('atendimento_id', atendimento.id)
       .limit(1)
       .single();
     
     if (data) {
-      setVistoriaLink(`/vistorias/${data.id}`);
+      setVistoria(data);
     }
   };
 
@@ -214,6 +215,34 @@ export function AtendimentoCard({
           >
             <Send className="h-3 w-3" />
           </Button>
+          {vistoria && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(`/vistorias/${vistoria.id}`)}
+                className="h-7 px-2 text-purple-600 hover:text-purple-700"
+                title="Ver vistoria"
+              >
+                <Camera className="h-3 w-3" />
+              </Button>
+              {vistoria.link_token && vistoria.status === 'aguardando_fotos' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const link = `${window.location.origin}/vistoria-publica/${vistoria.link_token}`;
+                    navigator.clipboard.writeText(link);
+                    toast.success('Link de vistoria copiado!');
+                  }}
+                  className="h-7 px-2 text-blue-600 hover:text-blue-700"
+                  title="Copiar link de vistoria"
+                >
+                  <FileText className="h-3 w-3" />
+                </Button>
+              )}
+            </>
+          )}
           {atendimento.status === 'concluido' && onArquivar && (
             <Button variant="ghost" size="sm" onClick={onArquivar} className="h-7 px-2 text-blue-600 hover:text-blue-700">
               <Archive className="h-3 w-3" />
