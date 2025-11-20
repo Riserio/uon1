@@ -766,13 +766,18 @@ export function AtendimentoDialog({
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="dp_veiculo_placa">Placa *</Label>
-                            <MaskedInput
+                            <Input
                               id="dp_veiculo_placa"
-                              format="###-####"
-                              mask="_"
                               value={vistoriaData.veiculo_placa}
-                              onValueChange={(values) => setVistoriaData({ ...vistoriaData, veiculo_placa: values.value.toUpperCase() })}
+                              onChange={(e) => {
+                                const value = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+                                const formatted = value.length > 3 && !value.includes('-') 
+                                  ? value.slice(0, 3) + '-' + value.slice(3, 7)
+                                  : value;
+                                setVistoriaData({ ...vistoriaData, veiculo_placa: formatted });
+                              }}
                               placeholder="ABC-1234"
+                              maxLength={8}
                               className={vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa) ? 'border-destructive' : ''}
                             />
                             {vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa) && (

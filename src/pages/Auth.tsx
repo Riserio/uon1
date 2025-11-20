@@ -9,45 +9,23 @@ import { useNavigate } from 'react-router-dom';
 import { signInSchema, signUpSchema } from '@/lib/validationSchemas';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
-import loginBackground from '@/assets/login-background.jpg';
 export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nome, setNome] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
-  const [backgroundImage, setBackgroundImage] = useState(loginBackground);
-  const {
-    signIn,
-    signUp,
-    user
-  } = useAuth();
+  const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
-  useEffect(() => {
-    loadLoginImage();
-  }, []);
-  const loadLoginImage = async () => {
-    const {
-      data
-    } = await supabase.from('app_config').select('login_image_url').single();
-    if (data?.login_image_url) {
-      setBackgroundImage(data.login_image_url);
-    }
-  };
-
-  // Removed automatic redirect - useAuth hook now handles status verification
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    
     try {
-      const validated = signInSchema.parse({
-        email,
-        password
-      });
-      const {
-        error
-      } = await signIn(validated.email, validated.password);
+      const validated = signInSchema.parse({ email, password });
+      const { error } = await signIn(validated.email, validated.password);
+      
       if (error) {
         toast.error(error.message || 'Erro ao fazer login');
       } else {
@@ -58,20 +36,17 @@ export default function Auth() {
         toast.error(error.errors[0].message);
       }
     }
+    
     setLoading(false);
   };
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    
     try {
-      const validated = signUpSchema.parse({
-        nome,
-        email,
-        password
-      });
-      const {
-        error
-      } = await signUp(validated.email, validated.password, validated.nome);
+      const validated = signUpSchema.parse({ nome, email, password });
+      const { error } = await signUp(validated.email, validated.password, validated.nome);
+      
       if (error) {
         toast.error(error.message || 'Erro ao criar conta');
       } else {
@@ -85,90 +60,114 @@ export default function Auth() {
         toast.error(error.errors[0].message);
       }
     }
+    
     setLoading(false);
   };
-  return <div className="min-h-screen flex overflow-hidden">
-      {/* Left Side - Decorative Background */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        <div className="absolute inset-0 bg-cover bg-center" style={{
-        backgroundImage: `url(${backgroundImage})`
-      }} />
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/90 to-primary/70" />
-        <div className="relative z-10 flex flex-col justify-center px-16 text-white">
-          <h1 className="text-5xl font-bold mb-6">Bem-vindo ao ATCD!</h1>
-          <p className="text-xl opacity-90">
-            Faça login para acessar sua conta.
-          </p>
+  return (
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700">
+      {/* Decorative circles */}
+      <div className="absolute top-20 left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
+      <div className="absolute bottom-20 right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
+      <div className="absolute top-1/2 left-1/4 w-72 h-72 bg-blue-400/20 rounded-full blur-2xl" />
+      
+      {/* Welcome text - desktop only */}
+      <div className="hidden lg:block absolute left-24 top-1/2 -translate-y-1/2 text-white z-10">
+        <div className="space-y-4">
+          <h1 className="text-6xl font-bold tracking-tight">WELCOME</h1>
+          <p className="text-xl opacity-90">Back! Please login</p>
         </div>
       </div>
 
-      {/* Right Side - Form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-background">
-        <Card className="w-full max-w-md border-0 shadow-none">
-          <CardHeader className="space-y-2 pb-8">
-            <CardTitle className="text-3xl font-bold text-center">
-              {isSignUp ? 'Criar Conta' : 'Entrar'}
-            </CardTitle>
-            <CardDescription className="text-center text-base">
-              {isSignUp ? 'Crie sua conta' : 'Digite suas credenciais para acessar sua conta'}
-            </CardDescription>
-          </CardHeader>
-          
-          {!isSignUp ? <form onSubmit={handleSignIn}>
-              <CardContent className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
-                  <Input id="email" type="email" placeholder="Digite seu e-mail" value={email} onChange={e => setEmail(e.target.value)} required className="h-12" />
+      {/* Login Card */}
+      <Card className="w-full max-w-md mx-4 lg:ml-auto lg:mr-32 bg-white shadow-2xl border-0 relative z-20">
+        <CardHeader className="space-y-2 pb-6">
+          <CardTitle className="text-2xl font-semibold">
+            {isSignUp ? 'Sign up' : 'Sign in'}
+          </CardTitle>
+          <CardDescription className="text-muted-foreground">
+            {isSignUp ? 'Create your account to get started' : 'Enter your credentials to continue'}
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="space-y-4">
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="nome" className="text-sm font-medium">
+                  Nome Completo
+                </Label>
+                <Input
+                  id="nome"
+                  type="text"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  required
+                  placeholder="Seu nome completo"
+                  className="h-11"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-sm font-medium">
+                Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="example@email.com"
+                className="h-11"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-sm font-medium">
+                Password
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="h-11"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+              disabled={loading}
+            >
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  {isSignUp ? 'Criando conta...' : 'Entrando...'}
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Senha</Label>
-                    <Button type="button" variant="link" className="text-xs p-0 h-auto text-primary" onClick={() => navigate('/reset-password')}>
-                      Esqueceu a senha?
-                    </Button>
-                  </div>
-                  <Input id="password" type="password" placeholder="Digite sua senha" value={password} onChange={e => setPassword(e.target.value)} required className="h-12" />
-                </div>
-              </CardContent>
-              <CardFooter className="flex-col space-y-4">
-                <Button type="submit" className="w-full h-12 bg-primary hover:bg-primary/90" disabled={loading}>
-                  {loading ? 'Entrando...' : 'Entrar'}
-                </Button>
-                <p className="text-sm text-center text-muted-foreground">
-                  Não tem uma conta?{' '}
-                  <Button type="button" variant="link" className="p-0 h-auto text-primary" onClick={() => setIsSignUp(true)}>
-                    Criar conta
-                  </Button>
-                </p>
-              </CardFooter>
-            </form> : <form onSubmit={handleSignUp}>
-              <CardContent className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-nome">Nome Completo</Label>
-                  <Input id="signup-nome" type="text" placeholder="Digite seu nome completo" value={nome} onChange={e => setNome(e.target.value)} required className="h-12" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">E-mail</Label>
-                  <Input id="signup-email" type="email" placeholder="Digite seu e-mail" value={email} onChange={e => setEmail(e.target.value)} required className="h-12" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Senha</Label>
-                  <Input id="signup-password" type="password" placeholder="Crie uma senha" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="h-12" />
-                </div>
-              </CardContent>
-              <CardFooter className="flex-col space-y-4">
-                <Button type="submit" className="w-full h-12 bg-primary hover:bg-primary/90" disabled={loading}>
-                  {loading ? 'Criando conta...' : 'Criar Conta'}
-                </Button>
-                <p className="text-sm text-center text-muted-foreground">
-                  Já tem uma conta?{' '}
-                  <Button type="button" variant="link" className="p-0 h-auto text-primary" onClick={() => setIsSignUp(false)}>
-                    Entrar
-                  </Button>
-                </p>
-              </CardFooter>
-            </form>}
-        </Card>
-      </div>
-    </div>;
+              ) : (
+                isSignUp ? 'Criar Conta' : 'Entrar'
+              )}
+            </Button>
+          </form>
+        </CardContent>
+
+        <CardFooter className="flex flex-col space-y-4">
+          <div className="text-sm text-center text-muted-foreground">
+            {isSignUp ? 'Já tem uma conta?' : "Don't have an account?"}
+            <button
+              type="button"
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="ml-2 text-blue-600 hover:text-blue-700 font-medium"
+            >
+              {isSignUp ? 'Fazer login' : 'Sign up'}
+            </button>
+          </div>
+        </CardFooter>
+      </Card>
+    </div>
+  );
 }
