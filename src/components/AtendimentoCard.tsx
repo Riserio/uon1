@@ -100,39 +100,39 @@ export function AtendimentoCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        "group bg-card border rounded-md hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing",
-        isDragging && "scale-105 shadow-lg ring-2 ring-primary/20",
-        isConcluido && "opacity-60",
-        !isConcluido && isOverdue && "border-destructive/50"
+        "group bg-card border rounded-lg hover:shadow-sm transition-all duration-150 cursor-grab active:cursor-grabbing",
+        isDragging && "scale-[1.02] shadow-md ring-1 ring-primary/20",
+        isConcluido && "opacity-50",
+        !isConcluido && isOverdue && "border-destructive/40"
       )}
     >
-      <div className="p-3 space-y-2.5">
+      <div className="px-2.5 py-2 space-y-1.5">
         {/* Title */}
         <h3 
-          className="text-sm font-medium text-foreground leading-snug line-clamp-2 cursor-pointer hover:text-primary transition-colors pr-8"
+          className="text-[13px] font-medium text-foreground leading-tight line-clamp-2 cursor-pointer hover:text-primary transition-colors"
           onClick={onEdit}
         >
           {atendimento.assunto}
         </h3>
 
         {/* Meta info - compact row */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="font-mono">#{atendimento.numero}</span>
-          <span>•</span>
-          <span className="truncate">{atendimento.responsavel}</span>
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span className="font-mono opacity-60">#{atendimento.numero}</span>
+          <span className="opacity-40">•</span>
+          <span className="truncate max-w-[120px]">{atendimento.responsavel}</span>
           {atendimento.tags && atendimento.tags.length > 0 && (
             <>
-              <span>•</span>
-              <span className="truncate">{atendimento.tags[0]}</span>
+              <span className="opacity-40">•</span>
+              <span className="truncate px-1 py-0.5 rounded bg-muted/50 text-[10px]">{atendimento.tags[0]}</span>
             </>
           )}
         </div>
 
         {/* Status indicators */}
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-1 flex-wrap mt-1.5">
           <Badge 
             className={cn(
-              "text-xs h-5 px-1.5 font-normal",
+              "text-[10px] h-4 px-1.5 font-normal rounded",
               priorityColors[atendimento.prioridade]
             )} 
             variant="outline"
@@ -143,15 +143,15 @@ export function AtendimentoCard({
           {!isConcluido && hoursRemaining !== null && hoursRemaining <= 8 && (
             <Badge 
               variant={isOverdue ? "destructive" : "secondary"}
-              className={cn("text-xs h-5 px-1.5", !isOverdue && "bg-muted/50 text-muted-foreground border-0")}
+              className={cn("text-[10px] h-4 px-1.5 rounded", !isOverdue && "bg-muted/50 text-muted-foreground border-0")}
             >
-              <Clock className="w-3 h-3 mr-1" />
+              <Clock className="w-2.5 h-2.5 mr-0.5" />
               {isOverdue ? `${Math.abs(hoursRemaining)}h` : `${hoursRemaining}h`}
             </Badge>
           )}
 
           {isConcluido && (
-            <Badge className="text-xs h-5 px-1.5 bg-status-concluido/10 text-status-concluido border-status-concluido/20">
+            <Badge className="text-[10px] h-4 px-1.5 rounded bg-status-concluido/10 text-status-concluido border-status-concluido/20">
               ✓ Concluído
             </Badge>
           )}
@@ -159,15 +159,15 @@ export function AtendimentoCard({
       </div>
 
       {/* Action buttons - show on hover */}
-      <div className="px-3 pb-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="px-2 pb-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity border-t border-border/5 pt-1.5 mt-0.5">
         <Button
           variant="ghost"
           size="sm"
           onClick={onEdit}
-          className="h-7 w-7 p-0 hover:bg-muted"
+          className="h-6 w-6 p-0 hover:bg-muted/50 rounded"
           title="Editar"
         >
-          <Pencil className="h-3.5 w-3.5" />
+          <Pencil className="h-3 w-3" />
         </Button>
 
         {onViewAndamentos && (
@@ -175,10 +175,10 @@ export function AtendimentoCard({
             variant="ghost"
             size="sm"
             onClick={onViewAndamentos}
-            className="h-7 w-7 p-0 hover:bg-muted"
+            className="h-6 w-6 p-0 hover:bg-muted/50 rounded"
             title="Ver andamentos"
           >
-            <Eye className="h-3.5 w-3.5" />
+            <Eye className="h-3 w-3" />
           </Button>
         )}
 
@@ -186,10 +186,10 @@ export function AtendimentoCard({
           variant="ghost"
           size="sm"
           onClick={() => setEmailDialogOpen(true)}
-          className="h-7 w-7 p-0 hover:bg-muted"
+          className="h-6 w-6 p-0 hover:bg-muted/50 rounded"
           title="Enviar email"
         >
-          <Send className="h-3.5 w-3.5" />
+          <Send className="h-3 w-3" />
         </Button>
 
         {vistoria && (
@@ -198,10 +198,10 @@ export function AtendimentoCard({
               variant="ghost"
               size="sm"
               onClick={() => navigate(`/vistorias/${vistoria.id}`)}
-              className="h-7 w-7 p-0 hover:bg-muted"
+              className="h-6 w-6 p-0 hover:bg-muted/50 rounded"
               title="Ver vistoria"
             >
-              <Camera className="h-3.5 w-3.5" />
+              <Camera className="h-3 w-3" />
             </Button>
             
             {vistoria.link_token && vistoria.status === 'aguardando_fotos' && (
@@ -213,10 +213,10 @@ export function AtendimentoCard({
                   await navigator.clipboard.writeText(link);
                   toast.success('Link copiado');
                 }}
-                className="h-7 w-7 p-0 hover:bg-muted"
+                className="h-6 w-6 p-0 hover:bg-muted/50 rounded"
                 title="Copiar link"
               >
-                <FileText className="h-3.5 w-3.5" />
+                <FileText className="h-3 w-3" />
               </Button>
             )}
           </>
@@ -229,10 +229,10 @@ export function AtendimentoCard({
             variant="ghost"
             size="sm"
             onClick={onArquivar}
-            className="h-7 w-7 p-0 hover:bg-muted"
+            className="h-6 w-6 p-0 hover:bg-muted/50 rounded"
             title="Arquivar"
           >
-            <Archive className="h-3.5 w-3.5" />
+            <Archive className="h-3 w-3" />
           </Button>
         )}
 
@@ -240,10 +240,10 @@ export function AtendimentoCard({
           variant="ghost"
           size="sm"
           onClick={onDelete}
-          className="h-7 w-7 p-0 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+          className="h-6 w-6 p-0 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded"
           title="Deletar"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="h-3 w-3" />
         </Button>
       </div>
     </div>
