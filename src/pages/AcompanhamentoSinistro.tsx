@@ -7,7 +7,8 @@ import { toast } from 'sonner';
 import { Search, FileSearch, CheckCircle2, Clock, AlertCircle, Car, User, Calendar, Phone, Mail, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatCPF, formatPlaca } from '@/lib/validators';
-import { cn } from '@/lib/utils';
+import { StatusPrazo } from '@/components/StatusPrazo';
+import { CriarDadosTesteButton } from '@/components/CriarDadosTesteButton';
 
 export default function AcompanhamentoSinistro() {
   const [busca, setBusca] = useState('');
@@ -17,11 +18,9 @@ export default function AcompanhamentoSinistro() {
   const [statusPublicos, setStatusPublicos] = useState<any[]>([]);
   const [andamentos, setAndamentos] = useState<any[]>([]);
 
-  // Detecta automaticamente se é CPF ou Placa e formata
   const handleInputChange = (value: string) => {
     const cleaned = value.replace(/[^\w]/g, '');
     
-    // Se só tem números e tem 11 dígitos, é CPF
     if (/^\d+$/.test(cleaned)) {
       if (cleaned.length <= 11) {
         setBusca(formatCPF(cleaned));
@@ -29,7 +28,6 @@ export default function AcompanhamentoSinistro() {
       }
     }
     
-    // Se tem letras, é placa
     if (/[a-zA-Z]/.test(cleaned)) {
       setBusca(formatPlaca(cleaned));
       return;
@@ -48,6 +46,7 @@ export default function AcompanhamentoSinistro() {
     try {
       const cleanBusca = busca.replace(/[^\w]/g, '');
       let vistoriaResult = null;
+      let atendimentoData = null;
       
       // Tentar buscar por número de protocolo primeiro
       if (/^\d+$/.test(cleanBusca)) {
@@ -56,11 +55,13 @@ export default function AcompanhamentoSinistro() {
         // Buscar atendimento pelo número
         const { data: atendimentoResult } = await supabase
           .from('atendimentos')
-          .select('id')
+          .select('*')
           .eq('numero', numeroProtocolo)
           .maybeSingle();
 
         if (atendimentoResult) {
+          atendimentoData = atendimentoResult;
+          
           // Buscar vistoria pelo atendimento_id
           const { data: vistoriaData } = await supabase
             .from('vistorias')
@@ -78,7 +79,7 @@ export default function AcompanhamentoSinistro() {
       
       // Se não encontrou por protocolo, buscar vistoria pela placa ou CPF
       if (!vistoriaResult) {
-        const { data: vistoriaData, error: vistoriaError } = await supabase
+        const { data: vistoriaData } = await supabase
           .from('vistorias')
           .select('*')
           .or(`veiculo_placa.ilike.%${cleanBusca}%,cliente_cpf.ilike.%${cleanBusca}%`)
@@ -86,43 +87,46 @@ export default function AcompanhamentoSinistro() {
           .limit(1)
           .maybeSingle();
 
-        if (vistoriaError || !vistoriaData) {
-          toast.error('Nenhum sinistro encontrado com esses dados');
-          setVistoriaData(null);
-          setAtendimento(null);
-          return;
+        if (vistoriaData) {
+          vistoriaResult = vistoriaData;
+          
+          // Buscar atendimento vinculado
+          if (vistoriaResult.atendimento_id) {
+            const { data: atendimentoResult } = await supabase
+              .from('atendimentos')
+              .select('*')
+              .eq('id', vistoriaResult.atendimento_id)
+              .single();
+            
+            atendimentoData = atendimentoResult;
+          }
         }
-        
-        vistoriaResult = vistoriaData;
+      }
+
+      if (!vistoriaResult && !atendimentoData) {
+        toast.error('Nenhum sinistro encontrado com esses dados');
+        setVistoriaData(null);
+        setAtendimento(null);
+        setStatusPublicos([]);
+        setAndamentos([]);
+        return;
       }
 
       setVistoriaData(vistoriaResult);
-
-      // Buscar atendimento vinculado
-      if (vistoriaResult.atendimento_id) {
-        const { data: atendimentoData } = await supabase
-          .from('atendimentos')
-          .select('*')
-          .eq('id', vistoriaResult.atendimento_id)
-          .single();
-        
-        setAtendimento(atendimentoData);
-      } else {
-        setAtendimento(null);
-      }
+      setAtendimento(atendimentoData);
 
       // Buscar andamentos e histórico
-      if (vistoriaResult.atendimento_id) {
+      if (atendimentoData) {
         const { data: andamentosData } = await supabase
           .from('andamentos')
           .select('*, profiles!andamentos_created_by_fkey(nome)')
-          .eq('atendimento_id', vistoriaResult.atendimento_id)
+          .eq('atendimento_id', atendimentoData.id)
           .order('created_at', { ascending: true });
 
         const { data: historicoData } = await supabase
           .from('atendimentos_historico')
           .select('*')
-          .eq('atendimento_id', vistoriaResult.atendimento_id)
+          .eq('atendimento_id', atendimentoData.id)
           .contains('campos_alterados', ['status'])
           .order('created_at', { ascending: true });
 
@@ -145,21 +149,13 @@ export default function AcompanhamentoSinistro() {
         ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
         setAndamentos(combinedTimeline);
-      }
 
-      // Buscar status públicos
-      if (vistoriaResult.atendimento_id) {
-        const { data: atendimentoFluxo } = await supabase
-          .from('atendimentos')
-          .select('fluxo_id')
-          .eq('id', vistoriaResult.atendimento_id)
-          .single();
-
-        if (atendimentoFluxo?.fluxo_id) {
+        // Buscar status públicos configurados para o fluxo
+        if (atendimentoData.fluxo_id) {
           const { data: statusData } = await supabase
             .from('status_publicos_config')
             .select('*')
-            .eq('fluxo_id', atendimentoFluxo.fluxo_id)
+            .eq('fluxo_id', atendimentoData.fluxo_id)
             .eq('visivel_publico', true)
             .order('ordem_exibicao');
 
@@ -192,7 +188,7 @@ export default function AcompanhamentoSinistro() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5">
       <div className="max-w-7xl mx-auto px-4 py-12">
-        {/* Header Modernizado */}
+        {/* Header */}
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-gradient-to-br from-primary to-primary/60 shadow-2xl mb-6 animate-in zoom-in duration-500">
             <FileSearch className="h-12 w-12 text-primary-foreground" />
@@ -205,7 +201,12 @@ export default function AcompanhamentoSinistro() {
           </p>
         </div>
 
-        {/* Busca Modernizada */}
+        {/* Botão de teste */}
+        <div className="flex justify-end mb-4">
+          <CriarDadosTesteButton />
+        </div>
+
+        {/* Busca */}
         <Card className="shadow-2xl mb-10 border-0 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
           <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-1">
             <CardContent className="p-8 bg-card">
@@ -247,7 +248,7 @@ export default function AcompanhamentoSinistro() {
           </div>
         </Card>
 
-        {/* Resultados Modernizados */}
+        {/* Resultados */}
         {atendimento && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
             {/* Informações do Sinistro */}
@@ -373,7 +374,6 @@ export default function AcompanhamentoSinistro() {
                       
                       return (
                         <div key={status.id} className="flex gap-6 relative group">
-                          {/* Linha conectora */}
                           {index < statusPublicos.length - 1 && (
                             <div 
                               className={`absolute left-6 top-14 w-[3px] h-full transition-all duration-500 ${
@@ -382,36 +382,37 @@ export default function AcompanhamentoSinistro() {
                             />
                           )}
                           
-                          {/* Ícone */}
-                          <div className={`relative z-10 flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all duration-500 ${
-                            isCompleted ? 'bg-gradient-to-br from-green-500 to-green-600 scale-110' : 
-                            isCurrent ? 'bg-gradient-to-br from-primary to-primary/60 animate-pulse scale-110 ring-4 ring-primary/20' : 
-                            'bg-muted scale-100'
+                          <div className={`relative z-10 p-3 rounded-2xl transition-all duration-500 ${
+                            isCompleted 
+                              ? 'bg-gradient-to-br from-green-500 to-green-600 shadow-lg shadow-green-500/30' 
+                              : isCurrent 
+                              ? 'bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/30 animate-pulse' 
+                              : 'bg-muted/30 border-2 border-border'
                           }`}>
                             {getStatusIcon(status.status_nome, atendimento.status)}
                           </div>
                           
-                          {/* Conteúdo */}
-                          <div className="flex-1 pb-8">
-                            <div className={`text-xl font-bold mb-2 transition-colors ${
-                              isCurrent ? 'text-primary' : 
-                              isCompleted ? 'text-green-600' : 
-                              'text-muted-foreground'
-                            }`}>
-                              {status.status_nome}
+                          <div className="flex-1 pt-2">
+                            <div className="flex items-start justify-between mb-2">
+                              <h3 className="font-bold text-xl text-foreground">{status.status_nome}</h3>
+                              {isCurrent && (
+                                <Badge className="bg-primary text-primary-foreground shadow-lg">
+                                  EM ANDAMENTO
+                                </Badge>
+                              )}
+                              {isCompleted && (
+                                <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">
+                                  CONCLUÍDO
+                                </Badge>
+                              )}
                             </div>
                             {status.descricao_publica && (
-                              <p className="text-base text-muted-foreground leading-relaxed mb-3">{status.descricao_publica}</p>
+                              <p className="text-muted-foreground mb-3 text-base leading-relaxed">
+                                {status.descricao_publica}
+                              </p>
                             )}
-                            {isCurrent && (
-                              <Badge className="mt-2 text-sm py-1 px-3 bg-primary/10 text-primary border-primary/20" variant="outline">
-                                ✓ Status Atual
-                              </Badge>
-                            )}
-                            {isCompleted && (
-                              <Badge className="mt-2 text-sm py-1 px-3 bg-green-500/10 text-green-600 border-green-500/20" variant="outline">
-                                ✓ Concluído
-                              </Badge>
+                            {!isCompleted && atendimento?.fluxo_id && (
+                              <StatusPrazo statusNome={status.status_nome} fluxoId={atendimento.fluxo_id} />
                             )}
                           </div>
                         </div>
@@ -422,69 +423,66 @@ export default function AcompanhamentoSinistro() {
               </Card>
             )}
 
-            {/* Histórico de Andamentos e Mudanças de Status */}
+            {/* Histórico de Andamentos */}
             {andamentos.length > 0 && (
               <Card className="shadow-2xl border-0 overflow-hidden">
-                <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-1">
+                <div className="bg-gradient-to-r from-primary to-primary/60 p-1">
                   <CardHeader className="bg-card">
                     <CardTitle className="flex items-center gap-3 text-2xl">
-                      <div className="p-2 rounded-lg bg-purple-500/10">
-                        <FileText className="h-6 w-6 text-purple-600" />
+                      <div className="p-2 rounded-lg bg-primary/10">
+                        <FileText className="h-6 w-6 text-primary" />
                       </div>
-                      Histórico Completo de Andamentos
+                      Histórico de Atualizações
                     </CardTitle>
                   </CardHeader>
                 </div>
                 <CardContent className="p-8">
                   <div className="space-y-6">
-                    {andamentos.map((item: any, index: number) => (
-                      <div 
-                        key={item.id}
-                        className={cn(
-                          "p-6 rounded-xl relative transition-all hover:shadow-lg",
-                          item.type === 'status_change' 
-                            ? "border-l-4 border-primary bg-gradient-to-r from-primary/10 to-transparent" 
-                            : "border-l-4 border-purple-500 bg-gradient-to-r from-purple-500/10 to-transparent"
-                        )}
-                      >
-                        {/* Linha conectora */}
-                        {index < andamentos.length - 1 && (
-                          <div className="absolute left-0 top-full w-[4px] h-6 bg-border" />
-                        )}
-                        
-                        <div className="flex items-start justify-between mb-3 flex-wrap gap-2">
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <span className={cn(
-                              "text-base font-bold",
-                              item.type === 'status_change' ? "text-primary" : "text-purple-600"
-                            )}>
-                              {item.created_by}
-                            </span>
-                            {item.type === 'status_change' && (
-                              <Badge variant="outline" className="text-xs border-primary text-primary bg-primary/5">
-                                🔄 Mudança de Status
-                              </Badge>
+                    {andamentos.map((andamento, index) => (
+                      <div key={andamento.id} className="flex gap-4 group">
+                        <div className="relative">
+                          <div className={`p-2 rounded-full ${
+                            andamento.type === 'status_change' 
+                              ? 'bg-primary/10 text-primary' 
+                              : 'bg-secondary/10 text-secondary-foreground'
+                          }`}>
+                            {andamento.type === 'status_change' ? (
+                              <Clock className="h-4 w-4" />
+                            ) : (
+                              <FileText className="h-4 w-4" />
                             )}
                           </div>
-                          <span className="text-sm text-muted-foreground font-medium">
-                            {new Date(item.created_at).toLocaleString('pt-BR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </span>
+                          {index < andamentos.length - 1 && (
+                            <div className="absolute left-1/2 top-10 w-[2px] h-full -translate-x-1/2 bg-border" />
+                          )}
                         </div>
-                        <p className="text-base text-foreground leading-relaxed whitespace-pre-wrap pl-1">
-                          {item.descricao}
-                        </p>
+                        <div className="flex-1 pb-6">
+                          <p className="font-medium text-foreground mb-1">{andamento.descricao}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {andamento.created_by} • {new Date(andamento.created_at).toLocaleString('pt-BR')}
+                          </p>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </CardContent>
               </Card>
             )}
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!loading && !atendimento && (
+          <div className="text-center py-20 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-400">
+            <div className="inline-flex items-center justify-center w-32 h-32 rounded-full bg-muted/50 mb-6">
+              <Search className="h-16 w-16 text-muted-foreground" />
+            </div>
+            <h3 className="text-2xl font-semibold text-foreground mb-2">
+              Nenhum sinistro encontrado
+            </h3>
+            <p className="text-lg text-muted-foreground max-w-md mx-auto">
+              Digite a placa do veículo, CPF do cliente ou número do protocolo para começar
+            </p>
           </div>
         )}
       </div>
