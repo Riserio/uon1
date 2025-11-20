@@ -138,12 +138,6 @@ export default function VistoriaPublicaFormulario() {
       return;
     }
 
-    if (!assinatura) {
-      toast.error('Assinatura é obrigatória');
-      setCurrentStep(5);
-      return;
-    }
-
     setUploading(true);
     try {
       // Upload documentos condicionais
@@ -205,57 +199,31 @@ export default function VistoriaPublicaFormulario() {
         }
       }
 
-      // Upload assinatura e croqui
-      const assinaturaUrl = await uploadDataUrl(assinatura, 'assinatura');
+      // Upload croqui
       const croquiUrl = croqui ? await uploadDataUrl(croqui, 'croqui') : null;
 
-      // Atualizar vistoria
+      // Atualizar vistoria (sem assinatura ainda)
       const { error: updateError } = await supabase
         .from('vistorias')
         .update({
           ...formData,
-          status: 'em_analise',
           latitude: tempData?.geolocation?.latitude,
           longitude: tempData?.geolocation?.longitude,
           cnh_url: cnhUrl,
           cnh_dados: tempData?.cnhData,
           crlv_fotos_urls: crlvUrls,
           bo_url: boUrl,
-          assinatura_url: assinaturaUrl,
           laudo_medico_url: laudoMedicoUrl,
           atestado_obito_url: atestadoObitoUrl,
           laudo_alcoolemia_url: laudoAlcoolemiaUrl,
           croqui_acidente_url: croquiUrl,
-          completed_at: new Date().toISOString(),
         })
         .eq('id', vistoria.id);
 
       if (updateError) throw updateError;
 
-      // Chamar análise IA
-      const { data: fotosList } = await supabase
-        .from('vistoria_fotos')
-        .select('*')
-        .eq('vistoria_id', vistoria.id);
-
-      if (fotosList && fotosList.length >= 4) {
-        await supabase.functions.invoke('analisar-vistoria-ia', {
-          body: {
-            vistoria_id: vistoria.id,
-            fotos: fotosList.map(f => ({
-              id: f.id,
-              posicao: f.posicao,
-              url: f.arquivo_url
-            }))
-          }
-        });
-      }
-
-      // Limpar dados temporários
-      localStorage.removeItem('vistoria_temp');
-
-      toast.success('Vistoria enviada com sucesso!');
-      navigate(`/vistoria/${token}/conclusao`);
+      toast.success('Dados salvos! Agora aceite os termos.');
+      navigate(`/vistoria/${token}/termos`);
     } catch (error) {
       console.error('Erro ao enviar vistoria:', error);
       toast.error('Erro ao enviar vistoria');
@@ -277,7 +245,7 @@ export default function VistoriaPublicaFormulario() {
     );
   }
 
-  const totalSteps = 6;
+  const totalSteps = 5;
   const stepProgress = ((currentStep + 1) / totalSteps) * 100;
 
   return (
@@ -421,13 +389,21 @@ export default function VistoriaPublicaFormulario() {
               <div className="space-y-4">
                 <h2 className="text-2xl font-bold">Informações Adicionais</h2>
                 
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="terceiros"
-                    checked={formData.tem_terceiros}
-                    onCheckedChange={(checked) => setFormData({ ...formData, tem_terceiros: checked as boolean })}
-                  />
-                  <Label htmlFor="terceiros">Houve terceiros envolvidos?</Label>
+                <div>
+                  <Label>Houve terceiros envolvidos?</Label>
+                  <RadioGroup
+                    value={formData.tem_terceiros ? "sim" : "nao"}
+                    onValueChange={(value) => setFormData({ ...formData, tem_terceiros: value === "sim" })}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="sim" id="terceiros-sim" />
+                      <Label htmlFor="terceiros-sim">Sim</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="nao" id="terceiros-nao" />
+                      <Label htmlFor="terceiros-nao">Não</Label>
+                    </div>
+                  </RadioGroup>
                 </div>
 
                 {formData.tem_terceiros && (
@@ -441,22 +417,38 @@ export default function VistoriaPublicaFormulario() {
                   </div>
                 )}
 
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="camera"
-                    checked={formData.local_tem_camera}
-                    onCheckedChange={(checked) => setFormData({ ...formData, local_tem_camera: checked as boolean })}
-                  />
-                  <Label htmlFor="camera">O local possui câmeras?</Label>
+                <div>
+                  <Label>O local possui câmeras?</Label>
+                  <RadioGroup
+                    value={formData.local_tem_camera ? "sim" : "nao"}
+                    onValueChange={(value) => setFormData({ ...formData, local_tem_camera: value === "sim" })}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="sim" id="camera-sim" />
+                      <Label htmlFor="camera-sim">Sim</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="nao" id="camera-nao" />
+                      <Label htmlFor="camera-nao">Não</Label>
+                    </div>
+                  </RadioGroup>
                 </div>
 
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="policia"
-                    checked={formData.policia_foi_local}
-                    onCheckedChange={(checked) => setFormData({ ...formData, policia_foi_local: checked as boolean })}
-                  />
-                  <Label htmlFor="policia">A polícia foi ao local?</Label>
+                <div>
+                  <Label>A polícia foi ao local?</Label>
+                  <RadioGroup
+                    value={formData.policia_foi_local ? "sim" : "nao"}
+                    onValueChange={(value) => setFormData({ ...formData, policia_foi_local: value === "sim" })}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="sim" id="policia-sim" />
+                      <Label htmlFor="policia-sim">Sim</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="nao" id="policia-nao" />
+                      <Label htmlFor="policia-nao">Não</Label>
+                    </div>
+                  </RadioGroup>
                 </div>
               </div>
             )}
@@ -467,13 +459,21 @@ export default function VistoriaPublicaFormulario() {
                 <h2 className="text-2xl font-bold">Documentos</h2>
                 
                 <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="bo"
-                      checked={formData.fez_bo}
-                      onCheckedChange={(checked) => setFormData({ ...formData, fez_bo: checked as boolean })}
-                    />
-                    <Label htmlFor="bo">Fez Boletim de Ocorrência?</Label>
+                  <div>
+                    <Label>Fez Boletim de Ocorrência?</Label>
+                    <RadioGroup
+                      value={formData.fez_bo ? "sim" : "nao"}
+                      onValueChange={(value) => setFormData({ ...formData, fez_bo: value === "sim" })}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="sim" id="bo-sim" />
+                        <Label htmlFor="bo-sim">Sim</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="nao" id="bo-nao" />
+                        <Label htmlFor="bo-nao">Não</Label>
+                      </div>
+                    </RadioGroup>
                   </div>
 
                   {formData.fez_bo && (
@@ -489,13 +489,21 @@ export default function VistoriaPublicaFormulario() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="hospital"
-                      checked={formData.foi_hospital}
-                      onCheckedChange={(checked) => setFormData({ ...formData, foi_hospital: checked as boolean })}
-                    />
-                    <Label htmlFor="hospital">Foi ao hospital?</Label>
+                  <div>
+                    <Label>Foi ao hospital?</Label>
+                    <RadioGroup
+                      value={formData.foi_hospital ? "sim" : "nao"}
+                      onValueChange={(value) => setFormData({ ...formData, foi_hospital: value === "sim" })}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="sim" id="hospital-sim" />
+                        <Label htmlFor="hospital-sim">Sim</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="nao" id="hospital-nao" />
+                        <Label htmlFor="hospital-nao">Não</Label>
+                      </div>
+                    </RadioGroup>
                   </div>
 
                   {formData.foi_hospital && (
@@ -511,13 +519,21 @@ export default function VistoriaPublicaFormulario() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="obito"
-                      checked={formData.motorista_faleceu}
-                      onCheckedChange={(checked) => setFormData({ ...formData, motorista_faleceu: checked as boolean })}
-                    />
-                    <Label htmlFor="obito">O motorista faleceu?</Label>
+                  <div>
+                    <Label>O motorista faleceu?</Label>
+                    <RadioGroup
+                      value={formData.motorista_faleceu ? "sim" : "nao"}
+                      onValueChange={(value) => setFormData({ ...formData, motorista_faleceu: value === "sim" })}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="sim" id="obito-sim" />
+                        <Label htmlFor="obito-sim">Sim</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="nao" id="obito-nao" />
+                        <Label htmlFor="obito-nao">Não</Label>
+                      </div>
+                    </RadioGroup>
                   </div>
 
                   {formData.motorista_faleceu && (
@@ -558,23 +574,6 @@ export default function VistoriaPublicaFormulario() {
               </div>
             )}
 
-            {/* Step 5: Assinatura */}
-            {currentStep === 5 && (
-              <div className="space-y-4">
-                <h2 className="text-2xl font-bold">Assinatura Digital</h2>
-                <p className="text-sm text-muted-foreground">
-                  Assine com o dedo ou mouse para confirmar as informações *
-                </p>
-                <SignaturePad onSave={setAssinatura} initialSignature={assinatura} />
-                
-                {assinatura && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-green-600" />
-                    <span className="text-sm font-medium text-green-900">Assinatura salva</span>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Navegação */}
             <div className="flex gap-3 pt-6 border-t">
@@ -602,19 +601,19 @@ export default function VistoriaPublicaFormulario() {
               ) : (
                 <Button
                   onClick={handleSubmit}
-                  disabled={uploading || !assinatura}
+                  disabled={uploading}
                   size="lg"
-                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  className="flex-1"
                 >
                   {uploading ? (
                     <>
                       <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/20 border-t-white mr-2" />
-                      Enviando...
+                      Salvando...
                     </>
                   ) : (
                     <>
-                      <Upload className="h-5 w-5 mr-2" />
-                      Finalizar Vistoria
+                      Próximo - Termos
+                      <ArrowRight className="h-5 w-5 ml-2" />
                     </>
                   )}
                 </Button>

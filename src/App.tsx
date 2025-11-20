@@ -34,6 +34,7 @@ import VistoriaDetalhe from "./pages/VistoriaDetalhe";
 import VistoriaPublicaLanding from './pages/VistoriaPublicaLanding';
 import VistoriaPublicaCaptura from './pages/VistoriaPublicaCaptura';
 import VistoriaPublicaFormulario from './pages/VistoriaPublicaFormulario';
+import VistoriaPublicaTermos from './pages/VistoriaPublicaTermos';
 import VistoriaPublicaConclusao from './pages/VistoriaPublicaConclusao';
 import AcompanhamentoSinistro from './pages/AcompanhamentoSinistro';
 import AcompanhamentoSinistrosInterno from './pages/AcompanhamentoSinistrosInterno';
@@ -92,9 +93,10 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/change-password" element={<ChangePassword />} />
             <Route path="/vistoria/:token" element={<VistoriaPublicaLanding />} />
-            <Route path="/vistoria/:token/captura" element={<VistoriaPublicaCaptura />} />
-            <Route path="/vistoria/:token/formulario" element={<VistoriaPublicaFormulario />} />
-            <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
+          <Route path="/vistoria/:token/captura" element={<VistoriaPublicaCaptura />} />
+          <Route path="/vistoria/:token/formulario" element={<VistoriaPublicaFormulario />} />
+          <Route path="/vistoria/:token/termos" element={<VistoriaPublicaTermos />} />
+          <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
             <Route path="/acompanhamento" element={<AcompanhamentoSinistro />} />
             <Route path="/sinistros/acompanhamento" element={<ProtectedRoute><AcompanhamentoSinistrosInterno /></ProtectedRoute>} />
             <Route path="/configuracao-status-publico" element={<ProtectedRoute><ConfiguracaoStatusPublico /></ProtectedRoute>} />
