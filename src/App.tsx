@@ -33,6 +33,7 @@ import VistoriaPublicaLanding from './pages/VistoriaPublicaLanding';
 import VistoriaPublicaCaptura from './pages/VistoriaPublicaCaptura';
 import VistoriaPublicaConclusao from './pages/VistoriaPublicaConclusao';
 import AcompanhamentoSinistro from './pages/AcompanhamentoSinistro';
+import AcompanhamentoSinistrosInterno from './pages/AcompanhamentoSinistrosInterno';
 import ConfiguracaoStatusPublico from './pages/ConfiguracaoStatusPublico';
 import Administradora from "./pages/Administradora";
 import AberturaSinistro from './pages/AberturaSinistro';
@@ -91,6 +92,7 @@ const App = () => (
             <Route path="/vistoria/:token/captura" element={<VistoriaPublicaCaptura />} />
             <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
             <Route path="/acompanhamento" element={<AcompanhamentoSinistro />} />
+            <Route path="/sinistros/acompanhamento" element={<ProtectedRoute><AcompanhamentoSinistrosInterno /></ProtectedRoute>} />
             <Route path="/configuracao-status-publico" element={<ProtectedRoute><ConfiguracaoStatusPublico /></ProtectedRoute>} />
             <Route path="/sinistros/novo" element={<ProtectedRoute><AberturaSinistro /></ProtectedRoute>} />
             <Route path="/abertura-sinistro" element={<ProtectedRoute><AberturaSinistro /></ProtectedRoute>} />
