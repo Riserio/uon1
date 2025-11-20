@@ -528,16 +528,16 @@ export function AtendimentoDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader className="pb-4 border-b">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader className="pb-4 border-b flex-shrink-0">
             <DialogTitle className="text-2xl">{atendimento ? 'Editar Atendimento' : 'Novo Atendimento'}</DialogTitle>
             <DialogDescription>
               {atendimento ? 'Gerencie todas as informações do atendimento' : 'Preencha as informações do atendimento'}
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="grid w-full grid-cols-6 mb-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+            <TabsList className="grid w-full grid-cols-6 mb-4 flex-shrink-0">
               <TabsTrigger value="geral" className="gap-2">
                 <FileText className="h-4 w-4" />
                 Geral
@@ -564,7 +564,8 @@ export function AtendimentoDialog({
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="geral" className="mt-0">
+            <div className="flex-1 overflow-y-auto">
+            <TabsContent value="geral" className="mt-0 px-1">
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -1125,6 +1126,7 @@ export function AtendimentoDialog({
                   </div>
                 )}
               </TabsContent>
+            </div>
             </Tabs>
           </DialogContent>
         </Dialog>
