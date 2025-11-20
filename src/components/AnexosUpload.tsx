@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Upload, X, FileText, Download } from 'lucide-react';
+import { Upload, X, FileText, Download, Image as ImageIcon } from 'lucide-react';
 
 interface Anexo {
   id: string;
@@ -166,6 +166,17 @@ export function AnexosUpload({ atendimentoId, anexos, onAnexosChange }: AnexosUp
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  const isImageFile = (type: string | null) => {
+    return type?.startsWith('image/') || false;
+  };
+
+  const getFileUrl = async (path: string): Promise<string> => {
+    const { data } = await supabase.storage
+      .from('atendimento-anexos')
+      .createSignedUrl(path, 3600);
+    return data?.signedUrl || '';
+  };
+
   return (
     <div className="space-y-3">
       <Label>Anexos</Label>
@@ -193,43 +204,86 @@ export function AnexosUpload({ atendimentoId, anexos, onAnexosChange }: AnexosUp
       </div>
 
       {anexos.length > 0 && (
-        <div className="space-y-2">
-          {anexos.map((anexo) => (
-            <div
-              key={anexo.id}
-              className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-            >
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <FileText className="h-4 w-4 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{anexo.arquivo_nome}</p>
-                  {anexo.arquivo_tamanho && (
-                    <p className="text-xs text-muted-foreground">
-                      {formatFileSize(anexo.arquivo_tamanho)}
-                    </p>
-                  )}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {anexos.map((anexo) => {
+            const isImage = isImageFile(anexo.tipo_arquivo);
+            
+            return (
+              <div
+                key={anexo.id}
+                className="relative group border rounded-lg overflow-hidden bg-muted hover:bg-muted/80 transition-colors"
+              >
+                {isImage ? (
+                  <div className="aspect-square relative">
+                    <img
+                      src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/atendimento-anexos/${anexo.arquivo_url}`}
+                      alt={anexo.arquivo_nome}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // Fallback se a imagem não carregar (bucket privado)
+                        const img = e.target as HTMLImageElement;
+                        getFileUrl(anexo.arquivo_url).then(url => {
+                          if (url) img.src = url;
+                        });
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="icon"
+                          onClick={() => handleDownload(anexo)}
+                          className="h-8 w-8"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => handleRemoveAnexo(anexo)}
+                          className="h-8 w-8"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="aspect-square flex flex-col items-center justify-center p-4">
+                    <FileText className="h-12 w-12 text-muted-foreground mb-2" />
+                    <div className="flex gap-2 mt-auto">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDownload(anexo)}
+                        className="h-8 w-8"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveAnexo(anexo)}
+                        className="h-8 w-8"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <div className="p-2 border-t bg-background">
+                  <p className="text-xs font-medium truncate">{anexo.arquivo_nome}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatFileSize(anexo.arquivo_tamanho)}
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDownload(anexo)}
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemoveAnexo(anexo)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
