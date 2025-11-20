@@ -1339,6 +1339,7 @@ export type Database = {
       vistoria_fotos: {
         Row: {
           analise_ia: Json | null
+          analise_manual: boolean | null
           arquivo_nome: string
           arquivo_tamanho: number | null
           arquivo_url: string
@@ -1346,10 +1347,12 @@ export type Database = {
           id: string
           ordem: number
           posicao: string
+          status_analise: string | null
           vistoria_id: string
         }
         Insert: {
           analise_ia?: Json | null
+          analise_manual?: boolean | null
           arquivo_nome: string
           arquivo_tamanho?: number | null
           arquivo_url: string
@@ -1357,10 +1360,12 @@ export type Database = {
           id?: string
           ordem: number
           posicao: string
+          status_analise?: string | null
           vistoria_id: string
         }
         Update: {
           analise_ia?: Json | null
+          analise_manual?: boolean | null
           arquivo_nome?: string
           arquivo_tamanho?: number | null
           arquivo_url?: string
@@ -1368,6 +1373,7 @@ export type Database = {
           id?: string
           ordem?: number
           posicao?: string
+          status_analise?: string | null
           vistoria_id?: string
         }
         Relationships: [
@@ -1390,6 +1396,7 @@ export type Database = {
           cliente_telefone: string | null
           cnh_dados: Json | null
           cnh_url: string | null
+          cof: string | null
           completed_at: string | null
           corretora_id: string | null
           created_at: string
@@ -1438,6 +1445,7 @@ export type Database = {
           cliente_telefone?: string | null
           cnh_dados?: Json | null
           cnh_url?: string | null
+          cof?: string | null
           completed_at?: string | null
           corretora_id?: string | null
           created_at?: string
@@ -1486,6 +1494,7 @@ export type Database = {
           cliente_telefone?: string | null
           cnh_dados?: Json | null
           cnh_url?: string | null
+          cof?: string | null
           completed_at?: string | null
           corretora_id?: string | null
           created_at?: string
