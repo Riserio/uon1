@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Atendimento, StatusType } from '@/types/atendimento';
 import { KanbanBoard } from '@/components/KanbanBoard';
+import { KanbanBoardVertical } from '@/components/KanbanBoardVertical';
 import { ListView } from '@/components/ListView';
 import { Toolbar } from '@/components/Toolbar';
 import { AtendimentoDialog } from '@/components/AtendimentoDialog';
@@ -727,11 +728,13 @@ const Index = () => {
         </div>
       </div>
 
-      <div className="bg-card border-b border-border/50">
-        <div className="container mx-auto px-6 py-3">
-          <FluxoSelector selectedFluxoId={selectedFluxoId} onFluxoSelect={setSelectedFluxoId} onConfigureFluxos={() => setWorkflowConfigOpen(true)} />
+      {viewMode === 'kanban' && (
+        <div className="bg-card border-b border-border/50">
+          <div className="container mx-auto px-6 py-3">
+            <FluxoSelector selectedFluxoId={selectedFluxoId} onFluxoSelect={setSelectedFluxoId} onConfigureFluxos={() => setWorkflowConfigOpen(true)} />
+          </div>
         </div>
-      </div>
+      )}
 
       <main className="container mx-auto px-6 py-6">
         {loading ? (
@@ -742,7 +745,7 @@ const Index = () => {
             </div>
           </div>
         ) : viewMode === 'kanban' ? (
-          <KanbanBoard 
+          <KanbanBoardVertical 
             atendimentos={filteredAtendimentos} 
             onUpdateStatus={handleUpdateStatus} 
             onEdit={handleEdit} 
