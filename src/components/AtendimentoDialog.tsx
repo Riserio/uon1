@@ -65,8 +65,25 @@ export function AtendimentoDialog({
   const [activeTab, setActiveTab] = useState('geral');
   const { userRole } = useAuth();
   
-  // Estados para custos
+  // Estados para custos e dados do sinistro
   const [vistoriaId, setVistoriaId] = useState<string | null>(null);
+  const [vistoriaData, setVistoriaData] = useState({
+    tipo_atendimento: 'geral' as 'sinistro' | 'geral',
+    tipo_sinistro: '',
+    data_incidente: '',
+    relato_incidente: '',
+    veiculo_placa: '',
+    veiculo_marca: '',
+    veiculo_modelo: '',
+    veiculo_ano: '',
+    veiculo_cor: '',
+    veiculo_chassi: '',
+    cliente_nome: '',
+    cliente_cpf: '',
+    cliente_telefone: '',
+    cliente_email: '',
+    cof: '',
+  });
   const [custos, setCustos] = useState({
     custo_oficina: 0,
     custo_reparo: 0,
@@ -84,6 +101,24 @@ export function AtendimentoDialog({
       setPrimeiroAndamento('');
       setAnexos([]);
       loadVistoriaCustos(atendimento.id);
+      
+      // Carregar tipo_atendimento do atendimento
+      const loadTipoAtendimento = async () => {
+        const { data } = await supabase
+          .from('atendimentos')
+          .select('tipo_atendimento')
+          .eq('id', atendimento.id)
+          .single();
+        
+        if (data?.tipo_atendimento) {
+          setVistoriaData(prev => ({
+            ...prev,
+            tipo_atendimento: data.tipo_atendimento as 'sinistro' | 'geral'
+          }));
+        }
+      };
+      
+      loadTipoAtendimento();
     } else {
       setFormData({
         corretora: '',
@@ -100,6 +135,23 @@ export function AtendimentoDialog({
       setParecerFinal('');
       setEmailConclusao('');
       setVistoriaId(null);
+      setVistoriaData({
+        tipo_atendimento: 'geral',
+        tipo_sinistro: '',
+        data_incidente: '',
+        relato_incidente: '',
+        veiculo_placa: '',
+        veiculo_marca: '',
+        veiculo_modelo: '',
+        veiculo_ano: '',
+        veiculo_cor: '',
+        veiculo_chassi: '',
+        cliente_nome: '',
+        cliente_cpf: '',
+        cliente_telefone: '',
+        cliente_email: '',
+        cof: '',
+      });
       setCustos({
         custo_oficina: 0,
         custo_reparo: 0,
@@ -119,17 +171,34 @@ export function AtendimentoDialog({
     try {
       const { data, error } = await supabase
         .from('vistorias')
-        .select('id, custo_oficina, custo_reparo, custo_acordo, custo_terceiros, custo_perda_total, custo_perda_parcial, valor_franquia, valor_indenizacao')
+        .select('*')
         .eq('atendimento_id', atendimentoId)
         .maybeSingle();
       
       if (error) {
-        console.error('Erro ao carregar custos:', error);
+        console.error('Erro ao carregar vistoria:', error);
         return;
       }
       
       if (data) {
         setVistoriaId(data.id);
+        setVistoriaData({
+          tipo_atendimento: 'sinistro',
+          tipo_sinistro: data.tipo_sinistro || '',
+          data_incidente: data.data_incidente || '',
+          relato_incidente: data.relato_incidente || '',
+          veiculo_placa: data.veiculo_placa || '',
+          veiculo_marca: data.veiculo_marca || '',
+          veiculo_modelo: data.veiculo_modelo || '',
+          veiculo_ano: data.veiculo_ano || '',
+          veiculo_cor: data.veiculo_cor || '',
+          veiculo_chassi: data.veiculo_chassi || '',
+          cliente_nome: data.cliente_nome || '',
+          cliente_cpf: data.cliente_cpf || '',
+          cliente_telefone: data.cliente_telefone || '',
+          cliente_email: data.cliente_email || '',
+          cof: data.cof || '',
+        });
         setCustos({
           custo_oficina: data.custo_oficina || 0,
           custo_reparo: data.custo_reparo || 0,
@@ -142,7 +211,7 @@ export function AtendimentoDialog({
         });
       }
     } catch (error) {
-      console.error('Erro ao carregar custos:', error);
+      console.error('Erro ao carregar vistoria:', error);
     }
   };
 
@@ -168,7 +237,10 @@ export function AtendimentoDialog({
         // Atualizar vistoria existente
         const { error } = await supabase
           .from('vistorias')
-          .update(custos)
+          .update({
+            ...vistoriaData,
+            ...custos,
+          })
           .eq('id', vistoriaId);
 
         if (error) throw error;
@@ -185,9 +257,10 @@ export function AtendimentoDialog({
           .insert({
             atendimento_id: atendimento.id,
             created_by: user.id,
-            tipo_vistoria: 'digital',
+            tipo_vistoria: 'sinistro',
             tipo_abertura: 'interno',
             status: 'rascunho',
+            ...vistoriaData,
             ...custos,
           })
           .select('id')
@@ -197,10 +270,18 @@ export function AtendimentoDialog({
         if (data) setVistoriaId(data.id);
       }
 
-      toast.success('Custos salvos com sucesso');
+      // Atualizar tipo_atendimento na tabela atendimentos
+      const { error: atendError } = await supabase
+        .from('atendimentos')
+        .update({ tipo_atendimento: vistoriaData.tipo_atendimento })
+        .eq('id', atendimento.id);
+
+      if (atendError) throw atendError;
+
+      toast.success('Dados salvos com sucesso');
     } catch (error) {
-      console.error('Erro ao salvar custos:', error);
-      toast.error('Erro ao salvar custos');
+      console.error('Erro ao salvar:', error);
+      toast.error('Erro ao salvar dados');
     }
   };
 
@@ -403,6 +484,203 @@ export function AtendimentoDialog({
               required
             />
           </div>
+
+          {/* Tipo de Atendimento e Tipo de Sinistro */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="tipo_atendimento">Tipo de Atendimento *</Label>
+              <Select
+                value={vistoriaData.tipo_atendimento}
+                onValueChange={(value: 'sinistro' | 'geral') => 
+                  setVistoriaData({ ...vistoriaData, tipo_atendimento: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sinistro">Sinistro</SelectItem>
+                  <SelectItem value="geral">Geral</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {vistoriaData.tipo_atendimento === 'sinistro' && (
+              <div className="space-y-2">
+                <Label htmlFor="tipo_sinistro">Tipo de Sinistro *</Label>
+                <Select
+                  value={vistoriaData.tipo_sinistro}
+                  onValueChange={(value) => 
+                    setVistoriaData({ ...vistoriaData, tipo_sinistro: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo de sinistro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Colisão">Colisão</SelectItem>
+                    <SelectItem value="Roubo/Furto">Roubo/Furto</SelectItem>
+                    <SelectItem value="Incêndio">Incêndio</SelectItem>
+                    <SelectItem value="Danos a Terceiros">Danos a Terceiros</SelectItem>
+                    <SelectItem value="Fenômenos Naturais">Fenômenos Naturais</SelectItem>
+                    <SelectItem value="Vidros">Vidros</SelectItem>
+                    <SelectItem value="Outros">Outros</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          {/* Dados do Sinistro - apenas se tipo for sinistro */}
+          {vistoriaData.tipo_atendimento === 'sinistro' && (
+            <>
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                <h4 className="font-medium text-sm">Dados do Sinistro</h4>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="data_incidente">Data do Incidente</Label>
+                    <Input
+                      id="data_incidente"
+                      type="date"
+                      value={vistoriaData.data_incidente}
+                      onChange={(e) => setVistoriaData({ ...vistoriaData, data_incidente: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cof">COF</Label>
+                    <Input
+                      id="cof"
+                      value={vistoriaData.cof}
+                      onChange={(e) => setVistoriaData({ ...vistoriaData, cof: e.target.value })}
+                      placeholder="Código de Ocorrência"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="relato_incidente">Relato do Incidente</Label>
+                  <Textarea
+                    id="relato_incidente"
+                    value={vistoriaData.relato_incidente}
+                    onChange={(e) => setVistoriaData({ ...vistoriaData, relato_incidente: e.target.value })}
+                    rows={3}
+                    placeholder="Descreva o que aconteceu..."
+                  />
+                </div>
+              </div>
+
+              {/* Dados do Veículo */}
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                <h4 className="font-medium text-sm">Dados do Veículo</h4>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="veiculo_placa">Placa</Label>
+                    <Input
+                      id="veiculo_placa"
+                      value={vistoriaData.veiculo_placa}
+                      onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_placa: e.target.value.toUpperCase() })}
+                      placeholder="ABC-1234"
+                      maxLength={8}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="veiculo_marca">Marca</Label>
+                    <Input
+                      id="veiculo_marca"
+                      value={vistoriaData.veiculo_marca}
+                      onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_marca: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="veiculo_modelo">Modelo</Label>
+                    <Input
+                      id="veiculo_modelo"
+                      value={vistoriaData.veiculo_modelo}
+                      onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_modelo: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="veiculo_ano">Ano</Label>
+                    <Input
+                      id="veiculo_ano"
+                      value={vistoriaData.veiculo_ano}
+                      onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_ano: e.target.value })}
+                      placeholder="2020/2021"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="veiculo_cor">Cor</Label>
+                    <Input
+                      id="veiculo_cor"
+                      value={vistoriaData.veiculo_cor}
+                      onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_cor: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="veiculo_chassi">Chassi</Label>
+                    <Input
+                      id="veiculo_chassi"
+                      value={vistoriaData.veiculo_chassi}
+                      onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_chassi: e.target.value.toUpperCase() })}
+                      maxLength={17}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Dados do Cliente */}
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                <h4 className="font-medium text-sm">Dados do Cliente</h4>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="cliente_nome">Nome Completo</Label>
+                    <Input
+                      id="cliente_nome"
+                      value={vistoriaData.cliente_nome}
+                      onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_nome: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cliente_cpf">CPF</Label>
+                    <Input
+                      id="cliente_cpf"
+                      value={vistoriaData.cliente_cpf}
+                      onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_cpf: e.target.value })}
+                      placeholder="000.000.000-00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cliente_telefone">Telefone</Label>
+                    <Input
+                      id="cliente_telefone"
+                      value={vistoriaData.cliente_telefone}
+                      onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_telefone: e.target.value })}
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cliente_email">Email</Label>
+                    <Input
+                      id="cliente_email"
+                      type="email"
+                      value={vistoriaData.cliente_email}
+                      onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_email: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Botão Salvar Dados do Sinistro */}
+              <div className="flex justify-end">
+                <Button type="button" onClick={handleSalvarCustos} variant="outline">
+                  Salvar Dados do Sinistro
+                </Button>
+              </div>
+            </>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

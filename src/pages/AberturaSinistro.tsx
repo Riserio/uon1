@@ -100,7 +100,8 @@ export default function AberturaSinistro() {
           status: primeiroStatus,
           fluxo_id: primeiroFluxoId,
           prioridade: 'Alta',
-          tags: ['sinistro', formData.tipo_sinistro.toLowerCase()]
+          tags: ['sinistro', formData.tipo_sinistro.toLowerCase()],
+          tipo_atendimento: 'sinistro'
         })
         .select()
         .single();

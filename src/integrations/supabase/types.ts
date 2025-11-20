@@ -183,6 +183,7 @@ export type Database = {
           status: string
           status_changed_at: string | null
           tags: string[] | null
+          tipo_atendimento: string | null
           updated_at: string
           user_id: string
         }
@@ -205,6 +206,7 @@ export type Database = {
           status?: string
           status_changed_at?: string | null
           tags?: string[] | null
+          tipo_atendimento?: string | null
           updated_at?: string
           user_id: string
         }
@@ -227,6 +229,7 @@ export type Database = {
           status?: string
           status_changed_at?: string | null
           tags?: string[] | null
+          tipo_atendimento?: string | null
           updated_at?: string
           user_id?: string
         }
