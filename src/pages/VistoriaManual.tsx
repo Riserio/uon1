@@ -67,7 +67,6 @@ export default function VistoriaManual() {
   const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [corretoras, setCorretoras] = useState<any[]>([]);
-  const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     // Veículo
     veiculo_placa: '',
@@ -87,12 +86,10 @@ export default function VistoriaManual() {
     data_incidente: '',
     // Vinculação
     corretora_id: '',
-    responsavel_id: '',
   });
 
   useEffect(() => {
     loadCorretoras();
-    loadResponsaveis();
   }, []);
 
   const loadCorretoras = async () => {
@@ -106,21 +103,6 @@ export default function VistoriaManual() {
       setCorretoras(data || []);
     } catch (error) {
       console.error('Erro ao carregar corretoras:', error);
-    }
-  };
-
-  const loadResponsaveis = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, nome')
-        .eq('ativo', true)
-        .order('nome');
-
-      if (error) throw error;
-      setResponsaveis(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar responsáveis:', error);
     }
   };
 
@@ -283,7 +265,7 @@ export default function VistoriaManual() {
         .insert({
           user_id: user.id,
           corretora_id: formData.corretora_id || null,
-          responsavel_id: formData.responsavel_id || null,
+          responsavel_id: user.id,
           assunto: `Vistoria ${tipoVistoria === 'sinistro' ? 'Sinistro' : 'Reativação'} - ${formData.veiculo_placa || 'Placa não informada'}`,
           prioridade: 'Média',
           observacoes: formData.relato_incidente,
@@ -577,43 +559,23 @@ export default function VistoriaManual() {
               {/* Vinculação */}
               <div>
                 <h3 className="text-lg font-semibold mb-4">Vinculação</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Corretora</Label>
-                    <Select
-                      value={formData.corretora_id}
-                      onValueChange={(value) => setFormData({...formData, corretora_id: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione a corretora" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {corretoras.map(corretora => (
-                          <SelectItem key={corretora.id} value={corretora.id}>
-                            {corretora.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Responsável</Label>
-                    <Select
-                      value={formData.responsavel_id}
-                      onValueChange={(value) => setFormData({...formData, responsavel_id: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o responsável" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {responsaveis.map(responsavel => (
-                          <SelectItem key={responsavel.id} value={responsavel.id}>
-                            {responsavel.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div>
+                  <Label>Corretora</Label>
+                  <Select
+                    value={formData.corretora_id}
+                    onValueChange={(value) => setFormData({...formData, corretora_id: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a corretora" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {corretoras.map(corretora => (
+                        <SelectItem key={corretora.id} value={corretora.id}>
+                          {corretora.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
