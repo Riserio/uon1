@@ -81,6 +81,12 @@ export default function MenuNav() {
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
+            <Link to="/sinistros/acompanhamento" className="cursor-pointer">
+              <ClipboardList className="mr-2 h-4 w-4" />
+              <span>Acompanhamento de Sinistros</span>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
             <Link to="/vistorias" className="cursor-pointer">
               <Camera className="mr-2 h-4 w-4" />
               <span>Vistorias</span>
