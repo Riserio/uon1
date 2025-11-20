@@ -247,12 +247,18 @@ export function AtendimentoDialog({
     }
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Usuário não autenticado');
+        return;
+      }
+
       // Separar dados da vistoria (sem tipo_atendimento)
       const { tipo_atendimento, ...vistoriaDataOnly } = vistoriaData;
       
       if (vistoriaId) {
         // Atualizar vistoria existente
-        const { error } = await supabase
+        const { error: vistoriaError } = await supabase
           .from('vistorias')
           .update({
             ...vistoriaDataOnly,
@@ -260,16 +266,13 @@ export function AtendimentoDialog({
           })
           .eq('id', vistoriaId);
 
-        if (error) throw error;
+        if (vistoriaError) {
+          console.error('Erro ao atualizar vistoria:', vistoriaError);
+          throw vistoriaError;
+        }
       } else {
         // Criar nova vistoria
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          toast.error('Usuário não autenticado');
-          return;
-        }
-
-        const { data, error } = await supabase
+        const { data: newVistoria, error: vistoriaError } = await supabase
           .from('vistorias')
           .insert({
             atendimento_id: atendimento.id,
@@ -283,8 +286,11 @@ export function AtendimentoDialog({
           .select('id')
           .single();
 
-        if (error) throw error;
-        if (data) setVistoriaId(data.id);
+        if (vistoriaError) {
+          console.error('Erro ao criar vistoria:', vistoriaError);
+          throw vistoriaError;
+        }
+        if (newVistoria) setVistoriaId(newVistoria.id);
       }
 
       // Atualizar tipo_atendimento na tabela atendimentos
@@ -293,12 +299,18 @@ export function AtendimentoDialog({
         .update({ tipo_atendimento: vistoriaData.tipo_atendimento })
         .eq('id', atendimento.id);
 
-      if (atendError) throw atendError;
+      if (atendError) {
+        console.error('Erro ao atualizar tipo atendimento:', atendError);
+        throw atendError;
+      }
 
       toast.success('Dados salvos com sucesso');
-    } catch (error) {
+      
+      // Recarregar os dados para garantir sincronização
+      await loadVistoriaCustos(atendimento.id);
+    } catch (error: any) {
       console.error('Erro ao salvar:', error);
-      toast.error('Erro ao salvar dados');
+      toast.error(error?.message || 'Erro ao salvar dados');
     }
   };
 
@@ -358,71 +370,138 @@ export function AtendimentoDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const now = new Date().toISOString();
-    const savedAtendimento: Atendimento = {
-      id: atendimento?.id || `atd-${Date.now()}`,
-      numero: atendimento?.numero || 0,
-      corretora: formData.corretora || '',
-      contato: formData.contato || '',
-      assunto: formData.assunto || '',
-      prioridade: (formData.prioridade as PriorityType) || 'Média',
-      responsavel: formData.responsavel || '',
-      status: (formData.status as StatusType) || 'novo',
-      tags: formData.tags || [],
-      observacoes: formData.observacoes || '',
-      dataRetorno: formData.dataRetorno || undefined,
-      createdAt: atendimento?.createdAt || now,
-      updatedAt: now,
-    };
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Usuário não autenticado');
+        return;
+      }
 
-    onSave(savedAtendimento);
-    
-    // Upload de anexos e criação do primeiro andamento
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+      const now = new Date().toISOString();
+      
+      // Se for edição, atualizar o atendimento existente
+      if (atendimento?.id) {
+        const { error: updateError } = await supabase
+          .from('atendimentos')
+          .update({
+            assunto: formData.assunto || '',
+            prioridade: formData.prioridade || 'Média',
+            responsavel_id: formData.responsavel || null,
+            tags: formData.tags || [],
+            observacoes: formData.observacoes || '',
+            data_retorno: formData.dataRetorno || null,
+            updated_at: now,
+          })
+          .eq('id', atendimento.id);
 
-    // Fazer upload dos anexos
-    if (anexos.length > 0) {
-      for (const file of anexos) {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${savedAtendimento.id}/${Date.now()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('atendimento-anexos')
-          .upload(fileName, file);
-
-        if (uploadError) {
-          toast.error(`Erro ao fazer upload de ${file.name}`);
-          continue;
+        if (updateError) {
+          console.error('Erro ao atualizar atendimento:', updateError);
+          toast.error('Erro ao atualizar atendimento');
+          return;
         }
 
-        const { error: dbError } = await supabase
-          .from('atendimento_anexos')
-          .insert({
+        // Upload de novos anexos
+        if (anexos.length > 0) {
+          for (const file of anexos) {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${atendimento.id}/${Date.now()}.${fileExt}`;
+            
+            const { error: uploadError } = await supabase.storage
+              .from('atendimento-anexos')
+              .upload(fileName, file);
+
+            if (uploadError) {
+              console.error('Erro no upload:', uploadError);
+              toast.error(`Erro ao fazer upload de ${file.name}`);
+              continue;
+            }
+
+            const { error: dbError } = await supabase
+              .from('atendimento_anexos')
+              .insert({
+                atendimento_id: atendimento.id,
+                arquivo_nome: file.name,
+                arquivo_url: fileName,
+                arquivo_tamanho: file.size,
+                tipo_arquivo: file.type,
+                created_by: user.id,
+              });
+
+            if (dbError) {
+              console.error('Erro ao salvar anexo no DB:', dbError);
+              toast.error(`Erro ao salvar informações de ${file.name}`);
+            }
+          }
+        }
+
+        toast.success('Atendimento atualizado com sucesso');
+      } else {
+        // Criar novo atendimento
+        const savedAtendimento: Atendimento = {
+          id: `atd-${Date.now()}`,
+          numero: 0,
+          corretora: formData.corretora || '',
+          contato: formData.contato || '',
+          assunto: formData.assunto || '',
+          prioridade: (formData.prioridade as PriorityType) || 'Média',
+          responsavel: formData.responsavel || '',
+          status: 'novo' as StatusType,
+          tags: formData.tags || [],
+          observacoes: formData.observacoes || '',
+          dataRetorno: formData.dataRetorno || undefined,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        onSave(savedAtendimento);
+
+        // Upload de anexos para novo atendimento
+        if (anexos.length > 0) {
+          for (const file of anexos) {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${savedAtendimento.id}/${Date.now()}.${fileExt}`;
+            
+            const { error: uploadError } = await supabase.storage
+              .from('atendimento-anexos')
+              .upload(fileName, file);
+
+            if (uploadError) {
+              toast.error(`Erro ao fazer upload de ${file.name}`);
+              continue;
+            }
+
+            const { error: dbError } = await supabase
+              .from('atendimento_anexos')
+              .insert({
+                atendimento_id: savedAtendimento.id,
+                arquivo_nome: file.name,
+                arquivo_url: fileName,
+                arquivo_tamanho: file.size,
+                tipo_arquivo: file.type,
+                created_by: user.id,
+              });
+
+            if (dbError) {
+              toast.error(`Erro ao salvar informações de ${file.name}`);
+            }
+          }
+        }
+
+        // Adicionar primeiro andamento se houver
+        if (primeiroAndamento.trim()) {
+          await supabase.from('andamentos').insert({
             atendimento_id: savedAtendimento.id,
-            arquivo_nome: file.name,
-            arquivo_url: fileName,
-            arquivo_tamanho: file.size,
-            tipo_arquivo: file.type,
+            descricao: primeiroAndamento,
             created_by: user.id,
           });
-
-        if (dbError) {
-          toast.error(`Erro ao salvar informações de ${file.name}`);
         }
       }
+      
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Erro no handleSubmit:', error);
+      toast.error(error?.message || 'Erro ao salvar atendimento');
     }
-
-    // Se for novo atendimento e tiver primeiro andamento, adicionar
-    if (!atendimento && primeiroAndamento.trim()) {
-      await supabase.from('andamentos').insert({
-        atendimento_id: savedAtendimento.id,
-        descricao: primeiroAndamento,
-        created_by: user.id,
-      });
-    }
-    
-    onOpenChange(false);
   };
 
   const addTag = () => {
@@ -448,7 +527,7 @@ export function AtendimentoDialog({
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className={cn("grid w-full", atendimento ? "grid-cols-6" : "grid-cols-1")}>
+            <TabsList className={cn("grid w-full", atendimento ? (vistoriaData.tipo_atendimento === 'sinistro' ? "grid-cols-6" : "grid-cols-5") : "grid-cols-1")}>
               <TabsTrigger value="geral" className="gap-2">
                 <FileText className="h-4 w-4" />
                 Geral
@@ -456,7 +535,7 @@ export function AtendimentoDialog({
               {atendimento && (
                 <>
                   {vistoriaData.tipo_atendimento === 'sinistro' && (
-                    <TabsTrigger value="dados_pessoais" className="gap-2">
+                    <TabsTrigger value="dados_pessoais" className="gap-2" onClick={() => loadVistoriaCustos(atendimento.id)}>
                       <User className="h-4 w-4" />
                       Dados Pessoais
                     </TabsTrigger>
@@ -469,7 +548,7 @@ export function AtendimentoDialog({
                     <Paperclip className="h-4 w-4" />
                     Anexos
                   </TabsTrigger>
-                  <TabsTrigger value="custos" className="gap-2">
+                  <TabsTrigger value="custos" className="gap-2" onClick={() => loadVistoriaCustos(atendimento.id)}>
                     <DollarSign className="h-4 w-4" />
                     Custos
                   </TabsTrigger>
@@ -888,7 +967,7 @@ export function AtendimentoDialog({
                           onClick={handleGerarLinkVistoria}
                           variant="outline"
                           className="gap-2"
-                          disabled={!vistoriaId}
+                          disabled={!vistoriaData.veiculo_placa || !validatePlaca(vistoriaData.veiculo_placa)}
                         >
                           <Link2 className="h-4 w-4" />
                           Gerar Link de Vistoria
