@@ -37,16 +37,20 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    console.log('Autenticando usuário...');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    // Usar o service role client para autenticar com o token do anon
+    const token = authHeader.replace('Bearer ', '').replace('bearer ', '');
+    console.log('Verificando token...');
+    
+    // Criar um cliente temporário com o token do usuário apenas para validação
+    const userClient = createClient(SUPABASE_URL, token);
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
 
     if (userError || !user) {
-      console.error('❌ Erro de autenticação:', userError);
+      console.error('❌ Erro de autenticação:', userError?.message);
       return new Response(JSON.stringify({ 
         success: false,
         error: 'Invalid user',
-        details: userError 
+        details: userError?.message 
       }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
