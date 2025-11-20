@@ -162,6 +162,11 @@ export default function VistoriaPublicaCaptura() {
       return;
     }
 
+    if (!navigator.onLine) {
+      toast.error('Sem conexão com a internet. Por favor, conecte-se e tente novamente.');
+      return;
+    }
+
     setUploading(true);
     try {
       let cnhUrl = '';
@@ -277,11 +282,13 @@ export default function VistoriaPublicaCaptura() {
         <Card className="border-border/40">
           <CardContent className="p-3 md:p-4">
             <div className="flex items-center gap-2 md:gap-3">
-              {corretora?.logo_url && (
-                <img src={corretora.logo_url} alt={corretora.nome} className="h-8 md:h-10 object-contain" />
-              )}
-              <div>
-                <h1 className="text-base md:text-lg font-semibold">Vistoria Digital</h1>
+              <div className="flex-shrink-0">
+                {corretora?.logo_url && (
+                  <img src={corretora.logo_url} alt={corretora.nome} className="h-10 md:h-12 object-contain" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-base md:text-lg font-semibold truncate">Vistoria Digital</h1>
                 <p className="text-xs md:text-sm text-muted-foreground">Sinistro #{vistoria.numero}</p>
               </div>
             </div>

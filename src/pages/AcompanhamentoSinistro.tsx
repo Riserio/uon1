@@ -40,28 +40,60 @@ export default function AcompanhamentoSinistro() {
 
   const handleBuscar = async () => {
     if (!busca.trim()) {
-      toast.error('Digite uma placa ou CPF');
+      toast.error('Digite uma placa, CPF ou número do protocolo');
       return;
     }
 
     setLoading(true);
     try {
       const cleanBusca = busca.replace(/[^\w]/g, '');
+      let vistoriaResult = null;
       
-      // Buscar vistoria pela placa ou CPF
-      const { data: vistoriaResult, error: vistoriaError } = await supabase
-        .from('vistorias')
-        .select('*')
-        .or(`veiculo_placa.ilike.%${cleanBusca}%,cliente_cpf.ilike.%${cleanBusca}%`)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Tentar buscar por número de protocolo primeiro
+      if (/^\d+$/.test(cleanBusca)) {
+        const numeroProtocolo = parseInt(cleanBusca);
+        
+        // Buscar atendimento pelo número
+        const { data: atendimentoResult } = await supabase
+          .from('atendimentos')
+          .select('id')
+          .eq('numero', numeroProtocolo)
+          .maybeSingle();
 
-      if (vistoriaError || !vistoriaResult) {
-        toast.error('Nenhum sinistro encontrado com esses dados');
-        setVistoriaData(null);
-        setAtendimento(null);
-        return;
+        if (atendimentoResult) {
+          // Buscar vistoria pelo atendimento_id
+          const { data: vistoriaData } = await supabase
+            .from('vistorias')
+            .select('*')
+            .eq('atendimento_id', atendimentoResult.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (vistoriaData) {
+            vistoriaResult = vistoriaData;
+          }
+        }
+      }
+      
+      // Se não encontrou por protocolo, buscar vistoria pela placa ou CPF
+      if (!vistoriaResult) {
+        const { data: vistoriaData, error: vistoriaError } = await supabase
+          .from('vistorias')
+          .select('*')
+          .or(`veiculo_placa.ilike.%${cleanBusca}%,cliente_cpf.ilike.%${cleanBusca}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (vistoriaError || !vistoriaData) {
+          toast.error('Nenhum sinistro encontrado com esses dados');
+          setVistoriaData(null);
+          setAtendimento(null);
+          return;
+        }
+        
+        vistoriaResult = vistoriaData;
       }
 
       setVistoriaData(vistoriaResult);
@@ -180,7 +212,7 @@ export default function AcompanhamentoSinistro() {
               <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1 relative group">
                   <Input
-                    placeholder="Digite a placa (ABC-1234) ou CPF (000.000.000-00)"
+                    placeholder="Digite a placa (ABC-1234), CPF (000.000.000-00) ou protocolo (#00)"
                     value={busca}
                     onChange={(e) => handleInputChange(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleBuscar()}

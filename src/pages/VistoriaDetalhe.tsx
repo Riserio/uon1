@@ -135,6 +135,13 @@ export default function VistoriaDetalhe() {
 
   const handleAprovarFoto = async (fotoId: string) => {
     try {
+      // Atualizar imediatamente no estado local
+      setFotos(prevFotos => prevFotos.map(f => 
+        f.id === fotoId 
+          ? { ...f, status_aprovacao: 'aprovada', aprovada_em: new Date().toISOString(), aprovada_por: user?.id }
+          : f
+      ));
+
       const { error } = await supabase
         .from('vistoria_fotos')
         .update({
@@ -148,10 +155,11 @@ export default function VistoriaDetalhe() {
       if (error) throw error;
 
       toast.success('Foto aprovada!');
-      loadVistoria();
     } catch (error) {
       console.error('Erro ao aprovar foto:', error);
       toast.error('Erro ao aprovar foto');
+      // Recarregar em caso de erro
+      loadVistoria();
     }
   };
 
