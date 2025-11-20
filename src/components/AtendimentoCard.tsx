@@ -1,10 +1,12 @@
 import { Atendimento } from '@/types/atendimento';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, User, Pencil, Trash2, Archive, Eye, Send, Clock, AlertCircle } from 'lucide-react';
+import { Calendar, User, Pencil, Trash2, Archive, Eye, Send, Clock, AlertCircle, Camera, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { EnviarEmailDialog } from './EnviarEmailDialog';
+import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
 
 interface AtendimentoCardProps {
   atendimento: Atendimento;
@@ -42,7 +44,26 @@ export function AtendimentoCard({
   onViewAndamentos,
   isDragging,
 }: AtendimentoCardProps) {
+  const navigate = useNavigate();
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [vistoriaLink, setVistoriaLink] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadVistoria();
+  }, [atendimento.id]);
+
+  const loadVistoria = async () => {
+    const { data } = await supabase
+      .from('vistorias')
+      .select('id')
+      .eq('atendimento_id', atendimento.id)
+      .limit(1)
+      .single();
+    
+    if (data) {
+      setVistoriaLink(`/vistorias/${data.id}`);
+    }
+  };
 
   const isOverdue = useMemo(() => {
     if (statusPrazo === 0 || !atendimento.updatedAt) return false;

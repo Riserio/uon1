@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { ArrowLeft, Download, Eye, FileText, Camera } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { generateVistoriaPDF } from '@/components/VistoriaPDF';
 
 export default function VistoriaDetalhe() {
   const { id } = useParams();
@@ -15,6 +16,8 @@ export default function VistoriaDetalhe() {
   const [vistoria, setVistoria] = useState<any>(null);
   const [fotos, setFotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [corretora, setCorretora] = useState<any>(null);
+  const [administradora, setAdministradora] = useState<any>(null);
 
   useEffect(() => {
     loadVistoria();
@@ -39,11 +42,43 @@ export default function VistoriaDetalhe() {
 
       if (fotosError) throw fotosError;
       setFotos(fotosData || []);
+
+      // Carregar corretora se existir
+      if (vistoriaData.corretora_id) {
+        const { data: corretoraData } = await supabase
+          .from('corretoras')
+          .select('*')
+          .eq('id', vistoriaData.corretora_id)
+          .single();
+        if (corretoraData) setCorretora(corretoraData);
+      }
+
+      // Carregar administradora
+      const { data: adminData } = await supabase
+        .from('administradora')
+        .select('*')
+        .limit(1)
+        .single();
+      if (adminData) setAdministradora(adminData);
+
     } catch (error) {
       console.error('Erro ao carregar vistoria:', error);
       toast.error('Erro ao carregar detalhes da vistoria');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      toast.loading('Gerando PDF...');
+      await generateVistoriaPDF(vistoria, fotos, corretora, administradora);
+      toast.dismiss();
+      toast.success('PDF gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      toast.dismiss();
+      toast.error('Erro ao gerar PDF');
     }
   };
 
@@ -106,7 +141,7 @@ export default function VistoriaDetalhe() {
           </Button>
 
           {vistoria.status === 'concluida' && (
-            <Button className="gap-2">
+            <Button className="gap-2" onClick={handleExportPDF}>
               <Download className="h-4 w-4" />
               Exportar PDF
             </Button>

@@ -53,14 +53,14 @@ const handler = async (req: Request): Promise<Response> => {
             messages: [
               {
                 role: 'system',
-                content: 'Você é um especialista em OCR de placas e identificação de veículos. Extraia APENAS a placa do veículo (formato ABC-1234 ou ABC1D234) e o modelo/marca do veículo.'
+                content: 'Você é um especialista em OCR de placas e identificação de veículos brasileiros. Extraia APENAS a placa do veículo (formato ABC-1234 ou ABC1D234) e o modelo/marca do veículo com máxima precisão.'
               },
               {
                 role: 'user',
                 content: [
                   {
                     type: 'text',
-                    text: 'Identifique a PLACA e o MODELO/MARCA do veículo nesta imagem. Responda APENAS no formato: PLACA: XXX-0000 | MODELO: Marca Modelo Ano'
+                    text: 'Identifique com PRECISÃO a PLACA do veículo (padrão brasileiro ABC-1234 ou Mercosul ABC1D23) e o MODELO/MARCA/ANO. Responda EXATAMENTE no formato: PLACA: XXX-0000 | MODELO: Marca Modelo Ano. Se não conseguir identificar algum dado, indique como "Não identificado".'
                   },
                   {
                     type: 'image_url',
@@ -68,7 +68,9 @@ const handler = async (req: Request): Promise<Response> => {
                   }
                 ]
               }
-            ]
+            ],
+            max_tokens: 200,
+            temperature: 0.1
           })
         });
 
@@ -76,16 +78,30 @@ const handler = async (req: Request): Promise<Response> => {
           const placaData = await placaResponse.json();
           const placaTexto = placaData.choices?.[0]?.message?.content || '';
           
-          // Extrair placa
-          const placaMatch = placaTexto.match(/PLACA:\s*([A-Z]{3}[-]?\d{1}[A-Z0-9]{1}\d{2})/i);
+          console.log('Resposta OCR placa:', placaTexto);
+          
+          // Extrair placa com regex mais flexível
+          const placaMatch = placaTexto.match(/PLACA:\s*([A-Z]{3}[-\s]?[0-9]{1}[A-Z0-9]{1}[0-9]{2})/i);
           if (placaMatch) {
-            placa = placaMatch[1].toUpperCase();
+            placa = placaMatch[1].toUpperCase().replace(/\s/g, '');
+            // Normalizar formato
+            if (placa.length === 7 && !placa.includes('-')) {
+              // Se for formato novo sem hífen, manter
+              if (/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(placa)) {
+                // Formato Mercosul válido
+              } else if (/^[A-Z]{3}\d{4}$/.test(placa)) {
+                // Formato antigo, adicionar hífen
+                placa = placa.slice(0, 3) + '-' + placa.slice(3);
+              }
+            }
+            console.log('Placa detectada:', placa);
           }
           
           // Extrair modelo
           const modeloMatch = placaTexto.match(/MODELO:\s*(.+?)(?:\||$)/i);
-          if (modeloMatch) {
+          if (modeloMatch && !modeloMatch[1].includes('Não identificado')) {
             modelo = modeloMatch[1].trim();
+            console.log('Modelo detectado:', modelo);
           }
         }
       }
