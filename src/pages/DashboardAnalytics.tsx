@@ -60,7 +60,7 @@ export default function DashboardAnalytics() {
   const [metasDialogOpen, setMetasDialogOpen] = useState(false);
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
-  const [dashboardMode, setDashboardMode] = useState<'individual' | 'global'>('individual');
+  const [dashboardMode, setDashboardMode] = useState<'individual'>('individual');
   const userName = user?.user_metadata?.nome ? user.user_metadata.nome.charAt(0).toUpperCase() + user.user_metadata.nome.slice(1) : '';
   useEffect(() => {
     loadData();

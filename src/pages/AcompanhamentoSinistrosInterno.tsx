@@ -243,7 +243,7 @@ export default function AcompanhamentoSinistrosInterno() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Button
-                onClick={() => navigate('/sinistros')}
+                onClick={() => navigate(-1)}
                 variant="ghost"
                 size="icon"
               >

@@ -349,6 +349,47 @@ export default function VistoriaManual() {
                 </RadioGroup>
               </div>
 
+              {/* Campo condicional para Tipo de Sinistro */}
+              {tipoVistoria === 'sinistro' && (
+                <div>
+                  <Label>Tipo de Sinistro *</Label>
+                  <Select
+                    required
+                    value={formData.tipo_sinistro}
+                    onValueChange={(value) => setFormData({...formData, tipo_sinistro: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo de sinistro" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIPOS_SINISTRO.map(tipo => (
+                        <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Campo condicional para Reativação */}
+              {tipoVistoria === 'reativacao' && (
+                <div>
+                  <Label>Motivo da Reativação *</Label>
+                  <Select
+                    required
+                    value={formData.tipo_sinistro}
+                    onValueChange={(value) => setFormData({...formData, tipo_sinistro: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o motivo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Boleto Vencido">Boleto Vencido</SelectItem>
+                      <SelectItem value="Campanha">Campanha</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Dados do Veículo */}
               <div>
                 <h3 className="text-lg font-semibold mb-4">Dados do Veículo</h3>
