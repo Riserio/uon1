@@ -179,9 +179,12 @@ serve(async (req) => {
     console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     
-    const message = error instanceof Error ? error.message : 'Erro desconhecido'
+    // Return generic error message to client, log detailed error server-side
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ 
+        error: 'Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.',
+        code: 'USER_OPERATION_ERROR'
+      }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
