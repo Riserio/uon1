@@ -21,9 +21,7 @@ export default function VistoriaDigital() {
   const [telefone, setTelefone] = useState('');
   const [creating, setCreating] = useState(false);
   const [corretoras, setCorretoras] = useState<any[]>([]);
-  const [contratos, setContratos] = useState<any[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState('');
-  const [selectedContrato, setSelectedContrato] = useState('');
   const [tipoSinistro, setTipoSinistro] = useState('');
   const [clienteCpf, setClienteCpf] = useState('');
   const [horarioInicio, setHorarioInicio] = useState('08:00');
@@ -34,12 +32,6 @@ export default function VistoriaDigital() {
     loadCorretoras();
   }, []);
 
-  useEffect(() => {
-    if (selectedCorretora) {
-      loadContratos(selectedCorretora);
-    }
-  }, [selectedCorretora]);
-
   const loadCorretoras = async () => {
     const { data } = await supabase
       .from('corretoras')
@@ -48,22 +40,6 @@ export default function VistoriaDigital() {
     
     if (data) {
       setCorretoras(data);
-    }
-  };
-
-  const loadContratos = async (corretoraId: string) => {
-    const { data } = await supabase
-      .from('contratos')
-      .select('id, numero_contrato, descricao')
-      .eq('corretora_id', corretoraId)
-      .eq('ativo', true)
-      .order('numero_contrato');
-    
-    if (data) {
-      setContratos(data);
-      if (data.length > 0) {
-        setSelectedContrato(data[0].id);
-      }
     }
   };
 
@@ -83,7 +59,6 @@ export default function VistoriaDigital() {
           status: 'aguardando_fotos',
           created_by: user.id,
           corretora_id: selectedCorretora || null,
-          contrato_id: selectedContrato || null,
           cliente_cpf: clienteCpf || null,
           horario_inicio: horarioInicio,
           horario_fim: horarioFim,
@@ -270,23 +245,6 @@ export default function VistoriaDigital() {
                       ))}
                     </select>
                   </div>
-
-                  {selectedCorretora && contratos.length > 0 && (
-                    <div>
-                      <Label>Contrato</Label>
-                      <select
-                        value={selectedContrato}
-                        onChange={(e) => setSelectedContrato(e.target.value)}
-                        className="w-full border rounded-md p-2"
-                      >
-                        {contratos.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.numero_contrato} - {c.descricao || 'Sem descrição'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
 
                   <div>
                     <Label>CPF do Cliente (opcional)</Label>

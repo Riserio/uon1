@@ -51,9 +51,9 @@ export default function MenuNav() {
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link to="/contratos" className="cursor-pointer">
-              <FileSignature className="mr-2 h-4 w-4" />
-              <span>Contratos</span>
+            <Link to="/termos" className="cursor-pointer">
+              <FileText className="mr-2 h-4 w-4" />
+              <span>Termos de Aceite</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
