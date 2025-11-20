@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Camera, CheckCircle, FileSearch, Shield, Clock, Smartphone } from 'lucide-react';
+import { Camera, CheckCircle, FileSearch, Shield, Clock, Smartphone, FileText, ExternalLink } from 'lucide-react';
 
 export default function VistoriaPublicaLanding() {
   const { token } = useParams();
@@ -12,10 +14,18 @@ export default function VistoriaPublicaLanding() {
   const [vistoria, setVistoria] = useState<any>(null);
   const [corretora, setCorretora] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [termos, setTermos] = useState<any[]>([]);
+  const [termosAceitos, setTermosAceitos] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
     loadVistoria();
   }, [token]);
+
+  useEffect(() => {
+    if (vistoria?.corretora_id && vistoria?.tipo_sinistro) {
+      loadTermos();
+    }
+  }, [vistoria]);
 
   const loadVistoria = async () => {
     try {
@@ -48,6 +58,73 @@ export default function VistoriaPublicaLanding() {
       toast.error('Erro ao carregar vistoria');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTermos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('termos')
+        .select('*')
+        .eq('ativo', true)
+        .or(`corretora_id.eq.${vistoria.corretora_id},corretora_id.is.null`)
+        .order('ordem', { ascending: true });
+
+      if (error) throw error;
+
+      // Filtrar termos aplicáveis ao tipo de sinistro
+      const termosAplicaveis = data.filter(termo => 
+        !termo.tipo_sinistro || 
+        termo.tipo_sinistro.includes('Todos') || 
+        termo.tipo_sinistro.includes(vistoria.tipo_sinistro)
+      );
+
+      setTermos(termosAplicaveis);
+
+      // Inicializar estado de aceite dos termos
+      const initialAceites: { [key: string]: boolean } = {};
+      termosAplicaveis.forEach(termo => {
+        initialAceites[termo.id] = false;
+      });
+      setTermosAceitos(initialAceites);
+    } catch (error) {
+      console.error('Erro ao carregar termos:', error);
+    }
+  };
+
+  const handleIniciarVistoria = async () => {
+    // Validar se todos os termos obrigatórios foram aceitos
+    const termosObrigatorios = termos.filter(t => t.obrigatorio);
+    const todosAceitos = termosObrigatorios.every(t => termosAceitos[t.id]);
+
+    if (termos.length > 0 && !todosAceitos) {
+      toast.error('Por favor, aceite todos os termos obrigatórios para continuar');
+      return;
+    }
+
+    // Salvar aceites dos termos
+    try {
+      const aceitesParaSalvar = Object.entries(termosAceitos)
+        .filter(([_, aceito]) => aceito)
+        .map(([termoId, _]) => ({
+          termo_id: termoId,
+          vistoria_id: vistoria.id,
+          ip_address: null,
+          user_agent: navigator.userAgent
+        }));
+
+      if (aceitesParaSalvar.length > 0) {
+        const { error } = await supabase
+          .from('termos_aceitos')
+          .insert(aceitesParaSalvar);
+
+        if (error) throw error;
+      }
+
+      navigate(`/vistoria/${token}/captura`);
+    } catch (error) {
+      console.error('Erro ao salvar aceite dos termos:', error);
+      toast.error('Erro ao processar aceite dos termos');
     }
   };
 
@@ -221,11 +298,69 @@ export default function VistoriaPublicaLanding() {
               </ul>
             </div>
 
+            {/* Termos e Condições */}
+            {termos.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  <h3 className="font-bold text-lg text-gray-900">Termos e Condições</h3>
+                </div>
+                
+                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                  {termos.map((termo) => (
+                    <div key={termo.id} className="border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-base text-gray-900">{termo.titulo}</h4>
+                          {termo.descricao && (
+                            <p className="text-sm text-gray-600 mt-1">{termo.descricao}</p>
+                          )}
+                        </div>
+                        {termo.obrigatorio && (
+                          <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full whitespace-nowrap font-medium">
+                            Obrigatório
+                          </span>
+                        )}
+                      </div>
+
+                      <a 
+                        href={termo.arquivo_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Visualizar documento completo
+                      </a>
+
+                      <div className="flex items-center space-x-2 pt-2">
+                        <Checkbox 
+                          id={`termo-${termo.id}`}
+                          checked={termosAceitos[termo.id] || false}
+                          onCheckedChange={(checked) => 
+                            setTermosAceitos({ ...termosAceitos, [termo.id]: checked as boolean })
+                          }
+                        />
+                        <Label 
+                          htmlFor={`termo-${termo.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-gray-900"
+                        >
+                          Li e aceito este termo
+                          {termo.obrigatorio && <span className="text-red-500 ml-1">*</span>}
+                        </Label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Botão de iniciar */}
             <Button
-              onClick={() => navigate(`/vistoria/${token}/captura`)}
+              onClick={handleIniciarVistoria}
               size="lg"
-              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-6 text-lg shadow-lg"
+              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-6 text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={termos.length > 0 && !termos.filter(t => t.obrigatorio).every(t => termosAceitos[t.id])}
             >
               <Camera className="h-5 w-5 mr-2" />
               Iniciar Vistoria Digital
