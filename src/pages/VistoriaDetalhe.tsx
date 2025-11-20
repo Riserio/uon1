@@ -41,6 +41,9 @@ export default function VistoriaDetalhe() {
   const [fotoSelecionada, setFotoSelecionada] = useState<any | null>(null);
   const [fotoDialogOpen, setFotoDialogOpen] = useState(false);
   const [observacaoReprovacao, setObservacaoReprovacao] = useState('');
+  const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
+  const [observacaoAnalise, setObservacaoAnalise] = useState('');
+  const [decisaoAnalise, setDecisaoAnalise] = useState<'aprovar' | 'pendenciar' | null>(null);
 
   useEffect(() => {
     loadVistoria();
@@ -323,6 +326,59 @@ export default function VistoriaDetalhe() {
     }
   };
 
+  const handleAbrirAnalise = (decisao: 'aprovar' | 'pendenciar') => {
+    setDecisaoAnalise(decisao);
+    setObservacaoAnalise('');
+    setAnaliseDialogOpen(true);
+  };
+
+  const confirmarAnalise = async () => {
+    if (!observacaoAnalise.trim()) {
+      toast.error('Por favor, informe suas observações sobre a análise');
+      return;
+    }
+
+    try {
+      const novoStatus = decisaoAnalise === 'aprovar' ? 'aprovada' : 'pendente_correcao';
+      
+      await supabase
+        .from('vistorias')
+        .update({ 
+          status: novoStatus,
+          observacoes: observacaoAnalise
+        })
+        .eq('id', vistoria.id);
+
+      if (vistoria.atendimento_id) {
+        const { data: atendimento } = await supabase
+          .from('atendimentos')
+          .select('tags')
+          .eq('id', vistoria.atendimento_id)
+          .single();
+
+        if (atendimento?.tags) {
+          const newTags = atendimento.tags
+            .filter((tag: string) => !['aguardando_vistoria_digital', 'vistoria_concluida', 'pendente_vistoria'].includes(tag))
+            .concat(decisaoAnalise === 'aprovar' ? 'vistoria_aprovada' : 'vistoria_pendente');
+
+          await supabase
+            .from('atendimentos')
+            .update({ tags: newTags })
+            .eq('id', vistoria.atendimento_id);
+        }
+      }
+
+      toast.success(decisaoAnalise === 'aprovar' ? 'Vistoria aprovada!' : 'Vistoria pendenciada!');
+      setAnaliseDialogOpen(false);
+      setDecisaoAnalise(null);
+      setObservacaoAnalise('');
+      loadVistoria();
+    } catch (error) {
+      console.error('Erro ao analisar vistoria:', error);
+      toast.error('Erro ao processar análise');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
@@ -361,6 +417,18 @@ export default function VistoriaDetalhe() {
                 <Brain className="h-3 w-3 mr-1" />
                 Análise por IA
               </Badge>
+            )}
+            {vistoria.tipo_abertura === 'manual' && vistoria.status !== 'aprovada' && vistoria.status !== 'pendente_correcao' && (
+              <>
+                <Button variant="outline" className="gap-2" onClick={() => handleAbrirAnalise('pendenciar')}>
+                  <X className="h-4 w-4" />
+                  Pendenciar
+                </Button>
+                <Button className="gap-2 bg-green-600 hover:bg-green-700" onClick={() => handleAbrirAnalise('aprovar')}>
+                  <Check className="h-4 w-4" />
+                  Aprovar Vistoria
+                </Button>
+              </>
             )}
             <Button className="gap-2" onClick={handleExportPDF}>
               <Download className="h-4 w-4" />
@@ -763,27 +831,48 @@ export default function VistoriaDetalhe() {
                   {vistoria.observacoes_ia && (
                     <div>
                       <h4 className="font-semibold mb-3 text-purple-900">Resumo Executivo:</h4>
-                      <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed">
-                        {vistoria.observacoes_ia}
-                      </p>
+                      <div className="bg-white rounded-lg border border-purple-200 p-4">
+                        <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed">
+                          {vistoria.observacoes_ia}
+                        </p>
+                      </div>
                     </div>
                   )}
 
-                  {vistoria.analise_ia && typeof vistoria.analise_ia === 'object' && (
-                    <div>
-                      <h4 className="font-semibold mb-3 text-purple-900">Análise Detalhada:</h4>
-                      <pre className="whitespace-pre-wrap text-sm text-muted-foreground bg-white p-4 rounded border">
-                        {JSON.stringify(vistoria.analise_ia, null, 2)}
-                      </pre>
-                    </div>
+                  {vistoria.analise_ia && vistoria.analise_ia.analises && vistoria.analise_ia.analises.length > 0 && (
+                    <>
+                      <Separator />
+                      <div>
+                        <h4 className="font-semibold mb-3 text-purple-900">Análise Detalhada por Foto:</h4>
+                        <div className="space-y-3">
+                          {vistoria.analise_ia.analises.map((analise: any, index: number) => (
+                            <div key={index} className="bg-white rounded-lg border border-purple-200 p-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Badge variant="outline" className="bg-purple-50">
+                                  {getPosicaoNome(analise.posicao)}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground leading-relaxed">
+                                {analise.analise}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
             ) : (
               <Card>
                 <CardContent className="p-12 text-center">
-                  <Brain className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground">Nenhuma análise de IA disponível para esta vistoria</p>
+                  <Brain className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-20" />
+                  <p className="text-lg font-medium mb-2">Análise de IA não disponível</p>
+                  <p className="text-sm text-muted-foreground">
+                    {vistoria.tipo_abertura === 'manual' 
+                      ? 'Vistorias manuais não possuem análise automatizada'
+                      : 'A análise será gerada automaticamente quando as fotos forem enviadas'}
+                  </p>
                 </CardContent>
               </Card>
             )}
@@ -854,11 +943,17 @@ export default function VistoriaDetalhe() {
             {termosAceitos.length > 0 ? (
               <div className="space-y-4">
                 {termosAceitos.map((termo) => (
-                  <Card key={termo.id}>
-                    <CardHeader className="bg-muted/50">
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <FileCheck className="h-5 w-5 text-green-600" />
-                        {termo.termos.titulo}
+                  <Card key={termo.id} className="border-2 border-green-200 hover:border-green-300 transition-colors">
+                    <CardHeader className="bg-green-50/50">
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-lg">
+                          <FileCheck className="h-5 w-5 text-green-600" />
+                          {termo.termos.titulo}
+                        </div>
+                        <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
+                          <Check className="h-3 w-3 mr-1" />
+                          Aceito
+                        </Badge>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-6 space-y-4">
@@ -868,27 +963,54 @@ export default function VistoriaDetalhe() {
 
                       <Separator />
 
-                      <div className="grid md:grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Aceito em:</span>
-                          <p className="font-medium">
-                            {format(new Date(termo.aceito_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">IP:</span>
-                          <p className="font-mono">{termo.ip_address || 'Não disponível'}</p>
+                      <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+                        <h4 className="font-semibold text-sm">Dados do Aceite</h4>
+                        <div className="grid md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground block mb-1">Data e Hora:</span>
+                            <p className="font-medium">
+                              {format(new Date(termo.aceito_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground block mb-1">Endereço IP:</span>
+                            <p className="font-mono text-xs bg-background px-2 py-1 rounded border">
+                              {termo.ip_address || 'Não disponível'}
+                            </p>
+                          </div>
+                          {termo.user_agent && (
+                            <div className="md:col-span-3">
+                              <span className="text-muted-foreground block mb-1">Dispositivo:</span>
+                              <p className="font-mono text-xs bg-background px-2 py-1 rounded border break-all">
+                                {termo.user_agent}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      {termo.termos.arquivo_url && (
-                        <Button variant="outline" asChild className="w-full">
-                          <a href={termo.termos.arquivo_url} target="_blank" rel="noopener noreferrer">
-                            <FileText className="h-4 w-4 mr-2" />
-                            Ver Documento Completo
-                          </a>
-                        </Button>
-                      )}
+                      <div className="flex gap-3">
+                        {termo.termos.arquivo_url && (
+                          <Button variant="outline" asChild className="flex-1 gap-2">
+                            <a href={termo.termos.arquivo_url} target="_blank" rel="noopener noreferrer">
+                              <FileText className="h-4 w-4" />
+                              Ver Documento
+                            </a>
+                          </Button>
+                        )}
+                        {vistoria.assinatura_url && (
+                          <Button 
+                            variant="outline" 
+                            asChild 
+                            className="flex-1 gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-300"
+                          >
+                            <a href={vistoria.assinatura_url} target="_blank" rel="noopener noreferrer">
+                              <FileCheck className="h-4 w-4" />
+                              Ver Assinatura
+                            </a>
+                          </Button>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -896,8 +1018,25 @@ export default function VistoriaDetalhe() {
             ) : (
               <Card>
                 <CardContent className="p-12 text-center">
-                  <FileCheck className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground">Nenhum termo assinado</p>
+                  <FileCheck className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-20" />
+                  <p className="text-lg font-medium mb-2">Nenhum termo assinado</p>
+                  <p className="text-sm text-muted-foreground">Os termos aceitos aparecerão aqui quando disponíveis</p>
+                  
+                  {vistoria.assinatura_url && (
+                    <div className="mt-6">
+                      <Separator className="mb-6" />
+                      <Button 
+                        variant="outline"
+                        asChild
+                        className="gap-2"
+                      >
+                        <a href={vistoria.assinatura_url} target="_blank" rel="noopener noreferrer">
+                          <FileCheck className="h-4 w-4" />
+                          Visualizar Assinatura Digital
+                        </a>
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -1031,6 +1170,62 @@ export default function VistoriaDetalhe() {
             <Button variant="destructive" onClick={confirmarReprovacao} className="gap-2">
               <Send className="h-4 w-4" />
               Reprovar e Notificar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de análise da vistoria */}
+      <Dialog open={analiseDialogOpen} onOpenChange={setAnaliseDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {decisaoAnalise === 'aprovar' ? 'Aprovar Vistoria' : 'Pendenciar Vistoria'}
+            </DialogTitle>
+            <DialogDescription>
+              {decisaoAnalise === 'aprovar' 
+                ? 'Adicione observações sobre a aprovação da vistoria (opcional mas recomendado).'
+                : 'Informe os motivos pelos quais a vistoria está sendo pendenciada.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="analise">
+                {decisaoAnalise === 'aprovar' ? 'Observações' : 'Motivos da Pendência'} *
+              </Label>
+              <Textarea
+                id="analise"
+                value={observacaoAnalise}
+                onChange={(e) => setObservacaoAnalise(e.target.value)}
+                placeholder={
+                  decisaoAnalise === 'aprovar' 
+                    ? "Ex: Vistoria aprovada conforme análise técnica. Todas as fotos estão adequadas..."
+                    : "Ex: Fotos do veículo apresentam qualidade insuficiente para análise..."
+                }
+                rows={5}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAnaliseDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              variant={decisaoAnalise === 'aprovar' ? 'default' : 'destructive'} 
+              onClick={confirmarAnalise} 
+              className="gap-2"
+            >
+              {decisaoAnalise === 'aprovar' ? (
+                <>
+                  <Check className="h-4 w-4" />
+                  Confirmar Aprovação
+                </>
+              ) : (
+                <>
+                  <X className="h-4 w-4" />
+                  Confirmar Pendência
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
