@@ -793,6 +793,52 @@ export default function Dashboard() {
               </Card>
 
               <Card className="border-0 shadow-lg overflow-hidden">
+                <CardHeader className="bg-gradient-to-br from-chart-5/10 to-transparent">
+                  <CardTitle className="text-base">Distribuição por Fluxos</CardTitle>
+                  <CardDescription>Atendimentos por workflow</CardDescription>
+                </CardHeader>
+                <CardContent className="h-[320px] pt-6">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <defs>
+                        {fluxosData.map((entry, index) => (
+                          <linearGradient key={`gradient-fluxo-${index}`} id={`fluxoGradient${index}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={`hsl(var(--chart-${(index % 5) + 1}))`} stopOpacity={0.9} />
+                            <stop offset="100%" stopColor={`hsl(var(--chart-${(index % 5) + 1}))`} stopOpacity={0.6} />
+                          </linearGradient>
+                        ))}
+                      </defs>
+                      <Pie 
+                        data={fluxosData} 
+                        cx="50%" 
+                        cy="50%" 
+                        labelLine={false} 
+                        label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={95} 
+                        innerRadius={50}
+                        fill="#8884d8" 
+                        dataKey="value"
+                        animationBegin={0}
+                        animationDuration={800}
+                      >
+                        {fluxosData.map((entry, index) => (
+                          <Cell key={`cell-fluxo-${index}`} fill={`url(#fluxoGradient${index})`} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--card))', 
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          boxShadow: 'var(--shadow-lg)'
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-lg overflow-hidden">
                 <CardHeader className="bg-gradient-to-br from-chart-2/10 to-transparent">
                   <CardTitle className="text-base">Atendimentos por Status</CardTitle>
                   <CardDescription>Comparação quantitativa</CardDescription>
