@@ -178,9 +178,7 @@ export function AnexosUpload({ atendimentoId, anexos, onAnexosChange }: AnexosUp
   };
 
   return (
-    <div className="space-y-3">
-      <Label>Anexos</Label>
-      
+    <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Input
           type="file"
@@ -196,15 +194,19 @@ export function AnexosUpload({ atendimentoId, anexos, onAnexosChange }: AnexosUp
           variant="outline"
           onClick={() => document.getElementById('file-upload')?.click()}
           disabled={uploading}
-          className="w-full"
+          className="w-full gap-2"
         >
-          <Upload className="h-4 w-4 mr-2" />
-          {uploading ? 'Enviando...' : 'Adicionar Arquivos'}
+          <Upload className="h-4 w-4" />
+          {uploading ? 'Enviando arquivos...' : 'Adicionar Arquivos'}
         </Button>
       </div>
 
       {anexos.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            {anexos.length} arquivo{anexos.length !== 1 ? 's' : ''} anexado{anexos.length !== 1 ? 's' : ''}
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {anexos.map((anexo) => {
             const isImage = isImageFile(anexo.tipo_arquivo);
             
@@ -285,6 +287,7 @@ export function AnexosUpload({ atendimentoId, anexos, onAnexosChange }: AnexosUp
             );
           })}
         </div>
+      </div>
       )}
     </div>
   );
