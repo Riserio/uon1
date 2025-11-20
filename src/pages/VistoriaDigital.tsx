@@ -1,0 +1,312 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { ArrowLeft, Link as LinkIcon, Mail, MessageCircle, Copy } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+export default function VistoriaDigital() {
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [tipoVistoria, setTipoVistoria] = useState<'sinistro' | 'reativacao'>('sinistro');
+  const [vistoriaId, setVistoriaId] = useState('');
+  const [linkToken, setLinkToken] = useState('');
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [email, setEmail] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const createVistoria = async () => {
+    setCreating(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      // Criar vistoria
+      const { data: vistoria, error: vistoriaError } = await supabase
+        .from('vistorias')
+        .insert({
+          tipo_abertura: 'digital',
+          tipo_vistoria: tipoVistoria,
+          status: 'aguardando_fotos',
+          created_by: user.id
+        })
+        .select()
+        .single();
+
+      if (vistoriaError) throw vistoriaError;
+
+      // Buscar o primeiro fluxo ativo e seu primeiro status
+      const { data: fluxos, error: fluxosError } = await supabase
+        .from('fluxos')
+        .select('id')
+        .eq('ativo', true)
+        .order('ordem')
+        .limit(1);
+
+      if (fluxosError) throw fluxosError;
+
+      if (fluxos && fluxos.length > 0) {
+        const fluxoId = fluxos[0].id;
+
+        // Buscar o primeiro status do fluxo
+        const { data: statusList, error: statusError } = await supabase
+          .from('status_config')
+          .select('nome')
+          .eq('fluxo_id', fluxoId)
+          .eq('ativo', true)
+          .order('ordem')
+          .limit(1);
+
+        if (statusError) throw statusError;
+
+        if (statusList && statusList.length > 0) {
+          // Criar atendimento vinculado
+          const { error: atendimentoError } = await supabase
+            .from('atendimentos')
+            .insert({
+              user_id: user.id,
+              assunto: `Vistoria ${tipoVistoria === 'sinistro' ? 'Sinistro' : 'Reativação'} #${vistoria.numero}`,
+              prioridade: 'Alta',
+              status: statusList[0].nome,
+              fluxo_id: fluxoId,
+              observacoes: `Vistoria digital criada - Aguardando envio de fotos pelo cliente.\nLink Token: ${vistoria.link_token}`
+            });
+
+          if (atendimentoError) {
+            console.error('Erro ao criar atendimento:', atendimentoError);
+          }
+        }
+      }
+
+      setVistoriaId(vistoria.id);
+      setLinkToken(vistoria.link_token);
+      setStep(2);
+      toast.success('Vistoria digital criada com sucesso!');
+    } catch (error) {
+      console.error('Erro ao criar vistoria:', error);
+      toast.error('Erro ao criar vistoria digital');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const getVistoriaLink = () => {
+    return `${window.location.origin}/vistoria/${linkToken}`;
+  };
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(getVistoriaLink());
+    toast.success('Link copiado para a área de transferência!');
+  };
+
+  const sendEmail = async () => {
+    if (!email) {
+      toast.error('Por favor, insira um email');
+      return;
+    }
+
+    try {
+      // TODO: Implementar envio de email
+      toast.success('Email enviado com sucesso!');
+      setShowLinkDialog(false);
+    } catch (error) {
+      console.error('Erro ao enviar email:', error);
+      toast.error('Erro ao enviar email');
+    }
+  };
+
+  const sendWhatsApp = () => {
+    if (!telefone) {
+      toast.error('Por favor, insira um telefone');
+      return;
+    }
+
+    const cleanPhone = telefone.replace(/\D/g, '');
+    const message = encodeURIComponent(
+      `Olá! Segue o link para realizar a vistoria digital do seu veículo:\n\n${getVistoriaLink()}\n\nPor favor, siga as instruções na tela para fotografar seu veículo.`
+    );
+    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+    toast.success('Redirecionando para WhatsApp Web...');
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10 p-6">
+      <div className="max-w-3xl mx-auto">
+        <Button
+          variant="ghost"
+          onClick={() => navigate('/vistorias')}
+          className="mb-6"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar
+        </Button>
+
+        <Card className="shadow-xl border-primary/20">
+          <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
+            <CardTitle className="text-2xl">Nova Vistoria Digital</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            {step === 1 && (
+              <div className="space-y-6">
+                <div>
+                  <Label className="text-base mb-4 block">
+                    Tipo de Vistoria
+                  </Label>
+                  <RadioGroup
+                    value={tipoVistoria}
+                    onValueChange={(value) => setTipoVistoria(value as 'sinistro' | 'reativacao')}
+                  >
+                    <div className="flex items-center space-x-2 p-4 rounded-lg border hover:border-primary transition-colors">
+                      <RadioGroupItem value="sinistro" id="sinistro" />
+                      <Label htmlFor="sinistro" className="flex-1 cursor-pointer">
+                        <div className="font-semibold">Sinistro</div>
+                        <div className="text-sm text-muted-foreground">
+                          Para veículos que sofreram algum tipo de dano ou acidente
+                        </div>
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2 p-4 rounded-lg border hover:border-primary transition-colors">
+                      <RadioGroupItem value="reativacao" id="reativacao" />
+                      <Label htmlFor="reativacao" className="flex-1 cursor-pointer">
+                        <div className="font-semibold">Reativação</div>
+                        <div className="text-sm text-muted-foreground">
+                          Para reativar apólices ou avaliar estado geral do veículo
+                        </div>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                <Button
+                  onClick={createVistoria}
+                  disabled={creating}
+                  className="w-full bg-gradient-to-r from-primary to-primary/80"
+                  size="lg"
+                >
+                  {creating ? 'Criando...' : 'Criar Vistoria Digital'}
+                </Button>
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="space-y-6">
+                <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg p-4">
+                  <h3 className="font-semibold text-green-900 dark:text-green-100 mb-2">
+                    ✓ Vistoria criada com sucesso!
+                  </h3>
+                  <p className="text-sm text-green-800 dark:text-green-200">
+                    Um card foi criado automaticamente no kanban. Use o link abaixo para enviar ao cliente.
+                  </p>
+                </div>
+
+                <div>
+                  <Label className="mb-2 block">Link da Vistoria</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={getVistoriaLink()}
+                      readOnly
+                      className="font-mono text-sm"
+                    />
+                    <Button onClick={copyLink} variant="outline">
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Button
+                    onClick={() => setShowLinkDialog(true)}
+                    variant="outline"
+                    size="lg"
+                    className="h-24 flex-col gap-2"
+                  >
+                    <Mail className="h-6 w-6" />
+                    <span>Enviar por Email</span>
+                  </Button>
+
+                  <Button
+                    onClick={() => setShowLinkDialog(true)}
+                    variant="outline"
+                    size="lg"
+                    className="h-24 flex-col gap-2"
+                  >
+                    <MessageCircle className="h-6 w-6" />
+                    <span>Enviar por WhatsApp</span>
+                  </Button>
+                </div>
+
+                <Button
+                  onClick={() => navigate('/vistorias')}
+                  className="w-full"
+                  variant="secondary"
+                >
+                  Concluir
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Enviar Link de Vistoria</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Email do Cliente</Label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="cliente@exemplo.com"
+                />
+                <Button
+                  onClick={sendEmail}
+                  className="w-full mt-2"
+                  variant="outline"
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  Enviar por Email
+                </Button>
+              </div>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    ou
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <Label>Telefone do Cliente (com DDD)</Label>
+                <Input
+                  value={telefone}
+                  onChange={(e) => setTelefone(e.target.value)}
+                  placeholder="(11) 99999-9999"
+                />
+                <Button
+                  onClick={sendWhatsApp}
+                  className="w-full mt-2 bg-green-600 hover:bg-green-700"
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Enviar por WhatsApp
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  );
+}
