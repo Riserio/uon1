@@ -8,10 +8,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, FileText, Upload, ExternalLink } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText, Upload, ExternalLink, Check, ChevronsUpDown } from 'lucide-react';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 const TIPOS_SINISTRO = [
   'Colisão',
@@ -41,10 +44,11 @@ export default function Termos() {
     ordem: 0,
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [corretoraSearchOpen, setCorretoraSearchOpen] = useState(false);
+  const [corretoraSearch, setCorretoraSearch] = useState('');
 
   useEffect(() => {
     loadTermos();
-    loadCorretoras();
   }, []);
 
   const loadTermos = async () => {
@@ -65,12 +69,22 @@ export default function Termos() {
     }
   };
 
-  const loadCorretoras = async () => {
+  const loadCorretoras = async (searchTerm?: string) => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('corretoras')
         .select('id, nome')
         .order('nome');
+      
+      if (searchTerm && searchTerm.length >= 3) {
+        query = query.ilike('nome', `%${searchTerm}%`);
+      } else if (!searchTerm) {
+        // Não carrega nada se não tem busca
+        setCorretoras([]);
+        return;
+      }
+
+      const { data, error } = await query.limit(20);
 
       if (error) throw error;
       setCorretoras(data || []);
@@ -169,7 +183,7 @@ export default function Termos() {
     }
   };
 
-  const handleEdit = (termo: any) => {
+  const handleEdit = async (termo: any) => {
     setEditingTermo(termo);
     setFormData({
       titulo: termo.titulo,
@@ -180,6 +194,20 @@ export default function Termos() {
       obrigatorio: termo.obrigatorio,
       ordem: termo.ordem,
     });
+    
+    // Carregar corretora se existir
+    if (termo.corretora_id) {
+      const { data } = await supabase
+        .from('corretoras')
+        .select('id, nome')
+        .eq('id', termo.corretora_id)
+        .single();
+      
+      if (data) {
+        setCorretoras([data]);
+      }
+    }
+    
     setDialogOpen(true);
   };
 
@@ -213,6 +241,8 @@ export default function Termos() {
     });
     setEditingTermo(null);
     setSelectedFile(null);
+    setCorretoraSearch('');
+    setCorretoras([]);
   };
 
   return (
@@ -341,19 +371,77 @@ export default function Termos() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Corretora</Label>
-                <Select
-                  value={formData.corretora_id}
-                  onValueChange={(value) => setFormData({ ...formData, corretora_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todas as corretoras" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {corretoras.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={corretoraSearchOpen} onOpenChange={setCorretoraSearchOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={corretoraSearchOpen}
+                      className="w-full justify-between"
+                    >
+                      {formData.corretora_id
+                        ? corretoras.find((c) => c.id === formData.corretora_id)?.nome || 'Selecione...'
+                        : 'Todas as corretoras'}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[400px] p-0">
+                    <Command>
+                      <CommandInput 
+                        placeholder="Digite 3 letras para buscar..." 
+                        value={corretoraSearch}
+                        onValueChange={(value) => {
+                          setCorretoraSearch(value);
+                          if (value.length >= 3) {
+                            loadCorretoras(value);
+                          }
+                        }}
+                      />
+                      <CommandEmpty>
+                        {corretoraSearch.length < 3 
+                          ? 'Digite ao menos 3 letras para buscar' 
+                          : 'Nenhuma corretora encontrada'}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value=""
+                          onSelect={() => {
+                            setFormData({ ...formData, corretora_id: '' });
+                            setCorretoraSearchOpen(false);
+                            setCorretoraSearch('');
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 h-4 w-4',
+                              formData.corretora_id === '' ? 'opacity-100' : 'opacity-0'
+                            )}
+                          />
+                          Todas as corretoras
+                        </CommandItem>
+                        {corretoras.map((corretora) => (
+                          <CommandItem
+                            key={corretora.id}
+                            value={corretora.nome}
+                            onSelect={() => {
+                              setFormData({ ...formData, corretora_id: corretora.id });
+                              setCorretoraSearchOpen(false);
+                              setCorretoraSearch('');
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                formData.corretora_id === corretora.id ? 'opacity-100' : 'opacity-0'
+                              )}
+                            />
+                            {corretora.nome}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div>
