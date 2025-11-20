@@ -292,7 +292,7 @@ export function AtendimentoDialog({
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className={cn("grid w-full", atendimento ? "grid-cols-4" : "grid-cols-1")}>
+            <TabsList className={cn("grid w-full", atendimento ? "grid-cols-5" : "grid-cols-1")}>
               <TabsTrigger value="geral" className="gap-2">
                 <FileText className="h-4 w-4" />
                 Informações Gerais
@@ -306,6 +306,10 @@ export function AtendimentoDialog({
                   <TabsTrigger value="anexos" className="gap-2">
                     <Paperclip className="h-4 w-4" />
                     Anexos
+                  </TabsTrigger>
+                  <TabsTrigger value="custos" className="gap-2">
+                    <DollarSign className="h-4 w-4" />
+                    Custos
                   </TabsTrigger>
                   {(userRole === 'admin' || userRole === 'superintendente') && (
                     <TabsTrigger value="historico" className="gap-2">
