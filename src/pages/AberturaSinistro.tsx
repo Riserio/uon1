@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft, AlertTriangle, Car, User, Calendar, FileText, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
+import { CNHUpload } from '@/components/CNHUpload';
 
 interface Corretora {
   id: string;
@@ -266,6 +267,14 @@ Email: ${seguradoEmail}
 
           <form onSubmit={handleSubmit}>
             <CardContent className="p-6 space-y-8">
+              {/* Upload CNH */}
+              <CNHUpload 
+                onDataExtracted={(data) => {
+                  if (data.nome) setSeguradoNome(data.nome);
+                  if (data.cpf) setSeguradoCpf(data.cpf);
+                }}
+              />
+
               {/* Tipo de Sinistro */}
               <div className="space-y-3">
                 <Label className="text-lg font-semibold flex items-center gap-2">

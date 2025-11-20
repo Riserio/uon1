@@ -169,9 +169,9 @@ export function AppSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
-                    <NavLink to="/sinistros/novo" activeClassName="bg-primary text-primary-foreground">
+                    <NavLink to="/sinistros/dashboard" activeClassName="bg-primary text-primary-foreground">
                       <AlertTriangle className="h-4 w-4" />
-                      {!collapsed && <span>Abrir Sinistro</span>}
+                      {!collapsed && <span>Sinistros</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
