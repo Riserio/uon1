@@ -30,6 +30,7 @@ import VistoriaDigital from "./pages/VistoriaDigital";
 import VistoriaManual from "./pages/VistoriaManual";
 import VistoriaPublica from "./pages/VistoriaPublica";
 import VistoriaDetalhe from "./pages/VistoriaDetalhe";
+import Administradora from "./pages/Administradora";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -91,8 +92,10 @@ const App = () => (
             <Route path="/dashboard-analytics" element={<ProtectedRoute><DashboardAnalytics /></ProtectedRoute>} />
             <Route path="/desempenho-individual" element={<ProtectedRoute><IndividualPerformance /></ProtectedRoute>} />
             <Route path="/corretoras" element={<ProtectedRoute><Corretoras /></ProtectedRoute>} />
+            <Route path="/administradora" element={<ProtectedRoute><AdminRoute><Administradora /></AdminRoute></ProtectedRoute>} />
             <Route path="/contatos" element={<ProtectedRoute><Contatos /></ProtectedRoute>} />
             <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
+            <Route path="/equipes" element={<ProtectedRoute><Equipes /></ProtectedRoute>} />
             
             <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
             <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />

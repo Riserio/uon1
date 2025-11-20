@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      administradora: {
+        Row: {
+          cnpj: string | null
+          created_at: string | null
+          email: string | null
+          endereco: string | null
+          id: string
+          logo_url: string | null
+          nome: string
+          telefone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          cnpj?: string | null
+          created_at?: string | null
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          logo_url?: string | null
+          nome: string
+          telefone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          cnpj?: string | null
+          created_at?: string | null
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          logo_url?: string | null
+          nome?: string
+          telefone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       andamentos: {
         Row: {
           atendimento_id: string
@@ -382,6 +418,7 @@ export type Database = {
           endereco: string | null
           estado: string | null
           id: string
+          logo_url: string | null
           nome: string
           observacoes: string | null
           responsavel: string | null
@@ -399,6 +436,7 @@ export type Database = {
           endereco?: string | null
           estado?: string | null
           id?: string
+          logo_url?: string | null
           nome: string
           observacoes?: string | null
           responsavel?: string | null
@@ -416,6 +454,7 @@ export type Database = {
           endereco?: string | null
           estado?: string | null
           id?: string
+          logo_url?: string | null
           nome?: string
           observacoes?: string | null
           responsavel?: string | null
@@ -1309,6 +1348,7 @@ export type Database = {
           cliente_nome: string | null
           cliente_telefone: string | null
           completed_at: string | null
+          corretora_id: string | null
           created_at: string
           created_by: string
           danos_detectados: string[] | null
@@ -1342,6 +1382,7 @@ export type Database = {
           cliente_nome?: string | null
           cliente_telefone?: string | null
           completed_at?: string | null
+          corretora_id?: string | null
           created_at?: string
           created_by: string
           danos_detectados?: string[] | null
@@ -1375,6 +1416,7 @@ export type Database = {
           cliente_nome?: string | null
           cliente_telefone?: string | null
           completed_at?: string | null
+          corretora_id?: string | null
           created_at?: string
           created_by?: string
           danos_detectados?: string[] | null
@@ -1406,6 +1448,13 @@ export type Database = {
             columns: ["atendimento_id"]
             isOneToOne: false
             referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vistorias_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
             referencedColumns: ["id"]
           },
         ]

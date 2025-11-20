@@ -43,6 +43,7 @@ export default function Corretoras() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   const [selectedCorretoraForHistory, setSelectedCorretoraForHistory] = useState<{ id: string; nome: string } | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => {
     fetchCorretoras();
