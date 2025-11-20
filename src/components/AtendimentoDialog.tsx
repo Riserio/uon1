@@ -27,6 +27,42 @@ import { CurrencyInput } from '@/components/ui/currency-input';
 import { validateCPF, validatePlaca } from '@/lib/validators';
 import { MaskedInput } from '@/components/ui/masked-input';
 
+const MARCAS = [
+  'Audi', 'BMW', 'Chevrolet', 'Citroën', 'Fiat', 'Ford', 'Honda', 'Hyundai', 
+  'Jeep', 'Kia', 'Mercedes-Benz', 'Mitsubishi', 'Nissan', 'Peugeot', 'Renault', 
+  'Toyota', 'Volkswagen', 'Volvo', 'Outros'
+];
+
+const MODELOS_POR_MARCA: { [key: string]: string[] } = {
+  'Volkswagen': ['Gol', 'Fox', 'Polo', 'Virtus', 'T-Cross', 'Nivus', 'Taos', 'Tiguan', 'Amarok'],
+  'Chevrolet': ['Onix', 'Prisma', 'Tracker', 'Cruze', 'S10', 'Spin', 'Montana'],
+  'Fiat': ['Argo', 'Cronos', 'Mobi', 'Pulse', 'Fastback', 'Toro', 'Strada'],
+  'Ford': ['Ka', 'EcoSport', 'Ranger', 'Territory', 'Maverick'],
+  'Toyota': ['Corolla', 'Yaris', 'Hilux', 'SW4', 'Etios', 'Corolla Cross'],
+  'Honda': ['Civic', 'City', 'HR-V', 'CR-V', 'Fit'],
+  'Hyundai': ['HB20', 'Creta', 'Tucson', 'Santa Fe', 'ix35'],
+  'Jeep': ['Renegade', 'Compass', 'Commander'],
+  'Renault': ['Kwid', 'Sandero', 'Logan', 'Duster', 'Oroch', 'Captur'],
+  'Nissan': ['Kicks', 'Versa', 'Frontier', 'Sentra'],
+  'Peugeot': ['208', '2008', '3008', '5008'],
+  'Citroën': ['C3', 'C4 Cactus'],
+  'Outros': []
+};
+
+const CORES = [
+  'Preto', 'Branco', 'Prata', 'Cinza', 'Vermelho', 'Azul', 'Verde', 
+  'Amarelo', 'Laranja', 'Marrom', 'Bege', 'Dourado', 'Roxo', 'Rosa', 'Outros'
+];
+
+const getAnosDisponiveis = () => {
+  const anoAtual = new Date().getFullYear();
+  const anos = [];
+  for (let ano = anoAtual; ano >= 1980; ano--) {
+    anos.push(ano.toString());
+  }
+  return anos;
+};
+
 interface AtendimentoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -865,36 +901,69 @@ export function AtendimentoDialog({
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="veiculo_marca">Marca</Label>
-                      <Input
-                        id="veiculo_marca"
+                      <Select
                         value={vistoriaData.veiculo_marca}
-                        onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_marca: e.target.value })}
-                      />
+                        onValueChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_marca: value, veiculo_modelo: '' })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a marca" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MARCAS.map(marca => (
+                            <SelectItem key={marca} value={marca}>{marca}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="veiculo_modelo">Modelo</Label>
-                      <Input
-                        id="veiculo_modelo"
+                      <Select
                         value={vistoriaData.veiculo_modelo}
-                        onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_modelo: e.target.value })}
-                      />
+                        onValueChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_modelo: value })}
+                        disabled={!vistoriaData.veiculo_marca}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o modelo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {vistoriaData.veiculo_marca && MODELOS_POR_MARCA[vistoriaData.veiculo_marca]?.map(modelo => (
+                            <SelectItem key={modelo} value={modelo}>{modelo}</SelectItem>
+                          ))}
+                          <SelectItem value="Outro">Outro</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="veiculo_ano">Ano</Label>
-                      <Input
-                        id="veiculo_ano"
+                      <Select
                         value={vistoriaData.veiculo_ano}
-                        onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_ano: e.target.value })}
-                        placeholder="2020/2021"
-                      />
+                        onValueChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_ano: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o ano" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getAnosDisponiveis().map(ano => (
+                            <SelectItem key={ano} value={ano}>{ano}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="veiculo_cor">Cor</Label>
-                      <Input
-                        id="veiculo_cor"
+                      <Select
                         value={vistoriaData.veiculo_cor}
-                        onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_cor: e.target.value })}
-                      />
+                        onValueChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_cor: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a cor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CORES.map(cor => (
+                            <SelectItem key={cor} value={cor}>{cor}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="veiculo_chassi">Chassi</Label>
