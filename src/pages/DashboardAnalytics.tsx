@@ -378,13 +378,7 @@ export default function DashboardAnalytics() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-lg">
-                
-                <Button variant={dashboardMode === 'global' ? 'default' : 'ghost'} size="sm" onClick={() => setDashboardMode('global')}>
-                  <TrendingUp className="h-4 w-4 mr-2" />
-                  Desempenho Global
-                </Button>
-              </div>
+              
               <Button variant="outline" size="sm" className="gap-2" onClick={() => setMetasDialogOpen(true)}>
                 <Target className="h-4 w-4" />
                 <span className="hidden sm:inline">Metas</span>
