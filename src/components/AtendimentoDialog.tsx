@@ -256,12 +256,22 @@ export function AtendimentoDialog({
       // Separar dados da vistoria (sem tipo_atendimento)
       const { tipo_atendimento, ...vistoriaDataOnly } = vistoriaData;
       
+      // Converter strings vazias de timestamp para null
+      const cleanedVistoriaData = Object.entries(vistoriaDataOnly).reduce((acc, [key, value]) => {
+        if (key === 'data_incidente' && value === '') {
+          acc[key] = null;
+        } else {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as any);
+      
       if (vistoriaId) {
         // Atualizar vistoria existente
         const { error: vistoriaError } = await supabase
           .from('vistorias')
           .update({
-            ...vistoriaDataOnly,
+            ...cleanedVistoriaData,
             ...custos,
           })
           .eq('id', vistoriaId);
@@ -280,7 +290,7 @@ export function AtendimentoDialog({
             tipo_vistoria: 'sinistro',
             tipo_abertura: 'interno',
             status: 'rascunho',
-            ...vistoriaDataOnly,
+            ...cleanedVistoriaData,
             ...custos,
           })
           .select('id')
