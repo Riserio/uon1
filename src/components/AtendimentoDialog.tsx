@@ -25,6 +25,7 @@ import { HistoricoList } from '@/components/HistoricoList';
 import { useAuth } from '@/hooks/useAuth';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { validateCPF, validatePlaca } from '@/lib/validators';
+import { MaskedInput } from '@/components/ui/masked-input';
 
 interface AtendimentoDialogProps {
   open: boolean;
@@ -246,12 +247,15 @@ export function AtendimentoDialog({
     }
 
     try {
+      // Separar dados da vistoria (sem tipo_atendimento)
+      const { tipo_atendimento, ...vistoriaDataOnly } = vistoriaData;
+      
       if (vistoriaId) {
         // Atualizar vistoria existente
         const { error } = await supabase
           .from('vistorias')
           .update({
-            ...vistoriaData,
+            ...vistoriaDataOnly,
             ...custos,
           })
           .eq('id', vistoriaId);
@@ -273,7 +277,7 @@ export function AtendimentoDialog({
             tipo_vistoria: 'sinistro',
             tipo_abertura: 'interno',
             status: 'rascunho',
-            ...vistoriaData,
+            ...vistoriaDataOnly,
             ...custos,
           })
           .select('id')
@@ -762,12 +766,13 @@ export function AtendimentoDialog({
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="dp_veiculo_placa">Placa *</Label>
-                            <Input
+                            <MaskedInput
                               id="dp_veiculo_placa"
+                              format="###-####"
+                              mask="_"
                               value={vistoriaData.veiculo_placa}
-                              onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_placa: e.target.value.toUpperCase() })}
+                              onValueChange={(values) => setVistoriaData({ ...vistoriaData, veiculo_placa: values.value.toUpperCase() })}
                               placeholder="ABC-1234"
-                              maxLength={8}
                               className={vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa) ? 'border-destructive' : ''}
                             />
                             {vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa) && (
@@ -835,10 +840,12 @@ export function AtendimentoDialog({
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="dp_cliente_cpf">CPF</Label>
-                            <Input
+                            <MaskedInput
                               id="dp_cliente_cpf"
+                              format="###.###.###-##"
+                              mask="_"
                               value={vistoriaData.cliente_cpf}
-                              onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_cpf: e.target.value })}
+                              onValueChange={(values) => setVistoriaData({ ...vistoriaData, cliente_cpf: values.value })}
                               placeholder="000.000.000-00"
                               className={vistoriaData.cliente_cpf && !validateCPF(vistoriaData.cliente_cpf) ? 'border-destructive' : ''}
                             />
@@ -848,10 +855,12 @@ export function AtendimentoDialog({
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="dp_cliente_telefone">Telefone</Label>
-                            <Input
+                            <MaskedInput
                               id="dp_cliente_telefone"
+                              format="(##) #####-####"
+                              mask="_"
                               value={vistoriaData.cliente_telefone}
-                              onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_telefone: e.target.value })}
+                              onValueChange={(values) => setVistoriaData({ ...vistoriaData, cliente_telefone: values.value })}
                               placeholder="(00) 00000-0000"
                             />
                           </div>
