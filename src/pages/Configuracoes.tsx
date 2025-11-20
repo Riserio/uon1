@@ -137,14 +137,19 @@ export default function Configuracoes() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="container mx-auto p-6 max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-            Configurações do Sistema
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Personalize a aparência da aplicação
-          </p>
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Palette className="h-7 w-7 text-primary" />
+              </div>
+              Configurações do Sistema
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Personalize a aparência da aplicação
+            </p>
+          </div>
         </div>
 
         <Tabs defaultValue="colors" className="w-full">
