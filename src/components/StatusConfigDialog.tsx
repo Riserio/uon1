@@ -296,8 +296,16 @@ export function StatusConfigDialog({ open, onOpenChange, onStatusChange, embedde
   const handleAddStatus = async () => {
     try {
       setLoading(true);
+      
+      // Verificar se há fluxos disponíveis
+      if (fluxos.length === 0) {
+        toast.error('Crie um fluxo primeiro antes de adicionar status');
+        return;
+      }
+      
       const maxOrdem = Math.max(...statuses.map(s => s.ordem), 0);
       
+      // Usar o primeiro fluxo como padrão
       const { data, error } = await supabase
         .from('status_config')
         .insert({
@@ -308,6 +316,7 @@ export function StatusConfigDialog({ open, onOpenChange, onStatusChange, embedde
           ativo: true,
           tipo_etapa: 'em_andamento',
           is_final: false,
+          fluxo_id: fluxos[0].id,
         })
         .select()
         .single();
