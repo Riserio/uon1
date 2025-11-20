@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ export default function ConfiguracaoStatusPublico() {
   const [statusConfig, setStatusConfig] = useState<any[]>([]);
   const [statusPublicos, setStatusPublicos] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const debounceTimers = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
   useEffect(() => {
     loadFluxos();
@@ -96,7 +97,7 @@ export default function ConfiguracaoStatusPublico() {
     loadStatusPublicos();
   };
 
-  const handleUpdateStatus = async (id: string, updates: any) => {
+  const handleUpdateStatus = async (id: string, updates: any, showToast = false) => {
     const { error } = await supabase
       .from('status_publicos_config')
       .update(updates)
@@ -107,8 +108,27 @@ export default function ConfiguracaoStatusPublico() {
       return;
     }
 
-    toast.success('Status atualizado');
+    if (showToast) {
+      toast.success('Status atualizado');
+    }
     loadStatusPublicos();
+  };
+
+  const handleUpdateDescricao = (id: string, value: string) => {
+    // Atualizar localmente primeiro
+    setStatusPublicos(prev => prev.map(s => 
+      s.id === id ? { ...s, descricao_publica: value } : s
+    ));
+
+    // Limpar timer anterior se existir
+    if (debounceTimers.current[id]) {
+      clearTimeout(debounceTimers.current[id]);
+    }
+
+    // Criar novo timer para salvar após 1 segundo
+    debounceTimers.current[id] = setTimeout(() => {
+      handleUpdateStatus(id, { descricao_publica: value }, false);
+    }, 1000);
   };
 
   const handleDeleteStatus = async (id: string) => {
@@ -241,7 +261,7 @@ export default function ConfiguracaoStatusPublico() {
                           <Switch
                             checked={status.visivel_publico}
                             onCheckedChange={(checked) =>
-                              handleUpdateStatus(status.id, { visivel_publico: checked })
+                              handleUpdateStatus(status.id, { visivel_publico: checked }, true)
                             }
                           />
                           <span className="text-sm text-muted-foreground">
@@ -262,7 +282,7 @@ export default function ConfiguracaoStatusPublico() {
                         <Textarea
                           value={status.descricao_publica || ''}
                           onChange={(e) =>
-                            handleUpdateStatus(status.id, { descricao_publica: e.target.value })
+                            handleUpdateDescricao(status.id, e.target.value)
                           }
                           placeholder="Ex: Seu sinistro está em análise pela seguradora"
                           className="mt-1"
