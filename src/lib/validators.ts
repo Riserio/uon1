@@ -71,6 +71,19 @@ export const validatePhone = (phone: string): boolean => {
   return cleanPhone.length === 10 || cleanPhone.length === 11;
 };
 
+// Validador de Placa (formato brasileiro ABC-1234 ou Mercosul ABC1D23)
+export const validatePlaca = (placa: string): boolean => {
+  const cleanPlaca = placa.replace(/[^\w]/g, '').toUpperCase();
+  
+  // Placa antiga: ABC1234 (3 letras + 4 números)
+  const formatoAntigo = /^[A-Z]{3}\d{4}$/;
+  
+  // Placa Mercosul: ABC1D23 (3 letras + 1 número + 1 letra + 2 números)
+  const formatoMercosul = /^[A-Z]{3}\d[A-Z]\d{2}$/;
+  
+  return formatoAntigo.test(cleanPlaca) || formatoMercosul.test(cleanPlaca);
+};
+
 // Formatadores
 export const formatCPF = (value: string): string => {
   const cleanValue = value.replace(/[^\d]/g, '');
