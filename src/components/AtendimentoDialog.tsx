@@ -1191,8 +1191,7 @@ export function AtendimentoDialog({
                 )}
               </TabsContent>
 
-              
-              <TabsContent value="andamentos" className="mt-0">
+              <TabsContent value="andamentos" className="mt-0 p-4">
                 {atendimento?.id ? (
                   <AndamentosList atendimentoId={atendimento.id} />
                 ) : (
