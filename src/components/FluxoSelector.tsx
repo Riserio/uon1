@@ -64,8 +64,9 @@ export function FluxoSelector({ selectedFluxoId, onFluxoSelect, onConfigureFluxo
   }
 
   return (
-    <ScrollArea className="w-full whitespace-nowrap">
-      <div className="flex items-center gap-3 px-1 py-2">
+    <div className="w-full py-4">
+      <ScrollArea className="w-full whitespace-nowrap">
+        <div className="flex items-center gap-3 px-1">
         {fluxos.map((fluxo, index) => {
           const isActive = selectedFluxoId === fluxo.id;
           const isPassed = fluxos.findIndex(f => f.id === selectedFluxoId) > index;
@@ -144,8 +145,9 @@ export function FluxoSelector({ selectedFluxoId, onFluxoSelect, onConfigureFluxo
             </div>
           );
         })}
-      </div>
-      <ScrollBar orientation="horizontal" />
-    </ScrollArea>
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
+    </div>
   );
 }

@@ -129,117 +129,130 @@ export default function AcompanhamentoSinistro() {
     const thisIndex = statusPublicos.findIndex(s => s.status_nome === statusNome);
     
     if (thisIndex < currentIndex) {
-      return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+      return <CheckCircle2 className="h-6 w-6 text-white" />;
     } else if (thisIndex === currentIndex) {
-      return <Clock className="h-5 w-5 text-blue-500 animate-pulse" />;
+      return <Clock className="h-6 w-6 text-white" />;
     } else {
-      return <AlertCircle className="h-5 w-5 text-gray-300" />;
+      return <AlertCircle className="h-6 w-6 text-muted-foreground/50" />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 shadow-xl mb-4">
-            <FileSearch className="h-10 w-10 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5">
+      <div className="max-w-7xl mx-auto px-4 py-12">
+        {/* Header Modernizado */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-gradient-to-br from-primary to-primary/60 shadow-2xl mb-6 animate-in zoom-in duration-500">
+            <FileSearch className="h-12 w-12 text-primary-foreground" />
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-3">
+          <h1 className="text-5xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
             Acompanhamento de Sinistro
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Consulte o status do seu processo em tempo real
+          <p className="text-xl text-muted-foreground max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
+            Acompanhe em tempo real todas as etapas do seu processo
           </p>
         </div>
 
-        {/* Busca */}
-        <Card className="shadow-xl mb-8 border-0">
-          <CardContent className="p-6">
-            <div className="flex gap-3">
-              <div className="flex-1 relative">
-                <Input
-                  placeholder="Digite a placa (ABC-1234) ou CPF (000.000.000-00)"
-                  value={busca}
-                  onChange={(e) => handleInputChange(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleBuscar()}
-                  className="h-12 text-lg pr-10"
-                />
-                {busca && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                    {busca.includes('.') ? <User className="h-4 w-4" /> : <Car className="h-4 w-4" />}
-                  </div>
-                )}
+        {/* Busca Modernizada */}
+        <Card className="shadow-2xl mb-10 border-0 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
+          <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-1">
+            <CardContent className="p-8 bg-card">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1 relative group">
+                  <Input
+                    placeholder="Digite a placa (ABC-1234) ou CPF (000.000.000-00)"
+                    value={busca}
+                    onChange={(e) => handleInputChange(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleBuscar()}
+                    className="h-14 text-lg pr-12 border-2 transition-all group-hover:border-primary/50 focus:border-primary"
+                  />
+                  {busca && (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                      {busca.includes('.') ? 
+                        <User className="h-5 w-5 text-primary" /> : 
+                        <Car className="h-5 w-5 text-primary" />
+                      }
+                    </div>
+                  )}
+                </div>
+                <Button 
+                  onClick={handleBuscar}
+                  disabled={loading}
+                  className="h-14 px-10 text-lg shadow-lg hover:shadow-xl transition-all"
+                  size="lg"
+                >
+                  {loading ? (
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-foreground" />
+                  ) : (
+                    <>
+                      <Search className="mr-2 h-6 w-6" />
+                      Buscar
+                    </>
+                  )}
+                </Button>
               </div>
-              <Button 
-                onClick={handleBuscar}
-                disabled={loading}
-                className="h-12 px-8 text-base"
-                size="lg"
-              >
-                {loading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-                ) : (
-                  <>
-                    <Search className="mr-2 h-5 w-5" />
-                    Buscar
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardContent>
+            </CardContent>
+          </div>
         </Card>
 
-        {/* Resultados */}
+        {/* Resultados Modernizados */}
         {atendimento && (
-          <div className="space-y-6">
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
             {/* Informações do Sinistro */}
-            <Card className="shadow-lg border-0">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
-                <CardTitle className="flex items-center gap-3">
-                  <FileText className="h-6 w-6 text-blue-600" />
-                  Informações do Sinistro
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="shadow-2xl border-0 overflow-hidden">
+              <div className="bg-gradient-to-r from-primary to-primary/60 p-1">
+                <CardHeader className="bg-card">
+                  <CardTitle className="flex items-center gap-3 text-2xl">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <FileText className="h-6 w-6 text-primary" />
+                    </div>
+                    Informações do Sinistro
+                  </CardTitle>
+                </CardHeader>
+              </div>
+              <CardContent className="p-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {/* Veículo */}
                   {vistoriaData?.veiculo_placa && (
-                    <div className="space-y-3">
-                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                        <Car className="h-5 w-5 text-blue-600" />
+                    <div className="space-y-4 p-6 rounded-xl bg-gradient-to-br from-primary/5 to-transparent border border-primary/10">
+                      <h3 className="font-bold text-lg flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-primary/10">
+                          <Car className="h-5 w-5 text-primary" />
+                        </div>
                         Veículo
                       </h3>
-                      <div className="space-y-2 pl-7">
-                        <p className="text-sm"><span className="font-medium">Placa:</span> {vistoriaData.veiculo_placa}</p>
-                        {vistoriaData.veiculo_marca && <p className="text-sm"><span className="font-medium">Marca:</span> {vistoriaData.veiculo_marca}</p>}
-                        {vistoriaData.veiculo_modelo && <p className="text-sm"><span className="font-medium">Modelo:</span> {vistoriaData.veiculo_modelo}</p>}
-                        {vistoriaData.veiculo_ano && <p className="text-sm"><span className="font-medium">Ano:</span> {vistoriaData.veiculo_ano}</p>}
-                        {vistoriaData.veiculo_cor && <p className="text-sm"><span className="font-medium">Cor:</span> {vistoriaData.veiculo_cor}</p>}
+                      <div className="space-y-3 pl-2">
+                        <p className="text-base"><span className="font-semibold text-foreground">Placa:</span> <span className="text-muted-foreground">{formatPlaca(vistoriaData.veiculo_placa)}</span></p>
+                        {vistoriaData.veiculo_marca && <p className="text-base"><span className="font-semibold text-foreground">Marca:</span> <span className="text-muted-foreground">{vistoriaData.veiculo_marca}</span></p>}
+                        {vistoriaData.veiculo_modelo && <p className="text-base"><span className="font-semibold text-foreground">Modelo:</span> <span className="text-muted-foreground">{vistoriaData.veiculo_modelo}</span></p>}
+                        {vistoriaData.veiculo_ano && <p className="text-base"><span className="font-semibold text-foreground">Ano:</span> <span className="text-muted-foreground">{vistoriaData.veiculo_ano}</span></p>}
+                        {vistoriaData.veiculo_cor && <p className="text-base"><span className="font-semibold text-foreground">Cor:</span> <span className="text-muted-foreground">{vistoriaData.veiculo_cor}</span></p>}
                       </div>
                     </div>
                   )}
 
                   {/* Cliente */}
                   {vistoriaData?.cliente_nome && (
-                    <div className="space-y-3">
-                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                        <User className="h-5 w-5 text-blue-600" />
+                    <div className="space-y-4 p-6 rounded-xl bg-gradient-to-br from-secondary/5 to-transparent border border-secondary/10">
+                      <h3 className="font-bold text-lg flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-secondary/10">
+                          <User className="h-5 w-5 text-secondary-foreground" />
+                        </div>
                         Cliente
                       </h3>
-                      <div className="space-y-2 pl-7">
-                        <p className="text-sm"><span className="font-medium">Nome:</span> {vistoriaData.cliente_nome}</p>
-                        {vistoriaData.cliente_cpf && <p className="text-sm"><span className="font-medium">CPF:</span> {formatCPF(vistoriaData.cliente_cpf)}</p>}
+                      <div className="space-y-3 pl-2">
+                        <p className="text-base"><span className="font-semibold text-foreground">Nome:</span> <span className="text-muted-foreground">{vistoriaData.cliente_nome}</span></p>
+                        {vistoriaData.cliente_cpf && <p className="text-base"><span className="font-semibold text-foreground">CPF:</span> <span className="text-muted-foreground">{formatCPF(vistoriaData.cliente_cpf)}</span></p>}
                         {vistoriaData.cliente_telefone && (
-                          <p className="text-sm flex items-center gap-2">
-                            <Phone className="h-4 w-4" />
-                            {vistoriaData.cliente_telefone}
+                          <p className="text-base flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-primary" />
+                            <span className="text-muted-foreground">{vistoriaData.cliente_telefone}</span>
                           </p>
                         )}
                         {vistoriaData.cliente_email && (
-                          <p className="text-sm flex items-center gap-2">
-                            <Mail className="h-4 w-4" />
-                            {vistoriaData.cliente_email}
+                          <p className="text-base flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-primary" />
+                            <span className="text-muted-foreground">{vistoriaData.cliente_email}</span>
                           </p>
                         )}
                       </div>
@@ -248,27 +261,36 @@ export default function AcompanhamentoSinistro() {
                 </div>
 
                 {/* Informações Adicionais */}
-                <div className="mt-6 pt-6 border-t">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                      <Calendar className="h-5 w-5 text-blue-600" />
+                <div className="mt-8 pt-8 border-t">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="flex items-center gap-4 p-5 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl border border-primary/20 shadow-sm">
+                      <div className="p-3 rounded-lg bg-primary/20">
+                        <Calendar className="h-6 w-6 text-primary" />
+                      </div>
                       <div>
-                        <p className="text-xs text-gray-600">Protocolo</p>
-                        <p className="font-semibold">#{atendimento.numero}</p>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Protocolo</p>
+                        <p className="text-xl font-bold text-foreground">#{atendimento.numero}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                      <div className="w-3 h-3 rounded-full bg-green-500" />
+                    <div className="flex items-center gap-4 p-5 bg-gradient-to-br from-green-500/10 to-green-500/5 rounded-xl border border-green-500/20 shadow-sm">
+                      <div className="p-3 rounded-lg bg-green-500/20">
+                        <div className="w-4 h-4 rounded-full bg-green-500 animate-pulse" />
+                      </div>
                       <div>
-                        <p className="text-xs text-gray-600">Status Atual</p>
-                        <p className="font-semibold">{atendimento.status}</p>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status Atual</p>
+                        <p className="text-lg font-bold text-foreground">{atendimento.status}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
-                      <AlertCircle className="h-5 w-5 text-purple-600" />
+                    <div className="flex items-center gap-4 p-5 bg-gradient-to-br from-purple-500/10 to-purple-500/5 rounded-xl border border-purple-500/20 shadow-sm">
+                      <div className="p-3 rounded-lg bg-purple-500/20">
+                        <AlertCircle className="h-6 w-6 text-purple-600" />
+                      </div>
                       <div>
-                        <p className="text-xs text-gray-600">Prioridade</p>
-                        <Badge variant={atendimento.prioridade === 'Alta' ? 'destructive' : 'secondary'}>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prioridade</p>
+                        <Badge 
+                          variant={atendimento.prioridade === 'Alta' ? 'destructive' : 'secondary'}
+                          className="mt-1 text-sm"
+                        >
                           {atendimento.prioridade}
                         </Badge>
                       </div>
@@ -280,50 +302,63 @@ export default function AcompanhamentoSinistro() {
 
             {/* Linha do Tempo de Status */}
             {statusPublicos.length > 0 && (
-              <Card className="shadow-lg border-0">
-                <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50">
-                  <CardTitle className="flex items-center gap-3">
-                    <Clock className="h-6 w-6 text-indigo-600" />
-                    Linha do Tempo
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="space-y-6">
+              <Card className="shadow-2xl border-0 overflow-hidden">
+                <div className="bg-gradient-to-r from-primary to-primary/60 p-1">
+                  <CardHeader className="bg-card">
+                    <CardTitle className="flex items-center gap-3 text-2xl">
+                      <div className="p-2 rounded-lg bg-primary/10">
+                        <Clock className="h-6 w-6 text-primary" />
+                      </div>
+                      Linha do Tempo do Processo
+                    </CardTitle>
+                  </CardHeader>
+                </div>
+                <CardContent className="p-8">
+                  <div className="space-y-8">
                     {statusPublicos.map((status, index) => {
                       const isCompleted = statusPublicos.findIndex(s => s.status_nome === atendimento.status) > index;
                       const isCurrent = status.status_nome === atendimento.status;
                       
                       return (
-                        <div key={status.id} className="flex gap-4 relative">
+                        <div key={status.id} className="flex gap-6 relative group">
                           {/* Linha conectora */}
                           {index < statusPublicos.length - 1 && (
                             <div 
-                              className={`absolute left-5 top-10 w-[2px] h-full ${
-                                isCompleted ? 'bg-green-500' : 'bg-gray-200'
+                              className={`absolute left-6 top-14 w-[3px] h-full transition-all duration-500 ${
+                                isCompleted ? 'bg-gradient-to-b from-green-500 to-green-400' : 'bg-border'
                               }`}
                             />
                           )}
                           
                           {/* Ícone */}
-                          <div className={`relative z-10 flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                            isCompleted ? 'bg-green-500' : 
-                            isCurrent ? 'bg-blue-500 animate-pulse' : 
-                            'bg-gray-200'
+                          <div className={`relative z-10 flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all duration-500 ${
+                            isCompleted ? 'bg-gradient-to-br from-green-500 to-green-600 scale-110' : 
+                            isCurrent ? 'bg-gradient-to-br from-primary to-primary/60 animate-pulse scale-110 ring-4 ring-primary/20' : 
+                            'bg-muted scale-100'
                           }`}>
                             {getStatusIcon(status.status_nome, atendimento.status)}
                           </div>
                           
                           {/* Conteúdo */}
-                          <div className="flex-1 pb-6">
-                            <div className={`font-semibold ${isCurrent ? 'text-blue-600' : isCompleted ? 'text-green-700' : 'text-gray-400'}`}>
+                          <div className="flex-1 pb-8">
+                            <div className={`text-xl font-bold mb-2 transition-colors ${
+                              isCurrent ? 'text-primary' : 
+                              isCompleted ? 'text-green-600' : 
+                              'text-muted-foreground'
+                            }`}>
                               {status.status_nome}
                             </div>
                             {status.descricao_publica && (
-                              <p className="text-sm text-gray-600 mt-1">{status.descricao_publica}</p>
+                              <p className="text-base text-muted-foreground leading-relaxed mb-3">{status.descricao_publica}</p>
                             )}
                             {isCurrent && (
-                              <Badge className="mt-2" variant="default">
-                                Status Atual
+                              <Badge className="mt-2 text-sm py-1 px-3 bg-primary/10 text-primary border-primary/20" variant="outline">
+                                ✓ Status Atual
+                              </Badge>
+                            )}
+                            {isCompleted && (
+                              <Badge className="mt-2 text-sm py-1 px-3 bg-green-500/10 text-green-600 border-green-500/20" variant="outline">
+                                ✓ Concluído
                               </Badge>
                             )}
                           </div>
@@ -337,49 +372,59 @@ export default function AcompanhamentoSinistro() {
 
             {/* Histórico de Andamentos e Mudanças de Status */}
             {andamentos.length > 0 && (
-              <Card className="shadow-lg border-0">
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50">
-                  <CardTitle className="flex items-center gap-3">
-                    <FileText className="h-6 w-6 text-purple-600" />
-                    Histórico Completo
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="space-y-4">
+              <Card className="shadow-2xl border-0 overflow-hidden">
+                <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-1">
+                  <CardHeader className="bg-card">
+                    <CardTitle className="flex items-center gap-3 text-2xl">
+                      <div className="p-2 rounded-lg bg-purple-500/10">
+                        <FileText className="h-6 w-6 text-purple-600" />
+                      </div>
+                      Histórico Completo de Andamentos
+                    </CardTitle>
+                  </CardHeader>
+                </div>
+                <CardContent className="p-8">
+                  <div className="space-y-6">
                     {andamentos.map((item: any, index: number) => (
                       <div 
                         key={item.id}
                         className={cn(
-                          "p-4 rounded-r-lg relative",
+                          "p-6 rounded-xl relative transition-all hover:shadow-lg",
                           item.type === 'status_change' 
-                            ? "border-l-4 border-blue-500 bg-blue-50/50" 
-                            : "border-l-4 border-purple-500 bg-purple-50/50"
+                            ? "border-l-4 border-primary bg-gradient-to-r from-primary/10 to-transparent" 
+                            : "border-l-4 border-purple-500 bg-gradient-to-r from-purple-500/10 to-transparent"
                         )}
                       >
                         {/* Linha conectora */}
                         {index < andamentos.length - 1 && (
-                          <div className="absolute left-0 top-full w-[4px] h-4 bg-gray-200" />
+                          <div className="absolute left-0 top-full w-[4px] h-6 bg-border" />
                         )}
                         
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2">
+                        <div className="flex items-start justify-between mb-3 flex-wrap gap-2">
+                          <div className="flex items-center gap-3 flex-wrap">
                             <span className={cn(
-                              "text-sm font-medium",
-                              item.type === 'status_change' ? "text-blue-900" : "text-purple-900"
+                              "text-base font-bold",
+                              item.type === 'status_change' ? "text-primary" : "text-purple-600"
                             )}>
                               {item.created_by}
                             </span>
                             {item.type === 'status_change' && (
-                              <Badge variant="outline" className="text-xs border-blue-500 text-blue-700">
-                                Mudança de Status
+                              <Badge variant="outline" className="text-xs border-primary text-primary bg-primary/5">
+                                🔄 Mudança de Status
                               </Badge>
                             )}
                           </div>
-                          <span className="text-xs text-gray-500">
-                            {new Date(item.created_at).toLocaleString('pt-BR')}
+                          <span className="text-sm text-muted-foreground font-medium">
+                            {new Date(item.created_at).toLocaleString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        <p className="text-base text-foreground leading-relaxed whitespace-pre-wrap pl-1">
                           {item.descricao}
                         </p>
                       </div>

@@ -34,6 +34,7 @@ interface Fluxo {
   descricao: string | null;
   ordem: number;
   ativo: boolean;
+  cor: string;
   proximo_fluxo_id: string | null;
   gera_proximo_automatico: boolean;
 }
@@ -105,7 +106,7 @@ function SortableFluxoItem({
           </div>
           
           <div className="flex-1 space-y-4 min-w-0">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div>
                 <Label className="text-sm font-medium">Nome do Fluxo</Label>
                 <Input
@@ -130,6 +131,31 @@ function SortableFluxoItem({
                   className="mt-1.5"
                   placeholder="Descrição do fluxo"
                 />
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">Cor do Fluxo</Label>
+                <div className="flex gap-2 mt-1.5">
+                  <Input
+                    type="color"
+                    value={fluxo.cor || '#3b82f6'}
+                    onChange={(e) => {
+                      onUpdate({ ...fluxo, cor: e.target.value });
+                      setEditingId(fluxo.id);
+                    }}
+                    className="h-10 w-20 cursor-pointer"
+                  />
+                  <Input
+                    type="text"
+                    value={fluxo.cor || '#3b82f6'}
+                    onChange={(e) => {
+                      onUpdate({ ...fluxo, cor: e.target.value });
+                      setEditingId(fluxo.id);
+                    }}
+                    className="flex-1"
+                    placeholder="#3b82f6"
+                  />
+                </div>
               </div>
             </div>
 
