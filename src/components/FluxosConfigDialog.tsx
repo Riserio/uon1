@@ -335,6 +335,7 @@ export function FluxosConfigDialog({ open, onOpenChange, onFluxoChange, embedded
         .update({
           nome: fluxo.nome,
           descricao: fluxo.descricao,
+          cor: fluxo.cor,
           gera_proximo_automatico: fluxo.gera_proximo_automatico,
           proximo_fluxo_id: fluxo.proximo_fluxo_id,
         })
