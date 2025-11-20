@@ -1,0 +1,303 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
+import InputMask from 'react-input-mask';
+import { FileText, ArrowLeft } from 'lucide-react';
+
+export default function AberturaSinistro() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    cliente_nome: '',
+    cliente_cpf: '',
+    cliente_telefone: '',
+    cliente_email: '',
+    veiculo_placa: '',
+    veiculo_marca: '',
+    veiculo_modelo: '',
+    veiculo_ano: '',
+    veiculo_cor: '',
+    data_incidente: '',
+    relato_incidente: '',
+    solicitarVistoria: false
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      // Buscar primeiro fluxo e primeiro status
+      const { data: fluxos } = await supabase
+        .from('fluxos')
+        .select('id')
+        .eq('ativo', true)
+        .order('ordem')
+        .limit(1);
+
+      if (!fluxos || fluxos.length === 0) {
+        toast.error('Nenhum fluxo ativo encontrado');
+        return;
+      }
+
+      const primeiroFluxoId = fluxos[0].id;
+
+      const { data: statusList } = await supabase
+        .from('status_config')
+        .select('nome')
+        .eq('fluxo_id', primeiroFluxoId)
+        .eq('ativo', true)
+        .order('ordem')
+        .limit(1);
+
+      if (!statusList || statusList.length === 0) {
+        toast.error('Nenhum status ativo encontrado para o fluxo');
+        return;
+      }
+
+      const primeiroStatus = statusList[0].nome;
+
+      // Criar atendimento no kanban
+      const { data: atendimento, error: atendimentoError } = await supabase
+        .from('atendimentos')
+        .insert({
+          user_id: user?.id,
+          assunto: `Sinistro - ${formData.veiculo_placa} - ${formData.cliente_nome}`,
+          observacoes: `Data do Incidente: ${formData.data_incidente}\n\nRelato:\n${formData.relato_incidente}\n\nVeículo: ${formData.veiculo_marca} ${formData.veiculo_modelo} ${formData.veiculo_ano} - ${formData.veiculo_cor}\nPlaca: ${formData.veiculo_placa}\n\nCliente: ${formData.cliente_nome}\nCPF: ${formData.cliente_cpf}\nTelefone: ${formData.cliente_telefone}\nEmail: ${formData.cliente_email}`,
+          status: primeiroStatus,
+          fluxo_id: primeiroFluxoId,
+          prioridade: 'Alta',
+          tags: ['sinistro']
+        })
+        .select()
+        .single();
+
+      if (atendimentoError) throw atendimentoError;
+
+      // Se solicitou vistoria, criar vistoria vinculada
+      if (formData.solicitarVistoria && atendimento) {
+        const { error: vistoriaError } = await supabase
+          .from('vistorias')
+          .insert({
+            created_by: user?.id,
+            atendimento_id: atendimento.id,
+            tipo_vistoria: 'sinistro',
+            tipo_abertura: 'interna',
+            cliente_nome: formData.cliente_nome,
+            cliente_cpf: formData.cliente_cpf,
+            cliente_telefone: formData.cliente_telefone,
+            cliente_email: formData.cliente_email,
+            veiculo_placa: formData.veiculo_placa,
+            veiculo_marca: formData.veiculo_marca,
+            veiculo_modelo: formData.veiculo_modelo,
+            veiculo_ano: formData.veiculo_ano,
+            veiculo_cor: formData.veiculo_cor,
+            data_incidente: formData.data_incidente,
+            relato_incidente: formData.relato_incidente,
+            status: 'pendente'
+          });
+
+        if (vistoriaError) throw vistoriaError;
+      }
+
+      toast.success('Sinistro registrado com sucesso!');
+      navigate('/');
+    } catch (error) {
+      console.error('Erro ao registrar sinistro:', error);
+      toast.error('Erro ao registrar sinistro');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="container mx-auto p-6 max-w-4xl">
+      <div className="mb-6">
+        <Button variant="outline" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl flex items-center gap-2">
+            <FileText className="h-6 w-6" />
+            Abertura de Sinistro
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Dados do Cliente */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg border-b pb-2">Dados do Cliente</h3>
+              
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="cliente_nome">Nome Completo *</Label>
+                  <Input
+                    id="cliente_nome"
+                    value={formData.cliente_nome}
+                    onChange={(e) => setFormData({ ...formData, cliente_nome: e.target.value })}
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="cliente_cpf">CPF *</Label>
+                  <InputMask
+                    mask="999.999.999-99"
+                    value={formData.cliente_cpf}
+                    onChange={(e) => setFormData({ ...formData, cliente_cpf: e.target.value })}
+                  >
+                    {(inputProps: any) => <Input {...inputProps} id="cliente_cpf" required />}
+                  </InputMask>
+                </div>
+                
+                <div>
+                  <Label htmlFor="cliente_telefone">Telefone *</Label>
+                  <InputMask
+                    mask="(99) 99999-9999"
+                    value={formData.cliente_telefone}
+                    onChange={(e) => setFormData({ ...formData, cliente_telefone: e.target.value })}
+                  >
+                    {(inputProps: any) => <Input {...inputProps} id="cliente_telefone" required />}
+                  </InputMask>
+                </div>
+                
+                <div>
+                  <Label htmlFor="cliente_email">Email *</Label>
+                  <Input
+                    id="cliente_email"
+                    type="email"
+                    value={formData.cliente_email}
+                    onChange={(e) => setFormData({ ...formData, cliente_email: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Dados do Veículo */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg border-b pb-2">Dados do Veículo</h3>
+              
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="veiculo_placa">Placa *</Label>
+                  <InputMask
+                    mask="aaa-9*99"
+                    value={formData.veiculo_placa}
+                    onChange={(e) => setFormData({ ...formData, veiculo_placa: e.target.value.toUpperCase() })}
+                  >
+                    {(inputProps: any) => <Input {...inputProps} id="veiculo_placa" required />}
+                  </InputMask>
+                </div>
+                
+                <div>
+                  <Label htmlFor="veiculo_marca">Marca *</Label>
+                  <Input
+                    id="veiculo_marca"
+                    value={formData.veiculo_marca}
+                    onChange={(e) => setFormData({ ...formData, veiculo_marca: e.target.value })}
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="veiculo_modelo">Modelo *</Label>
+                  <Input
+                    id="veiculo_modelo"
+                    value={formData.veiculo_modelo}
+                    onChange={(e) => setFormData({ ...formData, veiculo_modelo: e.target.value })}
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="veiculo_ano">Ano *</Label>
+                  <Input
+                    id="veiculo_ano"
+                    value={formData.veiculo_ano}
+                    onChange={(e) => setFormData({ ...formData, veiculo_ano: e.target.value })}
+                    placeholder="2020/2021"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="veiculo_cor">Cor *</Label>
+                  <Input
+                    id="veiculo_cor"
+                    value={formData.veiculo_cor}
+                    onChange={(e) => setFormData({ ...formData, veiculo_cor: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Dados do Sinistro */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg border-b pb-2">Dados do Sinistro</h3>
+              
+              <div>
+                <Label htmlFor="data_incidente">Data do Incidente *</Label>
+                <Input
+                  id="data_incidente"
+                  type="date"
+                  value={formData.data_incidente}
+                  onChange={(e) => setFormData({ ...formData, data_incidente: e.target.value })}
+                  required
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="relato_incidente">Relato do Incidente *</Label>
+                <Textarea
+                  id="relato_incidente"
+                  value={formData.relato_incidente}
+                  onChange={(e) => setFormData({ ...formData, relato_incidente: e.target.value })}
+                  rows={6}
+                  placeholder="Descreva detalhadamente o que aconteceu..."
+                  required
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="solicitarVistoria"
+                  checked={formData.solicitarVistoria}
+                  onChange={(e) => setFormData({ ...formData, solicitarVistoria: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="solicitarVistoria" className="cursor-pointer">
+                  Solicitar vistoria digital imediatamente
+                </Label>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button type="button" variant="outline" onClick={() => navigate(-1)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={loading} className="flex-1">
+                {loading ? 'Registrando...' : 'Registrar Sinistro'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
