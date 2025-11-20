@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AndamentosList } from '@/components/AndamentosList';
 import { AnexosUpload } from '@/components/AnexosUpload';
-import { Check, ChevronsUpDown, FileText, MessageSquare, Paperclip, History, DollarSign } from 'lucide-react';
+import { Check, ChevronsUpDown, FileText, MessageSquare, Paperclip, History, DollarSign, User, Link2, Copy } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { HistoricoList } from '@/components/HistoricoList';
 import { useAuth } from '@/hooks/useAuth';
 import { CurrencyInput } from '@/components/ui/currency-input';
+import { validateCPF, validatePlaca } from '@/lib/validators';
 
 interface AtendimentoDialogProps {
   open: boolean;
@@ -232,6 +233,18 @@ export function AtendimentoDialog({
       return;
     }
 
+    // Validar CPF se preenchido
+    if (vistoriaData.cliente_cpf && !validateCPF(vistoriaData.cliente_cpf)) {
+      toast.error('CPF inválido');
+      return;
+    }
+
+    // Validar placa se preenchida
+    if (vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa)) {
+      toast.error('Placa inválida (formato: ABC-1234 ou ABC1D23)');
+      return;
+    }
+
     try {
       if (vistoriaId) {
         // Atualizar vistoria existente
@@ -282,6 +295,59 @@ export function AtendimentoDialog({
     } catch (error) {
       console.error('Erro ao salvar:', error);
       toast.error('Erro ao salvar dados');
+    }
+  };
+
+  const handleGerarLinkVistoria = async () => {
+    if (!atendimento?.id) {
+      toast.error('Atendimento não encontrado');
+      return;
+    }
+
+    try {
+      // Validar dados obrigatórios
+      if (!vistoriaData.veiculo_placa) {
+        toast.error('Preencha a placa do veículo');
+        return;
+      }
+
+      if (!validatePlaca(vistoriaData.veiculo_placa)) {
+        toast.error('Placa inválida');
+        return;
+      }
+
+      // Salvar dados primeiro
+      await handleSalvarCustos();
+
+      // Gerar token de acesso
+      const linkToken = crypto.randomUUID();
+      const diasValidade = 7;
+      const linkExpiresAt = new Date();
+      linkExpiresAt.setDate(linkExpiresAt.getDate() + diasValidade);
+
+      // Atualizar vistoria com link
+      const { error } = await supabase
+        .from('vistorias')
+        .update({
+          link_token: linkToken,
+          link_expires_at: linkExpiresAt.toISOString(),
+          dias_validade: diasValidade,
+          status: 'aguardando_fotos',
+        })
+        .eq('id', vistoriaId);
+
+      if (error) throw error;
+
+      // Copiar link para clipboard
+      const link = `${window.location.origin}/vistoria/${linkToken}`;
+      await navigator.clipboard.writeText(link);
+      
+      toast.success('Link gerado e copiado!', {
+        description: 'O link é válido por 7 dias'
+      });
+    } catch (error) {
+      console.error('Erro ao gerar link:', error);
+      toast.error('Erro ao gerar link de vistoria');
     }
   };
 
@@ -378,13 +444,19 @@ export function AtendimentoDialog({
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className={cn("grid w-full", atendimento ? "grid-cols-5" : "grid-cols-1")}>
+            <TabsList className={cn("grid w-full", atendimento ? "grid-cols-6" : "grid-cols-1")}>
               <TabsTrigger value="geral" className="gap-2">
                 <FileText className="h-4 w-4" />
-                Informações Gerais
+                Geral
               </TabsTrigger>
               {atendimento && (
                 <>
+                  {vistoriaData.tipo_atendimento === 'sinistro' && (
+                    <TabsTrigger value="dados_pessoais" className="gap-2">
+                      <User className="h-4 w-4" />
+                      Dados Pessoais
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger value="andamentos" className="gap-2">
                     <MessageSquare className="h-4 w-4" />
                     Andamentos
@@ -531,157 +603,6 @@ export function AtendimentoDialog({
             )}
           </div>
 
-          {/* Dados do Sinistro - apenas se tipo for sinistro */}
-          {vistoriaData.tipo_atendimento === 'sinistro' && (
-            <>
-              <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
-                <h4 className="font-medium text-sm">Dados do Sinistro</h4>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="data_incidente">Data do Incidente</Label>
-                    <Input
-                      id="data_incidente"
-                      type="date"
-                      value={vistoriaData.data_incidente}
-                      onChange={(e) => setVistoriaData({ ...vistoriaData, data_incidente: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="cof">COF</Label>
-                    <Input
-                      id="cof"
-                      value={vistoriaData.cof}
-                      onChange={(e) => setVistoriaData({ ...vistoriaData, cof: e.target.value })}
-                      placeholder="Código de Ocorrência"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="relato_incidente">Relato do Incidente</Label>
-                  <Textarea
-                    id="relato_incidente"
-                    value={vistoriaData.relato_incidente}
-                    onChange={(e) => setVistoriaData({ ...vistoriaData, relato_incidente: e.target.value })}
-                    rows={3}
-                    placeholder="Descreva o que aconteceu..."
-                  />
-                </div>
-              </div>
-
-              {/* Dados do Veículo */}
-              <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
-                <h4 className="font-medium text-sm">Dados do Veículo</h4>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="veiculo_placa">Placa</Label>
-                    <Input
-                      id="veiculo_placa"
-                      value={vistoriaData.veiculo_placa}
-                      onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_placa: e.target.value.toUpperCase() })}
-                      placeholder="ABC-1234"
-                      maxLength={8}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="veiculo_marca">Marca</Label>
-                    <Input
-                      id="veiculo_marca"
-                      value={vistoriaData.veiculo_marca}
-                      onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_marca: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="veiculo_modelo">Modelo</Label>
-                    <Input
-                      id="veiculo_modelo"
-                      value={vistoriaData.veiculo_modelo}
-                      onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_modelo: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="veiculo_ano">Ano</Label>
-                    <Input
-                      id="veiculo_ano"
-                      value={vistoriaData.veiculo_ano}
-                      onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_ano: e.target.value })}
-                      placeholder="2020/2021"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="veiculo_cor">Cor</Label>
-                    <Input
-                      id="veiculo_cor"
-                      value={vistoriaData.veiculo_cor}
-                      onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_cor: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="veiculo_chassi">Chassi</Label>
-                    <Input
-                      id="veiculo_chassi"
-                      value={vistoriaData.veiculo_chassi}
-                      onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_chassi: e.target.value.toUpperCase() })}
-                      maxLength={17}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Dados do Cliente */}
-              <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
-                <h4 className="font-medium text-sm">Dados do Cliente</h4>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="cliente_nome">Nome Completo</Label>
-                    <Input
-                      id="cliente_nome"
-                      value={vistoriaData.cliente_nome}
-                      onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_nome: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="cliente_cpf">CPF</Label>
-                    <Input
-                      id="cliente_cpf"
-                      value={vistoriaData.cliente_cpf}
-                      onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_cpf: e.target.value })}
-                      placeholder="000.000.000-00"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="cliente_telefone">Telefone</Label>
-                    <Input
-                      id="cliente_telefone"
-                      value={vistoriaData.cliente_telefone}
-                      onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_telefone: e.target.value })}
-                      placeholder="(00) 00000-0000"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="cliente_email">Email</Label>
-                    <Input
-                      id="cliente_email"
-                      type="email"
-                      value={vistoriaData.cliente_email}
-                      onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_email: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Botão Salvar Dados do Sinistro */}
-              <div className="flex justify-end">
-                <Button type="button" onClick={handleSalvarCustos} variant="outline">
-                  Salvar Dados do Sinistro
-                </Button>
-              </div>
-            </>
-          )}
-
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="prioridade">Prioridade</Label>
@@ -794,6 +715,180 @@ export function AtendimentoDialog({
 
               {atendimento && (
                 <>
+                  {/* Nova Aba: Dados Pessoais */}
+                  {vistoriaData.tipo_atendimento === 'sinistro' && (
+                    <TabsContent value="dados_pessoais" className="mt-0 space-y-6 p-4">
+                      {/* Dados do Sinistro */}
+                      <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                        <h4 className="font-medium">Dados do Sinistro</h4>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="dp_data_incidente">Data do Incidente</Label>
+                            <Input
+                              id="dp_data_incidente"
+                              type="date"
+                              value={vistoriaData.data_incidente}
+                              onChange={(e) => setVistoriaData({ ...vistoriaData, data_incidente: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="dp_cof">COF</Label>
+                            <Input
+                              id="dp_cof"
+                              value={vistoriaData.cof}
+                              onChange={(e) => setVistoriaData({ ...vistoriaData, cof: e.target.value })}
+                              placeholder="Código de Ocorrência"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="dp_relato_incidente">Relato do Incidente</Label>
+                          <Textarea
+                            id="dp_relato_incidente"
+                            value={vistoriaData.relato_incidente}
+                            onChange={(e) => setVistoriaData({ ...vistoriaData, relato_incidente: e.target.value })}
+                            rows={4}
+                            placeholder="Descreva o que aconteceu..."
+                          />
+                        </div>
+                      </div>
+
+                      {/* Dados do Veículo */}
+                      <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                        <h4 className="font-medium">Dados do Veículo</h4>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="dp_veiculo_placa">Placa *</Label>
+                            <Input
+                              id="dp_veiculo_placa"
+                              value={vistoriaData.veiculo_placa}
+                              onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_placa: e.target.value.toUpperCase() })}
+                              placeholder="ABC-1234"
+                              maxLength={8}
+                              className={vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa) ? 'border-destructive' : ''}
+                            />
+                            {vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa) && (
+                              <p className="text-xs text-destructive">Placa inválida</p>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="dp_veiculo_marca">Marca</Label>
+                            <Input
+                              id="dp_veiculo_marca"
+                              value={vistoriaData.veiculo_marca}
+                              onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_marca: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="dp_veiculo_modelo">Modelo</Label>
+                            <Input
+                              id="dp_veiculo_modelo"
+                              value={vistoriaData.veiculo_modelo}
+                              onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_modelo: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="dp_veiculo_ano">Ano</Label>
+                            <Input
+                              id="dp_veiculo_ano"
+                              value={vistoriaData.veiculo_ano}
+                              onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_ano: e.target.value })}
+                              placeholder="2020/2021"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="dp_veiculo_cor">Cor</Label>
+                            <Input
+                              id="dp_veiculo_cor"
+                              value={vistoriaData.veiculo_cor}
+                              onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_cor: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="dp_veiculo_chassi">Chassi</Label>
+                            <Input
+                              id="dp_veiculo_chassi"
+                              value={vistoriaData.veiculo_chassi}
+                              onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_chassi: e.target.value.toUpperCase() })}
+                              maxLength={17}
+                              placeholder="17 caracteres"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Dados do Cliente */}
+                      <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                        <h4 className="font-medium">Dados do Cliente</h4>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="dp_cliente_nome">Nome Completo</Label>
+                            <Input
+                              id="dp_cliente_nome"
+                              value={vistoriaData.cliente_nome}
+                              onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_nome: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="dp_cliente_cpf">CPF</Label>
+                            <Input
+                              id="dp_cliente_cpf"
+                              value={vistoriaData.cliente_cpf}
+                              onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_cpf: e.target.value })}
+                              placeholder="000.000.000-00"
+                              className={vistoriaData.cliente_cpf && !validateCPF(vistoriaData.cliente_cpf) ? 'border-destructive' : ''}
+                            />
+                            {vistoriaData.cliente_cpf && !validateCPF(vistoriaData.cliente_cpf) && (
+                              <p className="text-xs text-destructive">CPF inválido</p>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="dp_cliente_telefone">Telefone</Label>
+                            <Input
+                              id="dp_cliente_telefone"
+                              value={vistoriaData.cliente_telefone}
+                              onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_telefone: e.target.value })}
+                              placeholder="(00) 00000-0000"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="dp_cliente_email">Email</Label>
+                            <Input
+                              id="dp_cliente_email"
+                              type="email"
+                              value={vistoriaData.cliente_email}
+                              onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_email: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Botões de Ação */}
+                      <div className="flex gap-2 justify-end pt-4 border-t">
+                        <Button 
+                          type="button" 
+                          onClick={handleGerarLinkVistoria}
+                          variant="outline"
+                          className="gap-2"
+                          disabled={!vistoriaId}
+                        >
+                          <Link2 className="h-4 w-4" />
+                          Gerar Link de Vistoria
+                        </Button>
+                        <Button 
+                          type="button" 
+                          onClick={handleSalvarCustos}
+                        >
+                          Salvar Dados
+                        </Button>
+                      </div>
+                    </TabsContent>
+                  )}
+
                   <TabsContent value="andamentos" className="mt-0">
                     <AndamentosList atendimentoId={atendimento.id} />
                   </TabsContent>
