@@ -665,7 +665,8 @@ const Index = () => {
   const handleManageContatos = () => {
     navigate('/contatos');
   };
-  return <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="sticky top-0 z-50 bg-gradient-to-r from-card/95 via-card to-card/95 backdrop-blur-md border-b border-border/50 shadow-lg">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
@@ -725,12 +726,33 @@ const Index = () => {
       <FluxoSelector selectedFluxoId={selectedFluxoId} onFluxoSelect={setSelectedFluxoId} onConfigureFluxos={() => setWorkflowConfigOpen(true)} />
 
       <main className="container mx-auto p-8 py-0">
-        {loading ? <div className="flex items-center justify-center py-12">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
               <p className="text-muted-foreground">Carregando atendimentos...</p>
             </div>
-          </div> : viewMode === 'kanban' ? <KanbanBoard atendimentos={filteredAtendimentos} onUpdateStatus={handleUpdateStatus} onEdit={handleEdit} onDelete={handleDelete} onArquivar={handleArquivar} onViewAndamentos={handleViewAndamentos} statusPrazo={statusPrazo} selectedFluxoId={selectedFluxoId} /> : <ListView atendimentos={filteredAtendimentos} onEdit={handleEdit} onDelete={handleDelete} onArquivar={handleArquivar} onViewAndamentos={handleViewAndamentos} />}
+          </div>
+        ) : viewMode === 'kanban' ? (
+          <KanbanBoard 
+            atendimentos={filteredAtendimentos} 
+            onUpdateStatus={handleUpdateStatus} 
+            onEdit={handleEdit} 
+            onDelete={handleDelete} 
+            onArquivar={handleArquivar} 
+            onViewAndamentos={handleViewAndamentos} 
+            statusPrazo={statusPrazo} 
+            selectedFluxoId={selectedFluxoId} 
+          />
+        ) : (
+          <ListView 
+            atendimentos={filteredAtendimentos} 
+            onEdit={handleEdit} 
+            onDelete={handleDelete} 
+            onArquivar={handleArquivar} 
+            onViewAndamentos={handleViewAndamentos} 
+          />
+        )}
       </main>
 
       <AtendimentoDialog open={dialogOpen} onOpenChange={setDialogOpen} atendimento={editingAtendimento} onSave={handleSaveAtendimento} corretoras={corretoras} responsaveis={responsaveis} />
