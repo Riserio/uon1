@@ -95,8 +95,8 @@ export default function AberturaSinistro() {
         .from('atendimentos')
         .insert({
           user_id: user?.id,
-          assunto: `Sinistro ${formData.tipo_sinistro} - ${formData.veiculo_placa} - ${formData.cliente_nome}`,
-          observacoes: `Tipo: ${formData.tipo_sinistro}\nData do Incidente: ${formData.data_incidente}\n\nRelato:\n${formData.relato_incidente}\n\nVeículo: ${formData.veiculo_marca} ${formData.veiculo_modelo} ${formData.veiculo_ano} - ${formData.veiculo_cor}\nPlaca: ${formData.veiculo_placa}\nChassi: ${formData.veiculo_chassi || 'Não informado'}\n\nCliente: ${formData.cliente_nome}\nCPF: ${formData.cliente_cpf}\nTelefone: ${formData.cliente_telefone}\nEmail: ${formData.cliente_email}`,
+          assunto: `Sinistro - ${formData.cliente_nome}`,
+          observacoes: formData.relato_incidente,
           status: primeiroStatus,
           fluxo_id: primeiroFluxoId,
           prioridade: 'Alta',
@@ -107,8 +107,8 @@ export default function AberturaSinistro() {
 
       if (atendimentoError) throw atendimentoError;
 
-      // Se solicitou vistoria, criar vistoria vinculada
-      if (formData.solicitarVistoria && atendimento) {
+      // Criar vistoria vinculada com todos os dados
+      if (atendimento) {
         const { error: vistoriaError } = await supabase
           .from('vistorias')
           .insert({
@@ -116,6 +116,7 @@ export default function AberturaSinistro() {
             atendimento_id: atendimento.id,
             tipo_vistoria: 'sinistro',
             tipo_abertura: 'interna',
+            tipo_sinistro: formData.tipo_sinistro,
             cliente_nome: formData.cliente_nome,
             cliente_cpf: formData.cliente_cpf,
             cliente_telefone: formData.cliente_telefone,
@@ -128,7 +129,7 @@ export default function AberturaSinistro() {
             veiculo_chassi: formData.veiculo_chassi,
             data_incidente: formData.data_incidente,
             relato_incidente: formData.relato_incidente,
-            status: 'pendente'
+            status: formData.solicitarVistoria ? 'aguardando_fotos' : 'pendente'
           });
 
         if (vistoriaError) throw vistoriaError;
