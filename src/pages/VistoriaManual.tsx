@@ -68,7 +68,6 @@ export default function VistoriaManual() {
   const [loading, setLoading] = useState(false);
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
-  const [contratos, setContratos] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     // Veículo
     veiculo_placa: '',
@@ -88,7 +87,6 @@ export default function VistoriaManual() {
     data_incidente: '',
     // Vinculação
     corretora_id: '',
-    contrato_id: '',
     responsavel_id: '',
   });
 
@@ -96,12 +94,6 @@ export default function VistoriaManual() {
     loadCorretoras();
     loadResponsaveis();
   }, []);
-
-  useEffect(() => {
-    if (formData.corretora_id) {
-      loadContratos(formData.corretora_id);
-    }
-  }, [formData.corretora_id]);
 
   const loadCorretoras = async () => {
     try {
@@ -129,25 +121,6 @@ export default function VistoriaManual() {
       setResponsaveis(data || []);
     } catch (error) {
       console.error('Erro ao carregar responsáveis:', error);
-    }
-  };
-
-  const loadContratos = async (corretoraId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('contratos')
-        .select('id, numero_contrato, descricao')
-        .eq('corretora_id', corretoraId)
-        .eq('ativo', true)
-        .order('numero_contrato');
-
-      if (error) throw error;
-      setContratos(data || []);
-      if (data && data.length > 0) {
-        setFormData(prev => ({ ...prev, contrato_id: data[0].id }));
-      }
-    } catch (error) {
-      console.error('Erro ao carregar contratos:', error);
     }
   };
 
@@ -251,7 +224,6 @@ export default function VistoriaManual() {
           status: 'em_analise',
           created_by: user.id,
           corretora_id: formData.corretora_id || null,
-          contrato_id: formData.contrato_id || null,
           latitude,
           longitude,
           endereco,
@@ -610,7 +582,7 @@ export default function VistoriaManual() {
                     <Label>Corretora</Label>
                     <Select
                       value={formData.corretora_id}
-                      onValueChange={(value) => setFormData({...formData, corretora_id: value, contrato_id: ''})}
+                      onValueChange={(value) => setFormData({...formData, corretora_id: value})}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione a corretora" />
@@ -625,25 +597,6 @@ export default function VistoriaManual() {
                     </Select>
                   </div>
                   <div>
-                    <Label>Contrato</Label>
-                    <Select
-                      value={formData.contrato_id}
-                      onValueChange={(value) => setFormData({...formData, contrato_id: value})}
-                      disabled={!formData.corretora_id}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o contrato" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {contratos.map(contrato => (
-                          <SelectItem key={contrato.id} value={contrato.id}>
-                            {contrato.numero_contrato} {contrato.descricao && `- ${contrato.descricao}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="col-span-2">
                     <Label>Responsável</Label>
                     <Select
                       value={formData.responsavel_id}
