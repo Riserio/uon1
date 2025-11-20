@@ -117,11 +117,16 @@ export function AtendimentoDialog({
   
   const loadVistoriaCustos = async (atendimentoId: string) => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('vistorias')
         .select('id, custo_oficina, custo_reparo, custo_acordo, custo_terceiros, custo_perda_total, custo_perda_parcial, valor_franquia, valor_indenizacao')
         .eq('atendimento_id', atendimentoId)
-        .single();
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Erro ao carregar custos:', error);
+        return;
+      }
       
       if (data) {
         setVistoriaId(data.id);
