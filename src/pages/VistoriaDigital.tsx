@@ -162,22 +162,22 @@ export default function VistoriaDigital() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10 p-6">
-      <div className="max-w-3xl mx-auto">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/vistorias')}
-          className="mb-6"
-        >
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="mb-6">
+        <Button variant="outline" onClick={() => navigate('/vistorias')}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar
         </Button>
+      </div>
 
-        <Card className="shadow-xl border-primary/20">
-          <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
-            <CardTitle className="text-2xl">Nova Vistoria Digital</CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <LinkIcon className="h-6 w-6" />
+            Vistoria Digital
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
             {step === 1 && (
               <div className="space-y-6">
                 <div>
@@ -403,7 +403,6 @@ export default function VistoriaDigital() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
     </div>
   );
 }

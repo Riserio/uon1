@@ -9,12 +9,12 @@ import {
   Megaphone, 
   Settings, 
   FileText, 
-  Mail, 
+  MessageCircle, 
   ClipboardList, 
   Camera,
   FileX,
   AlertTriangle,
-  TrendingUp
+  Send
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
@@ -170,17 +170,9 @@ export function AppSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
-                    <NavLink to="/sinistros/novo" activeClassName="bg-primary text-primary-foreground">
+                    <NavLink to="/abertura-sinistro" activeClassName="bg-primary text-primary-foreground">
                       <AlertTriangle className="h-4 w-4" />
                       {!collapsed && <span>Abertura de Sinistro</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <NavLink to="/dashboard-sinistros" activeClassName="bg-primary text-primary-foreground">
-                      <TrendingUp className="h-4 w-4" />
-                      {!collapsed && <span>Dashboard Sinistros</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -213,7 +205,7 @@ export function AppSidebar() {
                     <NavLink to="/mensagens" activeClassName="bg-primary text-primary-foreground">
                       <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4" />
+                          <MessageCircle className="h-4 w-4" />
                           {!collapsed && <span>Mensagens</span>}
                         </div>
                         {!collapsed && unreadMessages > 0 && (
@@ -228,7 +220,7 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <NavLink to="/emails" activeClassName="bg-primary text-primary-foreground">
-                      <Mail className="h-4 w-4" />
+                      <Send className="h-4 w-4" />
                       {!collapsed && <span>E-mails</span>}
                     </NavLink>
                   </SidebarMenuButton>
