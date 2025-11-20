@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft, Upload, X, Save } from 'lucide-react';
+import { MaskedInput } from '@/components/ui/masked-input';
 
 export default function VistoriaManual() {
   const navigate = useNavigate();
@@ -63,6 +64,11 @@ export default function VistoriaManual() {
     
     if (fotos.length < 4) {
       toast.error('São necessárias 4 fotos para a vistoria');
+      return;
+    }
+
+    if (!formData.data_incidente) {
+      toast.error('Por favor, preencha a data do incidente');
       return;
     }
 
@@ -224,16 +230,18 @@ export default function VistoriaManual() {
               {/* Dados do Veículo */}
               <div>
                 <h3 className="text-lg font-semibold mb-4">Dados do Veículo</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Placa *</Label>
-                    <Input
-                      required
-                      value={formData.veiculo_placa}
-                      onChange={(e) => setFormData({...formData, veiculo_placa: e.target.value})}
-                      placeholder="ABC-1234"
-                    />
-                  </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Placa *</Label>
+                  <MaskedInput
+                    required
+                    format="###-####"
+                    mask="_"
+                    value={formData.veiculo_placa}
+                    onValueChange={(values) => setFormData({...formData, veiculo_placa: values.value.toUpperCase()})}
+                    placeholder="ABC-1234"
+                  />
+                </div>
                   <div>
                     <Label>Marca *</Label>
                     <Input
@@ -273,8 +281,9 @@ export default function VistoriaManual() {
                     <Label>Chassi</Label>
                     <Input
                       value={formData.veiculo_chassi}
-                      onChange={(e) => setFormData({...formData, veiculo_chassi: e.target.value})}
+                      onChange={(e) => setFormData({...formData, veiculo_chassi: e.target.value.toUpperCase()})}
                       placeholder="9BWZZZ377VT004251"
+                      maxLength={17}
                     />
                   </div>
                 </div>
@@ -283,56 +292,61 @@ export default function VistoriaManual() {
               {/* Dados do Cliente */}
               <div>
                 <h3 className="text-lg font-semibold mb-4">Dados do Cliente</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Nome *</Label>
-                    <Input
-                      required
-                      value={formData.cliente_nome}
-                      onChange={(e) => setFormData({...formData, cliente_nome: e.target.value})}
-                      placeholder="Nome completo"
-                    />
-                  </div>
-                  <div>
-                    <Label>CPF</Label>
-                    <Input
-                      value={formData.cliente_cpf}
-                      onChange={(e) => setFormData({...formData, cliente_cpf: e.target.value})}
-                      placeholder="000.000.000-00"
-                    />
-                  </div>
-                  <div>
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      value={formData.cliente_email}
-                      onChange={(e) => setFormData({...formData, cliente_email: e.target.value})}
-                      placeholder="email@exemplo.com"
-                    />
-                  </div>
-                  <div>
-                    <Label>Telefone</Label>
-                    <Input
-                      value={formData.cliente_telefone}
-                      onChange={(e) => setFormData({...formData, cliente_telefone: e.target.value})}
-                      placeholder="(11) 99999-9999"
-                    />
-                  </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Nome *</Label>
+                  <Input
+                    required
+                    value={formData.cliente_nome}
+                    onChange={(e) => setFormData({...formData, cliente_nome: e.target.value})}
+                    placeholder="Nome completo"
+                  />
                 </div>
+                <div>
+                  <Label>CPF</Label>
+                  <MaskedInput
+                    format="###.###.###-##"
+                    mask="_"
+                    value={formData.cliente_cpf}
+                    onValueChange={(values) => setFormData({...formData, cliente_cpf: values.value})}
+                    placeholder="000.000.000-00"
+                  />
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={formData.cliente_email}
+                    onChange={(e) => setFormData({...formData, cliente_email: e.target.value})}
+                    placeholder="email@exemplo.com"
+                  />
+                </div>
+                <div>
+                  <Label>Telefone</Label>
+                  <MaskedInput
+                    format="(##) #####-####"
+                    mask="_"
+                    value={formData.cliente_telefone}
+                    onValueChange={(values) => setFormData({...formData, cliente_telefone: values.value})}
+                    placeholder="(11) 99999-9999"
+                  />
+                </div>
+              </div>
               </div>
 
               {/* Dados do Incidente */}
               <div>
                 <h3 className="text-lg font-semibold mb-4">Dados do Incidente</h3>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Data do Incidente</Label>
-                    <Input
-                      type="datetime-local"
-                      value={formData.data_incidente}
-                      onChange={(e) => setFormData({...formData, data_incidente: e.target.value})}
-                    />
-                  </div>
+              <div className="space-y-4">
+                <div>
+                  <Label>Data do Incidente *</Label>
+                  <Input
+                    required
+                    type="datetime-local"
+                    value={formData.data_incidente}
+                    onChange={(e) => setFormData({...formData, data_incidente: e.target.value})}
+                  />
+                </div>
                   <div>
                     <Label>Relato do Incidente *</Label>
                     <Textarea
