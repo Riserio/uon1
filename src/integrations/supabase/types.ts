@@ -1274,6 +1274,47 @@ export type Database = {
           },
         ]
       }
+      status_publicos_config: {
+        Row: {
+          created_at: string | null
+          descricao_publica: string | null
+          fluxo_id: string
+          id: string
+          ordem_exibicao: number | null
+          status_nome: string
+          updated_at: string | null
+          visivel_publico: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          descricao_publica?: string | null
+          fluxo_id: string
+          id?: string
+          ordem_exibicao?: number | null
+          status_nome: string
+          updated_at?: string | null
+          visivel_publico?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          descricao_publica?: string | null
+          fluxo_id?: string
+          id?: string
+          ordem_exibicao?: number | null
+          status_nome?: string
+          updated_at?: string | null
+          visivel_publico?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "status_publicos_config_fluxo_id_fkey"
+            columns: ["fluxo_id"]
+            isOneToOne: false
+            referencedRelation: "fluxos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null

@@ -73,7 +73,7 @@ export default function VistoriaPublicaLanding() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-blue-50">
-      <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
+      <div className="max-w-5xl mx-auto px-2 sm:px-4 py-4 sm:py-8 md:py-12">
         {/* Header com logo */}
         <div className="text-center mb-12">
           {corretora?.logo_url && (
