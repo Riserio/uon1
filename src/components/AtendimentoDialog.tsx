@@ -23,6 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { HistoricoList } from '@/components/HistoricoList';
 import { useAuth } from '@/hooks/useAuth';
+import { CurrencyInput } from '@/components/ui/currency-input';
 
 interface AtendimentoDialogProps {
   open: boolean;
@@ -525,90 +526,82 @@ export function AtendimentoDialog({
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="custo_oficina">Custo Oficina</Label>
-                          <Input
+                          <CurrencyInput
                             id="custo_oficina"
-                            type="number"
-                            step="0.01"
                             value={custos.custo_oficina}
-                            onChange={(e) => setCustos({ ...custos, custo_oficina: Number(e.target.value) })}
-                            placeholder="R$ 0,00"
+                            onValueChange={(values) => 
+                              setCustos({ ...custos, custo_oficina: values.floatValue || 0 })
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="custo_reparo">Custo Reparo</Label>
-                          <Input
+                          <CurrencyInput
                             id="custo_reparo"
-                            type="number"
-                            step="0.01"
                             value={custos.custo_reparo}
-                            onChange={(e) => setCustos({ ...custos, custo_reparo: Number(e.target.value) })}
-                            placeholder="R$ 0,00"
+                            onValueChange={(values) => 
+                              setCustos({ ...custos, custo_reparo: values.floatValue || 0 })
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="custo_acordo">Custo Acordo</Label>
-                          <Input
+                          <CurrencyInput
                             id="custo_acordo"
-                            type="number"
-                            step="0.01"
                             value={custos.custo_acordo}
-                            onChange={(e) => setCustos({ ...custos, custo_acordo: Number(e.target.value) })}
-                            placeholder="R$ 0,00"
+                            onValueChange={(values) => 
+                              setCustos({ ...custos, custo_acordo: values.floatValue || 0 })
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="custo_terceiros">Custo Terceiros</Label>
-                          <Input
+                          <CurrencyInput
                             id="custo_terceiros"
-                            type="number"
-                            step="0.01"
                             value={custos.custo_terceiros}
-                            onChange={(e) => setCustos({ ...custos, custo_terceiros: Number(e.target.value) })}
-                            placeholder="R$ 0,00"
+                            onValueChange={(values) => 
+                              setCustos({ ...custos, custo_terceiros: values.floatValue || 0 })
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="custo_perda_total">Custo Perda Total</Label>
-                          <Input
+                          <CurrencyInput
                             id="custo_perda_total"
-                            type="number"
-                            step="0.01"
                             value={custos.custo_perda_total}
-                            onChange={(e) => setCustos({ ...custos, custo_perda_total: Number(e.target.value) })}
-                            placeholder="R$ 0,00"
+                            onValueChange={(values) => 
+                              setCustos({ ...custos, custo_perda_total: values.floatValue || 0 })
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="custo_perda_parcial">Custo Perda Parcial</Label>
-                          <Input
+                          <CurrencyInput
                             id="custo_perda_parcial"
-                            type="number"
-                            step="0.01"
                             value={custos.custo_perda_parcial}
-                            onChange={(e) => setCustos({ ...custos, custo_perda_parcial: Number(e.target.value) })}
-                            placeholder="R$ 0,00"
+                            onValueChange={(values) => 
+                              setCustos({ ...custos, custo_perda_parcial: values.floatValue || 0 })
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="valor_franquia">Valor Franquia</Label>
-                          <Input
+                          <CurrencyInput
                             id="valor_franquia"
-                            type="number"
-                            step="0.01"
                             value={custos.valor_franquia}
-                            onChange={(e) => setCustos({ ...custos, valor_franquia: Number(e.target.value) })}
-                            placeholder="R$ 0,00"
+                            onValueChange={(values) => 
+                              setCustos({ ...custos, valor_franquia: values.floatValue || 0 })
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="valor_indenizacao">Valor Indenização</Label>
-                          <Input
+                          <CurrencyInput
                             id="valor_indenizacao"
-                            type="number"
-                            step="0.01"
                             value={custos.valor_indenizacao}
-                            onChange={(e) => setCustos({ ...custos, valor_indenizacao: Number(e.target.value) })}
-                            placeholder="R$ 0,00"
+                            onValueChange={(values) => 
+                              setCustos({ ...custos, valor_indenizacao: values.floatValue || 0 })
+                            }
                           />
                         </div>
                       </div>

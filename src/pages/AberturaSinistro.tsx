@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import InputMask from 'react-input-mask';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { AlertTriangle, TrendingUp, ClipboardList } from 'lucide-react';
+import { validateCPF, validatePhone } from '@/lib/validators';
 
 export default function AberturaSinistro() {
   const navigate = useNavigate();
@@ -37,6 +38,20 @@ export default function AberturaSinistro() {
     setLoading(true);
 
     try {
+      // Validar CPF
+      if (!validateCPF(formData.cliente_cpf)) {
+        toast.error('CPF inválido');
+        setLoading(false);
+        return;
+      }
+
+      // Validar telefone
+      if (!validatePhone(formData.cliente_telefone)) {
+        toast.error('Telefone inválido');
+        setLoading(false);
+        return;
+      }
+
       // Validar tipo de sinistro
       if (!formData.tipo_sinistro) {
         toast.error('Por favor, selecione o tipo de sinistro');
@@ -209,24 +224,28 @@ export default function AberturaSinistro() {
                 
                 <div>
                   <Label htmlFor="cliente_cpf">CPF *</Label>
-                  <InputMask
-                    mask="999.999.999-99"
+                  <MaskedInput
+                    id="cliente_cpf"
+                    format="###.###.###-##"
                     value={formData.cliente_cpf}
-                    onChange={(e) => setFormData({ ...formData, cliente_cpf: e.target.value })}
-                  >
-                    {(inputProps: any) => <Input {...inputProps} id="cliente_cpf" required />}
-                  </InputMask>
+                    onValueChange={(values) => 
+                      setFormData({ ...formData, cliente_cpf: values.value })
+                    }
+                    placeholder="000.000.000-00"
+                  />
                 </div>
                 
                 <div>
                   <Label htmlFor="cliente_telefone">Telefone *</Label>
-                  <InputMask
-                    mask="(99) 99999-9999"
+                  <MaskedInput
+                    id="cliente_telefone"
+                    format="(##) #####-####"
                     value={formData.cliente_telefone}
-                    onChange={(e) => setFormData({ ...formData, cliente_telefone: e.target.value })}
-                  >
-                    {(inputProps: any) => <Input {...inputProps} id="cliente_telefone" required />}
-                  </InputMask>
+                    onValueChange={(values) => 
+                      setFormData({ ...formData, cliente_telefone: values.value })
+                    }
+                    placeholder="(00) 00000-0000"
+                  />
                 </div>
                 
                 <div>
@@ -249,13 +268,15 @@ export default function AberturaSinistro() {
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="veiculo_placa">Placa *</Label>
-                  <InputMask
-                    mask="aaa-9*99"
+                  <MaskedInput
+                    id="veiculo_placa"
+                    format="AAA-####"
                     value={formData.veiculo_placa}
-                    onChange={(e) => setFormData({ ...formData, veiculo_placa: e.target.value.toUpperCase() })}
-                  >
-                    {(inputProps: any) => <Input {...inputProps} id="veiculo_placa" required />}
-                  </InputMask>
+                    onValueChange={(values) => 
+                      setFormData({ ...formData, veiculo_placa: values.value.toUpperCase() })
+                    }
+                    placeholder="ABC-1234"
+                  />
                 </div>
                 
                 <div>
