@@ -79,21 +79,19 @@ export default function Vistorias() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              Vistorias Veiculares
+              Histórico de Vistorias
             </h1>
             <p className="text-muted-foreground mt-1">
-              Gerencie vistorias digitais e manuais com análise por IA
+              Todas as vistorias realizadas
             </p>
           </div>
           <div className="flex gap-3">
             <Button
-              onClick={() => navigate('/vistorias/nova/manual')}
+              onClick={() => navigate('/vistorias')}
               variant="outline"
               size="lg"
-              className="gap-2"
             >
-              <FileText className="h-5 w-5" />
-              Vistoria Manual
+              Dashboard
             </Button>
             <Button
               onClick={() => navigate('/vistorias/nova/digital')}
@@ -101,65 +99,11 @@ export default function Vistorias() {
               className="gap-2 bg-gradient-to-r from-primary to-primary/80"
             >
               <Camera className="h-5 w-5" />
-              Vistoria Digital
+              Nova Vistoria
             </Button>
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total de Vistorias
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-primary">
-                {vistorias.length}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Concluídas
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-600">
-                {vistorias.filter(v => v.status === 'concluida').length}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-yellow-500/10 to-yellow-500/5 border-yellow-500/20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Aguardando
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-yellow-600">
-                {vistorias.filter(v => v.status === 'aguardando_fotos').length}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-purple-500/20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Em Análise
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-purple-600">
-                {vistorias.filter(v => v.status === 'em_analise').length}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* Lista de Vistorias */}
         <Card>
