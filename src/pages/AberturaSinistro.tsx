@@ -91,16 +91,17 @@ export default function AberturaSinistro() {
       const primeiroStatus = statusList[0].nome;
 
       // Criar atendimento no kanban
+      const vistoriaTag = formData.solicitarVistoria ? 'aguardando_vistoria_digital' : 'sem_vistoria';
       const { data: atendimento, error: atendimentoError } = await supabase
         .from('atendimentos')
         .insert({
           user_id: user?.id,
-          assunto: `Sinistro - ${formData.cliente_nome}`,
+          assunto: `Sinistro - ${formData.tipo_sinistro} - ${formData.cliente_nome}`,
           observacoes: formData.relato_incidente,
           status: primeiroStatus,
           fluxo_id: primeiroFluxoId,
           prioridade: 'Alta',
-          tags: ['sinistro', formData.tipo_sinistro.toLowerCase()],
+          tags: ['sinistro', formData.tipo_sinistro.toLowerCase(), vistoriaTag],
           tipo_atendimento: 'sinistro'
         })
         .select()

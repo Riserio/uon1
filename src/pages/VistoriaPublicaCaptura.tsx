@@ -224,6 +224,26 @@ export default function VistoriaPublicaCaptura() {
         .update(updateData)
         .eq('id', vistoria.id);
 
+      // Atualizar tags do atendimento
+      if (vistoria.atendimento_id) {
+        const { data: atendimento } = await supabase
+          .from('atendimentos')
+          .select('tags')
+          .eq('id', vistoria.atendimento_id)
+          .single();
+
+        if (atendimento?.tags) {
+          const newTags = atendimento.tags
+            .filter((tag: string) => tag !== 'aguardando_vistoria_digital')
+            .concat('vistoria_concluida');
+
+          await supabase
+            .from('atendimentos')
+            .update({ tags: newTags })
+            .eq('id', vistoria.atendimento_id);
+        }
+      }
+
       toast.success('Vistoria enviada com sucesso!');
       navigate(`/vistoria/${token}/conclusao`);
     } catch (error) {

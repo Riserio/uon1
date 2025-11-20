@@ -6,10 +6,57 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft, Upload, X, Save } from 'lucide-react';
 import { MaskedInput } from '@/components/ui/masked-input';
+
+const MARCAS = [
+  'Audi', 'BMW', 'Chevrolet', 'Citroën', 'Fiat', 'Ford', 'Honda', 'Hyundai', 
+  'Jeep', 'Kia', 'Mercedes-Benz', 'Mitsubishi', 'Nissan', 'Peugeot', 'Renault', 
+  'Toyota', 'Volkswagen', 'Volvo', 'Outros'
+];
+
+const MODELOS_POR_MARCA: { [key: string]: string[] } = {
+  'Volkswagen': ['Gol', 'Fox', 'Polo', 'Virtus', 'T-Cross', 'Nivus', 'Taos', 'Tiguan', 'Amarok'],
+  'Chevrolet': ['Onix', 'Prisma', 'Tracker', 'Cruze', 'S10', 'Spin', 'Montana'],
+  'Fiat': ['Argo', 'Cronos', 'Mobi', 'Pulse', 'Fastback', 'Toro', 'Strada'],
+  'Ford': ['Ka', 'EcoSport', 'Ranger', 'Territory', 'Maverick'],
+  'Toyota': ['Corolla', 'Yaris', 'Hilux', 'SW4', 'Etios', 'Corolla Cross'],
+  'Honda': ['Civic', 'City', 'HR-V', 'CR-V', 'Fit'],
+  'Hyundai': ['HB20', 'Creta', 'Tucson', 'Santa Fe', 'ix35'],
+  'Jeep': ['Renegade', 'Compass', 'Commander'],
+  'Renault': ['Kwid', 'Sandero', 'Logan', 'Duster', 'Oroch', 'Captur'],
+  'Nissan': ['Kicks', 'Versa', 'Frontier', 'Sentra'],
+  'Peugeot': ['208', '2008', '3008', '5008'],
+  'Citroën': ['C3', 'C4 Cactus'],
+  'Outros': []
+};
+
+const CORES = [
+  'Preto', 'Branco', 'Prata', 'Cinza', 'Vermelho', 'Azul', 'Verde', 
+  'Amarelo', 'Laranja', 'Marrom', 'Bege', 'Dourado', 'Roxo', 'Rosa', 'Outros'
+];
+
+const TIPOS_SINISTRO = [
+  'Colisão',
+  'Roubo/Furto',
+  'Incêndio',
+  'Enchente/Alagamento',
+  'Danos a Terceiros',
+  'Quebra de Vidros',
+  'Outros'
+];
+
+const getAnosDisponiveis = () => {
+  const anoAtual = new Date().getFullYear();
+  const anos = [];
+  for (let ano = anoAtual; ano >= 1980; ano--) {
+    anos.push(ano.toString());
+  }
+  return anos;
+};
 
 export default function VistoriaManual() {
   const navigate = useNavigate();
@@ -31,6 +78,7 @@ export default function VistoriaManual() {
     cliente_telefone: '',
     cliente_cpf: '',
     // Sinistro
+    tipo_sinistro: '',
     relato_incidente: '',
     data_incidente: '',
   });
@@ -69,6 +117,11 @@ export default function VistoriaManual() {
 
     if (!formData.data_incidente) {
       toast.error('Por favor, preencha a data do incidente');
+      return;
+    }
+
+    if (!formData.tipo_sinistro) {
+      toast.error('Por favor, selecione o tipo de sinistro');
       return;
     }
 
@@ -166,11 +219,13 @@ export default function VistoriaManual() {
         if (statusList && statusList.length > 0) {
           await supabase.from('atendimentos').insert({
             user_id: user.id,
-            assunto: `Vistoria ${tipoVistoria === 'sinistro' ? 'Sinistro' : 'Reativação'} - ${formData.veiculo_placa}`,
+            assunto: `Sinistro - ${formData.tipo_sinistro} - ${formData.veiculo_placa}`,
             prioridade: 'Alta',
             status: statusList[0].nome,
             fluxo_id: fluxoId,
-            observacoes: `Vistoria manual criada.\nCliente: ${formData.cliente_nome}\nVeículo: ${formData.veiculo_marca} ${formData.veiculo_modelo} (${formData.veiculo_placa})\nRelato: ${formData.relato_incidente}`
+            tipo_atendimento: 'sinistro',
+            tags: ['sinistro', formData.tipo_sinistro.toLowerCase(), 'pendente_vistoria'],
+            observacoes: `Vistoria manual criada.\nTipo: ${formData.tipo_sinistro}\nCliente: ${formData.cliente_nome}\nVeículo: ${formData.veiculo_marca} ${formData.veiculo_modelo} ${formData.veiculo_ano} (${formData.veiculo_placa})\nRelato: ${formData.relato_incidente}`
           });
         }
       }
@@ -231,52 +286,86 @@ export default function VistoriaManual() {
               <div>
                 <h3 className="text-lg font-semibold mb-4">Dados do Veículo</h3>
               <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Placa *</Label>
+                <Input
+                  required
+                  value={formData.veiculo_placa}
+                  onChange={(e) => setFormData({...formData, veiculo_placa: e.target.value.toUpperCase()})}
+                  placeholder="ABC1D23"
+                  maxLength={7}
+                />
+              </div>
                 <div>
-                  <Label>Placa *</Label>
-                  <MaskedInput
+                  <Label>Marca *</Label>
+                  <Select
                     required
-                    format="###-####"
-                    mask="_"
-                    value={formData.veiculo_placa}
-                    onValueChange={(values) => setFormData({...formData, veiculo_placa: values.value.toUpperCase()})}
-                    placeholder="ABC-1234"
-                  />
+                    value={formData.veiculo_marca}
+                    onValueChange={(value) => setFormData({...formData, veiculo_marca: value, veiculo_modelo: ''})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a marca" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MARCAS.map(marca => (
+                        <SelectItem key={marca} value={marca}>{marca}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                  <div>
-                    <Label>Marca *</Label>
-                    <Input
-                      required
-                      value={formData.veiculo_marca}
-                      onChange={(e) => setFormData({...formData, veiculo_marca: e.target.value})}
-                      placeholder="Ex: Volkswagen"
-                    />
-                  </div>
-                  <div>
-                    <Label>Modelo *</Label>
-                    <Input
-                      required
-                      value={formData.veiculo_modelo}
-                      onChange={(e) => setFormData({...formData, veiculo_modelo: e.target.value})}
-                      placeholder="Ex: Gol"
-                    />
-                  </div>
-                  <div>
-                    <Label>Ano *</Label>
-                    <Input
-                      required
-                      value={formData.veiculo_ano}
-                      onChange={(e) => setFormData({...formData, veiculo_ano: e.target.value})}
-                      placeholder="2020"
-                    />
-                  </div>
-                  <div>
-                    <Label>Cor</Label>
-                    <Input
-                      value={formData.veiculo_cor}
-                      onChange={(e) => setFormData({...formData, veiculo_cor: e.target.value})}
-                      placeholder="Ex: Prata"
-                    />
-                  </div>
+                <div>
+                  <Label>Modelo *</Label>
+                  <Select
+                    required
+                    value={formData.veiculo_modelo}
+                    onValueChange={(value) => setFormData({...formData, veiculo_modelo: value})}
+                    disabled={!formData.veiculo_marca}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o modelo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {formData.veiculo_marca && MODELOS_POR_MARCA[formData.veiculo_marca]?.map(modelo => (
+                        <SelectItem key={modelo} value={modelo}>{modelo}</SelectItem>
+                      ))}
+                      <SelectItem value="Outro">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Ano *</Label>
+                  <Select
+                    required
+                    value={formData.veiculo_ano}
+                    onValueChange={(value) => setFormData({...formData, veiculo_ano: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o ano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getAnosDisponiveis().map(ano => (
+                        <SelectItem key={ano} value={ano}>{ano}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Cor *</Label>
+                  <Select
+                    required
+                    value={formData.veiculo_cor}
+                    onValueChange={(value) => setFormData({...formData, veiculo_cor: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a cor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CORES.map(cor => (
+                        <SelectItem key={cor} value={cor}>{cor}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                   <div>
                     <Label>Chassi</Label>
                     <Input
@@ -336,8 +425,25 @@ export default function VistoriaManual() {
 
               {/* Dados do Incidente */}
               <div>
-                <h3 className="text-lg font-semibold mb-4">Dados do Incidente</h3>
+                <h3 className="text-lg font-semibold mb-4">Dados do Sinistro</h3>
               <div className="space-y-4">
+                <div>
+                  <Label>Tipo de Sinistro *</Label>
+                  <Select
+                    required
+                    value={formData.tipo_sinistro}
+                    onValueChange={(value) => setFormData({...formData, tipo_sinistro: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIPOS_SINISTRO.map(tipo => (
+                        <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div>
                   <Label>Data do Incidente *</Label>
                   <Input
