@@ -51,9 +51,19 @@ export function AtendimentoCard({
     id: string; 
     link_token?: string; 
     status: string;
-    veiculo_placa?: string;
-    cliente_nome?: string;
     tipo_sinistro?: string;
+    data_incidente?: string;
+    relato_incidente?: string;
+    veiculo_placa?: string;
+    veiculo_marca?: string;
+    veiculo_modelo?: string;
+    veiculo_ano?: string;
+    veiculo_cor?: string;
+    veiculo_chassi?: string;
+    cliente_nome?: string;
+    cliente_cpf?: string;
+    cliente_telefone?: string;
+    cliente_email?: string;
     cof?: string;
   } | null>(null);
 
@@ -64,10 +74,28 @@ export function AtendimentoCard({
   const loadVistoria = async () => {
     const { data } = await supabase
       .from('vistorias')
-      .select('id, link_token, status, veiculo_placa, cliente_nome, tipo_sinistro, cof')
+      .select(`
+        id, 
+        link_token, 
+        status, 
+        tipo_sinistro,
+        data_incidente,
+        relato_incidente,
+        veiculo_placa, 
+        veiculo_marca,
+        veiculo_modelo,
+        veiculo_ano,
+        veiculo_cor,
+        veiculo_chassi,
+        cliente_nome, 
+        cliente_cpf,
+        cliente_telefone,
+        cliente_email,
+        cof
+      `)
       .eq('atendimento_id', atendimento.id)
       .limit(1)
-      .single();
+      .maybeSingle();
     
     if (data) {
       setVistoria(data);
@@ -117,34 +145,66 @@ export function AtendimentoCard({
       <div className="px-2.5 py-2 space-y-1.5">
         {/* Title */}
         <h3 
-          className="text-[13px] font-medium text-foreground leading-tight line-clamp-2 cursor-pointer hover:text-primary transition-colors"
+          className="text-[13px] font-medium text-foreground leading-tight line-clamp-1 cursor-pointer hover:text-primary transition-colors"
           onClick={onEdit}
         >
           {atendimento.assunto}
         </h3>
         
-        {/* Vistoria Info */}
+        {/* Sinistro Info */}
         {vistoria && (
-          <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
-            {vistoria.veiculo_placa && (
-              <span className="flex items-center gap-1">
-                <span className="font-medium">Placa:</span> {vistoria.veiculo_placa}
-              </span>
+          <div className="space-y-1.5 text-[11px]">
+            {/* Tipo e Data */}
+            <div className="flex flex-wrap gap-2">
+              {vistoria.tipo_sinistro && (
+                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-primary/5 text-primary border-primary/20">
+                  {vistoria.tipo_sinistro}
+                </Badge>
+              )}
+              {vistoria.data_incidente && (
+                <span className="text-muted-foreground">
+                  {new Date(vistoria.data_incidente).toLocaleDateString('pt-BR')}
+                </span>
+              )}
+              {vistoria.cof && (
+                <span className="text-muted-foreground">
+                  COF: {vistoria.cof}
+                </span>
+              )}
+            </div>
+
+            {/* Veículo */}
+            {(vistoria.veiculo_placa || vistoria.veiculo_marca) && (
+              <div className="text-muted-foreground border-l-2 border-muted pl-2">
+                <div className="font-medium text-foreground">Veículo</div>
+                {vistoria.veiculo_placa && <div>Placa: {vistoria.veiculo_placa}</div>}
+                {vistoria.veiculo_marca && (
+                  <div>
+                    {vistoria.veiculo_marca} {vistoria.veiculo_modelo} {vistoria.veiculo_ano}
+                  </div>
+                )}
+                {vistoria.veiculo_cor && <div>Cor: {vistoria.veiculo_cor}</div>}
+                {vistoria.veiculo_chassi && <div className="text-[10px]">Chassi: {vistoria.veiculo_chassi}</div>}
+              </div>
             )}
+
+            {/* Cliente */}
             {vistoria.cliente_nome && (
-              <span className="flex items-center gap-1">
-                • <span className="font-medium">Cliente:</span> {vistoria.cliente_nome}
-              </span>
+              <div className="text-muted-foreground border-l-2 border-muted pl-2">
+                <div className="font-medium text-foreground">Cliente</div>
+                <div>{vistoria.cliente_nome}</div>
+                {vistoria.cliente_cpf && <div>CPF: {vistoria.cliente_cpf}</div>}
+                {vistoria.cliente_telefone && <div>Tel: {vistoria.cliente_telefone}</div>}
+                {vistoria.cliente_email && <div className="truncate">{vistoria.cliente_email}</div>}
+              </div>
             )}
-            {vistoria.cof && (
-              <span className="flex items-center gap-1">
-                • <span className="font-medium">COF:</span> {vistoria.cof}
-              </span>
-            )}
-            {vistoria.tipo_sinistro && (
-              <span className="flex items-center gap-1">
-                • <span className="font-medium">Tipo:</span> {vistoria.tipo_sinistro}
-              </span>
+
+            {/* Relato */}
+            {vistoria.relato_incidente && (
+              <div className="text-muted-foreground border-l-2 border-muted pl-2">
+                <div className="font-medium text-foreground">Relato</div>
+                <div className="line-clamp-2">{vistoria.relato_incidente}</div>
+              </div>
             )}
           </div>
         )}
