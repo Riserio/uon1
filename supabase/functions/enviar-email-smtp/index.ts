@@ -129,7 +129,10 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error('Error in enviar-email-smtp:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: 'Erro ao enviar emails. Por favor, verifique as configurações e tente novamente.',
+        code: 'EMAIL_SEND_ERROR'
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
