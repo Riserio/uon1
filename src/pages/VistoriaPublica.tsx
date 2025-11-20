@@ -8,9 +8,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Camera, CheckCircle2, Upload, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Camera, CheckCircle2, Upload, ArrowRight, ArrowLeft, FileText, Film, Image as ImageIcon } from 'lucide-react';
 import SignaturePad from '@/components/SignaturePad';
 import SketchPad from '@/components/SketchPad';
+import { Badge } from '@/components/ui/badge';
 
 const FOTO_POSICOES = [
   { id: 'frontal', nome: 'Frontal', descricao: 'Foto da frente do veículo' },
@@ -249,35 +250,66 @@ export default function VistoriaPublica() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validar tipo de arquivo
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime', 'application/pdf'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Formato não suportado. Use imagens (PNG, JPG), vídeos (MP4, MOV) ou PDF.');
+      return;
+    }
+
+    // Validar tamanho (100MB max)
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error('Arquivo muito grande. Tamanho máximo: 100MB');
+      return;
+    }
+
     setVehicleFotos({ ...vehicleFotos, [posicao]: file });
     
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setFotoPreviews({ ...fotoPreviews, [posicao]: e.target?.result as string });
-    };
-    reader.readAsDataURL(file);
+    if (file.type.startsWith('video/') || file.type === 'application/pdf') {
+      // Para vídeos e PDFs, não gerar preview
+      setFotoPreviews({ ...fotoPreviews, [posicao]: file.type });
+    } else {
+      // Para imagens, gerar preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setFotoPreviews({ ...fotoPreviews, [posicao]: e.target?.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center p-6">
-        <div className="text-white text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Carregando vistoria...</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 flex items-center justify-center p-6">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-8 text-center space-y-4">
+            <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary mx-auto"></div>
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Carregando vistoria...</h3>
+              <p className="text-sm text-muted-foreground">Por favor, aguarde</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (!vistoria) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center p-6">
-        <Card className="max-w-md">
-          <CardContent className="p-6 text-center">
-            <h2 className="text-2xl font-bold text-red-600 mb-4">Link Inválido</h2>
-            <p className="text-muted-foreground">
-              Este link de vistoria é inválido ou expirou. Entre em contato com a seguradora.
-            </p>
+      <div className="min-h-screen bg-gradient-to-br from-destructive/5 via-destructive/10 to-destructive/5 flex items-center justify-center p-6">
+        <Card className="max-w-md w-full border-destructive/20">
+          <CardContent className="p-8 text-center space-y-4">
+            <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+              <svg className="h-8 w-8 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-destructive mb-2">Link Inválido</h2>
+              <p className="text-muted-foreground">
+                Este link de vistoria é inválido ou expirou. Entre em contato com a seguradora.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -286,20 +318,38 @@ export default function VistoriaPublica() {
 
   if (currentStep === 999) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center p-6">
-        <Card className="max-w-md shadow-2xl">
-          <CardContent className="p-8 text-center">
-            <CheckCircle2 className="h-20 w-20 text-green-600 mx-auto mb-6" />
-            <h2 className="text-3xl font-bold mb-4">Vistoria Concluída!</h2>
-            <p className="text-muted-foreground mb-6">
-              Sua vistoria foi enviada com sucesso. Nossa equipe analisará as informações e entrará em contato em breve.
-            </p>
-            <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg text-sm text-green-800 dark:text-green-200">
-              <strong>Próximos passos:</strong>
-              <ul className="list-disc list-inside mt-2 text-left">
-                <li>Análise automática por IA</li>
-                <li>Revisão pela equipe técnica</li>
-                <li>Contato em até 24h úteis</li>
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 flex items-center justify-center p-6">
+        <Card className="max-w-md w-full shadow-xl">
+          <CardContent className="p-8 text-center space-y-6">
+            <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="h-12 w-12 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold mb-3">Vistoria Concluída!</h2>
+              <p className="text-muted-foreground mb-6">
+                Sua vistoria foi enviada com sucesso. Nossa equipe analisará as informações e entrará em contato em breve.
+              </p>
+            </div>
+            <div className="bg-primary/5 border border-primary/20 p-5 rounded-lg text-sm space-y-3">
+              <div className="flex items-center gap-2 text-primary font-semibold">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Próximos passos
+              </div>
+              <ul className="space-y-2 text-left text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>Análise automática por IA</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>Revisão pela equipe técnica</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>Contato em até 24h úteis</span>
+                </li>
               </ul>
             </div>
           </CardContent>
@@ -312,42 +362,53 @@ export default function VistoriaPublica() {
   const stepProgress = ((currentStep + 1) / totalSteps) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 p-6">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 p-4 md:p-6">
+      <div className="max-w-3xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8 text-white">
-          <h1 className="text-4xl font-bold mb-2">Vistoria Digital</h1>
-          <p className="text-blue-100">
-            {vistoria.tipo_vistoria === 'sinistro' ? 'Sinistro' : 'Reativação'}
+        <div className="text-center mb-6 md:mb-8">
+          <div className="inline-flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-full mb-4">
+            <Camera className="h-5 w-5 text-primary" />
+            <Badge variant="secondary" className="text-sm">
+              {vistoria.tipo_vistoria === 'sinistro' ? 'Sinistro' : 'Reativação'}
+            </Badge>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-bold mb-2 text-foreground">Vistoria Digital</h1>
+          <p className="text-muted-foreground">
+            Preencha os dados com atenção para uma análise precisa
           </p>
         </div>
 
         {/* Progress */}
-        <div className="mb-8">
-          <div className="flex justify-between mb-2 text-white text-sm">
-            <span>Progresso</span>
+        <div className="mb-6 md:mb-8">
+          <div className="flex justify-between mb-2 text-sm text-muted-foreground">
+            <span className="font-medium">Progresso</span>
             <span>Passo {currentStep + 1} de {totalSteps}</span>
           </div>
-          <div className="w-full bg-white/20 rounded-full h-3">
+          <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
             <div
-              className="bg-white h-3 rounded-full transition-all duration-500"
+              className="bg-primary h-2.5 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${stepProgress}%` }}
             />
           </div>
         </div>
 
-        <Card className="shadow-2xl">
-          <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
-            <CardTitle className="text-2xl text-center">
-              {currentStep === 0 && 'Dados Pessoais'}
-              {currentStep === 1 && 'Dados do Evento'}
-              {currentStep === 2 && 'Documentos'}
-              {currentStep === 3 && 'Fotos do Veículo'}
-              {currentStep === 4 && 'Croqui do Acidente'}
-              {currentStep === 5 && 'Assinatura Digital'}
+        <Card className="shadow-lg border-2">
+          <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b">
+            <CardTitle className="text-xl md:text-2xl flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                {currentStep + 1}
+              </div>
+              <span>
+                {currentStep === 0 && 'Dados Pessoais'}
+                {currentStep === 1 && 'Dados do Evento'}
+                {currentStep === 2 && 'Documentos'}
+                {currentStep === 3 && 'Fotos do Veículo'}
+                {currentStep === 4 && 'Croqui do Acidente'}
+                {currentStep === 5 && 'Assinatura Digital'}
+              </span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6 space-y-4">
+          <CardContent className="p-4 md:p-6 space-y-6">
             {/* Step 0: Dados Pessoais */}
             {currentStep === 0 && (
               <div className="space-y-4">
@@ -651,24 +712,100 @@ export default function VistoriaPublica() {
 
             {/* Step 3: Fotos do Veículo */}
             {currentStep === 3 && (
-              <div className="space-y-4">
-                {FOTO_POSICOES.map((posicao) => (
-                  <div key={posicao.id}>
-                    <Label>{posicao.nome} *</Label>
-                    <p className="text-sm text-muted-foreground mb-2">{posicao.descricao}</p>
-                    {fotoPreviews[posicao.id] ? (
-                      <img src={fotoPreviews[posicao.id]} alt={posicao.nome} className="w-full rounded-lg mb-2" />
-                    ) : (
-                      <Input
-                        type="file"
-                        accept="image/*,video/*"
-                        capture="environment"
-                        onChange={(e) => handleVehiclePhotoChange(e, posicao.id)}
-                      />
-                    )}
+              <div className="space-y-6">
+                <div className="bg-muted/50 p-4 rounded-lg border border-border">
+                  <div className="flex items-start gap-3">
+                    <ImageIcon className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-medium">Formatos aceitos</p>
+                      <p className="text-xs text-muted-foreground">
+                        Imagens (PNG, JPG, GIF, WebP), Vídeos (MP4, MOV, WebM) e PDF - Máximo 100MB por arquivo
+                      </p>
+                    </div>
                   </div>
-                ))}
-                <p className="text-xs text-muted-foreground">Aceita imagens (PNG, JPG) e vídeos</p>
+                </div>
+
+                {FOTO_POSICOES.map((posicao) => {
+                  const file = vehicleFotos[posicao.id];
+                  const preview = fotoPreviews[posicao.id];
+                  const hasFile = !!file;
+
+                  return (
+                    <div key={posicao.id} className="border rounded-lg p-4 space-y-3 bg-card">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-base font-semibold">{posicao.nome} *</Label>
+                          <p className="text-sm text-muted-foreground">{posicao.descricao}</p>
+                        </div>
+                        {hasFile && (
+                          <Badge variant="secondary" className="flex items-center gap-1">
+                            {file.type.startsWith('video/') && <Film className="h-3 w-3" />}
+                            {file.type.startsWith('image/') && <ImageIcon className="h-3 w-3" />}
+                            {file.type === 'application/pdf' && <FileText className="h-3 w-3" />}
+                            {file.type.startsWith('video/') ? 'Vídeo' : file.type === 'application/pdf' ? 'PDF' : 'Imagem'}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {hasFile ? (
+                        <div className="space-y-2">
+                          {file.type.startsWith('image/') && preview && typeof preview === 'string' && !preview.startsWith('video') && preview !== 'application/pdf' ? (
+                            <img 
+                              src={preview} 
+                              alt={posicao.nome} 
+                              className="w-full rounded-lg border border-border max-h-64 object-cover"
+                            />
+                          ) : file.type.startsWith('video/') ? (
+                            <div className="flex items-center justify-center bg-muted rounded-lg p-8 border border-border">
+                              <div className="text-center space-y-2">
+                                <Film className="h-12 w-12 text-primary mx-auto" />
+                                <p className="text-sm font-medium">{file.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {(file.size / (1024 * 1024)).toFixed(2)} MB
+                                </p>
+                              </div>
+                            </div>
+                          ) : file.type === 'application/pdf' ? (
+                            <div className="flex items-center justify-center bg-muted rounded-lg p-8 border border-border">
+                              <div className="text-center space-y-2">
+                                <FileText className="h-12 w-12 text-primary mx-auto" />
+                                <p className="text-sm font-medium">{file.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {(file.size / (1024 * 1024)).toFixed(2)} MB
+                                </p>
+                              </div>
+                            </div>
+                          ) : null}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const newFotos = { ...vehicleFotos };
+                              delete newFotos[posicao.id];
+                              setVehicleFotos(newFotos);
+                              const newPreviews = { ...fotoPreviews };
+                              delete newPreviews[posicao.id];
+                              setFotoPreviews(newPreviews);
+                            }}
+                            className="w-full"
+                          >
+                            Alterar arquivo
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Input
+                            type="file"
+                            accept="image/*,video/*,application/pdf"
+                            capture="environment"
+                            onChange={(e) => handleVehiclePhotoChange(e, posicao.id)}
+                            className="cursor-pointer"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -694,11 +831,12 @@ export default function VistoriaPublica() {
             )}
 
             {/* Navigation Buttons */}
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 pt-6 border-t">
               {currentStep > 0 && (
                 <Button
                   onClick={() => setCurrentStep(currentStep - 1)}
                   variant="outline"
+                  size="lg"
                   className="flex-1"
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
@@ -714,14 +852,18 @@ export default function VistoriaPublica() {
                   }
                 }}
                 disabled={uploading}
+                size="lg"
                 className="flex-1"
               >
                 {uploading ? (
-                  'Enviando...'
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    Enviando...
+                  </div>
                 ) : currentStep === 5 ? (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Finalizar
+                    Finalizar Vistoria
                   </>
                 ) : (
                   <>
