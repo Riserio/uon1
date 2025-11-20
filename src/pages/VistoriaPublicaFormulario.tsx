@@ -6,13 +6,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { ArrowRight, ArrowLeft, Upload, CheckCircle2, FileText } from 'lucide-react';
+import { 
+  ArrowRight, ArrowLeft, User, Calendar, Car, 
+  FileText, AlertCircle, CheckCircle, MapPin, Clock
+} from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import SignaturePad from '@/components/SignaturePad';
 import SketchPad from '@/components/SketchPad';
+
+const STEPS = [
+  { id: 0, title: 'Dados Pessoais', icon: User, description: 'Informações do segurado' },
+  { id: 1, title: 'Dados do Evento', icon: Calendar, description: 'Quando e onde ocorreu' },
+  { id: 2, title: 'Informações Gerais', icon: AlertCircle, description: 'Detalhes do incidente' },
+  { id: 3, title: 'Documentos', icon: FileText, description: 'Anexos necessários' },
+  { id: 4, title: 'Croqui', icon: MapPin, description: 'Desenho do acidente' },
+];
 
 export default function VistoriaPublicaFormulario() {
   const { token } = useParams();
@@ -21,11 +30,8 @@ export default function VistoriaPublicaFormulario() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  
-  // Dados temporários das fotos
   const [tempData, setTempData] = useState<any>(null);
 
-  // Form data
   const [formData, setFormData] = useState({
     cliente_nome: '',
     cliente_cpf: '',
@@ -47,12 +53,10 @@ export default function VistoriaPublicaFormulario() {
     policia_foi_local: false,
   });
 
-  // Files
   const [boFile, setBoFile] = useState<File | null>(null);
   const [laudoMedico, setLaudoMedico] = useState<File | null>(null);
   const [atestadoObito, setAtestadoObito] = useState<File | null>(null);
   const [laudoAlcoolemia, setLaudoAlcoolemia] = useState<File | null>(null);
-  const [assinatura, setAssinatura] = useState<string>('');
   const [croqui, setCroqui] = useState<string>('');
 
   useEffect(() => {
@@ -66,7 +70,6 @@ export default function VistoriaPublicaFormulario() {
       const data = JSON.parse(temp);
       setTempData(data);
       
-      // Pré-preencher dados do OCR
       if (data.cnhData) {
         setFormData(prev => ({
           ...prev,
@@ -89,7 +92,7 @@ export default function VistoriaPublicaFormulario() {
     try {
       const { data, error } = await supabase
         .from('vistorias')
-        .select('*')
+        .select('*, corretoras(nome, logo_url)')
         .eq('link_token', token)
         .gt('link_expires_at', new Date().toISOString())
         .single();
@@ -131,7 +134,6 @@ export default function VistoriaPublicaFormulario() {
   };
 
   const handleSubmit = async () => {
-    // Validações
     if (!formData.cliente_nome || !formData.cliente_cpf) {
       toast.error('Preencha nome e CPF');
       setCurrentStep(0);
@@ -140,7 +142,6 @@ export default function VistoriaPublicaFormulario() {
 
     setUploading(true);
     try {
-      // Upload documentos condicionais
       let boUrl = null;
       if (formData.fez_bo && boFile) {
         boUrl = await uploadFile(boFile, 'bo');
@@ -162,7 +163,6 @@ export default function VistoriaPublicaFormulario() {
         laudoAlcoolemiaUrl = await uploadFile(laudoAlcoolemia, 'alcoolemia');
       }
 
-      // Upload fotos do veículo
       if (tempData?.fotos) {
         for (const [posicao, files] of Object.entries(tempData.fotos) as [string, File[]][]) {
           if (posicao === 'cnh' || posicao === 'crlv') continue;
@@ -184,13 +184,11 @@ export default function VistoriaPublicaFormulario() {
         }
       }
 
-      // Upload CNH
       let cnhUrl = '';
       if (tempData?.fotos?.cnh?.[0]) {
         cnhUrl = await uploadFile(tempData.fotos.cnh[0], 'cnh');
       }
 
-      // Upload CRLV
       const crlvUrls: string[] = [];
       if (tempData?.fotos?.crlv) {
         for (const file of tempData.fotos.crlv) {
@@ -199,10 +197,8 @@ export default function VistoriaPublicaFormulario() {
         }
       }
 
-      // Upload croqui
       const croquiUrl = croqui ? await uploadDataUrl(croqui, 'croqui') : null;
 
-      // Atualizar vistoria (sem assinatura ainda)
       const { error: updateError } = await supabase
         .from('vistorias')
         .update({
@@ -234,77 +230,148 @@ export default function VistoriaPublicaFormulario() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center p-6">
-        <Card>
-          <CardContent className="p-8 text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary mx-auto mb-4"></div>
-            <p className="text-lg font-medium">Carregando...</p>
+      <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] to-white flex items-center justify-center p-6">
+        <Card className="border-none shadow-xl">
+          <CardContent className="p-12 text-center">
+            <div className="relative w-16 h-16 mx-auto mb-4">
+              <div className="absolute inset-0 animate-spin rounded-full border-4 border-[hsl(var(--vistoria-primary))]/20 border-t-[hsl(var(--vistoria-primary))]"></div>
+            </div>
+            <p className="text-lg font-semibold text-muted-foreground">Carregando formulário...</p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const totalSteps = 5;
-  const stepProgress = ((currentStep + 1) / totalSteps) * 100;
+  const currentStepInfo = STEPS[currentStep];
+  const StepIcon = currentStepInfo.icon;
+  const stepProgress = ((currentStep + 1) / STEPS.length) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-primary/10 p-4">
-      <div className="max-w-3xl mx-auto space-y-4">
+    <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] to-white py-6 px-4">
+      <div className="max-w-4xl mx-auto space-y-6">
+        
         {/* Header */}
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-2">Dados da Vistoria</h1>
-          <p className="text-muted-foreground">Preencha as informações com atenção</p>
-        </div>
-
-        {/* Progress */}
-        <Card>
-          <CardContent className="p-4 space-y-2">
-            <div className="flex justify-between text-sm font-medium">
-              <span>Progresso</span>
-              <span>Passo {currentStep + 1} de {totalSteps}</span>
+        <Card className="border-none shadow-lg">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                {vistoria.corretoras?.logo_url && (
+                  <img src={vistoria.corretoras.logo_url} alt="Logo" className="h-12 object-contain" />
+                )}
+                <div>
+                  <h1 className="text-xl md:text-2xl font-bold text-gray-900">Informações da Vistoria</h1>
+                  <p className="text-sm text-muted-foreground">Sinistro #{vistoria.numero}</p>
+                </div>
+              </div>
             </div>
-            <Progress value={stepProgress} className="h-3" />
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-6 space-y-6">
+        {/* Steps Progress */}
+        <Card className="border-none shadow-lg">
+          <CardContent className="p-6">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-sm font-bold text-gray-700">Etapa {currentStep + 1} de {STEPS.length}</span>
+              <span className="text-sm font-semibold text-[hsl(var(--vistoria-primary))]">{Math.round(stepProgress)}%</span>
+            </div>
+            <Progress value={stepProgress} className="h-3 mb-4" />
+            
+            {/* Step Indicators */}
+            <div className="flex justify-between gap-2">
+              {STEPS.map((step, idx) => (
+                <div 
+                  key={step.id} 
+                  className={`flex-1 text-center ${
+                    idx <= currentStep ? 'opacity-100' : 'opacity-30'
+                  }`}
+                >
+                  <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center mb-2 transition-all ${
+                    idx < currentStep 
+                      ? 'bg-green-500 text-white' 
+                      : idx === currentStep 
+                      ? 'bg-[hsl(var(--vistoria-primary))] text-white scale-110' 
+                      : 'bg-gray-200 text-gray-400'
+                  }`}>
+                    {idx < currentStep ? (
+                      <CheckCircle className="h-5 w-5" />
+                    ) : (
+                      <step.icon className="h-5 w-5" />
+                    )}
+                  </div>
+                  <p className="text-xs font-medium hidden sm:block">{step.title}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Main Form Card */}
+        <Card className="border-none shadow-2xl">
+          
+          {/* Step Header */}
+          <div className="bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 p-8 text-white">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                <StepIcon className="h-7 w-7" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-bold">{currentStepInfo.title}</h2>
+                <p className="text-blue-100 text-lg">{currentStepInfo.description}</p>
+              </div>
+            </div>
+          </div>
+
+          <CardContent className="p-8 space-y-6">
+            
             {/* Step 0: Dados Pessoais */}
             {currentStep === 0 && (
-              <div className="space-y-4">
-                <h2 className="text-2xl font-bold">Dados Pessoais</h2>
+              <div className="space-y-6">
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-blue-800">
+                    Alguns dados foram preenchidos automaticamente via OCR da CNH. Confira e complete se necessário.
+                  </p>
+                </div>
+
                 <div>
-                  <Label>Nome Completo *</Label>
+                  <Label className="text-base font-semibold">Nome Completo *</Label>
                   <Input
                     value={formData.cliente_nome}
                     onChange={(e) => setFormData({ ...formData, cliente_nome: e.target.value })}
-                    placeholder="Seu nome completo"
+                    placeholder="Digite seu nome completo"
+                    className="mt-2 h-12 text-lg"
                   />
                 </div>
+                
                 <div>
-                  <Label>CPF *</Label>
+                  <Label className="text-base font-semibold">CPF *</Label>
                   <Input
                     value={formData.cliente_cpf}
                     onChange={(e) => setFormData({ ...formData, cliente_cpf: e.target.value })}
                     placeholder="000.000.000-00"
+                    className="mt-2 h-12 text-lg"
                   />
                 </div>
+                
                 <div>
-                  <Label>Email</Label>
+                  <Label className="text-base font-semibold">Email</Label>
                   <Input
                     type="email"
                     value={formData.cliente_email}
                     onChange={(e) => setFormData({ ...formData, cliente_email: e.target.value })}
                     placeholder="seu@email.com"
+                    className="mt-2 h-12 text-lg"
                   />
                 </div>
+                
                 <div>
-                  <Label>Telefone</Label>
+                  <Label className="text-base font-semibold">Telefone</Label>
                   <Input
                     value={formData.cliente_telefone}
                     onChange={(e) => setFormData({ ...formData, cliente_telefone: e.target.value })}
                     placeholder="(11) 99999-9999"
+                    className="mt-2 h-12 text-lg"
                   />
                 </div>
               </div>
@@ -312,141 +379,158 @@ export default function VistoriaPublicaFormulario() {
 
             {/* Step 1: Dados do Evento */}
             {currentStep === 1 && (
-              <div className="space-y-4">
-                <h2 className="text-2xl font-bold">Dados do Evento</h2>
-                <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-6">
+                <div className="grid sm:grid-cols-2 gap-6">
                   <div>
-                    <Label>Data do Evento *</Label>
+                    <Label className="text-base font-semibold">Data do Evento *</Label>
                     <Input
                       type="date"
                       value={formData.data_evento}
                       onChange={(e) => setFormData({ ...formData, data_evento: e.target.value })}
+                      className="mt-2 h-12"
                     />
                   </div>
                   <div>
-                    <Label>Hora do Evento *</Label>
+                    <Label className="text-base font-semibold">Hora do Evento *</Label>
                     <Input
                       type="time"
                       value={formData.hora_evento}
                       onChange={(e) => setFormData({ ...formData, hora_evento: e.target.value })}
+                      className="mt-2 h-12"
                     />
                   </div>
                 </div>
+
                 <div>
-                  <Label>Condutor do Veículo</Label>
+                  <Label className="text-base font-semibold">Condutor do Veículo</Label>
                   <Input
                     value={formData.condutor_veiculo}
                     onChange={(e) => setFormData({ ...formData, condutor_veiculo: e.target.value })}
-                    placeholder="Nome do condutor"
+                    placeholder="Nome de quem estava dirigindo"
+                    className="mt-2 h-12"
                   />
                 </div>
+
                 <div>
-                  <Label>Placa do Veículo</Label>
+                  <Label className="text-base font-semibold">Placa do Veículo</Label>
                   <Input
                     value={formData.veiculo_placa}
                     onChange={(e) => setFormData({ ...formData, veiculo_placa: e.target.value })}
                     placeholder="ABC-1234"
+                    className="mt-2 h-12 font-mono text-lg"
                   />
                 </div>
+
                 <div>
-                  <Label>Modelo do Veículo</Label>
+                  <Label className="text-base font-semibold">Modelo do Veículo</Label>
                   <Input
                     value={formData.veiculo_modelo}
                     onChange={(e) => setFormData({ ...formData, veiculo_modelo: e.target.value })}
-                    placeholder="Marca e modelo"
+                    placeholder="Ex: Toyota Corolla 2020"
+                    className="mt-2 h-12"
                   />
                 </div>
+
                 <div>
-                  <Label>Narrar os Fatos</Label>
+                  <Label className="text-base font-semibold">Narre os Fatos *</Label>
                   <Textarea
                     value={formData.narrar_fatos}
                     onChange={(e) => setFormData({ ...formData, narrar_fatos: e.target.value })}
-                    placeholder="Descreva o que aconteceu"
-                    rows={5}
+                    placeholder="Descreva detalhadamente como o acidente aconteceu..."
+                    rows={6}
+                    className="mt-2 text-base"
                   />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Inclua detalhes como condições climáticas, visibilidade, velocidade aproximada, etc.
+                  </p>
                 </div>
+
                 <div>
-                  <Label>Vítima ou Causador?</Label>
+                  <Label className="text-base font-semibold mb-3 block">Você foi vítima ou causador?</Label>
                   <RadioGroup
                     value={formData.vitima_ou_causador}
                     onValueChange={(value) => setFormData({ ...formData, vitima_ou_causador: value })}
+                    className="space-y-3"
                   >
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="vitima" id="vitima" />
-                      <Label htmlFor="vitima">Vítima</Label>
+                      <Label htmlFor="vitima" className="flex-1 cursor-pointer font-medium">Vítima</Label>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="causador" id="causador" />
-                      <Label htmlFor="causador">Causador</Label>
+                      <Label htmlFor="causador" className="flex-1 cursor-pointer font-medium">Causador</Label>
                     </div>
                   </RadioGroup>
                 </div>
               </div>
             )}
 
-            {/* Step 2: Informações Adicionais */}
+            {/* Step 2: Informações Gerais */}
             {currentStep === 2 && (
-              <div className="space-y-4">
-                <h2 className="text-2xl font-bold">Informações Adicionais</h2>
+              <div className="space-y-6">
                 
                 <div>
-                  <Label>Houve terceiros envolvidos?</Label>
+                  <Label className="text-base font-semibold mb-3 block">Houve terceiros envolvidos?</Label>
                   <RadioGroup
                     value={formData.tem_terceiros ? "sim" : "nao"}
                     onValueChange={(value) => setFormData({ ...formData, tem_terceiros: value === "sim" })}
+                    className="space-y-3"
                   >
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="sim" id="terceiros-sim" />
-                      <Label htmlFor="terceiros-sim">Sim</Label>
+                      <Label htmlFor="terceiros-sim" className="flex-1 cursor-pointer font-medium">Sim</Label>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="nao" id="terceiros-nao" />
-                      <Label htmlFor="terceiros-nao">Não</Label>
+                      <Label htmlFor="terceiros-nao" className="flex-1 cursor-pointer font-medium">Não</Label>
                     </div>
                   </RadioGroup>
                 </div>
 
                 {formData.tem_terceiros && (
-                  <div>
-                    <Label>Placa do Terceiro</Label>
+                  <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-6">
+                    <Label className="text-base font-semibold">Placa do Terceiro</Label>
                     <Input
                       value={formData.placa_terceiro}
                       onChange={(e) => setFormData({ ...formData, placa_terceiro: e.target.value })}
                       placeholder="ABC-1234"
+                      className="mt-2 h-12 font-mono"
                     />
                   </div>
                 )}
 
                 <div>
-                  <Label>O local possui câmeras?</Label>
+                  <Label className="text-base font-semibold mb-3 block">O local possui câmeras de segurança?</Label>
                   <RadioGroup
                     value={formData.local_tem_camera ? "sim" : "nao"}
                     onValueChange={(value) => setFormData({ ...formData, local_tem_camera: value === "sim" })}
+                    className="space-y-3"
                   >
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="sim" id="camera-sim" />
-                      <Label htmlFor="camera-sim">Sim</Label>
+                      <Label htmlFor="camera-sim" className="flex-1 cursor-pointer font-medium">Sim</Label>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="nao" id="camera-nao" />
-                      <Label htmlFor="camera-nao">Não</Label>
+                      <Label htmlFor="camera-nao" className="flex-1 cursor-pointer font-medium">Não</Label>
                     </div>
                   </RadioGroup>
                 </div>
 
                 <div>
-                  <Label>A polícia foi ao local?</Label>
+                  <Label className="text-base font-semibold mb-3 block">A polícia foi ao local?</Label>
                   <RadioGroup
                     value={formData.policia_foi_local ? "sim" : "nao"}
                     onValueChange={(value) => setFormData({ ...formData, policia_foi_local: value === "sim" })}
+                    className="space-y-3"
                   >
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="sim" id="policia-sim" />
-                      <Label htmlFor="policia-sim">Sim</Label>
+                      <Label htmlFor="policia-sim" className="flex-1 cursor-pointer font-medium">Sim</Label>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="nao" id="policia-nao" />
-                      <Label htmlFor="policia-nao">Não</Label>
+                      <Label htmlFor="policia-nao" className="flex-1 cursor-pointer font-medium">Não</Label>
                     </div>
                   </RadioGroup>
                 </div>
@@ -456,108 +540,144 @@ export default function VistoriaPublicaFormulario() {
             {/* Step 3: Documentos */}
             {currentStep === 3 && (
               <div className="space-y-6">
-                <h2 className="text-2xl font-bold">Documentos</h2>
                 
-                <div className="space-y-4">
-                  <div>
-                    <Label>Fez Boletim de Ocorrência?</Label>
-                    <RadioGroup
-                      value={formData.fez_bo ? "sim" : "nao"}
-                      onValueChange={(value) => setFormData({ ...formData, fez_bo: value === "sim" })}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="bo-sim" />
-                        <Label htmlFor="bo-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="bo-nao" />
-                        <Label htmlFor="bo-nao">Não</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
+                {/* BO */}
+                <div className="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-xl p-6">
+                  <Label className="text-base font-semibold mb-3 block">Fez Boletim de Ocorrência?</Label>
+                  <RadioGroup
+                    value={formData.fez_bo ? "sim" : "nao"}
+                    onValueChange={(value) => setFormData({ ...formData, fez_bo: value === "sim" })}
+                    className="space-y-3"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <RadioGroupItem value="sim" id="bo-sim" />
+                      <Label htmlFor="bo-sim" className="flex-1 cursor-pointer font-medium">Sim</Label>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <RadioGroupItem value="nao" id="bo-nao" />
+                      <Label htmlFor="bo-nao" className="flex-1 cursor-pointer font-medium">Não</Label>
+                    </div>
+                  </RadioGroup>
 
                   {formData.fez_bo && (
-                    <div>
-                      <Label>Anexar BO</Label>
+                    <div className="mt-4">
+                      <Label className="text-sm font-medium">Anexar BO *</Label>
                       <Input
                         type="file"
                         accept="image/*,application/pdf"
                         onChange={(e) => setBoFile(e.target.files?.[0] || null)}
+                        className="mt-2"
                       />
+                      {boFile && (
+                        <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
+                          <CheckCircle className="h-4 w-4" />
+                          {boFile.name}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <Label>Foi ao hospital?</Label>
-                    <RadioGroup
-                      value={formData.foi_hospital ? "sim" : "nao"}
-                      onValueChange={(value) => setFormData({ ...formData, foi_hospital: value === "sim" })}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="hospital-sim" />
-                        <Label htmlFor="hospital-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="hospital-nao" />
-                        <Label htmlFor="hospital-nao">Não</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
+                {/* Hospital */}
+                <div className="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-xl p-6">
+                  <Label className="text-base font-semibold mb-3 block">Foi ao hospital?</Label>
+                  <RadioGroup
+                    value={formData.foi_hospital ? "sim" : "nao"}
+                    onValueChange={(value) => setFormData({ ...formData, foi_hospital: value === "sim" })}
+                    className="space-y-3"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <RadioGroupItem value="sim" id="hospital-sim" />
+                      <Label htmlFor="hospital-sim" className="flex-1 cursor-pointer font-medium">Sim</Label>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <RadioGroupItem value="nao" id="hospital-nao" />
+                      <Label htmlFor="hospital-nao" className="flex-1 cursor-pointer font-medium">Não</Label>
+                    </div>
+                  </RadioGroup>
 
                   {formData.foi_hospital && (
-                    <div>
-                      <Label>Anexar Laudo Médico</Label>
+                    <div className="mt-4">
+                      <Label className="text-sm font-medium">Anexar Laudo Médico *</Label>
                       <Input
                         type="file"
                         accept="image/*,application/pdf"
                         onChange={(e) => setLaudoMedico(e.target.files?.[0] || null)}
+                        className="mt-2"
                       />
+                      {laudoMedico && (
+                        <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
+                          <CheckCircle className="h-4 w-4" />
+                          {laudoMedico.name}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <Label>O motorista faleceu?</Label>
-                    <RadioGroup
-                      value={formData.motorista_faleceu ? "sim" : "nao"}
-                      onValueChange={(value) => setFormData({ ...formData, motorista_faleceu: value === "sim" })}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sim" id="obito-sim" />
-                        <Label htmlFor="obito-sim">Sim</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="nao" id="obito-nao" />
-                        <Label htmlFor="obito-nao">Não</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
+                {/* Óbito */}
+                <div className="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-xl p-6">
+                  <Label className="text-base font-semibold mb-3 block">O motorista faleceu?</Label>
+                  <RadioGroup
+                    value={formData.motorista_faleceu ? "sim" : "nao"}
+                    onValueChange={(value) => setFormData({ ...formData, motorista_faleceu: value === "sim" })}
+                    className="space-y-3"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <RadioGroupItem value="sim" id="obito-sim" />
+                      <Label htmlFor="obito-sim" className="flex-1 cursor-pointer font-medium">Sim</Label>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <RadioGroupItem value="nao" id="obito-nao" />
+                      <Label htmlFor="obito-nao" className="flex-1 cursor-pointer font-medium">Não</Label>
+                    </div>
+                  </RadioGroup>
 
                   {formData.motorista_faleceu && (
-                    <div>
-                      <Label>Anexar Atestado de Óbito</Label>
+                    <div className="mt-4">
+                      <Label className="text-sm font-medium">Anexar Atestado de Óbito *</Label>
                       <Input
                         type="file"
                         accept="image/*,application/pdf"
                         onChange={(e) => setAtestadoObito(e.target.files?.[0] || null)}
+                        className="mt-2"
                       />
+                      {atestadoObito && (
+                        <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
+                          <CheckCircle className="h-4 w-4" />
+                          {atestadoObito.name}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
 
+                {/* Alcoolemia (condicional) */}
                 {formData.hora_evento && (
                   parseInt(formData.hora_evento.split(':')[0]) >= 20 || parseInt(formData.hora_evento.split(':')[0]) < 6
                 ) && (
-                  <div>
-                    <Label>Laudo de Alcoolemia (acidente entre 20h e 6h)</Label>
+                  <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-6">
+                    <div className="flex items-start gap-3 mb-4">
+                      <Clock className="h-5 w-5 text-amber-600 mt-0.5" />
+                      <div>
+                        <Label className="text-base font-semibold">Laudo de Alcoolemia</Label>
+                        <p className="text-sm text-amber-700 mt-1">
+                          O acidente ocorreu entre 20h e 6h. É recomendado anexar o laudo de alcoolemia.
+                        </p>
+                      </div>
+                    </div>
                     <Input
                       type="file"
                       accept="image/*,application/pdf"
                       onChange={(e) => setLaudoAlcoolemia(e.target.files?.[0] || null)}
+                      className="mt-2"
                     />
+                    {laudoAlcoolemia && (
+                      <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
+                        <CheckCircle className="h-4 w-4" />
+                        {laudoAlcoolemia.name}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -565,35 +685,38 @@ export default function VistoriaPublicaFormulario() {
 
             {/* Step 4: Croqui */}
             {currentStep === 4 && (
-              <div className="space-y-4">
-                <h2 className="text-2xl font-bold">Croqui do Acidente</h2>
-                <p className="text-sm text-muted-foreground">
-                  Desenhe um croqui simples mostrando como ocorreu o acidente (opcional)
-                </p>
-                <SketchPad onSave={setCroqui} initialSketch={croqui} />
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-bold mb-2">Desenhe o Croqui do Acidente</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Faça um desenho simples mostrando a posição dos veículos e direção do impacto (opcional)
+                  </p>
+                </div>
+                <div className="bg-white rounded-xl border-2 border-gray-200 p-4">
+                  <SketchPad onSave={setCroqui} initialSketch={croqui} />
+                </div>
               </div>
             )}
 
-
-            {/* Navegação */}
-            <div className="flex gap-3 pt-6 border-t">
+            {/* Navigation Buttons */}
+            <div className="flex gap-4 pt-6 border-t-2">
               <Button
                 variant="outline"
                 onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
                 disabled={currentStep === 0 || uploading}
                 size="lg"
-                className="flex-1"
+                className="flex-1 h-14 text-lg border-2"
               >
                 <ArrowLeft className="h-5 w-5 mr-2" />
-                Anterior
+                Voltar
               </Button>
               
-              {currentStep < totalSteps - 1 ? (
+              {currentStep < STEPS.length - 1 ? (
                 <Button
                   onClick={() => setCurrentStep(currentStep + 1)}
                   disabled={uploading}
                   size="lg"
-                  className="flex-1"
+                  className="flex-1 h-14 text-lg bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] font-bold shadow-lg"
                 >
                   Próximo
                   <ArrowRight className="h-5 w-5 ml-2" />
@@ -603,16 +726,16 @@ export default function VistoriaPublicaFormulario() {
                   onClick={handleSubmit}
                   disabled={uploading}
                   size="lg"
-                  className="flex-1"
+                  className="flex-1 h-14 text-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 font-bold shadow-lg"
                 >
                   {uploading ? (
                     <>
                       <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/20 border-t-white mr-2" />
-                      Salvando...
+                      Enviando...
                     </>
                   ) : (
                     <>
-                      Próximo - Termos
+                      Continuar para Termos
                       <ArrowRight className="h-5 w-5 ml-2" />
                     </>
                   )}
@@ -621,6 +744,13 @@ export default function VistoriaPublicaFormulario() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Help Text */}
+        <div className="text-center">
+          <p className="text-sm text-gray-500">
+            Todas as informações são confidenciais e protegidas
+          </p>
+        </div>
       </div>
     </div>
   );

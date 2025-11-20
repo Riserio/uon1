@@ -63,9 +63,20 @@ All colors MUST be HSL.
 
     /* Gradients & Effects */
     --gradient-primary: linear-gradient(135deg, hsl(220 85% 55%) 0%, hsl(220 90% 60%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(220 85% 55%) 0%, hsl(210 85% 60%) 50%, hsl(200 85% 65%) 100%);
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%) 0%, hsl(142 80% 42%) 100%);
     --shadow-sm: 0 1px 2px 0 hsl(222 47% 11% / 0.05);
     --shadow-md: 0 4px 6px -1px hsl(222 47% 11% / 0.1);
     --shadow-lg: 0 10px 15px -3px hsl(222 47% 11% / 0.1);
+    --shadow-xl: 0 20px 25px -5px hsl(222 47% 11% / 0.15);
+    
+    /* Vistoria Colors */
+    --vistoria-primary: 220 85% 55%;
+    --vistoria-primary-foreground: 0 0% 100%;
+    --vistoria-success: 142 76% 36%;
+    --vistoria-success-foreground: 0 0% 100%;
+    --vistoria-trust: 210 75% 50%;
+    --vistoria-bg: 220 20% 98%;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;

@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Camera, CheckCircle, FileSearch, Shield, Clock, Smartphone, FileText, ExternalLink } from 'lucide-react';
+import { 
+  Camera, CheckCircle, Shield, Clock, Smartphone, 
+  Zap, Lock, Award, ArrowRight, AlertCircle 
+} from 'lucide-react';
 
 export default function VistoriaPublicaLanding() {
   const { token } = useParams();
@@ -14,18 +15,10 @@ export default function VistoriaPublicaLanding() {
   const [vistoria, setVistoria] = useState<any>(null);
   const [corretora, setCorretora] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [termos, setTermos] = useState<any[]>([]);
-  const [termosAceitos, setTermosAceitos] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
     loadVistoria();
   }, [token]);
-
-  useEffect(() => {
-    if (vistoria?.corretora_id && vistoria?.tipo_sinistro) {
-      loadTermos();
-    }
-  }, [vistoria]);
 
   const loadVistoria = async () => {
     try {
@@ -61,95 +54,36 @@ export default function VistoriaPublicaLanding() {
     }
   };
 
-  const loadTermos = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('termos')
-        .select('*')
-        .eq('ativo', true)
-        .or(`corretora_id.eq.${vistoria.corretora_id},corretora_id.is.null`)
-        .order('ordem', { ascending: true });
-
-      if (error) throw error;
-
-      // Filtrar termos aplicáveis ao tipo de sinistro
-      const termosAplicaveis = data.filter(termo => 
-        !termo.tipo_sinistro || 
-        termo.tipo_sinistro.includes('Todos') || 
-        termo.tipo_sinistro.includes(vistoria.tipo_sinistro)
-      );
-
-      setTermos(termosAplicaveis);
-
-      // Inicializar estado de aceite dos termos
-      const initialAceites: { [key: string]: boolean } = {};
-      termosAplicaveis.forEach(termo => {
-        initialAceites[termo.id] = false;
-      });
-      setTermosAceitos(initialAceites);
-    } catch (error) {
-      console.error('Erro ao carregar termos:', error);
-    }
-  };
-
-  const handleIniciarVistoria = async () => {
-    // Validar se todos os termos obrigatórios foram aceitos
-    const termosObrigatorios = termos.filter(t => t.obrigatorio);
-    const todosAceitos = termosObrigatorios.every(t => termosAceitos[t.id]);
-
-    if (termos.length > 0 && !todosAceitos) {
-      toast.error('Por favor, aceite todos os termos obrigatórios para continuar');
-      return;
-    }
-
-    // Salvar aceites dos termos
-    try {
-      const aceitesParaSalvar = Object.entries(termosAceitos)
-        .filter(([_, aceito]) => aceito)
-        .map(([termoId, _]) => ({
-          termo_id: termoId,
-          vistoria_id: vistoria.id,
-          ip_address: null,
-          user_agent: navigator.userAgent
-        }));
-
-      if (aceitesParaSalvar.length > 0) {
-        const { error } = await supabase
-          .from('termos_aceitos')
-          .insert(aceitesParaSalvar);
-
-        if (error) throw error;
-      }
-
-      navigate(`/vistoria/${token}/captura`);
-    } catch (error) {
-      console.error('Erro ao salvar aceite dos termos:', error);
-      toast.error('Erro ao processar aceite dos termos');
-    }
+  const handleIniciarVistoria = () => {
+    navigate(`/vistoria/${token}/captura`);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-blue-50 flex items-center justify-center p-6">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Carregando vistoria...</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] to-white flex items-center justify-center p-6">
+        <Card className="border-none shadow-xl">
+          <CardContent className="p-12 text-center">
+            <div className="relative w-16 h-16 mx-auto mb-4">
+              <div className="absolute inset-0 animate-spin rounded-full border-4 border-[hsl(var(--vistoria-primary))]/20 border-t-[hsl(var(--vistoria-primary))]"></div>
+            </div>
+            <p className="text-lg font-semibold text-muted-foreground">Carregando informações...</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (!vistoria) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-red-50 via-white to-red-50 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-white flex items-center justify-center p-6">
         <Card className="max-w-md border-red-200 shadow-xl">
-          <CardContent className="p-8 text-center">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Shield className="h-8 w-8 text-red-600" />
+          <CardContent className="p-12 text-center">
+            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <AlertCircle className="h-10 w-10 text-red-600" />
             </div>
-            <h2 className="text-2xl font-bold text-red-900 mb-3">Link Inválido</h2>
-            <p className="text-gray-600">
-              Este link de vistoria é inválido ou expirou. Entre em contato com a seguradora.
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Link Inválido</h2>
+            <p className="text-gray-600 text-lg">
+              Este link de vistoria é inválido ou já expirou. Entre em contato com sua seguradora.
             </p>
           </CardContent>
         </Card>
@@ -158,221 +92,221 @@ export default function VistoriaPublicaLanding() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-blue-50">
-      <div className="max-w-5xl mx-auto px-2 sm:px-4 py-4 sm:py-8 md:py-12">
-        {/* Header com logo */}
-        <div className="text-center mb-12">
-          {corretora?.logo_url && (
-            <div className="mb-6">
+    <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] via-white to-blue-50">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 md:py-16">
+        
+        {/* Header com Logo */}
+        {corretora?.logo_url && (
+          <div className="text-center mb-8">
+            <div className="inline-block bg-white rounded-2xl p-6 shadow-md">
               <img 
                 src={corretora.logo_url} 
                 alt={corretora.nome}
-                className="h-16 md:h-20 mx-auto object-contain"
+                className="h-16 md:h-20 object-contain"
               />
             </div>
-          )}
-          <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg mb-6">
-            <Camera className="h-10 w-10 md:h-12 md:w-12 text-white" />
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
-            Vistoria Digital
-          </h1>
-          <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
-            Processo rápido e seguro com análise por inteligência artificial
-          </p>
-        </div>
+        )}
 
-        {/* Card principal */}
-        <Card className="shadow-2xl border-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 md:p-8 text-white">
-            <div className="flex items-center gap-3 mb-3">
-              <FileSearch className="h-6 w-6" />
-              <h2 className="text-2xl md:text-3xl font-bold">Como funciona</h2>
-            </div>
-            <p className="text-blue-50">Siga os passos abaixo para concluir sua vistoria</p>
+        {/* Hero Section */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-[hsl(var(--vistoria-primary))] to-blue-600 shadow-xl mb-8 animate-pulse">
+            <Camera className="h-12 w-12 text-white" strokeWidth={2.5} />
           </div>
           
-          <CardContent className="p-6 md:p-10">
-            {/* Passos */}
-            <div className="grid md:grid-cols-3 gap-6 mb-10">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                  <span className="text-2xl font-bold text-white">1</span>
-                </div>
-                <h3 className="font-bold text-lg mb-2 text-gray-900">Capture 4 Fotos</h3>
-                <p className="text-sm text-gray-600">
-                  Fotografe os 4 lados do veículo: frontal, traseira, lateral direita e esquerda
-                </p>
-              </div>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-4 leading-tight">
+            Vistoria Digital
+          </h1>
+          <p className="text-xl md:text-2xl text-gray-600 max-w-2xl mx-auto font-light">
+            Processo rápido, seguro e inteligente
+          </p>
+          
+          <div className="flex items-center justify-center gap-2 mt-6">
+            <Badge className="bg-green-100 text-green-700 hover:bg-green-100 px-4 py-2 text-sm font-semibold">
+              <Zap className="h-4 w-4 mr-1" />
+              Menos de 5 minutos
+            </Badge>
+            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 px-4 py-2 text-sm font-semibold">
+              <Lock className="h-4 w-4 mr-1" />
+              100% Seguro
+            </Badge>
+          </div>
+        </div>
+
+        {/* Main Card */}
+        <Card className="border-none shadow-2xl overflow-hidden mb-8">
+          
+          {/* Como Funciona */}
+          <div className="bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 p-8 md:p-12 text-white">
+            <h2 className="text-3xl md:text-4xl font-bold mb-3">Como funciona?</h2>
+            <p className="text-blue-50 text-lg">Siga 3 passos simples para concluir sua vistoria</p>
+          </div>
+
+          <CardContent className="p-8 md:p-12">
+            
+            {/* Steps */}
+            <div className="grid md:grid-cols-3 gap-8 mb-12">
               
-              <div className="text-center">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                  <span className="text-2xl font-bold text-white">2</span>
+              {/* Step 1 */}
+              <div className="relative">
+                <div className="absolute -top-4 -left-4 w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                  1
                 </div>
-                <h3 className="font-bold text-lg mb-2 text-gray-900">Análise por IA</h3>
-                <p className="text-sm text-gray-600">
-                  Nossa IA analisa automaticamente o estado do veículo e identifica danos
-                </p>
+                <div className="bg-gradient-to-br from-blue-50 to-white rounded-2xl p-6 pt-8 h-full border border-blue-100">
+                  <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center mb-4">
+                    <Camera className="h-8 w-8 text-blue-600" />
+                  </div>
+                  <h3 className="font-bold text-xl mb-2 text-gray-900">Tire as Fotos</h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    Capture fotos dos 4 lados do veículo e envie documentos necessários
+                  </p>
+                </div>
               </div>
-              
-              <div className="text-center">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                  <span className="text-2xl font-bold text-white">3</span>
+
+              {/* Step 2 */}
+              <div className="relative">
+                <div className="absolute -top-4 -left-4 w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                  2
                 </div>
-                <h3 className="font-bold text-lg mb-2 text-gray-900">Relatório Completo</h3>
-                <p className="text-sm text-gray-600">
-                  Receba um relatório detalhado com todos os danos identificados
-                </p>
+                <div className="bg-gradient-to-br from-purple-50 to-white rounded-2xl p-6 pt-8 h-full border border-purple-100">
+                  <div className="w-16 h-16 bg-purple-100 rounded-xl flex items-center justify-center mb-4">
+                    <Zap className="h-8 w-8 text-purple-600" />
+                  </div>
+                  <h3 className="font-bold text-xl mb-2 text-gray-900">Análise por IA</h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    Nossa inteligência artificial analisa automaticamente o estado do veículo
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="relative">
+                <div className="absolute -top-4 -left-4 w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                  3
+                </div>
+                <div className="bg-gradient-to-br from-green-50 to-white rounded-2xl p-6 pt-8 h-full border border-green-100">
+                  <div className="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center mb-4">
+                    <CheckCircle className="h-8 w-8 text-green-600" />
+                  </div>
+                  <h3 className="font-bold text-xl mb-2 text-gray-900">Pronto!</h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    Receba o resultado da análise e acompanhe seu sinistro
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Benefícios */}
-            <div className="bg-gradient-to-br from-blue-50 to-white rounded-2xl p-6 md:p-8 mb-8">
-              <h2 className="text-xl md:text-2xl font-bold mb-6 text-gray-900">Por que fazer a vistoria digital?</h2>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-1">Rápido e Fácil</h3>
-                    <p className="text-sm text-gray-600">Processo completo em menos de 5 minutos</p>
-                  </div>
+            {/* Benefits Grid */}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+              
+              <div className="flex items-start gap-4 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white border border-gray-100">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Clock className="h-6 w-6 text-blue-600" />
                 </div>
-                
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Clock className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-1">Disponível 24/7</h3>
-                    <p className="text-sm text-gray-600">Faça sua vistoria a qualquer momento</p>
-                  </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-1">Rápido</h4>
+                  <p className="text-sm text-gray-600">Processo em minutos</p>
                 </div>
-                
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Shield className="h-5 w-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-1">Seguro e Confiável</h3>
-                    <p className="text-sm text-gray-600">Tecnologia de ponta com criptografia</p>
-                  </div>
+              </div>
+
+              <div className="flex items-start gap-4 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white border border-gray-100">
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Shield className="h-6 w-6 text-green-600" />
                 </div>
-                
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Smartphone className="h-5 w-5 text-orange-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-1">Qualquer Dispositivo</h3>
-                    <p className="text-sm text-gray-600">Funciona no celular, tablet ou computador</p>
-                  </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-1">Seguro</h4>
+                  <p className="text-sm text-gray-600">Dados criptografados</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white border border-gray-100">
+                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Smartphone className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-1">Prático</h4>
+                  <p className="text-sm text-gray-600">Do seu celular</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white border border-gray-100">
+                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Award className="h-6 w-6 text-orange-600" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-1">Confiável</h4>
+                  <p className="text-sm text-gray-600">Tecnologia IA</p>
                 </div>
               </div>
             </div>
 
-            {/* Informações importantes */}
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-8">
-              <h3 className="font-bold text-amber-900 mb-3 flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Informações importantes
-              </h3>
-              <ul className="space-y-2 text-sm text-amber-800">
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span>Certifique-se de que o veículo esteja em um local bem iluminado</span>
+            {/* Important Info */}
+            <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-6 mb-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <AlertCircle className="h-6 w-6 text-white" />
+                </div>
+                <h3 className="font-bold text-xl text-amber-900">Antes de começar</h3>
+              </div>
+              <ul className="space-y-3 ml-13">
+                <li className="flex items-start gap-3 text-amber-800">
+                  <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0 text-amber-600" />
+                  <span>Tenha sua <strong>CNH</strong> e <strong>CRLV</strong> em mãos</span>
                 </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span>As fotos devem mostrar o veículo completo em cada ângulo</span>
+                <li className="flex items-start gap-3 text-amber-800">
+                  <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0 text-amber-600" />
+                  <span>Certifique-se de estar em um <strong>local bem iluminado</strong></span>
                 </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span>Evite sombras ou reflexos que possam dificultar a análise</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span>Tenha sua CNH em mãos para fazer upload ao final</span>
+                <li className="flex items-start gap-3 text-amber-800">
+                  <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0 text-amber-600" />
+                  <span>Fotografe o veículo <strong>completo em cada ângulo</strong></span>
                 </li>
               </ul>
             </div>
 
-            {/* Termos e Condições */}
-            {termos.length > 0 && (
-              <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  <h3 className="font-bold text-lg text-gray-900">Termos e Condições</h3>
-                </div>
-                
-                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-                  {termos.map((termo) => (
-                    <div key={termo.id} className="border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-base text-gray-900">{termo.titulo}</h4>
-                          {termo.descricao && (
-                            <p className="text-sm text-gray-600 mt-1">{termo.descricao}</p>
-                          )}
-                        </div>
-                        {termo.obrigatorio && (
-                          <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full whitespace-nowrap font-medium">
-                            Obrigatório
-                          </span>
-                        )}
-                      </div>
-
-                      <a 
-                        href={termo.arquivo_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        Visualizar documento completo
-                      </a>
-
-                      <div className="flex items-center space-x-2 pt-2">
-                        <Checkbox 
-                          id={`termo-${termo.id}`}
-                          checked={termosAceitos[termo.id] || false}
-                          onCheckedChange={(checked) => 
-                            setTermosAceitos({ ...termosAceitos, [termo.id]: checked as boolean })
-                          }
-                        />
-                        <Label 
-                          htmlFor={`termo-${termo.id}`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-gray-900"
-                        >
-                          Li e aceito este termo
-                          {termo.obrigatorio && <span className="text-red-500 ml-1">*</span>}
-                        </Label>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Botão de iniciar */}
+            {/* CTA Button */}
             <Button
               onClick={handleIniciarVistoria}
               size="lg"
-              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-6 text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={termos.length > 0 && !termos.filter(t => t.obrigatorio).every(t => termosAceitos[t.id])}
+              className="w-full bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] text-white font-bold py-8 text-xl shadow-xl hover:shadow-2xl transition-all duration-300 rounded-2xl"
             >
-              <Camera className="h-5 w-5 mr-2" />
+              <Camera className="h-6 w-6 mr-3" />
               Iniciar Vistoria Digital
+              <ArrowRight className="h-6 w-6 ml-3" />
             </Button>
           </CardContent>
         </Card>
 
-        {/* Footer */}
-        <div className="text-center mt-8 text-sm text-gray-500">
-          <p>Suas informações estão protegidas e serão usadas apenas para a vistoria</p>
+        {/* Trust Footer */}
+        <div className="text-center space-y-4">
+          <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
+            <div className="flex items-center gap-2">
+              <Lock className="h-4 w-4" />
+              <span>Dados Protegidos</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              <span>Processo Seguro</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4" />
+              <span>Certificado</span>
+            </div>
+          </div>
+          <p className="text-gray-400 text-sm">
+            Suas informações estão protegidas e serão usadas apenas para a vistoria
+          </p>
         </div>
       </div>
     </div>
+  );
+}
+
+// Badge component local (simples)
+function Badge({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${className}`}>
+      {children}
+    </span>
   );
 }
