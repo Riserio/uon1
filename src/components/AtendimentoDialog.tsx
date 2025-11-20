@@ -103,6 +103,13 @@ export function AtendimentoDialog({
   const [activeTab, setActiveTab] = useState('geral');
   const { userRole } = useAuth();
   
+  // Estados para conclusão manual
+  const [showConclusaoDialog, setShowConclusaoDialog] = useState(false);
+  const [fluxos, setFluxos] = useState<any[]>([]);
+  const [statusList, setStatusList] = useState<any[]>([]);
+  const [selectedFluxoConclusao, setSelectedFluxoConclusao] = useState<string>('');
+  const [selectedStatusConclusao, setSelectedStatusConclusao] = useState<string>('');
+  
   // Estados para custos e dados do sinistro
   const [vistoriaId, setVistoriaId] = useState<string | null>(null);
   const [vistoriaData, setVistoriaData] = useState({
@@ -204,6 +211,49 @@ export function AtendimentoDialog({
     setCorretoraSearch('');
     setFilteredCorretoras([]);
   }, [atendimento, open]);
+  
+  // Carregar fluxos
+  useEffect(() => {
+    const loadFluxos = async () => {
+      const { data } = await supabase
+        .from('fluxos')
+        .select('*')
+        .eq('ativo', true)
+        .order('ordem');
+      
+      if (data) {
+        setFluxos(data);
+      }
+    };
+    
+    loadFluxos();
+  }, []);
+  
+  // Carregar status quando fluxo é selecionado
+  useEffect(() => {
+    const loadStatus = async () => {
+      if (!selectedFluxoConclusao) {
+        setStatusList([]);
+        return;
+      }
+      
+      const { data } = await supabase
+        .from('status_config')
+        .select('*')
+        .eq('fluxo_id', selectedFluxoConclusao)
+        .eq('ativo', true)
+        .order('ordem');
+      
+      if (data) {
+        setStatusList(data);
+        if (data.length > 0) {
+          setSelectedStatusConclusao(data[0].nome);
+        }
+      }
+    };
+    
+    loadStatus();
+  }, [selectedFluxoConclusao]);
   
   const loadVistoriaCustos = async (atendimentoId: string) => {
     try {
@@ -410,6 +460,84 @@ export function AtendimentoDialog({
     } catch (error) {
       console.error('Erro ao gerar link:', error);
       toast.error('Erro ao gerar link de vistoria');
+    }
+  };
+  
+  const handleConcluirManual = async () => {
+    if (!atendimento?.id) {
+      toast.error('Atendimento não encontrado');
+      return;
+    }
+    
+    if (!selectedFluxoConclusao || !selectedStatusConclusao) {
+      toast.error('Selecione fluxo e status de destino');
+      return;
+    }
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Usuário não autenticado');
+        return;
+      }
+      
+      // Buscar nomes para histórico
+      const { data: fluxoData } = await supabase
+        .from('fluxos')
+        .select('nome')
+        .eq('id', selectedFluxoConclusao)
+        .single();
+      
+      const { data: fluxoAnteriorData } = await supabase
+        .from('fluxos')
+        .select('nome')
+        .eq('id', atendimento.fluxoId)
+        .single();
+      
+      // Atualizar atendimento
+      const { error: updateError } = await supabase
+        .from('atendimentos')
+        .update({
+          fluxo_id: selectedFluxoConclusao,
+          status: selectedStatusConclusao,
+          status_changed_at: new Date().toISOString(),
+        })
+        .eq('id', atendimento.id);
+      
+      if (updateError) throw updateError;
+      
+      // Registrar no histórico
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('nome')
+        .eq('id', user.id)
+        .single();
+      
+      await supabase.from('atendimentos_historico').insert({
+        atendimento_id: atendimento.id,
+        user_id: user.id,
+        user_nome: profileData?.nome || user.email || 'Usuário',
+        acao: `Conclusão Manual: ${fluxoAnteriorData?.nome || 'Anterior'} → ${fluxoData?.nome || 'Novo'}`,
+        campos_alterados: ['fluxo_id', 'status'],
+        valores_anteriores: {
+          fluxo_id: atendimento.fluxoId,
+          status: atendimento.status
+        },
+        valores_novos: {
+          fluxo_id: selectedFluxoConclusao,
+          status: selectedStatusConclusao
+        }
+      });
+      
+      toast.success('Atendimento concluído com sucesso');
+      setShowConclusaoDialog(false);
+      onOpenChange(false);
+      
+      // Recarregar dados
+      window.location.reload();
+    } catch (error) {
+      console.error('Erro ao concluir:', error);
+      toast.error('Erro ao concluir atendimento');
     }
   };
 
@@ -825,11 +953,22 @@ export function AtendimentoDialog({
             />
           </div>
 
-                <div className="flex justify-end gap-2 pt-4 border-t">
-                  <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit">Salvar</Button>
+                <div className="flex justify-between items-center pt-4 border-t">
+                  {atendimento && (
+                    <Button 
+                      type="button" 
+                      variant="secondary"
+                      onClick={() => setShowConclusaoDialog(true)}
+                    >
+                      Concluir Manualmente
+                    </Button>
+                  )}
+                  <div className="flex gap-2 ml-auto">
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit">Salvar</Button>
+                  </div>
                 </div>
               </form>
             </TabsContent>
@@ -1196,9 +1335,69 @@ export function AtendimentoDialog({
                 )}
               </TabsContent>
             </div>
-            </Tabs>
-          </DialogContent>
-        </Dialog>
-      </>
-    );
-  }
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Dialog de Conclusão Manual */}
+      <Dialog open={showConclusaoDialog} onOpenChange={setShowConclusaoDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Concluir Atendimento</DialogTitle>
+            <DialogDescription>
+              Selecione para qual fluxo e status deseja enviar este atendimento
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Fluxo de Destino</Label>
+              <Select value={selectedFluxoConclusao} onValueChange={setSelectedFluxoConclusao}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o fluxo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fluxos.map((fluxo) => (
+                    <SelectItem key={fluxo.id} value={fluxo.id}>
+                      {fluxo.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {selectedFluxoConclusao && (
+              <div className="space-y-2">
+                <Label>Status de Destino</Label>
+                <Select value={selectedStatusConclusao} onValueChange={setSelectedStatusConclusao}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusList.map((status) => (
+                      <SelectItem key={status.id} value={status.nome}>
+                        {status.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowConclusaoDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleConcluirManual}
+              disabled={!selectedFluxoConclusao || !selectedStatusConclusao}
+            >
+              Confirmar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
