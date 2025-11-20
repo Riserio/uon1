@@ -1326,12 +1326,14 @@ export type Database = {
           arquivo_nome: string
           arquivo_url: string
           ativo: boolean | null
+          corretora_id: string | null
           created_at: string | null
           created_by: string
           descricao: string | null
           id: string
           obrigatorio: boolean | null
           ordem: number | null
+          tipo_sinistro: string | null
           titulo: string
           updated_at: string | null
         }
@@ -1339,12 +1341,14 @@ export type Database = {
           arquivo_nome: string
           arquivo_url: string
           ativo?: boolean | null
+          corretora_id?: string | null
           created_at?: string | null
           created_by: string
           descricao?: string | null
           id?: string
           obrigatorio?: boolean | null
           ordem?: number | null
+          tipo_sinistro?: string | null
           titulo: string
           updated_at?: string | null
         }
@@ -1352,16 +1356,26 @@ export type Database = {
           arquivo_nome?: string
           arquivo_url?: string
           ativo?: boolean | null
+          corretora_id?: string | null
           created_at?: string | null
           created_by?: string
           descricao?: string | null
           id?: string
           obrigatorio?: boolean | null
           ordem?: number | null
+          tipo_sinistro?: string | null
           titulo?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "termos_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       termos_aceitos: {
         Row: {

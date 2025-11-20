@@ -6,13 +6,26 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Plus, Edit, Trash2, FileText, Upload, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 
+const TIPOS_SINISTRO = [
+  'Colisão',
+  'Roubo/Furto',
+  'Incêndio',
+  'Enchente/Alagamento',
+  'Danos a Terceiros',
+  'Quebra de Vidros',
+  'Outros',
+  'Todos' // Para termos gerais que se aplicam a todos os tipos
+];
+
 export default function Termos() {
   const [termos, setTermos] = useState<any[]>([]);
+  const [corretoras, setCorretoras] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTermo, setEditingTermo] = useState<any>(null);
@@ -20,6 +33,8 @@ export default function Termos() {
   const [formData, setFormData] = useState({
     titulo: '',
     descricao: '',
+    tipo_sinistro: '',
+    corretora_id: '',
     ativo: true,
     obrigatorio: true,
     ordem: 0,
@@ -28,6 +43,7 @@ export default function Termos() {
 
   useEffect(() => {
     loadTermos();
+    loadCorretoras();
   }, []);
 
   const loadTermos = async () => {
@@ -35,7 +51,7 @@ export default function Termos() {
     try {
       const { data, error } = await supabase
         .from('termos')
-        .select('*')
+        .select('*, corretoras(nome)')
         .order('ordem');
 
       if (error) throw error;
@@ -45,6 +61,20 @@ export default function Termos() {
       toast.error('Erro ao carregar termos');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCorretoras = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('corretoras')
+        .select('id, nome')
+        .order('nome');
+
+      if (error) throw error;
+      setCorretoras(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar corretoras:', error);
     }
   };
 
@@ -137,6 +167,8 @@ export default function Termos() {
     setFormData({
       titulo: termo.titulo,
       descricao: termo.descricao || '',
+      tipo_sinistro: termo.tipo_sinistro || '',
+      corretora_id: termo.corretora_id || '',
       ativo: termo.ativo,
       obrigatorio: termo.obrigatorio,
       ordem: termo.ordem,
@@ -166,6 +198,8 @@ export default function Termos() {
     setFormData({
       titulo: '',
       descricao: '',
+      tipo_sinistro: '',
+      corretora_id: '',
       ativo: true,
       obrigatorio: true,
       ordem: 0,
@@ -226,6 +260,18 @@ export default function Termos() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                {termo.corretoras?.nome && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Corretora</p>
+                    <p className="text-sm font-semibold">{termo.corretoras.nome}</p>
+                  </div>
+                )}
+                {termo.tipo_sinistro && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Tipo de Sinistro</p>
+                    <p className="text-sm font-semibold">{termo.tipo_sinistro}</p>
+                  </div>
+                )}
                 {termo.descricao && (
                   <div>
                     <p className="text-sm text-muted-foreground">Descrição</p>
@@ -280,6 +326,44 @@ export default function Termos() {
                 onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
                 placeholder="Ex: Termo de Responsabilidade"
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Corretora</Label>
+                <Select
+                  value={formData.corretora_id}
+                  onValueChange={(value) => setFormData({ ...formData, corretora_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todas as corretoras" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todas as corretoras</SelectItem>
+                    {corretoras.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Tipo de Sinistro</Label>
+                <Select
+                  value={formData.tipo_sinistro}
+                  onValueChange={(value) => setFormData({ ...formData, tipo_sinistro: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os tipos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos os tipos</SelectItem>
+                    {TIPOS_SINISTRO.map((tipo) => (
+                      <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div>
