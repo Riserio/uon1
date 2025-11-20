@@ -11,16 +11,45 @@ serve(async (req) => {
   }
 
   try {
-    const { image_url } = await req.json();
+    const { image, tipo } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY não configurada');
     }
 
-    console.log('Iniciando OCR da CNH:', image_url);
+    console.log('Iniciando OCR:', tipo);
 
-    // Chamar Lovable AI para análise da CNH
+    let prompt = '';
+    if (tipo === 'cnh') {
+      prompt = `Analise esta imagem de CNH brasileira e extraia os seguintes dados em formato JSON:
+{
+  "nome": "nome completo",
+  "cpf": "CPF sem pontuação (apenas números)",
+  "rg": "RG",
+  "data_nascimento": "data no formato YYYY-MM-DD",
+  "nome_pai": "nome do pai",
+  "nome_mae": "nome da mãe",
+  "numero_registro": "número de registro da CNH",
+  "data_primeira_habilitacao": "data no formato YYYY-MM-DD",
+  "data_validade": "data no formato YYYY-MM-DD",
+  "categoria": "categoria da CNH"
+}
+
+Se algum campo não estiver visível, use null. Responda APENAS com o JSON, sem texto adicional.`;
+    } else {
+      prompt = `Analise esta imagem de veículo e extraia os seguintes dados em formato JSON:
+{
+  "placa": "placa do veículo no formato brasileiro (XXX-0000 ou XXX0X00)",
+  "marca": "marca do veículo (ex: Ford, Chevrolet, Volkswagen)",
+  "modelo": "modelo do veículo (ex: Gol, Onix, Corolla)",
+  "cor": "cor predominante do veículo"
+}
+
+Tente identificar a placa mesmo que esteja parcialmente visível. Se algum campo não puder ser identificado, use null. Responda APENAS com o JSON, sem texto adicional.`;
+    }
+
+    // Chamar Lovable AI para análise da imagem
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -35,26 +64,12 @@ serve(async (req) => {
             content: [
               {
                 type: 'text',
-                text: `Analise esta imagem de CNH brasileira e extraia os seguintes dados em formato JSON:
-{
-  "nome": "nome completo",
-  "cpf": "CPF sem pontuação",
-  "rg": "RG",
-  "data_nascimento": "data no formato YYYY-MM-DD",
-  "nome_pai": "nome do pai",
-  "nome_mae": "nome da mãe",
-  "numero_registro": "número de registro da CNH",
-  "data_primeira_habilitacao": "data no formato YYYY-MM-DD",
-  "data_validade": "data no formato YYYY-MM-DD",
-  "categoria": "categoria da CNH"
-}
-
-Se algum campo não estiver visível, use null. Responda APENAS com o JSON, sem texto adicional.`
+                text: prompt
               },
               {
                 type: 'image_url',
                 image_url: {
-                  url: image_url
+                  url: image
                 }
               }
             ]
@@ -64,6 +79,18 @@ Se algum campo não estiver visível, use null. Responda APENAS com o JSON, sem 
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Limite de requisições excedido. Tente novamente em alguns instantes.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 }
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: 'Créditos insuficientes. Adicione créditos ao seu workspace Lovable.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 402 }
+        );
+      }
       const errorText = await response.text();
       console.error('Erro na API Lovable:', response.status, errorText);
       throw new Error(`Erro na API: ${response.status}`);
@@ -75,27 +102,24 @@ Se algum campo não estiver visível, use null. Responda APENAS com o JSON, sem 
     console.log('Resposta bruta da IA:', content);
 
     // Extrair JSON da resposta
-    let cnhData;
+    let extractedData;
     try {
-      // Tentar extrair JSON da resposta
+      // Tentar extrair JSON da resposta (pode vir com texto extra)
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        cnhData = JSON.parse(jsonMatch[0]);
+        extractedData = JSON.parse(jsonMatch[0]);
       } else {
-        cnhData = JSON.parse(content);
+        extractedData = JSON.parse(content);
       }
     } catch (e) {
       console.error('Erro ao parsear JSON:', e);
-      throw new Error('Não foi possível extrair dados da CNH');
+      throw new Error('Não foi possível extrair dados da imagem');
     }
 
-    console.log('Dados extraídos da CNH:', cnhData);
+    console.log('Dados extraídos:', extractedData);
 
     return new Response(
-      JSON.stringify({ 
-        success: true,
-        data: cnhData
-      }),
+      JSON.stringify(extractedData),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200
@@ -103,10 +127,9 @@ Se algum campo não estiver visível, use null. Responda APENAS com o JSON, sem 
     );
 
   } catch (error) {
-    console.error('Erro no OCR da CNH:', error);
+    console.error('Erro no OCR:', error);
     return new Response(
       JSON.stringify({ 
-        success: false,
         error: error instanceof Error ? error.message : 'Erro desconhecido'
       }),
       { 

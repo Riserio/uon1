@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Camera, CheckCircle2, Upload, ArrowRight, ArrowLeft } from 'lucide-react';
-import { VistoriaOverlay } from '@/components/VistoriaOverlay';
 import { Progress } from '@/components/ui/progress';
 
 const POSICOES = [
@@ -28,6 +27,9 @@ export default function VistoriaPublicaCaptura() {
   const [fotoPreviews, setFotoPreviews] = useState<{ [key: string]: string }>({});
   const [uploading, setUploading] = useState(false);
   const [geolocation, setGeolocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [cnhData, setCnhData] = useState<any>(null);
+  const [vehicleData, setVehicleData] = useState<any>(null);
+  const [processingOcr, setProcessingOcr] = useState(false);
 
   useEffect(() => {
     loadVistoria();
@@ -77,7 +79,33 @@ export default function VistoriaPublicaCaptura() {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const processOcr = async (imageBase64: string, tipo: 'cnh' | 'veiculo') => {
+    setProcessingOcr(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ocr-cnh', {
+        body: { image: imageBase64, tipo }
+      });
+
+      if (error) throw error;
+
+      if (tipo === 'cnh') {
+        setCnhData(data);
+        toast.success('Dados da CNH extraídos com sucesso!');
+      } else {
+        setVehicleData(data);
+        if (data.placa) {
+          toast.success(`Placa detectada: ${data.placa}`);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao processar OCR:', error);
+      toast.error('Erro ao extrair dados da imagem');
+    } finally {
+      setProcessingOcr(false);
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -85,8 +113,18 @@ export default function VistoriaPublicaCaptura() {
     setFotos({ ...fotos, [posicaoAtual.id]: file });
 
     const reader = new FileReader();
-    reader.onload = (e) => {
-      setFotoPreviews({ ...fotoPreviews, [posicaoAtual.id]: e.target?.result as string });
+    reader.onload = async (e) => {
+      const base64 = e.target?.result as string;
+      setFotoPreviews({ ...fotoPreviews, [posicaoAtual.id]: base64 });
+      
+      // Processar OCR para CNH
+      if (posicaoAtual.id === 'cnh') {
+        await processOcr(base64, 'cnh');
+      }
+      // Processar OCR para foto frontal do veículo (onde geralmente aparece a placa)
+      else if (posicaoAtual.id === 'frontal') {
+        await processOcr(base64, 'veiculo');
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -159,15 +197,31 @@ export default function VistoriaPublicaCaptura() {
         }
       }
 
+      const updateData: any = {
+        status: 'em_analise',
+        cnh_url: cnhUrl,
+        latitude: geolocation?.latitude,
+        longitude: geolocation?.longitude,
+        completed_at: new Date().toISOString()
+      };
+
+      // Adicionar dados da CNH se foram extraídos
+      if (cnhData) {
+        updateData.cnh_dados = cnhData;
+        if (cnhData.nome) updateData.cliente_nome = cnhData.nome;
+        if (cnhData.cpf) updateData.cliente_cpf = cnhData.cpf;
+      }
+
+      // Adicionar dados do veículo se foram extraídos
+      if (vehicleData) {
+        if (vehicleData.placa) updateData.veiculo_placa = vehicleData.placa;
+        if (vehicleData.marca) updateData.veiculo_marca = vehicleData.marca;
+        if (vehicleData.modelo) updateData.veiculo_modelo = vehicleData.modelo;
+      }
+
       await supabase
         .from('vistorias')
-        .update({
-          status: 'em_analise',
-          cnh_url: cnhUrl,
-          latitude: geolocation?.latitude,
-          longitude: geolocation?.longitude,
-          completed_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', vistoria.id);
 
       toast.success('Vistoria enviada com sucesso!');
@@ -238,13 +292,27 @@ export default function VistoriaPublicaCaptura() {
 
             {!fotoPreviews[posicaoAtual.id] ? (
               <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
-                {posicaoAtual.id !== 'cnh' && <VistoriaOverlay posicao={posicaoAtual.id as any} />}
-                <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} className="hidden" />
+                <input 
+                  ref={fileInputRef} 
+                  type="file" 
+                  accept="image/*" 
+                  capture={posicaoAtual.id === 'cnh' ? undefined : 'environment'}
+                  onChange={handleFileSelect} 
+                  className="hidden" 
+                />
                 <button onClick={() => fileInputRef.current?.click()} className="absolute inset-0 flex items-center justify-center hover:bg-accent/50 transition-colors">
                   <div className="bg-background/80 backdrop-blur-sm p-4 md:p-6 rounded-full">
                     <Camera className="h-8 w-8 md:h-12 md:w-12 text-foreground" />
                   </div>
                 </button>
+                {processingOcr && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <div className="bg-background/90 backdrop-blur-sm p-4 rounded-lg flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                      <span className="text-sm">Extraindo dados...</span>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-2 md:space-y-3">
