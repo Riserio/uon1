@@ -85,8 +85,8 @@ const App = () => (
             <Route path="/vistoria/:token" element={<VistoriaPublica />} />
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/atendimentos" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-            <Route path="/vistorias" element={<ProtectedRoute><DashboardVistorias /></ProtectedRoute>} />
-            <Route path="/vistorias/historico" element={<ProtectedRoute><Vistorias /></ProtectedRoute>} />
+            <Route path="/vistorias" element={<ProtectedRoute><Vistorias /></ProtectedRoute>} />
+            <Route path="/vistorias/dashboard" element={<ProtectedRoute><DashboardVistorias /></ProtectedRoute>} />
             <Route path="/vistorias/nova/digital" element={<ProtectedRoute><VistoriaDigital /></ProtectedRoute>} />
             <Route path="/vistorias/nova/manual" element={<ProtectedRoute><VistoriaManual /></ProtectedRoute>} />
             <Route path="/vistorias/:id" element={<ProtectedRoute><VistoriaDetalhe /></ProtectedRoute>} />

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Camera, FileText, Eye, Download, Plus } from 'lucide-react';
+import { Camera, FileText, Eye, Download, BarChart3 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -72,6 +72,11 @@ export default function Vistorias() {
     return tipo === 'sinistro' ? 'Sinistro' : 'Reativação';
   };
 
+  const totalVistorias = vistorias.length;
+  const aguardandoFotos = vistorias.filter(v => v.status === 'aguardando_fotos').length;
+  const emAnalise = vistorias.filter(v => v.status === 'em_analise').length;
+  const concluidas = vistorias.filter(v => v.status === 'concluida').length;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -79,19 +84,30 @@ export default function Vistorias() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              Histórico de Vistorias
+              Vistorias Veiculares
             </h1>
             <p className="text-muted-foreground mt-1">
-              Todas as vistorias realizadas
+              Gerencie vistorias digitais e manuais com análise por IA
             </p>
           </div>
           <div className="flex gap-3">
             <Button
-              onClick={() => navigate('/vistorias')}
+              onClick={() => navigate('/vistorias/dashboard')}
               variant="outline"
               size="lg"
+              className="gap-2"
             >
+              <BarChart3 className="h-5 w-5" />
               Dashboard
+            </Button>
+            <Button
+              onClick={() => navigate('/vistorias/nova/manual')}
+              variant="outline"
+              size="lg"
+              className="gap-2"
+            >
+              <FileText className="h-5 w-5" />
+              Vistoria Manual
             </Button>
             <Button
               onClick={() => navigate('/vistorias/nova/digital')}
@@ -99,11 +115,69 @@ export default function Vistorias() {
               className="gap-2 bg-gradient-to-r from-primary to-primary/80"
             >
               <Camera className="h-5 w-5" />
-              Nova Vistoria
+              Vistoria Digital
             </Button>
           </div>
         </div>
 
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total de Vistorias
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600">{totalVistorias}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Todas as vistorias
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-yellow-500/10 to-yellow-500/5 border-yellow-500/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Aguardando Fotos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-yellow-600">{aguardandoFotos}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Pendentes de captura
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-purple-500/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Em Análise
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-purple-600">{emAnalise}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Sendo processadas
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Concluídas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">{concluidas}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Análise finalizada
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Lista de Vistorias */}
         <Card>
@@ -118,43 +192,50 @@ export default function Vistorias() {
             ) : vistorias.length === 0 ? (
               <div className="text-center py-12">
                 <Camera className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
-                <p className="text-muted-foreground mb-4">
-                  Nenhuma vistoria cadastrada ainda
+                <h3 className="text-lg font-semibold mb-2">Nenhuma vistoria encontrada</h3>
+                <p className="text-muted-foreground mb-6">
+                  Comece criando uma nova vistoria digital ou manual
                 </p>
-                <Button
-                  onClick={() => navigate('/vistorias/nova/digital')}
-                  className="gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Criar Primeira Vistoria
-                </Button>
+                <div className="flex gap-3 justify-center">
+                  <Button
+                    onClick={() => navigate('/vistorias/nova/manual')}
+                    variant="outline"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Vistoria Manual
+                  </Button>
+                  <Button onClick={() => navigate('/vistorias/nova/digital')}>
+                    <Camera className="h-4 w-4 mr-2" />
+                    Vistoria Digital
+                  </Button>
+                </div>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {vistorias.map((vistoria) => (
                   <Card
                     key={vistoria.id}
-                    className="hover:shadow-md transition-all cursor-pointer"
+                    className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50"
                     onClick={() => navigate(`/vistorias/${vistoria.id}`)}
                   >
-                    <CardContent className="p-4">
+                    <CardContent className="p-6">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="flex flex-col">
-                            <span className="text-sm text-muted-foreground">
-                              Vistoria #{vistoria.numero}
-                            </span>
-                            <span className="font-semibold">
-                              {vistoria.cliente_nome || 'Cliente não informado'}
-                            </span>
-                            <span className="text-sm text-muted-foreground">
-                              {vistoria.veiculo_placa} - {vistoria.veiculo_modelo}
-                            </span>
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge variant="outline" className="font-mono font-semibold text-base">
+                              #{vistoria.numero}
+                            </Badge>
                           </div>
+                          <p className="font-semibold text-foreground text-lg">
+                            {vistoria.cliente_nome || 'Cliente não informado'}
+                          </p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {vistoria.veiculo_placa || 'Placa não informada'} • {vistoria.veiculo_modelo || 'Modelo não informado'}
+                          </p>
                         </div>
                         
                         <div className="flex items-center gap-3">
-                          <Badge variant={vistoria.tipo_abertura === 'digital' ? 'default' : 'secondary'}>
+                          <Badge variant="outline" className="gap-1">
                             {vistoria.tipo_abertura === 'digital' ? (
                               <><Camera className="h-3 w-3 mr-1" /> Digital</>
                             ) : (

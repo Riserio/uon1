@@ -8,7 +8,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { ArrowLeft, Car, Link as LinkIcon, Mail, MessageCircle, CheckCircle2, Copy, Calendar, Clock } from 'lucide-react';
+import { ArrowLeft, Car, Mail, MessageCircle, CheckCircle2, Copy, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Corretora {
@@ -29,10 +29,10 @@ export default function VistoriaDigital() {
   const [corretoras, setCorretoras] = useState<Corretora[]>([]);
   const [loading, setLoading] = useState(false);
   
-  // Novos campos para agendamento
-  const [dataVistoria, setDataVistoria] = useState('');
-  const [horaInicio, setHoraInicio] = useState('');
-  const [duracao, setDuracao] = useState('60'); // em minutos
+  // Campos de configuração de horário
+  const [horarioInicio, setHorarioInicio] = useState('08:00');
+  const [horarioFim, setHorarioFim] = useState('18:00');
+  const [diasValidade, setDiasValidade] = useState('7');
 
   useEffect(() => {
     loadCorretoras();
@@ -68,7 +68,11 @@ export default function VistoriaDigital() {
       const token = Math.random().toString(36).substring(2, 15) + 
                    Math.random().toString(36).substring(2, 15);
 
-      // Criar vistoria com data/hora de agendamento
+      // Calcular data de expiração
+      const diasNum = parseInt(diasValidade);
+      const linkExpiresAt = new Date(Date.now() + diasNum * 24 * 60 * 60 * 1000).toISOString();
+
+      // Criar vistoria
       const { data: vistoria, error: vistoriaError } = await supabase
         .from('vistorias')
         .insert({
@@ -78,12 +82,9 @@ export default function VistoriaDigital() {
           cliente_cpf: clienteCpf || null,
           status: 'aguardando_fotos',
           link_token: token,
-          link_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 dias
+          link_expires_at: linkExpiresAt,
           created_by: user.id,
-          data_incidente: dataVistoria ? new Date(dataVistoria).toISOString() : null,
-          observacoes: horaInicio && duracao 
-            ? `Vistoria agendada para ${horaInicio} - Duração estimada: ${duracao} minutos` 
-            : null
+          observacoes: `Horário permitido: ${horarioInicio} às ${horarioFim}\nValidade do link: ${diasValidade} dias`
         })
         .select()
         .single();
@@ -99,9 +100,7 @@ export default function VistoriaDigital() {
           prioridade: 'Alta',
           corretora_id: corretoraId,
           user_id: user.id,
-          observacoes: `Vistoria digital criada. Link gerado para o cliente.${
-            dataVistoria ? `\nAgendada para: ${new Date(dataVistoria).toLocaleDateString('pt-BR')}` : ''
-          }${horaInicio ? ` às ${horaInicio}` : ''}${duracao ? ` (${duracao} min)` : ''}`
+          observacoes: `Vistoria digital criada.\nHorário permitido: ${horarioInicio} às ${horarioFim}\nLink válido por: ${diasValidade} dias`
         });
 
       if (atendimentoError) console.error('Erro ao criar atendimento:', atendimentoError);
@@ -128,7 +127,7 @@ export default function VistoriaDigital() {
   };
 
   const sendWhatsApp = () => {
-    const message = `🚗 *Vistoria Digital de Veículo*\n\nOlá! Para realizar sua vistoria digital, acesse o link abaixo:\n\n${getVistoriaLink()}\n\n📱 Tire fotos do veículo seguindo as instruções na tela.\n⏰ Link válido por 7 dias.\n\n_Sistema de Vistorias - Automático_`;
+    const message = `🚗 *Vistoria Digital de Veículo*\n\nOlá! Para realizar sua vistoria digital, acesse o link abaixo:\n\n${getVistoriaLink()}\n\n📱 Tire fotos do veículo seguindo as instruções.\n⏰ Horário permitido: ${horarioInicio} às ${horarioFim}\n📅 Link válido por ${diasValidade} dias.\n\n_Sistema de Vistorias - Automático_`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
   };
@@ -137,11 +136,11 @@ export default function VistoriaDigital() {
     setShowShareDialog(true);
   };
 
-  // Gerar opções de horário (08:00 - 18:00)
+  // Gerar opções de horário (00:00 - 23:30)
   const horariosDisponiveis = [];
-  for (let h = 8; h <= 18; h++) {
+  for (let h = 0; h <= 23; h++) {
     horariosDisponiveis.push(`${h.toString().padStart(2, '0')}:00`);
-    if (h < 18) horariosDisponiveis.push(`${h.toString().padStart(2, '0')}:30`);
+    horariosDisponiveis.push(`${h.toString().padStart(2, '0')}:30`);
   }
 
   return (
@@ -254,30 +253,19 @@ export default function VistoriaDigital() {
                 </p>
               </div>
 
-              {/* Agendamento */}
+              {/* Configurações de Horário e Validade */}
               <div className="border-t pt-6 space-y-4">
                 <div className="flex items-center gap-2 mb-4">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  <Label className="text-base font-semibold">Agendamento (Opcional)</Label>
+                  <Clock className="h-5 w-5 text-primary" />
+                  <Label className="text-base font-semibold">Configurações de Acesso</Label>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label>Data da Vistoria</Label>
-                    <Input
-                      type="date"
-                      value={dataVistoria}
-                      onChange={(e) => setDataVistoria(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      className="h-12"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Horário de Início</Label>
-                    <Select value={horaInicio} onValueChange={setHoraInicio}>
+                    <Label>Horário Início Permitido</Label>
+                    <Select value={horarioInicio} onValueChange={setHorarioInicio}>
                       <SelectTrigger className="h-12">
-                        <SelectValue placeholder="Selecione" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {horariosDisponiveis.map((hora) => (
@@ -285,21 +273,45 @@ export default function VistoriaDigital() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Hora em que a vistoria pode começar
+                    </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Duração Estimada</Label>
-                    <Select value={duracao} onValueChange={setDuracao}>
+                    <Label>Horário Fim Permitido</Label>
+                    <Select value={horarioFim} onValueChange={setHorarioFim}>
                       <SelectTrigger className="h-12">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="30">30 minutos</SelectItem>
-                        <SelectItem value="60">1 hora</SelectItem>
-                        <SelectItem value="90">1h 30min</SelectItem>
-                        <SelectItem value="120">2 horas</SelectItem>
+                        {horariosDisponiveis.map((hora) => (
+                          <SelectItem key={hora} value={hora}>{hora}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Hora limite para realizar vistoria
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Validade do Link</Label>
+                    <Select value={diasValidade} onValueChange={setDiasValidade}>
+                      <SelectTrigger className="h-12">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 dia</SelectItem>
+                        <SelectItem value="3">3 dias</SelectItem>
+                        <SelectItem value="7">7 dias</SelectItem>
+                        <SelectItem value="15">15 dias</SelectItem>
+                        <SelectItem value="30">30 dias</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Por quanto tempo o link ficará ativo
+                    </p>
                   </div>
                 </div>
               </div>
@@ -345,9 +357,11 @@ export default function VistoriaDigital() {
                         <Copy className="h-4 w-4" />
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      ⏰ Link válido por 7 dias • 📱 Funciona em qualquer dispositivo
-                    </p>
+                    <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                      <p>⏰ Horário permitido: {horarioInicio} às {horarioFim}</p>
+                      <p>📅 Link válido por {diasValidade} dias</p>
+                      <p>📱 Funciona em qualquer dispositivo</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -376,7 +390,7 @@ export default function VistoriaDigital() {
 
               <div className="flex gap-3 pt-4">
                 <Button
-                  onClick={() => navigate('/vistorias/historico')}
+                  onClick={() => navigate('/vistorias')}
                   variant="outline"
                   className="flex-1 h-12"
                 >
@@ -387,8 +401,6 @@ export default function VistoriaDigital() {
                     setCurrentStep(1);
                     setCorretoraId('');
                     setClienteCpf('');
-                    setDataVistoria('');
-                    setHoraInicio('');
                   }}
                   className="flex-1 h-12 bg-gradient-to-r from-primary to-primary/80"
                 >
