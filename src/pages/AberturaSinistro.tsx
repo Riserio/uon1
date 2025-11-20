@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import InputMask from 'react-input-mask';
-import { FileText, ArrowLeft, AlertTriangle, TrendingUp } from 'lucide-react';
+import { AlertTriangle, TrendingUp } from 'lucide-react';
 
 export default function AberturaSinistro() {
   const navigate = useNavigate();
@@ -129,12 +129,30 @@ export default function AberturaSinistro() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <AlertTriangle className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">Abertura de Sinistro</h1>
+            <p className="text-sm text-muted-foreground">Registre um novo sinistro</p>
+          </div>
+        </div>
+        <Button
+          onClick={() => navigate('/dashboard-sinistros')}
+          variant="outline"
+          className="gap-2"
+        >
+          <TrendingUp className="h-4 w-4" />
+          Dashboard
+        </Button>
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-6 w-6" />
-            Abertura de Sinistro
-          </CardTitle>
+          <CardTitle>Dados do Sinistro</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
