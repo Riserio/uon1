@@ -10,6 +10,7 @@ import { ClaimFilters } from '@/components/ClaimFilters';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft, FileText, TrendingUp, Check } from 'lucide-react';
+import { CurrencyInput } from '@/components/ui/currency-input';
 
 interface StatusConfig {
   nome: string;
@@ -164,11 +165,13 @@ export default function AcompanhamentoSinistrosInterno() {
 
     try {
       // Buscar vistoria relacionada ao atendimento
-      const { data: vistoriaExistente } = await supabase
+      const { data: vistoriaExistente, error: fetchError } = await supabase
         .from('vistorias')
         .select('id')
         .eq('atendimento_id', editingClaim.id)
-        .single();
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
 
       if (vistoriaExistente) {
         // Atualizar vistoria existente
@@ -176,6 +179,26 @@ export default function AcompanhamentoSinistrosInterno() {
           .from('vistorias')
           .update(editForm)
           .eq('id', vistoriaExistente.id);
+
+        if (error) throw error;
+      } else {
+        // Criar nova vistoria
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          toast.error('Usuário não autenticado');
+          return;
+        }
+
+        const { error } = await supabase
+          .from('vistorias')
+          .insert({
+            atendimento_id: editingClaim.id,
+            created_by: user.id,
+            tipo_vistoria: 'digital',
+            tipo_abertura: 'interno',
+            status: 'rascunho',
+            ...editForm,
+          });
 
         if (error) throw error;
       }
@@ -291,66 +314,74 @@ export default function AcompanhamentoSinistrosInterno() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Custo Oficina</Label>
-                <Input
-                  type="number"
+                <CurrencyInput
                   value={editForm.custo_oficina}
-                  onChange={(e) => setEditForm({ ...editForm, custo_oficina: Number(e.target.value) })}
+                  onValueChange={(values) => 
+                    setEditForm({ ...editForm, custo_oficina: values.floatValue || 0 })
+                  }
                 />
               </div>
               <div>
                 <Label>Custo Reparo</Label>
-                <Input
-                  type="number"
+                <CurrencyInput
                   value={editForm.custo_reparo}
-                  onChange={(e) => setEditForm({ ...editForm, custo_reparo: Number(e.target.value) })}
+                  onValueChange={(values) => 
+                    setEditForm({ ...editForm, custo_reparo: values.floatValue || 0 })
+                  }
                 />
               </div>
               <div>
                 <Label>Custo Acordo</Label>
-                <Input
-                  type="number"
+                <CurrencyInput
                   value={editForm.custo_acordo}
-                  onChange={(e) => setEditForm({ ...editForm, custo_acordo: Number(e.target.value) })}
+                  onValueChange={(values) => 
+                    setEditForm({ ...editForm, custo_acordo: values.floatValue || 0 })
+                  }
                 />
               </div>
               <div>
                 <Label>Custo Terceiros</Label>
-                <Input
-                  type="number"
+                <CurrencyInput
                   value={editForm.custo_terceiros}
-                  onChange={(e) => setEditForm({ ...editForm, custo_terceiros: Number(e.target.value) })}
+                  onValueChange={(values) => 
+                    setEditForm({ ...editForm, custo_terceiros: values.floatValue || 0 })
+                  }
                 />
               </div>
               <div>
                 <Label>Custo Perda Total</Label>
-                <Input
-                  type="number"
+                <CurrencyInput
                   value={editForm.custo_perda_total}
-                  onChange={(e) => setEditForm({ ...editForm, custo_perda_total: Number(e.target.value) })}
+                  onValueChange={(values) => 
+                    setEditForm({ ...editForm, custo_perda_total: values.floatValue || 0 })
+                  }
                 />
               </div>
               <div>
                 <Label>Custo Perda Parcial</Label>
-                <Input
-                  type="number"
+                <CurrencyInput
                   value={editForm.custo_perda_parcial}
-                  onChange={(e) => setEditForm({ ...editForm, custo_perda_parcial: Number(e.target.value) })}
+                  onValueChange={(values) => 
+                    setEditForm({ ...editForm, custo_perda_parcial: values.floatValue || 0 })
+                  }
                 />
               </div>
               <div>
                 <Label>Valor Franquia</Label>
-                <Input
-                  type="number"
+                <CurrencyInput
                   value={editForm.valor_franquia}
-                  onChange={(e) => setEditForm({ ...editForm, valor_franquia: Number(e.target.value) })}
+                  onValueChange={(values) => 
+                    setEditForm({ ...editForm, valor_franquia: values.floatValue || 0 })
+                  }
                 />
               </div>
               <div>
                 <Label>Valor Indenização</Label>
-                <Input
-                  type="number"
+                <CurrencyInput
                   value={editForm.valor_indenizacao}
-                  onChange={(e) => setEditForm({ ...editForm, valor_indenizacao: Number(e.target.value) })}
+                  onValueChange={(values) => 
+                    setEditForm({ ...editForm, valor_indenizacao: values.floatValue || 0 })
+                  }
                 />
               </div>
             </div>
