@@ -231,7 +231,7 @@ export function AtendimentoCard({
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    const link = `${window.location.origin}/vistoria-publica/${vistoria.link_token}`;
+                    const link = `${window.location.origin}/vistoria/${vistoria.link_token}`;
                     navigator.clipboard.writeText(link);
                     toast.success('Link de vistoria copiado!');
                   }}
