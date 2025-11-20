@@ -128,19 +128,34 @@ export default function AberturaSinistro() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
-      <div className="mb-6">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar
-        </Button>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header com botão para Dashboard */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              Abertura de Sinistro
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Registre um novo sinistro e opcionalmente solicite vistoria
+            </p>
+          </div>
+          <Button
+            onClick={() => navigate('/dashboard-sinistros')}
+            variant="outline"
+            size="lg"
+            className="gap-2"
+          >
+            <TrendingUp className="h-5 w-5" />
+            Dashboard Sinistros
+          </Button>
+        </div>
 
-      <Card>
-        <CardHeader>
+        <Card className="border-primary/20 shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
           <CardTitle className="text-2xl flex items-center gap-2">
-            <FileText className="h-6 w-6" />
-            Abertura de Sinistro
+            <AlertTriangle className="h-6 w-6 text-primary" />
+            Dados do Sinistro
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -332,6 +347,7 @@ export default function AberturaSinistro() {
           </form>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

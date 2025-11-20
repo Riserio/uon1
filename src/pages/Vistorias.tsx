@@ -20,6 +20,7 @@ interface Vistoria {
   veiculo_modelo?: string;
   created_at: string;
   completed_at?: string;
+  link_token?: string;
 }
 
 export default function Vistorias() {
@@ -234,9 +235,27 @@ export default function Vistorias() {
                                 e.stopPropagation();
                                 navigate(`/vistorias/${vistoria.id}`);
                               }}
+                              title="Ver detalhes"
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
+                            
+                            {vistoria.link_token && vistoria.status === 'aguardando_fotos' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const link = `${window.location.origin}/vistoria-publica/${vistoria.link_token}`;
+                                  navigator.clipboard.writeText(link);
+                                  toast.success('Link de vistoria copiado!');
+                                }}
+                                title="Copiar link de vistoria"
+                                className="text-blue-600 hover:text-blue-700"
+                              >
+                                <FileText className="h-4 w-4" />
+                              </Button>
+                            )}
                             
                             {vistoria.status === 'concluida' && (
                               <Button
@@ -246,6 +265,7 @@ export default function Vistorias() {
                                   e.stopPropagation();
                                   // TODO: Exportar PDF
                                 }}
+                                title="Baixar relatório"
                               >
                                 <Download className="h-4 w-4" />
                               </Button>
