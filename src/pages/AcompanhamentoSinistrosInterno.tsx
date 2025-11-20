@@ -1,56 +1,30 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { ClaimCard, Claim, ClaimTimeline } from '@/components/ClaimCard';
+import { ClaimStats } from '@/components/ClaimStats';
+import { ClaimFilters } from '@/components/ClaimFilters';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { 
-  Search, ArrowLeft, ChevronDown, ChevronUp, FileText, 
-  Calendar, DollarSign, Edit2, Check
-} from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ArrowLeft, FileText, TrendingUp, Check } from 'lucide-react';
 
-interface Vistoria {
-  id: string;
-  numero: number;
-  status: string;
-  tipo_sinistro: string | null;
-  relato_incidente: string | null;
-  data_incidente: string | null;
-  created_at: string;
-  updated_at: string;
-  completed_at: string | null;
-  custo_oficina: number | null;
-  custo_reparo: number | null;
-  custo_acordo: number | null;
-  custo_terceiros: number | null;
-  custo_perda_total: number | null;
-  custo_perda_parcial: number | null;
-  valor_franquia: number | null;
-  valor_indenizacao: number | null;
-  veiculo_placa: string | null;
-}
-
-interface TimelineEvent {
-  date: string;
-  title: string;
-  description: string;
+interface StatusConfig {
+  nome: string;
+  cor: string;
+  ordem: number;
 }
 
 export default function AcompanhamentoSinistrosInterno() {
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [vistorias, setVistorias] = useState<Vistoria[]>([]);
-  const [filteredVistorias, setFilteredVistorias] = useState<Vistoria[]>([]);
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [statusConfigs, setStatusConfigs] = useState<StatusConfig[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState('all');
-  const [expandedCard, setExpandedCard] = useState<string | null>(null);
-  const [editingVistoria, setEditingVistoria] = useState<Vistoria | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [editingClaim, setEditingClaim] = useState<Claim | null>(null);
   const [editForm, setEditForm] = useState({
     custo_oficina: 0,
     custo_reparo: 0,
@@ -63,349 +37,252 @@ export default function AcompanhamentoSinistrosInterno() {
   });
 
   useEffect(() => {
-    loadVistorias();
+    loadData();
   }, []);
 
-  useEffect(() => {
-    filterVistorias();
-  }, [searchTerm, vistorias, selectedStatus]);
-
-  const loadVistorias = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('vistorias')
-        .select('*')
+
+      // Buscar configurações de status
+      const { data: statusData, error: statusError } = await supabase
+        .from('status_config')
+        .select('nome, cor, ordem')
+        .eq('ativo', true)
+        .order('ordem');
+
+      if (statusError) throw statusError;
+      setStatusConfigs(statusData || []);
+
+      // Buscar atendimentos (sinistros) com vistorias relacionadas
+      const { data: atendimentosData, error: atendimentosError } = await supabase
+        .from('atendimentos')
+        .select(`
+          id,
+          numero,
+          assunto,
+          status,
+          observacoes,
+          created_at,
+          updated_at
+        `)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setVistorias(data || []);
+      if (atendimentosError) throw atendimentosError;
+
+      // Buscar vistorias relacionadas aos atendimentos
+      const atendimentoIds = (atendimentosData || []).map(a => a.id);
+      const { data: vistoriasData } = await supabase
+        .from('vistorias')
+        .select(`
+          atendimento_id,
+          custo_oficina,
+          custo_reparo,
+          custo_acordo,
+          custo_terceiros,
+          custo_perda_total,
+          custo_perda_parcial,
+          valor_franquia,
+          valor_indenizacao
+        `)
+        .in('atendimento_id', atendimentoIds);
+
+      // Buscar histórico para timeline
+      const { data: historicoData } = await supabase
+        .from('atendimentos_historico')
+        .select('atendimento_id, acao, created_at, campos_alterados')
+        .in('atendimento_id', atendimentoIds)
+        .order('created_at', { ascending: true });
+
+      // Transformar dados
+      const claimsWithTimeline: Claim[] = (atendimentosData || []).map((atendimento) => {
+        const statusConfig = statusData?.find(s => s.nome === atendimento.status);
+        const vistoria = vistoriasData?.find(v => v.atendimento_id === atendimento.id);
+        
+        // Criar timeline do histórico
+        const historico = historicoData?.filter(h => h.atendimento_id === atendimento.id) || [];
+        const timeline: ClaimTimeline[] = [
+          {
+            date: atendimento.created_at,
+            title: 'Sinistro Registrado',
+            description: 'Protocolo aberto automaticamente'
+          },
+          ...historico.map(h => ({
+            date: h.created_at,
+            title: h.acao,
+            description: Array.isArray(h.campos_alterados) 
+              ? `Campos alterados: ${h.campos_alterados.join(', ')}`
+              : 'Atualização realizada'
+          }))
+        ];
+
+        return {
+          id: atendimento.id,
+          numero: atendimento.numero,
+          assunto: atendimento.assunto,
+          created_at: atendimento.created_at,
+          status: atendimento.status,
+          statusColor: statusConfig?.cor || '#6b7280',
+          observacoes: atendimento.observacoes,
+          custo_oficina: vistoria?.custo_oficina,
+          custo_reparo: vistoria?.custo_reparo,
+          custo_acordo: vistoria?.custo_acordo,
+          custo_terceiros: vistoria?.custo_terceiros,
+          custo_perda_total: vistoria?.custo_perda_total,
+          custo_perda_parcial: vistoria?.custo_perda_parcial,
+          valor_franquia: vistoria?.valor_franquia,
+          valor_indenizacao: vistoria?.valor_indenizacao,
+          timeline
+        };
+      });
+
+      setClaims(claimsWithTimeline);
     } catch (error) {
+      console.error('Erro ao carregar dados:', error);
       toast.error('Erro ao carregar sinistros');
     } finally {
       setLoading(false);
     }
   };
 
-  const filterVistorias = () => {
-    let filtered = vistorias;
-
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(v => 
-        v.numero?.toString().includes(term) ||
-        v.veiculo_placa?.toLowerCase().includes(term)
-      );
-    }
-
-    if (selectedStatus !== 'all') {
-      filtered = filtered.filter(v => v.status === selectedStatus);
-    }
-
-    setFilteredVistorias(filtered);
-  };
-
-  const statusConfig = {
-    aguardando_fotos: { label: 'Pendente', color: 'bg-yellow-500' },
-    em_analise: { label: 'Em Análise', color: 'bg-blue-500' },
-    aprovada: { label: 'Aprovado', color: 'bg-green-500' },
-    concluida: { label: 'Aprovado', color: 'bg-green-500' },
-    rejeitada: { label: 'Negado', color: 'bg-red-500' },
-  };
-
-  const getStatusLabel = (status: string) => {
-    return statusConfig[status as keyof typeof statusConfig]?.label || status;
-  };
-
-  const getStatusColor = (status: string) => {
-    return statusConfig[status as keyof typeof statusConfig]?.color || 'bg-gray-500';
-  };
-
-  const formatCurrency = (value: number | null) => {
-    if (!value) return 'R$ 0,00';
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
-
-  const calculateTotal = (vistoria: Vistoria) => {
-    return (
-      (vistoria.custo_oficina || 0) +
-      (vistoria.custo_reparo || 0) +
-      (vistoria.custo_acordo || 0) +
-      (vistoria.custo_terceiros || 0) +
-      (vistoria.custo_perda_total || 0) +
-      (vistoria.custo_perda_parcial || 0)
-    );
-  };
-
-  const getTimeline = (vistoria: Vistoria): TimelineEvent[] => {
-    const events: TimelineEvent[] = [
-      {
-        date: vistoria.created_at,
-        title: 'Sinistro Registrado',
-        description: 'Protocolo aberto automaticamente'
-      }
-    ];
-
-    if (vistoria.status === 'em_analise' || vistoria.status === 'aprovada' || vistoria.status === 'concluida') {
-      events.push({
-        date: vistoria.updated_at,
-        title: 'Documentação Enviada',
-        description: 'Fotos e boletim de ocorrência anexados'
-      });
-    }
-
-    if (vistoria.status === 'aprovada' || vistoria.status === 'concluida') {
-      events.push({
-        date: vistoria.updated_at,
-        title: 'Em Análise',
-        description: 'Perito designado para vistoria'
-      });
-    }
-
-    if (vistoria.status === 'concluida') {
-      events.push({
-        date: vistoria.completed_at || vistoria.updated_at,
-        title: 'Aprovado',
-        description: 'Processo concluído com sucesso'
-      });
-    }
-
-    return events;
-  };
-
-  const handleEditClick = (vistoria: Vistoria) => {
-    setEditingVistoria(vistoria);
+  const handleEditClick = (claim: Claim) => {
+    setEditingClaim(claim);
     setEditForm({
-      custo_oficina: vistoria.custo_oficina || 0,
-      custo_reparo: vistoria.custo_reparo || 0,
-      custo_acordo: vistoria.custo_acordo || 0,
-      custo_terceiros: vistoria.custo_terceiros || 0,
-      custo_perda_total: vistoria.custo_perda_total || 0,
-      custo_perda_parcial: vistoria.custo_perda_parcial || 0,
-      valor_franquia: vistoria.valor_franquia || 0,
-      valor_indenizacao: vistoria.valor_indenizacao || 0,
+      custo_oficina: claim.custo_oficina || 0,
+      custo_reparo: claim.custo_reparo || 0,
+      custo_acordo: claim.custo_acordo || 0,
+      custo_terceiros: claim.custo_terceiros || 0,
+      custo_perda_total: claim.custo_perda_total || 0,
+      custo_perda_parcial: claim.custo_perda_parcial || 0,
+      valor_franquia: claim.valor_franquia || 0,
+      valor_indenizacao: claim.valor_indenizacao || 0,
     });
   };
 
   const handleSaveEdit = async () => {
-    if (!editingVistoria) return;
+    if (!editingClaim) return;
 
     try {
-      const { error } = await supabase
+      // Buscar vistoria relacionada ao atendimento
+      const { data: vistoriaExistente } = await supabase
         .from('vistorias')
-        .update(editForm)
-        .eq('id', editingVistoria.id);
+        .select('id')
+        .eq('atendimento_id', editingClaim.id)
+        .single();
 
-      if (error) throw error;
+      if (vistoriaExistente) {
+        // Atualizar vistoria existente
+        const { error } = await supabase
+          .from('vistorias')
+          .update(editForm)
+          .eq('id', vistoriaExistente.id);
+
+        if (error) throw error;
+      }
 
       toast.success('Sinistro atualizado com sucesso');
-      setEditingVistoria(null);
-      loadVistorias();
+      setEditingClaim(null);
+      loadData();
     } catch (error) {
+      console.error('Erro ao atualizar:', error);
       toast.error('Erro ao atualizar sinistro');
     }
   };
 
-  const statusButtons = [
-    { value: 'all', label: 'Todos' },
-    { value: 'aguardando_fotos', label: 'Pendentes' },
-    { value: 'em_analise', label: 'Em Análise' },
-    { value: 'aprovada', label: 'Aprovados' },
-    { value: 'rejeitada', label: 'Negados' },
-  ];
+  const filteredClaims = claims.filter((claim) => {
+    const matchesStatus = selectedStatus === 'all' || claim.status === selectedStatus;
+    const matchesSearch =
+      claim.numero.toString().includes(searchTerm.toLowerCase()) ||
+      claim.assunto.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (claim.observacoes?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
+    return matchesStatus && matchesSearch;
+  });
+
+  const statusOptions = statusConfigs.map(config => ({
+    value: config.nome,
+    label: config.nome,
+    color: config.cor
+  }));
+
+  const statusCounts = statusConfigs.map(config => ({
+    status: config.nome,
+    count: claims.filter(c => c.status === config.nome).length,
+    color: config.cor
+  }));
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            onClick={() => navigate('/sinistros')}
-            variant="ghost"
-            size="icon"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Acompanhamento de Sinistros</h1>
-            <p className="text-sm text-muted-foreground">
-              Gerencie e acompanhe todos os sinistros
-            </p>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border bg-card">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => navigate('/sinistros')}
+                variant="ghost"
+                size="icon"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div className="rounded-lg bg-primary p-2">
+                <FileText className="h-6 w-6 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">Acompanhamento de Sinistros</h1>
+                <p className="text-sm text-muted-foreground">Gerencie e acompanhe seus processos</p>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="flex gap-2 flex-wrap">
-        {statusButtons.map((btn) => (
-          <Button
-            key={btn.value}
-            onClick={() => setSelectedStatus(btn.value)}
-            variant={selectedStatus === btn.value ? 'default' : 'outline'}
-            size="sm"
-          >
-            {btn.label}
-          </Button>
-        ))}
-      </div>
+      <main className="container mx-auto px-4 py-8">
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Carregando...</p>
+          </div>
+        ) : (
+          <>
+            {/* Stats */}
+            <ClaimStats claims={claims} statusCounts={statusCounts} />
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por número ou placa..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
-        />
-      </div>
+            {/* Filters */}
+            <ClaimFilters
+              selectedStatus={selectedStatus}
+              onStatusChange={setSelectedStatus}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              statusOptions={statusOptions}
+            />
 
-      {loading ? (
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">Carregando...</p>
-        </div>
-      ) : filteredVistorias.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <p className="text-muted-foreground">Nenhum sinistro encontrado</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {filteredVistorias.map((vistoria) => {
-            const isExpanded = expandedCard === vistoria.id;
-            const timeline = getTimeline(vistoria);
-            const total = calculateTotal(vistoria);
-
-            return (
-              <Card key={vistoria.id} className="overflow-hidden">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-xl font-bold">
-                        SIN-{new Date().getFullYear()}-{String(vistoria.numero).padStart(6, '0')}
-                      </h3>
-                      <Badge className={`${getStatusColor(vistoria.status)} text-white`}>
-                        {getStatusLabel(vistoria.status)}
-                      </Badge>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEditClick(vistoria)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setExpandedCard(isExpanded ? null : vistoria.id)}
-                      >
-                        {isExpanded ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <p className="text-muted-foreground mb-4">
-                    {vistoria.relato_incidente || vistoria.tipo_sinistro || 'Sinistro registrado'}
+            {/* Claims List */}
+            <div className="space-y-4">
+              {filteredClaims.length > 0 ? (
+                filteredClaims.map((claim) => (
+                  <ClaimCard 
+                    key={claim.id} 
+                    claim={claim} 
+                    onEdit={handleEditClick}
+                  />
+                ))
+              ) : (
+                <div className="rounded-lg border border-border bg-card p-12 text-center">
+                  <TrendingUp className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+                  <h3 className="mt-4 text-lg font-semibold text-foreground">
+                    Nenhum sinistro encontrado
+                  </h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Tente ajustar os filtros ou termo de busca
                   </p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </main>
 
-                  <div className="grid grid-cols-3 gap-4 mb-4">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Tipo</p>
-                        <p className="font-medium">{vistoria.tipo_sinistro || 'Colisão Veicular'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Data</p>
-                        <p className="font-medium">
-                          {vistoria.data_incidente 
-                            ? format(new Date(vistoria.data_incidente), 'dd/MM/yyyy', { locale: ptBR })
-                            : format(new Date(vistoria.created_at), 'dd/MM/yyyy', { locale: ptBR })
-                          }
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Valor</p>
-                        <p className="font-medium">{formatCurrency(total)}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {isExpanded && (
-                    <div className="mt-6 border-t pt-6">
-                      <h4 className="font-semibold mb-4">Linha do Tempo</h4>
-                      <div className="space-y-4">
-                        {timeline.map((event, index) => (
-                          <div key={index} className="flex gap-4">
-                            <div className="flex flex-col items-center">
-                              <div className={`w-3 h-3 rounded-full ${index === timeline.length - 1 ? 'bg-primary' : 'bg-muted'}`} />
-                              {index < timeline.length - 1 && (
-                                <div className="w-0.5 h-12 bg-muted" />
-                              )}
-                            </div>
-                            <div className="flex-1 pb-4">
-                              <p className="text-sm text-muted-foreground">
-                                {format(new Date(event.date), 'dd/MM/yyyy', { locale: ptBR })}
-                              </p>
-                              <p className="font-semibold">{event.title}</p>
-                              <p className="text-sm text-muted-foreground">{event.description}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="mt-6 border-t pt-6">
-                        <h4 className="font-semibold mb-4">Detalhes Financeiros</h4>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Custo Oficina</p>
-                            <p className="font-medium">{formatCurrency(vistoria.custo_oficina)}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Custo Reparo</p>
-                            <p className="font-medium">{formatCurrency(vistoria.custo_reparo)}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Custo Acordo</p>
-                            <p className="font-medium">{formatCurrency(vistoria.custo_acordo)}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Custo Terceiros</p>
-                            <p className="font-medium">{formatCurrency(vistoria.custo_terceiros)}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Franquia</p>
-                            <p className="font-medium">{formatCurrency(vistoria.valor_franquia)}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Indenização</p>
-                            <p className="font-medium">{formatCurrency(vistoria.valor_indenizacao)}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      <Dialog open={!!editingVistoria} onOpenChange={() => setEditingVistoria(null)}>
+      {/* Edit Dialog */}
+      <Dialog open={!!editingClaim} onOpenChange={() => setEditingClaim(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Custos e Valores</DialogTitle>
@@ -478,7 +355,7 @@ export default function AcompanhamentoSinistrosInterno() {
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setEditingVistoria(null)}>
+              <Button variant="outline" onClick={() => setEditingClaim(null)}>
                 Cancelar
               </Button>
               <Button onClick={handleSaveEdit}>
