@@ -27,7 +27,11 @@ export function AppSidebar() {
       <Sidebar collapsible="icon" className={collapsed ? "border-r sticky top-0 h-screen z-[60]" : "border-r sticky top-0 h-screen z-[60] w-56"}>
         <SidebarHeader className="border-b p-4">
           <div className="flex items-center justify-center">
-            {collapsed ? <img src="/images/logo-collapsed.jpg" alt="Logo" className="h-8 w-8 object-contain rounded" /> : config.logo_url ? <img src={config.logo_url} alt="Logo" className="h-10 w-auto max-w-[150px] object-contain" /> : <span className="font-semibold text-lg">Menu</span>}
+            {collapsed ? (
+              <img src="/images/logo-collapsed.png" alt="Logo" className="h-8 w-8 object-contain" />
+            ) : (
+              <img src="/images/logo-full.png" alt="Logo" className="h-10 w-auto max-w-[150px] object-contain" />
+            )}
           </div>
         </SidebarHeader>
         

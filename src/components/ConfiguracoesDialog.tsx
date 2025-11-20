@@ -63,15 +63,28 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
   }, [open, config]);
 
   const loadImages = async () => {
-    const { data } = await supabase
-      .from('app_config')
-      .select('logo_url, login_image_url')
-      .single();
-    
-    setImageUrls({
-      logo: data?.logo_url || '',
-      login: data?.login_image_url || ''
-    });
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('app_config')
+        .select('logo_url, login_image_url')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error loading images:', error);
+        return;
+      }
+      
+      setImageUrls({
+        logo: data?.logo_url || '',
+        login: data?.login_image_url || ''
+      });
+    } catch (error) {
+      console.error('Error in loadImages:', error);
+    }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'login') => {
@@ -93,11 +106,14 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
       const fileName = `${type}-${Date.now()}.${fileExt}`;
       const filePath = `${type === 'logo' ? 'logos' : 'login-images'}/${fileName}`;
 
-      const { data: buckets } = await supabase.storage.listBuckets();
+      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+      if (bucketsError) throw bucketsError;
+      
       const bucketExists = buckets?.some(b => b.name === 'app-config');
       
       if (!bucketExists) {
-        await supabase.storage.createBucket('app-config', { public: true });
+        const { error: createError } = await supabase.storage.createBucket('app-config', { public: true });
+        if (createError) throw createError;
       }
 
       const { error: uploadError } = await supabase.storage
@@ -118,9 +134,13 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
       const configKey = type === 'logo' ? 'logo_url' : 'login_image_url';
       await saveConfig({ [configKey]: publicUrl });
       toast({ title: `${type === 'logo' ? 'Logo' : 'Imagem de login'} salvo com sucesso!` });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao fazer upload:', error);
-      toast({ title: "Erro ao fazer upload", variant: "destructive" });
+      toast({ 
+        title: "Erro ao fazer upload", 
+        description: error?.message || "Tente novamente",
+        variant: "destructive" 
+      });
     }
   };
 
