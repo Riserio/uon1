@@ -27,6 +27,7 @@ export default function AberturaSinistro() {
     veiculo_modelo: '',
     veiculo_ano: '',
     veiculo_cor: '',
+    veiculo_chassi: '',
     data_incidente: '',
     relato_incidente: '',
     tipo_sinistro: '',
@@ -95,7 +96,7 @@ export default function AberturaSinistro() {
         .insert({
           user_id: user?.id,
           assunto: `Sinistro ${formData.tipo_sinistro} - ${formData.veiculo_placa} - ${formData.cliente_nome}`,
-          observacoes: `Tipo: ${formData.tipo_sinistro}\nData do Incidente: ${formData.data_incidente}\n\nRelato:\n${formData.relato_incidente}\n\nVeículo: ${formData.veiculo_marca} ${formData.veiculo_modelo} ${formData.veiculo_ano} - ${formData.veiculo_cor}\nPlaca: ${formData.veiculo_placa}\n\nCliente: ${formData.cliente_nome}\nCPF: ${formData.cliente_cpf}\nTelefone: ${formData.cliente_telefone}\nEmail: ${formData.cliente_email}`,
+          observacoes: `Tipo: ${formData.tipo_sinistro}\nData do Incidente: ${formData.data_incidente}\n\nRelato:\n${formData.relato_incidente}\n\nVeículo: ${formData.veiculo_marca} ${formData.veiculo_modelo} ${formData.veiculo_ano} - ${formData.veiculo_cor}\nPlaca: ${formData.veiculo_placa}\nChassi: ${formData.veiculo_chassi || 'Não informado'}\n\nCliente: ${formData.cliente_nome}\nCPF: ${formData.cliente_cpf}\nTelefone: ${formData.cliente_telefone}\nEmail: ${formData.cliente_email}`,
           status: primeiroStatus,
           fluxo_id: primeiroFluxoId,
           prioridade: 'Alta',
@@ -124,6 +125,7 @@ export default function AberturaSinistro() {
             veiculo_modelo: formData.veiculo_modelo,
             veiculo_ano: formData.veiculo_ano,
             veiculo_cor: formData.veiculo_cor,
+            veiculo_chassi: formData.veiculo_chassi,
             data_incidente: formData.data_incidente,
             relato_incidente: formData.relato_incidente,
             status: 'pendente'
@@ -317,6 +319,17 @@ export default function AberturaSinistro() {
                     value={formData.veiculo_cor}
                     onChange={(e) => setFormData({ ...formData, veiculo_cor: e.target.value })}
                     required
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="veiculo_chassi">Chassi</Label>
+                  <Input
+                    id="veiculo_chassi"
+                    value={formData.veiculo_chassi}
+                    onChange={(e) => setFormData({ ...formData, veiculo_chassi: e.target.value.toUpperCase() })}
+                    placeholder="Digite o chassi do veículo"
+                    maxLength={17}
                   />
                 </div>
               </div>
