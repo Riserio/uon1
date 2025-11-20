@@ -85,6 +85,28 @@ export const validatePlaca = (placa: string): boolean => {
 };
 
 // Formatadores
+export const formatPlaca = (value: string): string => {
+  const cleaned = value.replace(/[^\w]/g, '').toUpperCase();
+  
+  // Formato antigo: ABC-1234
+  if (cleaned.length <= 7 && /^[A-Z]{0,3}\d{0,4}$/.test(cleaned)) {
+    if (cleaned.length > 3) {
+      return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
+    }
+    return cleaned;
+  }
+  
+  // Formato Mercosul: ABC1D23
+  if (cleaned.length <= 7) {
+    if (cleaned.length > 4) {
+      return `${cleaned.slice(0, 4)}${cleaned.slice(4)}`;
+    }
+    return cleaned;
+  }
+  
+  return value;
+};
+
 export const formatCPF = (value: string): string => {
   const cleanValue = value.replace(/[^\d]/g, '');
   return cleanValue
