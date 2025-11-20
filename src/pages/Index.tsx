@@ -84,7 +84,6 @@ const Index = () => {
       loadStatusPrazo();
       loadAtendimentos();
     }).subscribe();
-
     return () => {
       supabase.removeChannel(atendimentosChannel);
       supabase.removeChannel(statusConfigChannel);
@@ -269,20 +268,13 @@ const Index = () => {
       // Get first status of selected fluxo for new atendimentos
       let statusToUse = atendimento.status;
       if (!existing && selectedFluxoId) {
-        const { data: firstStatus } = await supabase
-          .from('status_config')
-          .select('nome')
-          .eq('fluxo_id', selectedFluxoId)
-          .eq('ativo', true)
-          .order('ordem')
-          .limit(1)
-          .single();
-        
+        const {
+          data: firstStatus
+        } = await supabase.from('status_config').select('nome').eq('fluxo_id', selectedFluxoId).eq('ativo', true).order('ordem').limit(1).single();
         if (firstStatus) {
           statusToUse = firstStatus.nome;
         }
       }
-
       const dataToSave = {
         assunto: atendimento.assunto,
         observacoes: atendimento.observacoes,
@@ -410,12 +402,9 @@ const Index = () => {
   const handleUpdateStatus = async (id: string, newStatus: string) => {
     try {
       // Get the atendimento to check its current fluxo_id
-      const { data: atendimentoData } = await supabase
-        .from('atendimentos')
-        .select('fluxo_id')
-        .eq('id', id)
-        .single();
-
+      const {
+        data: atendimentoData
+      } = await supabase.from('atendimentos').select('fluxo_id').eq('id', id).single();
       const updateData: any = {
         status: newStatus,
         updated_at: new Date().toISOString(),
@@ -423,80 +412,61 @@ const Index = () => {
       };
 
       // Check if this is a final status (completion) - use the atendimento's fluxo_id
-      const { data: statusConfig } = await supabase
-        .from('status_config')
-        .select('is_final, tipo_etapa, fluxo_id, nome')
-        .eq('nome', newStatus)
-        .eq('fluxo_id', atendimentoData?.fluxo_id || selectedFluxoId)
-        .eq('ativo', true)
-        .single();
-
+      const {
+        data: statusConfig
+      } = await supabase.from('status_config').select('is_final, tipo_etapa, fluxo_id, nome').eq('nome', newStatus).eq('fluxo_id', atendimentoData?.fluxo_id || selectedFluxoId).eq('ativo', true).single();
       console.log('Status config:', statusConfig, 'for status:', newStatus);
-
       if (statusConfig?.is_final) {
         // Mark as completed and record which fluxo it was completed in
         updateData.data_concluido = new Date().toISOString();
-        
         if (statusConfig.fluxo_id) {
           updateData.fluxo_concluido_id = statusConfig.fluxo_id;
-          
+
           // Get fluxo name and check if should create next automatically
-          const { data: fluxoData } = await supabase
-            .from('fluxos')
-            .select('nome, gera_proximo_automatico, proximo_fluxo_id')
-            .eq('id', statusConfig.fluxo_id)
-            .single();
-          
+          const {
+            data: fluxoData
+          } = await supabase.from('fluxos').select('nome, gera_proximo_automatico, proximo_fluxo_id').eq('id', statusConfig.fluxo_id).single();
           if (fluxoData) {
             updateData.fluxo_concluido_nome = fluxoData.nome;
-            
+
             // Check if should create next atendimento automatically
             if (fluxoData.gera_proximo_automatico && fluxoData.proximo_fluxo_id) {
               console.log('Criando próximo atendimento automaticamente no fluxo:', fluxoData.proximo_fluxo_id);
-              
+
               // Get the current atendimento data to copy
-              const { data: currentAtendimento } = await supabase
-                .from('atendimentos')
-                .select('*')
-                .eq('id', id)
-                .single();
-              
+              const {
+                data: currentAtendimento
+              } = await supabase.from('atendimentos').select('*').eq('id', id).single();
               if (currentAtendimento) {
                 // Get the first status of the next fluxo
-                const { data: firstStatus } = await supabase
-                  .from('status_config')
-                  .select('nome')
-                  .eq('fluxo_id', fluxoData.proximo_fluxo_id)
-                  .eq('ativo', true)
-                  .order('ordem')
-                  .limit(1)
-                  .single();
-                
+                const {
+                  data: firstStatus
+                } = await supabase.from('status_config').select('nome').eq('fluxo_id', fluxoData.proximo_fluxo_id).eq('ativo', true).order('ordem').limit(1).single();
                 if (firstStatus) {
                   // Create new atendimento in the next fluxo
-                  const { data: newAtendimento, error: createError } = await supabase
-                    .from('atendimentos')
-                    .insert({
-                      assunto: currentAtendimento.assunto,
-                      corretora_id: currentAtendimento.corretora_id,
-                      contato_id: currentAtendimento.contato_id,
-                      responsavel_id: currentAtendimento.responsavel_id,
-                      user_id: currentAtendimento.user_id,
-                      prioridade: currentAtendimento.prioridade,
-                      observacoes: currentAtendimento.observacoes,
-                      tags: currentAtendimento.tags,
-                      fluxo_id: fluxoData.proximo_fluxo_id,
-                      status: firstStatus.nome,
-                      status_changed_at: new Date().toISOString()
-                    })
-                    .select()
-                    .single();
-                  
+                  const {
+                    data: newAtendimento,
+                    error: createError
+                  } = await supabase.from('atendimentos').insert({
+                    assunto: currentAtendimento.assunto,
+                    corretora_id: currentAtendimento.corretora_id,
+                    contato_id: currentAtendimento.contato_id,
+                    responsavel_id: currentAtendimento.responsavel_id,
+                    user_id: currentAtendimento.user_id,
+                    prioridade: currentAtendimento.prioridade,
+                    observacoes: currentAtendimento.observacoes,
+                    tags: currentAtendimento.tags,
+                    fluxo_id: fluxoData.proximo_fluxo_id,
+                    status: firstStatus.nome,
+                    status_changed_at: new Date().toISOString()
+                  }).select().single();
                   if (!createError && newAtendimento) {
                     console.log('Novo atendimento criado:', newAtendimento.id);
-                    
+
                     // Register creation in history
-                    const { data: session } = await supabase.auth.getSession();
+                    const {
+                      data: session
+                    } = await supabase.auth.getSession();
                     if (session?.session) {
                       await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/registrar-historico-atendimento`, {
                         method: 'POST',
@@ -515,20 +485,14 @@ const Index = () => {
               }
             }
           }
-          
           console.log('Marcando como concluído:', updateData);
         }
       }
-      
-      const { error } = await supabase
-        .from('atendimentos')
-        .update(updateData)
-        .eq('id', id);
-        
+      const {
+        error
+      } = await supabase.from('atendimentos').update(updateData).eq('id', id);
       if (error) throw error;
-
       await loadAtendimentos();
-
       if (statusConfig?.is_final) {
         sonnerToast.success(`Atendimento concluído no fluxo ${updateData.fluxo_concluido_nome}!`);
       } else {
@@ -665,8 +629,7 @@ const Index = () => {
   const handleManageContatos = () => {
     navigate('/contatos');
   };
-  return (
-    <div className="min-h-screen bg-background">
+  return <div className="min-h-screen bg-background">
       <div className="sticky top-0 z-50 bg-card/95 backdrop-blur-md border-b border-border/50 shadow-sm">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
@@ -681,36 +644,16 @@ const Index = () => {
             <div className="flex items-center gap-2">
               <AlertasDialog overdueCount={overdueCount} />
               {canManageStatus && <>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => setAcompanhamentoLinkOpen(true)} 
-                    title="Link de Acompanhamento para Clientes"
-                  >
+                  <Button variant="ghost" size="icon" onClick={() => setAcompanhamentoLinkOpen(true)} title="Link de Acompanhamento para Clientes">
                     <Link2 className="h-4 w-4" />
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => navigate('/configuracao-status-publico')} 
-                    title="Configurar Status Públicos"
-                  >
+                  <Button variant="ghost" size="icon" onClick={() => navigate('/configuracao-status-publico')} title="Configurar Status Públicos">
                     <Settings2 className="h-4 w-4" />
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => setFluxoVisualizationOpen(true)} 
-                    title="Visualizar Fluxo Completo"
-                  >
+                  <Button variant="ghost" size="icon" onClick={() => setFluxoVisualizationOpen(true)} title="Visualizar Fluxo Completo">
                     <Workflow className="h-4 w-4" />
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => setWorkflowConfigOpen(true)} 
-                    title="Configurar Fluxos e Status"
-                  >
+                  <Button variant="ghost" size="icon" onClick={() => setWorkflowConfigOpen(true)} title="Configurar Fluxos e Status">
                     <Settings2 className="h-4 w-4" />
                   </Button>
                 </>}
@@ -728,69 +671,33 @@ const Index = () => {
       </div>
 
       <div className="bg-card border-b border-border/50">
-        <div className="container mx-auto px-6 py-3">
+        <div className="container mx-auto px-6 py-3 bg-slate-100">
           <FluxoSelector selectedFluxoId={selectedFluxoId} onFluxoSelect={setSelectedFluxoId} onConfigureFluxos={() => setWorkflowConfigOpen(true)} />
         </div>
       </div>
 
       <main className="container mx-auto px-6 py-6">
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
+        {loading ? <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
               <p className="text-muted-foreground">Carregando atendimentos...</p>
             </div>
-          </div>
-        ) : viewMode === 'kanban' ? (
-          <KanbanBoard 
-            atendimentos={filteredAtendimentos} 
-            onUpdateStatus={handleUpdateStatus} 
-            onEdit={handleEdit} 
-            onDelete={handleDelete} 
-            onArquivar={handleArquivar} 
-            onViewAndamentos={handleViewAndamentos} 
-            statusPrazo={statusPrazo} 
-            selectedFluxoId={selectedFluxoId} 
-          />
-        ) : (
-          <ListView 
-            atendimentos={filteredAtendimentos} 
-            onEdit={handleEdit} 
-            onDelete={handleDelete} 
-            onArquivar={handleArquivar} 
-            onViewAndamentos={handleViewAndamentos} 
-          />
-        )}
+          </div> : viewMode === 'kanban' ? <KanbanBoard atendimentos={filteredAtendimentos} onUpdateStatus={handleUpdateStatus} onEdit={handleEdit} onDelete={handleDelete} onArquivar={handleArquivar} onViewAndamentos={handleViewAndamentos} statusPrazo={statusPrazo} selectedFluxoId={selectedFluxoId} /> : <ListView atendimentos={filteredAtendimentos} onEdit={handleEdit} onDelete={handleDelete} onArquivar={handleArquivar} onViewAndamentos={handleViewAndamentos} />}
       </main>
 
       <AtendimentoDialog open={dialogOpen} onOpenChange={setDialogOpen} atendimento={editingAtendimento} onSave={handleSaveAtendimento} corretoras={corretoras} responsaveis={responsaveis} />
 
-      <AndamentosDialog 
-        open={andamentosDialogOpen} 
-        onOpenChange={setAndamentosDialogOpen} 
-        atendimentoId={selectedAtendimento?.id || ''} 
-        atendimentoAssunto={selectedAtendimento?.assunto || ''}
-        atendimentoNumero={selectedAtendimento?.numero}
-        mode="view" 
-      />
+      <AndamentosDialog open={andamentosDialogOpen} onOpenChange={setAndamentosDialogOpen} atendimentoId={selectedAtendimento?.id || ''} atendimentoAssunto={selectedAtendimento?.assunto || ''} atendimentoNumero={selectedAtendimento?.numero} mode="view" />
 
       <WorkflowConfigDialog open={workflowConfigOpen} onOpenChange={setWorkflowConfigOpen} onConfigChange={() => {
       loadStatusPrazo();
       loadAtendimentos();
       refreshOverdue();
-     }} />
+    }} />
 
-      <FluxoVisualizationDialog 
-        open={fluxoVisualizationOpen} 
-        onOpenChange={setFluxoVisualizationOpen} 
-      />
+      <FluxoVisualizationDialog open={fluxoVisualizationOpen} onOpenChange={setFluxoVisualizationOpen} />
       
-      <AcompanhamentoLinkDialog 
-        open={acompanhamentoLinkOpen} 
-        onOpenChange={setAcompanhamentoLinkOpen} 
-      />
-    </div>
-  );
+      <AcompanhamentoLinkDialog open={acompanhamentoLinkOpen} onOpenChange={setAcompanhamentoLinkOpen} />
+    </div>;
 };
-
 export default Index;
