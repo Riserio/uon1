@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Camera, CheckCircle, FileSearch, Shield } from 'lucide-react';
+import { Camera, CheckCircle, FileSearch, Shield, Clock, Smartphone } from 'lucide-react';
 
 export default function VistoriaPublicaLanding() {
   const { token } = useParams();
@@ -44,10 +44,10 @@ export default function VistoriaPublicaLanding() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-blue-50 flex items-center justify-center p-6">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Carregando vistoria...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Carregando vistoria...</p>
         </div>
       </div>
     );
@@ -55,11 +55,14 @@ export default function VistoriaPublicaLanding() {
 
   if (!vistoria) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-6">
-        <Card className="max-w-md">
-          <CardContent className="p-6 text-center">
-            <h2 className="text-2xl font-bold text-destructive mb-4">Link Inválido</h2>
-            <p className="text-muted-foreground">
+      <div className="min-h-screen bg-gradient-to-b from-red-50 via-white to-red-50 flex items-center justify-center p-6">
+        <Card className="max-w-md border-red-200 shadow-xl">
+          <CardContent className="p-8 text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Shield className="h-8 w-8 text-red-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-red-900 mb-3">Link Inválido</h2>
+            <p className="text-gray-600">
               Este link de vistoria é inválido ou expirou. Entre em contato com a seguradora.
             </p>
           </CardContent>
@@ -69,142 +72,162 @@ export default function VistoriaPublicaLanding() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 p-6">
-      <div className="max-w-4xl mx-auto">
-        {/* Header com logo da corretora */}
-        <div className="text-center mb-8">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-blue-50">
+      <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
+        {/* Header com logo */}
+        <div className="text-center mb-12">
           {corretora?.logo_url && (
-            <img 
-              src={corretora.logo_url} 
-              alt={corretora.nome}
-              className="h-16 mx-auto mb-4"
-            />
+            <div className="mb-6">
+              <img 
+                src={corretora.logo_url} 
+                alt={corretora.nome}
+                className="h-16 md:h-20 mx-auto object-contain"
+              />
+            </div>
           )}
-          <div className="bg-blue-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
-            <Camera className="h-10 w-10 text-primary" />
+          <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg mb-6">
+            <Camera className="h-10 w-10 md:h-12 md:w-12 text-white" />
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Vistoria Digital de Veículos
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
+            Vistoria Digital
           </h1>
-          <p className="text-lg text-muted-foreground">
-            Análise completa com inteligência artificial. Rápido, preciso e profissional.
+          <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
+            Processo rápido e seguro com análise por inteligência artificial
           </p>
         </div>
 
         {/* Card principal */}
-        <Card className="shadow-xl">
-          <CardContent className="p-8">
-            {/* Como funciona */}
-            <div className="mb-8">
-              <div className="flex items-center gap-2 mb-6">
-                <FileSearch className="h-6 w-6 text-primary" />
-                <h2 className="text-2xl font-bold">Como funciona</h2>
+        <Card className="shadow-2xl border-0 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 md:p-8 text-white">
+            <div className="flex items-center gap-3 mb-3">
+              <FileSearch className="h-6 w-6" />
+              <h2 className="text-2xl md:text-3xl font-bold">Como funciona</h2>
+            </div>
+            <p className="text-blue-50">Siga os passos abaixo para concluir sua vistoria</p>
+          </div>
+          
+          <CardContent className="p-6 md:p-10">
+            {/* Passos */}
+            <div className="grid md:grid-cols-3 gap-6 mb-10">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <span className="text-2xl font-bold text-white">1</span>
+                </div>
+                <h3 className="font-bold text-lg mb-2 text-gray-900">Capture 4 Fotos</h3>
+                <p className="text-sm text-gray-600">
+                  Fotografe os 4 lados do veículo: frontal, traseira, lateral direita e esquerda
+                </p>
               </div>
               
-              <div className="grid md:grid-cols-3 gap-6 mb-8">
-                <div className="text-center">
-                  <div className="bg-primary/10 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
-                    <span className="text-xl font-bold text-primary">1</span>
-                  </div>
-                  <h3 className="font-semibold mb-2">Capture 4 Fotos</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Fotografe os 4 lados do veículo: frontal, traseira, lateral direita e esquerda
-                  </p>
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <span className="text-2xl font-bold text-white">2</span>
                 </div>
-                
-                <div className="text-center">
-                  <div className="bg-primary/10 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
-                    <span className="text-xl font-bold text-primary">2</span>
-                  </div>
-                  <h3 className="font-semibold mb-2">Análise por IA</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Nossa IA analisa automaticamente o estado do veículo e identifica danos
-                  </p>
+                <h3 className="font-bold text-lg mb-2 text-gray-900">Análise por IA</h3>
+                <p className="text-sm text-gray-600">
+                  Nossa IA analisa automaticamente o estado do veículo e identifica danos
+                </p>
+              </div>
+              
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <span className="text-2xl font-bold text-white">3</span>
                 </div>
-                
-                <div className="text-center">
-                  <div className="bg-primary/10 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
-                    <span className="text-xl font-bold text-primary">3</span>
-                  </div>
-                  <h3 className="font-semibold mb-2">Relatório Completo</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Receba um relatório detalhado com todos os danos identificados
-                  </p>
-                </div>
+                <h3 className="font-bold text-lg mb-2 text-gray-900">Relatório Completo</h3>
+                <p className="text-sm text-gray-600">
+                  Receba um relatório detalhado com todos os danos identificados
+                </p>
               </div>
             </div>
 
             {/* Benefícios */}
-            <div className="mb-8">
-              <h2 className="text-xl font-bold mb-4">Benefícios</h2>
+            <div className="bg-gradient-to-br from-blue-50 to-white rounded-2xl p-6 md:p-8 mb-8">
+              <h2 className="text-xl md:text-2xl font-bold mb-6 text-gray-900">Por que fazer a vistoria digital?</h2>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  </div>
                   <div>
-                    <h4 className="font-semibold">Análise em minutos</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Resultados rápidos e precisos usando IA avançada
-                    </p>
+                    <h3 className="font-semibold text-gray-900 mb-1">Rápido e Fácil</h3>
+                    <p className="text-sm text-gray-600">Processo completo em menos de 5 minutos</p>
                   </div>
                 </div>
                 
                 <div className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Clock className="h-5 w-5 text-blue-600" />
+                  </div>
                   <div>
-                    <h4 className="font-semibold">Padrão seguradora</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Relatório completo seguindo normas do mercado
-                    </p>
+                    <h3 className="font-semibold text-gray-900 mb-1">Disponível 24/7</h3>
+                    <p className="text-sm text-gray-600">Faça sua vistoria a qualquer momento</p>
                   </div>
                 </div>
                 
                 <div className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Shield className="h-5 w-5 text-purple-600" />
+                  </div>
                   <div>
-                    <h4 className="font-semibold">Detecção de danos</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Identifica até pequenos arranhões e amassados
-                    </p>
+                    <h3 className="font-semibold text-gray-900 mb-1">Seguro e Confiável</h3>
+                    <p className="text-sm text-gray-600">Tecnologia de ponta com criptografia</p>
                   </div>
                 </div>
                 
                 <div className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Smartphone className="h-5 w-5 text-orange-600" />
+                  </div>
                   <div>
-                    <h4 className="font-semibold">100% digital</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Sem necessidade de visita presencial
-                    </p>
+                    <h3 className="font-semibold text-gray-900 mb-1">Qualquer Dispositivo</h3>
+                    <p className="text-sm text-gray-600">Funciona no celular, tablet ou computador</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Importante */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-              <div className="flex items-start gap-2">
-                <Shield className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <h4 className="font-semibold text-yellow-900 mb-1">Importante</h4>
-                  <p className="text-sm text-yellow-800">
-                    Certifique-se de que as fotos estejam nítidas e mostrem claramente todos os lados do veículo. 
-                    Fotos em boa iluminação garantem uma análise mais precisa.
-                  </p>
-                </div>
-              </div>
+            {/* Informações importantes */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-8">
+              <h3 className="font-bold text-amber-900 mb-3 flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Informações importantes
+              </h3>
+              <ul className="space-y-2 text-sm text-amber-800">
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>Certifique-se de que o veículo esteja em um local bem iluminado</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>As fotos devem mostrar o veículo completo em cada ângulo</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>Evite sombras ou reflexos que possam dificultar a análise</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>Tenha sua CNH em mãos para fazer upload ao final</span>
+                </li>
+              </ul>
             </div>
 
             {/* Botão de iniciar */}
-            <Button 
+            <Button
               onClick={() => navigate(`/vistoria/${token}/captura`)}
-              className="w-full h-14 text-lg"
               size="lg"
+              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-6 text-lg shadow-lg"
             >
-              <Camera className="mr-2 h-5 w-5" />
-              Iniciar Vistoria
+              <Camera className="h-5 w-5 mr-2" />
+              Iniciar Vistoria Digital
             </Button>
           </CardContent>
         </Card>
+
+        {/* Footer */}
+        <div className="text-center mt-8 text-sm text-gray-500">
+          <p>Suas informações estão protegidas e serão usadas apenas para a vistoria</p>
+        </div>
       </div>
     </div>
   );
