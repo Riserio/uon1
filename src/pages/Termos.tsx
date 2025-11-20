@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -112,7 +112,13 @@ export default function Termos() {
 
       // Upload do novo arquivo se foi selecionado
       if (selectedFile) {
-        const fileName = `${Date.now()}_${selectedFile.name}`;
+        // Sanitizar o nome do arquivo removendo espaços e caracteres especiais
+        const sanitizedFileName = selectedFile.name
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+          .replace(/[^a-zA-Z0-9.-]/g, '_'); // Substitui caracteres especiais por underscore
+        
+        const fileName = `${Date.now()}_${sanitizedFileName}`;
         
         const { error: uploadError } = await supabase.storage
           .from('termos')
@@ -317,6 +323,9 @@ export default function Termos() {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingTermo ? 'Editar Termo' : 'Novo Termo'}</DialogTitle>
+            <DialogDescription>
+              Preencha os dados do termo de aceite que será exibido na vistoria pública
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
