@@ -97,13 +97,13 @@ export default function MenuNav() {
           <DropdownMenuItem asChild>
             <Link to="/desempenho/individual" className="cursor-pointer">
               <TrendingUp className="mr-2 h-4 w-4" />
-              <span>Individual</span>
+              <span>Desempenho Individual</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link to="/desempenho/corretoras" className="cursor-pointer">
               <Building2 className="mr-2 h-4 w-4" />
-              <span>Por Corretora</span>
+              <span>Desempenho por Corretora</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
