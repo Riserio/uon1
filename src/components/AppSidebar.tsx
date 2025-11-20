@@ -11,6 +11,7 @@ import {
   FileText, 
   Mail, 
   ClipboardList, 
+  ClipboardCheck,
   Send 
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
@@ -168,7 +169,7 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <NavLink to="/vistorias" activeClassName="bg-primary text-primary-foreground">
-                      <Send className="h-4 w-4" />
+                      <ClipboardCheck className="h-4 w-4" />
                       {!collapsed && <span>Vistorias</span>}
                     </NavLink>
                   </SidebarMenuButton>
