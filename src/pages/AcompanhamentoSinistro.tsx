@@ -51,7 +51,7 @@ export default function AcompanhamentoSinistro() {
       // Buscar vistoria pela placa ou CPF
       const { data: vistoriaResult, error: vistoriaError } = await supabase
         .from('vistorias')
-        .select('*, atendimentos(*)')
+        .select('*')
         .or(`veiculo_placa.ilike.%${cleanBusca}%,cliente_cpf.ilike.%${cleanBusca}%`)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -65,20 +65,32 @@ export default function AcompanhamentoSinistro() {
       }
 
       setVistoriaData(vistoriaResult);
-      setAtendimento(vistoriaResult.atendimentos);
+
+      // Buscar atendimento vinculado
+      if (vistoriaResult.atendimento_id) {
+        const { data: atendimentoData } = await supabase
+          .from('atendimentos')
+          .select('*')
+          .eq('id', vistoriaResult.atendimento_id)
+          .single();
+        
+        setAtendimento(atendimentoData);
+      } else {
+        setAtendimento(null);
+      }
 
       // Buscar andamentos e histórico
-      if (vistoriaResult.atendimentos?.id) {
+      if (vistoriaResult.atendimento_id) {
         const { data: andamentosData } = await supabase
           .from('andamentos')
           .select('*, profiles!andamentos_created_by_fkey(nome)')
-          .eq('atendimento_id', vistoriaResult.atendimentos.id)
+          .eq('atendimento_id', vistoriaResult.atendimento_id)
           .order('created_at', { ascending: true });
 
         const { data: historicoData } = await supabase
           .from('atendimentos_historico')
           .select('*')
-          .eq('atendimento_id', vistoriaResult.atendimentos.id)
+          .eq('atendimento_id', vistoriaResult.atendimento_id)
           .contains('campos_alterados', ['status'])
           .order('created_at', { ascending: true });
 
@@ -104,15 +116,23 @@ export default function AcompanhamentoSinistro() {
       }
 
       // Buscar status públicos
-      if (vistoriaResult.atendimentos?.fluxo_id) {
-        const { data: statusData } = await supabase
-          .from('status_publicos_config')
-          .select('*')
-          .eq('fluxo_id', vistoriaResult.atendimentos.fluxo_id)
-          .eq('visivel_publico', true)
-          .order('ordem_exibicao');
+      if (vistoriaResult.atendimento_id) {
+        const { data: atendimentoFluxo } = await supabase
+          .from('atendimentos')
+          .select('fluxo_id')
+          .eq('id', vistoriaResult.atendimento_id)
+          .single();
 
-        setStatusPublicos(statusData || []);
+        if (atendimentoFluxo?.fluxo_id) {
+          const { data: statusData } = await supabase
+            .from('status_publicos_config')
+            .select('*')
+            .eq('fluxo_id', atendimentoFluxo.fluxo_id)
+            .eq('visivel_publico', true)
+            .order('ordem_exibicao');
+
+          setStatusPublicos(statusData || []);
+        }
       }
 
       toast.success('Sinistro encontrado!');
