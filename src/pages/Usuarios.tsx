@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Pencil, CheckCircle, Search, Copy, RefreshCw, Users as UsersIcon, Network, UserPlus, UsersRound, Plus, Trash2, Key, ChevronLeft, ChevronRight } from 'lucide-react';
-import InputMask from 'react-input-mask';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { useAuth } from '@/hooks/useAuth';
 import { createUserSchema, generateSecurePassword } from '@/lib/validationSchemas';
 import { z } from 'zod';
@@ -866,13 +866,13 @@ export default function Usuarios() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="grid gap-2">
                         <Label htmlFor="telefone">Telefone</Label>
-                        <InputMask
-                          mask="(99) 99999-9999"
+                        <MaskedInput
+                          id="telefone"
+                          format="(##) #####-####"
                           value={formData.telefone || ''}
-                          onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                        >
-                          {(inputProps: any) => <Input {...inputProps} id="telefone" />}
-                        </InputMask>
+                          onValueChange={(values) => setFormData({ ...formData, telefone: values.value })}
+                          placeholder="(00) 00000-0000"
+                        />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="cargo">Cargo</Label>
@@ -885,19 +885,13 @@ export default function Usuarios() {
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="cpf_cnpj">CPF/CNPJ</Label>
-                      <InputMask
-                        mask="999.999.999-99"
+                      <MaskedInput
+                        id="cpf_cnpj"
+                        format="###.###.###-##"
                         value={formData.cpf_cnpj || ''}
-                        onChange={(e) => setFormData({ ...formData, cpf_cnpj: e.target.value })}
-                      >
-                        {(inputProps: any) => (
-                          <Input
-                            {...inputProps}
-                            id="cpf_cnpj"
-                            placeholder="000.000.000-00"
-                          />
-                        )}
-                      </InputMask>
+                        onValueChange={(values) => setFormData({ ...formData, cpf_cnpj: values.value })}
+                        placeholder="000.000.000-00"
+                      />
                     </div>
                   </div>
 
@@ -907,19 +901,13 @@ export default function Usuarios() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="grid gap-2">
                         <Label htmlFor="whatsapp">WhatsApp</Label>
-                        <InputMask
-                          mask="(99) 99999-9999"
+                        <MaskedInput
+                          id="whatsapp"
+                          format="(##) #####-####"
                           value={formData.whatsapp || ''}
-                          onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
-                        >
-                          {(inputProps: any) => (
-                            <Input
-                              {...inputProps}
-                              id="whatsapp"
-                              placeholder="(00) 00000-0000"
-                            />
-                          )}
-                        </InputMask>
+                          onValueChange={(values) => setFormData({ ...formData, whatsapp: values.value })}
+                          placeholder="(00) 00000-0000"
+                        />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="instagram">Instagram</Label>

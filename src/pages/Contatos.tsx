@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Search, MessageCircle, Instagram, Linkedin, Facebook, Mail, Users as UsersIcon } from 'lucide-react';
-import InputMask from 'react-input-mask';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { Link } from 'react-router-dom';
 import { EnviarEmailSMTPDialog } from '@/components/EnviarEmailSMTPDialog';
 import { usePagination } from '@/hooks/usePagination';
@@ -267,13 +267,13 @@ export default function Contatos() {
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="telefone">Telefone</Label>
-                      <InputMask
-                        mask="(99) 99999-9999"
+                      <MaskedInput
+                        id="telefone"
+                        format="(##) #####-####"
                         value={formData.telefone || ''}
-                        onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                      >
-                        {(inputProps: any) => <Input {...inputProps} id="telefone" />}
-                      </InputMask>
+                        onValueChange={(values) => setFormData({ ...formData, telefone: values.value })}
+                        placeholder="(00) 00000-0000"
+                      />
                     </div>
                   </div>
                   <div className="grid gap-2">
@@ -335,13 +335,13 @@ export default function Contatos() {
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="whatsapp">WhatsApp</Label>
-                        <InputMask
-                          mask="(99) 99999-9999"
+                        <MaskedInput
+                          id="whatsapp"
+                          format="(##) #####-####"
                           value={formData.whatsapp || ''}
-                          onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
-                        >
-                          {(inputProps: any) => <Input {...inputProps} id="whatsapp" placeholder="(00) 00000-0000" />}
-                        </InputMask>
+                          onValueChange={(values) => setFormData({ ...formData, whatsapp: values.value })}
+                          placeholder="(00) 00000-0000"
+                        />
                       </div>
                     </div>
                   </div>

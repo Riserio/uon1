@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Search, Mail, History, Building2, Upload } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import InputMask from 'react-input-mask';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { Link } from 'react-router-dom';
 import { UploadCorretorasDialog } from '@/components/UploadCorretorasDialog';
 import { EnviarEmailSMTPDialog } from '@/components/EnviarEmailSMTPDialog';
@@ -315,13 +315,13 @@ export default function Corretoras() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="cnpj">CNPJ *</Label>
-                      <InputMask
-                        mask="99.999.999/9999-99"
+                      <MaskedInput
+                        id="cnpj"
+                        format="##.###.###/####-##"
                         value={formData.cnpj || ''}
-                        onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
-                      >
-                        {(inputProps: any) => <Input {...inputProps} id="cnpj" />}
-                      </InputMask>
+                        onValueChange={(values) => setFormData({ ...formData, cnpj: values.value })}
+                        placeholder="00.000.000/0000-00"
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="susep">SUSEP *</Label>
@@ -335,23 +335,23 @@ export default function Corretoras() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="telefone">Telefone</Label>
-                      <InputMask
-                        mask="(99) 99999-9999"
+                      <MaskedInput
+                        id="telefone"
+                        format="(##) #####-####"
                         value={formData.telefone || ''}
-                        onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                      >
-                        {(inputProps: any) => <Input {...inputProps} id="telefone" />}
-                      </InputMask>
+                        onValueChange={(values) => setFormData({ ...formData, telefone: values.value })}
+                        placeholder="(00) 00000-0000"
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="cep">CEP</Label>
-                      <InputMask
-                        mask="99999-999"
+                      <MaskedInput
+                        id="cep"
+                        format="#####-###"
                         value={formData.cep || ''}
-                        onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
-                      >
-                        {(inputProps: any) => <Input {...inputProps} id="cep" />}
-                      </InputMask>
+                        onValueChange={(values) => setFormData({ ...formData, cep: values.value })}
+                        placeholder="00000-000"
+                      />
                     </div>
                   </div>
                   <div className="grid gap-2">
