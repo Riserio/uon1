@@ -666,13 +666,13 @@ const Index = () => {
     navigate('/contatos');
   };
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="sticky top-0 z-50 bg-gradient-to-r from-card/95 via-card to-card/95 backdrop-blur-md border-b border-border/50 shadow-lg">
-        <div className="container mx-auto px-4 py-3">
+    <div className="min-h-screen bg-background">
+      <div className="sticky top-0 z-50 bg-card/95 backdrop-blur-md border-b border-border/50 shadow-sm">
+        <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                <h1 className="text-2xl font-bold text-foreground">
                   Gestão de Atendimentos
                 </h1>
               </div>
@@ -682,7 +682,7 @@ const Index = () => {
               <AlertasDialog overdueCount={overdueCount} />
               {canManageStatus && <>
                   <Button 
-                    variant="outline" 
+                    variant="ghost" 
                     size="icon" 
                     onClick={() => setAcompanhamentoLinkOpen(true)} 
                     title="Link de Acompanhamento para Clientes"
@@ -690,7 +690,7 @@ const Index = () => {
                     <Link2 className="h-4 w-4" />
                   </Button>
                   <Button 
-                    variant="outline" 
+                    variant="ghost" 
                     size="icon" 
                     onClick={() => navigate('/configuracao-status-publico')} 
                     title="Configurar Status Públicos"
@@ -698,7 +698,7 @@ const Index = () => {
                     <Settings2 className="h-4 w-4" />
                   </Button>
                   <Button 
-                    variant="outline" 
+                    variant="ghost" 
                     size="icon" 
                     onClick={() => setFluxoVisualizationOpen(true)} 
                     title="Visualizar Fluxo Completo"
@@ -706,7 +706,7 @@ const Index = () => {
                     <Workflow className="h-4 w-4" />
                   </Button>
                   <Button 
-                    variant="outline" 
+                    variant="ghost" 
                     size="icon" 
                     onClick={() => setWorkflowConfigOpen(true)} 
                     title="Configurar Fluxos e Status"
@@ -721,11 +721,19 @@ const Index = () => {
         </div>
       </div>
 
-      <Toolbar searchTerm={searchTerm} onSearchChange={setSearchTerm} filterPriority={filterPriority} onFilterPriorityChange={setFilterPriority} filterResponsavel={filterResponsavel} onFilterResponsavelChange={setFilterResponsavel} viewMode={viewMode} onViewModeChange={setViewMode} onNewAtendimento={handleNewAtendimento} onExportJSON={handleExportJSON} onImportJSON={handleImportJSON} onManageCorretoras={handleManageCorretoras} onManageContatos={handleManageContatos} responsaveis={responsaveis} />
+      <div className="bg-muted/30 border-b border-border/50">
+        <div className="container mx-auto px-6 py-4">
+          <Toolbar searchTerm={searchTerm} onSearchChange={setSearchTerm} filterPriority={filterPriority} onFilterPriorityChange={setFilterPriority} filterResponsavel={filterResponsavel} onFilterResponsavelChange={setFilterResponsavel} viewMode={viewMode} onViewModeChange={setViewMode} onNewAtendimento={handleNewAtendimento} onExportJSON={handleExportJSON} onImportJSON={handleImportJSON} onManageCorretoras={handleManageCorretoras} onManageContatos={handleManageContatos} responsaveis={responsaveis} />
+        </div>
+      </div>
 
-      <FluxoSelector selectedFluxoId={selectedFluxoId} onFluxoSelect={setSelectedFluxoId} onConfigureFluxos={() => setWorkflowConfigOpen(true)} />
+      <div className="bg-card border-b border-border/50">
+        <div className="container mx-auto px-6 py-3">
+          <FluxoSelector selectedFluxoId={selectedFluxoId} onFluxoSelect={setSelectedFluxoId} onConfigureFluxos={() => setWorkflowConfigOpen(true)} />
+        </div>
+      </div>
 
-      <main className="container mx-auto p-8 py-0">
+      <main className="container mx-auto px-6 py-6">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">

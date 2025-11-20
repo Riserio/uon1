@@ -63,45 +63,38 @@ export function FluxoSelector({ selectedFluxoId, onFluxoSelect, onConfigureFluxo
   }
 
   return (
-    <div className="bg-background/50 backdrop-blur-sm border-b border-border/50">
-      <div className="container mx-auto px-4 py-3">
-        <ScrollArea className="w-full">
-          <div className="flex items-center justify-center gap-1.5 pb-2">
-            {fluxos.map((fluxo, index) => {
-              const isActive = selectedFluxoId === fluxo.id;
-              const isPassed = fluxos.findIndex(f => f.id === selectedFluxoId) > index;
-              
-              return (
-                <div key={fluxo.id} className="flex items-center flex-shrink-0">
-                  {index > 0 && (
-                    <div className={cn(
-                      "h-0.5 w-8 mx-1 transition-all duration-500",
-                      isPassed || isActive ? "bg-primary" : "bg-border"
-                    )} />
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onFluxoSelect(fluxo.id)}
-                    title={fluxo.descricao || fluxo.nome}
-                    className={cn(
-                      "relative h-8 px-4 rounded-full text-sm font-medium transition-all duration-300 hover:scale-105",
-                      isActive && "bg-primary text-primary-foreground shadow-md scale-105",
-                      isPassed && "bg-primary/15 text-primary"
-                    )}
-                  >
-                    <span className="relative z-10">{fluxo.nome}</span>
-                    {isActive && (
-                      <div className="absolute inset-0 bg-primary rounded-full animate-pulse opacity-20" />
-                    )}
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
+    <ScrollArea className="w-full whitespace-nowrap">
+      <div className="flex items-center gap-2 px-1 py-2">
+        {fluxos.map((fluxo, index) => {
+          const isActive = selectedFluxoId === fluxo.id;
+          const isPassed = fluxos.findIndex(f => f.id === selectedFluxoId) > index;
+          
+          return (
+            <div key={fluxo.id} className="flex items-center">
+              {index > 0 && (
+                <div className={cn(
+                  "h-[2px] w-12 mx-2 transition-colors",
+                  isPassed || isActive ? "bg-primary" : "bg-border"
+                )} />
+              )}
+              <Button
+                variant={isActive ? "default" : "outline"}
+                size="sm"
+                onClick={() => onFluxoSelect(fluxo.id)}
+                title={fluxo.descricao || fluxo.nome}
+                className={cn(
+                  "h-9 px-6 rounded-full font-medium transition-all whitespace-nowrap",
+                  isActive && "shadow-md",
+                  isPassed && !isActive && "border-primary text-primary bg-primary/5"
+                )}
+              >
+                {fluxo.nome}
+              </Button>
+            </div>
+          );
+        })}
       </div>
-    </div>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
   );
 }

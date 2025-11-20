@@ -4,6 +4,7 @@ import { KanbanColumn } from './KanbanColumn';
 import { AtendimentoCard } from './AtendimentoCard';
 import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 interface StatusConfig {
   id: string;
@@ -92,44 +93,47 @@ export function KanbanBoard({ atendimentos, onUpdateStatus, onEdit, onDelete, on
   const needsScroll = columns.length > 4;
 
   return (
-    <ScrollArea className={needsScroll ? "w-full" : ""}>
-      <div 
-        className={`flex gap-4 lg:gap-6 ${
-          needsScroll ? 'min-w-max pb-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4'
-        }`}
-        style={needsScroll ? { minWidth: `${columns.length * 320}px` } : {}}
-      >
-        {columns.map((column) => {
-          const columnAtendimentos = atendimentos.filter((a) => a.status === column.nome);
-          
-          return (
-            <div key={column.id} className={needsScroll ? 'w-80 flex-shrink-0' : ''}>
-              <KanbanColumn
-                title={column.nome}
-                count={columnAtendimentos.length}
-                color={column.cor}
-                onDrop={() => handleDrop(column.nome)}
-              >
-                {columnAtendimentos.map((atendimento) => (
-                  <AtendimentoCard
-                    key={atendimento.id}
-                    atendimento={atendimento}
-                    statusPrazo={statusPrazo[atendimento.status] || 0}
-                    onDragStart={() => handleDragStart(atendimento.id)}
-                    onDragEnd={handleDragEnd}
-                    onEdit={() => onEdit(atendimento)}
-                    onDelete={() => onDelete(atendimento.id)}
-                    onArquivar={() => onArquivar(atendimento.id)}
-                    onViewAndamentos={onViewAndamentos ? () => onViewAndamentos(atendimento) : undefined}
-                    isDragging={draggedItem === atendimento.id}
-                  />
-                ))}
-              </KanbanColumn>
-            </div>
-          );
-        })}
-      </div>
-      {needsScroll && <ScrollBar orientation="horizontal" />}
-    </ScrollArea>
+    <div className="w-full">
+      <ScrollArea className={needsScroll ? "w-full" : ""}>
+        <div 
+          className={cn(
+            "flex gap-4",
+            needsScroll ? 'min-w-max pb-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+          )}
+          style={needsScroll ? { minWidth: `${columns.length * 320}px` } : {}}
+        >
+          {columns.map((column) => {
+            const columnAtendimentos = atendimentos.filter((a) => a.status === column.nome);
+            
+            return (
+              <div key={column.id} className={cn(needsScroll ? 'w-80 flex-shrink-0' : 'min-w-0')}>
+                <KanbanColumn
+                  title={column.nome}
+                  count={columnAtendimentos.length}
+                  color={column.cor}
+                  onDrop={() => handleDrop(column.nome)}
+                >
+                  {columnAtendimentos.map((atendimento) => (
+                    <AtendimentoCard
+                      key={atendimento.id}
+                      atendimento={atendimento}
+                      statusPrazo={statusPrazo[atendimento.status] || 0}
+                      onDragStart={() => handleDragStart(atendimento.id)}
+                      onDragEnd={handleDragEnd}
+                      onEdit={() => onEdit(atendimento)}
+                      onDelete={() => onDelete(atendimento.id)}
+                      onArquivar={() => onArquivar(atendimento.id)}
+                      onViewAndamentos={onViewAndamentos ? () => onViewAndamentos(atendimento) : undefined}
+                      isDragging={draggedItem === atendimento.id}
+                    />
+                  ))}
+                </KanbanColumn>
+              </div>
+            );
+          })}
+        </div>
+        {needsScroll && <ScrollBar orientation="horizontal" />}
+      </ScrollArea>
+    </div>
   );
 }
