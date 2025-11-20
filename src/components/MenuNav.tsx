@@ -73,8 +73,6 @@ export default function MenuNav() {
           )}
           {/* Equipes removido - agora está em Usuários */}
           <DropdownMenuSeparator />
-          <DropdownMenuLabel>Ferramentas</DropdownMenuLabel>
-          <DropdownMenuSeparator />
           <DropdownMenuLabel>Sinistros</DropdownMenuLabel>
           <DropdownMenuItem asChild>
             <Link to="/sinistros/novo" className="cursor-pointer">
@@ -88,13 +86,14 @@ export default function MenuNav() {
               <span>Acompanhamento</span>
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <Link to="/vistorias" className="cursor-pointer">
               <Camera className="mr-2 h-4 w-4" />
               <span>Vistorias</span>
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Ferramentas</DropdownMenuLabel>
           <DropdownMenuItem asChild>
             <Link to="/agenda" className="cursor-pointer">
               <Calendar className="mr-2 h-4 w-4" />
