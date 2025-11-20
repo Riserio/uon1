@@ -75,6 +75,12 @@ export default function MenuNav() {
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Ferramentas</DropdownMenuLabel>
           <DropdownMenuItem asChild>
+            <Link to="/vistorias" className="cursor-pointer">
+              <Send className="mr-2 h-4 w-4" />
+              <span>Vistorias</span>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
             <Link to="/agenda" className="cursor-pointer">
               <Calendar className="mr-2 h-4 w-4" />
               <span>Agenda</span>

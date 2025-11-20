@@ -25,6 +25,11 @@ import Emails from "./pages/Emails";
 import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 import IndividualPerformance from "./pages/IndividualPerformance";
+import Vistorias from "./pages/Vistorias";
+import VistoriaDigital from "./pages/VistoriaDigital";
+import VistoriaManual from "./pages/VistoriaManual";
+import VistoriaPublica from "./pages/VistoriaPublica";
+import VistoriaDetalhe from "./pages/VistoriaDetalhe";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,8 +80,13 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/change-password" element={<ChangePassword />} />
+            <Route path="/vistoria/:token" element={<VistoriaPublica />} />
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/atendimentos" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/vistorias" element={<ProtectedRoute><Vistorias /></ProtectedRoute>} />
+            <Route path="/vistorias/nova/digital" element={<ProtectedRoute><VistoriaDigital /></ProtectedRoute>} />
+            <Route path="/vistorias/nova/manual" element={<ProtectedRoute><VistoriaManual /></ProtectedRoute>} />
+            <Route path="/vistorias/:id" element={<ProtectedRoute><VistoriaDetalhe /></ProtectedRoute>} />
             <Route path="/dashboard" element={<Navigate to="/" replace />} />
             <Route path="/dashboard-analytics" element={<ProtectedRoute><DashboardAnalytics /></ProtectedRoute>} />
             <Route path="/desempenho-individual" element={<ProtectedRoute><IndividualPerformance /></ProtectedRoute>} />

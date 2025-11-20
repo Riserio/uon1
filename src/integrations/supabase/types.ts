@@ -1256,6 +1256,160 @@ export type Database = {
         }
         Relationships: []
       }
+      vistoria_fotos: {
+        Row: {
+          analise_ia: Json | null
+          arquivo_nome: string
+          arquivo_tamanho: number | null
+          arquivo_url: string
+          created_at: string
+          id: string
+          ordem: number
+          posicao: string
+          vistoria_id: string
+        }
+        Insert: {
+          analise_ia?: Json | null
+          arquivo_nome: string
+          arquivo_tamanho?: number | null
+          arquivo_url: string
+          created_at?: string
+          id?: string
+          ordem: number
+          posicao: string
+          vistoria_id: string
+        }
+        Update: {
+          analise_ia?: Json | null
+          arquivo_nome?: string
+          arquivo_tamanho?: number | null
+          arquivo_url?: string
+          created_at?: string
+          id?: string
+          ordem?: number
+          posicao?: string
+          vistoria_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vistoria_fotos_vistoria_id_fkey"
+            columns: ["vistoria_id"]
+            isOneToOne: false
+            referencedRelation: "vistorias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vistorias: {
+        Row: {
+          analise_ia: Json | null
+          atendimento_id: string | null
+          cliente_cpf: string | null
+          cliente_email: string | null
+          cliente_nome: string | null
+          cliente_telefone: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          danos_detectados: string[] | null
+          data_incidente: string | null
+          endereco: string | null
+          id: string
+          latitude: number | null
+          link_expires_at: string | null
+          link_token: string | null
+          longitude: number | null
+          numero: number
+          observacoes_ia: string | null
+          relato_incidente: string | null
+          relatorio_url: string | null
+          status: string
+          tipo_abertura: string
+          tipo_vistoria: string
+          updated_at: string
+          veiculo_ano: string | null
+          veiculo_chassi: string | null
+          veiculo_cor: string | null
+          veiculo_marca: string | null
+          veiculo_modelo: string | null
+          veiculo_placa: string | null
+        }
+        Insert: {
+          analise_ia?: Json | null
+          atendimento_id?: string | null
+          cliente_cpf?: string | null
+          cliente_email?: string | null
+          cliente_nome?: string | null
+          cliente_telefone?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          danos_detectados?: string[] | null
+          data_incidente?: string | null
+          endereco?: string | null
+          id?: string
+          latitude?: number | null
+          link_expires_at?: string | null
+          link_token?: string | null
+          longitude?: number | null
+          numero?: number
+          observacoes_ia?: string | null
+          relato_incidente?: string | null
+          relatorio_url?: string | null
+          status?: string
+          tipo_abertura: string
+          tipo_vistoria: string
+          updated_at?: string
+          veiculo_ano?: string | null
+          veiculo_chassi?: string | null
+          veiculo_cor?: string | null
+          veiculo_marca?: string | null
+          veiculo_modelo?: string | null
+          veiculo_placa?: string | null
+        }
+        Update: {
+          analise_ia?: Json | null
+          atendimento_id?: string | null
+          cliente_cpf?: string | null
+          cliente_email?: string | null
+          cliente_nome?: string | null
+          cliente_telefone?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          danos_detectados?: string[] | null
+          data_incidente?: string | null
+          endereco?: string | null
+          id?: string
+          latitude?: number | null
+          link_expires_at?: string | null
+          link_token?: string | null
+          longitude?: number | null
+          numero?: number
+          observacoes_ia?: string | null
+          relato_incidente?: string | null
+          relatorio_url?: string | null
+          status?: string
+          tipo_abertura?: string
+          tipo_vistoria?: string
+          updated_at?: string
+          veiculo_ano?: string | null
+          veiculo_chassi?: string | null
+          veiculo_cor?: string | null
+          veiculo_marca?: string | null
+          veiculo_modelo?: string | null
+          veiculo_placa?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vistorias_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
