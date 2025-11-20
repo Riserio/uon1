@@ -968,7 +968,7 @@ export function AtendimentoDialog({
                         <CurrencyInput
                           id="custo_oficina"
                           value={custos.custo_oficina}
-                          onValueChange={(value) => setCustos({ ...custos, custo_oficina: value || 0 })}
+                          onValueChange={(values) => setCustos({ ...custos, custo_oficina: values?.floatValue || 0 })}
                         />
                       </div>
                       <div className="space-y-2">
@@ -976,7 +976,7 @@ export function AtendimentoDialog({
                         <CurrencyInput
                           id="custo_reparo"
                           value={custos.custo_reparo}
-                          onValueChange={(value) => setCustos({ ...custos, custo_reparo: value || 0 })}
+                          onValueChange={(values) => setCustos({ ...custos, custo_reparo: values?.floatValue || 0 })}
                         />
                       </div>
                       <div className="space-y-2">
@@ -984,7 +984,7 @@ export function AtendimentoDialog({
                         <CurrencyInput
                           id="custo_acordo"
                           value={custos.custo_acordo}
-                          onValueChange={(value) => setCustos({ ...custos, custo_acordo: value || 0 })}
+                          onValueChange={(values) => setCustos({ ...custos, custo_acordo: values?.floatValue || 0 })}
                         />
                       </div>
                       <div className="space-y-2">
@@ -992,7 +992,7 @@ export function AtendimentoDialog({
                         <CurrencyInput
                           id="custo_terceiros"
                           value={custos.custo_terceiros}
-                          onValueChange={(value) => setCustos({ ...custos, custo_terceiros: value || 0 })}
+                          onValueChange={(values) => setCustos({ ...custos, custo_terceiros: values?.floatValue || 0 })}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1000,7 +1000,7 @@ export function AtendimentoDialog({
                         <CurrencyInput
                           id="custo_perda_total"
                           value={custos.custo_perda_total}
-                          onValueChange={(value) => setCustos({ ...custos, custo_perda_total: value || 0 })}
+                          onValueChange={(values) => setCustos({ ...custos, custo_perda_total: values?.floatValue || 0 })}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1008,7 +1008,7 @@ export function AtendimentoDialog({
                         <CurrencyInput
                           id="custo_perda_parcial"
                           value={custos.custo_perda_parcial}
-                          onValueChange={(value) => setCustos({ ...custos, custo_perda_parcial: value || 0 })}
+                          onValueChange={(values) => setCustos({ ...custos, custo_perda_parcial: values?.floatValue || 0 })}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1016,7 +1016,7 @@ export function AtendimentoDialog({
                         <CurrencyInput
                           id="valor_franquia"
                           value={custos.valor_franquia}
-                          onValueChange={(value) => setCustos({ ...custos, valor_franquia: value || 0 })}
+                          onValueChange={(values) => setCustos({ ...custos, valor_franquia: values?.floatValue || 0 })}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1024,7 +1024,7 @@ export function AtendimentoDialog({
                         <CurrencyInput
                           id="valor_indenizacao"
                           value={custos.valor_indenizacao}
-                          onValueChange={(value) => setCustos({ ...custos, valor_indenizacao: value || 0 })}
+                          onValueChange={(values) => setCustos({ ...custos, valor_indenizacao: values?.floatValue || 0 })}
                         />
                       </div>
                     </div>
