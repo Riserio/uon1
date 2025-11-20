@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Home, LayoutDashboard, Building2, Users, UserCircle, UsersRound, Calendar, LogOut, Megaphone, Settings, FileText, Mail, ClipboardList, Camera, FileX } from 'lucide-react';
+import { Home, LayoutDashboard, Building2, Users, UserCircle, UsersRound, Calendar, LogOut, Megaphone, Settings, FileText, Mail, ClipboardList, Camera, FileX, TrendingUp } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';

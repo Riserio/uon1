@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,8 @@ export default function AberturaSinistro() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [corretoras, setCorretoras] = useState<any[]>([]);
+  const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     cliente_nome: '',
     cliente_cpf: '',
@@ -31,8 +33,44 @@ export default function AberturaSinistro() {
     data_incidente: '',
     relato_incidente: '',
     tipo_sinistro: '',
-    solicitarVistoria: false
+    solicitarVistoria: false,
+    corretora_id: '',
+    responsavel_id: '',
   });
+
+  useEffect(() => {
+    loadCorretoras();
+    loadResponsaveis();
+  }, []);
+
+  const loadCorretoras = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('corretoras')
+        .select('*')
+        .order('nome');
+
+      if (error) throw error;
+      setCorretoras(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar corretoras:', error);
+    }
+  };
+
+  const loadResponsaveis = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, nome')
+        .eq('ativo', true)
+        .order('nome');
+
+      if (error) throw error;
+      setResponsaveis(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar responsáveis:', error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,6 +134,8 @@ export default function AberturaSinistro() {
         .from('atendimentos')
         .insert({
           user_id: user?.id,
+          corretora_id: formData.corretora_id || null,
+          responsavel_id: formData.responsavel_id || null,
           assunto: `Sinistro - ${formData.tipo_sinistro} - ${formData.cliente_nome}`,
           observacoes: formData.relato_incidente,
           status: primeiroStatus,
@@ -116,6 +156,7 @@ export default function AberturaSinistro() {
           .insert({
             created_by: user?.id,
             atendimento_id: atendimento.id,
+            corretora_id: formData.corretora_id || null,
             tipo_vistoria: 'sinistro',
             tipo_abertura: 'interno',
             tipo_sinistro: formData.tipo_sinistro,

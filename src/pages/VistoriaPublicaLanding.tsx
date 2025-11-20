@@ -21,7 +21,16 @@ export default function VistoriaPublicaLanding() {
     try {
       const { data, error } = await supabase
         .from('vistorias')
-        .select('*, corretoras(nome, logo_url)')
+        .select(`
+          *,
+          corretoras(nome, logo_url),
+          atendimentos!vistorias_atendimento_id_fkey(
+            corretora_id,
+            responsavel_id,
+            corretoras(nome),
+            profiles!atendimentos_responsavel_id_fkey(nome)
+          )
+        `)
         .eq('link_token', token)
         .gt('link_expires_at', new Date().toISOString())
         .single();
@@ -33,7 +42,7 @@ export default function VistoriaPublicaLanding() {
       }
 
       setVistoria(data);
-      setCorretora(data.corretoras);
+      setCorretora(data.corretoras || data.atendimentos?.corretoras);
     } catch (error) {
       console.error('Erro ao carregar vistoria:', error);
       toast.error('Erro ao carregar vistoria');
