@@ -152,59 +152,80 @@ export default function Contratos() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {contratos.map((contrato) => (
-          <Card key={contrato.id}>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="text-lg">{contrato.numero_contrato}</span>
-                {contrato.ativo ? (
-                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Ativo</span>
-                ) : (
-                  <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">Inativo</span>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center space-y-3">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground">Carregando contratos...</p>
+          </div>
+        </div>
+      ) : contratos.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <FileText className="h-16 w-16 text-muted-foreground mb-4" />
+            <h3 className="text-xl font-semibold mb-2">Nenhum contrato cadastrado</h3>
+            <p className="text-muted-foreground mb-6">Comece criando seu primeiro contrato</p>
+            <Button onClick={() => { resetForm(); setDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Criar Primeiro Contrato
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {contratos.map((contrato) => (
+            <Card key={contrato.id}>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="text-lg">{contrato.numero_contrato}</span>
+                  {contrato.ativo ? (
+                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Ativo</span>
+                  ) : (
+                    <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">Inativo</span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div>
+                  <p className="text-sm text-muted-foreground">Corretora</p>
+                  <p className="font-semibold">{contrato.corretoras?.nome || 'N/A'}</p>
+                </div>
+                {contrato.descricao && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Descrição</p>
+                    <p className="text-sm">{contrato.descricao}</p>
+                  </div>
                 )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div>
-                <p className="text-sm text-muted-foreground">Corretora</p>
-                <p className="font-semibold">{contrato.corretoras?.nome || 'N/A'}</p>
-              </div>
-              {contrato.descricao && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Descrição</p>
-                  <p className="text-sm">{contrato.descricao}</p>
+                {contrato.data_inicio && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Período</p>
+                    <p className="text-sm">
+                      {format(new Date(contrato.data_inicio), 'dd/MM/yyyy')}
+                      {contrato.data_fim && ` - ${format(new Date(contrato.data_fim), 'dd/MM/yyyy')}`}
+                    </p>
+                  </div>
+                )}
+                {contrato.valor_mensal && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Valor Mensal</p>
+                    <p className="text-sm font-semibold">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(contrato.valor_mensal)}
+                    </p>
+                  </div>
+                )}
+                <div className="flex gap-2 pt-2">
+                  <Button size="sm" variant="outline" onClick={() => handleEdit(contrato)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleDelete(contrato.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-              )}
-              {contrato.data_inicio && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Período</p>
-                  <p className="text-sm">
-                    {format(new Date(contrato.data_inicio), 'dd/MM/yyyy')}
-                    {contrato.data_fim && ` - ${format(new Date(contrato.data_fim), 'dd/MM/yyyy')}`}
-                  </p>
-                </div>
-              )}
-              {contrato.valor_mensal && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Valor Mensal</p>
-                  <p className="text-sm font-semibold">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(contrato.valor_mensal)}
-                  </p>
-                </div>
-              )}
-              <div className="flex gap-2 pt-2">
-                <Button size="sm" variant="outline" onClick={() => handleEdit(contrato)}>
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleDelete(contrato.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl">
