@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { 
-  Search, ArrowLeft, Clock, CheckCircle2, AlertCircle, 
-  FileText, Calendar, MapPin, Car, User, Phone, Mail,
-  TrendingUp, DollarSign, Package, Wrench
+  Search, ArrowLeft, ChevronDown, ChevronUp, FileText, 
+  Calendar, DollarSign, Edit2, Check
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -18,21 +19,27 @@ interface Vistoria {
   id: string;
   numero: number;
   status: string;
-  tipo_vistoria: string;
   tipo_sinistro: string | null;
-  cliente_nome: string | null;
-  cliente_cpf: string | null;
-  cliente_telefone: string | null;
-  cliente_email: string | null;
-  veiculo_placa: string | null;
-  veiculo_marca: string | null;
-  veiculo_modelo: string | null;
-  veiculo_ano: string | null;
+  relato_incidente: string | null;
   data_incidente: string | null;
   created_at: string;
+  updated_at: string;
   completed_at: string | null;
-  custo_total: number;
-  endereco: string | null;
+  custo_oficina: number | null;
+  custo_reparo: number | null;
+  custo_acordo: number | null;
+  custo_terceiros: number | null;
+  custo_perda_total: number | null;
+  custo_perda_parcial: number | null;
+  valor_franquia: number | null;
+  valor_indenizacao: number | null;
+  veiculo_placa: string | null;
+}
+
+interface TimelineEvent {
+  date: string;
+  title: string;
+  description: string;
 }
 
 export default function AcompanhamentoSinistrosInterno() {
@@ -42,6 +49,18 @@ export default function AcompanhamentoSinistrosInterno() {
   const [filteredVistorias, setFilteredVistorias] = useState<Vistoria[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [editingVistoria, setEditingVistoria] = useState<Vistoria | null>(null);
+  const [editForm, setEditForm] = useState({
+    custo_oficina: 0,
+    custo_reparo: 0,
+    custo_acordo: 0,
+    custo_terceiros: 0,
+    custo_perda_total: 0,
+    custo_perda_parcial: 0,
+    valor_franquia: 0,
+    valor_indenizacao: 0,
+  });
 
   useEffect(() => {
     loadVistorias();
@@ -60,20 +79,9 @@ export default function AcompanhamentoSinistrosInterno() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-
-      const vistoriasWithCusto = (data || []).map(v => ({
-        ...v,
-        custo_total: (Number(v.custo_oficina) || 0) + 
-                     (Number(v.custo_reparo) || 0) + 
-                     (Number(v.custo_acordo) || 0) + 
-                     (Number(v.custo_terceiros) || 0) + 
-                     (Number(v.custo_perda_total) || 0) + 
-                     (Number(v.custo_perda_parcial) || 0)
-      }));
-
-      setVistorias(vistoriasWithCusto);
+      setVistorias(data || []);
     } catch (error) {
-      toast.error('Erro ao carregar vistorias');
+      toast.error('Erro ao carregar sinistros');
     } finally {
       setLoading(false);
     }
@@ -86,8 +94,6 @@ export default function AcompanhamentoSinistrosInterno() {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(v => 
         v.numero?.toString().includes(term) ||
-        v.cliente_nome?.toLowerCase().includes(term) ||
-        v.cliente_cpf?.includes(term) ||
         v.veiculo_placa?.toLowerCase().includes(term)
       );
     }
@@ -99,308 +105,390 @@ export default function AcompanhamentoSinistrosInterno() {
     setFilteredVistorias(filtered);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'concluida': return 'bg-green-500/10 text-green-600 border-green-200';
-      case 'em_analise': return 'bg-blue-500/10 text-blue-600 border-blue-200';
-      case 'aguardando_fotos': return 'bg-amber-500/10 text-amber-600 border-amber-200';
-      default: return 'bg-gray-500/10 text-gray-600 border-gray-200';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'concluida': return <CheckCircle2 className="h-4 w-4" />;
-      case 'em_analise': return <Clock className="h-4 w-4" />;
-      case 'aguardando_fotos': return <AlertCircle className="h-4 w-4" />;
-      default: return <FileText className="h-4 w-4" />;
-    }
+  const statusConfig = {
+    aguardando_fotos: { label: 'Pendente', color: 'bg-yellow-500' },
+    em_analise: { label: 'Em Análise', color: 'bg-blue-500' },
+    aprovada: { label: 'Aprovado', color: 'bg-green-500' },
+    concluida: { label: 'Aprovado', color: 'bg-green-500' },
+    rejeitada: { label: 'Negado', color: 'bg-red-500' },
   };
 
   const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'concluida': return 'Concluída';
-      case 'em_analise': return 'Em Análise';
-      case 'aguardando_fotos': return 'Aguardando Fotos';
-      default: return status;
+    return statusConfig[status as keyof typeof statusConfig]?.label || status;
+  };
+
+  const getStatusColor = (status: string) => {
+    return statusConfig[status as keyof typeof statusConfig]?.color || 'bg-gray-500';
+  };
+
+  const formatCurrency = (value: number | null) => {
+    if (!value) return 'R$ 0,00';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
+
+  const calculateTotal = (vistoria: Vistoria) => {
+    return (
+      (vistoria.custo_oficina || 0) +
+      (vistoria.custo_reparo || 0) +
+      (vistoria.custo_acordo || 0) +
+      (vistoria.custo_terceiros || 0) +
+      (vistoria.custo_perda_total || 0) +
+      (vistoria.custo_perda_parcial || 0)
+    );
+  };
+
+  const getTimeline = (vistoria: Vistoria): TimelineEvent[] => {
+    const events: TimelineEvent[] = [
+      {
+        date: vistoria.created_at,
+        title: 'Sinistro Registrado',
+        description: 'Protocolo aberto automaticamente'
+      }
+    ];
+
+    if (vistoria.status === 'em_analise' || vistoria.status === 'aprovada' || vistoria.status === 'concluida') {
+      events.push({
+        date: vistoria.updated_at,
+        title: 'Documentação Enviada',
+        description: 'Fotos e boletim de ocorrência anexados'
+      });
+    }
+
+    if (vistoria.status === 'aprovada' || vistoria.status === 'concluida') {
+      events.push({
+        date: vistoria.updated_at,
+        title: 'Em Análise',
+        description: 'Perito designado para vistoria'
+      });
+    }
+
+    if (vistoria.status === 'concluida') {
+      events.push({
+        date: vistoria.completed_at || vistoria.updated_at,
+        title: 'Aprovado',
+        description: 'Processo concluído com sucesso'
+      });
+    }
+
+    return events;
+  };
+
+  const handleEditClick = (vistoria: Vistoria) => {
+    setEditingVistoria(vistoria);
+    setEditForm({
+      custo_oficina: vistoria.custo_oficina || 0,
+      custo_reparo: vistoria.custo_reparo || 0,
+      custo_acordo: vistoria.custo_acordo || 0,
+      custo_terceiros: vistoria.custo_terceiros || 0,
+      custo_perda_total: vistoria.custo_perda_total || 0,
+      custo_perda_parcial: vistoria.custo_perda_parcial || 0,
+      valor_franquia: vistoria.valor_franquia || 0,
+      valor_indenizacao: vistoria.valor_indenizacao || 0,
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingVistoria) return;
+
+    try {
+      const { error } = await supabase
+        .from('vistorias')
+        .update(editForm)
+        .eq('id', editingVistoria.id);
+
+      if (error) throw error;
+
+      toast.success('Sinistro atualizado com sucesso');
+      setEditingVistoria(null);
+      loadVistorias();
+    } catch (error) {
+      toast.error('Erro ao atualizar sinistro');
     }
   };
 
-  const stats = {
-    total: vistorias.length,
-    aguardando: vistorias.filter(v => v.status === 'aguardando_fotos').length,
-    analise: vistorias.filter(v => v.status === 'em_analise').length,
-    concluidas: vistorias.filter(v => v.status === 'concluida').length,
-    custoTotal: vistorias.reduce((sum, v) => sum + v.custo_total, 0)
-  };
+  const statusButtons = [
+    { value: 'all', label: 'Todos' },
+    { value: 'aguardando_fotos', label: 'Pendentes' },
+    { value: 'em_analise', label: 'Em Análise' },
+    { value: 'aprovada', label: 'Aprovados' },
+    { value: 'rejeitada', label: 'Negados' },
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-gradient-to-r from-card/95 via-card to-card/95 backdrop-blur-md border-b border-border/50 shadow-lg">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => navigate(-1)}
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                  Acompanhamento de Sinistros
-                </h1>
-                <p className="text-sm text-muted-foreground">Monitore todos os processos em tempo real</p>
-              </div>
-            </div>
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            onClick={() => navigate('/sinistros')}
+            variant="ghost"
+            size="icon"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">Acompanhamento de Sinistros</h1>
+            <p className="text-sm text-muted-foreground">
+              Gerencie e acompanhe todos os sinistros
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-          <Card className="border-l-4 border-l-primary">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Package className="h-4 w-4" />
-                Total de Processos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-primary">{stats.total}</div>
-            </CardContent>
-          </Card>
+      <div className="flex gap-2 flex-wrap">
+        {statusButtons.map((btn) => (
+          <Button
+            key={btn.value}
+            onClick={() => setSelectedStatus(btn.value)}
+            variant={selectedStatus === btn.value ? 'default' : 'outline'}
+            size="sm"
+          >
+            {btn.label}
+          </Button>
+        ))}
+      </div>
 
-          <Card className="border-l-4 border-l-amber-500">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                Aguardando
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-amber-600">{stats.aguardando}</div>
-            </CardContent>
-          </Card>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar por número ou placa..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
+      </div>
 
-          <Card className="border-l-4 border-l-blue-500">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Em Análise
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-blue-600">{stats.analise}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-green-500">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                Concluídas
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-600">{stats.concluidas}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-purple-500">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                Custo Total
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.custoTotal)}
-              </div>
-            </CardContent>
-          </Card>
+      {loading ? (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">Carregando...</p>
         </div>
-
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="pt-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por número, cliente, CPF ou placa..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant={selectedStatus === 'all' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectedStatus('all')}
-                >
-                  Todos
-                </Button>
-                <Button
-                  variant={selectedStatus === 'aguardando_fotos' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectedStatus('aguardando_fotos')}
-                >
-                  Aguardando
-                </Button>
-                <Button
-                  variant={selectedStatus === 'em_analise' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectedStatus('em_analise')}
-                >
-                  Em Análise
-                </Button>
-                <Button
-                  variant={selectedStatus === 'concluida' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectedStatus('concluida')}
-                >
-                  Concluídas
-                </Button>
-              </div>
-            </div>
+      ) : filteredVistorias.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6 text-center">
+            <p className="text-muted-foreground">Nenhum sinistro encontrado</p>
           </CardContent>
         </Card>
+      ) : (
+        <div className="space-y-4">
+          {filteredVistorias.map((vistoria) => {
+            const isExpanded = expandedCard === vistoria.id;
+            const timeline = getTimeline(vistoria);
+            const total = calculateTotal(vistoria);
 
-        {/* Vistorias List */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Carregando processos...</p>
-            </div>
-          </div>
-        ) : filteredVistorias.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhum processo encontrado</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 gap-4">
-            {filteredVistorias.map((vistoria) => (
-              <Card 
-                key={vistoria.id} 
-                className="hover:shadow-lg transition-all cursor-pointer border-l-4"
-                style={{ borderLeftColor: vistoria.status === 'concluida' ? '#22c55e' : vistoria.status === 'em_analise' ? '#3b82f6' : '#f59e0b' }}
-                onClick={() => navigate(`/vistorias/${vistoria.id}`)}
-              >
+            return (
+              <Card key={vistoria.id} className="overflow-hidden">
                 <CardContent className="p-6">
-                  <div className="flex flex-col md:flex-row gap-6">
-                    {/* Left Side - Main Info */}
-                    <div className="flex-1 space-y-4">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <span className="text-2xl font-bold text-foreground">#{vistoria.numero}</span>
-                            <Badge className={`${getStatusColor(vistoria.status)} border flex items-center gap-1`}>
-                              {getStatusIcon(vistoria.status)}
-                              {getStatusLabel(vistoria.status)}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Calendar className="h-4 w-4" />
-                            Criado em {format(new Date(vistoria.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Cliente Info */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-sm">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{vistoria.cliente_nome || 'Não informado'}</span>
-                          </div>
-                          {vistoria.cliente_cpf && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <FileText className="h-4 w-4" />
-                              CPF: {vistoria.cliente_cpf}
-                            </div>
-                          )}
-                          {vistoria.cliente_telefone && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Phone className="h-4 w-4" />
-                              {vistoria.cliente_telefone}
-                            </div>
-                          )}
-                          {vistoria.cliente_email && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Mail className="h-4 w-4" />
-                              {vistoria.cliente_email}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Veículo Info */}
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-sm">
-                            <Car className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">
-                              {vistoria.veiculo_marca} {vistoria.veiculo_modelo}
-                            </span>
-                          </div>
-                          {vistoria.veiculo_placa && (
-                            <div className="text-sm text-muted-foreground">
-                              Placa: {vistoria.veiculo_placa}
-                            </div>
-                          )}
-                          {vistoria.veiculo_ano && (
-                            <div className="text-sm text-muted-foreground">
-                              Ano: {vistoria.veiculo_ano}
-                            </div>
-                          )}
-                          {vistoria.tipo_sinistro && (
-                            <Badge variant="outline" className="text-xs">
-                              {vistoria.tipo_sinistro}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-
-                      {vistoria.endereco && (
-                        <div className="flex items-start gap-2 text-sm text-muted-foreground pt-2 border-t">
-                          <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                          <span>{vistoria.endereco}</span>
-                        </div>
-                      )}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xl font-bold">
+                        SIN-{new Date().getFullYear()}-{String(vistoria.numero).padStart(6, '0')}
+                      </h3>
+                      <Badge className={`${getStatusColor(vistoria.status)} text-white`}>
+                        {getStatusLabel(vistoria.status)}
+                      </Badge>
                     </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEditClick(vistoria)}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setExpandedCard(isExpanded ? null : vistoria.id)}
+                      >
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
 
-                    {/* Right Side - Costs */}
-                    {vistoria.custo_total > 0 && (
-                      <div className="md:w-48 bg-muted/30 rounded-lg p-4 flex flex-col justify-center">
-                        <div className="text-center">
-                          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mb-2">
-                            <DollarSign className="h-4 w-4" />
-                            <span>Custo Estimado</span>
+                  <p className="text-muted-foreground mb-4">
+                    {vistoria.relato_incidente || vistoria.tipo_sinistro || 'Sinistro registrado'}
+                  </p>
+
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Tipo</p>
+                        <p className="font-medium">{vistoria.tipo_sinistro || 'Colisão Veicular'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Data</p>
+                        <p className="font-medium">
+                          {vistoria.data_incidente 
+                            ? format(new Date(vistoria.data_incidente), 'dd/MM/yyyy', { locale: ptBR })
+                            : format(new Date(vistoria.created_at), 'dd/MM/yyyy', { locale: ptBR })
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Valor</p>
+                        <p className="font-medium">{formatCurrency(total)}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="mt-6 border-t pt-6">
+                      <h4 className="font-semibold mb-4">Linha do Tempo</h4>
+                      <div className="space-y-4">
+                        {timeline.map((event, index) => (
+                          <div key={index} className="flex gap-4">
+                            <div className="flex flex-col items-center">
+                              <div className={`w-3 h-3 rounded-full ${index === timeline.length - 1 ? 'bg-primary' : 'bg-muted'}`} />
+                              {index < timeline.length - 1 && (
+                                <div className="w-0.5 h-12 bg-muted" />
+                              )}
+                            </div>
+                            <div className="flex-1 pb-4">
+                              <p className="text-sm text-muted-foreground">
+                                {format(new Date(event.date), 'dd/MM/yyyy', { locale: ptBR })}
+                              </p>
+                              <p className="font-semibold">{event.title}</p>
+                              <p className="text-sm text-muted-foreground">{event.description}</p>
+                            </div>
                           </div>
-                          <div className="text-2xl font-bold text-primary">
-                            {new Intl.NumberFormat('pt-BR', { 
-                              style: 'currency', 
-                              currency: 'BRL' 
-                            }).format(vistoria.custo_total)}
+                        ))}
+                      </div>
+
+                      <div className="mt-6 border-t pt-6">
+                        <h4 className="font-semibold mb-4">Detalhes Financeiros</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Custo Oficina</p>
+                            <p className="font-medium">{formatCurrency(vistoria.custo_oficina)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Custo Reparo</p>
+                            <p className="font-medium">{formatCurrency(vistoria.custo_reparo)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Custo Acordo</p>
+                            <p className="font-medium">{formatCurrency(vistoria.custo_acordo)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Custo Terceiros</p>
+                            <p className="font-medium">{formatCurrency(vistoria.custo_terceiros)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Franquia</p>
+                            <p className="font-medium">{formatCurrency(vistoria.valor_franquia)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Indenização</p>
+                            <p className="font-medium">{formatCurrency(vistoria.valor_indenizacao)}</p>
                           </div>
                         </div>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            ))}
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={!!editingVistoria} onOpenChange={() => setEditingVistoria(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Custos e Valores</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Custo Oficina</Label>
+                <Input
+                  type="number"
+                  value={editForm.custo_oficina}
+                  onChange={(e) => setEditForm({ ...editForm, custo_oficina: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label>Custo Reparo</Label>
+                <Input
+                  type="number"
+                  value={editForm.custo_reparo}
+                  onChange={(e) => setEditForm({ ...editForm, custo_reparo: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label>Custo Acordo</Label>
+                <Input
+                  type="number"
+                  value={editForm.custo_acordo}
+                  onChange={(e) => setEditForm({ ...editForm, custo_acordo: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label>Custo Terceiros</Label>
+                <Input
+                  type="number"
+                  value={editForm.custo_terceiros}
+                  onChange={(e) => setEditForm({ ...editForm, custo_terceiros: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label>Custo Perda Total</Label>
+                <Input
+                  type="number"
+                  value={editForm.custo_perda_total}
+                  onChange={(e) => setEditForm({ ...editForm, custo_perda_total: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label>Custo Perda Parcial</Label>
+                <Input
+                  type="number"
+                  value={editForm.custo_perda_parcial}
+                  onChange={(e) => setEditForm({ ...editForm, custo_perda_parcial: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label>Valor Franquia</Label>
+                <Input
+                  type="number"
+                  value={editForm.valor_franquia}
+                  onChange={(e) => setEditForm({ ...editForm, valor_franquia: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label>Valor Indenização</Label>
+                <Input
+                  type="number"
+                  value={editForm.valor_indenizacao}
+                  onChange={(e) => setEditForm({ ...editForm, valor_indenizacao: Number(e.target.value) })}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditingVistoria(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveEdit}>
+                <Check className="h-4 w-4 mr-2" />
+                Salvar
+              </Button>
+            </div>
           </div>
-        )}
-      </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
