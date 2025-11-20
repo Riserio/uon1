@@ -87,7 +87,10 @@ export default function VistoriaDigital() {
           observacoes: `Horário permitido: ${horarioInicio} às ${horarioFim}\nValidade do link: ${diasValidade} dias`
         })
         .select()
-        .single();
+        .maybeSingle();
+
+      if (vistoriaError) throw vistoriaError;
+      if (!vistoria) throw new Error('Erro ao criar vistoria');
 
       if (vistoriaError) throw vistoriaError;
 

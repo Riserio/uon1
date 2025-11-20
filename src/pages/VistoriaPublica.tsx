@@ -25,8 +25,8 @@ export default function VistoriaPublica() {
   const [fotos, setFotos] = useState<{ [key: string]: File }>({});
   const [fotoPreviews, setFotoPreviews] = useState<{ [key: string]: string }>({});
   const [uploading, setUploading] = useState(false);
+  const [completed, setCompleted] = useState(false);
   const [geolocation, setGeolocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [showOverlay, setShowOverlay] = useState(true);
 
   useEffect(() => {
     loadVistoria();
@@ -117,6 +117,7 @@ export default function VistoriaPublica() {
     }
 
     setUploading(true);
+    toast.info('Enviando fotos...');
     try {
       // Upload das fotos
       for (const [posicao, file] of Object.entries(fotos)) {
@@ -341,9 +342,6 @@ export default function VistoriaPublica() {
               <div className="relative">
                 <Label htmlFor={`foto-${posicaoAtual.id}`} className="cursor-pointer block">
                   <div className="border-2 border-dashed border-primary/30 rounded-lg overflow-hidden relative aspect-video bg-gradient-to-br from-primary/5 to-primary/10 hover:border-primary transition-colors">
-                    {showOverlay && (
-                      <VistoriaOverlay posicao={posicaoAtual.id as 'frontal' | 'traseira' | 'lateral_esquerda' | 'lateral_direita'} />
-                    )}
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
                       <Camera className="h-16 w-16 text-primary mb-3" />
                       <p className="text-lg font-semibold text-foreground">
