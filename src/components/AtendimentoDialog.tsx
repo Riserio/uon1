@@ -694,23 +694,10 @@ export function AtendimentoDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader className="pb-4 border-b flex-shrink-0">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <DialogTitle className="text-2xl">{atendimento ? 'Editar Atendimento' : 'Novo Atendimento'}</DialogTitle>
-                <DialogDescription>
-                  {atendimento ? 'Gerencie todas as informações do atendimento' : 'Preencha as informações do atendimento'}
-                </DialogDescription>
-              </div>
-              {atendimento && (
-                <Button 
-                  variant="default"
-                  onClick={() => setShowConclusaoDialog(true)}
-                  className="shrink-0"
-                >
-                  Concluir Manualmente
-                </Button>
-              )}
-            </div>
+            <DialogTitle className="text-2xl">{atendimento ? 'Editar Atendimento' : 'Novo Atendimento'}</DialogTitle>
+            <DialogDescription>
+              {atendimento ? 'Gerencie todas as informações do atendimento' : 'Preencha as informações do atendimento'}
+            </DialogDescription>
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
@@ -966,11 +953,22 @@ export function AtendimentoDialog({
             />
           </div>
 
-                <div className="flex justify-end gap-2 pt-4 border-t">
-                  <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit">Salvar</Button>
+                <div className="flex justify-between items-center pt-4 border-t">
+                  {atendimento && (
+                    <Button 
+                      type="button" 
+                      variant="default"
+                      onClick={() => setShowConclusaoDialog(true)}
+                    >
+                      Concluir Manualmente
+                    </Button>
+                  )}
+                  <div className="flex gap-2 ml-auto">
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit">Salvar</Button>
+                  </div>
                 </div>
               </form>
             </TabsContent>
