@@ -1125,6 +1125,64 @@ export type Database = {
         }
         Relationships: []
       }
+      permission_change_logs: {
+        Row: {
+          acao: string
+          authorized_by: string
+          created_at: string | null
+          detalhes: Json | null
+          id: string
+          senha_validada: boolean | null
+          target_user_id: string
+          tipo_permissao: string
+          user_id: string
+        }
+        Insert: {
+          acao: string
+          authorized_by: string
+          created_at?: string | null
+          detalhes?: Json | null
+          id?: string
+          senha_validada?: boolean | null
+          target_user_id: string
+          tipo_permissao: string
+          user_id: string
+        }
+        Update: {
+          acao?: string
+          authorized_by?: string
+          created_at?: string | null
+          detalhes?: Json | null
+          id?: string
+          senha_validada?: boolean | null
+          target_user_id?: string
+          tipo_permissao?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permission_change_logs_authorized_by_fkey"
+            columns: ["authorized_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permission_change_logs_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permission_change_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           administrativo_id: string | null
@@ -1474,6 +1532,54 @@ export type Database = {
           },
         ]
       }
+      user_menu_permissions: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          menu_item: string
+          pode_editar: boolean | null
+          pode_visualizar: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          menu_item: string
+          pode_editar?: boolean | null
+          pode_visualizar?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          menu_item?: string
+          pode_editar?: boolean | null
+          pode_visualizar?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_menu_permissions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_menu_permissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -1808,6 +1914,10 @@ export type Database = {
       reset_email_rate_limits: { Args: never; Returns: undefined }
       user_can_access_fluxo: {
         Args: { _fluxo_id: string; _require_edit?: boolean; _user_id: string }
+        Returns: boolean
+      }
+      user_can_access_menu: {
+        Args: { _menu_item: string; _require_edit?: boolean; _user_id: string }
         Returns: boolean
       }
     }
