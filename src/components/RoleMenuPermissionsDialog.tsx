@@ -11,9 +11,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Eye, Edit, Lock, Unlock } from 'lucide-react';
+import { Loader2, Eye, Edit, Lock, Unlock, History } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface RoleMenuPermissionsDialogProps {
   open: boolean;
@@ -58,6 +61,24 @@ const ROLES = [
   { value: 'comercial', label: 'Comercial' },
 ];
 
+interface PermissionLog {
+  id: string;
+  created_at: string;
+  user_id: string;
+  target_user_id: string;
+  acao: string;
+  tipo_permissao: string;
+  detalhes: any;
+  authorized_by: string;
+  senha_validada: boolean;
+  profiles?: {
+    nome: string;
+  };
+  authorized_profiles?: {
+    nome: string;
+  };
+}
+
 export function RoleMenuPermissionsDialog({
   open,
   onOpenChange,
@@ -66,12 +87,39 @@ export function RoleMenuPermissionsDialog({
   const [permissions, setPermissions] = useState<Record<string, Permission>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [password, setPassword] = useState('');
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
+  const [logs, setLogs] = useState<PermissionLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('permissions');
 
   useEffect(() => {
     if (open) {
       loadPermissions();
+      if (activeTab === 'logs') {
+        loadLogs();
+      }
     }
-  }, [open, selectedRole]);
+  }, [open, selectedRole, activeTab]);
+
+  useEffect(() => {
+    const checkIfSuperintendente = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+
+      setShowPasswordInput(roleData?.role !== 'superintendente');
+    };
+
+    if (open) {
+      checkIfSuperintendente();
+    }
+  }, [open]);
 
   const loadPermissions = async () => {
     setLoading(true);
@@ -94,7 +142,7 @@ export function RoleMenuPermissionsDialog({
         };
       });
 
-      // Para menus sem permissões definidas, usar valores padrão (acesso total)
+      // Sempre exibir todos os menus, com permissões padrão (acesso total) se não definidas
       MENU_ITEMS.forEach((item) => {
         if (!permissionsMap[item.id]) {
           permissionsMap[item.id] = {
@@ -160,9 +208,107 @@ export function RoleMenuPermissionsDialog({
     });
   };
 
+  const loadLogs = async () => {
+    setLogsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('permission_change_logs')
+        .select(`
+          id,
+          created_at,
+          user_id,
+          target_user_id,
+          acao,
+          tipo_permissao,
+          detalhes,
+          authorized_by,
+          senha_validada,
+          profiles!permission_change_logs_user_id_fkey(nome),
+          authorized_profiles:profiles!permission_change_logs_authorized_by_fkey(nome)
+        `)
+        .eq('tipo_permissao', 'menu_role')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      setLogs(data as any || []);
+    } catch (error) {
+      console.error('Erro ao carregar logs:', error);
+      toast.error('Erro ao carregar logs');
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  const validatePassword = async (): Promise<boolean> => {
+    if (!showPasswordInput) return true;
+
+    if (!password) {
+      toast.error('Digite a senha de um superintendente');
+      return false;
+    }
+
+    try {
+      // Buscar todos os superintendentes
+      const { data: superintendentes, error: roleError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'superintendente');
+
+      if (roleError) throw roleError;
+      if (!superintendentes || superintendentes.length === 0) {
+        toast.error('Nenhum superintendente encontrado');
+        return false;
+      }
+
+      // Buscar emails dos superintendentes
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('email')
+        .in('id', superintendentes.map(s => s.user_id));
+
+      if (profileError) throw profileError;
+      if (!profiles || profiles.length === 0) {
+        toast.error('Perfis de superintendentes não encontrados');
+        return false;
+      }
+
+      // Tentar fazer login com cada email de superintendente
+      for (const profile of profiles) {
+        try {
+          const { error } = await supabase.auth.signInWithPassword({
+            email: profile.email,
+            password: password,
+          });
+
+          if (!error) {
+            // Senha válida! Fazer logout dessa sessão temporária
+            return true;
+          }
+        } catch {
+          // Continuar tentando outros emails
+        }
+      }
+
+      toast.error('Senha de superintendente inválida');
+      return false;
+    } catch (error) {
+      console.error('Erro ao validar senha:', error);
+      toast.error('Erro ao validar senha');
+      return false;
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Validar senha antes de prosseguir
+      const isPasswordValid = await validatePassword();
+      if (!isPasswordValid) {
+        setSaving(false);
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
@@ -203,10 +349,12 @@ export function RoleMenuPermissionsDialog({
           menus_restritos: permissionsToInsert.length,
         },
         authorized_by: user.id,
-        senha_validada: false,
+        senha_validada: showPasswordInput,
       });
 
       toast.success(`Permissões do perfil ${ROLES.find(r => r.value === selectedRole)?.label} atualizadas com sucesso`);
+      setPassword('');
+      loadLogs(); // Recarregar logs após salvar
     } catch (error) {
       console.error('Erro ao salvar permissões:', error);
       toast.error('Erro ao salvar permissões');
@@ -222,7 +370,7 @@ export function RoleMenuPermissionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh]">
+      <DialogContent className="max-w-5xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="text-xl">Permissões de Menu por Perfil</DialogTitle>
           <DialogDescription>
@@ -230,18 +378,28 @@ export function RoleMenuPermissionsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs 
-          value={selectedRole} 
-          onValueChange={(value) => setSelectedRole(value as 'superintendente' | 'administrativo' | 'lider' | 'comercial')} 
-          className="w-full"
-        >
-          <TabsList className="grid w-full grid-cols-4">
-            {ROLES.map((role) => (
-              <TabsTrigger key={role.value} value={role.value}>
-                {role.label}
-              </TabsTrigger>
-            ))}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="permissions">Permissões</TabsTrigger>
+            <TabsTrigger value="logs" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Logs de Alterações
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="permissions">
+            <Tabs 
+              value={selectedRole} 
+              onValueChange={(value) => setSelectedRole(value as 'superintendente' | 'administrativo' | 'lider' | 'comercial')} 
+              className="w-full"
+            >
+              <TabsList className="grid w-full grid-cols-4">
+                {ROLES.map((role) => (
+                  <TabsTrigger key={role.value} value={role.value}>
+                    {role.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
 
           {ROLES.map((role) => (
             <TabsContent key={role.value} value={role.value} className="mt-4">
@@ -354,6 +512,25 @@ export function RoleMenuPermissionsDialog({
                     </div>
                   </ScrollArea>
 
+                  {showPasswordInput && (
+                    <div className="pt-4 border-t mt-4">
+                      <Label htmlFor="password" className="text-sm font-medium">
+                        Senha de Superintendente *
+                      </Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="Digite a senha de um superintendente"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="mt-2"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Para segurança, é necessário digitar a senha de um superintendente para alterar permissões.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="flex justify-end gap-2 pt-4 border-t mt-4">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                       Cancelar
@@ -367,6 +544,56 @@ export function RoleMenuPermissionsDialog({
               )}
             </TabsContent>
           ))}
+        </Tabs>
+          </TabsContent>
+
+          <TabsContent value="logs" className="mt-4">
+            {logsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <ScrollArea className="max-h-[60vh] pr-4">
+                <div className="space-y-3">
+                  {logs.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">
+                      Nenhuma alteração registrada
+                    </p>
+                  ) : (
+                    logs.map((log) => (
+                      <div
+                        key={log.id}
+                        className="p-4 border rounded-lg bg-card space-y-2"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-1 flex-1">
+                            <p className="text-sm font-medium">{log.acao}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Por:{' '}
+                              {log.authorized_profiles?.nome || 'Usuário desconhecido'}
+                              {log.senha_validada && ' (senha validada)'}
+                            </p>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(log.created_at), "dd/MM/yyyy 'às' HH:mm", {
+                              locale: ptBR,
+                            })}
+                          </span>
+                        </div>
+                        {log.detalhes && (
+                          <div className="text-xs bg-muted/50 p-2 rounded">
+                            <p>Perfil: <span className="font-medium">{log.detalhes.role}</span></p>
+                            <p>Total de menus: {log.detalhes.total_menus}</p>
+                            <p>Menus com restrições: {log.detalhes.menus_restritos}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            )}
+          </TabsContent>
         </Tabs>
       </DialogContent>
     </Dialog>
