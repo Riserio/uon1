@@ -99,7 +99,7 @@ export default function VistoriaPublicaConclusao() {
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-8 rounded-2xl border-2 border-green-200 text-center">
               <div className="flex items-center justify-center gap-2 mb-4">
                 <FileCheck className="h-6 w-6 text-green-600" />
-                <p className="text-sm font-bold text-green-800 uppercase tracking-wider">Número do Protocolo</p>
+                <p className="text-sm font-bold text-green-800 uppercase tracking-wider">Número de Consulta</p>
               </div>
               <p className="text-5xl md:text-6xl font-bold text-green-700">
                 #{vistoria?.numero}

@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Eraser, Pencil } from 'lucide-react';
+import { Eraser, Pencil, CheckCircle2 } from 'lucide-react';
 
 interface SketchPadProps {
   onSave: (sketch: string) => void;
@@ -74,6 +74,11 @@ export default function SketchPad({ onSave, initialSketch }: SketchPadProps) {
 
   const stopDrawing = () => {
     setIsDrawing(false);
+    // Auto-save when user stops drawing
+    if (canvasRef.current) {
+      const dataUrl = canvasRef.current.toDataURL('image/png');
+      onSave(dataUrl);
+    }
   };
 
   const clearCanvas = () => {
@@ -124,9 +129,10 @@ export default function SketchPad({ onSave, initialSketch }: SketchPadProps) {
           <Eraser className="h-4 w-4 mr-2" />
           Limpar
         </Button>
-        <Button type="button" onClick={saveSketch} size="sm">
-          Salvar Croqui
-        </Button>
+        <p className="text-xs text-muted-foreground flex items-center">
+          <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
+          Salvamento automático ativado
+        </p>
       </div>
     </div>
   );
