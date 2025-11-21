@@ -438,13 +438,13 @@ export default function VistoriaPublicaCaptura() {
             </div>
 
             {/* Navigation */}
-            <div className="flex gap-4 pt-6 border-t-2">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-6 border-t-2">
               <Button 
                 variant="outline" 
                 onClick={prevStep} 
                 disabled={currentStep === 0}
                 size="lg"
-                className="flex-1 h-14 text-lg border-2"
+                className="w-full sm:flex-1 h-14 text-base sm:text-lg border-2"
               >
                 <ArrowLeft className="h-5 w-5 mr-2" />
                 Anterior
@@ -453,7 +453,7 @@ export default function VistoriaPublicaCaptura() {
                 onClick={nextStep} 
                 disabled={fotosPosicaoAtual.length === 0}
                 size="lg"
-                className="flex-1 h-14 text-lg bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] font-bold shadow-lg"
+                className="w-full sm:flex-1 h-14 text-base sm:text-lg bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-lg"
               >
                 {currentStep === POSICOES.length - 1 ? 'Preencher Dados' : 'Próxima Foto'}
                 <ArrowRight className="h-5 w-5 ml-2" />

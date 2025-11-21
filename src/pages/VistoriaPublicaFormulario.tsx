@@ -699,13 +699,19 @@ export default function VistoriaPublicaFormulario() {
             )}
 
             {/* Navigation Buttons */}
-            <div className="flex gap-4 pt-6 border-t-2">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-6 border-t-2">
               <Button
                 variant="outline"
-                onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                disabled={currentStep === 0 || uploading}
+                onClick={() => {
+                  if (currentStep === 0) {
+                    navigate(`/vistoria/${token}/captura`);
+                  } else {
+                    setCurrentStep(Math.max(0, currentStep - 1));
+                  }
+                }}
+                disabled={uploading}
                 size="lg"
-                className="flex-1 h-14 text-lg border-2"
+                className="w-full sm:flex-1 h-14 text-base sm:text-lg border-2"
               >
                 <ArrowLeft className="h-5 w-5 mr-2" />
                 Voltar
@@ -716,7 +722,7 @@ export default function VistoriaPublicaFormulario() {
                   onClick={() => setCurrentStep(currentStep + 1)}
                   disabled={uploading}
                   size="lg"
-                  className="flex-1 h-14 text-lg bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] font-bold shadow-lg"
+                  className="w-full sm:flex-1 h-14 text-base sm:text-lg bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-lg"
                 >
                   Próximo
                   <ArrowRight className="h-5 w-5 ml-2" />
@@ -726,7 +732,7 @@ export default function VistoriaPublicaFormulario() {
                   onClick={handleSubmit}
                   disabled={uploading}
                   size="lg"
-                  className="flex-1 h-14 text-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 font-bold shadow-lg"
+                  className="w-full sm:flex-1 h-14 text-base sm:text-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-lg"
                 >
                   {uploading ? (
                     <>
