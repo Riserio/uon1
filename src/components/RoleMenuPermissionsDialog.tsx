@@ -373,7 +373,7 @@ export function RoleMenuPermissionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-6xl h-[85vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="text-xl">Permissões de Menu por Perfil</DialogTitle>
           <DialogDescription>
@@ -381,7 +381,7 @@ export function RoleMenuPermissionsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
           <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
             <TabsTrigger value="permissions">Permissões</TabsTrigger>
             <TabsTrigger value="logs" className="flex items-center gap-2">
@@ -390,13 +390,13 @@ export function RoleMenuPermissionsDialog({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="permissions" className="flex-1 flex flex-col overflow-hidden mt-4">
+          <TabsContent value="permissions" className="flex-1 flex flex-col min-h-0 mt-4">
             <Tabs 
               value={selectedRole} 
               onValueChange={(value) => setSelectedRole(value as 'superintendente' | 'administrativo' | 'lider' | 'comercial')} 
-              className="flex-1 flex flex-col overflow-hidden"
+              className="flex-1 flex flex-col min-h-0"
             >
-              <TabsList className="grid w-full grid-cols-4 flex-shrink-0">
+              <TabsList className="grid w-full grid-cols-4 flex-shrink-0 mb-4">
                 {ROLES.map((role) => (
                   <TabsTrigger key={role.value} value={role.value}>
                     {role.label}
@@ -405,13 +405,13 @@ export function RoleMenuPermissionsDialog({
               </TabsList>
 
           {ROLES.map((role) => (
-            <TabsContent key={role.value} value={role.value} className="flex-1 flex flex-col overflow-hidden mt-4">
+            <TabsContent key={role.value} value={role.value} className="flex-1 flex flex-col min-h-0">
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 flex flex-col min-h-0">
                   <div className="flex gap-4 mb-3 text-sm text-muted-foreground flex-shrink-0">
                     <span className="flex items-center gap-1">
                       <Eye className="h-3.5 w-3.5" />
@@ -423,8 +423,9 @@ export function RoleMenuPermissionsDialog({
                     </span>
                   </div>
 
-                  <ScrollArea className="flex-1 pr-3" type="always">
-                    <div className="space-y-2 pb-2 pr-1">
+                  <div className="flex-1 min-h-0 border rounded-md">
+                    <ScrollArea className="h-full" type="always">
+                      <div className="space-y-2 p-3">
                       {MENU_ITEMS.map((item) => {
                         const perm = permissions[item.id] || {
                           menu_item: item.id,
@@ -512,8 +513,9 @@ export function RoleMenuPermissionsDialog({
                           </div>
                         );
                       })}
-                    </div>
-                  </ScrollArea>
+                      </div>
+                    </ScrollArea>
+                  </div>
 
                   {showPasswordInput && (
                     <div className="pt-3 border-t mt-3 flex-shrink-0">
@@ -550,14 +552,15 @@ export function RoleMenuPermissionsDialog({
         </Tabs>
           </TabsContent>
 
-          <TabsContent value="logs" className="flex-1 flex flex-col overflow-hidden mt-4">
+          <TabsContent value="logs" className="flex-1 flex flex-col min-h-0 mt-4">
             {logsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <ScrollArea className="flex-1 pr-3" type="always">
-                <div className="space-y-2 pb-2 pr-1">
+              <div className="flex-1 min-h-0 border rounded-md">
+                <ScrollArea className="h-full" type="always">
+                  <div className="space-y-2 p-3">
                   {logs.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">
                       Nenhuma alteração registrada
@@ -593,8 +596,9 @@ export function RoleMenuPermissionsDialog({
                       </div>
                     ))
                   )}
-                </div>
-              </ScrollArea>
+                  </div>
+                </ScrollArea>
+              </div>
             )}
           </TabsContent>
         </Tabs>
