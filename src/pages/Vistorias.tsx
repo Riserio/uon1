@@ -146,15 +146,15 @@ export default function Vistorias() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-purple-500/20">
+        <Card className="bg-gradient-to-br from-red-500/10 to-red-500/5 border-red-500/20">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Em Análise
+              Canceladas
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-purple-600">
-              {vistorias.filter(v => v.status === 'em_analise').length}
+            <div className="text-3xl font-bold text-red-600">
+              {vistorias.filter(v => v.status === 'cancelada').length}
             </div>
           </CardContent>
         </Card>

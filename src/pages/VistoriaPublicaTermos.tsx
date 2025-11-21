@@ -131,7 +131,7 @@ export default function VistoriaPublicaTermos() {
         .from('vistorias')
         .update({
           assinatura_url: assinaturaUrl,
-          status: 'em_analise',
+          status: 'concluida',
           completed_at: new Date().toISOString(),
           latitude: geolocation?.latitude,
           longitude: geolocation?.longitude,
