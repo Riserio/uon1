@@ -50,58 +50,6 @@ export default function VistoriaDetalhe() {
     loadVistoria();
   }, [id]);
 
-  useEffect(() => {
-    // Aprovar automaticamente se for vistoria digital com análise IA
-    if (vistoria && vistoria.tipo_abertura === 'digital' && vistoria.analise_ia && vistoria.status === 'em_analise') {
-      aprovarAutomaticamente();
-    }
-  }, [vistoria]);
-
-  const aprovarAutomaticamente = async () => {
-    try {
-      // Aprovar todas as fotos
-      await supabase
-        .from('vistoria_fotos')
-        .update({
-          status_aprovacao: 'aprovada',
-          aprovada_por: 'sistema',
-          aprovada_em: new Date().toISOString()
-        })
-        .eq('vistoria_id', vistoria.id);
-
-      // Atualizar status da vistoria
-      await supabase
-        .from('vistorias')
-        .update({ status: 'aprovada' })
-        .eq('id', vistoria.id);
-
-      // Atualizar tags do atendimento
-      if (vistoria.atendimento_id) {
-        const { data: atendimento } = await supabase
-          .from('atendimentos')
-          .select('tags')
-          .eq('id', vistoria.atendimento_id)
-          .single();
-
-        if (atendimento?.tags) {
-          const newTags = atendimento.tags
-            .filter((tag: string) => !['aguardando_vistoria_digital', 'vistoria_concluida', 'pendente_vistoria'].includes(tag))
-            .concat('vistoria_aprovada');
-
-          await supabase
-            .from('atendimentos')
-            .update({ tags: newTags })
-            .eq('id', vistoria.atendimento_id);
-        }
-      }
-
-      toast.success('Vistoria digital aprovada automaticamente pela IA!');
-      loadVistoria();
-    } catch (error) {
-      console.error('Erro ao aprovar automaticamente:', error);
-    }
-  };
-
   const loadVistoria = async () => {
     try {
       setLoadingFotos(true);
@@ -425,18 +373,6 @@ export default function VistoriaDetalhe() {
                 <Brain className="h-3 w-3 mr-1" />
                 Análise por IA
               </Badge>
-            )}
-            {vistoria.tipo_abertura === 'manual' && vistoria.status !== 'aprovada' && vistoria.status !== 'pendente_correcao' && (
-              <>
-                <Button variant="outline" className="gap-2" onClick={() => handleAbrirAnalise('pendenciar')}>
-                  <X className="h-4 w-4" />
-                  Pendenciar
-                </Button>
-                <Button className="gap-2 bg-green-600 hover:bg-green-700" onClick={() => handleAbrirAnalise('aprovar')}>
-                  <Check className="h-4 w-4" />
-                  Aprovar Vistoria
-                </Button>
-              </>
             )}
             <Button className="gap-2" onClick={handleExportPDF}>
               <Download className="h-4 w-4" />
