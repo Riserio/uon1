@@ -99,12 +99,12 @@ export default function VistoriaPublicaTermos() {
     const todosAceitos = termosObrigatorios.every(t => termosAceitos[t.id]);
 
     if (!todosAceitos) {
-      toast.error('Aceite todos os termos obrigatórios');
+      toast.error('Por favor, aceite todos os termos obrigatórios para continuar', { duration: 4000 });
       return;
     }
 
     if (!assinatura) {
-      toast.error('Assinatura é obrigatória');
+      toast.error('Por favor, adicione sua assinatura digital para finalizar', { duration: 4000 });
       return;
     }
 
@@ -125,7 +125,10 @@ export default function VistoriaPublicaTermos() {
         .from('termos_aceitos')
         .insert(termosAceitosData);
 
-      if (termosError) throw termosError;
+      if (termosError) {
+        console.error('Erro ao salvar termos aceitos:', termosError);
+        throw new Error('Falha ao registrar aceitação dos termos: ' + termosError.message);
+      }
 
       const { error: updateError } = await supabase
         .from('vistorias')
@@ -138,7 +141,23 @@ export default function VistoriaPublicaTermos() {
         })
         .eq('id', vistoria.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Erro ao finalizar vistoria:', updateError);
+        throw new Error('Falha ao finalizar vistoria: ' + updateError.message);
+      }
+
+      // Verificar se foi salvo corretamente
+      const { data: verificacao, error: errorVerif } = await supabase
+        .from('vistorias')
+        .select('id, status, completed_at')
+        .eq('id', vistoria.id)
+        .single();
+
+      if (errorVerif || !verificacao || verificacao.status !== 'concluida') {
+        throw new Error('Erro ao verificar finalização da vistoria');
+      }
+
+      console.log('Vistoria finalizada com sucesso:', verificacao);
 
       const { data: fotosList } = await supabase
         .from('vistoria_fotos')
@@ -161,9 +180,13 @@ export default function VistoriaPublicaTermos() {
       localStorage.removeItem('vistoria_temp');
       toast.success('Vistoria concluída com sucesso!');
       navigate(`/vistoria/${token}/conclusao`);
-    } catch (error) {
-      console.error('Erro ao finalizar:', error);
-      toast.error('Erro ao finalizar vistoria');
+    } catch (error: any) {
+      console.error('Erro ao finalizar vistoria:', error);
+      const mensagemErro = error?.message || 'Erro desconhecido ao finalizar vistoria';
+      toast.error(
+        `Erro ao finalizar: ${mensagemErro}. Por favor, tente novamente ou entre em contato com o suporte.`,
+        { duration: 6000 }
+      );
     } finally {
       setSubmitting(false);
     }
