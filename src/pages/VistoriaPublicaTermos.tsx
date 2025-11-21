@@ -110,8 +110,33 @@ export default function VistoriaPublicaTermos() {
 
     setSubmitting(true);
     try {
+      // Verificar se já está finalizada
+      const { data: checkVistoria } = await supabase
+        .from('vistorias')
+        .select('status, completed_at')
+        .eq('id', vistoria.id)
+        .single();
+
+      if (checkVistoria?.status === 'concluida' && checkVistoria?.completed_at) {
+        toast.success('Esta vistoria já foi finalizada anteriormente!');
+        navigate(`/vistoria/${token}/conclusao`);
+        return;
+      }
+
       const assinaturaUrl = await uploadDataUrl(assinatura, 'assinatura');
 
+      // Primeiro, remover termos aceitos anteriores (caso o usuário tenha voltado)
+      const { error: deleteError } = await supabase
+        .from('termos_aceitos')
+        .delete()
+        .eq('vistoria_id', vistoria.id);
+
+      if (deleteError) {
+        console.error('Aviso ao limpar termos anteriores:', deleteError);
+        // Não bloquear o fluxo por erro de delete
+      }
+
+      // Inserir novos termos aceitos
       const termosAceitosData = termos
         .filter(t => termosAceitos[t.id])
         .map(termo => ({
@@ -121,13 +146,15 @@ export default function VistoriaPublicaTermos() {
           user_agent: navigator.userAgent,
         }));
 
-      const { error: termosError } = await supabase
-        .from('termos_aceitos')
-        .insert(termosAceitosData);
+      if (termosAceitosData.length > 0) {
+        const { error: termosError } = await supabase
+          .from('termos_aceitos')
+          .insert(termosAceitosData);
 
-      if (termosError) {
-        console.error('Erro ao salvar termos aceitos:', termosError);
-        throw new Error('Falha ao registrar aceitação dos termos: ' + termosError.message);
+        if (termosError) {
+          console.error('Erro ao salvar termos aceitos:', termosError);
+          throw new Error('Falha ao registrar aceitação dos termos: ' + termosError.message);
+        }
       }
 
       const { error: updateError } = await supabase
@@ -383,7 +410,7 @@ export default function VistoriaPublicaTermos() {
             {submitting ? (
               <>
                 <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/20 border-t-white mr-2" />
-                Finalizando...
+                Finalizando... Aguarde
               </>
             ) : (
               <>
