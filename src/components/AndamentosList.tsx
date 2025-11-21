@@ -5,9 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Clock, Loader2 } from 'lucide-react';
+import { Plus, Clock, Loader2, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { exportAndamentosToPDF } from '@/utils/pdfExporter';
 
 interface Andamento {
   id: string;
@@ -22,9 +23,16 @@ interface Andamento {
 interface AndamentosListProps {
   atendimentoId: string;
   canEdit?: boolean;
+  atendimentoNumero?: number;
+  atendimentoAssunto?: string;
 }
 
-export function AndamentosList({ atendimentoId, canEdit = true }: AndamentosListProps) {
+export function AndamentosList({ 
+  atendimentoId, 
+  canEdit = true, 
+  atendimentoNumero, 
+  atendimentoAssunto 
+}: AndamentosListProps) {
   const [andamentos, setAndamentos] = useState<Andamento[]>([]);
   const [novoAndamento, setNovoAndamento] = useState('');
   const [loading, setLoading] = useState(false);
@@ -102,8 +110,31 @@ export function AndamentosList({ atendimentoId, canEdit = true }: AndamentosList
     }
   };
 
+  const handleExportPDF = () => {
+    if (!atendimentoNumero || !atendimentoAssunto) {
+      toast.error('Informações do atendimento não disponíveis');
+      return;
+    }
+    exportAndamentosToPDF(atendimentoNumero, atendimentoAssunto, andamentos);
+  };
+
   return (
     <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-sm font-medium">Andamentos</h3>
+        {andamentos.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPDF}
+            title="Exportar para PDF"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            PDF
+          </Button>
+        )}
+      </div>
+      
       {canEdit && (
         <div className="space-y-2 p-4 bg-muted/30 rounded-lg border">
           <label className="text-sm font-medium">Adicionar Andamento</label>

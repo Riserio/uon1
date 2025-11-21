@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Clock, User, Download, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Clock, User, ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { exportHistoricoToPDF } from '@/utils/pdfExporter';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -18,12 +21,18 @@ interface HistoricoItem {
 
 interface HistoricoListProps {
   atendimentoId: string;
+  atendimentoNumero?: number;
+  atendimentoAssunto?: string;
 }
 
 // Cache para nomes já buscados
 const nameCache: Record<string, string> = {};
 
-export function HistoricoList({ atendimentoId }: HistoricoListProps) {
+export function HistoricoList({ 
+  atendimentoId, 
+  atendimentoNumero, 
+  atendimentoAssunto 
+}: HistoricoListProps) {
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -203,29 +212,54 @@ export function HistoricoList({ atendimentoId }: HistoricoListProps) {
     );
   };
 
+  const handleExportPDF = () => {
+    if (!atendimentoNumero || !atendimentoAssunto) {
+      toast.error('Informações do atendimento não disponíveis');
+      return;
+    }
+    exportHistoricoToPDF(atendimentoNumero, atendimentoAssunto, historico);
+  };
+
   return (
-    <ScrollArea className="h-[500px] pr-4">
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center space-y-2">
-            <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-sm text-muted-foreground">Carregando histórico...</p>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-sm font-medium">Histórico</h3>
+        {historico.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPDF}
+            title="Exportar para PDF"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            PDF
+          </Button>
+        )}
+      </div>
+      
+      <ScrollArea className="h-[500px] pr-4">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center space-y-2">
+              <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-sm text-muted-foreground">Carregando histórico...</p>
+            </div>
           </div>
-        </div>
-      ) : historico.length === 0 ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center space-y-2">
-            <Clock className="h-12 w-12 text-muted-foreground/50 mx-auto" />
-            <p className="text-muted-foreground">Nenhuma alteração registrada</p>
+        ) : historico.length === 0 ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center space-y-2">
+              <Clock className="h-12 w-12 text-muted-foreground/50 mx-auto" />
+              <p className="text-muted-foreground">Nenhuma alteração registrada</p>
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {historico.map((item) => (
-            <HistoricoItemComponent key={item.id} item={item} />
-          ))}
-        </div>
-      )}
-    </ScrollArea>
+        ) : (
+          <div className="space-y-4">
+            {historico.map((item) => (
+              <HistoricoItemComponent key={item.id} item={item} />
+            ))}
+          </div>
+        )}
+      </ScrollArea>
+    </div>
   );
 }

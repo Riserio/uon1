@@ -1,7 +1,7 @@
 import { Atendimento } from '@/types/atendimento';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, Archive, Eye, Send, Clock, ExternalLink, FileText, Camera, Truck } from 'lucide-react';
+import { Pencil, Trash2, Archive, Eye, Send, Clock, ExternalLink, FileText, Camera, Truck, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useEffect } from 'react';
 import { EnviarEmailDialog } from './EnviarEmailDialog';
@@ -360,6 +360,21 @@ export function AtendimentoCard({
         >
           <Send className="h-3 w-3" />
         </Button>
+
+        {vistoria?.cliente_telefone && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const telefone = vistoria.cliente_telefone.replace(/\D/g, '');
+              window.open(`https://wa.me/55${telefone}`, '_blank');
+            }}
+            className="h-6 w-6 p-0 hover:bg-muted/50 rounded"
+            title="WhatsApp"
+          >
+            <MessageCircle className="h-3 w-3" />
+          </Button>
+        )}
 
         {vistoria && (
           <>
