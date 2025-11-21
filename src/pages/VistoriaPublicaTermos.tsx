@@ -125,18 +125,7 @@ export default function VistoriaPublicaTermos() {
 
       const assinaturaUrl = await uploadDataUrl(assinatura, 'assinatura');
 
-      // Primeiro, remover termos aceitos anteriores (caso o usuário tenha voltado)
-      const { error: deleteError } = await supabase
-        .from('termos_aceitos')
-        .delete()
-        .eq('vistoria_id', vistoria.id);
-
-      if (deleteError) {
-        console.error('Aviso ao limpar termos anteriores:', deleteError);
-        // Não bloquear o fluxo por erro de delete
-      }
-
-      // Inserir novos termos aceitos
+      // Usar UPSERT para evitar duplicatas (ON CONFLICT)
       const termosAceitosData = termos
         .filter(t => termosAceitos[t.id])
         .map(termo => ({
@@ -144,16 +133,23 @@ export default function VistoriaPublicaTermos() {
           termo_id: termo.id,
           ip_address: null,
           user_agent: navigator.userAgent,
+          aceito_em: new Date().toISOString(),
         }));
 
       if (termosAceitosData.length > 0) {
-        const { error: termosError } = await supabase
-          .from('termos_aceitos')
-          .insert(termosAceitosData);
+        // Usar upsert para evitar erro de constraint
+        for (const termo of termosAceitosData) {
+          const { error: termosError } = await supabase
+            .from('termos_aceitos')
+            .upsert(termo, {
+              onConflict: 'vistoria_id,termo_id',
+              ignoreDuplicates: false
+            });
 
-        if (termosError) {
-          console.error('Erro ao salvar termos aceitos:', termosError);
-          throw new Error('Falha ao registrar aceitação dos termos: ' + termosError.message);
+          if (termosError) {
+            console.error('Erro ao salvar termo aceito:', termosError);
+            throw new Error('Falha ao registrar aceitação dos termos: ' + termosError.message);
+          }
         }
       }
 
