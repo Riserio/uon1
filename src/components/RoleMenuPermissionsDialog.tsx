@@ -423,8 +423,8 @@ export function RoleMenuPermissionsDialog({
                     </span>
                   </div>
 
-                  <ScrollArea className="flex-1 pr-3">
-                    <div className="space-y-2 pb-2">
+                  <ScrollArea className="flex-1 pr-3" type="always">
+                    <div className="space-y-2 pb-2 pr-1">
                       {MENU_ITEMS.map((item) => {
                         const perm = permissions[item.id] || {
                           menu_item: item.id,
@@ -556,8 +556,8 @@ export function RoleMenuPermissionsDialog({
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <ScrollArea className="flex-1 pr-3">
-                <div className="space-y-2 pb-2">
+              <ScrollArea className="flex-1 pr-3" type="always">
+                <div className="space-y-2 pb-2 pr-1">
                   {logs.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">
                       Nenhuma alteração registrada
