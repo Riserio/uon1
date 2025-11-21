@@ -36,6 +36,7 @@ export default function VistoriaDetalhe() {
   const [fotos, setFotos] = useState<any[]>([]);
   const [termosAceitos, setTermosAceitos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingFotos, setLoadingFotos] = useState(true);
   const [corretora, setCorretora] = useState<any>(null);
   const [administradora, setAdministradora] = useState<any>(null);
   const [fotoSelecionada, setFotoSelecionada] = useState<any | null>(null);
@@ -103,6 +104,7 @@ export default function VistoriaDetalhe() {
 
   const loadVistoria = async () => {
     try {
+      setLoadingFotos(true);
       const { data: vistoriaData, error: vistoriaError } = await supabase
         .from('vistorias')
         .select('*')
@@ -118,7 +120,12 @@ export default function VistoriaDetalhe() {
         .eq('vistoria_id', id)
         .order('ordem');
 
-      if (fotosError) throw fotosError;
+      if (fotosError) {
+        console.error('Erro ao carregar fotos:', fotosError);
+        toast.error('Erro ao carregar fotos da vistoria');
+      }
+      
+      console.log('Fotos carregadas:', fotosData?.length || 0);
       setFotos(fotosData || []);
 
       // Carregar termos aceitos
@@ -152,6 +159,7 @@ export default function VistoriaDetalhe() {
       toast.error('Erro ao carregar detalhes da vistoria');
     } finally {
       setLoading(false);
+      setLoadingFotos(false);
     }
   };
 
@@ -711,86 +719,136 @@ export default function VistoriaDetalhe() {
           {/* Tab: Fotos */}
           <TabsContent value="fotos" className="space-y-6">
             <Card>
-              <CardHeader className="bg-muted/50">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/50 dark:to-purple-950/50 border-b">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Camera className="h-5 w-5" />
-                    Fotos do Veículo ({fotos.length})
-                  </CardTitle>
+                  <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-2 text-xl">
+                      <Camera className="h-5 w-5 text-blue-600" />
+                      Fotos do Veículo
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      {loadingFotos ? 'Carregando...' : `${fotos.length} foto${fotos.length !== 1 ? 's' : ''} ${fotos.length !== 1 ? 'registradas' : 'registrada'}`}
+                    </p>
+                  </div>
                   {vistoria.tipo_abertura === 'manual' && fotos.some(f => f.status_aprovacao === 'pendente') && (
-                    <Button onClick={handleAprovarTodasFotos} size="sm" className="gap-2">
+                    <Button onClick={handleAprovarTodasFotos} size="sm" className="gap-2 bg-green-600 hover:bg-green-700">
                       <Check className="h-4 w-4" />
-                      Aprovar Todas
+                      Aprovar Todas ({fotos.filter(f => f.status_aprovacao === 'pendente').length})
                     </Button>
                   )}
                 </div>
               </CardHeader>
               <CardContent className="p-6">
-                {fotos.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">Nenhuma foto enviada ainda</p>
+                {loadingFotos ? (
+                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary"></div>
+                    <p className="text-sm text-muted-foreground">Carregando fotos...</p>
+                  </div>
+                ) : fotos.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 space-y-4 text-center">
+                    <div className="rounded-full bg-muted p-6">
+                      <Camera className="h-12 w-12 text-muted-foreground/50" />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-lg font-medium">Nenhuma foto disponível</p>
+                      <p className="text-sm text-muted-foreground max-w-sm">
+                        {vistoria.status === 'aguardando_fotos' 
+                          ? 'As fotos aparecerão aqui assim que forem enviadas pelo cliente.'
+                          : 'Esta vistoria não possui fotos registradas.'}
+                      </p>
+                    </div>
+                  </div>
                 ) : (
                   <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {fotos.map((foto) => (
-                      <Card key={foto.id} className="overflow-hidden">
-                        <div className="relative group">
+                      <Card key={foto.id} className="overflow-hidden border-2 hover:border-primary/50 transition-all duration-200">
+                        <div className="relative group aspect-[4/3]">
                           <img
                             src={foto.arquivo_url}
                             alt={getPosicaoNome(foto.posicao)}
-                            className="w-full h-64 object-cover"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              console.error('Erro ao carregar imagem:', foto.arquivo_url);
+                              (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23f0f0f0" width="400" height="300"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImagem não disponível%3C/text%3E%3C/svg%3E';
+                            }}
                           />
-                          <Badge 
-                            className={cn(
-                              "absolute top-2 right-2",
-                              foto.status_aprovacao === 'aprovada' ? 'bg-green-500' :
-                              foto.status_aprovacao === 'reprovada' ? 'bg-red-500' :
-                              'bg-yellow-500'
-                            )}
-                          >
-                            {foto.status_aprovacao === 'aprovada' ? 'Aprovada' :
-                             foto.status_aprovacao === 'reprovada' ? 'Reprovada' :
-                             'Pendente'}
-                          </Badge>
+                          <div className="absolute top-2 left-2 right-2 flex items-start justify-between gap-2">
+                            <Badge variant="secondary" className="bg-black/60 text-white backdrop-blur-sm">
+                              {getPosicaoNome(foto.posicao)}
+                            </Badge>
+                            <Badge 
+                              className={cn(
+                                "backdrop-blur-sm",
+                                foto.status_aprovacao === 'aprovada' ? 'bg-green-500 hover:bg-green-600' :
+                                foto.status_aprovacao === 'reprovada' ? 'bg-red-500 hover:bg-red-600' :
+                                'bg-yellow-500 hover:bg-yellow-600'
+                              )}
+                            >
+                              {foto.status_aprovacao === 'aprovada' ? (
+                                <><Check className="h-3 w-3 mr-1" /> Aprovada</>
+                              ) : foto.status_aprovacao === 'reprovada' ? (
+                                <><X className="h-3 w-3 mr-1" /> Reprovada</>
+                              ) : (
+                                <><Clock className="h-3 w-3 mr-1" /> Pendente</>
+                              )}
+                            </Badge>
+                          </div>
                           
                           {vistoria.tipo_abertura === 'manual' && foto.status_aprovacao === 'pendente' && (
-                            <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="flex gap-2">
-                                <Button 
-                                  size="sm" 
-                                  variant="default"
-                                  className="flex-1 bg-green-600 hover:bg-green-700"
-                                  onClick={() => handleAprovarFoto(foto.id)}
-                                >
-                                  <Check className="h-4 w-4 mr-1" />
-                                  Aprovar
-                                </Button>
-                                <Button 
-                                  size="sm" 
-                                  variant="destructive"
-                                  className="flex-1"
-                                  onClick={() => handleReprovarFoto(foto)}
-                                >
-                                  <X className="h-4 w-4 mr-1" />
-                                  Reprovar
-                                </Button>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end">
+                              <div className="w-full p-3 space-y-2">
+                                <p className="text-white text-xs font-medium mb-2">Ações da Foto:</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Button 
+                                    size="sm" 
+                                    variant="default"
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                    onClick={() => handleAprovarFoto(foto.id)}
+                                  >
+                                    <Check className="h-4 w-4 mr-1" />
+                                    Aprovar
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="destructive"
+                                    onClick={() => handleReprovarFoto(foto)}
+                                  >
+                                    <X className="h-4 w-4 mr-1" />
+                                    Reprovar
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           )}
                         </div>
                         
-                        <CardContent className="p-4">
-                          <h3 className="font-semibold mb-2">{getPosicaoNome(foto.posicao)}</h3>
+                        <CardContent className="p-4 space-y-3">
+                          {foto.aprovada_em && (
+                            <div className="text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3 inline mr-1" />
+                              {format(new Date(foto.aprovada_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            </div>
+                          )}
                           
                           {foto.observacao_reprovacao && (
-                            <div className="bg-red-50 border border-red-200 rounded p-2 mb-2">
-                              <p className="text-xs text-red-600 font-medium">Motivo da reprovação:</p>
-                              <p className="text-xs text-red-700">{foto.observacao_reprovacao}</p>
+                            <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-3 space-y-1">
+                              <p className="text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
+                                <X className="h-3 w-3" />
+                                Motivo da reprovação:
+                              </p>
+                              <p className="text-xs text-red-700 dark:text-red-300">{foto.observacao_reprovacao}</p>
                             </div>
                           )}
                           
                           {foto.analise_ia && (
-                            <div className="bg-purple-50 border border-purple-200 rounded p-2">
-                              <p className="text-xs text-purple-600 font-medium mb-1">Análise IA:</p>
-                              <p className="text-xs text-purple-700">{foto.analise_ia.analise || foto.analise_ia}</p>
+                            <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3 space-y-1">
+                              <p className="text-xs text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1">
+                                <Brain className="h-3 w-3" />
+                                Análise IA:
+                              </p>
+                              <p className="text-xs text-purple-700 dark:text-purple-300 leading-relaxed">
+                                {typeof foto.analise_ia === 'string' ? foto.analise_ia : foto.analise_ia.analise || 'Análise não disponível'}
+                              </p>
                             </div>
                           )}
                         </CardContent>
@@ -804,74 +862,152 @@ export default function VistoriaDetalhe() {
 
           {/* Tab: Análise IA */}
           <TabsContent value="ia" className="space-y-6">
-            {vistoria.analise_ia || vistoria.observacoes_ia ? (
-              <Card className="border-2 border-purple-200 bg-purple-50/50">
-                <CardHeader className="bg-purple-100/50">
-                  <CardTitle className="flex items-center gap-2 text-purple-700">
-                    <Brain className="h-6 w-6" />
-                    Análise por Inteligência Artificial
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6 space-y-6">
-                  {vistoria.danos_detectados && vistoria.danos_detectados.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold mb-3 text-purple-900">Danos Detectados:</h4>
+            {vistoria.analise_ia || vistoria.observacoes_ia || vistoria.danos_detectados?.length > 0 ? (
+              <div className="space-y-6">
+                {/* Veículo Detectado */}
+                {(vistoria.veiculo_placa || vistoria.veiculo_marca || vistoria.veiculo_modelo) && (
+                  <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
+                    <CardHeader className="bg-blue-100/50 dark:bg-blue-900/20">
+                      <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                        <Car className="h-5 w-5" />
+                        Veículo Identificado pela IA
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="grid md:grid-cols-3 gap-4">
+                        {vistoria.veiculo_placa && (
+                          <div className="bg-white dark:bg-background rounded-lg p-4 border border-blue-200">
+                            <span className="text-xs text-muted-foreground block mb-1">Placa</span>
+                            <p className="font-bold text-xl tracking-wider">{vistoria.veiculo_placa}</p>
+                          </div>
+                        )}
+                        {vistoria.veiculo_marca && (
+                          <div className="bg-white dark:bg-background rounded-lg p-4 border border-blue-200">
+                            <span className="text-xs text-muted-foreground block mb-1">Marca</span>
+                            <p className="font-semibold text-lg">{vistoria.veiculo_marca}</p>
+                          </div>
+                        )}
+                        {vistoria.veiculo_modelo && (
+                          <div className="bg-white dark:bg-background rounded-lg p-4 border border-blue-200">
+                            <span className="text-xs text-muted-foreground block mb-1">Modelo</span>
+                            <p className="font-semibold text-lg">{vistoria.veiculo_modelo}</p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Danos Detectados */}
+                {vistoria.danos_detectados && vistoria.danos_detectados.length > 0 && (
+                  <Card className="border-2 border-red-200 bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20">
+                    <CardHeader className="bg-red-100/50 dark:bg-red-900/20">
+                      <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400">
+                        <Shield className="h-5 w-5" />
+                        Danos Detectados ({vistoria.danos_detectados.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
                       <div className="flex gap-2 flex-wrap">
                         {vistoria.danos_detectados.map((dano: string, index: number) => (
-                          <Badge key={index} variant="destructive" className="text-sm">
+                          <Badge key={index} variant="destructive" className="text-sm px-3 py-1">
+                            <X className="h-3 w-3 mr-1" />
                             {dano}
                           </Badge>
                         ))}
                       </div>
-                    </div>
-                  )}
-                  
-                  <Separator />
-                  
-                  {vistoria.observacoes_ia && (
-                    <div>
-                      <h4 className="font-semibold mb-3 text-purple-900">Resumo Executivo:</h4>
-                      <div className="bg-white rounded-lg border border-purple-200 p-4">
-                        <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed">
-                          {vistoria.observacoes_ia}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                    </CardContent>
+                  </Card>
+                )}
 
-                  {vistoria.analise_ia && vistoria.analise_ia.analises && vistoria.analise_ia.analises.length > 0 && (
-                    <>
-                      <Separator />
+                {/* Resumo da Análise */}
+                <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20">
+                  <CardHeader className="bg-purple-100/50 dark:bg-purple-900/20">
+                    <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                      <Brain className="h-6 w-6" />
+                      Análise por Inteligência Artificial
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    {vistoria.observacoes_ia && (
                       <div>
-                        <h4 className="font-semibold mb-3 text-purple-900">Análise Detalhada por Foto:</h4>
-                        <div className="space-y-3">
-                          {vistoria.analise_ia.analises.map((analise: any, index: number) => (
-                            <div key={index} className="bg-white rounded-lg border border-purple-200 p-4">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Badge variant="outline" className="bg-purple-50">
-                                  {getPosicaoNome(analise.posicao)}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-muted-foreground leading-relaxed">
-                                {analise.analise}
-                              </p>
-                            </div>
-                          ))}
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="h-1 w-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"></div>
+                          <h4 className="font-semibold text-purple-900 dark:text-purple-300">Resumo Executivo</h4>
+                        </div>
+                        <div className="bg-white dark:bg-background rounded-lg border-2 border-purple-200 dark:border-purple-800 p-5">
+                          <p className="whitespace-pre-wrap text-foreground/80 leading-relaxed">
+                            {vistoria.observacoes_ia}
+                          </p>
                         </div>
                       </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
+                    )}
+
+                    {vistoria.analise_ia && vistoria.analise_ia.analises && vistoria.analise_ia.analises.length > 0 && (
+                      <>
+                        {vistoria.observacoes_ia && <Separator className="my-6" />}
+                        <div>
+                          <div className="flex items-center gap-2 mb-4">
+                            <div className="h-1 w-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"></div>
+                            <h4 className="font-semibold text-purple-900 dark:text-purple-300">Análise Detalhada por Foto</h4>
+                          </div>
+                          <div className="space-y-4">
+                            {vistoria.analise_ia.analises.map((analise: any, index: number) => (
+                              <Card key={index} className="bg-white dark:bg-background border-2 border-purple-200/50 hover:border-purple-300 transition-colors">
+                                <CardContent className="p-5">
+                                  <div className="flex items-start gap-4">
+                                    <div className="flex-shrink-0">
+                                      <Badge variant="outline" className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300">
+                                        <Camera className="h-3 w-3 mr-1" />
+                                        {getPosicaoNome(analise.posicao)}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex-1 space-y-2">
+                                      <p className="text-sm text-foreground/70 leading-relaxed">
+                                        {analise.analise}
+                                      </p>
+                                      {analise.danos_encontrados && analise.danos_encontrados.length > 0 && (
+                                        <div className="flex gap-1 flex-wrap mt-2">
+                                          {analise.danos_encontrados.map((dano: string, idx: number) => (
+                                            <Badge key={idx} variant="secondary" className="text-xs">
+                                              {dano}
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Metadados da Análise */}
+                    {vistoria.analise_ia && (
+                      <div className="bg-purple-100/50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+                        <div className="flex items-center gap-2 text-xs text-purple-700 dark:text-purple-400">
+                          <Clock className="h-3.5 w-3.5" />
+                          <span>Análise gerada automaticamente por IA em {format(new Date(vistoria.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             ) : (
-              <Card>
+              <Card className="border-2 border-dashed border-muted">
                 <CardContent className="p-12 text-center">
-                  <Brain className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-20" />
-                  <p className="text-lg font-medium mb-2">Análise de IA não disponível</p>
-                  <p className="text-sm text-muted-foreground">
+                  <div className="rounded-full bg-muted/50 p-6 w-fit mx-auto mb-4">
+                    <Brain className="h-12 w-12 text-muted-foreground/50" />
+                  </div>
+                  <p className="text-lg font-semibold mb-2">Análise de IA não disponível</p>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
                     {vistoria.tipo_abertura === 'manual' 
-                      ? 'Vistorias manuais não possuem análise automatizada'
-                      : 'A análise será gerada automaticamente quando as fotos forem enviadas'}
+                      ? 'Vistorias manuais não possuem análise automatizada. A análise deve ser feita manualmente pelo time técnico.'
+                      : 'A análise será gerada automaticamente assim que as fotos forem enviadas e processadas pelo sistema.'}
                   </p>
                 </CardContent>
               </Card>
