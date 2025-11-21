@@ -137,20 +137,57 @@ export default function VistoriaPublicaFormulario() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.cliente_nome || !formData.cliente_cpf) {
-      toast.error('Preencha nome e CPF');
+    // Validar campos obrigatórios
+    const camposObrigatorios = [];
+    
+    if (!formData.cliente_nome?.trim()) {
+      camposObrigatorios.push('Nome completo');
+    }
+    
+    if (!formData.cliente_cpf?.trim()) {
+      camposObrigatorios.push('CPF');
+    } else if (!validateCPF(formData.cliente_cpf)) {
+      toast.error('CPF inválido. Por favor, verifique o número digitado.');
       setCurrentStep(0);
       return;
     }
-
-    if (!validateCPF(formData.cliente_cpf)) {
-      toast.error('CPF inválido');
-      setCurrentStep(0);
-      return;
+    
+    if (!formData.data_evento) {
+      camposObrigatorios.push('Data do evento');
     }
-
+    
+    if (!formData.hora_evento) {
+      camposObrigatorios.push('Hora do evento');
+    }
+    
+    if (!formData.narrar_fatos?.trim()) {
+      camposObrigatorios.push('Descrição dos fatos');
+    }
+    
     if (formData.cliente_telefone && !validatePhone(formData.cliente_telefone)) {
-      toast.error('Telefone inválido');
+      toast.error('Telefone inválido. Use o formato (00) 00000-0000');
+      setCurrentStep(0);
+      return;
+    }
+    
+    // Validações condicionais
+    if (formData.fez_bo && !boFile) {
+      camposObrigatorios.push('Boletim de Ocorrência (arquivo)');
+    }
+    
+    if (formData.foi_hospital && !laudoMedico) {
+      camposObrigatorios.push('Laudo Médico (arquivo)');
+    }
+    
+    if (formData.motorista_faleceu && !atestadoObito) {
+      camposObrigatorios.push('Atestado de Óbito (arquivo)');
+    }
+    
+    if (camposObrigatorios.length > 0) {
+      toast.error(
+        `Por favor, preencha os seguintes campos obrigatórios: ${camposObrigatorios.join(', ')}`,
+        { duration: 5000 }
+      );
       setCurrentStep(0);
       return;
     }
@@ -232,16 +269,32 @@ export default function VistoriaPublicaFormulario() {
         .eq('id', vistoria.id);
 
       if (updateError) {
-        console.error('Erro detalhado:', updateError);
-        throw updateError;
+        console.error('Erro ao atualizar vistoria:', updateError);
+        throw new Error(`Falha ao salvar os dados: ${updateError.message}`);
       }
 
+      // Verificar se os dados foram salvos
+      const { data: verificacao, error: errorVerificacao } = await supabase
+        .from('vistorias')
+        .select('id, cliente_nome, cliente_cpf')
+        .eq('id', vistoria.id)
+        .single();
+
+      if (errorVerificacao || !verificacao) {
+        throw new Error('Não foi possível verificar o salvamento dos dados');
+      }
+
+      console.log('Vistoria salva com sucesso:', verificacao);
       localStorage.removeItem('vistoria_temp');
-      toast.success('Dados salvos! Agora aceite os termos.');
+      toast.success('Dados salvos com sucesso! Agora aceite os termos.');
       navigate(`/vistoria/${token}/termos`);
     } catch (error: any) {
       console.error('Erro ao enviar vistoria:', error);
-      toast.error(error?.message || 'Erro ao enviar vistoria. Tente novamente.');
+      const mensagemErro = error?.message || 'Erro ao enviar vistoria';
+      toast.error(
+        `Erro: ${mensagemErro}. Por favor, tente novamente ou entre em contato com o suporte.`,
+        { duration: 6000 }
+      );
     } finally {
       setUploading(false);
     }
@@ -741,7 +794,18 @@ export default function VistoriaPublicaFormulario() {
               
               {currentStep < STEPS.length - 1 ? (
                 <Button
-                  onClick={() => setCurrentStep(currentStep + 1)}
+                  onClick={() => {
+                    // Validação básica antes de avançar
+                    if (currentStep === 0 && (!formData.cliente_nome?.trim() || !formData.cliente_cpf?.trim())) {
+                      toast.error('Por favor, preencha seu nome e CPF para continuar');
+                      return;
+                    }
+                    if (currentStep === 1 && (!formData.data_evento || !formData.hora_evento)) {
+                      toast.error('Por favor, preencha a data e hora do evento para continuar');
+                      return;
+                    }
+                    setCurrentStep(currentStep + 1);
+                  }}
                   disabled={uploading}
                   size="lg"
                   className="w-full sm:flex-1 h-14 text-base sm:text-lg bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-lg"
