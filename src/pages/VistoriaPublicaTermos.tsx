@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { 
   CheckCircle2, FileText, MapPin, Calendar, Hash, 
-  Shield, ExternalLink, ArrowLeft, Pen
+  Shield, ExternalLink, ArrowLeft, Pen, AlertCircle
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -339,13 +339,13 @@ export default function VistoriaPublicaTermos() {
         )}
 
         {/* Buttons */}
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <Button
             variant="outline"
             onClick={() => navigate(`/vistoria/${token}/formulario`)}
             disabled={submitting}
             size="lg"
-            className="flex-1 h-14 text-lg border-2"
+            className="w-full sm:flex-1 h-14 text-base sm:text-lg border-2"
           >
             <ArrowLeft className="h-5 w-5 mr-2" />
             Voltar
@@ -355,7 +355,7 @@ export default function VistoriaPublicaTermos() {
             onClick={handleSubmit}
             disabled={submitting || !todosTermosAceitos || !assinatura}
             size="lg"
-            className="flex-1 h-14 text-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 font-bold shadow-xl"
+            className="w-full sm:flex-1 h-14 text-base sm:text-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-xl"
           >
             {submitting ? (
               <>
@@ -370,6 +370,25 @@ export default function VistoriaPublicaTermos() {
             )}
           </Button>
         </div>
+
+        {/* Validation Messages */}
+        {!todosTermosAceitos && (
+          <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-amber-800 font-medium">
+              É necessário aceitar todos os termos obrigatórios para continuar
+            </p>
+          </div>
+        )}
+        
+        {todosTermosAceitos && !assinatura && (
+          <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-amber-800 font-medium">
+              É necessário adicionar sua assinatura digital para finalizar
+            </p>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="text-center pt-4">
