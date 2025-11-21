@@ -103,7 +103,7 @@ export function RoleMenuPermissionsDialog({
   }, [open, selectedRole, activeTab]);
 
   useEffect(() => {
-    const checkIfSuperintendente = async () => {
+    const checkPermissions = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -113,13 +113,16 @@ export function RoleMenuPermissionsDialog({
         .eq('user_id', user.id)
         .single();
 
-      setShowPasswordInput(roleData?.role !== 'superintendente');
+      // Só precisa de senha se estiver tentando alterar permissões de superintendente
+      // e o usuário logado não for superintendente
+      const needsPassword = selectedRole === 'superintendente' && roleData?.role !== 'superintendente';
+      setShowPasswordInput(needsPassword);
     };
 
     if (open) {
-      checkIfSuperintendente();
+      checkPermissions();
     }
-  }, [open]);
+  }, [open, selectedRole]);
 
   const loadPermissions = async () => {
     setLoading(true);
@@ -370,16 +373,16 @@ export function RoleMenuPermissionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh]">
-        <DialogHeader>
+      <DialogContent className="max-w-6xl max-h-[85vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="text-xl">Permissões de Menu por Perfil</DialogTitle>
           <DialogDescription>
             Configure quais menus cada perfil pode visualizar e editar. As permissões são aplicadas a todos os usuários do perfil.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
             <TabsTrigger value="permissions">Permissões</TabsTrigger>
             <TabsTrigger value="logs" className="flex items-center gap-2">
               <History className="h-4 w-4" />
@@ -387,13 +390,13 @@ export function RoleMenuPermissionsDialog({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="permissions">
+          <TabsContent value="permissions" className="flex-1 flex flex-col overflow-hidden mt-4">
             <Tabs 
               value={selectedRole} 
               onValueChange={(value) => setSelectedRole(value as 'superintendente' | 'administrativo' | 'lider' | 'comercial')} 
-              className="w-full"
+              className="flex-1 flex flex-col overflow-hidden"
             >
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-4 flex-shrink-0">
                 {ROLES.map((role) => (
                   <TabsTrigger key={role.value} value={role.value}>
                     {role.label}
@@ -402,14 +405,14 @@ export function RoleMenuPermissionsDialog({
               </TabsList>
 
           {ROLES.map((role) => (
-            <TabsContent key={role.value} value={role.value} className="mt-4">
+            <TabsContent key={role.value} value={role.value} className="flex-1 flex flex-col overflow-hidden mt-4">
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <>
-                  <div className="flex gap-4 mb-4 text-sm text-muted-foreground">
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="flex gap-4 mb-3 text-sm text-muted-foreground flex-shrink-0">
                     <span className="flex items-center gap-1">
                       <Eye className="h-3.5 w-3.5" />
                       {visualizarCount}/{MENU_ITEMS.length} podem visualizar
@@ -420,8 +423,8 @@ export function RoleMenuPermissionsDialog({
                     </span>
                   </div>
 
-                  <ScrollArea className="max-h-[50vh] pr-4">
-                    <div className="space-y-3">
+                  <ScrollArea className="flex-1 pr-3">
+                    <div className="space-y-2 pb-2">
                       {MENU_ITEMS.map((item) => {
                         const perm = permissions[item.id] || {
                           menu_item: item.id,
@@ -432,14 +435,14 @@ export function RoleMenuPermissionsDialog({
                         return (
                           <div
                             key={item.id}
-                            className="flex items-center gap-4 p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
+                            className="flex items-center gap-3 p-3 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
                           >
-                            <span className="text-2xl">{item.icon}</span>
-                            <div className="flex-1">
-                              <h4 className="font-medium text-sm">{item.label}</h4>
+                            <span className="text-xl flex-shrink-0">{item.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-sm truncate">{item.label}</h4>
                             </div>
 
-                            <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-4 flex-shrink-0">
                               <div className="flex items-center space-x-2">
                                 <Checkbox
                                   id={`visualizar-${item.id}`}
@@ -454,7 +457,7 @@ export function RoleMenuPermissionsDialog({
                                 />
                                 <Label
                                   htmlFor={`visualizar-${item.id}`}
-                                  className="text-sm font-normal cursor-pointer flex items-center gap-1.5"
+                                  className="text-sm font-normal cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
                                 >
                                   <Eye className="h-3.5 w-3.5" />
                                   Ver
@@ -476,7 +479,7 @@ export function RoleMenuPermissionsDialog({
                                 />
                                 <Label
                                   htmlFor={`editar-${item.id}`}
-                                  className={`text-sm font-normal cursor-pointer flex items-center gap-1.5 ${
+                                  className={`text-sm font-normal cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                                     !perm.pode_visualizar
                                       ? 'opacity-50 cursor-not-allowed'
                                       : ''
@@ -486,25 +489,25 @@ export function RoleMenuPermissionsDialog({
                                   Editar
                                 </Label>
                               </div>
-                            </div>
 
-                            <div className="text-xs text-muted-foreground min-w-[100px]">
-                              {perm.pode_visualizar && perm.pode_editar ? (
-                                <span className="flex items-center gap-1 text-green-600">
-                                  <Unlock className="h-3.5 w-3.5" />
-                                  Acesso total
-                                </span>
-                              ) : perm.pode_visualizar ? (
-                                <span className="flex items-center gap-1 text-blue-600">
-                                  <Eye className="h-3.5 w-3.5" />
-                                  Somente leitura
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-1 text-muted-foreground">
-                                  <Lock className="h-3.5 w-3.5" />
-                                  Sem acesso
-                                </span>
-                              )}
+                              <div className="text-xs text-muted-foreground min-w-[110px] flex-shrink-0">
+                                {perm.pode_visualizar && perm.pode_editar ? (
+                                  <span className="flex items-center gap-1 text-green-600">
+                                    <Unlock className="h-3.5 w-3.5" />
+                                    Acesso total
+                                  </span>
+                                ) : perm.pode_visualizar ? (
+                                  <span className="flex items-center gap-1 text-blue-600">
+                                    <Eye className="h-3.5 w-3.5" />
+                                    Somente leitura
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1 text-muted-foreground">
+                                    <Lock className="h-3.5 w-3.5" />
+                                    Sem acesso
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
@@ -513,7 +516,7 @@ export function RoleMenuPermissionsDialog({
                   </ScrollArea>
 
                   {showPasswordInput && (
-                    <div className="pt-4 border-t mt-4">
+                    <div className="pt-3 border-t mt-3 flex-shrink-0">
                       <Label htmlFor="password" className="text-sm font-medium">
                         Senha de Superintendente *
                       </Label>
@@ -526,12 +529,12 @@ export function RoleMenuPermissionsDialog({
                         className="mt-2"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Para segurança, é necessário digitar a senha de um superintendente para alterar permissões.
+                        Para alterar permissões de superintendente, é necessário digitar a senha de um superintendente.
                       </p>
                     </div>
                   )}
 
-                  <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+                  <div className="flex justify-end gap-2 pt-3 border-t mt-3 flex-shrink-0">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                       Cancelar
                     </Button>
@@ -540,21 +543,21 @@ export function RoleMenuPermissionsDialog({
                       Salvar Permissões
                     </Button>
                   </div>
-                </>
+                </div>
               )}
             </TabsContent>
           ))}
         </Tabs>
           </TabsContent>
 
-          <TabsContent value="logs" className="mt-4">
+          <TabsContent value="logs" className="flex-1 flex flex-col overflow-hidden mt-4">
             {logsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <ScrollArea className="max-h-[60vh] pr-4">
-                <div className="space-y-3">
+              <ScrollArea className="flex-1 pr-3">
+                <div className="space-y-2 pb-2">
                   {logs.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">
                       Nenhuma alteração registrada
@@ -563,25 +566,25 @@ export function RoleMenuPermissionsDialog({
                     logs.map((log) => (
                       <div
                         key={log.id}
-                        className="p-4 border rounded-lg bg-card space-y-2"
+                        className="p-3 border rounded-lg bg-card space-y-2"
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-1 flex-1">
-                            <p className="text-sm font-medium">{log.acao}</p>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1 flex-1 min-w-0">
+                            <p className="text-sm font-medium break-words">{log.acao}</p>
                             <p className="text-xs text-muted-foreground">
                               Por:{' '}
                               {log.authorized_profiles?.nome || 'Usuário desconhecido'}
                               {log.senha_validada && ' (senha validada)'}
                             </p>
                           </div>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
                             {format(new Date(log.created_at), "dd/MM/yyyy 'às' HH:mm", {
                               locale: ptBR,
                             })}
                           </span>
                         </div>
                         {log.detalhes && (
-                          <div className="text-xs bg-muted/50 p-2 rounded">
+                          <div className="text-xs bg-muted/50 p-2 rounded space-y-0.5">
                             <p>Perfil: <span className="font-medium">{log.detalhes.role}</span></p>
                             <p>Total de menus: {log.detalhes.total_menus}</p>
                             <p>Menus com restrições: {log.detalhes.menus_restritos}</p>
