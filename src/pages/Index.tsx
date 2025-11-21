@@ -17,6 +17,7 @@ import { toast as sonnerToast } from 'sonner';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useAuth } from '@/hooks/useAuth';
 import { useOverdueAtendimentos } from '@/hooks/useOverdueAtendimentos';
+import { useFluxoPermissions } from '@/hooks/useFluxoPermissions';
 import { toUTC, now } from '@/utils/dateUtils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Settings2, Workflow, Link2 } from 'lucide-react';
@@ -54,6 +55,7 @@ const Index = () => {
     overdueCount,
     refresh: refreshOverdue
   } = useOverdueAtendimentos();
+  const { canViewFluxo, canEditFluxo } = useFluxoPermissions(user?.id);
 
   // Capitalize user name
   const userName = user?.user_metadata?.nome ? user.user_metadata.nome.charAt(0).toUpperCase() + user.user_metadata.nome.slice(1) : '';
@@ -137,6 +139,7 @@ const Index = () => {
         dataConcluido: item.data_concluido,
         fluxoConcluido: item.fluxo_concluido_nome,
         fluxoConcluidoId: item.fluxo_concluido_id,
+        fluxoId: item.fluxo_id,
         createdAt: item.created_at,
         updatedAt: item.updated_at
       }));
@@ -205,12 +208,17 @@ const Index = () => {
   // Filter atendimentos
   const filteredAtendimentos = useMemo(() => {
     return atendimentos.filter(atendimento => {
+      // Filtro de permissões de fluxo
+      if (!canViewFluxo(atendimento.fluxoId || selectedFluxoId)) {
+        return false;
+      }
+
       const matchesSearch = searchTerm === '' || atendimento.assunto.toLowerCase().includes(searchTerm.toLowerCase()) || atendimento.corretora.toLowerCase().includes(searchTerm.toLowerCase()) || atendimento.contato?.toLowerCase().includes(searchTerm.toLowerCase()) || atendimento.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesPriority = filterPriority === 'all' || atendimento.prioridade === filterPriority;
       const matchesResponsavel = filterResponsavel === 'all' || atendimento.responsavel === filterResponsavel;
       return matchesSearch && matchesPriority && matchesResponsavel;
     });
-  }, [atendimentos, searchTerm, filterPriority, filterResponsavel]);
+  }, [atendimentos, searchTerm, filterPriority, filterResponsavel, canViewFluxo, selectedFluxoId]);
   const handleSaveAtendimento = async (atendimento: Atendimento) => {
     try {
       const {
@@ -407,6 +415,13 @@ const Index = () => {
       const {
         data: atendimentoData
       } = await supabase.from('atendimentos').select('fluxo_id').eq('id', id).single();
+
+      // Verificar se pode editar o fluxo
+      if (!canEditFluxo(atendimentoData?.fluxo_id || selectedFluxoId)) {
+        sonnerToast.error('Você não tem permissão para editar atendimentos deste fluxo');
+        return;
+      }
+
       const updateData: any = {
         status: newStatus,
         updated_at: new Date().toISOString(),
@@ -500,6 +515,11 @@ const Index = () => {
     }
   };
   const handleEdit = (atendimento: Atendimento) => {
+    // Verificar se pode editar o fluxo
+    if (!canEditFluxo(atendimento.fluxoId || selectedFluxoId)) {
+      sonnerToast.error('Você não tem permissão para editar atendimentos deste fluxo');
+      return;
+    }
     setEditingAtendimento(atendimento);
     setDialogOpen(true);
   };

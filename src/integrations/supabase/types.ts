@@ -1419,6 +1419,61 @@ export type Database = {
           },
         ]
       }
+      user_fluxo_permissions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          fluxo_id: string
+          id: string
+          pode_editar: boolean
+          pode_visualizar: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          fluxo_id: string
+          id?: string
+          pode_editar?: boolean
+          pode_visualizar?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          fluxo_id?: string
+          id?: string
+          pode_editar?: boolean
+          pode_visualizar?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_fluxo_permissions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_fluxo_permissions_fluxo_id_fkey"
+            columns: ["fluxo_id"]
+            isOneToOne: false
+            referencedRelation: "fluxos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_fluxo_permissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -1751,6 +1806,10 @@ export type Database = {
         Returns: boolean
       }
       reset_email_rate_limits: { Args: never; Returns: undefined }
+      user_can_access_fluxo: {
+        Args: { _fluxo_id: string; _require_edit?: boolean; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role:

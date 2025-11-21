@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Pencil, CheckCircle, Search, Copy, RefreshCw, Users as UsersIcon, Network, UserPlus, UsersRound, Plus, Trash2, Key, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Pencil, CheckCircle, Search, Copy, RefreshCw, Users as UsersIcon, Network, UserPlus, UsersRound, Plus, Trash2, Key, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
+import { UserFluxoPermissionsDialog } from '@/components/UserFluxoPermissionsDialog';
 import { MaskedInput } from '@/components/ui/masked-input';
 import { useAuth } from '@/hooks/useAuth';
 import { createUserSchema, generateSecurePassword } from '@/lib/validationSchemas';
@@ -86,6 +87,8 @@ export default function Usuarios() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [pendingPage, setPendingPage] = useState(1);
   const [pendingItemsPerPage, setPendingItemsPerPage] = useState(10);
+  const [fluxoPermissionsDialogOpen, setFluxoPermissionsDialogOpen] = useState(false);
+  const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<{ id: string; nome: string } | null>(null);
 
   const filteredProfiles = useMemo(() => {
     if (!searchTerm) return profiles;
@@ -1068,8 +1071,21 @@ export default function Usuarios() {
                               size="icon"
                               className="h-8 w-8"
                               onClick={() => openDialog(item)}
+                              title="Editar usuário"
                             >
                               <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                setSelectedUserForPermissions({ id: item.id, nome: item.nome });
+                                setFluxoPermissionsDialogOpen(true);
+                              }}
+                              title="Gerenciar permissões de fluxo"
+                            >
+                              <Lock className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -1704,6 +1720,16 @@ export default function Usuarios() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog de Permissões de Fluxo */}
+        {selectedUserForPermissions && (
+          <UserFluxoPermissionsDialog
+            open={fluxoPermissionsDialogOpen}
+            onOpenChange={setFluxoPermissionsDialogOpen}
+            userId={selectedUserForPermissions.id}
+            userName={selectedUserForPermissions.nome}
+          />
+        )}
       </Tabs>
     </div>
   );

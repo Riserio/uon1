@@ -11,6 +11,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft, FileText, TrendingUp, Check } from 'lucide-react';
 import { CurrencyInput } from '@/components/ui/currency-input';
+import { useAuth } from '@/hooks/useAuth';
+import { useFluxoPermissions } from '@/hooks/useFluxoPermissions';
 
 interface StatusConfig {
   nome: string;
@@ -20,6 +22,8 @@ interface StatusConfig {
 
 export default function AcompanhamentoSinistrosInterno() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { canViewFluxo, canEditFluxo } = useFluxoPermissions(user?.id);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [statusConfigs, setStatusConfigs] = useState<StatusConfig[]>([]);
   const [loading, setLoading] = useState(false);
@@ -111,7 +115,8 @@ export default function AcompanhamentoSinistrosInterno() {
           status,
           observacoes,
           created_at,
-          updated_at
+          updated_at,
+          fluxo_id
         `)
         .order('created_at', { ascending: false });
 
@@ -143,9 +148,14 @@ export default function AcompanhamentoSinistrosInterno() {
         .order('created_at', { ascending: true });
 
       // Transformar dados
-      const claimsWithTimeline: Claim[] = (atendimentosData || []).map((atendimento) => {
-        const statusConfig = statusData?.find(s => s.nome === atendimento.status);
-        const vistoria = vistoriasData?.find(v => v.atendimento_id === atendimento.id);
+      const claimsWithTimeline: Claim[] = (atendimentosData || [])
+        .filter((atendimento) => {
+          // Filtrar por permissões de fluxo
+          return canViewFluxo(atendimento.fluxo_id);
+        })
+        .map((atendimento) => {
+          const statusConfig = statusData?.find(s => s.nome === atendimento.status);
+          const vistoria = vistoriasData?.find(v => v.atendimento_id === atendimento.id);
         
         // Criar timeline do histórico
         const historico = historicoData?.filter(h => h.atendimento_id === atendimento.id) || [];
@@ -195,6 +205,12 @@ export default function AcompanhamentoSinistrosInterno() {
   };
 
   const handleEditClick = (claim: Claim) => {
+    // Verificar se pode editar
+    const atendimento = claims.find(c => c.id === claim.id);
+    if (atendimento && !canEditFluxo((atendimento as any).fluxo_id)) {
+      toast.error('Você não tem permissão para editar atendimentos deste fluxo');
+      return;
+    }
     setEditingClaim(claim);
     setEditForm({
       custo_oficina: claim.custo_oficina || 0,
