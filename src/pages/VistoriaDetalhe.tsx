@@ -45,6 +45,10 @@ export default function VistoriaDetalhe() {
   const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
   const [observacaoAnalise, setObservacaoAnalise] = useState('');
   const [decisaoAnalise, setDecisaoAnalise] = useState<'aprovar' | 'pendenciar' | null>(null);
+  const [solicitarFotosOpen, setSolicitarFotosOpen] = useState(false);
+  const [motivoFotos, setMotivoFotos] = useState('');
+  const [fotosNecessarias, setFotosNecessarias] = useState<string[]>([]);
+  const [novaFotoInput, setNovaFotoInput] = useState('');
 
   useEffect(() => {
     loadVistoria();
@@ -335,6 +339,51 @@ export default function VistoriaDetalhe() {
     }
   };
 
+  const handleSolicitarMaisFotos = async () => {
+    if (!motivoFotos.trim()) {
+      toast.error('Por favor, informe o motivo da solicitação');
+      return;
+    }
+
+    if (fotosNecessarias.length === 0) {
+      toast.error('Por favor, adicione pelo menos uma foto necessária');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('solicitar-mais-fotos', {
+        body: {
+          vistoriaId: vistoria.id,
+          motivo: motivoFotos,
+          fotosNecessarias
+        }
+      });
+
+      if (error) throw error;
+
+      toast.success('Solicitação enviada! Cliente receberá um email com o link renovado.');
+      setSolicitarFotosOpen(false);
+      setMotivoFotos('');
+      setFotosNecessarias([]);
+      setNovaFotoInput('');
+      loadVistoria();
+    } catch (error) {
+      console.error('Erro ao solicitar fotos:', error);
+      toast.error('Erro ao enviar solicitação');
+    }
+  };
+
+  const adicionarFotoNecessaria = () => {
+    if (novaFotoInput.trim()) {
+      setFotosNecessarias([...fotosNecessarias, novaFotoInput.trim()]);
+      setNovaFotoInput('');
+    }
+  };
+
+  const removerFotoNecessaria = (index: number) => {
+    setFotosNecessarias(fotosNecessarias.filter((_, i) => i !== index));
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
@@ -373,6 +422,16 @@ export default function VistoriaDetalhe() {
                 <Brain className="h-3 w-3 mr-1" />
                 Análise por IA
               </Badge>
+            )}
+            {vistoria.status !== 'cancelada' && (
+              <Button 
+                variant="outline" 
+                className="gap-2"
+                onClick={() => setSolicitarFotosOpen(true)}
+              >
+                <Camera className="h-4 w-4" />
+                Solicitar Mais Fotos
+              </Button>
             )}
             <Button className="gap-2" onClick={handleExportPDF}>
               <Download className="h-4 w-4" />
@@ -1298,6 +1357,87 @@ export default function VistoriaDetalhe() {
                   Confirmar Pendência
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de solicitar mais fotos */}
+      <Dialog open={solicitarFotosOpen} onOpenChange={setSolicitarFotosOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5" />
+              Solicitar Mais Fotos ao Cliente
+            </DialogTitle>
+            <DialogDescription>
+              O cliente receberá um email com o link renovado para enviar as fotos adicionais.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="motivo">Motivo da Solicitação *</Label>
+              <Textarea
+                id="motivo"
+                value={motivoFotos}
+                onChange={(e) => setMotivoFotos(e.target.value)}
+                placeholder="Ex: Necessário fotos mais próximas dos danos na lateral direita..."
+                rows={3}
+              />
+            </div>
+            
+            <div>
+              <Label>Fotos Necessárias *</Label>
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="text"
+                  value={novaFotoInput}
+                  onChange={(e) => setNovaFotoInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && adicionarFotoNecessaria()}
+                  placeholder="Ex: Lateral direita - detalhes dos arranhões"
+                  className="flex-1 px-3 py-2 border rounded-md"
+                />
+                <Button onClick={adicionarFotoNecessaria} type="button">
+                  Adicionar
+                </Button>
+              </div>
+              
+              {fotosNecessarias.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {fotosNecessarias.map((foto, index) => (
+                    <div key={index} className="flex items-center justify-between bg-muted p-2 rounded-md">
+                      <span className="text-sm">{foto}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removerFotoNecessaria(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-800">
+                <strong>ℹ️ Informações:</strong>
+              </p>
+              <ul className="text-sm text-blue-700 mt-2 space-y-1 list-disc list-inside">
+                <li>O link será válido por 7 dias</li>
+                <li>Cliente poderá tirar fotos ou enviar da galeria</li>
+                <li>Status da vistoria será alterado para "Aguardando Fotos"</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSolicitarFotosOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSolicitarMaisFotos} className="gap-2">
+              <Send className="h-4 w-4" />
+              Enviar Solicitação
             </Button>
           </DialogFooter>
         </DialogContent>
