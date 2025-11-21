@@ -39,6 +39,28 @@ export function HistoricoList({
   useEffect(() => {
     if (atendimentoId) {
       loadHistorico();
+      
+      // Escutar atualizações em tempo real
+      const channel = supabase
+        .channel(`historico_realtime_${atendimentoId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'atendimentos_historico',
+            filter: `atendimento_id=eq.${atendimentoId}`,
+          },
+          () => {
+            console.log('📜 Novo histórico detectado, recarregando...');
+            loadHistorico();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [atendimentoId]);
 
@@ -139,12 +161,20 @@ export function HistoricoList({
       corretora_id: 'Corretora',
       tags: 'Tags',
       arquivado: 'Arquivado',
+      cliente_nome: 'Nome do Cliente',
+      veiculo_placa: 'Placa do Veículo',
+      endereco: 'Endereço',
+      custos: 'Custos',
+      veiculo: 'Dados do Veículo',
+      dados_pessoais: 'Dados Pessoais',
+      vistoria_criada: 'Vistoria Criada',
     };
     return labels[field] || field;
   };
 
   const HistoricoItemComponent = ({ item }: { item: HistoricoItem }) => {
     const [formattedValues, setFormattedValues] = useState<Record<string, { anterior: string; novo: string }>>({});
+    const origem = item.valores_novos?.origem || item.valores_anteriores?.origem;
 
     useEffect(() => {
       const loadFormattedValues = async () => {
@@ -152,6 +182,9 @@ export function HistoricoList({
           const formatted: Record<string, { anterior: string; novo: string }> = {};
           
           for (const campo of item.campos_alterados) {
+            // Pular o campo 'origem' pois será exibido separadamente
+            if (campo === 'origem') continue;
+            
             const anterior = await formatValue(item.valores_anteriores?.[campo], campo);
             const novo = await formatValue(item.valores_novos?.[campo], campo);
             formatted[campo] = { anterior, novo };
@@ -171,7 +204,16 @@ export function HistoricoList({
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
               <User className="h-4 w-4 text-primary" />
             </div>
-            <span className="font-medium text-foreground">{item.user_nome}</span>
+            <div>
+              <span className="font-medium text-foreground block">{item.user_nome}</span>
+              {origem && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Badge variant="outline" className="h-5 px-1.5 text-xs">
+                    {origem}
+                  </Badge>
+                </span>
+              )}
+            </div>
           </div>
           <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
             {format(new Date(item.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
@@ -184,9 +226,9 @@ export function HistoricoList({
           </Badge>
         </div>
 
-        {item.campos_alterados && item.campos_alterados.length > 0 && (
+        {item.campos_alterados && item.campos_alterados.filter(c => c !== 'origem').length > 0 && (
           <div className="space-y-3 mt-3">
-            {item.campos_alterados.map((campo) => (
+            {item.campos_alterados.filter(c => c !== 'origem').map((campo) => (
               <div key={campo} className="bg-muted/30 p-3 rounded-md border">
                 <div className="font-medium text-sm mb-2 text-foreground">{getFieldLabel(campo)}</div>
                 <div className="flex items-center gap-3 text-sm">
