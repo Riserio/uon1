@@ -39,7 +39,53 @@ export default function AcompanhamentoSinistrosInterno() {
 
   useEffect(() => {
     loadData();
-  }, []);
+
+    // Subscribe to realtime changes
+    const atendimentosChannel = supabase
+      .channel('atendimentos_sinistros_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'atendimentos'
+      }, () => {
+        if (!editingClaim) {
+          loadData();
+        }
+      })
+      .subscribe();
+
+    const vistoriasChannel = supabase
+      .channel('vistorias_sinistros_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'vistorias'
+      }, () => {
+        if (!editingClaim) {
+          loadData();
+        }
+      })
+      .subscribe();
+
+    const historicoChannel = supabase
+      .channel('historico_sinistros_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'atendimentos_historico'
+      }, () => {
+        if (!editingClaim) {
+          loadData();
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(atendimentosChannel);
+      supabase.removeChannel(vistoriasChannel);
+      supabase.removeChannel(historicoChannel);
+    };
+  }, [editingClaim]);
 
   const loadData = async () => {
     try {
