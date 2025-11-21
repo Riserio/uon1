@@ -1193,7 +1193,11 @@ export function AtendimentoDialog({
 
               <TabsContent value="andamentos" className="mt-0 p-4">
                 {atendimento?.id ? (
-                  <AndamentosList atendimentoId={atendimento.id} />
+                  <AndamentosList 
+                    atendimentoId={atendimento.id} 
+                    atendimentoNumero={atendimento.numero}
+                    atendimentoAssunto={atendimento.assunto}
+                  />
                 ) : (
                   <div className="p-4 text-center text-muted-foreground">
                     Salve o atendimento para adicionar andamentos
@@ -1326,7 +1330,11 @@ export function AtendimentoDialog({
 
               <TabsContent value="historico" className="mt-0">
                 {atendimento?.id ? (
-                  <HistoricoList atendimentoId={atendimento.id} />
+                  <HistoricoList 
+                    atendimentoId={atendimento.id}
+                    atendimentoNumero={atendimento.numero}
+                    atendimentoAssunto={atendimento.assunto}
+                  />
                 ) : (
                   <div className="p-4 text-center text-muted-foreground">
                     Salve o atendimento para ver o histórico
