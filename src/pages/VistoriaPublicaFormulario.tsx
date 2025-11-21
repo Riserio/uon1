@@ -64,7 +64,8 @@ export default function VistoriaPublicaFormulario() {
   useEffect(() => {
     loadVistoria();
     loadTempData();
-  }, [token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount to prevent clearing user input
 
   const loadTempData = () => {
     const temp = localStorage.getItem('vistoria_temp');
@@ -230,13 +231,17 @@ export default function VistoriaPublicaFormulario() {
         })
         .eq('id', vistoria.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Erro detalhado:', updateError);
+        throw updateError;
+      }
 
+      localStorage.removeItem('vistoria_temp');
       toast.success('Dados salvos! Agora aceite os termos.');
       navigate(`/vistoria/${token}/termos`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao enviar vistoria:', error);
-      toast.error('Erro ao enviar vistoria');
+      toast.error(error?.message || 'Erro ao enviar vistoria. Tente novamente.');
     } finally {
       setUploading(false);
     }
