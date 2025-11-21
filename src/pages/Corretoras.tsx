@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Mail, History, Building2, Upload } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Mail, History, Building2, Upload, MapPin } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MaskedInput } from '@/components/ui/masked-input';
 import { Link } from 'react-router-dom';
@@ -17,6 +17,7 @@ import { EnviarEmailSMTPDialog } from '@/components/EnviarEmailSMTPDialog';
 import { CorretoraHistoricoDialog } from '@/components/CorretoraHistoricoDialog';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
+import { useCepLookup } from '@/hooks/useCepLookup';
 
 interface Corretora {
   id: string;
@@ -45,6 +46,7 @@ export default function Corretoras() {
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   const [selectedCorretoraForHistory, setSelectedCorretoraForHistory] = useState<{ id: string; nome: string } | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const { lookupCep, loading: cepLoading } = useCepLookup();
 
   useEffect(() => {
     fetchCorretoras();
@@ -136,6 +138,24 @@ export default function Corretoras() {
         setDialogOpen(false);
         fetchCorretoras();
       }
+    }
+  };
+
+  const handleBuscarCep = async () => {
+    if (!formData.cep) {
+      toast.error('Digite um CEP');
+      return;
+    }
+
+    const cepData = await lookupCep(formData.cep);
+    if (cepData) {
+      setFormData({
+        ...formData,
+        endereco: cepData.logradouro,
+        cidade: cepData.localidade,
+        estado: cepData.uf,
+      });
+      toast.success('CEP encontrado!');
     }
   };
 
@@ -345,13 +365,26 @@ export default function Corretoras() {
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="cep">CEP</Label>
-                      <MaskedInput
-                        id="cep"
-                        format="#####-###"
-                        value={formData.cep || ''}
-                        onValueChange={(values) => setFormData({ ...formData, cep: values.value })}
-                        placeholder="00000-000"
-                      />
+                      <div className="flex gap-2">
+                        <MaskedInput
+                          id="cep"
+                          format="#####-###"
+                          value={formData.cep || ''}
+                          onValueChange={(values) => setFormData({ ...formData, cep: values.value })}
+                          placeholder="00000-000"
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={handleBuscarCep}
+                          disabled={cepLoading}
+                          title="Buscar CEP"
+                        >
+                          <MapPin className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                   <div className="grid gap-2">

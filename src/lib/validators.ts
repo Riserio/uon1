@@ -140,6 +140,18 @@ export const formatPhone = (value: string): string => {
     .replace(/(\d{5})(\d)/, '$1-$2');
 };
 
+export const formatCEP = (value: string): string => {
+  const cleanValue = value.replace(/[^\d]/g, '');
+  return cleanValue
+    .slice(0, 8)
+    .replace(/(\d{5})(\d)/, '$1-$2');
+};
+
+export const formatChassi = (value: string): string => {
+  const cleanValue = value.replace(/[^\w]/g, '').toUpperCase();
+  return cleanValue.slice(0, 17);
+};
+
 export const formatCurrency = (value: number | string): string => {
   const numValue = typeof value === 'string' ? parseFloat(value) : value;
   if (isNaN(numValue)) return 'R$ 0,00';
@@ -167,6 +179,14 @@ export const cnpjSchema = z.string()
 export const phoneSchema = z.string()
   .transform(val => val.replace(/[^\d]/g, ''))
   .refine(validatePhone, { message: 'Telefone inválido' });
+
+export const cepSchema = z.string()
+  .transform(val => val.replace(/[^\d]/g, ''))
+  .refine(val => val.length === 8, { message: 'CEP deve ter 8 dígitos' });
+
+export const chassiSchema = z.string()
+  .transform(val => val.replace(/[^\w]/g, '').toUpperCase())
+  .refine(val => val.length === 17, { message: 'Chassi deve ter 17 caracteres' });
 
 export const cpfOrCnpjSchema = z.string()
   .transform(val => val.replace(/[^\d]/g, ''))
