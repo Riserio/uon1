@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { 
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import SketchPad from '@/components/SketchPad';
+import { validateCPF, validatePhone } from '@/lib/validators';
 
 const STEPS = [
   { id: 0, title: 'Dados Pessoais', icon: User, description: 'Informações do segurado' },
@@ -136,6 +138,18 @@ export default function VistoriaPublicaFormulario() {
   const handleSubmit = async () => {
     if (!formData.cliente_nome || !formData.cliente_cpf) {
       toast.error('Preencha nome e CPF');
+      setCurrentStep(0);
+      return;
+    }
+
+    if (!validateCPF(formData.cliente_cpf)) {
+      toast.error('CPF inválido');
+      setCurrentStep(0);
+      return;
+    }
+
+    if (formData.cliente_telefone && !validatePhone(formData.cliente_telefone)) {
+      toast.error('Telefone inválido');
       setCurrentStep(0);
       return;
     }
@@ -346,9 +360,10 @@ export default function VistoriaPublicaFormulario() {
                 
                 <div>
                   <Label className="text-base font-semibold">CPF *</Label>
-                  <Input
+                  <MaskedInput
+                    format="###.###.###-##"
                     value={formData.cliente_cpf}
-                    onChange={(e) => setFormData({ ...formData, cliente_cpf: e.target.value })}
+                    onValueChange={(values) => setFormData({ ...formData, cliente_cpf: values.value })}
                     placeholder="000.000.000-00"
                     className="mt-2 h-12 text-lg"
                   />
@@ -367,9 +382,10 @@ export default function VistoriaPublicaFormulario() {
                 
                 <div>
                   <Label className="text-base font-semibold">Telefone</Label>
-                  <Input
+                  <MaskedInput
+                    format="(##) #####-####"
                     value={formData.cliente_telefone}
-                    onChange={(e) => setFormData({ ...formData, cliente_telefone: e.target.value })}
+                    onValueChange={(values) => setFormData({ ...formData, cliente_telefone: values.value })}
                     placeholder="(11) 99999-9999"
                     className="mt-2 h-12 text-lg"
                   />
@@ -413,11 +429,12 @@ export default function VistoriaPublicaFormulario() {
 
                 <div>
                   <Label className="text-base font-semibold">Placa do Veículo</Label>
-                  <Input
+                  <MaskedInput
+                    format="AAA-####"
                     value={formData.veiculo_placa}
-                    onChange={(e) => setFormData({ ...formData, veiculo_placa: e.target.value })}
+                    onValueChange={(values) => setFormData({ ...formData, veiculo_placa: values.value })}
                     placeholder="ABC-1234"
-                    className="mt-2 h-12 font-mono text-lg"
+                    className="mt-2 h-12 font-mono text-lg uppercase"
                   />
                 </div>
 
