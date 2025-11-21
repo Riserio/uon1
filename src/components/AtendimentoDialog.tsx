@@ -26,6 +26,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { validateCPF, validatePlaca } from '@/lib/validators';
 import { MaskedInput } from '@/components/ui/masked-input';
+import { useAtendimentoRealtime } from '@/hooks/useAtendimentoRealtime';
 
 const MARCAS = [
   'Audi', 'BMW', 'Chevrolet', 'Citroën', 'Fiat', 'Ford', 'Honda', 'Hyundai', 
@@ -102,6 +103,19 @@ export function AtendimentoDialog({
   const [filteredCorretoras, setFilteredCorretoras] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('geral');
   const { userRole } = useAuth();
+  const [reloadKey, setReloadKey] = useState(0);
+  
+  // Hook para escutar mudanças em tempo real
+  useAtendimentoRealtime({
+    atendimentoId: atendimento?.id || null,
+    onUpdate: () => {
+      console.log('🔄 Recarregando dados do atendimento...');
+      if (atendimento?.id) {
+        loadVistoriaCustos(atendimento.id);
+        setReloadKey(prev => prev + 1);
+      }
+    },
+  });
   
   // Estados para conclusão manual
   const [showConclusaoDialog, setShowConclusaoDialog] = useState(false);
