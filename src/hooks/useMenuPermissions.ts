@@ -22,12 +22,19 @@ export function useMenuPermissions(userId: string | undefined) {
 
     // Subscribe to realtime changes
     const channel = supabase
-      .channel('user_menu_permissions_changes')
+      .channel('menu_permissions_changes')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'user_menu_permissions',
         filter: `user_id=eq.${userId}`,
+      }, () => {
+        loadPermissions();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'role_menu_permissions',
       }, () => {
         loadPermissions();
       })
@@ -58,16 +65,31 @@ export function useMenuPermissions(userId: string | undefined) {
         return;
       }
 
-      // Carregar permissões específicas
-      const { data: permissionsData, error } = await supabase
+      // Carregar permissões específicas do usuário
+      const { data: userPermissionsData } = await supabase
         .from('user_menu_permissions')
         .select('menu_item, pode_visualizar, pode_editar')
         .eq('user_id', userId);
 
-      if (error) throw error;
+      // Carregar permissões do role
+      const { data: rolePermissionsData } = await supabase
+        .from('role_menu_permissions')
+        .select('menu_item, pode_visualizar, pode_editar')
+        .eq('role', roleData?.role);
 
       const permissionsMap: Record<string, MenuPermission> = {};
-      (permissionsData || []).forEach((perm) => {
+      
+      // Primeiro adicionar permissões do role
+      (rolePermissionsData || []).forEach((perm) => {
+        permissionsMap[perm.menu_item] = {
+          menu_item: perm.menu_item,
+          pode_visualizar: perm.pode_visualizar,
+          pode_editar: perm.pode_editar,
+        };
+      });
+
+      // Depois sobrescrever com permissões específicas do usuário (se houver)
+      (userPermissionsData || []).forEach((perm) => {
         permissionsMap[perm.menu_item] = {
           menu_item: perm.menu_item,
           pode_visualizar: perm.pode_visualizar,
