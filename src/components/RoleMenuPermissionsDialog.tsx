@@ -347,7 +347,7 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
+      <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
         <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-3">
           <DialogTitle className="text-lg">Permissões de Menu por Perfil</DialogTitle>
           <DialogDescription className="text-sm">
