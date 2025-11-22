@@ -143,7 +143,7 @@ export default function AcompanhamentoSinistro() {
         return;
       }
 
-      // Buscar fluxos e configurações de status públicos
+      // Buscar fluxos e configurações de status públicos (fluxo atual de cada atendimento)
       const fluxoIds = Array.from(new Set(atendimentos.map((a: any) => a.fluxo_id).filter(Boolean)));
 
       let nomeFluxos: Record<string, string> = {};
@@ -184,7 +184,6 @@ export default function AcompanhamentoSinistro() {
               .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] || null;
 
           const statusPublicosFluxo = statusPublicosPorFluxo[at.fluxo_id] || [];
-          const allowedStatusNames = new Set(statusPublicosFluxo.map((s: any) => s.status_nome));
 
           // Andamentos
           const { data: andamentosData, error: errAnd } = await supabase
@@ -206,28 +205,19 @@ export default function AcompanhamentoSinistro() {
 
           const historico = hist || [];
 
-          // Separar histórico de status e de fluxo
+          // Histórico de status (TODOS – não filtra mais por fluxo atual)
           const histStatus = historico.filter((h: any) => {
             const campos = (h.campos_alterados as string[]) || [];
             return campos.includes("status");
           });
 
+          // Histórico de fluxo
           const histFluxo = historico.filter((h: any) => {
             const campos = (h.campos_alterados as string[]) || [];
             return campos.includes("fluxo_id");
           });
 
-          // Filtra histórico de status para exibir apenas status permitidos (se houver config)
-          const histStatusFiltrado = histStatus.filter((h: any) => {
-            if (allowedStatusNames.size === 0) return true;
-            const anterior = (h.valores_anteriores as any)?.status;
-            const novo = (h.valores_novos as any)?.status;
-            const anteriorPermitido = anterior ? allowedStatusNames.has(anterior) : false;
-            const novoPermitido = novo ? allowedStatusNames.has(novo) : false;
-            return anteriorPermitido || novoPermitido;
-          });
-
-          // Monta timeline (andamentos + mudanças de status + mudanças de fluxo)
+          // Timeline completa: andamentos + mudanças de status + mudanças de fluxo
           const timeline: TimelineItem[] = [
             ...(andamentosData || []).map((a: any) => ({
               id: `and-${a.id}`,
@@ -236,7 +226,7 @@ export default function AcompanhamentoSinistro() {
               created_at: a.created_at,
               created_by: a.profiles?.nome || "Sistema",
             })),
-            ...histStatusFiltrado.map((h: any) => ({
+            ...histStatus.map((h: any) => ({
               id: `hist-status-${h.id}`,
               tipo: "status" as const,
               descricao: `Status alterado: ${
@@ -264,7 +254,7 @@ export default function AcompanhamentoSinistro() {
           ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
           // 👉 Caminho REAL de status percorridos (para o card "Fluxo do sinistro")
-          const caminhoStatusRaw = (histStatusFiltrado || [])
+          const caminhoStatusRaw = histStatus
             .map((h: any) => {
               const novo = (h.valores_novos as any)?.status;
               if (!novo) return null;
@@ -295,7 +285,7 @@ export default function AcompanhamentoSinistro() {
             }
           }
 
-          // Enriquecer com descrição pública
+          // Enriquecer com descrição pública (quando existir no fluxo atual)
           const caminhoStatus: CaminhoStatusItem[] = caminhoStatusDedup.map((item) => {
             const config = statusPublicosFluxo.find((s: any) => s.status_nome === item.status_nome);
             return {
@@ -489,7 +479,7 @@ export default function AcompanhamentoSinistro() {
                       </Card>
                     )}
 
-                    {/* Fluxo do sinistro – caminho REAL de statuses públicos */}
+                    {/* Fluxo do sinistro – caminho REAL de statuses */}
                     {listaFluxo.length > 0 && (
                       <Card>
                         <CardHeader className="py-3">
@@ -565,7 +555,7 @@ export default function AcompanhamentoSinistro() {
                           <CardTitle className="text-base">Linha do tempo do sinistro</CardTitle>
                           <p className="text-xs text-muted-foreground">
                             Aqui você acompanha todos os registros, mudanças de status e mudanças de fluxo do seu
-                            sinistro que podem ser exibidos ao público.
+                            sinistro.
                           </p>
                         </CardHeader>
                         <CardContent className="space-y-3">
