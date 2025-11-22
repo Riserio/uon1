@@ -45,11 +45,13 @@ function useMenuPermissionsForRole(userRole: string | null) {
 
   useEffect(() => {
     const loadPermissions = async () => {
+      // sem role -> não carrega nada, assume padrão (tudo liberado)
       if (!userRole) {
         setPermissions({});
         return;
       }
 
+      // admin enxerga tudo, sem restrição em role_menu_permissions
       if (userRole === "admin") {
         setPermissions({});
         return;
@@ -83,8 +85,10 @@ function useMenuPermissionsForRole(userRole: string | null) {
     };
 
     loadPermissions();
-  }, [userRole]);
+  }, [userRole]); // 🔑 recarrega sempre que o role mudar
 
+  // mesma regra do Dialog:
+  // se não tem registro -> acesso total
   const canView = (menuId: string) => {
     const perm = permissions[menuId];
     if (!perm) return true;
@@ -117,214 +121,208 @@ export default function MenuNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="outline">Menu</Button>
       </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>Navegação</DropdownMenuLabel>
+        <DropdownMenuSeparator />
 
-      {/* Casca do dropdown, sem scroll, só portal/posicionamento */}
-      <DropdownMenuContent align="end" className="p-0">
-        {/* Aqui sim: largura + altura máx + scroll */}
-        <div className="w-56 max-h-[80vh] overflow-y-auto p-1">
-          <DropdownMenuLabel>Navegação</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-
-          {/* Dashboard */}
-          {canView("dashboard") && (
-            <DropdownMenuItem asChild>
-              <Link to="/" className="cursor-pointer">
-                <LayoutDashboard className="mr-2 h-4 w-4" />
-                <span>Painel</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
-
-          {/* Atendimentos */}
-          {canView("atendimentos") && (
-            <DropdownMenuItem asChild>
-              <Link to="/atendimentos" className="cursor-pointer">
-                <ClipboardList className="mr-2 h-4 w-4" />
-                <span>Atendimentos</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Cadastros</DropdownMenuLabel>
-
-          {/* Corretoras */}
-          {canView("corretoras") && (
-            <DropdownMenuItem asChild>
-              <Link to="/corretoras" className="cursor-pointer">
-                <Building2 className="mr-2 h-4 w-4" />
-                <span>Corretoras</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
-
-          {/* Termos */}
-          {canView("termos") && (
-            <DropdownMenuItem asChild>
-              <Link to="/termos" className="cursor-pointer">
-                <FileText className="mr-2 h-4 w-4" />
-                <span>Termos de Aceite</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
-
-          {/* Contatos */}
-          {canView("contatos") && (
-            <DropdownMenuItem asChild>
-              <Link to="/contatos" className="cursor-pointer">
-                <Users className="mr-2 h-4 w-4" />
-                <span>Contatos</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
-
-          {/* Usuários */}
-          {(userRole === "admin" || userRole === "administrativo" || userRole === "superintendente") &&
-            canView("usuarios") && (
-              <DropdownMenuItem asChild>
-                <Link to="/usuarios" className="cursor-pointer flex items-center justify-between w-full">
-                  <div className="flex items-center">
-                    <UserCircle className="mr-2 h-4 w-4" />
-                    <span>Usuários</span>
-                  </div>
-
-                  {pendingUsers > 0 && (
-                    <Badge variant="destructive" className="ml-auto">
-                      {pendingUsers}
-                    </Badge>
-                  )}
-                </Link>
-              </DropdownMenuItem>
-            )}
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Sinistros</DropdownMenuLabel>
-
+        {/* Dashboard */}
+        {canView("dashboard") && (
           <DropdownMenuItem asChild>
-            <Link to="/sinistros/novo" className="cursor-pointer">
-              <FileX className="mr-2 h-4 w-4" />
-              <span>Sinistro</span>
+            <Link to="/" className="cursor-pointer">
+              <LayoutDashboard className="mr-2 h-4 w-4" />
+              <span>Painel</span>
             </Link>
           </DropdownMenuItem>
+        )}
 
-          {canView("acompanhamento") && (
+        {/* Atendimentos */}
+        {canView("atendimentos") && (
+          <DropdownMenuItem asChild>
+            <Link to="/atendimentos" className="cursor-pointer">
+              <ClipboardList className="mr-2 h-4 w-4" />
+              <span>Atendimentos</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Cadastros</DropdownMenuLabel>
+
+        {/* Corretoras */}
+        {canView("corretoras") && (
+          <DropdownMenuItem asChild>
+            <Link to="/corretoras" className="cursor-pointer">
+              <Building2 className="mr-2 h-4 w-4" />
+              <span>Corretoras</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        {/* Termos de Aceite (id: "termos") */}
+        {canView("termos") && (
+          <DropdownMenuItem asChild>
+            <Link to="/termos" className="cursor-pointer">
+              <FileText className="mr-2 h-4 w-4" />
+              <span>Termos de Aceite</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        {/* Contatos */}
+        {canView("contatos") && (
+          <DropdownMenuItem asChild>
+            <Link to="/contatos" className="cursor-pointer">
+              <Users className="mr-2 h-4 w-4" />
+              <span>Contatos</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        {/* Usuários - precisa de role + permissão de menu */}
+        {(userRole === "admin" || userRole === "administrativo" || userRole === "superintendente") &&
+          canView("usuarios") && (
             <DropdownMenuItem asChild>
-              <Link to="/sinistros/acompanhamento" className="cursor-pointer">
-                <ClipboardList className="mr-2 h-4 w-4" />
-                <span>Acompanhamento</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
-
-          {/* Vistorias */}
-          {canView("vistorias") && (
-            <DropdownMenuItem asChild>
-              <Link to="/vistorias" className="cursor-pointer">
-                <Camera className="mr-2 h-4 w-4" />
-                <span>Vistorias</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Desempenho</DropdownMenuLabel>
-
-          {canView("performance") && (
-            <>
-              <DropdownMenuItem asChild>
-                <Link to="/desempenho/individual" className="cursor-pointer">
-                  <TrendingUp className="mr-2 h-4 w-4" />
-                  <span>Desempenho Individual</span>
-                </Link>
-              </DropdownMenuItem>
-
-              <DropdownMenuItem asChild>
-                <Link to="/desempenho/corretoras" className="cursor-pointer">
-                  <Building2 className="mr-2 h-4 w-4" />
-                  <span>Desempenho por Corretora</span>
-                </Link>
-              </DropdownMenuItem>
-            </>
-          )}
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Ferramentas</DropdownMenuLabel>
-
-          {/* Agenda */}
-          {canView("agenda") && (
-            <DropdownMenuItem asChild>
-              <Link to="/agenda" className="cursor-pointer">
-                <Calendar className="mr-2 h-4 w-4" />
-                <span>Agenda</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
-
-          {/* Documentos */}
-          {canView("documentos") && (
-            <DropdownMenuItem asChild>
-              <Link to="/documentos" className="cursor-pointer">
-                <FileText className="mr-2 h-4 w-4" />
-                <span>Documentos</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
-
-          {/* Mensagens */}
-          {canView("mensagens") && (
-            <DropdownMenuItem asChild>
-              <Link to="/mensagens" className="cursor-pointer flex items-center justify-between w-full">
+              <Link to="/usuarios" className="cursor-pointer flex items-center justify-between w-full">
                 <div className="flex items-center">
-                  <Mail className="mr-2 h-4 w-4" />
-                  <span>Mensagens</span>
+                  <UserCircle className="mr-2 h-4 w-4" />
+                  <span>Usuários</span>
                 </div>
-
-                {unreadMessages > 0 && (
+                {pendingUsers > 0 && (
                   <Badge variant="destructive" className="ml-auto">
-                    {unreadMessages}
+                    {pendingUsers}
                   </Badge>
                 )}
               </Link>
             </DropdownMenuItem>
           )}
 
-          {/* E-mails */}
-          {(userRole === "admin" || userRole === "superintendente") && canView("emails") && (
-            <DropdownMenuItem asChild>
-              <Link to="/emails" className="cursor-pointer">
-                <Mail className="mr-2 h-4 w-4" />
-                <span>E-mails</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Sinistros</DropdownMenuLabel>
 
-          {/* Comunicados */}
-          {(userRole === "admin" || userRole === "superintendente") && canView("comunicados") && (
-            <DropdownMenuItem asChild>
-              <Link to="/comunicados" className="cursor-pointer">
-                <Megaphone className="mr-2 h-4 w-4" />
-                <span>Comunicados</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
+        {/* Sinistro novo – se quiser controlar com id próprio, depois criamos "sinistros" */}
+        <DropdownMenuItem asChild>
+          <Link to="/sinistros/novo" className="cursor-pointer">
+            <FileX className="mr-2 h-4 w-4" />
+            <span>Sinistro</span>
+          </Link>
+        </DropdownMenuItem>
 
-          {/* Configurações */}
-          {(userRole === "admin" || userRole === "superintendente") && canView("configuracoes") && (
-            <DropdownMenuItem asChild>
-              <Link to="/configuracoes" className="cursor-pointer">
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Configurações</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
-
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem onClick={signOut} className="cursor-pointer text-destructive">
-            <LogOut className="mr-2 h-4 w-4" />
-            <span>Sair</span>
+        {/* Acompanhamento (id "acompanhamento") */}
+        {canView("acompanhamento") && (
+          <DropdownMenuItem asChild>
+            <Link to="/sinistros/acompanhamento" className="cursor-pointer">
+              <ClipboardList className="mr-2 h-4 w-4" />
+              <span>Acompanhamento</span>
+            </Link>
           </DropdownMenuItem>
-        </div>
+        )}
+
+        {/* Vistorias */}
+        {canView("vistorias") && (
+          <DropdownMenuItem asChild>
+            <Link to="/vistorias" className="cursor-pointer">
+              <Camera className="mr-2 h-4 w-4" />
+              <span>Vistorias</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Desempenho</DropdownMenuLabel>
+
+        {/* Usa id "performance" para os dois */}
+        {canView("performance") && (
+          <>
+            <DropdownMenuItem asChild>
+              <Link to="/desempenho/individual" className="cursor-pointer">
+                <TrendingUp className="mr-2 h-4 w-4" />
+                <span>Desempenho Individual</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/desempenho/corretoras" className="cursor-pointer">
+                <Building2 className="mr-2 h-4 w-4" />
+                <span>Desempenho por Corretora</span>
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
+
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Ferramentas</DropdownMenuLabel>
+
+        {/* Agenda */}
+        {canView("agenda") && (
+          <DropdownMenuItem asChild>
+            <Link to="/agenda" className="cursor-pointer">
+              <Calendar className="mr-2 h-4 w-4" />
+              <span>Agenda</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        {/* Documentos */}
+        {canView("documentos") && (
+          <DropdownMenuItem asChild>
+            <Link to="/documentos" className="cursor-pointer">
+              <FileText className="mr-2 h-4 w-4" />
+              <span>Documentos</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        {/* Mensagens */}
+        {canView("mensagens") && (
+          <DropdownMenuItem asChild>
+            <Link to="/mensagens" className="cursor-pointer flex items-center justify-between w-full">
+              <div className="flex items-center">
+                <Mail className="mr-2 h-4 w-4" />
+                <span>Mensagens</span>
+              </div>
+              {unreadMessages > 0 && (
+                <Badge variant="destructive" className="ml-auto">
+                  {unreadMessages}
+                </Badge>
+              )}
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        {/* E-mails */}
+        {(userRole === "admin" || userRole === "superintendente") && canView("emails") && (
+          <DropdownMenuItem asChild>
+            <Link to="/emails" className="cursor-pointer">
+              <Mail className="mr-2 h-4 w-4" />
+              <span>E-mails</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        {/* Comunicados */}
+        {(userRole === "admin" || userRole === "superintendente") && canView("comunicados") && (
+          <DropdownMenuItem asChild>
+            <Link to="/comunicados" className="cursor-pointer">
+              <Megaphone className="mr-2 h-4 w-4" />
+              <span>Comunicados</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        {/* Configurações */}
+        {(userRole === "admin" || userRole === "superintendente") && canView("configuracoes") && (
+          <DropdownMenuItem asChild>
+            <Link to="/configuracoes" className="cursor-pointer">
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Configurações</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={signOut} className="cursor-pointer text-destructive">
+          <LogOut className="mr-2 h-4 w-4" />
+          <span>Sair</span>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
