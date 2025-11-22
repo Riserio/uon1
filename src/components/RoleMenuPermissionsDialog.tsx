@@ -302,7 +302,7 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
       const permissionsToInsert = Object.values(permissions)
         .filter((perm) => !perm.pode_visualizar || !perm.pode_editar)
         .map((perm) => ({
-          role: selectedRole as "superintendente" | "administrativo" | "lider" | "comercial",
+          role: selectedRole,
           menu_item: perm.menu_item,
           pode_visualizar: perm.pode_visualizar,
           pode_editar: perm.pode_editar,
@@ -366,9 +366,9 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
             </TabsTrigger>
           </TabsList>
 
-          {/* TAB PERMISSÕES */}
+          {/* PERMISSÕES */}
           <TabsContent value="permissions" className="flex-1 flex flex-col min-h-0 space-y-3">
-            {/* Seletor de perfil (sem Tabs aninhado com conteúdo duplicado) */}
+            {/* Seletor de perfil */}
             <div className="grid w-full grid-cols-4 flex-shrink-0 h-9 gap-2">
               {ROLES.map((role) => (
                 <button
@@ -377,7 +377,7 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
                   onClick={() =>
                     setSelectedRole(role.value as "superintendente" | "administrativo" | "lider" | "comercial")
                   }
-                  className={`text-xs rounded-md border flex items-center justify-center transition-colors px-2
+                  className={`text-xs rounded-full border flex items-center justify-center transition-colors px-4
                     ${
                       selectedRole === role.value
                         ? "bg-primary text-primary-foreground border-primary"
@@ -389,7 +389,6 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
               ))}
             </div>
 
-            {/* Conteúdo das permissões – renderizado UMA vez só */}
             {loading ? (
               <div className="flex items-center justify-center py-8 flex-1">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -407,89 +406,92 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
                   </span>
                 </div>
 
-                <ScrollArea className="flex-1 border rounded-lg p-3">
-                  <div className="space-y-1.5">
-                    {MENU_ITEMS.map((item) => {
-                      const perm = permissions[item.id] || {
-                        menu_item: item.id,
-                        pode_visualizar: true,
-                        pode_editar: true,
-                      };
+                {/* wrapper da área rolável para ocupar o card todo */}
+                <div className="flex-1 min-h-0">
+                  <ScrollArea className="h-full border rounded-lg p-3">
+                    <div className="space-y-1.5">
+                      {MENU_ITEMS.map((item) => {
+                        const perm = permissions[item.id] || {
+                          menu_item: item.id,
+                          pode_visualizar: true,
+                          pode_editar: true,
+                        };
 
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex items-center gap-2 p-2 border rounded-md bg-card hover:bg-accent/50 transition-colors"
-                        >
-                          <span className="text-base flex-shrink-0">{item.icon}</span>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-xs truncate">{item.label}</h4>
-                          </div>
-
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <div className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={`visualizar-${item.id}`}
-                                checked={perm.pode_visualizar}
-                                onCheckedChange={(checked) =>
-                                  handleTogglePermission(item.id, "visualizar", checked as boolean)
-                                }
-                                className="h-4 w-4"
-                              />
-                              <Label
-                                htmlFor={`visualizar-${item.id}`}
-                                className="text-xs font-normal cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                              >
-                                <Eye className="h-3 w-3" />
-                                Ver
-                              </Label>
+                        return (
+                          <div
+                            key={item.id}
+                            className="flex items-center gap-2 p-2 border rounded-md bg-card hover:bg-accent/50 transition-colors"
+                          >
+                            <span className="text-base flex-shrink-0">{item.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-xs truncate">{item.label}</h4>
                             </div>
 
-                            <div className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={`editar-${item.id}`}
-                                checked={perm.pode_editar}
-                                onCheckedChange={(checked) =>
-                                  handleTogglePermission(item.id, "editar", checked as boolean)
-                                }
-                                disabled={!perm.pode_visualizar}
-                                className="h-4 w-4"
-                              />
-                              <Label
-                                htmlFor={`editar-${item.id}`}
-                                className={`text-xs font-normal cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                                  !perm.pode_visualizar ? "opacity-50 cursor-not-allowed" : ""
-                                }`}
-                              >
-                                <Edit className="h-3 w-3" />
-                                Editar
-                              </Label>
-                            </div>
-
-                            <div className="text-xs text-muted-foreground min-w-[90px] flex-shrink-0">
-                              {perm.pode_visualizar && perm.pode_editar ? (
-                                <span className="flex items-center gap-0.5 text-green-600">
-                                  <Unlock className="h-3 w-3" />
-                                  Total
-                                </span>
-                              ) : perm.pode_visualizar ? (
-                                <span className="flex items-center gap-0.5 text-blue-600">
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <div className="flex items-center space-x-1.5">
+                                <Checkbox
+                                  id={`visualizar-${item.id}`}
+                                  checked={perm.pode_visualizar}
+                                  onCheckedChange={(checked) =>
+                                    handleTogglePermission(item.id, "visualizar", checked as boolean)
+                                  }
+                                  className="h-4 w-4"
+                                />
+                                <Label
+                                  htmlFor={`visualizar-${item.id}`}
+                                  className="text-xs font-normal cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                                >
                                   <Eye className="h-3 w-3" />
-                                  Leitura
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-0.5 text-muted-foreground">
-                                  <Lock className="h-3 w-3" />
-                                  Bloqueado
-                                </span>
-                              )}
+                                  Ver
+                                </Label>
+                              </div>
+
+                              <div className="flex items-center space-x-1.5">
+                                <Checkbox
+                                  id={`editar-${item.id}`}
+                                  checked={perm.pode_editar}
+                                  onCheckedChange={(checked) =>
+                                    handleTogglePermission(item.id, "editar", checked as boolean)
+                                  }
+                                  disabled={!perm.pode_visualizar}
+                                  className="h-4 w-4"
+                                />
+                                <Label
+                                  htmlFor={`editar-${item.id}`}
+                                  className={`text-xs font-normal cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                                    !perm.pode_visualizar ? "opacity-50 cursor-not-allowed" : ""
+                                  }`}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                  Editar
+                                </Label>
+                              </div>
+
+                              <div className="text-xs text-muted-foreground min-w-[90px] flex-shrink-0">
+                                {perm.pode_visualizar && perm.pode_editar ? (
+                                  <span className="flex items-center gap-0.5 text-green-600">
+                                    <Unlock className="h-3 w-3" />
+                                    Total
+                                  </span>
+                                ) : perm.pode_visualizar ? (
+                                  <span className="flex items-center gap-0.5 text-blue-600">
+                                    <Eye className="h-3 w-3" />
+                                    Leitura
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-0.5 text-muted-foreground">
+                                    <Lock className="h-3 w-3" />
+                                    Bloqueado
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                </div>
 
                 {showPasswordInput && (
                   <div className="flex-shrink-0 space-y-1.5 pt-2 border-t">
@@ -523,7 +525,7 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
             )}
           </TabsContent>
 
-          {/* TAB LOGS */}
+          {/* LOGS */}
           <TabsContent value="logs" className="flex-1 flex flex-col min-h-0 mt-3">
             {logsLoading ? (
               <div className="flex items-center justify-center py-8">
