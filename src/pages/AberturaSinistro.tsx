@@ -166,7 +166,7 @@ export default function AberturaSinistro() {
       // 🔥 REDIRECIONA PARA A TELA DE VISTORIA EM VEZ DO PAINEL
       if (atendimento?.id) {
         // ajuste aqui se sua rota de vistoria for diferente
-        navigate(`/vistorias/${atendimento.id}`);
+        navigate(`/vistorias/`);
       } else {
         // fallback genérico
         navigate("/vistorias");
