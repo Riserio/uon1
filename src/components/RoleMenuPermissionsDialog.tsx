@@ -367,7 +367,7 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
           </TabsList>
 
           {/* PERMISSÕES */}
-          <TabsContent value="permissions" className="flex-1 flex flex-col min-h-0 space-y-3">
+          <TabsContent value="permissions" className="flex-1 min-h-0 flex-col space-y-3 data-[state=active]:flex">
             {/* Seletor de perfil */}
             <div className="grid w-full grid-cols-4 flex-shrink-0 h-9 gap-2">
               {ROLES.map((role) => (
@@ -526,48 +526,52 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
           </TabsContent>
 
           {/* LOGS */}
-          <TabsContent value="logs" className="flex-1 flex flex-col min-h-0 mt-3">
+          <TabsContent value="logs" className="flex-1 min-h-0 mt-3 flex-col data-[state=active]:flex">
             {logsLoading ? (
-              <div className="flex items-center justify-center py-8">
+              <div className="flex items-center justify-center py-8 flex-1">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <ScrollArea className="flex-1 border rounded-lg p-3">
-                <div className="space-y-1.5">
-                  {logs.length === 0 ? (
-                    <p className="text-center text-muted-foreground text-sm py-8">Nenhuma alteração registrada</p>
-                  ) : (
-                    logs.map((log) => (
-                      <div key={log.id} className="p-2.5 border rounded-md bg-card space-y-1.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="space-y-0.5 flex-1 min-w-0">
-                            <p className="text-xs font-medium break-words">{log.acao}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Por: {log.authorized_profiles?.nome || "Usuário desconhecido"}
-                              {log.senha_validada && " (senha validada)"}
-                            </p>
+              <div className="flex-1 min-h-0 flex flex-col">
+                <div className="flex-1 min-h-0">
+                  <ScrollArea className="h-full border rounded-lg p-3">
+                    <div className="space-y-1.5">
+                      {logs.length === 0 ? (
+                        <p className="text-center text-muted-foreground text-sm py-8">Nenhuma alteração registrada</p>
+                      ) : (
+                        logs.map((log) => (
+                          <div key={log.id} className="p-2.5 border rounded-md bg-card space-y-1.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-0.5 flex-1 min-w-0">
+                                <p className="text-xs font-medium break-words">{log.acao}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Por: {log.authorized_profiles?.nome || "Usuário desconhecido"}
+                                  {log.senha_validada && " (senha validada)"}
+                                </p>
+                              </div>
+                              <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                                {format(new Date(log.created_at), "dd/MM 'às' HH:mm", {
+                                  locale: ptBR,
+                                })}
+                              </span>
+                            </div>
+                            {log.detalhes && (
+                              <div className="text-xs bg-muted/50 p-1.5 rounded space-y-0.5">
+                                <p>
+                                  Perfil: <span className="font-medium">{log.detalhes.role}</span>
+                                </p>
+                                <p>
+                                  Menus: {log.detalhes.total_menus} total, {log.detalhes.menus_restritos} restritos
+                                </p>
+                              </div>
+                            )}
                           </div>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
-                            {format(new Date(log.created_at), "dd/MM 'às' HH:mm", {
-                              locale: ptBR,
-                            })}
-                          </span>
-                        </div>
-                        {log.detalhes && (
-                          <div className="text-xs bg-muted/50 p-1.5 rounded space-y-0.5">
-                            <p>
-                              Perfil: <span className="font-medium">{log.detalhes.role}</span>
-                            </p>
-                            <p>
-                              Menus: {log.detalhes.total_menus} total, {log.detalhes.menus_restritos} restritos
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </TabsContent>
         </Tabs>
