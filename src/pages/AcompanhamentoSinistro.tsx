@@ -14,12 +14,20 @@ type CaminhoStatusItem = {
   created_at: string;
 };
 
+type TimelineItem = {
+  id: string;
+  tipo: "andamento" | "status" | "fluxo";
+  descricao: string;
+  created_at: string;
+  created_by: string;
+};
+
 type ResultadoSinistro = {
   atendimento: any;
   vistoria: any | null;
   fluxoNome: string;
   statusPublicos: any[];
-  andamentos: any[];
+  andamentos: TimelineItem[];
   caminhoStatus: CaminhoStatusItem[];
 };
 
@@ -187,18 +195,30 @@ export default function AcompanhamentoSinistro() {
 
           if (errAnd) console.error(errAnd);
 
-          // Histórico de status
+          // Histórico completo (status, fluxo e outros)
           const { data: hist, error: errHist } = await supabase
             .from("atendimentos_historico")
             .select("*")
             .eq("atendimento_id", at.id)
-            .contains("campos_alterados", ["status"])
             .order("created_at", { ascending: true });
 
           if (errHist) console.error(errHist);
 
-          // Filtra histórico apenas para status permitidos (se houver config)
-          const histFiltrado = (hist || []).filter((h: any) => {
+          const historico = hist || [];
+
+          // Separar histórico de status e de fluxo
+          const histStatus = historico.filter((h: any) => {
+            const campos = (h.campos_alterados as string[]) || [];
+            return campos.includes("status");
+          });
+
+          const histFluxo = historico.filter((h: any) => {
+            const campos = (h.campos_alterados as string[]) || [];
+            return campos.includes("fluxo_id");
+          });
+
+          // Filtra histórico de status para exibir apenas status permitidos (se houver config)
+          const histStatusFiltrado = histStatus.filter((h: any) => {
             if (allowedStatusNames.size === 0) return true;
             const anterior = (h.valores_anteriores as any)?.status;
             const novo = (h.valores_novos as any)?.status;
@@ -207,8 +227,8 @@ export default function AcompanhamentoSinistro() {
             return anteriorPermitido || novoPermitido;
           });
 
-          // Monta timeline (andamentos + mudanças de status)
-          const timeline = [
+          // Monta timeline (andamentos + mudanças de status + mudanças de fluxo)
+          const timeline: TimelineItem[] = [
             ...(andamentosData || []).map((a: any) => ({
               id: `and-${a.id}`,
               tipo: "andamento" as const,
@@ -216,8 +236,8 @@ export default function AcompanhamentoSinistro() {
               created_at: a.created_at,
               created_by: a.profiles?.nome || "Sistema",
             })),
-            ...histFiltrado.map((h: any) => ({
-              id: `hist-${h.id}`,
+            ...histStatusFiltrado.map((h: any) => ({
+              id: `hist-status-${h.id}`,
               tipo: "status" as const,
               descricao: `Status alterado: ${
                 (h.valores_anteriores as any)?.status || "N/A"
@@ -225,10 +245,26 @@ export default function AcompanhamentoSinistro() {
               created_at: h.created_at,
               created_by: h.user_nome || "Sistema",
             })),
+            ...histFluxo.map((h: any) => {
+              const anteriorId = (h.valores_anteriores as any)?.fluxo_id;
+              const novoId = (h.valores_novos as any)?.fluxo_id;
+
+              const anteriorNome =
+                (anteriorId && nomeFluxos[anteriorId]) || (anteriorId ? `Fluxo ${anteriorId}` : "N/A");
+              const novoNome = (novoId && nomeFluxos[novoId]) || (novoId ? `Fluxo ${novoId}` : "N/A");
+
+              return {
+                id: `hist-fluxo-${h.id}`,
+                tipo: "fluxo" as const,
+                descricao: `Fluxo alterado: ${anteriorNome} → ${novoNome}`,
+                created_at: h.created_at,
+                created_by: h.user_nome || "Sistema",
+              };
+            }),
           ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
           // 👉 Caminho REAL de status percorridos (para o card "Fluxo do sinistro")
-          const caminhoStatusRaw = (histFiltrado || [])
+          const caminhoStatusRaw = (histStatusFiltrado || [])
             .map((h: any) => {
               const novo = (h.valores_novos as any)?.status;
               if (!novo) return null;
@@ -248,7 +284,10 @@ export default function AcompanhamentoSinistro() {
           }
 
           // Remove repetições consecutivas
-          const caminhoStatusDedup: { status_nome: string; created_at: string }[] = [];
+          const caminhoStatusDedup: {
+            status_nome: string;
+            created_at: string;
+          }[] = [];
           for (const item of caminhoStatusRaw) {
             const last = caminhoStatusDedup[caminhoStatusDedup.length - 1];
             if (!last || last.status_nome !== item.status_nome) {
@@ -343,7 +382,6 @@ export default function AcompanhamentoSinistro() {
 
             const statusAtualConfig = statusPublicos.find((x: any) => x.status_nome === atendimento.status);
 
-            // Lista real de etapas percorridas; fallback para status configurados
             const listaFluxo: CaminhoStatusItem[] =
               caminhoStatus.length > 0
                 ? caminhoStatus
@@ -451,7 +489,7 @@ export default function AcompanhamentoSinistro() {
                       </Card>
                     )}
 
-                    {/* Fluxo do sinistro – caminho REAL */}
+                    {/* Fluxo do sinistro – caminho REAL de statuses públicos */}
                     {listaFluxo.length > 0 && (
                       <Card>
                         <CardHeader className="py-3">
@@ -520,14 +558,14 @@ export default function AcompanhamentoSinistro() {
                       </Card>
                     )}
 
-                    {/* Linha do tempo completa */}
+                    {/* Linha do tempo completa – andamentos + status + fluxo */}
                     {andamentos.length > 0 && (
                       <Card>
                         <CardHeader className="py-3">
                           <CardTitle className="text-base">Linha do tempo do sinistro</CardTitle>
                           <p className="text-xs text-muted-foreground">
-                            Aqui você acompanha todos os registros e movimentações do seu sinistro que podem ser
-                            exibidos ao público.
+                            Aqui você acompanha todos os registros, mudanças de status e mudanças de fluxo do seu
+                            sinistro que podem ser exibidos ao público.
                           </p>
                         </CardHeader>
                         <CardContent className="space-y-3">
