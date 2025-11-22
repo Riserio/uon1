@@ -197,7 +197,7 @@ export default function VistoriaPublicaCaptura() {
         if (getFileType(file) === "image") {
           const reader = new FileReader();
           const preview = await new Promise<string>((resolve) => {
-            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onload = (ev) => resolve(ev.target?.result as string);
             reader.readAsDataURL(file);
           });
           newPreviews.push(preview);
@@ -213,8 +213,8 @@ export default function VistoriaPublicaCaptura() {
       setFotos({ ...fotos, [posicaoAtual.id]: [file] });
 
       const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target?.result as string;
+      reader.onload = async (ev) => {
+        const base64 = ev.target?.result as string;
         setFotoPreviews({ ...fotoPreviews, [posicaoAtual.id]: [base64] });
 
         if (posicaoAtual.id === "cnh" && getFileType(file) === "image") {
@@ -231,7 +231,7 @@ export default function VistoriaPublicaCaptura() {
       }
     }
 
-    // limpa o input para permitir selecionar o mesmo arquivo de novo se necessário
+    // permite selecionar o mesmo arquivo de novo se precisar
     e.target.value = "";
   };
 
@@ -271,8 +271,6 @@ export default function VistoriaPublicaCaptura() {
     setFotoPreviews(newPreviews);
   };
 
-  // 🔧 Não salva File no localStorage, só dados serializáveis.
-  // Files vão via state na navegação.
   const handleContinue = () => {
     if (!vistoria) {
       toast.error("Não foi possível prosseguir com a vistoria.");
@@ -408,35 +406,6 @@ export default function VistoriaPublicaCaptura() {
                       </div>
                       <h3 className="text-2xl font-bold text-gray-900 mb-2">Tirar foto ou enviar da galeria</h3>
                       <p className="text-gray-500 text-sm">Clique para abrir a câmera, galeria ou arquivos</p>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full min-h-[200px] border-2 border-gray-300 hover:border-[hsl(var(--vistoria-primary))] rounded-2xl bg-white hover:bg-blue-50 transition-all duration-300 group"
-                  >
-                    <div className="flex flex-col items-center justify-center py-6">
-                      <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <ImageIcon className="h-8 w-8 text-blue-600" />
-                      </div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">Escolher arquivo existente</h3>
-                      <p className="text-gray-500 text-sm">Fotos, vídeos ou PDFs já existentes</p>
-                      <div className="flex gap-2 mt-3">
-                        <Badge variant="outline" className="text-xs">
-                          JPG
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          PNG
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          PDF
-                        </Badge>
-                        {posicaoAtual.tipo === "veiculo" && (
-                          <Badge variant="outline" className="text-xs">
-                            Vídeo
-                          </Badge>
-                        )}
-                      </div>
                     </div>
                   </button>
                 </div>
