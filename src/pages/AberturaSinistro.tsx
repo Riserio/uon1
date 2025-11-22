@@ -46,7 +46,6 @@ export default function AberturaSinistro() {
   const loadCorretoras = async () => {
     try {
       const { data, error } = await supabase.from("corretoras").select("*").order("nome");
-
       if (error) throw error;
       setCorretoras(data || []);
     } catch (error) {
@@ -57,7 +56,6 @@ export default function AberturaSinistro() {
   const loadResponsaveis = async () => {
     try {
       const { data, error } = await supabase.from("profiles").select("id, nome").eq("ativo", true).order("nome");
-
       if (error) throw error;
       setResponsaveis(data || []);
     } catch (error) {
@@ -113,6 +111,7 @@ export default function AberturaSinistro() {
       const primeiroStatus = statusList[0].nome;
 
       const vistoriaTag = formData.solicitarVistoria ? "aguardando_vistoria_digital" : "sem_vistoria";
+
       const { data: atendimento, error: atendimentoError } = await supabase
         .from("atendimentos")
         .insert({
@@ -180,11 +179,13 @@ export default function AberturaSinistro() {
             <p className="text-sm text-muted-foreground">Registre um novo sinistro</p>
           </div>
         </div>
+
         <div className="flex gap-2">
           <Button onClick={() => navigate("/sinistros/acompanhamento")} variant="outline" className="gap-2">
             <ClipboardList className="h-4 w-4" />
             Acompanhamento
           </Button>
+
           <Button onClick={() => navigate("/dashboard-sinistros")} variant="outline" className="gap-2">
             <TrendingUp className="h-4 w-4" />
             Dashboard
@@ -196,11 +197,13 @@ export default function AberturaSinistro() {
         <CardHeader>
           <CardTitle>Dados do Sinistro</CardTitle>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Tipo de Sinistro */}
             <div className="space-y-4">
               <h3 className="font-semibold text-lg border-b pb-2">Tipo de Sinistro</h3>
+
               <div>
                 <Label htmlFor="tipo_sinistro">Tipo de Sinistro *</Label>
                 <Select
@@ -211,6 +214,7 @@ export default function AberturaSinistro() {
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o tipo de sinistro" />
                   </SelectTrigger>
+
                   <SelectContent>
                     <SelectItem value="Colisão">Colisão</SelectItem>
                     <SelectItem value="Roubo/Furto">Roubo/Furto</SelectItem>
@@ -279,39 +283,36 @@ export default function AberturaSinistro() {
               <h3 className="font-semibold text-lg border-b pb-2">Dados do Veículo</h3>
 
               <div className="grid md:grid-cols-2 gap-4">
-                {/* AJUSTE DA PLACA - VERSÃO FINAL */}
+                {/* PLACA AJUSTADA (ACEITA LETRAS NORMALMENTE) */}
                 <div>
                   <Label htmlFor="veiculo_placa">Placa *</Label>
-                  <div>
-  <Label htmlFor="veiculo_placa">Placa *</Label>
-  <Input
-    id="veiculo_placa"
-    type="text" // garante que o navegador não bloqueie letras
-    value={formData.veiculo_placa}
-    onChange={(e) => {
-      // Sempre trabalhar em maiúsculo
-      let value = e.target.value.toUpperCase();
+                  <Input
+                    id="veiculo_placa"
+                    type="text"
+                    value={formData.veiculo_placa}
+                    onChange={(e) => {
+                      let value = e.target.value.toUpperCase();
 
-      // Permitir só letras, números e hífen
-      value = value.replace(/[^A-Z0-9-]/g, "");
+                      // permite somente A-Z, 0-9 e hífen
+                      value = value.replace(/[^A-Z0-9-]/g, "");
 
-      // Remover hífen para controlar a posição
-      const raw = value.replace("-", "");
+                      // remove hífen temporariamente
+                      const raw = value.replace("-", "");
 
-      // Montar como AAA-1234 (ou AAA-1B34 para Mercosul, se quiser)
-      if (raw.length <= 3) {
-        value = raw;
-      } else {
-        value = raw.slice(0, 3) + "-" + raw.slice(3, 7);
-      }
+                      // formata AAA-1234
+                      if (raw.length <= 3) {
+                        value = raw;
+                      } else {
+                        value = raw.slice(0, 3) + "-" + raw.slice(3, 7);
+                      }
 
-      setFormData({ ...formData, veiculo_placa: value });
-    }}
-    maxLength={8} // AAA-1234 = 8 chars
-    placeholder="ABC-1234"
-    required
-  />
-</div>
+                      setFormData({ ...formData, veiculo_placa: value });
+                    }}
+                    maxLength={8}
+                    placeholder="ABC-1234"
+                    required
+                  />
+                </div>
 
                 <div>
                   <Label htmlFor="veiculo_marca">Marca *</Label>
@@ -412,6 +413,7 @@ export default function AberturaSinistro() {
               <Button type="button" variant="outline" onClick={() => navigate(-1)} className="flex-1">
                 Cancelar
               </Button>
+
               <Button type="submit" disabled={loading} className="flex-1">
                 {loading ? "Registrando..." : "Registrar Sinistro"}
               </Button>
