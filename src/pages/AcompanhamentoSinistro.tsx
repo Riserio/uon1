@@ -11,7 +11,7 @@ type CaminhoStatusItem = {
   status_nome: string;
   descricao_publica?: string | null;
   created_at: string;
-  fluxo_id?: number | null;Aqui você vê a etapa (status) e fluxos atual do seu sinistro.
+  fluxo_id?: number | null;
   fluxo_nome?: string | null;
 };
 
