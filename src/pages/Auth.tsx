@@ -69,12 +69,12 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700">
-      {/* Círculos decorativos */}
+      {/* Decorative circles */}
       <div className="absolute top-20 left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
       <div className="absolute bottom-20 right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
       <div className="absolute top-1/2 left-1/4 w-72 h-72 bg-blue-400/20 rounded-full blur-2xl" />
 
-      {/* Texto de boas-vindas - apenas desktop */}
+      {/* Welcome text - desktop only */}
       <div className="hidden lg:block absolute left-24 top-1/2 -translate-y-1/2 text-white z-10">
         <div className="space-y-4">
           <h1 className="text-6xl font-bold tracking-tight">WELCOME</h1>
@@ -82,11 +82,10 @@ export default function Auth() {
         </div>
       </div>
 
-      {/* Card de Login */}
+      {/* Login Card */}
       <Card className="w-full max-w-md mx-4 lg:ml-auto lg:mr-32 bg-white shadow-2xl border-0 relative z-20">
         <CardHeader className="space-y-2 pb-6">
           <CardTitle className="text-2xl font-semibold">{isSignUp ? "Sign up" : "Sign in"}</CardTitle>
-
           <CardDescription className="text-muted-foreground">
             {isSignUp ? "Create your account to get started" : "Enter your credentials to continue"}
           </CardDescription>
@@ -99,7 +98,6 @@ export default function Auth() {
                 <Label htmlFor="nome" className="text-sm font-medium">
                   Nome Completo
                 </Label>
-
                 <Input
                   id="nome"
                   type="text"
@@ -116,7 +114,6 @@ export default function Auth() {
               <Label htmlFor="email" className="text-sm font-medium">
                 Email
               </Label>
-
               <Input
                 id="email"
                 type="email"
@@ -132,7 +129,6 @@ export default function Auth() {
               <Label htmlFor="password" className="text-sm font-medium">
                 Password
               </Label>
-
               <Input
                 id="password"
                 type="password"
