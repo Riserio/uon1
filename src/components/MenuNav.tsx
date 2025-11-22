@@ -45,13 +45,11 @@ function useMenuPermissionsForRole(userRole: string | null) {
 
   useEffect(() => {
     const loadPermissions = async () => {
-      // sem role -> não carrega nada, assume padrão (tudo liberado)
       if (!userRole) {
         setPermissions({});
         return;
       }
 
-      // admin enxerga tudo, sem restrição em role_menu_permissions
       if (userRole === "admin") {
         setPermissions({});
         return;
@@ -85,10 +83,8 @@ function useMenuPermissionsForRole(userRole: string | null) {
     };
 
     loadPermissions();
-  }, [userRole]); // 🔑 recarrega sempre que o role mudar
+  }, [userRole]);
 
-  // mesma regra do Dialog:
-  // se não tem registro -> acesso total
   const canView = (menuId: string) => {
     const perm = permissions[menuId];
     if (!perm) return true;
@@ -121,7 +117,9 @@ export default function MenuNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="outline">Menu</Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+
+      {/* === AQUI ESTÁ A CORREÇÃO DO SCROLL === */}
+      <DropdownMenuContent align="end" className="w-56 max-h-[80vh] overflow-y-auto">
         <DropdownMenuLabel>Navegação</DropdownMenuLabel>
         <DropdownMenuSeparator />
 
@@ -158,7 +156,7 @@ export default function MenuNav() {
           </DropdownMenuItem>
         )}
 
-        {/* Termos de Aceite (id: "termos") */}
+        {/* Termos */}
         {canView("termos") && (
           <DropdownMenuItem asChild>
             <Link to="/termos" className="cursor-pointer">
@@ -178,7 +176,7 @@ export default function MenuNav() {
           </DropdownMenuItem>
         )}
 
-        {/* Usuários - precisa de role + permissão de menu */}
+        {/* Usuários */}
         {(userRole === "admin" || userRole === "administrativo" || userRole === "superintendente") &&
           canView("usuarios") && (
             <DropdownMenuItem asChild>
@@ -187,6 +185,7 @@ export default function MenuNav() {
                   <UserCircle className="mr-2 h-4 w-4" />
                   <span>Usuários</span>
                 </div>
+
                 {pendingUsers > 0 && (
                   <Badge variant="destructive" className="ml-auto">
                     {pendingUsers}
@@ -199,7 +198,6 @@ export default function MenuNav() {
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Sinistros</DropdownMenuLabel>
 
-        {/* Sinistro novo – se quiser controlar com id próprio, depois criamos "sinistros" */}
         <DropdownMenuItem asChild>
           <Link to="/sinistros/novo" className="cursor-pointer">
             <FileX className="mr-2 h-4 w-4" />
@@ -207,7 +205,6 @@ export default function MenuNav() {
           </Link>
         </DropdownMenuItem>
 
-        {/* Acompanhamento (id "acompanhamento") */}
         {canView("acompanhamento") && (
           <DropdownMenuItem asChild>
             <Link to="/sinistros/acompanhamento" className="cursor-pointer">
@@ -230,7 +227,6 @@ export default function MenuNav() {
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Desempenho</DropdownMenuLabel>
 
-        {/* Usa id "performance" para os dois */}
         {canView("performance") && (
           <>
             <DropdownMenuItem asChild>
@@ -239,6 +235,7 @@ export default function MenuNav() {
                 <span>Desempenho Individual</span>
               </Link>
             </DropdownMenuItem>
+
             <DropdownMenuItem asChild>
               <Link to="/desempenho/corretoras" className="cursor-pointer">
                 <Building2 className="mr-2 h-4 w-4" />
@@ -279,6 +276,7 @@ export default function MenuNav() {
                 <Mail className="mr-2 h-4 w-4" />
                 <span>Mensagens</span>
               </div>
+
               {unreadMessages > 0 && (
                 <Badge variant="destructive" className="ml-auto">
                   {unreadMessages}
@@ -319,6 +317,7 @@ export default function MenuNav() {
         )}
 
         <DropdownMenuSeparator />
+
         <DropdownMenuItem onClick={signOut} className="cursor-pointer text-destructive">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Sair</span>
