@@ -395,20 +395,26 @@ export default function VistoriaPublicaCaptura() {
               />
 
               {fotosPosicaoAtual.length === 0 ? (
-                <div className="space-y-4">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full min-h-[250px] border-4 border-dashed border-gray-300 hover:border-[hsl(var(--vistoria-primary))] rounded-2xl bg-gradient-to-br from-gray-50 to-white hover:from-blue-50 hover:to-blue-100 transition-all duration-300 group"
-                  >
-                    <div className="flex flex-col items-center justify-center py-8">
-                      <div className="w-20 h-20 bg-gradient-to-br from-[hsl(var(--vistoria-primary))] to-blue-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg">
-                        <Camera className="h-10 w-10 text-white" strokeWidth={2.5} />
-                      </div>
-                      <h3 className="text-2xl font-bold text-gray-900 mb-2">Tirar foto ou enviar da galeria</h3>
-                      <p className="text-gray-500 text-sm">Clique para abrir a câmera, galeria ou arquivos</p>
-                    </div>
-                  </button>
-                </div>
+  <div className="space-y-4">
+
+    <button
+      onClick={() => fileInputRef.current?.click()}
+      className="w-full min-h-[250px] border-4 border-dashed border-gray-300 hover:border-[hsl(var(--vistoria-primary))] rounded-2xl bg-gradient-to-br from-gray-50 to-white hover:from-blue-50 hover:to-blue-100 transition-all duration-300 group"
+    >
+      <div className="flex flex-col items-center justify-center py-8">
+        <div className="w-20 h-20 bg-gradient-to-br from-[hsl(var(--vistoria-primary))] to-blue-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg">
+          <Camera className="h-10 w-10 text-white" strokeWidth={2.5} />
+        </div>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">Tirar foto ou enviar da galeria</h3>
+        <p className="text-gray-500 text-sm">Clique para abrir a câmera, galeria ou arquivos</p>
+      </div>
+    </button>
+
+  </div>
+) : (
+  ...
+)}
+
               ) : (
                 <div className="space-y-4">
                   {/* Preview Grid */}
