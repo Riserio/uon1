@@ -46,6 +46,8 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "emails", label: "E-mails", icon: "📧" },
   { id: "analytics", label: "Analytics", icon: "📊" },
   { id: "performance", label: "Performance", icon: "🎯" },
+  // 🔹 Termos de Aceite incluído na lista de menus
+  { id: "termos_aceite", label: "Termos de Aceite", icon: "📄" },
 ];
 
 const ROLES = [
@@ -297,6 +299,22 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
+      // 🔹 Buscar permissões antigas para montar o diff (antes/depois)
+      const { data: oldPerms, error: oldError } = await supabase
+        .from("role_menu_permissions")
+        .select("menu_item, pode_visualizar, pode_editar")
+        .eq("role", selectedRole);
+
+      if (oldError) throw oldError;
+
+      const oldMap: Record<string, { pode_visualizar: boolean; pode_editar: boolean }> = {};
+      (oldPerms || []).forEach((p) => {
+        oldMap[p.menu_item] = {
+          pode_visualizar: p.pode_visualizar,
+          pode_editar: p.pode_editar,
+        };
+      });
+
       // Apaga permissões atuais do role
       await supabase.from("role_menu_permissions").delete().eq("role", selectedRole);
 
@@ -316,18 +334,34 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
         if (error) throw error;
       }
 
-      // Lista detalhada de alterações por menu
-      const alteracoesDetalhadas = Object.values(permissions)
-        .filter((perm) => !perm.pode_visualizar || !perm.pode_editar)
-        .map((perm) => {
-          const menu = MENU_ITEMS.find((m) => m.id === perm.menu_item);
-          return {
-            menu_id: perm.menu_item,
-            menu_label: menu?.label || perm.menu_item,
-            visualizar: perm.pode_visualizar ? "permitido" : "removido",
-            editar: perm.pode_editar ? "permitido" : "removido",
-          };
-        });
+      // 🔹 Montar lista detalhada de alterações (tanto inclusão quanto remoção de restrição)
+      const alteracoesDetalhadas: any[] = [];
+
+      MENU_ITEMS.forEach((item) => {
+        const current = permissions[item.id] || {
+          menu_item: item.id,
+          pode_visualizar: true,
+          pode_editar: true,
+        };
+
+        const oldRestricted = oldMap[item.id];
+        const oldV = oldRestricted?.pode_visualizar ?? true;
+        const oldE = oldRestricted?.pode_editar ?? true;
+
+        const newV = current.pode_visualizar;
+        const newE = current.pode_editar;
+
+        if (oldV !== newV || oldE !== newE) {
+          alteracoesDetalhadas.push({
+            menu_id: item.id,
+            menu_label: item.label,
+            visualizar_anterior: oldV ? "permitido" : "removido",
+            visualizar_novo: newV ? "permitido" : "removido",
+            editar_anterior: oldE ? "permitido" : "removido",
+            editar_novo: newE ? "permitido" : "removido",
+          });
+        }
+      });
 
       // Registra log detalhado
       await supabase.from("permission_change_logs").insert({
@@ -579,7 +613,10 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
                                   Perfil: <span className="font-medium">{log.detalhes.role}</span>
                                 </p>
                                 <p>
-                                  Menus alterados: <span className="font-medium">{log.detalhes.menus_restritos}</span>
+                                  Menus alterados:{" "}
+                                  <span className="font-medium">
+                                    {log.detalhes.alteracoes?.length ?? log.detalhes.menus_restritos}
+                                  </span>
                                 </p>
 
                                 {log.detalhes.alteracoes?.map((a: any, i: number) => (
@@ -589,20 +626,44 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
                                       Visualizar:{" "}
                                       <span
                                         className={
-                                          a.visualizar === "removido" ? "font-semibold text-red-600" : "font-semibold"
+                                          a.visualizar_anterior === "removido"
+                                            ? "font-semibold text-red-600"
+                                            : "font-semibold"
                                         }
                                       >
-                                        {a.visualizar}
+                                        {a.visualizar_anterior}
+                                      </span>{" "}
+                                      →{" "}
+                                      <span
+                                        className={
+                                          a.visualizar_novo === "removido"
+                                            ? "font-semibold text-red-600"
+                                            : "font-semibold text-green-700"
+                                        }
+                                      >
+                                        {a.visualizar_novo}
                                       </span>
                                     </p>
                                     <p>
                                       Editar:{" "}
                                       <span
                                         className={
-                                          a.editar === "removido" ? "font-semibold text-red-600" : "font-semibold"
+                                          a.editar_anterior === "removido"
+                                            ? "font-semibold text-red-600"
+                                            : "font-semibold"
                                         }
                                       >
-                                        {a.editar}
+                                        {a.editar_anterior}
+                                      </span>{" "}
+                                      →{" "}
+                                      <span
+                                        className={
+                                          a.editar_novo === "removido"
+                                            ? "font-semibold text-red-600"
+                                            : "font-semibold text-green-700"
+                                        }
+                                      >
+                                        {a.editar_novo}
                                       </span>
                                     </p>
                                   </div>
