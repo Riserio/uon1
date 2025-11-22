@@ -373,15 +373,15 @@ export function RoleMenuPermissionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl h-[85vh] flex flex-col">
-        <DialogHeader className="flex-shrink-0">
+      <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0">
+        <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4">
           <DialogTitle className="text-xl">Permissões de Menu por Perfil</DialogTitle>
           <DialogDescription>
             Configure quais menus cada perfil pode visualizar e editar. As permissões são aplicadas a todos os usuários do perfil.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 px-6">
           <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
             <TabsTrigger value="permissions">Permissões</TabsTrigger>
             <TabsTrigger value="logs" className="flex items-center gap-2">
@@ -390,13 +390,13 @@ export function RoleMenuPermissionsDialog({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="permissions" className="flex-1 flex flex-col min-h-0 mt-4">
+          <TabsContent value="permissions" className="flex-1 flex flex-col min-h-0 mt-4 space-y-4">
             <Tabs 
               value={selectedRole} 
               onValueChange={(value) => setSelectedRole(value as 'superintendente' | 'administrativo' | 'lider' | 'comercial')} 
               className="flex-1 flex flex-col min-h-0"
             >
-              <TabsList className="grid w-full grid-cols-4 flex-shrink-0 mb-4">
+              <TabsList className="grid w-full grid-cols-4 flex-shrink-0">
                 {ROLES.map((role) => (
                   <TabsTrigger key={role.value} value={role.value}>
                     {role.label}
@@ -405,14 +405,14 @@ export function RoleMenuPermissionsDialog({
               </TabsList>
 
           {ROLES.map((role) => (
-            <TabsContent key={role.value} value={role.value} className="flex-1 flex flex-col min-h-0">
+            <TabsContent key={role.value} value={role.value} className="flex-1 flex flex-col min-h-0 mt-4">
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <div className="flex-1 flex flex-col min-h-0">
-                  <div className="flex gap-4 mb-3 text-sm text-muted-foreground flex-shrink-0">
+                <div className="flex-1 flex flex-col min-h-0 space-y-3">
+                  <div className="flex gap-4 text-sm text-muted-foreground flex-shrink-0">
                     <span className="flex items-center gap-1">
                       <Eye className="h-3.5 w-3.5" />
                       {visualizarCount}/{MENU_ITEMS.length} podem visualizar
@@ -423,9 +423,8 @@ export function RoleMenuPermissionsDialog({
                     </span>
                   </div>
 
-                  <div className="flex-1 min-h-0 border rounded-md">
-                    <ScrollArea className="h-full" type="always">
-                      <div className="space-y-2 p-3">
+                  <ScrollArea className="flex-1 border rounded-lg p-4">
+                      <div className="space-y-2">
                       {MENU_ITEMS.map((item) => {
                         const perm = permissions[item.id] || {
                           menu_item: item.id,
@@ -514,11 +513,10 @@ export function RoleMenuPermissionsDialog({
                         );
                       })}
                       </div>
-                    </ScrollArea>
-                  </div>
+                  </ScrollArea>
 
                   {showPasswordInput && (
-                    <div className="pt-3 border-t mt-3 flex-shrink-0">
+                    <div className="flex-shrink-0 space-y-2">
                       <Label htmlFor="password" className="text-sm font-medium">
                         Senha de Superintendente *
                       </Label>
@@ -528,15 +526,14 @@ export function RoleMenuPermissionsDialog({
                         placeholder="Digite a senha de um superintendente"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="mt-2"
                       />
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="text-xs text-muted-foreground">
                         Para alterar permissões de superintendente, é necessário digitar a senha de um superintendente.
                       </p>
                     </div>
                   )}
 
-                  <div className="flex justify-end gap-2 pt-3 border-t mt-3 flex-shrink-0">
+                  <div className="flex justify-end gap-2 flex-shrink-0">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                       Cancelar
                     </Button>
@@ -558,9 +555,8 @@ export function RoleMenuPermissionsDialog({
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <div className="flex-1 min-h-0 border rounded-md">
-                <ScrollArea className="h-full" type="always">
-                  <div className="space-y-2 p-3">
+              <ScrollArea className="flex-1 border rounded-lg p-4">
+                  <div className="space-y-2">
                   {logs.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">
                       Nenhuma alteração registrada
@@ -597,11 +593,11 @@ export function RoleMenuPermissionsDialog({
                     ))
                   )}
                   </div>
-                </ScrollArea>
-              </div>
+              </ScrollArea>
             )}
           </TabsContent>
         </Tabs>
+        <div className="h-6" />
       </DialogContent>
     </Dialog>
   );
