@@ -27,17 +27,15 @@ export default function AcompanhamentoSinistro() {
 
     // Só números = pode ser CPF ou número do sinistro
     if (/^\d+$/.test(cleaned)) {
-      // CPF até 11 dígitos
       if (cleaned.length <= 11) {
         setBusca(formatCPF(cleaned));
         return;
       }
-      // Acima disso considera como ID/Nº sinistro/protocolo
-      setBusca(cleaned);
+      setBusca(cleaned); // número do sinistro
       return;
     }
 
-    // Tem letra = placa
+    // Placa
     if (/[a-zA-Z]/.test(cleaned)) {
       setBusca(formatPlaca(cleaned));
       return;
@@ -64,162 +62,121 @@ export default function AcompanhamentoSinistro() {
       let atendimentosEncontrados: any[] = [];
       let vistoriasEncontradas: any[] = [];
 
-      // 1) Se for número, tenta buscar por número do sinistro/protocolo
+      // 1) Buscar por número do sinistro
       if (isNumeric) {
         const numeroSinistro = parseInt(cleanBusca, 10);
 
-        const { data: atendimentosPorNumero, error: erroAtendNumero } = await supabase
-          .from("atendimentos")
-          .select("*")
-          .eq("numero", numeroSinistro);
+        const { data: atendNum } = await supabase.from("atendimentos").select("*").eq("numero", numeroSinistro);
 
-        if (erroAtendNumero) {
-          console.error("❌ Erro ao buscar atendimentos por número:", erroAtendNumero);
-        }
-
-        if (atendimentosPorNumero && atendimentosPorNumero.length > 0) {
-          atendimentosEncontrados = atendimentosPorNumero;
-        }
+        if (atendNum?.length) atendimentosEncontrados = atendNum;
       }
 
-      // 2) Buscar vistorias por CPF ou Placa
+      // 2) Buscar por CPF
       if (isNumeric && cleanBusca.length === 11) {
-        // CPF
-        const { data: vistoriasPorCpf, error: erroVistCpf } = await supabase
-          .from("vistorias")
-          .select("*")
-          .eq("cliente_cpf", cleanBusca);
+        const { data: vistCPF } = await supabase.from("vistorias").select("*").eq("cliente_cpf", cleanBusca);
 
-        if (erroVistCpf) {
-          console.error("❌ Erro ao buscar vistorias por CPF:", erroVistCpf);
-        }
-
-        if (vistoriasPorCpf && vistoriasPorCpf.length > 0) {
-          vistoriasEncontradas = [...vistoriasEncontradas, ...vistoriasPorCpf];
-        }
+        if (vistCPF?.length) vistoriasEncontradas.push(...vistCPF);
       }
 
+      // 3) Buscar por PLACA (correção aplicada)
       if (isPlaca) {
-        // Placa
-        const { data: vistoriasPorPlaca, error: erroVistPlaca } = await supabase
+        const placaLimpa = cleanBusca.toUpperCase(); // ABC1D23
+        const placaFormatada = formatPlaca(cleanBusca); // ABC-1D23 ou ABC1D23 dependendo da função
+
+        const { data: vistPlaca } = await supabase
           .from("vistorias")
           .select("*")
-          .eq("veiculo_placa", cleanBusca.toUpperCase());
+          .or(`veiculo_placa.eq.${placaLimpa},veiculo_placa.eq.${placaFormatada}`);
 
-        if (erroVistPlaca) {
-          console.error("❌ Erro ao buscar vistorias por placa:", erroVistPlaca);
-        }
-
-        if (vistoriasPorPlaca && vistoriasPorPlaca.length > 0) {
-          vistoriasEncontradas = [...vistoriasEncontradas, ...vistoriasPorPlaca];
-        }
+        if (vistPlaca?.length) vistoriasEncontradas.push(...vistPlaca);
       }
 
-      // 3) A partir das vistorias, buscar atendimentos vinculados
-      const atendimentoIdsFromVistorias = Array.from(
-        new Set(vistoriasEncontradas.map((v) => v.atendimento_id).filter((id) => !!id)),
-      ) as string[];
-
-      let atendimentosPorVistoria: any[] = [];
-      if (atendimentoIdsFromVistorias.length > 0) {
-        const { data: atPorVist, error: erroAtVist } = await supabase
-          .from("atendimentos")
-          .select("*")
-          .in("id", atendimentoIdsFromVistorias);
-
-        if (erroAtVist) {
-          console.error("❌ Erro ao buscar atendimentos por vistorias:", erroAtVist);
-        }
-
-        if (atPorVist && atPorVist.length > 0) {
-          atendimentosPorVistoria = atPorVist;
-        }
-      }
-
-      // 4) Unificar atendimentos (por número e por vistoria)
-      const mapaAtendimentos: Record<string, any> = {};
-      [...atendimentosEncontrados, ...atendimentosPorVistoria].forEach((at) => {
-        mapaAtendimentos[at.id] = at;
-      });
-
-      const atendimentosFinais = Object.values(mapaAtendimentos);
-
-      if (atendimentosFinais.length === 0) {
-        console.log("❌ Nenhum resultado encontrado");
-        toast.error("Nenhum sinistro encontrado com esses dados");
+      // Se não encontrou nada, retornar
+      if (atendimentosEncontrados.length === 0 && vistoriasEncontradas.length === 0) {
+        toast.error("Nenhum sinistro encontrado");
         return;
       }
 
-      // 5) Buscar fluxos e status públicos para todos os fluxos envolvidos
-      const fluxoIds = Array.from(
-        new Set(atendimentosFinais.map((a: any) => a.fluxo_id).filter((id) => !!id)),
-      ) as string[];
+      // Buscar atendimentos pelas vistorias
+      const atIds = Array.from(new Set(vistoriasEncontradas.map((v: any) => v.atendimento_id).filter(Boolean)));
 
-      let mapaFluxos: Record<string, string> = {};
-      let statusPublicosPorFluxo: Record<string, any[]> = {};
+      if (atIds.length > 0) {
+        const { data: atendVist } = await supabase.from("atendimentos").select("*").in("id", atIds);
+
+        if (atendVist?.length) atendimentosEncontrados.push(...atendVist);
+      }
+
+      // Remover duplicados
+      const mapaAt = Object.fromEntries(atendimentosEncontrados.map((a: any) => [a.id, a]));
+
+      const atendimentos = Object.values(mapaAt);
+
+      if (atendimentos.length === 0) {
+        toast.error("Nenhum sinistro encontrado");
+        return;
+      }
+
+      // Buscar fluxos
+      const fluxoIds = Array.from(new Set(atendimentos.map((a: any) => a.fluxo_id).filter(Boolean)));
+
+      let nomeFluxos: Record<string, string> = {};
+      let statusPublicos: Record<string, any[]> = {};
 
       if (fluxoIds.length > 0) {
-        const { data: fluxosData } = await supabase.from("fluxos").select("id, nome").in("id", fluxoIds);
+        const { data: fluxos } = await supabase.from("fluxos").select("id, nome").in("id", fluxoIds);
 
-        if (fluxosData) {
-          fluxosData.forEach((f: any) => {
-            mapaFluxos[f.id] = f.nome;
-          });
-        }
+        fluxos?.forEach((f: any) => {
+          nomeFluxos[f.id] = f.nome;
+        });
 
-        const { data: statusData } = await supabase
+        const { data: status } = await supabase
           .from("status_publicos_config")
           .select("*")
           .in("fluxo_id", fluxoIds)
           .eq("visivel_publico", true)
           .order("ordem_exibicao");
 
-        if (statusData) {
-          statusPublicosPorFluxo = statusData.reduce((acc: any, s: any) => {
-            if (!acc[s.fluxo_id]) acc[s.fluxo_id] = [];
-            acc[s.fluxo_id].push(s);
-            return acc;
-          }, {});
-        }
+        status?.forEach((s: any) => {
+          if (!statusPublicos[s.fluxo_id]) statusPublicos[s.fluxo_id] = [];
+          statusPublicos[s.fluxo_id].push(s);
+        });
       }
 
-      // 6) Montar resultados completos por sinistro
-      const resultadosCompletos: ResultadoSinistro[] = await Promise.all(
-        atendimentosFinais.map(async (at: any) => {
-          // Vistoria principal desse atendimento (pega a última criada)
-          const vistoriasDoAtendimento = vistoriasEncontradas
-            .filter((v) => v.atendimento_id === at.id)
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      // Montar resultados completos
+      const resultadosFinal: ResultadoSinistro[] = await Promise.all(
+        atendimentos.map(async (at: any) => {
+          const vist =
+            vistoriasEncontradas
+              .filter((v: any) => v.atendimento_id === at.id)
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] || null;
 
-          const vistoriaPrincipal = vistoriasDoAtendimento[0] || null;
-
-          // Andamentos
+          // Buscar andamentos
           const { data: andamentosData } = await supabase
             .from("andamentos")
             .select("*, profiles!andamentos_created_by_fkey(nome)")
             .eq("atendimento_id", at.id)
             .order("created_at", { ascending: true });
 
-          // Histórico de mudanças de status
-          const { data: historicoData } = await supabase
+          // Buscar histórico de status
+          const { data: hist } = await supabase
             .from("atendimentos_historico")
             .select("*")
             .eq("atendimento_id", at.id)
             .contains("campos_alterados", ["status"])
             .order("created_at", { ascending: true });
 
-          const combinedTimeline = [
+          const timeline = [
             ...(andamentosData || []).map((a: any) => ({
               id: a.id,
-              type: "andamento",
               descricao: a.descricao,
               created_at: a.created_at,
               created_by: a.profiles?.nome || "Sistema",
             })),
-            ...(historicoData || []).map((h: any) => ({
+            ...(hist || []).map((h: any) => ({
               id: h.id,
-              type: "status_change",
-              descricao: `Status alterado: ${(h.valores_anteriores as any)?.status || "N/A"} → ${(h.valores_novos as any)?.status || "N/A"}`,
+              descricao: `Status alterado: ${
+                (h.valores_anteriores as any)?.status || "N/A"
+              } → ${(h.valores_novos as any)?.status || "N/A"}`,
               created_at: h.created_at,
               created_by: h.user_nome,
             })),
@@ -227,25 +184,23 @@ export default function AcompanhamentoSinistro() {
 
           return {
             atendimento: at,
-            vistoria: vistoriaPrincipal,
-            fluxoNome: at.fluxo_id ? mapaFluxos[at.fluxo_id] || "Fluxo" : "Fluxo",
-            statusPublicos: at.fluxo_id ? statusPublicosPorFluxo[at.fluxo_id] || [] : [],
-            andamentos: combinedTimeline,
+            vistoria: vist,
+            fluxoNome: nomeFluxos[at.fluxo_id] || "Fluxo",
+            statusPublicos: statusPublicos[at.fluxo_id] || [],
+            andamentos: timeline,
           };
         }),
       );
 
-      console.log("✅ Sinistros encontrados:", resultadosCompletos.length);
-      setResultados(resultadosCompletos);
+      setResultados(resultadosFinal);
 
-      // Se só tiver 1, já abre expandido
-      if (resultadosCompletos.length === 1) {
-        setExpandedId(resultadosCompletos[0].atendimento.id);
+      if (resultadosFinal.length === 1) {
+        setExpandedId(resultadosFinal[0].atendimento.id);
       }
 
       toast.success("Sinistro(s) encontrado(s)!");
-    } catch (error) {
-      console.error("Erro ao buscar:", error);
+    } catch (e) {
+      console.error(e);
       toast.error("Erro ao buscar sinistros");
     } finally {
       setLoading(false);
@@ -255,33 +210,28 @@ export default function AcompanhamentoSinistro() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-5xl mx-auto px-4 py-8">
-        {/* Header Minimalista */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-semibold text-foreground mb-2">Acompanhamento de Sinistro</h1>
-          <p className="text-sm text-muted-foreground">Consulte pelo CPF, placa ou número do sinistro/protocolo</p>
+          <h1 className="text-3xl font-semibold">Acompanhamento de Sinistro</h1>
+          <p className="text-sm text-muted-foreground">Consulte pelo CPF, placa ou número do sinistro</p>
         </div>
 
-        {/* Botão de teste */}
         <div className="flex justify-end mb-4">
           <CriarDadosTesteButton />
         </div>
 
-        {/* Busca Minimalista */}
         <Card className="mb-8 border shadow-sm">
           <CardContent className="p-6">
             <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <Input
-                  placeholder="Digite CPF, placa ou Nº do sinistro/protocolo"
-                  value={busca}
-                  onChange={(e) => handleInputChange(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleBuscar()}
-                  className="h-11"
-                />
-              </div>
+              <Input
+                placeholder="CPF, placa ou nº do sinistro"
+                value={busca}
+                onChange={(e) => handleInputChange(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleBuscar()}
+                className="h-11"
+              />
               <Button onClick={handleBuscar} disabled={loading} className="h-11 px-8">
                 {loading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground" />
+                  <div className="animate-spin h-4 w-4 border-b-2 border-primary-foreground" />
                 ) : (
                   <>
                     <Search className="mr-2 h-4 w-4" />
@@ -293,235 +243,123 @@ export default function AcompanhamentoSinistro() {
           </CardContent>
         </Card>
 
-        {/* Lista de Resultados */}
-        {resultados.length > 0 ? (
-          <div className="space-y-4">
-            {resultados.map((item) => {
-              const { atendimento, vistoria, fluxoNome, statusPublicos, andamentos } = item;
-              const isExpanded = expandedId === atendimento.id;
+        {resultados.length === 0 ? (
+          <p className="text-center text-muted-foreground">Digite para consultar</p>
+        ) : (
+          resultados.map((item) => {
+            const { atendimento, vistoria, fluxoNome, statusPublicos, andamentos } = item;
+            const isOpen = expandedId === atendimento.id;
 
-              // Montagem de texto do veículo para não confundir
-              const placa = vistoria?.veiculo_placa ? formatPlaca(vistoria.veiculo_placa) : null;
-              const modelo = vistoria?.veiculo_modelo || null;
-              const ano = vistoria?.veiculo_ano || vistoria?.veiculo_ano_modelo || null;
+            const placa = vistoria?.veiculo_placa ? formatPlaca(vistoria.veiculo_placa) : "";
+            const modelo = vistoria?.veiculo_modelo || "";
+            const ano = vistoria?.veiculo_ano || vistoria?.veiculo_ano_modelo || "";
 
-              const resumoVeiculo = [modelo, ano, placa].filter(Boolean).join(" • ");
+            const resumoVeiculo = [modelo, ano, placa].filter(Boolean).join(" • ");
 
-              return (
-                <Card key={atendimento.id} className="border shadow-sm">
-                  <CardHeader
-                    className="pb-3 cursor-pointer flex flex-row items-center justify-between gap-4"
-                    onClick={() => setExpandedId(isExpanded ? null : atendimento.id)}
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Workflow className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-medium text-primary">{fluxoNome}</span>
-                      </div>
-
-                      {/* Linha principal: Nº do sinistro e veículo para não ter dúvida */}
-                      <div className="flex flex-wrap items-center gap-3 text-sm">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">Sinistro</span>
-                          <span className="font-semibold">#{atendimento.numero}</span>
-                        </div>
-
-                        {resumoVeiculo && (
-                          <div className="flex items-center gap-1">
-                            <Car className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-semibold">{resumoVeiculo}</span>
-                          </div>
-                        )}
-
-                        {vistoria?.cliente_nome && (
-                          <div className="flex items-center gap-1">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-semibold">{vistoria.cliente_nome}</span>
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted">
-                          <Clock className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs font-medium">{atendimento.status}</span>
-                        </div>
-                      </div>
+            return (
+              <Card className="mb-4" key={atendimento.id}>
+                <CardHeader
+                  className="cursor-pointer flex justify-between"
+                  onClick={() => setExpandedId(isOpen ? null : atendimento.id)}
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Workflow className="h-4 w-4 text-primary" />
+                      <span className="font-medium text-primary">{fluxoNome}</span>
                     </div>
 
-                    <ChevronDown
-                      className={`h-5 w-5 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                    />
-                  </CardHeader>
+                    <div className="mt-1 text-sm">
+                      <span className="font-semibold">#{atendimento.numero}</span>
 
-                  {isExpanded && (
-                    <CardContent className="pt-0 pb-6 space-y-6">
-                      {/* Detalhes do Veículo e Cliente */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
-                        {/* Veículo */}
-                        {vistoria?.veiculo_placa && (
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                              <Car className="h-4 w-4" />
-                              Veículo
-                            </div>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-muted-foreground">Placa</span>
-                                <span className="font-medium">{formatPlaca(vistoria.veiculo_placa)}</span>
+                      {resumoVeiculo && <span className="ml-3 text-muted-foreground">{resumoVeiculo}</span>}
+                    </div>
+                  </div>
+
+                  <ChevronDown className={`h-5 w-5 transition ${isOpen ? "rotate-180" : ""}`} />
+                </CardHeader>
+
+                {isOpen && (
+                  <CardContent className="space-y-6">
+                    {/* Dados do veículo */}
+                    {vistoria && (
+                      <Card>
+                        <CardContent className="p-4 space-y-2 text-sm">
+                          <p>
+                            <strong>Placa:</strong> {placa}
+                          </p>
+                          <p>
+                            <strong>Modelo:</strong> {modelo}
+                          </p>
+                          <p>
+                            <strong>Ano:</strong> {ano}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Progresso */}
+                    {statusPublicos.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Progresso</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {statusPublicos.map((s, i) => {
+                            const currentIndex = statusPublicos.findIndex((x) => x.status_nome === atendimento.status);
+                            const done = currentIndex >= i;
+
+                            return (
+                              <div key={s.id} className="flex gap-3 py-3">
+                                <div
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                    done ? "bg-primary text-white" : "bg-muted"
+                                  }`}
+                                >
+                                  {done ? (
+                                    <CheckCircle2 className="h-4 w-4" />
+                                  ) : (
+                                    <div className="w-2 h-2 bg-muted-foreground rounded-full" />
+                                  )}
+                                </div>
+
+                                <div>
+                                  <p className={`font-medium ${done ? "" : "text-muted-foreground"}`}>
+                                    {s.status_nome}
+                                  </p>
+                                  {s.descricao_publica && (
+                                    <p className="text-xs text-muted-foreground">{s.descricao_publica}</p>
+                                  )}
+                                </div>
                               </div>
-                              {vistoria.veiculo_marca && (
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Marca</span>
-                                  <span className="font-medium">{vistoria.veiculo_marca}</span>
-                                </div>
-                              )}
-                              {vistoria.veiculo_modelo && (
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Modelo</span>
-                                  <span className="font-medium">{vistoria.veiculo_modelo}</span>
-                                </div>
-                              )}
-                              {(vistoria.veiculo_ano || vistoria.veiculo_ano_modelo) && (
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Ano</span>
-                                  <span className="font-medium">
-                                    {vistoria.veiculo_ano || vistoria.veiculo_ano_modelo}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
+                            );
+                          })}
+                        </CardContent>
+                      </Card>
+                    )}
 
-                        {/* Cliente */}
-                        {vistoria?.cliente_nome && (
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                              <User className="h-4 w-4" />
-                              Cliente
+                    {/* Histórico */}
+                    {andamentos.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Histórico</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {andamentos.map((a) => (
+                            <div key={a.id} className="border-l pl-3 py-2 text-sm mb-2">
+                              <p>{a.descricao}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {a.created_by} • {new Date(a.created_at).toLocaleString("pt-BR")}
+                              </p>
                             </div>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-muted-foreground">Nome</span>
-                                <span className="font-medium">{vistoria.cliente_nome}</span>
-                              </div>
-                              {vistoria.cliente_telefone && (
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Telefone</span>
-                                  <span className="font-medium">{vistoria.cliente_telefone}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Progresso (todos os status públicos permitidos do fluxo) */}
-                      {statusPublicos.length > 0 && (
-                        <Card className="border shadow-sm">
-                          <CardHeader className="pb-4">
-                            <CardTitle className="text-lg font-semibold">Progresso do Sinistro</CardTitle>
-                          </CardHeader>
-                          <CardContent className="pb-6">
-                            <div className="space-y-4">
-                              {statusPublicos.map((status, index) => {
-                                const currentIndex = statusPublicos.findIndex(
-                                  (s) => s.status_nome === atendimento.status,
-                                );
-                                const thisIndex = index;
-                                const isCompleted = currentIndex >= thisIndex;
-                                const isLast = index === statusPublicos.length - 1;
-
-                                return (
-                                  <div key={status.id} className="flex items-start gap-4">
-                                    <div className="flex flex-col items-center">
-                                      <div
-                                        className={`
-                                          w-8 h-8 rounded-full flex items-center justify-center transition-all
-                                          ${
-                                            isCompleted
-                                              ? "bg-primary text-primary-foreground"
-                                              : "bg-muted text-muted-foreground"
-                                          }
-                                        `}
-                                      >
-                                        {isCompleted ? (
-                                          <CheckCircle2 className="h-4 w-4" />
-                                        ) : (
-                                          <div className="w-2 h-2 rounded-full bg-current" />
-                                        )}
-                                      </div>
-                                      {!isLast && (
-                                        <div className={`w-px h-12 mt-1 ${isCompleted ? "bg-primary" : "bg-border"}`} />
-                                      )}
-                                    </div>
-
-                                    <div className="flex-1 pb-6">
-                                      <div className="flex items-start justify-between gap-4">
-                                        <div>
-                                          <p
-                                            className={`font-medium ${
-                                              isCompleted ? "text-foreground" : "text-muted-foreground"
-                                            }`}
-                                          >
-                                            {status.status_nome}
-                                          </p>
-                                          {status.descricao_publica && (
-                                            <p className="text-sm text-muted-foreground mt-1">
-                                              {status.descricao_publica}
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {/* Histórico de Andamentos */}
-                      {andamentos.length > 0 && (
-                        <Card className="border shadow-sm">
-                          <CardHeader className="pb-4">
-                            <CardTitle className="text-lg font-semibold">Histórico</CardTitle>
-                          </CardHeader>
-                          <CardContent className="pb-6">
-                            <div className="space-y-3">
-                              {andamentos.map((andamento) => (
-                                <div key={andamento.id} className="border-l-2 border-muted pl-4 py-2">
-                                  <p className="text-sm text-foreground">{andamento.descricao}</p>
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                                    <span>{andamento.created_by}</span>
-                                    <span>•</span>
-                                    <span>
-                                      {new Date(andamento.created_at).toLocaleDateString("pt-BR", {
-                                        day: "2-digit",
-                                        month: "2-digit",
-                                        year: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-                    </CardContent>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-12 text-sm text-muted-foreground">
-            Digite CPF, placa ou número do sinistro para consultar.
-          </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })
         )}
       </div>
     </div>
