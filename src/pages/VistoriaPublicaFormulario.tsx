@@ -124,7 +124,14 @@ export default function VistoriaPublicaFormulario() {
   };
 
   const uploadFile = async (file: File, path: string): Promise<string> => {
-    const fileName = `${vistoria.id}/${path}/${Date.now()}_${file.name}`;
+    let extension = "jpg";
+    if (file.type === "image/png") extension = "png";
+    if (file.type === "image/jpeg") extension = "jpg";
+
+    const safeName = `foto_${Date.now()}.${extension}`;
+
+    const fileName = `${vistoria.id}/${path}/${safeName}`;
+
     const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, file);
 
     if (uploadError) throw uploadError;

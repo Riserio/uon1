@@ -1,23 +1,23 @@
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { Camera, CheckCircle2, Upload, ArrowRight, ArrowLeft, FileText, Film, Image as ImageIcon } from 'lucide-react';
-import SignaturePad from '@/components/SignaturePad';
-import SketchPad from '@/components/SketchPad';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Camera, CheckCircle2, Upload, ArrowRight, ArrowLeft, FileText, Film, Image as ImageIcon } from "lucide-react";
+import SignaturePad from "@/components/SignaturePad";
+import SketchPad from "@/components/SketchPad";
+import { Badge } from "@/components/ui/badge";
 
 const FOTO_POSICOES = [
-  { id: 'frontal', nome: 'Frontal', descricao: 'Foto da frente do veículo' },
-  { id: 'traseira', nome: 'Traseira', descricao: 'Foto da traseira do veículo' },
-  { id: 'lateral_esquerda', nome: 'Lateral Esquerda', descricao: 'Lado esquerdo' },
-  { id: 'lateral_direita', nome: 'Lateral Direita', descricao: 'Lado direito' }
+  { id: "frontal", nome: "Frontal", descricao: "Foto da frente do veículo" },
+  { id: "traseira", nome: "Traseira", descricao: "Foto da traseira do veículo" },
+  { id: "lateral_esquerda", nome: "Lateral Esquerda", descricao: "Lado esquerdo" },
+  { id: "lateral_direita", nome: "Lateral Direita", descricao: "Lado direito" },
 ];
 
 export default function VistoriaPublica() {
@@ -27,22 +27,22 @@ export default function VistoriaPublica() {
   const [currentStep, setCurrentStep] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [geolocation, setGeolocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  
+
   // Form data
   const [formData, setFormData] = useState({
-    cliente_nome: '',
-    cliente_cpf: '',
-    cliente_email: '',
-    cliente_telefone: '',
-    data_evento: '',
-    hora_evento: '',
-    condutor_veiculo: '',
-    veiculo_placa: '',
-    veiculo_modelo: '',
-    narrar_fatos: '',
-    vitima_ou_causador: '',
+    cliente_nome: "",
+    cliente_cpf: "",
+    cliente_email: "",
+    cliente_telefone: "",
+    data_evento: "",
+    hora_evento: "",
+    condutor_veiculo: "",
+    veiculo_placa: "",
+    veiculo_modelo: "",
+    narrar_fatos: "",
+    vitima_ou_causador: "",
     tem_terceiros: false,
-    placa_terceiro: '',
+    placa_terceiro: "",
     local_tem_camera: false,
     fez_bo: false,
     foi_hospital: false,
@@ -58,8 +58,8 @@ export default function VistoriaPublica() {
   const [laudoAlcoolemia, setLaudoAlcoolemia] = useState<File | null>(null);
   const [vehicleFotos, setVehicleFotos] = useState<{ [key: string]: File }>({});
   const [fotoPreviews, setFotoPreviews] = useState<{ [key: string]: string }>({});
-  const [assinatura, setAssinatura] = useState<string>('');
-  const [croqui, setCroqui] = useState<string>('');
+  const [assinatura, setAssinatura] = useState<string>("");
+  const [croqui, setCroqui] = useState<string>("");
 
   useEffect(() => {
     loadVistoria();
@@ -69,22 +69,22 @@ export default function VistoriaPublica() {
   const loadVistoria = async () => {
     try {
       const { data, error } = await supabase
-        .from('vistorias')
-        .select('*')
-        .eq('link_token', token)
-        .gt('link_expires_at', new Date().toISOString())
+        .from("vistorias")
+        .select("*")
+        .eq("link_token", token)
+        .gt("link_expires_at", new Date().toISOString())
         .maybeSingle();
 
       if (error) throw error;
       if (!data) {
-        toast.error('Link de vistoria inválido ou expirado');
+        toast.error("Link de vistoria inválido ou expirado");
         return;
       }
 
       setVistoria(data);
     } catch (error) {
-      console.error('Erro ao carregar vistoria:', error);
-      toast.error('Erro ao carregar vistoria');
+      console.error("Erro ao carregar vistoria:", error);
+      toast.error("Erro ao carregar vistoria");
     } finally {
       setLoading(false);
     }
@@ -96,32 +96,37 @@ export default function VistoriaPublica() {
         (position) => {
           setGeolocation({
             latitude: position.coords.latitude,
-            longitude: position.coords.longitude
+            longitude: position.coords.longitude,
           });
         },
-        (error) => console.error('Erro ao obter geolocalização:', error)
+        (error) => console.error("Erro ao obter geolocalização:", error),
       );
     }
   };
 
   const uploadFile = async (file: File, path: string): Promise<string> => {
-    const fileName = `${vistoria.id}/${path}/${Date.now()}_${file.name}`;
-    const { error: uploadError } = await supabase.storage
-      .from('vistorias')
-      .upload(fileName, file);
+    let extension = "jpg";
+    if (file.type === "image/png") extension = "png";
+    if (file.type === "image/jpeg") extension = "jpg";
+
+    const safeName = `foto_${Date.now()}.${extension}`;
+
+    const fileName = `${vistoria.id}/${path}/${safeName}`;
+
+    const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, file);
 
     if (uploadError) throw uploadError;
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('vistorias')
-      .getPublicUrl(fileName);
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("vistorias").getPublicUrl(fileName);
 
     return publicUrl;
   };
 
   const uploadDataUrl = async (dataUrl: string, path: string): Promise<string> => {
-    const blob = await fetch(dataUrl).then(r => r.blob());
-    const file = new File([blob], `${path}.png`, { type: 'image/png' });
+    const blob = await fetch(dataUrl).then((r) => r.blob());
+    const file = new File([blob], `${path}.png`, { type: "image/png" });
     return uploadFile(file, path);
   };
 
@@ -130,73 +135,69 @@ export default function VistoriaPublica() {
     try {
       // Validações
       if (!formData.cliente_nome || !formData.cliente_cpf) {
-        toast.error('Preencha todos os campos obrigatórios');
+        toast.error("Preencha todos os campos obrigatórios");
         return;
       }
 
       if (Object.keys(vehicleFotos).length < 4) {
-        toast.error('É necessário tirar todas as 4 fotos do veículo');
+        toast.error("É necessário tirar todas as 4 fotos do veículo");
         return;
       }
 
       if (!assinatura) {
-        toast.error('É necessário assinar o termo');
+        toast.error("É necessário assinar o termo");
         return;
       }
 
       // Upload CRLV
-      const crlvUrls = await Promise.all(
-        crlvFotos.map(file => uploadFile(file, 'crlv'))
-      );
+      const crlvUrls = await Promise.all(crlvFotos.map((file) => uploadFile(file, "crlv")));
 
       // Upload documentos condicionais
       let boUrl = null;
       if (formData.fez_bo && boFile) {
-        boUrl = await uploadFile(boFile, 'bo');
+        boUrl = await uploadFile(boFile, "bo");
       }
 
       let laudoMedicoUrl = null;
       if (formData.foi_hospital && laudoMedico) {
-        laudoMedicoUrl = await uploadFile(laudoMedico, 'laudo_medico');
+        laudoMedicoUrl = await uploadFile(laudoMedico, "laudo_medico");
       }
 
       let atestadoObitoUrl = null;
       if (formData.motorista_faleceu && atestadoObito) {
-        atestadoObitoUrl = await uploadFile(atestadoObito, 'atestado_obito');
+        atestadoObitoUrl = await uploadFile(atestadoObito, "atestado_obito");
       }
 
       let laudoAlcoolemiaUrl = null;
-      const horaEvento = parseInt(formData.hora_evento.split(':')[0]);
+      const horaEvento = parseInt(formData.hora_evento.split(":")[0]);
       if ((horaEvento >= 20 || horaEvento < 6) && laudoAlcoolemia) {
-        laudoAlcoolemiaUrl = await uploadFile(laudoAlcoolemia, 'alcoolemia');
+        laudoAlcoolemiaUrl = await uploadFile(laudoAlcoolemia, "alcoolemia");
       }
 
       // Upload fotos do veículo
       for (const [posicao, file] of Object.entries(vehicleFotos)) {
-        const url = await uploadFile(file, 'veiculo');
-        
-        await supabase
-          .from('vistoria_fotos')
-          .insert({
-            vistoria_id: vistoria.id,
-            posicao,
-            arquivo_url: url,
-            arquivo_nome: file.name,
-            arquivo_tamanho: file.size,
-            ordem: FOTO_POSICOES.findIndex(p => p.id === posicao) + 1
-          });
+        const url = await uploadFile(file, "veiculo");
+
+        await supabase.from("vistoria_fotos").insert({
+          vistoria_id: vistoria.id,
+          posicao,
+          arquivo_url: url,
+          arquivo_nome: file.name,
+          arquivo_tamanho: file.size,
+          ordem: FOTO_POSICOES.findIndex((p) => p.id === posicao) + 1,
+        });
       }
 
       // Upload assinatura e croqui
-      const assinaturaUrl = await uploadDataUrl(assinatura, 'assinatura');
-      const croquiUrl = croqui ? await uploadDataUrl(croqui, 'croqui') : null;
+      const assinaturaUrl = await uploadDataUrl(assinatura, "assinatura");
+      const croquiUrl = croqui ? await uploadDataUrl(croqui, "croqui") : null;
 
       // Atualizar vistoria
       const { error: updateError } = await supabase
-        .from('vistorias')
+        .from("vistorias")
         .update({
           ...formData,
-          status: 'em_analise',
+          status: "em_analise",
           latitude: geolocation?.latitude,
           longitude: geolocation?.longitude,
           crlv_fotos_urls: crlvUrls,
@@ -208,34 +209,31 @@ export default function VistoriaPublica() {
           croqui_acidente_url: croquiUrl,
           completed_at: new Date().toISOString(),
         })
-        .eq('id', vistoria.id);
+        .eq("id", vistoria.id);
 
       if (updateError) throw updateError;
 
       // Chamar análise IA
-      const { data: fotosList } = await supabase
-        .from('vistoria_fotos')
-        .select('*')
-        .eq('vistoria_id', vistoria.id);
+      const { data: fotosList } = await supabase.from("vistoria_fotos").select("*").eq("vistoria_id", vistoria.id);
 
       if (fotosList && fotosList.length === 4) {
-        await supabase.functions.invoke('analisar-vistoria-ia', {
+        await supabase.functions.invoke("analisar-vistoria-ia", {
           body: {
             vistoria_id: vistoria.id,
-            fotos: fotosList.map(f => ({
+            fotos: fotosList.map((f) => ({
               id: f.id,
               posicao: f.posicao,
-              url: f.arquivo_url
-            }))
-          }
+              url: f.arquivo_url,
+            })),
+          },
         });
       }
 
-      toast.success('Vistoria enviada com sucesso!');
+      toast.success("Vistoria enviada com sucesso!");
       setCurrentStep(999); // Tela de conclusão
     } catch (error) {
-      console.error('Erro ao enviar vistoria:', error);
-      toast.error('Erro ao enviar vistoria');
+      console.error("Erro ao enviar vistoria:", error);
+      toast.error("Erro ao enviar vistoria");
     } finally {
       setUploading(false);
     }
@@ -251,21 +249,31 @@ export default function VistoriaPublica() {
     if (!file) return;
 
     // Validar tipo de arquivo
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime', 'application/pdf'];
+    const validTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "video/mp4",
+      "video/webm",
+      "video/quicktime",
+      "application/pdf",
+    ];
     if (!validTypes.includes(file.type)) {
-      toast.error('Formato não suportado. Use imagens (PNG, JPG), vídeos (MP4, MOV) ou PDF.');
+      toast.error("Formato não suportado. Use imagens (PNG, JPG), vídeos (MP4, MOV) ou PDF.");
       return;
     }
 
     // Validar tamanho (100MB max)
     if (file.size > 100 * 1024 * 1024) {
-      toast.error('Arquivo muito grande. Tamanho máximo: 100MB');
+      toast.error("Arquivo muito grande. Tamanho máximo: 100MB");
       return;
     }
 
     setVehicleFotos({ ...vehicleFotos, [posicao]: file });
-    
-    if (file.type.startsWith('video/') || file.type === 'application/pdf') {
+
+    if (file.type.startsWith("video/") || file.type === "application/pdf") {
       // Para vídeos e PDFs, não gerar preview
       setFotoPreviews({ ...fotoPreviews, [posicao]: file.type });
     } else {
@@ -327,13 +335,19 @@ export default function VistoriaPublica() {
             <div>
               <h2 className="text-3xl font-bold mb-3">Vistoria Concluída!</h2>
               <p className="text-muted-foreground mb-6">
-                Sua vistoria foi enviada com sucesso. Nossa equipe analisará as informações e entrará em contato em breve.
+                Sua vistoria foi enviada com sucesso. Nossa equipe analisará as informações e entrará em contato em
+                breve.
               </p>
             </div>
             <div className="bg-primary/5 border border-primary/20 p-5 rounded-lg text-sm space-y-3">
               <div className="flex items-center gap-2 text-primary font-semibold">
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
                 Próximos passos
               </div>
@@ -369,20 +383,20 @@ export default function VistoriaPublica() {
           <div className="inline-flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-full mb-4">
             <Camera className="h-5 w-5 text-primary" />
             <Badge variant="secondary" className="text-sm">
-              {vistoria.tipo_vistoria === 'sinistro' ? 'Sinistro' : 'Reativação'}
+              {vistoria.tipo_vistoria === "sinistro" ? "Sinistro" : "Reativação"}
             </Badge>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold mb-2 text-foreground">Vistoria Digital</h1>
-          <p className="text-muted-foreground">
-            Preencha os dados com atenção para uma análise precisa
-          </p>
+          <p className="text-muted-foreground">Preencha os dados com atenção para uma análise precisa</p>
         </div>
 
         {/* Progress */}
         <div className="mb-6 md:mb-8">
           <div className="flex justify-between mb-2 text-sm text-muted-foreground">
             <span className="font-medium">Progresso</span>
-            <span>Passo {currentStep + 1} de {totalSteps}</span>
+            <span>
+              Passo {currentStep + 1} de {totalSteps}
+            </span>
           </div>
           <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
             <div
@@ -399,12 +413,12 @@ export default function VistoriaPublica() {
                 {currentStep + 1}
               </div>
               <span>
-                {currentStep === 0 && 'Dados Pessoais'}
-                {currentStep === 1 && 'Dados do Evento'}
-                {currentStep === 2 && 'Documentos'}
-                {currentStep === 3 && 'Fotos do Veículo'}
-                {currentStep === 4 && 'Croqui do Acidente'}
-                {currentStep === 5 && 'Assinatura Digital'}
+                {currentStep === 0 && "Dados Pessoais"}
+                {currentStep === 1 && "Dados do Evento"}
+                {currentStep === 2 && "Documentos"}
+                {currentStep === 3 && "Fotos do Veículo"}
+                {currentStep === 4 && "Croqui do Acidente"}
+                {currentStep === 5 && "Assinatura Digital"}
               </span>
             </CardTitle>
           </CardHeader>
@@ -526,7 +540,7 @@ export default function VistoriaPublica() {
                   <Label>Tem terceiros envolvidos?</Label>
                   <RadioGroup
                     value={formData.tem_terceiros.toString()}
-                    onValueChange={(value) => setFormData({ ...formData, tem_terceiros: value === 'true' })}
+                    onValueChange={(value) => setFormData({ ...formData, tem_terceiros: value === "true" })}
                   >
                     <div className="flex gap-4">
                       <div className="flex items-center space-x-2">
@@ -554,7 +568,7 @@ export default function VistoriaPublica() {
                   <Label>Local possui câmera?</Label>
                   <RadioGroup
                     value={formData.local_tem_camera.toString()}
-                    onValueChange={(value) => setFormData({ ...formData, local_tem_camera: value === 'true' })}
+                    onValueChange={(value) => setFormData({ ...formData, local_tem_camera: value === "true" })}
                   >
                     <div className="flex gap-4">
                       <div className="flex items-center space-x-2">
@@ -572,7 +586,7 @@ export default function VistoriaPublica() {
                   <Label>A polícia foi ao local?</Label>
                   <RadioGroup
                     value={formData.policia_foi_local.toString()}
-                    onValueChange={(value) => setFormData({ ...formData, policia_foi_local: value === 'true' })}
+                    onValueChange={(value) => setFormData({ ...formData, policia_foi_local: value === "true" })}
                   >
                     <div className="flex gap-4">
                       <div className="flex items-center space-x-2">
@@ -608,7 +622,7 @@ export default function VistoriaPublica() {
                   <Label>Fez BO (Boletim de Ocorrência)?</Label>
                   <RadioGroup
                     value={formData.fez_bo.toString()}
-                    onValueChange={(value) => setFormData({ ...formData, fez_bo: value === 'true' })}
+                    onValueChange={(value) => setFormData({ ...formData, fez_bo: value === "true" })}
                   >
                     <div className="flex gap-4">
                       <div className="flex items-center space-x-2">
@@ -638,7 +652,7 @@ export default function VistoriaPublica() {
                   <Label>Foi para o hospital?</Label>
                   <RadioGroup
                     value={formData.foi_hospital.toString()}
-                    onValueChange={(value) => setFormData({ ...formData, foi_hospital: value === 'true' })}
+                    onValueChange={(value) => setFormData({ ...formData, foi_hospital: value === "true" })}
                   >
                     <div className="flex gap-4">
                       <div className="flex items-center space-x-2">
@@ -668,7 +682,7 @@ export default function VistoriaPublica() {
                   <Label>O motorista faleceu?</Label>
                   <RadioGroup
                     value={formData.motorista_faleceu.toString()}
-                    onValueChange={(value) => setFormData({ ...formData, motorista_faleceu: value === 'true' })}
+                    onValueChange={(value) => setFormData({ ...formData, motorista_faleceu: value === "true" })}
                   >
                     <div className="flex gap-4">
                       <div className="flex items-center space-x-2">
@@ -694,19 +708,18 @@ export default function VistoriaPublica() {
                   </div>
                 )}
 
-                {formData.hora_evento && (
-                  parseInt(formData.hora_evento.split(':')[0]) >= 20 || 
-                  parseInt(formData.hora_evento.split(':')[0]) < 6
-                ) && (
-                  <div>
-                    <Label>Laudo de Alcoolemia (acidente entre 20h e 6h)</Label>
-                    <Input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      onChange={(e) => handleFileChange(e, setLaudoAlcoolemia)}
-                    />
-                  </div>
-                )}
+                {formData.hora_evento &&
+                  (parseInt(formData.hora_evento.split(":")[0]) >= 20 ||
+                    parseInt(formData.hora_evento.split(":")[0]) < 6) && (
+                    <div>
+                      <Label>Laudo de Alcoolemia (acidente entre 20h e 6h)</Label>
+                      <Input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        onChange={(e) => handleFileChange(e, setLaudoAlcoolemia)}
+                      />
+                    </div>
+                  )}
               </div>
             )}
 
@@ -739,23 +752,31 @@ export default function VistoriaPublica() {
                         </div>
                         {hasFile && (
                           <Badge variant="secondary" className="flex items-center gap-1">
-                            {file.type.startsWith('video/') && <Film className="h-3 w-3" />}
-                            {file.type.startsWith('image/') && <ImageIcon className="h-3 w-3" />}
-                            {file.type === 'application/pdf' && <FileText className="h-3 w-3" />}
-                            {file.type.startsWith('video/') ? 'Vídeo' : file.type === 'application/pdf' ? 'PDF' : 'Imagem'}
+                            {file.type.startsWith("video/") && <Film className="h-3 w-3" />}
+                            {file.type.startsWith("image/") && <ImageIcon className="h-3 w-3" />}
+                            {file.type === "application/pdf" && <FileText className="h-3 w-3" />}
+                            {file.type.startsWith("video/")
+                              ? "Vídeo"
+                              : file.type === "application/pdf"
+                                ? "PDF"
+                                : "Imagem"}
                           </Badge>
                         )}
                       </div>
 
                       {hasFile ? (
                         <div className="space-y-2">
-                          {file.type.startsWith('image/') && preview && typeof preview === 'string' && !preview.startsWith('video') && preview !== 'application/pdf' ? (
-                            <img 
-                              src={preview} 
-                              alt={posicao.nome} 
+                          {file.type.startsWith("image/") &&
+                          preview &&
+                          typeof preview === "string" &&
+                          !preview.startsWith("video") &&
+                          preview !== "application/pdf" ? (
+                            <img
+                              src={preview}
+                              alt={posicao.nome}
                               className="w-full rounded-lg border border-border max-h-64 object-cover"
                             />
-                          ) : file.type.startsWith('video/') ? (
+                          ) : file.type.startsWith("video/") ? (
                             <div className="flex items-center justify-center bg-muted rounded-lg p-8 border border-border">
                               <div className="text-center space-y-2">
                                 <Film className="h-12 w-12 text-primary mx-auto" />
@@ -765,7 +786,7 @@ export default function VistoriaPublica() {
                                 </p>
                               </div>
                             </div>
-                          ) : file.type === 'application/pdf' ? (
+                          ) : file.type === "application/pdf" ? (
                             <div className="flex items-center justify-center bg-muted rounded-lg p-8 border border-border">
                               <div className="text-center space-y-2">
                                 <FileText className="h-12 w-12 text-primary mx-auto" />
@@ -822,8 +843,8 @@ export default function VistoriaPublica() {
                 <div className="bg-muted p-4 rounded-lg text-sm">
                   <p className="font-semibold mb-2">Termo de Aceite</p>
                   <p className="text-muted-foreground">
-                    Declaro que as informações prestadas e os documentos anexados são verdadeiros e 
-                    autorizo o uso dos mesmos para análise da vistoria.
+                    Declaro que as informações prestadas e os documentos anexados são verdadeiros e autorizo o uso dos
+                    mesmos para análise da vistoria.
                   </p>
                 </div>
                 <SignaturePad onSave={(sig) => setAssinatura(sig)} initialSignature={assinatura} />
@@ -833,12 +854,7 @@ export default function VistoriaPublica() {
             {/* Navigation Buttons */}
             <div className="flex gap-3 pt-6 border-t">
               {currentStep > 0 && (
-                <Button
-                  onClick={() => setCurrentStep(currentStep - 1)}
-                  variant="outline"
-                  size="lg"
-                  className="flex-1"
-                >
+                <Button onClick={() => setCurrentStep(currentStep - 1)} variant="outline" size="lg" className="flex-1">
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Anterior
                 </Button>

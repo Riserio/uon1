@@ -87,7 +87,13 @@ export default function VistoriaPublicaTermos() {
   const uploadDataUrl = async (dataUrl: string, path: string): Promise<string> => {
     const blob = await fetch(dataUrl).then((r) => r.blob());
     const file = new File([blob], `${path}.png`, { type: "image/png" });
-    const fileName = `${vistoria.id}/${path}/${Date.now()}_${file.name}`;
+    let extension = "jpg";
+    if (file.type === "image/png") extension = "png";
+    if (file.type === "image/jpeg") extension = "jpg";
+
+    const safeName = `foto_${Date.now()}.${extension}`;
+
+    const fileName = `${vistoria.id}/${path}/${safeName}`;
 
     const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, file);
 
