@@ -1,14 +1,14 @@
-import { useState, useEffect } from "react";
-import { useAppConfig } from "@/hooks/useAppConfig";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "sonner";
-import { Palette, Image as ImageIcon } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { useAppConfig } from '@/hooks/useAppConfig';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
+import { Palette, Image as ImageIcon } from 'lucide-react';
 
 interface ConfigColors {
   primary: string;
@@ -30,27 +30,26 @@ interface ImageUploadState {
 }
 
 const defaultColors: ConfigColors = {
-  primary: "#3b82f6",
-  statusNovo: "#3b82f6",
-  statusAndamento: "#f59e0b",
-  statusAguardo: "#a855f7",
-  statusConcluido: "#22c55e",
-  priorityAlta: "#ef4444",
-  priorityMedia: "#f59e0b",
-  priorityBaixa: "#22c55e",
-  sidebarBackground: "#fafafa",
-  sidebarForeground: "#1e293b",
-  sidebarAccent: "#f1f5f9",
+  primary: '#3b82f6',
+  statusNovo: '#3b82f6',
+  statusAndamento: '#f59e0b',
+  statusAguardo: '#a855f7',
+  statusConcluido: '#22c55e',
+  priorityAlta: '#ef4444',
+  priorityMedia: '#f59e0b',
+  priorityBaixa: '#22c55e',
+  sidebarBackground: '#fafafa',
+  sidebarForeground: '#1e293b',
+  sidebarAccent: '#f1f5f9',
 };
 
 export default function Configuracoes() {
   const { config, saveConfig, applyColors } = useAppConfig();
   const { user } = useAuth();
-
   const [tempColors, setTempColors] = useState<ConfigColors>(config.colors);
   const [imageUrls, setImageUrls] = useState<ImageUploadState>({
-    logo: config.logo_url || "",
-    login: "",
+    logo: config.logo_url || '',
+    login: ''
   });
 
   useEffect(() => {
@@ -63,76 +62,77 @@ export default function Configuracoes() {
 
     try {
       const { data: configData } = await supabase
-        .from("app_config")
-        .select("login_image_url")
-        .eq("user_id", user.id)
+        .from('app_config')
+        .select('login_image_url')
+        .eq('user_id', user.id)
         .maybeSingle();
 
       if (configData?.login_image_url) {
-        setImageUrls((prev) => ({ ...prev, login: configData.login_image_url }));
+        setImageUrls(prev => ({ ...prev, login: configData.login_image_url }));
       }
     } catch (error) {
-      console.error("Error loading images:", error);
+      console.error('Error loading images:', error);
     }
   };
 
-  const handleImageUpload = async (file: File, type: "logo" | "login") => {
+  const handleImageUpload = async (file: File, type: 'logo' | 'login') => {
     if (!user) return;
 
     const maxSize = 2 * 1024 * 1024;
     if (file.size > maxSize) {
-      toast.error("Arquivo muito grande. Máximo 2MB.");
+      toast.error('Arquivo muito grande. Máximo 2MB.');
       return;
     }
 
     try {
-      const fileExt = file.name.split(".").pop();
+      const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}-${type}-${Date.now()}.${fileExt}`;
       const filePath = `${type}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage.from("app-assets").upload(filePath, file, { upsert: true });
+      const { error: uploadError } = await supabase.storage
+        .from('app-assets')
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("app-assets").getPublicUrl(filePath);
+      const { data: { publicUrl } } = supabase.storage
+        .from('app-assets')
+        .getPublicUrl(filePath);
 
-      if (type === "logo") {
+      if (type === 'logo') {
         await saveConfig({ logo_url: publicUrl });
-        setImageUrls((prev) => ({ ...prev, logo: publicUrl }));
+        setImageUrls(prev => ({ ...prev, logo: publicUrl }));
       } else {
         const { error: updateError } = await supabase
-          .from("app_config")
+          .from('app_config')
           .update({ login_image_url: publicUrl })
-          .eq("user_id", user.id);
+          .eq('user_id', user.id);
 
         if (updateError) throw updateError;
-
-        setImageUrls((prev) => ({ ...prev, login: publicUrl }));
+        setImageUrls(prev => ({ ...prev, login: publicUrl }));
       }
 
-      toast.success("Imagem atualizada com sucesso!");
+      toast.success('Imagem atualizada com sucesso!');
     } catch (error) {
-      console.error("Error uploading image:", error);
-      toast.error("Erro ao fazer upload da imagem.");
+      console.error('Error uploading image:', error);
+      toast.error('Erro ao fazer upload da imagem.');
     }
   };
 
   const handleSaveColors = async () => {
     try {
       await saveConfig({ colors: tempColors });
-      toast.success("Cores salvas com sucesso!");
+      toast.success('Cores salvas com sucesso!');
     } catch (error) {
-      console.error("Error saving colors:", error);
-      toast.error("Erro ao salvar cores.");
+      console.error('Error saving colors:', error);
+      toast.error('Erro ao salvar cores.');
     }
   };
 
   const handleResetColors = () => {
     setTempColors(defaultColors);
     applyColors(defaultColors);
-    toast.success("Cores resetadas para padrão!");
+    toast.success('Cores resetadas para padrão!');
   };
 
   return (
@@ -146,7 +146,9 @@ export default function Configuracoes() {
               </div>
               Configurações do Sistema
             </h1>
-            <p className="text-muted-foreground mt-1">Personalize a aparência da aplicação</p>
+            <p className="text-muted-foreground mt-1">
+              Personalize a aparência da aplicação
+            </p>
           </div>
         </div>
 
@@ -156,33 +158,179 @@ export default function Configuracoes() {
               <Palette className="h-4 w-4" />
               Cores
             </TabsTrigger>
-
             <TabsTrigger value="images" className="gap-2">
               <ImageIcon className="h-4 w-4" />
               Imagens
             </TabsTrigger>
           </TabsList>
 
-          {/* --- ABA DE CORES --- */}
           <TabsContent value="colors" className="space-y-6">
             <Card className="border-2">
               <CardHeader>
                 <CardTitle>Personalização de Cores</CardTitle>
-                <CardDescription>Ajuste as cores do sistema conforme sua preferência</CardDescription>
+                <CardDescription>
+                  Ajuste as cores do sistema conforme sua preferência
+                </CardDescription>
               </CardHeader>
-
               <CardContent className="space-y-6">
                 <div className="grid gap-6 md:grid-cols-2">
-                  {/* Inputs de cor */}
-                  {/* (Aqui deixei tudo exatamente igual como você enviou) */}
-                  {/* ... */}
+                  <div className="space-y-2">
+                    <Label htmlFor="primary">Cor Primária</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="primary"
+                        type="color"
+                        value={tempColors.primary}
+                        onChange={(e) => setTempColors({ ...tempColors, primary: e.target.value })}
+                        className="h-10 w-20"
+                      />
+                      <Input
+                        type="text"
+                        value={tempColors.primary}
+                        onChange={(e) => setTempColors({ ...tempColors, primary: e.target.value })}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="statusNovo">Status: Novo</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="statusNovo"
+                        type="color"
+                        value={tempColors.statusNovo}
+                        onChange={(e) => setTempColors({ ...tempColors, statusNovo: e.target.value })}
+                        className="h-10 w-20"
+                      />
+                      <Input
+                        type="text"
+                        value={tempColors.statusNovo}
+                        onChange={(e) => setTempColors({ ...tempColors, statusNovo: e.target.value })}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="statusAndamento">Status: Andamento</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="statusAndamento"
+                        type="color"
+                        value={tempColors.statusAndamento}
+                        onChange={(e) => setTempColors({ ...tempColors, statusAndamento: e.target.value })}
+                        className="h-10 w-20"
+                      />
+                      <Input
+                        type="text"
+                        value={tempColors.statusAndamento}
+                        onChange={(e) => setTempColors({ ...tempColors, statusAndamento: e.target.value })}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="statusAguardo">Status: Aguardo</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="statusAguardo"
+                        type="color"
+                        value={tempColors.statusAguardo}
+                        onChange={(e) => setTempColors({ ...tempColors, statusAguardo: e.target.value })}
+                        className="h-10 w-20"
+                      />
+                      <Input
+                        type="text"
+                        value={tempColors.statusAguardo}
+                        onChange={(e) => setTempColors({ ...tempColors, statusAguardo: e.target.value })}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="statusConcluido">Status: Concluído</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="statusConcluido"
+                        type="color"
+                        value={tempColors.statusConcluido}
+                        onChange={(e) => setTempColors({ ...tempColors, statusConcluido: e.target.value })}
+                        className="h-10 w-20"
+                      />
+                      <Input
+                        type="text"
+                        value={tempColors.statusConcluido}
+                        onChange={(e) => setTempColors({ ...tempColors, statusConcluido: e.target.value })}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="priorityAlta">Prioridade: Alta</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="priorityAlta"
+                        type="color"
+                        value={tempColors.priorityAlta}
+                        onChange={(e) => setTempColors({ ...tempColors, priorityAlta: e.target.value })}
+                        className="h-10 w-20"
+                      />
+                      <Input
+                        type="text"
+                        value={tempColors.priorityAlta}
+                        onChange={(e) => setTempColors({ ...tempColors, priorityAlta: e.target.value })}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="priorityMedia">Prioridade: Média</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="priorityMedia"
+                        type="color"
+                        value={tempColors.priorityMedia}
+                        onChange={(e) => setTempColors({ ...tempColors, priorityMedia: e.target.value })}
+                        className="h-10 w-20"
+                      />
+                      <Input
+                        type="text"
+                        value={tempColors.priorityMedia}
+                        onChange={(e) => setTempColors({ ...tempColors, priorityMedia: e.target.value })}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="priorityBaixa">Prioridade: Baixa</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="priorityBaixa"
+                        type="color"
+                        value={tempColors.priorityBaixa}
+                        onChange={(e) => setTempColors({ ...tempColors, priorityBaixa: e.target.value })}
+                        className="h-10 w-20"
+                      />
+                      <Input
+                        type="text"
+                        value={tempColors.priorityBaixa}
+                        onChange={(e) => setTempColors({ ...tempColors, priorityBaixa: e.target.value })}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex gap-4 pt-4">
                   <Button onClick={handleSaveColors} className="flex-1">
                     Salvar Cores
                   </Button>
-
                   <Button onClick={handleResetColors} variant="outline">
                     Resetar Padrão
                   </Button>
@@ -191,30 +339,36 @@ export default function Configuracoes() {
             </Card>
           </TabsContent>
 
-          {/* --- ABA DE IMAGENS --- */}
           <TabsContent value="images" className="space-y-6">
             <Card className="border-2">
               <CardHeader>
                 <CardTitle>Logo do Sistema</CardTitle>
-                <CardDescription>Imagem exibida no cabeçalho e menu lateral</CardDescription>
+                <CardDescription>
+                  Imagem exibida no cabeçalho e menu lateral
+                </CardDescription>
               </CardHeader>
-
               <CardContent className="space-y-4">
                 {imageUrls.logo && (
                   <div className="flex justify-center p-4 bg-muted/30 rounded-lg">
-                    <img src={imageUrls.logo} alt="Logo atual" className="max-h-24 object-contain" />
+                    <img 
+                      src={imageUrls.logo} 
+                      alt="Logo atual" 
+                      className="max-h-24 object-contain"
+                    />
                   </div>
                 )}
-
                 <div>
                   <Label htmlFor="logo-upload" className="cursor-pointer">
                     <div className="border-2 border-dashed rounded-lg p-6 hover:border-primary transition-colors text-center">
                       <ImageIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">Clique para selecionar uma nova logo</p>
-                      <p className="text-xs text-muted-foreground mt-1">PNG, JPG até 2MB</p>
+                      <p className="text-sm text-muted-foreground">
+                        Clique para selecionar uma nova logo
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        PNG, JPG até 2MB
+                      </p>
                     </div>
                   </Label>
-
                   <Input
                     id="logo-upload"
                     type="file"
@@ -222,7 +376,7 @@ export default function Configuracoes() {
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) handleImageUpload(file, "logo");
+                      if (file) handleImageUpload(file, 'logo');
                     }}
                   />
                 </div>
@@ -232,29 +386,32 @@ export default function Configuracoes() {
             <Card className="border-2">
               <CardHeader>
                 <CardTitle>Imagem de Login</CardTitle>
-                <CardDescription>Imagem de fundo da tela de login</CardDescription>
+                <CardDescription>
+                  Imagem de fundo da tela de login
+                </CardDescription>
               </CardHeader>
-
               <CardContent className="space-y-4">
                 {imageUrls.login && (
                   <div className="flex justify-center p-4 bg-muted/30 rounded-lg">
-                    <img
-                      src={imageUrls.login}
-                      alt="Imagem de login atual"
+                    <img 
+                      src={imageUrls.login} 
+                      alt="Imagem de login atual" 
                       className="max-h-48 object-contain rounded"
                     />
                   </div>
                 )}
-
                 <div>
                   <Label htmlFor="login-upload" className="cursor-pointer">
                     <div className="border-2 border-dashed rounded-lg p-6 hover:border-primary transition-colors text-center">
                       <ImageIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">Clique para selecionar uma nova imagem</p>
-                      <p className="text-xs text-muted-foreground mt-1">PNG, JPG até 2MB</p>
+                      <p className="text-sm text-muted-foreground">
+                        Clique para selecionar uma nova imagem
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        PNG, JPG até 2MB
+                      </p>
                     </div>
                   </Label>
-
                   <Input
                     id="login-upload"
                     type="file"
@@ -262,7 +419,7 @@ export default function Configuracoes() {
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) handleImageUpload(file, "login");
+                      if (file) handleImageUpload(file, 'login');
                     }}
                   />
                 </div>
