@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Home,
   LayoutDashboard,
   Building2,
   Users,
   UserCircle,
-  UsersRound,
   Calendar,
   LogOut,
   Megaphone,
@@ -17,7 +15,6 @@ import {
   Camera,
   FileX,
   TrendingUp,
-  FileSignature,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,7 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 
-// --- Hook de permissões de menu baseado no role ---
+// ---- tipos de permissão de menu ----
 type MenuPermission = {
   pode_visualizar: boolean;
   pode_editar: boolean;
@@ -42,64 +39,81 @@ type MenuPermission = {
 
 type MenuPermissionMap = Record<string, MenuPermission>;
 
-const ROLES_PERMITIDOS = ["superintendente", "administrativo", "lider", "comercial"] as const;
-
-function useMenuPermissions(userRole?: string | null) {
+// ---- hook que busca role + permissões direto no Supabase ----
+function useMenuPermissions() {
   const [permissions, setPermissions] = useState<MenuPermissionMap>({});
-  const [loading, setLoading] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadPermissions = async () => {
-      if (!userRole) {
-        setPermissions({});
-        return;
-      }
-
-      // admin enxerga tudo, sem restrição
-      if (userRole === "admin") {
-        setPermissions({});
-        return;
-      }
-
-      if (!ROLES_PERMITIDOS.includes(userRole as any)) {
-        setPermissions({});
-        return;
-      }
-
-      setLoading(true);
+    const loadRoleAndPermissions = async () => {
       try {
-        const { data, error } = await supabase
+        // pega usuário logado
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setRole(null);
+          setPermissions({});
+          return;
+        }
+
+        // pega o role do usuário
+        const { data: roleRow, error: roleError } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .single();
+
+        if (roleError || !roleRow) {
+          console.error("Erro ao buscar role do usuário:", roleError);
+          setRole(null);
+          setPermissions({});
+          return;
+        }
+
+        const currentRole = roleRow.role as string;
+        setRole(currentRole);
+
+        // admin enxerga tudo, sem restrição
+        if (currentRole === "admin") {
+          setPermissions({});
+          return;
+        }
+
+        // carrega permissões de menu para esse role
+        const { data: perms, error: permsError } = await supabase
           .from("role_menu_permissions")
           .select("menu_item, pode_visualizar, pode_editar")
-          .eq("role", userRole);
+          .eq("role", currentRole);
 
-        if (error) {
-          console.error("Erro ao carregar permissões de menu:", error);
+        if (permsError) {
+          console.error("Erro ao carregar permissões de menu:", permsError);
           setPermissions({});
           return;
         }
 
         const map: MenuPermissionMap = {};
-        (data || []).forEach((perm) => {
-          map[perm.menu_item] = {
-            pode_visualizar: perm.pode_visualizar,
-            pode_editar: perm.pode_editar,
+        (perms || []).forEach((p) => {
+          map[p.menu_item] = {
+            pode_visualizar: p.pode_visualizar,
+            pode_editar: p.pode_editar,
           };
         });
 
         setPermissions(map);
       } catch (err) {
-        console.error("Erro inesperado ao carregar permissões de menu:", err);
+        console.error("Erro inesperado ao carregar role/permissões:", err);
+        setRole(null);
         setPermissions({});
-      } finally {
-        setLoading(false);
       }
     };
 
-    loadPermissions();
-  }, [userRole]);
+    loadRoleAndPermissions();
+  }, []);
 
-  // Regra: se não há registro, assume acesso total (mesma lógica do Dialog)
+  // mesma regra do Dialog:
+  // se não tem registro -> acesso total
   const canView = (menuId: string) => {
     const perm = permissions[menuId];
     if (!perm) return true;
@@ -112,18 +126,18 @@ function useMenuPermissions(userRole?: string | null) {
     return perm.pode_editar;
   };
 
-  return { canView, canEdit, loading };
+  return { canView, canEdit, role };
 }
 
-// --- Componente principal ---
+// ---- componente principal ----
 
 export default function MenuNav() {
   const location = useLocation();
-  const { signOut, userRole } = useAuth();
+  const { signOut, userRole } = useAuth(); // userRole continua para regras de admin/supervisor
   const unreadMessages = useUnreadMessages();
   const pendingUsers = usePendingUsers();
 
-  const { canView } = useMenuPermissions(userRole);
+  const { canView } = useMenuPermissions();
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -189,7 +203,7 @@ export default function MenuNav() {
           </DropdownMenuItem>
         )}
 
-        {/* Usuários (já tinha regra por role, agora soma com permissão de menu) */}
+        {/* Usuários - precisa de role + permissão de menu */}
         {(userRole === "admin" || userRole === "administrativo" || userRole === "superintendente") &&
           canView("usuarios") && (
             <DropdownMenuItem asChild>
@@ -210,7 +224,7 @@ export default function MenuNav() {
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Sinistros</DropdownMenuLabel>
 
-        {/* Sinistro novo – se quiser controlar via permissão específica, pode criar um id "sinistros" depois */}
+        {/* Sinistro novo – se quiser pode criar um id específico "sinistros" depois */}
         <DropdownMenuItem asChild>
           <Link to="/sinistros/novo" className="cursor-pointer">
             <FileX className="mr-2 h-4 w-4" />
@@ -218,7 +232,7 @@ export default function MenuNav() {
           </Link>
         </DropdownMenuItem>
 
-        {/* Acompanhamento (usa id "acompanhamento" do Dialog) */}
+        {/* Acompanhamento (id "acompanhamento") */}
         {canView("acompanhamento") && (
           <DropdownMenuItem asChild>
             <Link to="/sinistros/acompanhamento" className="cursor-pointer">
@@ -228,7 +242,7 @@ export default function MenuNav() {
           </DropdownMenuItem>
         )}
 
-        {/* Vistorias (id "vistorias") */}
+        {/* Vistorias */}
         {canView("vistorias") && (
           <DropdownMenuItem asChild>
             <Link to="/vistorias" className="cursor-pointer">
@@ -241,23 +255,22 @@ export default function MenuNav() {
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Desempenho</DropdownMenuLabel>
 
-        {/* Aqui usei o mesmo id "performance" para os dois, mas se quiser separar depois, criamos ids próprios */}
+        {/* Usa id "performance" para os dois */}
         {canView("performance") && (
-          <DropdownMenuItem asChild>
-            <Link to="/desempenho/individual" className="cursor-pointer">
-              <TrendingUp className="mr-2 h-4 w-4" />
-              <span>Desempenho Individual</span>
-            </Link>
-          </DropdownMenuItem>
-        )}
-
-        {canView("performance") && (
-          <DropdownMenuItem asChild>
-            <Link to="/desempenho/corretoras" className="cursor-pointer">
-              <Building2 className="mr-2 h-4 w-4" />
-              <span>Desempenho por Corretora</span>
-            </Link>
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuItem asChild>
+              <Link to="/desempenho/individual" className="cursor-pointer">
+                <TrendingUp className="mr-2 h-4 w-4" />
+                <span>Desempenho Individual</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/desempenho/corretoras" className="cursor-pointer">
+                <Building2 className="mr-2 h-4 w-4" />
+                <span>Desempenho por Corretora</span>
+              </Link>
+            </DropdownMenuItem>
+          </>
         )}
 
         <DropdownMenuSeparator />
@@ -300,7 +313,7 @@ export default function MenuNav() {
           </DropdownMenuItem>
         )}
 
-        {/* E-mails – limitado por role + permissão */}
+        {/* E-mails */}
         {(userRole === "admin" || userRole === "superintendente") && canView("emails") && (
           <DropdownMenuItem asChild>
             <Link to="/emails" className="cursor-pointer">
