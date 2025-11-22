@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { useAuth } from '@/hooks/useAuth';
-import { MaskedInput } from '@/components/ui/masked-input';
-import { AlertTriangle, TrendingUp, ClipboardList } from 'lucide-react';
-import { validateCPF, validatePhone } from '@/lib/validators';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { MaskedInput } from "@/components/ui/masked-input";
+import { AlertTriangle, TrendingUp, ClipboardList } from "lucide-react";
+import { validateCPF, validatePhone } from "@/lib/validators";
 
 export default function AberturaSinistro() {
   const navigate = useNavigate();
@@ -20,22 +20,22 @@ export default function AberturaSinistro() {
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [formData, setFormData] = useState({
-    cliente_nome: '',
-    cliente_cpf: '',
-    cliente_telefone: '',
-    cliente_email: '',
-    veiculo_placa: '',
-    veiculo_marca: '',
-    veiculo_modelo: '',
-    veiculo_ano: '',
-    veiculo_cor: '',
-    veiculo_chassi: '',
-    data_incidente: '',
-    relato_incidente: '',
-    tipo_sinistro: '',
+    cliente_nome: "",
+    cliente_cpf: "",
+    cliente_telefone: "",
+    cliente_email: "",
+    veiculo_placa: "",
+    veiculo_marca: "",
+    veiculo_modelo: "",
+    veiculo_ano: "",
+    veiculo_cor: "",
+    veiculo_chassi: "",
+    data_incidente: "",
+    relato_incidente: "",
+    tipo_sinistro: "",
     solicitarVistoria: false,
-    corretora_id: '',
-    responsavel_id: '',
+    corretora_id: "",
+    responsavel_id: "",
   });
 
   useEffect(() => {
@@ -45,30 +45,23 @@ export default function AberturaSinistro() {
 
   const loadCorretoras = async () => {
     try {
-      const { data, error } = await supabase
-        .from('corretoras')
-        .select('*')
-        .order('nome');
+      const { data, error } = await supabase.from("corretoras").select("*").order("nome");
 
       if (error) throw error;
       setCorretoras(data || []);
     } catch (error) {
-      console.error('Erro ao carregar corretoras:', error);
+      console.error("Erro ao carregar corretoras:", error);
     }
   };
 
   const loadResponsaveis = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, nome')
-        .eq('ativo', true)
-        .order('nome');
+      const { data, error } = await supabase.from("profiles").select("id, nome").eq("ativo", true).order("nome");
 
       if (error) throw error;
       setResponsaveis(data || []);
     } catch (error) {
-      console.error('Erro ao carregar responsáveis:', error);
+      console.error("Erro ao carregar responsáveis:", error);
     }
   };
 
@@ -77,61 +70,51 @@ export default function AberturaSinistro() {
     setLoading(true);
 
     try {
-      // Validar CPF
       if (!validateCPF(formData.cliente_cpf)) {
-        toast.error('CPF inválido');
+        toast.error("CPF inválido");
         setLoading(false);
         return;
       }
 
-      // Validar telefone
       if (!validatePhone(formData.cliente_telefone)) {
-        toast.error('Telefone inválido');
+        toast.error("Telefone inválido");
         setLoading(false);
         return;
       }
 
-      // Validar tipo de sinistro
       if (!formData.tipo_sinistro) {
-        toast.error('Por favor, selecione o tipo de sinistro');
+        toast.error("Por favor, selecione o tipo de sinistro");
         setLoading(false);
         return;
       }
 
-      // Buscar primeiro fluxo e primeiro status
-      const { data: fluxos } = await supabase
-        .from('fluxos')
-        .select('id')
-        .eq('ativo', true)
-        .order('ordem')
-        .limit(1);
+      const { data: fluxos } = await supabase.from("fluxos").select("id").eq("ativo", true).order("ordem").limit(1);
 
       if (!fluxos || fluxos.length === 0) {
-        toast.error('Nenhum fluxo ativo encontrado');
+        toast.error("Nenhum fluxo ativo encontrado");
         return;
       }
 
       const primeiroFluxoId = fluxos[0].id;
 
       const { data: statusList } = await supabase
-        .from('status_config')
-        .select('nome')
-        .eq('fluxo_id', primeiroFluxoId)
-        .eq('ativo', true)
-        .order('ordem')
+        .from("status_config")
+        .select("nome")
+        .eq("fluxo_id", primeiroFluxoId)
+        .eq("ativo", true)
+        .order("ordem")
         .limit(1);
 
       if (!statusList || statusList.length === 0) {
-        toast.error('Nenhum status ativo encontrado para o fluxo');
+        toast.error("Nenhum status ativo encontrado para o fluxo");
         return;
       }
 
       const primeiroStatus = statusList[0].nome;
 
-      // Criar atendimento no kanban
-      const vistoriaTag = formData.solicitarVistoria ? 'aguardando_vistoria_digital' : 'sem_vistoria';
+      const vistoriaTag = formData.solicitarVistoria ? "aguardando_vistoria_digital" : "sem_vistoria";
       const { data: atendimento, error: atendimentoError } = await supabase
-        .from('atendimentos')
+        .from("atendimentos")
         .insert({
           user_id: user?.id,
           corretora_id: formData.corretora_id || null,
@@ -140,49 +123,46 @@ export default function AberturaSinistro() {
           observacoes: formData.relato_incidente,
           status: primeiroStatus,
           fluxo_id: primeiroFluxoId,
-          prioridade: 'Alta',
-          tags: ['sinistro', formData.tipo_sinistro.toLowerCase(), vistoriaTag],
-          tipo_atendimento: 'sinistro'
+          prioridade: "Alta",
+          tags: ["sinistro", formData.tipo_sinistro.toLowerCase(), vistoriaTag],
+          tipo_atendimento: "sinistro",
         })
         .select()
         .single();
 
       if (atendimentoError) throw atendimentoError;
 
-      // Criar vistoria vinculada com todos os dados
       if (atendimento) {
-        const { error: vistoriaError } = await supabase
-          .from('vistorias')
-          .insert({
-            created_by: user?.id,
-            atendimento_id: atendimento.id,
-            corretora_id: formData.corretora_id || null,
-            tipo_vistoria: 'sinistro',
-            tipo_abertura: 'interno',
-            tipo_sinistro: formData.tipo_sinistro,
-            cliente_nome: formData.cliente_nome,
-            cliente_cpf: formData.cliente_cpf,
-            cliente_telefone: formData.cliente_telefone,
-            cliente_email: formData.cliente_email,
-            veiculo_placa: formData.veiculo_placa,
-            veiculo_marca: formData.veiculo_marca,
-            veiculo_modelo: formData.veiculo_modelo,
-            veiculo_ano: formData.veiculo_ano,
-            veiculo_cor: formData.veiculo_cor,
-            veiculo_chassi: formData.veiculo_chassi,
-            data_incidente: formData.data_incidente,
-            relato_incidente: formData.relato_incidente,
-            status: formData.solicitarVistoria ? 'aguardando_fotos' : 'pendente'
-          });
+        const { error: vistoriaError } = await supabase.from("vistorias").insert({
+          created_by: user?.id,
+          atendimento_id: atendimento.id,
+          corretora_id: formData.corretora_id || null,
+          tipo_vistoria: "sinistro",
+          tipo_abertura: "interno",
+          tipo_sinistro: formData.tipo_sinistro,
+          cliente_nome: formData.cliente_nome,
+          cliente_cpf: formData.cliente_cpf,
+          cliente_telefone: formData.cliente_telefone,
+          cliente_email: formData.cliente_email,
+          veiculo_placa: formData.veiculo_placa,
+          veiculo_marca: formData.veiculo_marca,
+          veiculo_modelo: formData.veiculo_modelo,
+          veiculo_ano: formData.veiculo_ano,
+          veiculo_cor: formData.veiculo_cor,
+          veiculo_chassi: formData.veiculo_chassi,
+          data_incidente: formData.data_incidente,
+          relato_incidente: formData.relato_incidente,
+          status: formData.solicitarVistoria ? "aguardando_fotos" : "pendente",
+        });
 
         if (vistoriaError) throw vistoriaError;
       }
 
-      toast.success('Sinistro registrado com sucesso!');
-      navigate('/');
+      toast.success("Sinistro registrado com sucesso!");
+      navigate("/");
     } catch (error) {
-      console.error('Erro ao registrar sinistro:', error);
-      toast.error('Erro ao registrar sinistro');
+      console.error("Erro ao registrar sinistro:", error);
+      toast.error("Erro ao registrar sinistro");
     } finally {
       setLoading(false);
     }
@@ -190,7 +170,6 @@ export default function AberturaSinistro() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
@@ -202,19 +181,11 @@ export default function AberturaSinistro() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button
-            onClick={() => navigate('/sinistros/acompanhamento')}
-            variant="outline"
-            className="gap-2"
-          >
+          <Button onClick={() => navigate("/sinistros/acompanhamento")} variant="outline" className="gap-2">
             <ClipboardList className="h-4 w-4" />
             Acompanhamento
           </Button>
-          <Button
-            onClick={() => navigate('/dashboard-sinistros')}
-            variant="outline"
-            className="gap-2"
-          >
+          <Button onClick={() => navigate("/dashboard-sinistros")} variant="outline" className="gap-2">
             <TrendingUp className="h-4 w-4" />
             Dashboard
           </Button>
@@ -256,7 +227,7 @@ export default function AberturaSinistro() {
             {/* Dados do Cliente */}
             <div className="space-y-4">
               <h3 className="font-semibold text-lg border-b pb-2">Dados do Cliente</h3>
-              
+
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="cliente_nome">Nome Completo *</Label>
@@ -267,33 +238,29 @@ export default function AberturaSinistro() {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="cliente_cpf">CPF *</Label>
                   <MaskedInput
                     id="cliente_cpf"
                     format="###.###.###-##"
                     value={formData.cliente_cpf}
-                    onValueChange={(values) => 
-                      setFormData({ ...formData, cliente_cpf: values.value })
-                    }
+                    onValueChange={(values) => setFormData({ ...formData, cliente_cpf: values.value })}
                     placeholder="000.000.000-00"
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="cliente_telefone">Telefone *</Label>
                   <MaskedInput
                     id="cliente_telefone"
                     format="(##) #####-####"
                     value={formData.cliente_telefone}
-                    onValueChange={(values) => 
-                      setFormData({ ...formData, cliente_telefone: values.value })
-                    }
+                    onValueChange={(values) => setFormData({ ...formData, cliente_telefone: values.value })}
                     placeholder="(00) 00000-0000"
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="cliente_email">Email *</Label>
                   <Input
@@ -310,21 +277,30 @@ export default function AberturaSinistro() {
             {/* Dados do Veículo */}
             <div className="space-y-4">
               <h3 className="font-semibold text-lg border-b pb-2">Dados do Veículo</h3>
-              
+
               <div className="grid md:grid-cols-2 gap-4">
+                {/* AJUSTE DA PLACA - VERSÃO FINAL */}
                 <div>
                   <Label htmlFor="veiculo_placa">Placa *</Label>
-                  <MaskedInput
+                  <Input
                     id="veiculo_placa"
-                    format="AAA-####"
                     value={formData.veiculo_placa}
-                    onValueChange={(values) => 
-                      setFormData({ ...formData, veiculo_placa: values.value.toUpperCase() })
-                    }
+                    onChange={(e) => {
+                      const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+                      let formatted = raw;
+                      if (raw.length > 3) {
+                        formatted = raw.slice(0, 3) + "-" + raw.slice(3, 7);
+                      }
+
+                      setFormData({ ...formData, veiculo_placa: formatted });
+                    }}
+                    maxLength={8}
                     placeholder="ABC-1234"
+                    required
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="veiculo_marca">Marca *</Label>
                   <Input
@@ -334,7 +310,7 @@ export default function AberturaSinistro() {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="veiculo_modelo">Modelo *</Label>
                   <Input
@@ -344,7 +320,7 @@ export default function AberturaSinistro() {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="veiculo_ano">Ano *</Label>
                   <Input
@@ -355,7 +331,7 @@ export default function AberturaSinistro() {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="veiculo_cor">Cor *</Label>
                   <Input
@@ -365,7 +341,7 @@ export default function AberturaSinistro() {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="veiculo_chassi">Chassi</Label>
                   <Input
@@ -382,7 +358,7 @@ export default function AberturaSinistro() {
             {/* Dados do Sinistro */}
             <div className="space-y-4">
               <h3 className="font-semibold text-lg border-b pb-2">Dados do Sinistro</h3>
-              
+
               <div>
                 <Label htmlFor="data_incidente">Data do Incidente *</Label>
                 <Input
@@ -393,7 +369,7 @@ export default function AberturaSinistro() {
                   required
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="relato_incidente">Relato do Incidente *</Label>
                 <Textarea
@@ -425,7 +401,7 @@ export default function AberturaSinistro() {
                 Cancelar
               </Button>
               <Button type="submit" disabled={loading} className="flex-1">
-                {loading ? 'Registrando...' : 'Registrar Sinistro'}
+                {loading ? "Registrando..." : "Registrar Sinistro"}
               </Button>
             </div>
           </form>
