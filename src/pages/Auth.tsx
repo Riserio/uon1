@@ -17,24 +17,8 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
 
-  // 🔥 Imagem dinâmica
-  const [loginImage, setLoginImage] = useState<string | null>(null);
-
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
-
-  // 🔥 Buscar imagem de login
-  useEffect(() => {
-    const fetchLoginImage = async () => {
-      const { data, error } = await supabase.from("app_config").select("login_image_url").maybeSingle();
-
-      if (!error && data?.login_image_url) {
-        setLoginImage(data.login_image_url);
-      }
-    };
-
-    fetchLoginImage();
-  }, []);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +26,6 @@ export default function Auth() {
 
     try {
       const validated = signInSchema.parse({ email, password });
-
       const { error } = await signIn(validated.email, validated.password);
 
       if (error) {
@@ -65,13 +48,12 @@ export default function Auth() {
 
     try {
       const validated = signUpSchema.parse({ nome, email, password });
-
       const { error } = await signUp(validated.email, validated.password, validated.nome);
 
       if (error) {
         toast.error(error.message || "Erro ao criar conta");
       } else {
-        toast.success("Conta criada! Aguarde aprovação de um administrador.");
+        toast.success("Conta criada! Aguarde aprovação de um administrador para fazer login.");
         setEmail("");
         setPassword("");
         setNome("");
@@ -86,26 +68,13 @@ export default function Auth() {
   };
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center relative overflow-hidden"
-      style={{
-        backgroundImage: loginImage
-          ? `url(${loginImage})`
-          : "linear-gradient(to bottom right, #2563eb, #3b82f6, #1e40af)",
-        backgroundSize: loginImage ? "cover" : "auto",
-        backgroundPosition: "center",
-      }}
-    >
-      {!loginImage && (
-        <>
-          <div className="absolute top-20 left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-20 right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
-          <div className="absolute top-1/2 left-1/4 w-72 h-72 bg-blue-400/20 rounded-full blur-2xl" />
-        </>
-      )}
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700">
+      {/* Círculos decorativos */}
+      <div className="absolute top-20 left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
+      <div className="absolute bottom-20 right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
+      <div className="absolute top-1/2 left-1/4 w-72 h-72 bg-blue-400/20 rounded-full blur-2xl" />
 
-      {loginImage && <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />}
-
+      {/* Texto de boas-vindas - apenas desktop */}
       <div className="hidden lg:block absolute left-24 top-1/2 -translate-y-1/2 text-white z-10">
         <div className="space-y-4">
           <h1 className="text-6xl font-bold tracking-tight">WELCOME</h1>
@@ -113,9 +82,11 @@ export default function Auth() {
         </div>
       </div>
 
+      {/* Card de Login */}
       <Card className="w-full max-w-md mx-4 lg:ml-auto lg:mr-32 bg-white shadow-2xl border-0 relative z-20">
         <CardHeader className="space-y-2 pb-6">
           <CardTitle className="text-2xl font-semibold">{isSignUp ? "Sign up" : "Sign in"}</CardTitle>
+
           <CardDescription className="text-muted-foreground">
             {isSignUp ? "Create your account to get started" : "Enter your credentials to continue"}
           </CardDescription>
@@ -128,6 +99,7 @@ export default function Auth() {
                 <Label htmlFor="nome" className="text-sm font-medium">
                   Nome Completo
                 </Label>
+
                 <Input
                   id="nome"
                   type="text"
@@ -144,6 +116,7 @@ export default function Auth() {
               <Label htmlFor="email" className="text-sm font-medium">
                 Email
               </Label>
+
               <Input
                 id="email"
                 type="email"
@@ -159,6 +132,7 @@ export default function Auth() {
               <Label htmlFor="password" className="text-sm font-medium">
                 Password
               </Label>
+
               <Input
                 id="password"
                 type="password"
@@ -192,6 +166,7 @@ export default function Auth() {
         <CardFooter className="flex flex-col space-y-4">
           <div className="text-sm text-center text-muted-foreground">
             {isSignUp ? "Já tem uma conta?" : "Don't have an account?"}
+
             <button
               type="button"
               onClick={() => setIsSignUp(!isSignUp)}
