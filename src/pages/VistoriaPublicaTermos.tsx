@@ -1,17 +1,25 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { 
-  CheckCircle2, FileText, MapPin, Calendar, Hash, 
-  Shield, ExternalLink, ArrowLeft, Pen, AlertCircle
-} from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import SignaturePad from '@/components/SignaturePad';
-import { Separator } from '@/components/ui/separator';
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import {
+  CheckCircle2,
+  FileText,
+  MapPin,
+  Calendar,
+  Hash,
+  Shield,
+  ExternalLink,
+  ArrowLeft,
+  Pen,
+  AlertCircle,
+} from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import SignaturePad from "@/components/SignaturePad";
+import { Separator } from "@/components/ui/separator";
 
 export default function VistoriaPublicaTermos() {
   const { token } = useParams();
@@ -21,7 +29,7 @@ export default function VistoriaPublicaTermos() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [termosAceitos, setTermosAceitos] = useState<{ [key: string]: boolean }>({});
-  const [assinatura, setAssinatura] = useState<string>('');
+  const [assinatura, setAssinatura] = useState<string>("");
   const [geolocation, setGeolocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   useEffect(() => {
@@ -35,10 +43,10 @@ export default function VistoriaPublicaTermos() {
         (position) => {
           setGeolocation({
             latitude: position.coords.latitude,
-            longitude: position.coords.longitude
+            longitude: position.coords.longitude,
           });
         },
-        (error) => console.error('Erro ao obter localização:', error)
+        (error) => console.error("Erro ao obter localização:", error),
       );
     }
   };
@@ -46,65 +54,63 @@ export default function VistoriaPublicaTermos() {
   const loadData = async () => {
     try {
       const { data: vistoriaData, error: vistoriaError } = await supabase
-        .from('vistorias')
-        .select('*, corretoras(nome, logo_url)')
-        .eq('link_token', token)
-        .gt('link_expires_at', new Date().toISOString())
+        .from("vistorias")
+        .select("*, corretoras(nome, logo_url)")
+        .eq("link_token", token)
+        .gt("link_expires_at", new Date().toISOString())
         .single();
 
       if (vistoriaError) throw vistoriaError;
       if (!vistoriaData) {
-        toast.error('Link inválido');
+        toast.error("Link inválido");
         return;
       }
 
       setVistoria(vistoriaData);
 
       const { data: termosData, error: termosError } = await supabase
-        .from('termos')
-        .select('*')
-        .eq('ativo', true)
-        .order('ordem');
+        .from("termos")
+        .select("*")
+        .eq("ativo", true)
+        .order("ordem");
 
       if (termosError) throw termosError;
       setTermos(termosData || []);
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-      toast.error('Erro ao carregar dados');
+      console.error("Erro ao carregar dados:", error);
+      toast.error("Erro ao carregar dados");
     } finally {
       setLoading(false);
     }
   };
 
   const uploadDataUrl = async (dataUrl: string, path: string): Promise<string> => {
-    const blob = await fetch(dataUrl).then(r => r.blob());
-    const file = new File([blob], `${path}.png`, { type: 'image/png' });
+    const blob = await fetch(dataUrl).then((r) => r.blob());
+    const file = new File([blob], `${path}.png`, { type: "image/png" });
     const fileName = `${vistoria.id}/${path}/${Date.now()}_${file.name}`;
-    
-    const { error: uploadError } = await supabase.storage
-      .from('vistorias')
-      .upload(fileName, file);
+
+    const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, file);
 
     if (uploadError) throw uploadError;
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('vistorias')
-      .getPublicUrl(fileName);
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("vistorias").getPublicUrl(fileName);
 
     return publicUrl;
   };
 
   const handleSubmit = async () => {
-    const termosObrigatorios = termos.filter(t => t.obrigatorio);
-    const todosAceitos = termosObrigatorios.every(t => termosAceitos[t.id]);
+    const termosObrigatorios = termos.filter((t) => t.obrigatorio);
+    const todosAceitos = termosObrigatorios.every((t) => termosAceitos[t.id]);
 
     if (!todosAceitos) {
-      toast.error('Por favor, aceite todos os termos obrigatórios para continuar', { duration: 4000 });
+      toast.error("Por favor, aceite todos os termos obrigatórios para continuar", { duration: 4000 });
       return;
     }
 
     if (!assinatura) {
-      toast.error('Por favor, adicione sua assinatura digital para finalizar', { duration: 4000 });
+      toast.error("Por favor, adicione sua assinatura digital para finalizar", { duration: 4000 });
       return;
     }
 
@@ -112,23 +118,23 @@ export default function VistoriaPublicaTermos() {
     try {
       // Verificar se já está finalizada
       const { data: checkVistoria } = await supabase
-        .from('vistorias')
-        .select('status, completed_at')
-        .eq('id', vistoria.id)
+        .from("vistorias")
+        .select("status, completed_at")
+        .eq("id", vistoria.id)
         .single();
 
-      if (checkVistoria?.status === 'concluida' && checkVistoria?.completed_at) {
-        toast.success('Esta vistoria já foi finalizada anteriormente!');
+      if (checkVistoria?.status === "concluida" && checkVistoria?.completed_at) {
+        toast.success("Esta vistoria já foi finalizada anteriormente!");
         navigate(`/vistoria/${token}/conclusao`);
         return;
       }
 
-      const assinaturaUrl = await uploadDataUrl(assinatura, 'assinatura');
+      const assinaturaUrl = await uploadDataUrl(assinatura, "assinatura");
 
       // Usar UPSERT para evitar duplicatas (ON CONFLICT)
       const termosAceitosData = termos
-        .filter(t => termosAceitos[t.id])
-        .map(termo => ({
+        .filter((t) => termosAceitos[t.id])
+        .map((termo) => ({
           vistoria_id: vistoria.id,
           termo_id: termo.id,
           ip_address: null,
@@ -139,77 +145,71 @@ export default function VistoriaPublicaTermos() {
       if (termosAceitosData.length > 0) {
         // Usar upsert para evitar erro de constraint
         for (const termo of termosAceitosData) {
-          const { error: termosError } = await supabase
-            .from('termos_aceitos')
-            .upsert(termo, {
-              onConflict: 'vistoria_id,termo_id',
-              ignoreDuplicates: false
-            });
+          const { error: termosError } = await supabase.from("termos_aceitos").upsert(termo, {
+            onConflict: "vistoria_id,termo_id",
+            ignoreDuplicates: false,
+          });
 
           if (termosError) {
-            console.error('Erro ao salvar termo aceito:', termosError);
-            throw new Error('Falha ao registrar aceitação dos termos: ' + termosError.message);
+            console.error("Erro ao salvar termo aceito:", termosError);
+            throw new Error("Falha ao registrar aceitação dos termos: " + termosError.message);
           }
         }
       }
 
       const { error: updateError } = await supabase
-        .from('vistorias')
+        .from("vistorias")
         .update({
           assinatura_url: assinaturaUrl,
-          status: 'concluida',
+          status: "concluida",
           completed_at: new Date().toISOString(),
           latitude: geolocation?.latitude,
           longitude: geolocation?.longitude,
         })
-        .eq('id', vistoria.id);
+        .eq("id", vistoria.id);
 
       if (updateError) {
-        console.error('Erro ao finalizar vistoria:', updateError);
-        throw new Error('Falha ao finalizar vistoria: ' + updateError.message);
+        console.error("Erro ao finalizar vistoria:", updateError);
+        throw new Error("Falha ao finalizar vistoria: " + updateError.message);
       }
 
       // Verificar se foi salvo corretamente
       const { data: verificacao, error: errorVerif } = await supabase
-        .from('vistorias')
-        .select('id, status, completed_at')
-        .eq('id', vistoria.id)
+        .from("vistorias")
+        .select("id, status, completed_at")
+        .eq("id", vistoria.id)
         .single();
 
-      if (errorVerif || !verificacao || verificacao.status !== 'concluida') {
-        throw new Error('Erro ao verificar finalização da vistoria');
+      if (errorVerif || !verificacao || verificacao.status !== "concluida") {
+        throw new Error("Erro ao verificar finalização da vistoria");
       }
 
-      console.log('Vistoria finalizada com sucesso:', verificacao);
+      console.log("Vistoria finalizada com sucesso:", verificacao);
 
-      const { data: fotosList } = await supabase
-        .from('vistoria_fotos')
-        .select('*')
-        .eq('vistoria_id', vistoria.id);
+      const { data: fotosList } = await supabase.from("vistoria_fotos").select("*").eq("vistoria_id", vistoria.id);
 
       if (fotosList && fotosList.length >= 4) {
-        await supabase.functions.invoke('analisar-vistoria-ia', {
+        await supabase.functions.invoke("analisar-vistoria-ia", {
           body: {
             vistoria_id: vistoria.id,
-            fotos: fotosList.map(f => ({
+            fotos: fotosList.map((f) => ({
               id: f.id,
               posicao: f.posicao,
-              url: f.arquivo_url
-            }))
-          }
+              url: f.arquivo_url,
+            })),
+          },
         });
       }
 
-      localStorage.removeItem('vistoria_temp');
-      toast.success('Vistoria concluída com sucesso!');
+      localStorage.removeItem("vistoria_temp");
+      toast.success("Vistoria concluída com sucesso!");
       navigate(`/vistoria/${token}/conclusao`);
     } catch (error: any) {
-      console.error('Erro ao finalizar vistoria:', error);
-      const mensagemErro = error?.message || 'Erro desconhecido ao finalizar vistoria';
-      toast.error(
-        `Erro ao finalizar: ${mensagemErro}. Por favor, tente novamente ou entre em contato com o suporte.`,
-        { duration: 6000 }
-      );
+      console.error("Erro ao finalizar vistoria:", error);
+      const mensagemErro = error?.message || "Erro desconhecido ao finalizar vistoria";
+      toast.error(`Erro ao finalizar: ${mensagemErro}. Por favor, tente novamente ou entre em contato com o suporte.`, {
+        duration: 6000,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -230,12 +230,11 @@ export default function VistoriaPublicaTermos() {
     );
   }
 
-  const todosTermosAceitos = termos.filter(t => t.obrigatorio).every(t => termosAceitos[t.id]);
+  const todosTermosAceitos = termos.filter((t) => t.obrigatorio).every((t) => termosAceitos[t.id]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] to-white py-6 px-4">
       <div className="max-w-4xl mx-auto space-y-6">
-        
         {/* Header */}
         <Card className="border-none shadow-lg">
           <CardContent className="p-6">
@@ -263,7 +262,7 @@ export default function VistoriaPublicaTermos() {
               <div className="bg-white rounded-lg p-4 border border-blue-100">
                 <div className="flex items-center gap-2 mb-2">
                   <Hash className="h-4 w-4 text-blue-600" />
-                  <p className="text-xs font-semibold text-blue-800 uppercase">Protocolo</p>
+                  <p className="text-xs font-semibold text-blue-800 uppercase">CÓDIGO DE CONSULTA ONLINE</p>
                 </div>
                 <p className="text-2xl font-bold text-blue-900">#{vistoria.numero}</p>
               </div>
@@ -272,9 +271,7 @@ export default function VistoriaPublicaTermos() {
                   <Calendar className="h-4 w-4 text-blue-600" />
                   <p className="text-xs font-semibold text-blue-800 uppercase">Data</p>
                 </div>
-                <p className="text-lg font-bold text-blue-900">
-                  {new Date().toLocaleDateString('pt-BR')}
-                </p>
+                <p className="text-lg font-bold text-blue-900">{new Date().toLocaleDateString("pt-BR")}</p>
               </div>
               {geolocation && (
                 <div className="bg-white rounded-lg p-4 border border-blue-100">
@@ -300,7 +297,7 @@ export default function VistoriaPublicaTermos() {
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                     <FileText className="h-6 w-6 text-blue-600" />
                   </div>
-                  
+
                   <div className="flex-1 space-y-4">
                     <div>
                       <div className="flex items-start justify-between gap-3 mb-2">
@@ -311,16 +308,14 @@ export default function VistoriaPublicaTermos() {
                           </span>
                         )}
                       </div>
-                      {termo.descricao && (
-                        <p className="text-muted-foreground">{termo.descricao}</p>
-                      )}
+                      {termo.descricao && <p className="text-muted-foreground">{termo.descricao}</p>}
                     </div>
 
                     {termo.arquivo_url && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => window.open(termo.arquivo_url, '_blank')}
+                        onClick={() => window.open(termo.arquivo_url, "_blank")}
                         className="gap-2"
                       >
                         <ExternalLink className="h-4 w-4" />
@@ -334,17 +329,15 @@ export default function VistoriaPublicaTermos() {
                       <Checkbox
                         id={`termo-${termo.id}`}
                         checked={termosAceitos[termo.id] || false}
-                        onCheckedChange={(checked) => 
-                          setTermosAceitos(prev => ({ ...prev, [termo.id]: checked as boolean }))
+                        onCheckedChange={(checked) =>
+                          setTermosAceitos((prev) => ({ ...prev, [termo.id]: checked as boolean }))
                         }
                         className="w-6 h-6"
                       />
                       <Label htmlFor={`termo-${termo.id}`} className="text-base font-semibold cursor-pointer flex-1">
                         Li e aceito este termo {termo.obrigatorio && <span className="text-red-600 ml-1">*</span>}
                       </Label>
-                      {termosAceitos[termo.id] && (
-                        <CheckCircle2 className="h-5 w-5 text-green-600" />
-                      )}
+                      {termosAceitos[termo.id] && <CheckCircle2 className="h-5 w-5 text-green-600" />}
                     </div>
                   </div>
                 </div>
@@ -367,10 +360,10 @@ export default function VistoriaPublicaTermos() {
                 </div>
               </div>
             </div>
-            
+
             <CardContent className="p-8">
               <SignaturePad onSave={setAssinatura} initialSignature={assinatura} />
-              
+
               {assinatura && (
                 <div className="mt-6 bg-green-50 border-2 border-green-300 rounded-xl p-4 flex items-center gap-3">
                   <CheckCircle2 className="h-6 w-6 text-green-600" />
@@ -396,7 +389,7 @@ export default function VistoriaPublicaTermos() {
             <ArrowLeft className="h-5 w-5 mr-2" />
             Voltar
           </Button>
-          
+
           <Button
             onClick={handleSubmit}
             disabled={submitting || !todosTermosAceitos || !assinatura}
@@ -426,7 +419,7 @@ export default function VistoriaPublicaTermos() {
             </p>
           </div>
         )}
-        
+
         {todosTermosAceitos && !assinatura && (
           <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
