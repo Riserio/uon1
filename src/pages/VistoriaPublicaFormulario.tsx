@@ -69,7 +69,6 @@ export default function VistoriaPublicaFormulario() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
-  // Lê OCR e preenche os campos
   const loadTempData = () => {
     const temp = localStorage.getItem("vistoria_temp");
     const stored = temp ? JSON.parse(temp) : null;
@@ -83,117 +82,19 @@ export default function VistoriaPublicaFormulario() {
 
     setTempData(data);
 
-    console.log("DEBUG OCR - vistoria_temp:", data);
-
-    const cnh = data?.cnhData;
-    const v = data?.vehicleData;
-
-    // Helpers genéricos para achar nome, cpf, placa em qualquer estrutura
-    const getStringValues = (obj: any): string[] => {
-      if (!obj || typeof obj !== "object") return [];
-      return Object.values(obj).filter((v) => typeof v === "string") as string[];
-    };
-
-    const inferNome = (obj: any): string | undefined => {
-      if (!obj) return undefined;
-
-      // 1) tenta pelos nomes mais comuns de chave
-      let nomeDirect =
-        obj.nome || obj.nome_completo || obj.nome_condutor || obj.nome_condutor_principal || obj.nome_segurado;
-      if (typeof nomeDirect === "string" && nomeDirect.trim()) return nomeDirect.trim();
-
-      // 2) tenta heurística: string sem número, com pelo menos 2 palavras, pega a mais longa
-      const strings = getStringValues(obj);
-      const candidates = strings.filter((s) => {
-        const clean = s.trim();
-        if (!clean) return false;
-        if (/\d/.test(clean)) return false; // ignora se tiver dígito
-        const words = clean.split(/\s+/);
-        return words.length >= 2;
-      });
-
-      if (candidates.length === 0) return undefined;
-
-      // pega a maior string
-      candidates.sort((a, b) => b.length - a.length);
-      return candidates[0].trim();
-    };
-
-    const inferCpf = (obj: any): string | undefined => {
-      if (!obj) return undefined;
-
-      // 1) chaves conhecidas
-      let cpfDirect = obj.cpf || obj.cpf_condutor || obj.cpf_numero || obj.cpf_segurado;
-      if (typeof cpfDirect === "string" && cpfDirect.trim()) return cpfDirect.trim();
-
-      // 2) procura padrão de CPF em qualquer string
-      const strings = getStringValues(obj);
-      const cpfRegex = /(\d{3}\.?\d{3}\.?\d{3}-?\d{2})/;
-      for (const s of strings) {
-        const match = s.match(cpfRegex);
-        if (match) return match[1];
-      }
-      return undefined;
-    };
-
-    const inferPlaca = (obj: any): string | undefined => {
-      if (!obj) return undefined;
-
-      // 1) chaves comuns de placa
-      let placaDirect = obj.placa || obj.placa_veiculo || obj.vehicle_plate;
-      if (typeof placaDirect === "string" && placaDirect.trim()) return placaDirect.trim().toUpperCase();
-
-      // 2) regex placa Brasil (antigo + Mercosul)
-      const strings = getStringValues(obj);
-      const placaRegex = /\b([A-Z]{3}-?\d{4}|[A-Z]{3}\d[A-Z]\d{2})\b/;
-      for (const s of strings) {
-        const match = s.toUpperCase().match(placaRegex);
-        if (match) return match[1].replace("-", "").toUpperCase();
-      }
-      return undefined;
-    };
-
-    const inferModelo = (obj: any): string | undefined => {
-      if (!obj) return undefined;
-
-      // chaves comuns de modelo
-      let modeloDirect =
-        obj.modelo ||
-        obj.modelo_veiculo ||
-        obj.marca_modelo ||
-        (obj.marca && obj.modelo ? `${obj.marca} ${obj.modelo}` : undefined);
-
-      if (typeof modeloDirect === "string" && modeloDirect.trim()) return modeloDirect.trim();
-
-      return undefined;
-    };
-
-    // CNH → nome, CPF, condutor
-    if (cnh) {
-      console.log("DEBUG OCR CNH:", cnh);
-
-      const nomeFromCnh = inferNome(cnh);
-      const cpfFromCnh = inferCpf(cnh);
-
+    if (data?.cnhData) {
       setFormData((prev) => ({
         ...prev,
-        cliente_nome: nomeFromCnh || prev.cliente_nome,
-        cliente_cpf: cpfFromCnh || prev.cliente_cpf,
-        condutor_veiculo: nomeFromCnh || prev.condutor_veiculo, // condutor = nome da CNH
+        cliente_nome: data.cnhData.nome || "",
+        cliente_cpf: data.cnhData.cpf || "",
       }));
     }
 
-    // Veículo → placa, modelo
-    if (v) {
-      console.log("DEBUG OCR VEICULO:", v);
-
-      const placaFromOcr = inferPlaca(v);
-      const modeloFromOcr = inferModelo(v);
-
+    if (data?.vehicleData) {
       setFormData((prev) => ({
         ...prev,
-        veiculo_placa: placaFromOcr || prev.veiculo_placa,
-        veiculo_modelo: modeloFromOcr || prev.veiculo_modelo,
+        veiculo_placa: data.vehicleData.placa || "",
+        veiculo_modelo: data.vehicleData.modelo || "",
       }));
     }
   };
@@ -272,7 +173,7 @@ export default function VistoriaPublicaFormulario() {
   };
 
   const handleSubmit = async () => {
-    const camposObrigatorios = [];
+    const camposObrigatorios: string[] = [];
 
     if (!formData.cliente_nome?.trim()) {
       camposObrigatorios.push("Nome completo");
@@ -347,21 +248,42 @@ export default function VistoriaPublicaFormulario() {
         laudoAlcoolemiaUrl = await uploadFile(laudoAlcoolemia, "alcoolemia");
       }
 
+      // 🔹 NOVO: array para enviar pra função analisar-vistoria-ia
+      const fotosParaAnalise: { id: string; posicao: string; url: string }[] = [];
+
       if (tempData?.fotos) {
         for (const [posicao, files] of Object.entries(tempData.fotos) as [string, File[]][]) {
+          // Mantém sua regra de não salvar CNH/CRLV em vistoria_fotos
           if (posicao === "cnh" || posicao === "crlv") continue;
 
           for (const file of files) {
             const url = await uploadFile(file, "veiculo");
 
-            await supabase.from("vistoria_fotos").insert({
-              vistoria_id: vistoria.id,
-              posicao,
-              arquivo_url: url,
-              arquivo_nome: file.name,
-              arquivo_tamanho: file.size,
-              ordem: ["frontal", "traseira", "lateral_esquerda", "lateral_direita"].indexOf(posicao) + 1,
-            });
+            const { data: inserted, error: insertError } = await supabase
+              .from("vistoria_fotos")
+              .insert({
+                vistoria_id: vistoria.id,
+                posicao,
+                arquivo_url: url,
+                arquivo_nome: file.name,
+                arquivo_tamanho: file.size,
+                ordem: ["frontal", "traseira", "lateral_esquerda", "lateral_direita"].indexOf(posicao) + 1,
+              })
+              .select("id, posicao, arquivo_url")
+              .single();
+
+            if (insertError) {
+              console.error("Erro ao inserir foto na vistoria_fotos:", insertError);
+              throw insertError;
+            }
+
+            if (inserted) {
+              fotosParaAnalise.push({
+                id: inserted.id,
+                posicao: inserted.posicao,
+                url: inserted.arquivo_url,
+              });
+            }
           }
         }
       }
@@ -401,6 +323,27 @@ export default function VistoriaPublicaFormulario() {
       if (updateError) {
         console.error("Erro ao atualizar vistoria:", updateError);
         throw new Error(`Falha ao salvar os dados: ${updateError.message}`);
+      }
+
+      // 🔹 CHAMADA AUTOMÁTICA DA IA (analisar-vistoria-ia)
+      if (fotosParaAnalise.length > 0) {
+        supabase.functions
+          .invoke("analisar-vistoria-ia", {
+            body: {
+              vistoria_id: vistoria.id,
+              fotos: fotosParaAnalise,
+            },
+          })
+          .then(({ data, error }) => {
+            if (error) {
+              console.error("Erro na análise IA automática:", error);
+              return;
+            }
+            console.log("Análise IA concluída:", data);
+          })
+          .catch((err) => {
+            console.error("Erro ao chamar função de IA:", err);
+          });
       }
 
       const { data: verificacao, error: errorVerificacao } = await supabase
