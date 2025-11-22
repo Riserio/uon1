@@ -39,62 +39,38 @@ type MenuPermission = {
 
 type MenuPermissionMap = Record<string, MenuPermission>;
 
-// ---- hook que busca role + permissões direto no Supabase ----
-function useMenuPermissions() {
+// ---- hook que busca permissões baseado no userRole do useAuth ----
+function useMenuPermissionsForRole(userRole: string | null) {
   const [permissions, setPermissions] = useState<MenuPermissionMap>({});
-  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadRoleAndPermissions = async () => {
+    const loadPermissions = async () => {
+      // sem role -> não carrega nada, assume padrão (tudo liberado)
+      if (!userRole) {
+        setPermissions({});
+        return;
+      }
+
+      // admin enxerga tudo, sem restrição em role_menu_permissions
+      if (userRole === "admin") {
+        setPermissions({});
+        return;
+      }
+
       try {
-        // pega usuário logado
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          setRole(null);
-          setPermissions({});
-          return;
-        }
-
-        // pega o role do usuário
-        const { data: roleRow, error: roleError } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .single();
-
-        if (roleError || !roleRow) {
-          console.error("Erro ao buscar role do usuário:", roleError);
-          setRole(null);
-          setPermissions({});
-          return;
-        }
-
-        const currentRole = roleRow.role as string;
-        setRole(currentRole);
-
-        // admin enxerga tudo, sem restrição
-        if (currentRole === "admin") {
-          setPermissions({});
-          return;
-        }
-
-        // carrega permissões de menu para esse role
-        const { data: perms, error: permsError } = await supabase
+        const { data, error } = await supabase
           .from("role_menu_permissions")
           .select("menu_item, pode_visualizar, pode_editar")
-          .eq("role", currentRole);
+          .eq("role", userRole);
 
-        if (permsError) {
-          console.error("Erro ao carregar permissões de menu:", permsError);
+        if (error) {
+          console.error("Erro ao carregar permissões de menu:", error);
           setPermissions({});
           return;
         }
 
         const map: MenuPermissionMap = {};
-        (perms || []).forEach((p) => {
+        (data || []).forEach((p) => {
           map[p.menu_item] = {
             pode_visualizar: p.pode_visualizar,
             pode_editar: p.pode_editar,
@@ -103,14 +79,13 @@ function useMenuPermissions() {
 
         setPermissions(map);
       } catch (err) {
-        console.error("Erro inesperado ao carregar role/permissões:", err);
-        setRole(null);
+        console.error("Erro inesperado ao carregar permissões de menu:", err);
         setPermissions({});
       }
     };
 
-    loadRoleAndPermissions();
-  }, []);
+    loadPermissions();
+  }, [userRole]); // 🔑 recarrega sempre que o role mudar
 
   // mesma regra do Dialog:
   // se não tem registro -> acesso total
@@ -126,18 +101,18 @@ function useMenuPermissions() {
     return perm.pode_editar;
   };
 
-  return { canView, canEdit, role };
+  return { canView, canEdit };
 }
 
 // ---- componente principal ----
 
 export default function MenuNav() {
   const location = useLocation();
-  const { signOut, userRole } = useAuth(); // userRole continua para regras de admin/supervisor
+  const { signOut, userRole } = useAuth();
   const unreadMessages = useUnreadMessages();
   const pendingUsers = usePendingUsers();
 
-  const { canView } = useMenuPermissions();
+  const { canView } = useMenuPermissionsForRole(userRole);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -224,7 +199,7 @@ export default function MenuNav() {
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Sinistros</DropdownMenuLabel>
 
-        {/* Sinistro novo – se quiser pode criar um id específico "sinistros" depois */}
+        {/* Sinistro novo – se quiser controlar com id próprio, depois criamos "sinistros" */}
         <DropdownMenuItem asChild>
           <Link to="/sinistros/novo" className="cursor-pointer">
             <FileX className="mr-2 h-4 w-4" />
