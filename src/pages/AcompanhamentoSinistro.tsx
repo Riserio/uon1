@@ -6,13 +6,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Search, CheckCircle2, Workflow, ChevronDown } from "lucide-react";
 import { formatCPF, formatPlaca } from "@/lib/validators";
-import { CriarDadosTesteButton } from "@/components/CriarDadosTesteButton";
 
 type CaminhoStatusItem = {
   status_nome: string;
   descricao_publica?: string | null;
   created_at: string;
-  fluxo_id?: number | null;
+  fluxo_id?: number | null;Aqui você vê a etapa (status) e fluxos atual do seu sinistro.
   fluxo_nome?: string | null;
 };
 
@@ -403,10 +402,6 @@ export default function AcompanhamentoSinistro() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-semibold">Acompanhamento de Sinistro</h1>
           <p className="text-sm text-muted-foreground">Consulte pelo CPF, placa ou número do sinistro</p>
-        </div>
-
-        <div className="flex justify-end mb-4">
-          <CriarDadosTesteButton />
         </div>
 
         <Card className="mb-8 border shadow-sm">
