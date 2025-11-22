@@ -282,24 +282,36 @@ export default function AberturaSinistro() {
                 {/* AJUSTE DA PLACA - VERSÃO FINAL */}
                 <div>
                   <Label htmlFor="veiculo_placa">Placa *</Label>
-                  <Input
-                    id="veiculo_placa"
-                    value={formData.veiculo_placa}
-                    onChange={(e) => {
-                      const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                  <div>
+  <Label htmlFor="veiculo_placa">Placa *</Label>
+  <Input
+    id="veiculo_placa"
+    type="text" // garante que o navegador não bloqueie letras
+    value={formData.veiculo_placa}
+    onChange={(e) => {
+      // Sempre trabalhar em maiúsculo
+      let value = e.target.value.toUpperCase();
 
-                      let formatted = raw;
-                      if (raw.length > 3) {
-                        formatted = raw.slice(0, 3) + "-" + raw.slice(3, 7);
-                      }
+      // Permitir só letras, números e hífen
+      value = value.replace(/[^A-Z0-9-]/g, "");
 
-                      setFormData({ ...formData, veiculo_placa: formatted });
-                    }}
-                    maxLength={8}
-                    placeholder="ABC-1234"
-                    required
-                  />
-                </div>
+      // Remover hífen para controlar a posição
+      const raw = value.replace("-", "");
+
+      // Montar como AAA-1234 (ou AAA-1B34 para Mercosul, se quiser)
+      if (raw.length <= 3) {
+        value = raw;
+      } else {
+        value = raw.slice(0, 3) + "-" + raw.slice(3, 7);
+      }
+
+      setFormData({ ...formData, veiculo_placa: value });
+    }}
+    maxLength={8} // AAA-1234 = 8 chars
+    placeholder="ABC-1234"
+    required
+  />
+</div>
 
                 <div>
                   <Label htmlFor="veiculo_marca">Marca *</Label>
