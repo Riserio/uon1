@@ -1,113 +1,74 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
 
 export default function Configuracoes() {
-  const { user } = useAuth();
-  const [imageUrls, setImageUrls] = useState({ logo: "", login: "" });
-  const [loading, setLoading] = useState(false);
+  const [imagem, setImagem] = useState<File | null>(null);
+  const [imagemUrl, setImagemUrl] = useState("");
 
   useEffect(() => {
-    const loadImages = async () => {
-      const { data } = await supabase.from("app_config").select("logo_url, login_image_url").maybeSingle();
-
-      if (data) {
-        setImageUrls({
-          logo: data.logo_url || "",
-          login: data.login_image_url || "",
-        });
-      }
-    };
-
-    loadImages();
+    carregarConfiguracao();
   }, []);
 
-  // 🔥 Função corrigida de upload
-  const handleImageUpload = async (file: File, type: "logo" | "login") => {
-    if (!user) {
-      toast.error("Usuário não autenticado.");
+  async function carregarConfiguracao() {
+    const { data } = await supabase.from("configuracoes").select("*").single();
+    if (data?.imagem_fundo) {
+      setImagemUrl(data.imagem_fundo);
+    }
+  }
+
+  async function handleUpload() {
+    if (!imagem) {
+      toast.error("Selecione uma imagem primeiro");
       return;
     }
 
-    const maxSize = 2 * 1024 * 1024;
-    if (file.size > maxSize) {
-      toast.error("Arquivo muito grande. Máximo 2MB.");
+    const nomeArquivo = `bg-${Date.now()}.jpg`;
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("backgrounds")
+      .upload(nomeArquivo, imagem, { upsert: true });
+
+    if (uploadError) {
+      console.error(uploadError);
+      toast.error("Erro ao fazer upload da imagem.");
       return;
     }
 
-    try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${user.id}-${type}-${Date.now()}.${fileExt}`;
-      const filePath = `${type}/${fileName}`;
+    const { data: urlData } = supabase.storage.from("backgrounds").getPublicUrl(nomeArquivo);
 
-      setLoading(true);
+    const publicUrl = urlData.publicUrl;
 
-      const { error: uploadError } = await supabase.storage.from("app-assets").upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
+    const { error: updateError } = await supabase.from("configuracoes").update({ imagem_fundo: publicUrl }).eq("id", 1);
 
-      if (uploadError) {
-        console.error("Erro Supabase:", uploadError);
-        toast.error("Erro ao fazer upload da imagem.");
-        setLoading(false);
-        return;
-      }
-
-      const { data: urlData } = supabase.storage.from("app-assets").getPublicUrl(filePath);
-
-      const publicUrl = urlData?.publicUrl;
-      if (!publicUrl) {
-        toast.error("Erro ao gerar URL da imagem.");
-        setLoading(false);
-        return;
-      }
-
-      if (type === "logo") {
-        await supabase.from("app_config").update({ logo_url: publicUrl }).eq("user_id", user.id);
-
-        setImageUrls((prev) => ({ ...prev, logo: publicUrl }));
-      } else {
-        await supabase.from("app_config").update({ login_image_url: publicUrl }).eq("user_id", user.id);
-
-        setImageUrls((prev) => ({ ...prev, login: publicUrl }));
-      }
-
-      toast.success("Imagem enviada com sucesso!");
-    } catch (err) {
-      console.error("Erro inesperado:", err);
-      toast.error("Erro inesperado ao enviar imagem.");
-    } finally {
-      setLoading(false);
+    if (updateError) {
+      toast.error("Erro ao salvar no banco");
+      return;
     }
-  };
+
+    setImagemUrl(publicUrl);
+    toast.success("Imagem atualizada com sucesso!");
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Configurações</h1>
+    <div className="p-6">
+      <h1 className="text-2xl mb-4 font-semibold">Configurações do Sistema</h1>
 
       <div className="space-y-4">
-        <Label>Logo da Empresa</Label>
-        <Input
-          type="file"
-          accept="image/*"
-          onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0], "logo")}
-        />
-        {imageUrls.logo && <img src={imageUrls.logo} alt="Logo" className="w-32 mt-2 rounded" />}
-      </div>
+        <div>
+          <p className="font-medium">Imagem atual:</p>
+          {imagemUrl ? (
+            <img src={imagemUrl} alt="Fundo" className="w-64 rounded-md shadow" />
+          ) : (
+            <p>Nenhuma imagem configurada.</p>
+          )}
+        </div>
 
-      <div className="space-y-4">
-        <Label>Imagem da Tela de Login</Label>
-        <Input
-          type="file"
-          accept="image/*"
-          onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0], "login")}
-        />
-        {imageUrls.login && <img src={imageUrls.login} alt="Login background" className="w-48 mt-2 rounded" />}
+        <Input type="file" accept="image/*" onChange={(e) => setImagem(e.target.files?.[0] || null)} />
+
+        <Button onClick={handleUpload}>Salvar Imagem</Button>
       </div>
     </div>
   );
