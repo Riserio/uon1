@@ -32,7 +32,7 @@ interface Permission {
 const MENU_ITEMS: MenuItem[] = [
   { id: "dashboard", label: "Dashboard", icon: "📊" },
   { id: "atendimentos", label: "Atendimentos", icon: "📋" },
-  { id: "vistorias", label: "Vistorias", icon: "🔍" },
+  { id: "vistorias", label: "Vistorias", icon: "📷" },
   { id: "acompanhamento", label: "Acompanhamento", icon: "📈" },
   { id: "corretoras", label: "Corretoras", icon: "🏢" },
   { id: "contatos", label: "Contatos", icon: "👥" },
