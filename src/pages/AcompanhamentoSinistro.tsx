@@ -561,8 +561,7 @@ export default function AcompanhamentoSinistro() {
                         <CardHeader className="py-3">
                           <CardTitle className="text-base">Fluxo do sinistro</CardTitle>
                           <p className="text-xs text-muted-foreground">
-                            Aqui você vê todas as etapas (status) e fluxos pelos quais o seu sinistro já passou, na
-                            ordem em que aconteceram.
+                            Aqui você vê a etapa (status) e fluxo atual do seu sinistro.
                           </p>
                         </CardHeader>
                         <CardContent className="space-y-2">
