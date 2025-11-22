@@ -268,7 +268,7 @@ export default function VistoriaPublicaTermos() {
               <div className="bg-white rounded-lg p-4 border border-blue-100">
                 <div className="flex items-center gap-2 mb-2">
                   <Hash className="h-4 w-4 text-blue-600" />
-                  <p className="text-xs font-semibold text-blue-800 uppercase">CÓDIGO DE CONSULTA ONLINE</p>
+                  <p className="text-xs font-semibold text-blue-800 uppercase">CÓDIGO DA VISTORIA</p>
                 </div>
                 <p className="text-2xl font-bold text-blue-900">#{vistoria.numero}</p>
               </div>
