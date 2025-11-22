@@ -52,6 +52,7 @@ export default function VistoriaPublicaCaptura() {
   const { token } = useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [vistoria, setVistoria] = useState<any>(null);
   const [corretora, setCorretora] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -87,7 +88,6 @@ export default function VistoriaPublicaCaptura() {
       setVistoria(data);
       setCorretora(data.corretoras);
     } catch (error) {
-      console.error("Erro ao carregar vistoria:", error);
       toast.error("Erro ao carregar vistoria");
       navigate("/");
     } finally {
@@ -104,7 +104,7 @@ export default function VistoriaPublicaCaptura() {
             longitude: position.coords.longitude,
           });
         },
-        (error) => console.error("Erro ao obter geolocalização:", error),
+        () => {},
       );
     }
   };
@@ -116,399 +116,283 @@ export default function VistoriaPublicaCaptura() {
         body: { image: imageBase64, tipo },
       });
 
-      if (error) throw error;
-
-      if (tipo === "cnh") {
-        setCnhData(data);
-        toast.success("Dados da CNH extraídos com sucesso!");
-      } else {
-        setVehicleData(data);
-        if (data.placa) {
-          toast.success(`Placa detectada: ${data.placa}`);
-        }
+      if (!error) {
+        if (tipo === "cnh") setCnhData(data);
+        else setVehicleData(data);
       }
-    } catch (error) {
-      console.error("Erro ao processar OCR:", error);
     } finally {
       setProcessingOcr(false);
     }
   };
 
-  const getFileType = (file: File): "image" | "video" | "pdf" => {
+  const getFileType = (file: File) => {
     if (file.type.startsWith("image/")) return "image";
     if (file.type.startsWith("video/")) return "video";
     if (file.type === "application/pdf") return "pdf";
     return "image";
   };
 
-  const getFileIcon = (type: "image" | "video" | "pdf") => {
-    switch (type) {
-      case "video":
-        return <Film className="h-4 w-4" />;
-      case "pdf":
-        return <FileText className="h-4 w-4" />;
-      default:
-        return <ImageIcon className="h-4 w-4" />;
-    }
-  };
+  const getFileIcon = (type: string) =>
+    type === "video" ? (
+      <Film className="h-4 w-4" />
+    ) : type === "pdf" ? (
+      <FileText className="h-4 w-4" />
+    ) : (
+      <ImageIcon className="h-4 w-4" />
+    );
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: any) => {
     const files = e.target.files;
-    if (!files || files.length === 0) return;
+    if (!files?.length) return;
 
-    const posicaoAtual = POSICOES[currentStep];
-    const validTypes = [
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "image/gif",
-      "image/webp",
-      "video/mp4",
-      "video/webm",
-      "video/quicktime",
-      "application/pdf",
-    ];
+    const posicao = POSICOES[currentStep];
+    const valid: File[] = [];
 
-    const validFiles: File[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-
-      if (!validTypes.includes(file.type)) {
-        toast.error(`${file.name}: Formato não suportado`);
-        continue;
-      }
-
-      if (file.size > 100 * 1024 * 1024) {
-        toast.error(`${file.name}: Arquivo muito grande (máx 100MB)`);
-        continue;
-      }
-
-      validFiles.push(file);
+    for (const file of files) {
+      if (file.size <= 100 * 1024 * 1024) valid.push(file);
     }
 
-    if (validFiles.length === 0) return;
+    if (valid.length === 0) return;
 
-    if (posicaoAtual.multiple) {
-      const existingFiles = fotos[posicaoAtual.id] || [];
-      const existingPreviews = fotoPreviews[posicaoAtual.id] || [];
+    if (posicao.multiple) {
+      const previews = [...(fotoPreviews[posicao.id] || [])];
+      const stored = [...(fotos[posicao.id] || [])];
 
-      const newPreviews: string[] = [];
-      for (const file of validFiles) {
+      for (const file of valid) {
+        stored.push(file);
+
         if (getFileType(file) === "image") {
-          const reader = new FileReader();
-          const preview = await new Promise<string>((resolve) => {
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
             reader.onload = (ev) => resolve(ev.target?.result as string);
             reader.readAsDataURL(file);
           });
-          newPreviews.push(preview);
+          previews.push(base64);
         } else {
-          newPreviews.push(file.type);
+          previews.push(file.type);
         }
       }
 
-      setFotos({ ...fotos, [posicaoAtual.id]: [...existingFiles, ...validFiles] });
-      setFotoPreviews({ ...fotoPreviews, [posicaoAtual.id]: [...existingPreviews, ...newPreviews] });
+      setFotos({ ...fotos, [posicao.id]: stored });
+      setFotoPreviews({ ...fotoPreviews, [posicao.id]: previews });
     } else {
-      const file = validFiles[0];
-      setFotos({ ...fotos, [posicaoAtual.id]: [file] });
+      const file = valid[0];
 
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
-        const base64 = ev.target?.result as string;
-        setFotoPreviews({ ...fotoPreviews, [posicaoAtual.id]: [base64] });
+      setFotos({ ...fotos, [posicao.id]: [file] });
 
-        if (posicaoAtual.id === "cnh" && getFileType(file) === "image") {
-          await processOcr(base64, "cnh");
-        } else if (posicaoAtual.id === "frontal" && getFileType(file) === "image") {
-          await processOcr(base64, "veiculo");
-        }
-      };
+      const type = getFileType(file);
+      if (type === "image") {
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve(ev.target?.result as string);
+          reader.readAsDataURL(file);
+        });
 
-      if (getFileType(file) === "image") {
-        reader.readAsDataURL(file);
+        setFotoPreviews({ ...fotoPreviews, [posicao.id]: [base64] });
+
+        if (posicao.id === "cnh") processOcr(base64, "cnh");
+        if (posicao.id === "frontal") processOcr(base64, "veiculo");
       } else {
-        setFotoPreviews({ ...fotoPreviews, [posicaoAtual.id]: [file.type] });
+        setFotoPreviews({ ...fotoPreviews, [posicao.id]: [file.type] });
       }
     }
 
-    // permite selecionar o mesmo arquivo de novo se precisar
     e.target.value = "";
   };
 
   const nextStep = () => {
-    const posicaoAtual = POSICOES[currentStep];
-    if (!fotos[posicaoAtual.id] || fotos[posicaoAtual.id].length === 0) {
-      toast.error("Por favor, adicione pelo menos uma foto");
-      return;
-    }
+    const posicao = POSICOES[currentStep];
+    if (!fotos[posicao.id]?.length) return toast.error("Adicione uma foto");
 
-    if (currentStep < POSICOES.length - 1) {
-      setCurrentStep(currentStep + 1);
+    if (currentStep < POSICOES.length - 1) setCurrentStep(currentStep + 1);
+    else handleContinue();
+  };
+
+  const prevStep = () => currentStep > 0 && setCurrentStep(currentStep - 1);
+
+  const removeFoto = (id: string, index: number) => {
+    const f = fotos[id].filter((_, i) => i !== index);
+    const p = fotoPreviews[id].filter((_, i) => i !== index);
+
+    const nf = { ...fotos };
+    const np = { ...fotoPreviews };
+
+    if (f.length === 0) {
+      delete nf[id];
+      delete np[id];
     } else {
-      handleContinue();
-    }
-  };
-
-  const prevStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const removeFoto = (posicaoId: string, index: number) => {
-    const newFotos = { ...fotos };
-    const newPreviews = { ...fotoPreviews };
-
-    newFotos[posicaoId] = newFotos[posicaoId].filter((_, i) => i !== index);
-    newPreviews[posicaoId] = newPreviews[posicaoId].filter((_, i) => i !== index);
-
-    if (newFotos[posicaoId].length === 0) {
-      delete newFotos[posicaoId];
-      delete newPreviews[posicaoId];
+      nf[id] = f;
+      np[id] = p;
     }
 
-    setFotos(newFotos);
-    setFotoPreviews(newPreviews);
+    setFotos(nf);
+    setFotoPreviews(np);
   };
 
   const handleContinue = () => {
-    if (!vistoria) {
-      toast.error("Não foi possível prosseguir com a vistoria.");
-      return;
-    }
+    localStorage.setItem(
+      "vistoria_temp",
+      JSON.stringify({
+        fotoPreviews,
+        geolocation,
+        cnhData,
+        vehicleData,
+        vistoriaId: vistoria.id,
+      }),
+    );
 
-    const tempData = {
-      fotoPreviews,
-      geolocation,
-      cnhData,
-      vehicleData,
-      vistoriaId: vistoria.id,
-    };
-
-    try {
-      localStorage.setItem("vistoria_temp", JSON.stringify(tempData));
-    } catch (error) {
-      console.error("Erro ao salvar vistoria_temp:", error);
-    }
-
-    navigate(`/vistoria/${token}/formulario`, {
-      state: {
-        fotos,
-      },
-    });
+    navigate(`/vistoria/${token}/formulario`, { state: { fotos } });
   };
 
-  const totalFotos = Object.values(fotos).reduce((sum, files) => sum + files.length, 0);
-  const progressPercentage = ((currentStep + 1) / POSICOES.length) * 100;
+  const totalFotos = Object.values(fotos).reduce((acc, f) => acc + f.length, 0);
+  const progress = ((currentStep + 1) / POSICOES.length) * 100;
 
-  if (loading) {
+  if (loading)
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] to-white flex items-center justify-center p-6">
-        <Card className="border-none shadow-xl">
-          <CardContent className="p-12 text-center">
-            <div className="relative w-16 h-16 mx-auto mb-4">
-              <div className="absolute inset-0 animate-spin rounded-full border-4 border-[hsl(var(--vistoria-primary))]/20 border-t-[hsl(var(--vistoria-primary))]"></div>
-            </div>
-            <p className="text-lg font-semibold text-muted-foreground">Preparando câmera...</p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <p>Carregando...</p>
       </div>
     );
-  }
 
   const posicaoAtual = POSICOES[currentStep];
-  const fotosPosicaoAtual = fotos[posicaoAtual.id] || [];
-  const previewsPosicaoAtual = fotoPreviews[posicaoAtual.id] || [];
+  const previews = fotoPreviews[posicaoAtual.id] || [];
+  const arquivos = fotos[posicaoAtual.id] || [];
   const IconePosicao = posicaoAtual.icon;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] to-white py-6 px-4">
+    <div className="min-h-screen py-6 px-4">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <Card className="border-none shadow-lg">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                {corretora?.logo_url && (
-                  <img src={corretora.logo_url} alt={corretora.nome} className="h-12 object-contain" />
-                )}
-                <div>
-                  <h1 className="text-xl md:text-2xl font-bold text-gray-900">Vistoria Digital</h1>
-                  <p className="text-sm text-muted-foreground">Sinistro #{vistoria.numero}</p>
-                </div>
+        {/* HEADER */}
+        <Card className="shadow-lg border-none">
+          <CardContent className="p-6 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {corretora?.logo_url && <img src={corretora.logo_url} className="h-12" />}
+              <div>
+                <h1 className="text-xl font-bold">Vistoria Digital</h1>
+                <p className="text-sm text-muted-foreground">Sinistro #{vistoria.numero}</p>
               </div>
-              <Badge className="bg-[hsl(var(--vistoria-primary))] text-white px-4 py-2 text-base font-bold">
-                {currentStep + 1}/{POSICOES.length}
-              </Badge>
             </div>
+
+            <Badge className="px-4 py-2 text-base bg-blue-600 text-white">
+              {currentStep + 1}/{POSICOES.length}
+            </Badge>
           </CardContent>
         </Card>
 
-        {/* Progress Bar */}
-        <Card className="border-none shadow-lg">
+        {/* PROGRESSO */}
+        <Card className="shadow-lg border-none">
           <CardContent className="p-6">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-sm font-semibold text-gray-700">Progresso da Captura</span>
-              <span className="text-sm font-bold text-[hsl(var(--vistoria-primary))]">
-                {totalFotos} foto{totalFotos !== 1 ? "s" : ""} enviada{totalFotos !== 1 ? "s" : ""}
-              </span>
+            <div className="flex justify-between mb-2">
+              <span className="text-sm font-semibold">Progresso</span>
+              <span className="text-sm font-bold text-blue-600">{totalFotos} foto(s)</span>
             </div>
-            <Progress value={progressPercentage} className="h-3 bg-gray-200" />
-            <p className="text-xs text-muted-foreground mt-2 text-center">
-              {Math.round(progressPercentage)}% concluído
-            </p>
+
+            <Progress value={progress} className="h-3" />
           </CardContent>
         </Card>
 
-        {/* Main Capture Card */}
-        <Card className="border-none shadow-2xl overflow-hidden">
-          {/* Header da Etapa */}
-          <div className="bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 p-8 text-white">
-            <div className="flex items-center gap-4 mb-3">
-              <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                <IconePosicao className="h-7 w-7" />
-              </div>
-              <div className="flex-1">
-                <h2 className="text-3xl font-bold">{posicaoAtual.nome}</h2>
-                <p className="text-blue-100 text-lg">{posicaoAtual.descricao}</p>
-              </div>
+        {/* CAPTURA */}
+        <Card className="shadow-xl border-none overflow-hidden">
+          <div className="bg-blue-600 p-8 text-white flex items-center gap-4">
+            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+              <IconePosicao className="h-7 w-7" />
             </div>
-            {posicaoAtual.multiple && (
-              <Badge className="bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm">
-                <Upload className="h-3 w-3 mr-1" />
-                Múltiplas fotos permitidas
-              </Badge>
-            )}
+
+            <div>
+              <h2 className="text-3xl font-bold">{posicaoAtual.nome}</h2>
+              <p className="text-blue-100 text-lg">{posicaoAtual.descricao}</p>
+            </div>
           </div>
 
           <CardContent className="p-8 space-y-6">
-            {/* Upload Area */}
-            <div className="space-y-6">
-              {/* ÚNICO INPUT - câmera + galeria + arquivos */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,video/*,application/pdf"
-                multiple={posicaoAtual.multiple}
-                onChange={handleFileSelect}
-                className="hidden"
-              />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*,application/pdf"
+              multiple={posicaoAtual.multiple}
+              onChange={handleFileSelect}
+              className="hidden"
+            />
 
-              {fotosPosicaoAtual.length === 0 ? (
-  <div className="space-y-4">
+            {/* SEM FOTO */}
+            {arquivos.length === 0 && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full min-h-[250px] border-4 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-white hover:from-blue-50 hover:to-blue-100 transition-all"
+              >
+                <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mb-4 text-white">
+                  <Camera className="h-10 w-10" />
+                </div>
+                <h3 className="text-2xl font-bold">Tirar foto ou enviar da galeria</h3>
+                <p className="text-gray-500 text-sm">Abrir câmera, galeria ou arquivos</p>
+              </button>
+            )}
 
-    <button
-      onClick={() => fileInputRef.current?.click()}
-      className="w-full min-h-[250px] border-4 border-dashed border-gray-300 hover:border-[hsl(var(--vistoria-primary))] rounded-2xl bg-gradient-to-br from-gray-50 to-white hover:from-blue-50 hover:to-blue-100 transition-all duration-300 group"
-    >
-      <div className="flex flex-col items-center justify-center py-8">
-        <div className="w-20 h-20 bg-gradient-to-br from-[hsl(var(--vistoria-primary))] to-blue-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg">
-          <Camera className="h-10 w-10 text-white" strokeWidth={2.5} />
-        </div>
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">Tirar foto ou enviar da galeria</h3>
-        <p className="text-gray-500 text-sm">Clique para abrir a câmera, galeria ou arquivos</p>
-      </div>
-    </button>
+            {/* COM FOTO */}
+            {arquivos.length > 0 && (
+              <div className="space-y-4">
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {previews.map((prev, i) => {
+                    const file = arquivos[i];
+                    const type = getFileType(file);
 
-  </div>
-) : (
-  ...
-)}
-
-              ) : (
-                <div className="space-y-4">
-                  {/* Preview Grid */}
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    {previewsPosicaoAtual.map((preview, index) => {
-                      const file = fotosPosicaoAtual[index];
-                      const fileType = getFileType(file);
-
-                      return (
-                        <div key={index} className="relative group">
-                          <div className="relative aspect-[4/3] bg-gradient-to-br from-gray-100 to-gray-50 rounded-xl overflow-hidden border-2 border-green-400 shadow-lg">
-                            {fileType === "image" ? (
-                              <img
-                                src={preview}
-                                alt={`${posicaoAtual.nome} ${index + 1}`}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-4">
-                                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                                  {getFileIcon(fileType)}
-                                </div>
-                                <span className="text-sm font-semibold text-center line-clamp-2">{file.name}</span>
-                                <Badge className="bg-blue-600">{fileType.toUpperCase()}</Badge>
+                    return (
+                      <div key={i} className="relative group">
+                        <div className="aspect-[4/3] rounded-xl border-2 border-green-400 overflow-hidden flex items-center justify-center">
+                          {type === "image" ? (
+                            <img src={prev} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center">
+                              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                                {getFileIcon(type)}
                               </div>
-                            )}
-
-                            {/* Success Badge */}
-                            <div className="absolute top-3 left-3 bg-green-500 text-white px-3 py-1 rounded-full shadow-md flex items-center gap-1">
-                              <CheckCircle2 className="h-4 w-4" />
-                              <span className="text-xs font-bold">Enviada</span>
+                              <p className="text-sm">{file.name}</p>
+                              <Badge className="bg-blue-600">{type.toUpperCase()}</Badge>
                             </div>
-
-                            {/* Remove Button */}
-                            <button
-                              onClick={() => removeFoto(posicaoAtual.id, index)}
-                              className="absolute top-3 right-3 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-md transition-all opacity-0 group-hover:opacity-100"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
 
-                  {/* Add More Button para múltiplas */}
-                  {posicaoAtual.multiple && (
-                    <Button
-                      onClick={() => fileInputRef.current?.click()}
-                      variant="outline"
-                      size="lg"
-                      className="w-full border-2 border-dashed border-gray-300 hover:border-[hsl(var(--vistoria-primary))] h-20 text-lg"
-                    >
-                      <Upload className="h-6 w-6 mr-2" />
-                      Adicionar Mais Fotos
-                    </Button>
-                  )}
+                        <button
+                          onClick={() => removeFoto(posicaoAtual.id, i)}
+                          className="absolute top-3 right-3 bg-red-500 text-white p-2 rounded-full opacity-0 group-hover:opacity-100"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
 
-              {/* OCR Processing */}
-              {processingOcr && (
-                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-xl p-6 flex items-center gap-4">
-                  <div className="relative w-12 h-12">
-                    <div className="absolute inset-0 animate-spin rounded-full border-4 border-purple-200 border-t-purple-600"></div>
-                    <Sparkles className="absolute inset-0 m-auto h-6 w-6 text-purple-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-bold text-purple-900">Processando com IA...</p>
-                    <p className="text-sm text-purple-700">Extraindo dados automaticamente</p>
-                  </div>
+                {posicaoAtual.multiple && (
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    variant="outline"
+                    className="w-full h-20 border-2 border-dashed text-lg"
+                  >
+                    <Upload className="h-6 w-6 mr-2" />
+                    Adicionar mais fotos
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {processingOcr && (
+              <div className="border rounded-xl p-6 flex items-center gap-4 bg-blue-50">
+                <Sparkles className="h-6 w-6 text-blue-600 animate-spin" />
+                <div>
+                  <p className="font-bold text-blue-800">Processando com IA...</p>
+                  <p className="text-sm text-blue-700">Extraindo informações...</p>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* Navigation */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-6 border-t-2">
-              <Button
-                variant="outline"
-                onClick={prevStep}
-                disabled={currentStep === 0}
-                size="lg"
-                className="w-full sm:flex-1 h-14 text-base sm:text-lg border-2"
-              >
-                <ArrowLeft className="h-5 w-5 mr-2" />
-                Anterior
+            {/* Navegação */}
+            <div className="flex gap-3 pt-6 border-t">
+              <Button onClick={prevStep} variant="outline" className="w-full" disabled={currentStep === 0}>
+                <ArrowLeft className="h-5 w-5 mr-2" /> Voltar
               </Button>
-              <Button
-                onClick={nextStep}
-                disabled={fotosPosicaoAtual.length === 0}
-                size="lg"
-                className="w-full sm:flex-1 h-14 text-base sm:text-lg bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-lg"
-              >
+
+              <Button onClick={nextStep} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                 {currentStep === POSICOES.length - 1 ? "Preencher Dados" : "Próxima Foto"}
                 <ArrowRight className="h-5 w-5 ml-2" />
               </Button>
@@ -516,60 +400,34 @@ export default function VistoriaPublicaCaptura() {
           </CardContent>
         </Card>
 
-        {/* Mini Thumbnails Progress */}
+        {/* MINIETAPAS */}
         <Card className="border-none shadow-lg">
           <CardContent className="p-6">
-            <p className="text-sm font-bold mb-4 text-gray-700">Etapas da Vistoria:</p>
+            <p className="text-sm font-bold mb-4">Etapas:</p>
             <div className="grid grid-cols-6 gap-3">
-              {POSICOES.map((pos, idx) => {
-                const hasPhotos = fotos[pos.id] && fotos[pos.id].length > 0;
-                const isCurrent = currentStep === idx;
-
-                return (
-                  <button
-                    key={pos.id}
-                    onClick={() => setCurrentStep(idx)}
-                    className={`relative aspect-square rounded-xl border-2 transition-all duration-300 ${
-                      isCurrent
-                        ? "border-[hsl(var(--vistoria-primary))] ring-4 ring-[hsl(var(--vistoria-primary))]/30 scale-105"
-                        : hasPhotos
-                          ? "border-green-400 bg-green-50"
-                          : "border-gray-200 bg-white hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="w-full h-full flex items-center justify-center">
-                      {hasPhotos ? (
-                        <CheckCircle2 className="h-6 w-6 text-green-600" strokeWidth={2.5} />
-                      ) : (
-                        <Camera className="h-5 w-5 text-gray-400" />
-                      )}
-                    </div>
-
-                    <div
-                      className={`absolute -bottom-6 left-0 right-0 text-center text-[10px] font-medium ${
-                        isCurrent ? "text-[hsl(var(--vistoria-primary))]" : "text-gray-500"
-                      }`}
-                    >
-                      {pos.id === "cnh" ? "CNH" : pos.id === "crlv" ? "CRLV" : pos.nome.split(" ")[0]}
-                    </div>
-
-                    {hasPhotos && fotos[pos.id].length > 1 && (
-                      <div className="absolute -top-2 -right-2 bg-[hsl(var(--vistoria-primary))] text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center shadow-md">
-                        {fotos[pos.id].length}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
+              {POSICOES.map((p, i) => (
+                <button
+                  key={p.id}
+                  onClick={() => setCurrentStep(i)}
+                  className={`aspect-square rounded-xl border flex items-center justify-center ${
+                    i === currentStep ? "border-blue-600 ring-2 ring-blue-300" : "border-gray-300"
+                  }`}
+                >
+                  {fotos[p.id]?.length ? (
+                    <CheckCircle2 className="text-green-600 h-6 w-6" />
+                  ) : (
+                    <Camera className="text-gray-400 h-5 w-5" />
+                  )}
+                </button>
+              ))}
             </div>
           </CardContent>
         </Card>
 
-        {/* Help Info */}
         <div className="text-center">
-          <div className="inline-flex items-center gap-2 text-sm text-gray-500 bg-white px-4 py-2 rounded-full shadow-md">
+          <div className="inline-flex items-center gap-2 text-sm bg-white px-4 py-2 rounded-full shadow">
             <AlertCircle className="h-4 w-4" />
-            <span>Certifique-se de que as fotos estejam nítidas e bem iluminadas</span>
+            <span>Mantenha as fotos nítidas e bem iluminadas.</span>
           </div>
         </div>
       </div>
