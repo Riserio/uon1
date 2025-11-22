@@ -32,7 +32,7 @@ interface Permission {
 const MENU_ITEMS: MenuItem[] = [
   { id: "dashboard", label: "Dashboard", icon: "📊" },
   { id: "atendimentos", label: "Atendimentos", icon: "📋" },
-  { id: "vistorias", label: "Vistorias", icon: "📷" },
+  { id: "vistorias", label: "Vistorias", icon: "🔍" },
   { id: "acompanhamento", label: "Acompanhamento", icon: "📈" },
   { id: "corretoras", label: "Corretoras", icon: "🏢" },
   { id: "contatos", label: "Contatos", icon: "👥" },
@@ -270,7 +270,7 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
             return true;
           }
         } catch {
-          // tenta o próximo
+          // continua tentando
         }
       }
 
@@ -297,8 +297,10 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
+      // Apaga permissões atuais do role
       await supabase.from("role_menu_permissions").delete().eq("role", selectedRole);
 
+      // Permissões personalizadas (diferentes do padrão "tudo liberado")
       const permissionsToInsert = Object.values(permissions)
         .filter((perm) => !perm.pode_visualizar || !perm.pode_editar)
         .map((perm) => ({
@@ -311,10 +313,23 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
 
       if (permissionsToInsert.length > 0) {
         const { error } = await supabase.from("role_menu_permissions").insert(permissionsToInsert);
-
         if (error) throw error;
       }
 
+      // Lista detalhada de alterações por menu
+      const alteracoesDetalhadas = Object.values(permissions)
+        .filter((perm) => !perm.pode_visualizar || !perm.pode_editar)
+        .map((perm) => {
+          const menu = MENU_ITEMS.find((m) => m.id === perm.menu_item);
+          return {
+            menu_id: perm.menu_item,
+            menu_label: menu?.label || perm.menu_item,
+            visualizar: perm.pode_visualizar ? "permitido" : "removido",
+            editar: perm.pode_editar ? "permitido" : "removido",
+          };
+        });
+
+      // Registra log detalhado
       await supabase.from("permission_change_logs").insert({
         user_id: user.id,
         target_user_id: user.id,
@@ -324,6 +339,7 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
           role: selectedRole,
           total_menus: MENU_ITEMS.length,
           menus_restritos: permissionsToInsert.length,
+          alteracoes: alteracoesDetalhadas,
         },
         authorized_by: user.id,
         senha_validada: showPasswordInput,
@@ -347,7 +363,8 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0">
+      {/* Altura aumentada só na vertical */}
+      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
         <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-3">
           <DialogTitle className="text-lg">Permissões de Menu por Perfil</DialogTitle>
           <DialogDescription className="text-sm">
@@ -555,14 +572,41 @@ export function RoleMenuPermissionsDialog({ open, onOpenChange }: RoleMenuPermis
                                 })}
                               </span>
                             </div>
+
                             {log.detalhes && (
-                              <div className="text-xs bg-muted/50 p-1.5 rounded space-y-0.5">
+                              <div className="text-xs bg-muted/50 p-1.5 rounded space-y-1.5">
                                 <p>
                                   Perfil: <span className="font-medium">{log.detalhes.role}</span>
                                 </p>
                                 <p>
-                                  Menus: {log.detalhes.total_menus} total, {log.detalhes.menus_restritos} restritos
+                                  Menus alterados: <span className="font-medium">{log.detalhes.menus_restritos}</span>
                                 </p>
+
+                                {log.detalhes.alteracoes?.map((a: any, i: number) => (
+                                  <div key={i} className="border rounded p-1 bg-white/40 space-y-0.5">
+                                    <p className="font-medium">{a.menu_label}</p>
+                                    <p>
+                                      Visualizar:{" "}
+                                      <span
+                                        className={
+                                          a.visualizar === "removido" ? "font-semibold text-red-600" : "font-semibold"
+                                        }
+                                      >
+                                        {a.visualizar}
+                                      </span>
+                                    </p>
+                                    <p>
+                                      Editar:{" "}
+                                      <span
+                                        className={
+                                          a.editar === "removido" ? "font-semibold text-red-600" : "font-semibold"
+                                        }
+                                      >
+                                        {a.editar}
+                                      </span>
+                                    </p>
+                                  </div>
+                                ))}
                               </div>
                             )}
                           </div>
