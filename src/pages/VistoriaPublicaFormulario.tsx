@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, ChangeEvent } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,18 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import {
-  ArrowRight,
-  ArrowLeft,
-  User,
-  Calendar,
-  Car,
-  FileText,
-  AlertCircle,
-  CheckCircle,
-  MapPin,
-  Clock,
-} from "lucide-react";
+import { ArrowRight, ArrowLeft, User, Calendar, FileText, AlertCircle, CheckCircle, MapPin, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import SketchPad from "@/components/SketchPad";
 import { validateCPF, validatePhone } from "@/lib/validators";
@@ -78,13 +67,12 @@ export default function VistoriaPublicaFormulario() {
     loadVistoria();
     loadTempData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount to prevent clearing user input
+  }, []); // Only run once on mount
 
   const loadTempData = () => {
     const temp = localStorage.getItem("vistoria_temp");
     const stored = temp ? JSON.parse(temp) : null;
 
-    // Fotos vêm da navegação (state)
     const fotosFromState = locationState?.fotos || {};
 
     const data = {
@@ -154,8 +142,30 @@ export default function VistoriaPublicaFormulario() {
     return uploadFile(file, path);
   };
 
+  const normalizePlate = (value: string) => {
+    let v = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (v.length > 7) v = v.slice(0, 7);
+    if (v.length > 3) v = v.slice(0, 3) + "-" + v.slice(3);
+    return v;
+  };
+
+  const handlePlacaChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const value = normalizePlate(e.target.value);
+    setFormData((prev) => ({
+      ...prev,
+      veiculo_placa: value,
+    }));
+  };
+
+  const handlePlacaTerceiroChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const value = normalizePlate(e.target.value);
+    setFormData((prev) => ({
+      ...prev,
+      placa_terceiro: value,
+    }));
+  };
+
   const handleSubmit = async () => {
-    // Validar campos obrigatórios
     const camposObrigatorios = [];
 
     if (!formData.cliente_nome?.trim()) {
@@ -188,7 +198,6 @@ export default function VistoriaPublicaFormulario() {
       return;
     }
 
-    // Validações condicionais
     if (formData.fez_bo && !boFile) {
       camposObrigatorios.push("Boletim de Ocorrência (arquivo)");
     }
@@ -365,7 +374,6 @@ export default function VistoriaPublicaFormulario() {
             </div>
             <Progress value={stepProgress} className="h-3 mb-4" />
 
-            {/* Step Indicators */}
             <div className="flex justify-between gap-2">
               {STEPS.map((step, idx) => (
                 <div
@@ -392,7 +400,6 @@ export default function VistoriaPublicaFormulario() {
 
         {/* Main Form Card */}
         <Card className="border-none shadow-2xl">
-          {/* Step Header */}
           <div className="bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 p-8 text-white">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
@@ -497,12 +504,12 @@ export default function VistoriaPublicaFormulario() {
 
                 <div>
                   <Label className="text-base font-semibold">Placa do Veículo</Label>
-                  <MaskedInput
-                    format="AAA-####"
+                  <Input
                     value={formData.veiculo_placa}
-                    onValueChange={(values) => setFormData({ ...formData, veiculo_placa: values.value })}
+                    onChange={handlePlacaChange}
                     placeholder="ABC-1234"
                     className="mt-2 h-12 font-mono text-lg uppercase"
+                    inputMode="text"
                   />
                 </div>
 
@@ -584,9 +591,10 @@ export default function VistoriaPublicaFormulario() {
                     <Label className="text-base font-semibold">Placa do Terceiro</Label>
                     <Input
                       value={formData.placa_terceiro}
-                      onChange={(e) => setFormData({ ...formData, placa_terceiro: e.target.value })}
+                      onChange={handlePlacaTerceiroChange}
                       placeholder="ABC-1234"
-                      className="mt-2 h-12 font-mono"
+                      className="mt-2 h-12 font-mono text-lg uppercase"
+                      inputMode="text"
                     />
                   </div>
                 )}
@@ -640,7 +648,6 @@ export default function VistoriaPublicaFormulario() {
             {/* Step 3: Documentos */}
             {currentStep === 3 && (
               <div className="space-y-6">
-                {/* BO */}
                 <div className="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-xl p-6">
                   <Label className="text-base font-semibold mb-3 block">Fez Boletim de Ocorrência?</Label>
                   <RadioGroup
@@ -681,7 +688,6 @@ export default function VistoriaPublicaFormulario() {
                   )}
                 </div>
 
-                {/* Hospital */}
                 <div className="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-xl p-6">
                   <Label className="text-base font-semibold mb-3 block">Foi ao hospital?</Label>
                   <RadioGroup
@@ -722,7 +728,6 @@ export default function VistoriaPublicaFormulario() {
                   )}
                 </div>
 
-                {/* Óbito */}
                 <div className="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-xl p-6">
                   <Label className="text-base font-semibold mb-3 block">O motorista faleceu?</Label>
                   <RadioGroup
@@ -763,7 +768,6 @@ export default function VistoriaPublicaFormulario() {
                   )}
                 </div>
 
-                {/* Alcoolemia (condicional) */}
                 {formData.hora_evento &&
                   (parseInt(formData.hora_evento.split(":")[0]) >= 20 ||
                     parseInt(formData.hora_evento.split(":")[0]) < 6) && (
@@ -872,7 +876,6 @@ export default function VistoriaPublicaFormulario() {
           </CardContent>
         </Card>
 
-        {/* Help Text */}
         <div className="text-center">
           <p className="text-sm text-gray-500">Todas as informações são confidenciais e protegidas</p>
         </div>
