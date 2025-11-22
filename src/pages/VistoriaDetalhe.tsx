@@ -1,24 +1,39 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
-import { 
-  ArrowLeft, Download, FileText, Camera, Check, X, Send, 
-  MapPin, User, Car, FileCheck, MessageSquare, Brain, Clock,
-  Phone, Mail, Hash, Calendar, Shield
-} from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { generateVistoriaPDF } from '@/components/VistoriaPDF';
-import { useAuth } from '@/hooks/useAuth';
-import { Separator } from '@/components/ui/separator';
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+  ArrowLeft,
+  Download,
+  FileText,
+  Camera,
+  Check,
+  X,
+  Send,
+  MapPin,
+  User,
+  Car,
+  FileCheck,
+  MessageSquare,
+  Brain,
+  Clock,
+  Phone,
+  Mail,
+  Hash,
+  Shield,
+} from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { generateVistoriaPDF } from "@/components/VistoriaPDF";
+import { useAuth } from "@/hooks/useAuth";
+import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +41,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 
 export default function VistoriaDetalhe() {
   const { id } = useParams();
@@ -41,14 +56,14 @@ export default function VistoriaDetalhe() {
   const [administradora, setAdministradora] = useState<any>(null);
   const [fotoSelecionada, setFotoSelecionada] = useState<any | null>(null);
   const [fotoDialogOpen, setFotoDialogOpen] = useState(false);
-  const [observacaoReprovacao, setObservacaoReprovacao] = useState('');
+  const [observacaoReprovacao, setObservacaoReprovacao] = useState("");
   const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
-  const [observacaoAnalise, setObservacaoAnalise] = useState('');
-  const [decisaoAnalise, setDecisaoAnalise] = useState<'aprovar' | 'pendenciar' | null>(null);
+  const [observacaoAnalise, setObservacaoAnalise] = useState("");
+  const [decisaoAnalise, setDecisaoAnalise] = useState<"aprovar" | "pendenciar" | null>(null);
   const [solicitarFotosOpen, setSolicitarFotosOpen] = useState(false);
-  const [motivoFotos, setMotivoFotos] = useState('');
+  const [motivoFotos, setMotivoFotos] = useState("");
   const [fotosNecessarias, setFotosNecessarias] = useState<string[]>([]);
-  const [novaFotoInput, setNovaFotoInput] = useState('');
+  const [novaFotoInput, setNovaFotoInput] = useState("");
 
   useEffect(() => {
     loadVistoria();
@@ -58,57 +73,49 @@ export default function VistoriaDetalhe() {
     try {
       setLoadingFotos(true);
       const { data: vistoriaData, error: vistoriaError } = await supabase
-        .from('vistorias')
-        .select('*')
-        .eq('id', id)
+        .from("vistorias")
+        .select("*")
+        .eq("id", id)
         .single();
 
       if (vistoriaError) throw vistoriaError;
       setVistoria(vistoriaData);
 
       const { data: fotosData, error: fotosError } = await supabase
-        .from('vistoria_fotos')
-        .select('*')
-        .eq('vistoria_id', id)
-        .order('ordem');
+        .from("vistoria_fotos")
+        .select("*")
+        .eq("vistoria_id", id)
+        .order("ordem");
 
       if (fotosError) {
-        console.error('Erro ao carregar fotos:', fotosError);
-        toast.error('Erro ao carregar fotos da vistoria');
+        console.error("Erro ao carregar fotos:", fotosError);
+        toast.error("Erro ao carregar fotos da vistoria");
       }
-      
-      console.log('Fotos carregadas:', fotosData?.length || 0);
+
+      console.log("Fotos carregadas:", fotosData?.length || 0);
       setFotos(fotosData || []);
 
       // Carregar termos aceitos
-      const { data: termosData } = await supabase
-        .from('termos_aceitos')
-        .select('*, termos(*)')
-        .eq('vistoria_id', id);
-      
+      const { data: termosData } = await supabase.from("termos_aceitos").select("*, termos(*)").eq("vistoria_id", id);
+
       setTermosAceitos(termosData || []);
 
       // Carregar corretora se existir
       if (vistoriaData.corretora_id) {
         const { data: corretoraData } = await supabase
-          .from('corretoras')
-          .select('*')
-          .eq('id', vistoriaData.corretora_id)
+          .from("corretoras")
+          .select("*")
+          .eq("id", vistoriaData.corretora_id)
           .single();
         if (corretoraData) setCorretora(corretoraData);
       }
 
       // Carregar administradora
-      const { data: adminData } = await supabase
-        .from('administradora')
-        .select('*')
-        .limit(1)
-        .single();
+      const { data: adminData } = await supabase.from("administradora").select("*").limit(1).single();
       if (adminData) setAdministradora(adminData);
-
     } catch (error) {
-      console.error('Erro ao carregar vistoria:', error);
-      toast.error('Erro ao carregar detalhes da vistoria');
+      console.error("Erro ao carregar vistoria:", error);
+      toast.error("Erro ao carregar detalhes da vistoria");
     } finally {
       setLoading(false);
       setLoadingFotos(false);
@@ -117,100 +124,133 @@ export default function VistoriaDetalhe() {
 
   const handleExportPDF = async () => {
     try {
-      toast.loading('Gerando PDF...');
+      toast.loading("Gerando PDF...");
       await generateVistoriaPDF(vistoria, fotos, corretora, administradora);
       toast.dismiss();
-      toast.success('PDF gerado com sucesso!');
+      toast.success("PDF gerado com sucesso!");
     } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
+      console.error("Erro ao gerar PDF:", error);
       toast.dismiss();
-      toast.error('Erro ao gerar PDF');
+      toast.error("Erro ao gerar PDF");
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'aguardando_fotos': return 'bg-yellow-500';
-      case 'em_analise': return 'bg-blue-500';
-      case 'concluida': return 'bg-green-500';
-      case 'aprovada': return 'bg-green-600';
-      case 'pendente_correcao': return 'bg-orange-500';
-      case 'cancelada': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      case "aguardando_fotos":
+        return "bg-yellow-500";
+      case "em_analise":
+        return "bg-blue-500";
+      case "concluida":
+        return "bg-green-500";
+      case "aprovada":
+        return "bg-green-600";
+      case "pendente_correcao":
+        return "bg-orange-500";
+      case "cancelada":
+        return "bg-red-500";
+      default:
+        return "bg-gray-500";
     }
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'aguardando_fotos': return 'Aguardando Fotos';
-      case 'em_analise': return 'Em Análise';
-      case 'concluida': return 'Concluída';
-      case 'aprovada': return 'Aprovada';
-      case 'pendente_correcao': return 'Pendente Correção';
-      case 'cancelada': return 'Cancelada';
-      default: return status;
+      case "aguardando_fotos":
+        return "Aguardando Fotos";
+      case "em_analise":
+        return "Em Análise";
+      case "concluida":
+        return "Concluída";
+      case "aprovada":
+        return "Aprovada";
+      case "pendente_correcao":
+        return "Pendente Correção";
+      case "cancelada":
+        return "Cancelada";
+      default:
+        return status;
     }
   };
 
   const getPosicaoNome = (posicao: string) => {
     const nomes: Record<string, string> = {
-      frontal: 'Frontal',
-      traseira: 'Traseira',
-      lateral_esquerda: 'Lateral Esquerda',
-      lateral_direita: 'Lateral Direita'
+      frontal: "Frontal",
+      traseira: "Traseira",
+      lateral_esquerda: "Lateral Esquerda",
+      lateral_direita: "Lateral Direita",
     };
     return nomes[posicao] || posicao;
   };
 
+  // === NOVO: detectar tipo do arquivo pela extensão ===
+  const getFileTypeFromUrl = (url: string): "image" | "video" | "pdf" | "other" => {
+    if (!url) return "other";
+    const clean = url.split("?")[0];
+    const parts = clean.split(".");
+    const ext = parts[parts.length - 1]?.toLowerCase();
+
+    const imageExts = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "avif"];
+    const videoExts = ["mp4", "mov", "webm", "mkv", "avi", "m4v", "3gp"];
+    const pdfExts = ["pdf"];
+
+    if (ext && imageExts.includes(ext)) return "image";
+    if (ext && videoExts.includes(ext)) return "video";
+    if (ext && pdfExts.includes(ext)) return "pdf";
+    return "other";
+  };
+
   const handleAprovarFoto = async (fotoId: string) => {
     try {
-      setFotos(prevFotos => prevFotos.map(f => 
-        f.id === fotoId 
-          ? { ...f, status_aprovacao: 'aprovada', aprovada_em: new Date().toISOString(), aprovada_por: user?.id }
-          : f
-      ));
+      setFotos((prevFotos) =>
+        prevFotos.map((f) =>
+          f.id === fotoId
+            ? { ...f, status_aprovacao: "aprovada", aprovada_em: new Date().toISOString(), aprovada_por: user?.id }
+            : f,
+        ),
+      );
 
       const { error } = await supabase
-        .from('vistoria_fotos')
+        .from("vistoria_fotos")
         .update({
-          status_aprovacao: 'aprovada',
+          status_aprovacao: "aprovada",
           aprovada_por: user?.id,
           aprovada_em: new Date().toISOString(),
-          observacao_reprovacao: null
+          observacao_reprovacao: null,
         })
-        .eq('id', fotoId);
+        .eq("id", fotoId);
 
       if (error) throw error;
-      toast.success('Foto aprovada!');
+      toast.success("Foto aprovada!");
     } catch (error) {
-      console.error('Erro ao aprovar foto:', error);
-      toast.error('Erro ao aprovar foto');
+      console.error("Erro ao aprovar foto:", error);
+      toast.error("Erro ao aprovar foto");
       loadVistoria();
     }
   };
 
   const handleReprovarFoto = (foto: any) => {
     setFotoSelecionada(foto);
-    setObservacaoReprovacao('');
+    setObservacaoReprovacao("");
     setFotoDialogOpen(true);
   };
 
   const confirmarReprovacao = async () => {
     if (!observacaoReprovacao.trim()) {
-      toast.error('Por favor, informe o motivo da reprovação');
+      toast.error("Por favor, informe o motivo da reprovação");
       return;
     }
 
     try {
       const { error } = await supabase
-        .from('vistoria_fotos')
+        .from("vistoria_fotos")
         .update({
-          status_aprovacao: 'reprovada',
+          status_aprovacao: "reprovada",
           aprovada_por: user?.id,
           aprovada_em: new Date().toISOString(),
-          observacao_reprovacao: observacaoReprovacao
+          observacao_reprovacao: observacaoReprovacao,
         })
-        .eq('id', fotoSelecionada.id);
+        .eq("id", fotoSelecionada.id);
 
       if (error) throw error;
 
@@ -220,163 +260,160 @@ export default function VistoriaDetalhe() {
         expiresAt.setDate(expiresAt.getDate() + 7);
 
         await supabase
-          .from('vistorias')
+          .from("vistorias")
           .update({
             link_expires_at: expiresAt.toISOString(),
-            status: 'pendente_correcao'
+            status: "pendente_correcao",
           })
-          .eq('id', vistoria.id);
+          .eq("id", vistoria.id);
       }
 
-      toast.success('Foto reprovada. Cliente será notificado para enviar nova foto.');
+      toast.success("Foto reprovada. Cliente será notificado para enviar nova foto.");
       setFotoDialogOpen(false);
       setFotoSelecionada(null);
-      setObservacaoReprovacao('');
+      setObservacaoReprovacao("");
       loadVistoria();
     } catch (error) {
-      console.error('Erro ao reprovar foto:', error);
-      toast.error('Erro ao reprovar foto');
+      console.error("Erro ao reprovar foto:", error);
+      toast.error("Erro ao reprovar foto");
     }
   };
 
   const handleAprovarTodasFotos = async () => {
     try {
-      const fotosPendentes = fotos.filter(f => f.status_aprovacao === 'pendente');
-      
+      const fotosPendentes = fotos.filter((f) => f.status_aprovacao === "pendente");
+
       for (const foto of fotosPendentes) {
         await supabase
-          .from('vistoria_fotos')
+          .from("vistoria_fotos")
           .update({
-            status_aprovacao: 'aprovada',
+            status_aprovacao: "aprovada",
             aprovada_por: user?.id,
-            aprovada_em: new Date().toISOString()
+            aprovada_em: new Date().toISOString(),
           })
-          .eq('id', foto.id);
+          .eq("id", foto.id);
       }
 
-      await supabase
-        .from('vistorias')
-        .update({ status: 'aprovada' })
-        .eq('id', vistoria.id);
+      await supabase.from("vistorias").update({ status: "aprovada" }).eq("id", vistoria.id);
 
       if (vistoria.atendimento_id) {
         const { data: atendimento } = await supabase
-          .from('atendimentos')
-          .select('tags')
-          .eq('id', vistoria.atendimento_id)
+          .from("atendimentos")
+          .select("tags")
+          .eq("id", vistoria.atendimento_id)
           .single();
 
         if (atendimento?.tags) {
           const newTags = atendimento.tags
-            .filter((tag: string) => !['aguardando_vistoria_digital', 'vistoria_concluida', 'pendente_vistoria'].includes(tag))
-            .concat('vistoria_aprovada');
+            .filter(
+              (tag: string) =>
+                !["aguardando_vistoria_digital", "vistoria_concluida", "pendente_vistoria"].includes(tag),
+            )
+            .concat("vistoria_aprovada");
 
-          await supabase
-            .from('atendimentos')
-            .update({ tags: newTags })
-            .eq('id', vistoria.atendimento_id);
+          await supabase.from("atendimentos").update({ tags: newTags }).eq("id", vistoria.atendimento_id);
         }
       }
 
-      toast.success('Todas as fotos foram aprovadas!');
+      toast.success("Todas as fotos foram aprovadas!");
       loadVistoria();
     } catch (error) {
-      console.error('Erro ao aprovar fotos:', error);
-      toast.error('Erro ao aprovar fotos');
+      console.error("Erro ao aprovar fotos:", error);
+      toast.error("Erro ao aprovar fotos");
     }
   };
 
-  const handleAbrirAnalise = (decisao: 'aprovar' | 'pendenciar') => {
+  const handleAbrirAnalise = (decisao: "aprovar" | "pendenciar") => {
     setDecisaoAnalise(decisao);
-    setObservacaoAnalise('');
+    setObservacaoAnalise("");
     setAnaliseDialogOpen(true);
   };
 
   const confirmarAnalise = async () => {
     if (!observacaoAnalise.trim()) {
-      toast.error('Por favor, informe suas observações sobre a análise');
+      toast.error("Por favor, informe suas observações sobre a análise");
       return;
     }
 
     try {
-      const novoStatus = decisaoAnalise === 'aprovar' ? 'aprovada' : 'pendente_correcao';
-      
+      const novoStatus = decisaoAnalise === "aprovar" ? "aprovada" : "pendente_correcao";
+
       await supabase
-        .from('vistorias')
-        .update({ 
+        .from("vistorias")
+        .update({
           status: novoStatus,
-          observacoes: observacaoAnalise
+          observacoes: observacaoAnalise,
         })
-        .eq('id', vistoria.id);
+        .eq("id", vistoria.id);
 
       if (vistoria.atendimento_id) {
         const { data: atendimento } = await supabase
-          .from('atendimentos')
-          .select('tags')
-          .eq('id', vistoria.atendimento_id)
+          .from("atendimentos")
+          .select("tags")
+          .eq("id", vistoria.atendimento_id)
           .single();
 
         if (atendimento?.tags) {
           const newTags = atendimento.tags
-            .filter((tag: string) => !['aguardando_vistoria_digital', 'vistoria_concluida', 'pendente_vistoria'].includes(tag))
-            .concat(decisaoAnalise === 'aprovar' ? 'vistoria_aprovada' : 'vistoria_pendente');
+            .filter(
+              (tag: string) =>
+                !["aguardando_vistoria_digital", "vistoria_concluida", "pendente_vistoria"].includes(tag),
+            )
+            .concat(decisaoAnalise === "aprovar" ? "vistoria_aprovada" : "vistoria_pendente");
 
-          await supabase
-            .from('atendimentos')
-            .update({ tags: newTags })
-            .eq('id', vistoria.atendimento_id);
+          await supabase.from("atendimentos").update({ tags: newTags }).eq("id", vistoria.atendimento_id);
         }
       }
 
-      toast.success(decisaoAnalise === 'aprovar' ? 'Vistoria aprovada!' : 'Vistoria pendenciada!');
+      toast.success(decisaoAnalise === "aprovar" ? "Vistoria aprovada!" : "Vistoria pendenciada!");
       setAnaliseDialogOpen(false);
       setDecisaoAnalise(null);
-      setObservacaoAnalise('');
+      setObservacaoAnalise("");
       loadVistoria();
     } catch (error) {
-      console.error('Erro ao analisar vistoria:', error);
-      toast.error('Erro ao processar análise');
+      console.error("Erro ao analisar vistoria:", error);
+      toast.error("Erro ao processar análise");
     }
   };
 
   const handleSolicitarMaisFotos = async () => {
     if (!motivoFotos.trim()) {
-      toast.error('Por favor, informe o motivo da solicitação');
+      toast.error("Por favor, informe o motivo da solicitação");
       return;
     }
 
     if (fotosNecessarias.length === 0) {
-      toast.error('Por favor, adicione pelo menos uma foto necessária');
+      toast.error("Por favor, adicione pelo menos uma foto necessária");
       return;
     }
 
     try {
-      const { data, error } = await supabase.functions.invoke('solicitar-mais-fotos', {
+      const { data, error } = await supabase.functions.invoke("solicitar-mais-fotos", {
         body: {
           vistoriaId: vistoria.id,
           motivo: motivoFotos,
-          fotosNecessarias
-        }
+          fotosNecessarias,
+        },
       });
 
       if (error) throw error;
 
-      toast.success('Solicitação enviada! Cliente receberá um email com o link renovado.');
+      toast.success("Solicitação enviada! Cliente receberá um email com o link renovado.");
       setSolicitarFotosOpen(false);
-      setMotivoFotos('');
+      setMotivoFotos("");
       setFotosNecessarias([]);
-      setNovaFotoInput('');
+      setNovaFotoInput("");
       loadVistoria();
     } catch (error) {
-      console.error('Erro ao solicitar fotos:', error);
-      toast.error('Erro ao enviar solicitação');
+      console.error("Erro ao solicitar fotos:", error);
+      toast.error("Erro ao enviar solicitação");
     }
   };
 
   const adicionarFotoNecessaria = () => {
     if (novaFotoInput.trim()) {
       setFotosNecessarias([...fotosNecessarias, novaFotoInput.trim()]);
-      setNovaFotoInput('');
+      setNovaFotoInput("");
     }
   };
 
@@ -411,24 +448,20 @@ export default function VistoriaDetalhe() {
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={() => navigate('/vistorias')} size="lg">
+          <Button variant="ghost" onClick={() => navigate("/vistorias")} size="lg">
             <ArrowLeft className="h-5 w-5 mr-2" />
             Voltar
           </Button>
 
           <div className="flex gap-2">
-            {vistoria.tipo_abertura === 'digital' && vistoria.analise_ia && (
+            {vistoria.tipo_abertura === "digital" && vistoria.analise_ia && (
               <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-200">
                 <Brain className="h-3 w-3 mr-1" />
                 Análise por IA
               </Badge>
             )}
-            {vistoria.status !== 'cancelada' && (
-              <Button 
-                variant="outline" 
-                className="gap-2"
-                onClick={() => setSolicitarFotosOpen(true)}
-              >
+            {vistoria.status !== "cancelada" && (
+              <Button variant="outline" className="gap-2" onClick={() => setSolicitarFotosOpen(true)}>
                 <Camera className="h-4 w-4" />
                 Solicitar Mais Fotos
               </Button>
@@ -450,15 +483,19 @@ export default function VistoriaDetalhe() {
                   <h1 className="text-3xl font-bold">Vistoria #{vistoria.numero}</h1>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <Badge variant={vistoria.tipo_abertura === 'digital' ? 'default' : 'secondary'} className="text-sm">
-                    {vistoria.tipo_abertura === 'digital' ? (
-                      <><Camera className="h-3 w-3 mr-1" /> Digital</>
+                  <Badge variant={vistoria.tipo_abertura === "digital" ? "default" : "secondary"} className="text-sm">
+                    {vistoria.tipo_abertura === "digital" ? (
+                      <>
+                        <Camera className="h-3 w-3 mr-1" /> Digital
+                      </>
                     ) : (
-                      <><FileText className="h-3 w-3 mr-1" /> Manual</>
+                      <>
+                        <FileText className="h-3 w-3 mr-1" /> Manual
+                      </>
                     )}
                   </Badge>
                   <Badge variant="outline" className="text-sm">
-                    {vistoria.tipo_vistoria === 'sinistro' ? 'Sinistro' : 'Reativação'}
+                    {vistoria.tipo_vistoria === "sinistro" ? "Sinistro" : "Reativação"}
                   </Badge>
                   <Badge className={cn("text-sm", getStatusColor(vistoria.status))}>
                     {getStatusLabel(vistoria.status)}
@@ -468,12 +505,16 @@ export default function VistoriaDetalhe() {
               <div className="text-right space-y-1">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
-                  <span>Criada em {format(new Date(vistoria.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                  <span>
+                    Criada em {format(new Date(vistoria.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  </span>
                 </div>
                 {vistoria.completed_at && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Check className="h-4 w-4" />
-                    <span>Concluída em {format(new Date(vistoria.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                    <span>
+                      Concluída em {format(new Date(vistoria.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    </span>
                   </div>
                 )}
               </div>
@@ -573,7 +614,9 @@ export default function VistoriaDetalhe() {
                   {(vistoria.veiculo_marca || vistoria.veiculo_modelo) && (
                     <div>
                       <span className="text-sm text-muted-foreground">Marca/Modelo</span>
-                      <p className="font-semibold">{vistoria.veiculo_marca} {vistoria.veiculo_modelo}</p>
+                      <p className="font-semibold">
+                        {vistoria.veiculo_marca} {vistoria.veiculo_modelo}
+                      </p>
                     </div>
                   )}
                   {vistoria.veiculo_ano && (
@@ -654,7 +697,8 @@ export default function VistoriaDetalhe() {
                     <Button variant="outline" asChild>
                       <a href={vistoria.crlv_fotos_urls[0]} target="_blank" rel="noopener noreferrer">
                         <FileText className="h-4 w-4 mr-2" />
-                        Ver CRLV ({vistoria.crlv_fotos_urls.length} foto{vistoria.crlv_fotos_urls.length > 1 ? 's' : ''})
+                        Ver CRLV ({vistoria.crlv_fotos_urls.length} foto{vistoria.crlv_fotos_urls.length > 1 ? "s" : ""}
+                        )
                       </a>
                     </Button>
                   )}
@@ -722,13 +766,19 @@ export default function VistoriaDetalhe() {
                       Fotos do Veículo
                     </CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      {loadingFotos ? 'Carregando...' : `${fotos.length} foto${fotos.length !== 1 ? 's' : ''} ${fotos.length !== 1 ? 'registradas' : 'registrada'}`}
+                      {loadingFotos
+                        ? "Carregando..."
+                        : `${fotos.length} foto${fotos.length !== 1 ? "s" : ""} ${fotos.length !== 1 ? "registradas" : "registrada"}`}
                     </p>
                   </div>
-                  {vistoria.tipo_abertura === 'manual' && fotos.some(f => f.status_aprovacao === 'pendente') && (
-                    <Button onClick={handleAprovarTodasFotos} size="sm" className="gap-2 bg-green-600 hover:bg-green-700">
+                  {vistoria.tipo_abertura === "manual" && fotos.some((f) => f.status_aprovacao === "pendente") && (
+                    <Button
+                      onClick={handleAprovarTodasFotos}
+                      size="sm"
+                      className="gap-2 bg-green-600 hover:bg-green-700"
+                    >
                       <Check className="h-4 w-4" />
-                      Aprovar Todas ({fotos.filter(f => f.status_aprovacao === 'pendente').length})
+                      Aprovar Todas ({fotos.filter((f) => f.status_aprovacao === "pendente").length})
                     </Button>
                   )}
                 </div>
@@ -747,108 +797,162 @@ export default function VistoriaDetalhe() {
                     <div className="space-y-2">
                       <p className="text-lg font-medium">Nenhuma foto disponível</p>
                       <p className="text-sm text-muted-foreground max-w-sm">
-                        {vistoria.status === 'aguardando_fotos' 
-                          ? 'As fotos aparecerão aqui assim que forem enviadas pelo cliente.'
-                          : 'Esta vistoria não possui fotos registradas.'}
+                        {vistoria.status === "aguardando_fotos"
+                          ? "As fotos aparecerão aqui assim que forem enviadas pelo cliente."
+                          : "Esta vistoria não possui fotos registradas."}
                       </p>
                     </div>
                   </div>
                 ) : (
                   <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {fotos.map((foto) => (
-                      <Card key={foto.id} className="overflow-hidden border-2 hover:border-primary/50 transition-all duration-200">
-                        <div className="relative group aspect-[4/3]">
-                          <img
-                            src={foto.arquivo_url}
-                            alt={getPosicaoNome(foto.posicao)}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              console.error('Erro ao carregar imagem:', foto.arquivo_url);
-                              (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23f0f0f0" width="400" height="300"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImagem não disponível%3C/text%3E%3C/svg%3E';
-                            }}
-                          />
-                          <div className="absolute top-2 left-2 right-2 flex items-start justify-between gap-2">
-                            <Badge variant="secondary" className="bg-black/60 text-white backdrop-blur-sm">
-                              {getPosicaoNome(foto.posicao)}
-                            </Badge>
-                            <Badge 
-                              className={cn(
-                                "backdrop-blur-sm",
-                                foto.status_aprovacao === 'aprovada' ? 'bg-green-500 hover:bg-green-600' :
-                                foto.status_aprovacao === 'reprovada' ? 'bg-red-500 hover:bg-red-600' :
-                                'bg-yellow-500 hover:bg-yellow-600'
-                              )}
-                            >
-                              {foto.status_aprovacao === 'aprovada' ? (
-                                <><Check className="h-3 w-3 mr-1" /> Aprovada</>
-                              ) : foto.status_aprovacao === 'reprovada' ? (
-                                <><X className="h-3 w-3 mr-1" /> Reprovada</>
-                              ) : (
-                                <><Clock className="h-3 w-3 mr-1" /> Pendente</>
-                              )}
-                            </Badge>
-                          </div>
-                          
-                          {vistoria.tipo_abertura === 'manual' && foto.status_aprovacao === 'pendente' && (
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end">
-                              <div className="w-full p-3 space-y-2">
-                                <p className="text-white text-xs font-medium mb-2">Ações da Foto:</p>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <Button 
-                                    size="sm" 
-                                    variant="default"
-                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                    onClick={() => handleAprovarFoto(foto.id)}
-                                  >
-                                    <Check className="h-4 w-4 mr-1" />
-                                    Aprovar
-                                  </Button>
-                                  <Button 
-                                    size="sm" 
-                                    variant="destructive"
-                                    onClick={() => handleReprovarFoto(foto)}
-                                  >
-                                    <X className="h-4 w-4 mr-1" />
-                                    Reprovar
-                                  </Button>
+                    {fotos.map((foto) => {
+                      const fileType = getFileTypeFromUrl(foto.arquivo_url || "");
+
+                      return (
+                        <Card
+                          key={foto.id}
+                          className="overflow-hidden border-2 hover:border-primary/50 transition-all duration-200"
+                        >
+                          <div className="relative group aspect-[4/3] bg-muted flex items-center justify-center">
+                            {/* Badges topo */}
+                            <div className="absolute top-2 left-2 right-2 flex items-start justify-between gap-2 z-10">
+                              <Badge variant="secondary" className="bg-black/60 text-white backdrop-blur-sm">
+                                {getPosicaoNome(foto.posicao)}
+                              </Badge>
+                              <Badge
+                                className={cn(
+                                  "backdrop-blur-sm",
+                                  foto.status_aprovacao === "aprovada"
+                                    ? "bg-green-500 hover:bg-green-600"
+                                    : foto.status_aprovacao === "reprovada"
+                                      ? "bg-red-500 hover:bg-red-600"
+                                      : "bg-yellow-500 hover:bg-yellow-600",
+                                )}
+                              >
+                                {foto.status_aprovacao === "aprovada" ? (
+                                  <>
+                                    <Check className="h-3 w-3 mr-1" /> Aprovada
+                                  </>
+                                ) : foto.status_aprovacao === "reprovada" ? (
+                                  <>
+                                    <X className="h-3 w-3 mr-1" /> Reprovada
+                                  </>
+                                ) : (
+                                  <>
+                                    <Clock className="h-3 w-3 mr-1" /> Pendente
+                                  </>
+                                )}
+                              </Badge>
+                            </div>
+
+                            {/* Conteúdo principal (imagem / vídeo / pdf / placeholder) */}
+                            {fileType === "image" && (
+                              <a
+                                href={foto.arquivo_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full h-full"
+                              >
+                                <img
+                                  src={foto.arquivo_url}
+                                  alt={getPosicaoNome(foto.posicao)}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    console.error("Erro ao carregar imagem:", foto.arquivo_url);
+                                    (e.target as HTMLImageElement).style.display = "none";
+                                  }}
+                                />
+                              </a>
+                            )}
+
+                            {fileType === "video" && (
+                              <video
+                                src={foto.arquivo_url}
+                                controls
+                                className="w-full h-full object-cover rounded-none"
+                              />
+                            )}
+
+                            {fileType === "pdf" && (
+                              <div className="flex flex-col items-center justify-center text-center px-4">
+                                <FileText className="h-10 w-10 text-primary mb-2" />
+                                <p className="text-sm font-medium mb-1">Documento PDF</p>
+                                <p className="text-xs text-muted-foreground mb-3">{foto.arquivo_nome}</p>
+                                <Button size="sm" variant="outline" asChild>
+                                  <a href={foto.arquivo_url} target="_blank" rel="noopener noreferrer">
+                                    Abrir PDF
+                                  </a>
+                                </Button>
+                              </div>
+                            )}
+
+                            {fileType === "other" && (
+                              <div className="flex flex-col items-center justify-center text-center px-4">
+                                <Camera className="h-10 w-10 text-muted-foreground mb-2" />
+                                <p className="text-sm text-muted-foreground">Imagem não disponível</p>
+                              </div>
+                            )}
+
+                            {/* Overlay de ações (apenas para manual + pendente) */}
+                            {vistoria.tipo_abertura === "manual" && foto.status_aprovacao === "pendente" && (
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end">
+                                <div className="w-full p-3 space-y-2">
+                                  <p className="text-white text-xs font-medium mb-2">Ações da Foto:</p>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      className="bg-green-600 hover:bg-green-700 text-white"
+                                      onClick={() => handleAprovarFoto(foto.id)}
+                                    >
+                                      <Check className="h-4 w-4 mr-1" />
+                                      Aprovar
+                                    </Button>
+                                    <Button size="sm" variant="destructive" onClick={() => handleReprovarFoto(foto)}>
+                                      <X className="h-4 w-4 mr-1" />
+                                      Reprovar
+                                    </Button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          )}
-                        </div>
-                        
-                        <CardContent className="p-4 space-y-3">
-                          {foto.aprovada_em && (
-                            <div className="text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3 inline mr-1" />
-                              {format(new Date(foto.aprovada_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                            </div>
-                          )}
-                          
-                          {foto.observacao_reprovacao && (
-                            <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-3 space-y-1">
-                              <p className="text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
-                                <X className="h-3 w-3" />
-                                Motivo da reprovação:
-                              </p>
-                              <p className="text-xs text-red-700 dark:text-red-300">{foto.observacao_reprovacao}</p>
-                            </div>
-                          )}
-                          
-                          {foto.analise_ia && (
-                            <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3 space-y-1">
-                              <p className="text-xs text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1">
-                                <Brain className="h-3 w-3" />
-                                Análise IA:
-                              </p>
-                              <p className="text-xs text-purple-700 dark:text-purple-300 leading-relaxed">
-                                {typeof foto.analise_ia === 'string' ? foto.analise_ia : foto.analise_ia.analise || 'Análise não disponível'}
-                              </p>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
+                            )}
+                          </div>
+
+                          <CardContent className="p-4 space-y-3">
+                            {foto.aprovada_em && (
+                              <div className="text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3 inline mr-1" />
+                                {format(new Date(foto.aprovada_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                              </div>
+                            )}
+
+                            {foto.observacao_reprovacao && (
+                              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-3 space-y-1">
+                                <p className="text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
+                                  <X className="h-3 w-3" />
+                                  Motivo da reprovação:
+                                </p>
+                                <p className="text-xs text-red-700 dark:text-red-300">{foto.observacao_reprovacao}</p>
+                              </div>
+                            )}
+
+                            {foto.analise_ia && (
+                              <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3 space-y-1">
+                                <p className="text-xs text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1">
+                                  <Brain className="h-3 w-3" />
+                                  Análise IA:
+                                </p>
+                                <p className="text-xs text-purple-700 dark:text-purple-300 leading-relaxed">
+                                  {typeof foto.analise_ia === "string"
+                                    ? foto.analise_ia
+                                    : foto.analise_ia.analise || "Análise não disponível"}
+                                </p>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -944,23 +1048,29 @@ export default function VistoriaDetalhe() {
                         <div>
                           <div className="flex items-center gap-2 mb-4">
                             <div className="h-1 w-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"></div>
-                            <h4 className="font-semibold text-purple-900 dark:text-purple-300">Análise Detalhada por Foto</h4>
+                            <h4 className="font-semibold text-purple-900 dark:text-purple-300">
+                              Análise Detalhada por Foto
+                            </h4>
                           </div>
                           <div className="space-y-4">
                             {vistoria.analise_ia.analises.map((analise: any, index: number) => (
-                              <Card key={index} className="bg-white dark:bg-background border-2 border-purple-200/50 hover:border-purple-300 transition-colors">
+                              <Card
+                                key={index}
+                                className="bg-white dark:bg-background border-2 border-purple-200/50 hover:border-purple-300 transition-colors"
+                              >
                                 <CardContent className="p-5">
                                   <div className="flex items-start gap-4">
                                     <div className="flex-shrink-0">
-                                      <Badge variant="outline" className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300">
+                                      <Badge
+                                        variant="outline"
+                                        className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300"
+                                      >
                                         <Camera className="h-3 w-3 mr-1" />
                                         {getPosicaoNome(analise.posicao)}
                                       </Badge>
                                     </div>
                                     <div className="flex-1 space-y-2">
-                                      <p className="text-sm text-foreground/70 leading-relaxed">
-                                        {analise.analise}
-                                      </p>
+                                      <p className="text-sm text-foreground/70 leading-relaxed">{analise.analise}</p>
                                       {analise.danos_encontrados && analise.danos_encontrados.length > 0 && (
                                         <div className="flex gap-1 flex-wrap mt-2">
                                           {analise.danos_encontrados.map((dano: string, idx: number) => (
@@ -985,7 +1095,10 @@ export default function VistoriaDetalhe() {
                       <div className="bg-purple-100/50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
                         <div className="flex items-center gap-2 text-xs text-purple-700 dark:text-purple-400">
                           <Clock className="h-3.5 w-3.5" />
-                          <span>Análise gerada automaticamente por IA em {format(new Date(vistoria.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                          <span>
+                            Análise gerada automaticamente por IA em{" "}
+                            {format(new Date(vistoria.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </span>
                         </div>
                       </div>
                     )}
@@ -1000,9 +1113,9 @@ export default function VistoriaDetalhe() {
                   </div>
                   <p className="text-lg font-semibold mb-2">Análise de IA não disponível</p>
                   <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                    {vistoria.tipo_abertura === 'manual' 
-                      ? 'Vistorias manuais não possuem análise automatizada. A análise deve ser feita manualmente pelo time técnico.'
-                      : 'A análise será gerada automaticamente assim que as fotos forem enviadas e processadas pelo sistema.'}
+                    {vistoria.tipo_abertura === "manual"
+                      ? "Vistorias manuais não possuem análise automatizada. A análise deve ser feita manualmente pelo time técnico."
+                      : "A análise será gerada automaticamente assim que as fotos forem enviadas e processadas pelo sistema."}
                   </p>
                 </CardContent>
               </Card>
@@ -1088,9 +1201,7 @@ export default function VistoriaDetalhe() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-6 space-y-4">
-                      {termo.termos.descricao && (
-                        <p className="text-muted-foreground">{termo.termos.descricao}</p>
-                      )}
+                      {termo.termos.descricao && <p className="text-muted-foreground">{termo.termos.descricao}</p>}
 
                       <Separator />
 
@@ -1106,7 +1217,7 @@ export default function VistoriaDetalhe() {
                           <div>
                             <span className="text-muted-foreground block mb-1">Endereço IP:</span>
                             <p className="font-mono text-xs bg-background px-2 py-1 rounded border">
-                              {termo.ip_address || 'Não disponível'}
+                              {termo.ip_address || "Não disponível"}
                             </p>
                           </div>
                           {termo.user_agent && (
@@ -1130,9 +1241,9 @@ export default function VistoriaDetalhe() {
                           </Button>
                         )}
                         {vistoria.assinatura_url && (
-                          <Button 
-                            variant="outline" 
-                            asChild 
+                          <Button
+                            variant="outline"
+                            asChild
                             className="flex-1 gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-300"
                           >
                             <a href={vistoria.assinatura_url} target="_blank" rel="noopener noreferrer">
@@ -1152,15 +1263,11 @@ export default function VistoriaDetalhe() {
                   <FileCheck className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-20" />
                   <p className="text-lg font-medium mb-2">Nenhum termo assinado</p>
                   <p className="text-sm text-muted-foreground">Os termos aceitos aparecerão aqui quando disponíveis</p>
-                  
+
                   {vistoria.assinatura_url && (
                     <div className="mt-6">
                       <Separator className="mb-6" />
-                      <Button 
-                        variant="outline"
-                        asChild
-                        className="gap-2"
-                      >
+                      <Button variant="outline" asChild className="gap-2">
                         <a href={vistoria.assinatura_url} target="_blank" rel="noopener noreferrer">
                           <FileCheck className="h-4 w-4" />
                           Visualizar Assinatura Digital
@@ -1215,16 +1322,19 @@ export default function VistoriaDetalhe() {
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
                       <h4 className="font-semibold mb-2">Vítima ou Causador?</h4>
-                      <Badge variant={vistoria.vitima_ou_causador === 'vitima' ? 'destructive' : 'secondary'}>
-                        {vistoria.vitima_ou_causador === 'vitima' ? 'Vítima' : 
-                         vistoria.vitima_ou_causador === 'causador' ? 'Causador' : 'Não informado'}
+                      <Badge variant={vistoria.vitima_ou_causador === "vitima" ? "destructive" : "secondary"}>
+                        {vistoria.vitima_ou_causador === "vitima"
+                          ? "Vítima"
+                          : vistoria.vitima_ou_causador === "causador"
+                            ? "Causador"
+                            : "Não informado"}
                       </Badge>
                     </div>
 
                     <div>
                       <h4 className="font-semibold mb-2">Houve terceiros envolvidos?</h4>
-                      <Badge variant={vistoria.tem_terceiros ? 'default' : 'secondary'}>
-                        {vistoria.tem_terceiros ? 'Sim' : 'Não'}
+                      <Badge variant={vistoria.tem_terceiros ? "default" : "secondary"}>
+                        {vistoria.tem_terceiros ? "Sim" : "Não"}
                       </Badge>
                       {vistoria.tem_terceiros && vistoria.placa_terceiro && (
                         <p className="text-sm text-muted-foreground mt-1">Placa: {vistoria.placa_terceiro}</p>
@@ -1233,36 +1343,36 @@ export default function VistoriaDetalhe() {
 
                     <div>
                       <h4 className="font-semibold mb-2">Local possui câmeras?</h4>
-                      <Badge variant={vistoria.local_tem_camera ? 'default' : 'secondary'}>
-                        {vistoria.local_tem_camera ? 'Sim' : 'Não'}
+                      <Badge variant={vistoria.local_tem_camera ? "default" : "secondary"}>
+                        {vistoria.local_tem_camera ? "Sim" : "Não"}
                       </Badge>
                     </div>
 
                     <div>
                       <h4 className="font-semibold mb-2">Fez Boletim de Ocorrência?</h4>
-                      <Badge variant={vistoria.fez_bo ? 'default' : 'secondary'}>
-                        {vistoria.fez_bo ? 'Sim' : 'Não'}
+                      <Badge variant={vistoria.fez_bo ? "default" : "secondary"}>
+                        {vistoria.fez_bo ? "Sim" : "Não"}
                       </Badge>
                     </div>
 
                     <div>
                       <h4 className="font-semibold mb-2">Foi ao hospital?</h4>
-                      <Badge variant={vistoria.foi_hospital ? 'default' : 'secondary'}>
-                        {vistoria.foi_hospital ? 'Sim' : 'Não'}
+                      <Badge variant={vistoria.foi_hospital ? "default" : "secondary"}>
+                        {vistoria.foi_hospital ? "Sim" : "Não"}
                       </Badge>
                     </div>
 
                     <div>
                       <h4 className="font-semibold mb-2">O motorista faleceu?</h4>
-                      <Badge variant={vistoria.motorista_faleceu ? 'destructive' : 'secondary'}>
-                        {vistoria.motorista_faleceu ? 'Sim' : 'Não'}
+                      <Badge variant={vistoria.motorista_faleceu ? "destructive" : "secondary"}>
+                        {vistoria.motorista_faleceu ? "Sim" : "Não"}
                       </Badge>
                     </div>
 
                     <div>
                       <h4 className="font-semibold mb-2">A polícia foi ao local?</h4>
-                      <Badge variant={vistoria.policia_foi_local ? 'default' : 'secondary'}>
-                        {vistoria.policia_foi_local ? 'Sim' : 'Não'}
+                      <Badge variant={vistoria.policia_foi_local ? "default" : "secondary"}>
+                        {vistoria.policia_foi_local ? "Sim" : "Não"}
                       </Badge>
                     </div>
                   </div>
@@ -1310,26 +1420,22 @@ export default function VistoriaDetalhe() {
       <Dialog open={analiseDialogOpen} onOpenChange={setAnaliseDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {decisaoAnalise === 'aprovar' ? 'Aprovar Vistoria' : 'Pendenciar Vistoria'}
-            </DialogTitle>
+            <DialogTitle>{decisaoAnalise === "aprovar" ? "Aprovar Vistoria" : "Pendenciar Vistoria"}</DialogTitle>
             <DialogDescription>
-              {decisaoAnalise === 'aprovar' 
-                ? 'Adicione observações sobre a aprovação da vistoria (opcional mas recomendado).'
-                : 'Informe os motivos pelos quais a vistoria está sendo pendenciada.'}
+              {decisaoAnalise === "aprovar"
+                ? "Adicione observações sobre a aprovação da vistoria (opcional mas recomendado)."
+                : "Informe os motivos pelos quais a vistoria está sendo pendenciada."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="analise">
-                {decisaoAnalise === 'aprovar' ? 'Observações' : 'Motivos da Pendência'} *
-              </Label>
+              <Label htmlFor="analise">{decisaoAnalise === "aprovar" ? "Observações" : "Motivos da Pendência"} *</Label>
               <Textarea
                 id="analise"
                 value={observacaoAnalise}
                 onChange={(e) => setObservacaoAnalise(e.target.value)}
                 placeholder={
-                  decisaoAnalise === 'aprovar' 
+                  decisaoAnalise === "aprovar"
                     ? "Ex: Vistoria aprovada conforme análise técnica. Todas as fotos estão adequadas..."
                     : "Ex: Fotos do veículo apresentam qualidade insuficiente para análise..."
                 }
@@ -1341,12 +1447,12 @@ export default function VistoriaDetalhe() {
             <Button variant="outline" onClick={() => setAnaliseDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button 
-              variant={decisaoAnalise === 'aprovar' ? 'default' : 'destructive'} 
-              onClick={confirmarAnalise} 
+            <Button
+              variant={decisaoAnalise === "aprovar" ? "default" : "destructive"}
+              onClick={confirmarAnalise}
               className="gap-2"
             >
-              {decisaoAnalise === 'aprovar' ? (
+              {decisaoAnalise === "aprovar" ? (
                 <>
                   <Check className="h-4 w-4" />
                   Confirmar Aprovação
@@ -1385,7 +1491,7 @@ export default function VistoriaDetalhe() {
                 rows={3}
               />
             </div>
-            
+
             <div>
               <Label>Fotos Necessárias *</Label>
               <div className="flex gap-2 mt-2">
@@ -1393,7 +1499,7 @@ export default function VistoriaDetalhe() {
                   type="text"
                   value={novaFotoInput}
                   onChange={(e) => setNovaFotoInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && adicionarFotoNecessaria()}
+                  onKeyPress={(e) => e.key === "Enter" && adicionarFotoNecessaria()}
                   placeholder="Ex: Lateral direita - detalhes dos arranhões"
                   className="flex-1 px-3 py-2 border rounded-md"
                 />
@@ -1401,17 +1507,13 @@ export default function VistoriaDetalhe() {
                   Adicionar
                 </Button>
               </div>
-              
+
               {fotosNecessarias.length > 0 && (
                 <div className="mt-3 space-y-2">
                   {fotosNecessarias.map((foto, index) => (
                     <div key={index} className="flex items-center justify-between bg-muted p-2 rounded-md">
                       <span className="text-sm">{foto}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removerFotoNecessaria(index)}
-                      >
+                      <Button variant="ghost" size="sm" onClick={() => removerFotoNecessaria(index)}>
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
