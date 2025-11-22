@@ -1,9 +1,9 @@
-import { useState, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera } from 'lucide-react';
-import { toast } from 'sonner';
+import { useState, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Camera } from "lucide-react";
+import { toast } from "sonner";
 
 interface AvatarUploadProps {
   userId: string;
@@ -18,9 +18,9 @@ export function AvatarUpload({ userId, currentAvatarUrl, userName, onUploadCompl
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const initials = userName
-    .split(' ')
+    .split(" ")
     .map((n) => n[0])
-    .join('')
+    .join("")
     .toUpperCase()
     .slice(0, 2);
 
@@ -33,41 +33,36 @@ export function AvatarUpload({ userId, currentAvatarUrl, userName, onUploadCompl
       }
 
       const file = event.target.files[0];
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split(".").pop();
       const filePath = `${userId}/${Math.random()}.${fileExt}`;
 
       // Upload para o storage
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
+      const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, file, { upsert: true });
 
       if (uploadError) {
         throw uploadError;
       }
 
       // Pegar URL pública
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("avatars").getPublicUrl(filePath);
 
       // Atualizar perfil com URL do avatar
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', userId);
+      const { error: updateError } = await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", userId);
 
       if (updateError) {
         throw updateError;
       }
 
       setAvatarUrl(publicUrl);
-      toast.success('Foto atualizada com sucesso!');
-      
+      toast.success("Foto atualizada com sucesso!");
+
       if (onUploadComplete) {
         onUploadComplete(publicUrl);
       }
     } catch (error: any) {
-      toast.error('Erro ao fazer upload da foto: ' + error.message);
+      toast.error("Erro ao fazer upload da foto: " + error.message);
     } finally {
       setUploading(false);
     }
@@ -77,13 +72,8 @@ export function AvatarUpload({ userId, currentAvatarUrl, userName, onUploadCompl
     <div className="flex flex-col items-center gap-4">
       <div className="relative">
         <Avatar className="h-24 w-24">
-          <AvatarImage 
-            src={avatarUrl || '/images/logo-collapsed.jpg'} 
-            alt={userName}
-          />
-          <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
-            {initials}
-          </AvatarFallback>
+          <AvatarImage src={avatarUrl || "/images/logo-collapsed.png"} alt={userName} />
+          <AvatarFallback className="bg-primary text-primary-foreground text-2xl">{initials}</AvatarFallback>
         </Avatar>
         <Button
           type="button"
