@@ -8,12 +8,19 @@ import { Search, CheckCircle2, Workflow, ChevronDown } from "lucide-react";
 import { formatCPF, formatPlaca } from "@/lib/validators";
 import { CriarDadosTesteButton } from "@/components/CriarDadosTesteButton";
 
+type CaminhoStatusItem = {
+  status_nome: string;
+  descricao_publica?: string | null;
+  created_at: string;
+};
+
 type ResultadoSinistro = {
   atendimento: any;
   vistoria: any | null;
   fluxoNome: string;
   statusPublicos: any[];
   andamentos: any[];
+  caminhoStatus: CaminhoStatusItem[];
 };
 
 export default function AcompanhamentoSinistro() {
@@ -71,10 +78,7 @@ export default function AcompanhamentoSinistro() {
           .select("*")
           .eq("numero", numeroSinistro);
 
-        if (errAtendNum) {
-          console.error(errAtendNum);
-        }
-
+        if (errAtendNum) console.error(errAtendNum);
         if (atendNum?.length) atendimentosEncontrados = atendNum;
       }
 
@@ -85,27 +89,21 @@ export default function AcompanhamentoSinistro() {
           .select("*")
           .eq("cliente_cpf", cleanBusca);
 
-        if (errVistCpf) {
-          console.error(errVistCpf);
-        }
-
+        if (errVistCpf) console.error(errVistCpf);
         if (vistCPF?.length) vistoriasEncontradas.push(...vistCPF);
       }
 
-      // 3) Buscar por PLACA (aceita letras e números)
+      // 3) Buscar por PLACA
       if (isPlaca) {
-        const placaLimpa = cleanBusca.toUpperCase(); // ABC1D23
-        const placaFormatada = formatPlaca(cleanBusca); // ABC-1D23 ou similar
+        const placaLimpa = cleanBusca.toUpperCase();
+        const placaFormatada = formatPlaca(cleanBusca);
 
         const { data: vistPlaca, error: errVistPlaca } = await supabase
           .from("vistorias")
           .select("*")
           .or(`veiculo_placa.eq.${placaLimpa},veiculo_placa.eq.${placaFormatada}`);
 
-        if (errVistPlaca) {
-          console.error(errVistPlaca);
-        }
-
+        if (errVistPlaca) console.error(errVistPlaca);
         if (vistPlaca?.length) vistoriasEncontradas.push(...vistPlaca);
       }
 
@@ -124,16 +122,12 @@ export default function AcompanhamentoSinistro() {
           .select("*")
           .in("id", atIds);
 
-        if (errAtendVist) {
-          console.error(errAtendVist);
-        }
-
+        if (errAtendVist) console.error(errAtendVist);
         if (atendVist?.length) atendimentosEncontrados.push(...atendVist);
       }
 
-      // Remover duplicados de atendimentos
+      // Remover duplicados
       const mapaAt: Record<string, any> = Object.fromEntries(atendimentosEncontrados.map((a: any) => [a.id, a]));
-
       const atendimentos = Object.values(mapaAt);
 
       if (atendimentos.length === 0) {
@@ -150,9 +144,7 @@ export default function AcompanhamentoSinistro() {
       if (fluxoIds.length > 0) {
         const { data: fluxos, error: errFluxos } = await supabase.from("fluxos").select("id, nome").in("id", fluxoIds);
 
-        if (errFluxos) {
-          console.error(errFluxos);
-        }
+        if (errFluxos) console.error(errFluxos);
 
         fluxos?.forEach((f: any) => {
           nomeFluxos[f.id] = f.nome;
@@ -165,17 +157,17 @@ export default function AcompanhamentoSinistro() {
           .eq("visivel_publico", true)
           .order("ordem_exibicao");
 
-        if (errStatus) {
-          console.error(errStatus);
-        }
+        if (errStatus) console.error(errStatus);
 
         status?.forEach((s: any) => {
-          if (!statusPublicosPorFluxo[s.fluxo_id]) statusPublicosPorFluxo[s.fluxo_id] = [];
+          if (!statusPublicosPorFluxo[s.fluxo_id]) {
+            statusPublicosPorFluxo[s.fluxo_id] = [];
+          }
           statusPublicosPorFluxo[s.fluxo_id].push(s);
         });
       }
 
-      // Montar resultados completos
+      // Montar resultados
       const resultadosFinal: ResultadoSinistro[] = await Promise.all(
         atendimentos.map(async (at: any) => {
           const vist =
@@ -186,18 +178,16 @@ export default function AcompanhamentoSinistro() {
           const statusPublicosFluxo = statusPublicosPorFluxo[at.fluxo_id] || [];
           const allowedStatusNames = new Set(statusPublicosFluxo.map((s: any) => s.status_nome));
 
-          // Buscar andamentos
+          // Andamentos
           const { data: andamentosData, error: errAnd } = await supabase
             .from("andamentos")
             .select("*, profiles!andamentos_created_by_fkey(nome)")
             .eq("atendimento_id", at.id)
             .order("created_at", { ascending: true });
 
-          if (errAnd) {
-            console.error(errAnd);
-          }
+          if (errAnd) console.error(errAnd);
 
-          // Buscar histórico de status (apenas os campos de status)
+          // Histórico de status
           const { data: hist, error: errHist } = await supabase
             .from("atendimentos_historico")
             .select("*")
@@ -205,23 +195,19 @@ export default function AcompanhamentoSinistro() {
             .contains("campos_alterados", ["status"])
             .order("created_at", { ascending: true });
 
-          if (errHist) {
-            console.error(errHist);
-          }
+          if (errHist) console.error(errHist);
 
-          // Filtrar histórico para exibir apenas status permitidos/visíveis
+          // Filtra histórico apenas para status permitidos (se houver config)
           const histFiltrado = (hist || []).filter((h: any) => {
-            if (allowedStatusNames.size === 0) return true; // se não há config, mostra tudo
-
+            if (allowedStatusNames.size === 0) return true;
             const anterior = (h.valores_anteriores as any)?.status;
             const novo = (h.valores_novos as any)?.status;
-
             const anteriorPermitido = anterior ? allowedStatusNames.has(anterior) : false;
             const novoPermitido = novo ? allowedStatusNames.has(novo) : false;
-
             return anteriorPermitido || novoPermitido;
           });
 
+          // Monta timeline (andamentos + mudanças de status)
           const timeline = [
             ...(andamentosData || []).map((a: any) => ({
               id: `and-${a.id}`,
@@ -241,12 +227,52 @@ export default function AcompanhamentoSinistro() {
             })),
           ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
+          // 👉 Caminho REAL de status percorridos (para o card "Fluxo do sinistro")
+          const caminhoStatusRaw = (histFiltrado || [])
+            .map((h: any) => {
+              const novo = (h.valores_novos as any)?.status;
+              if (!novo) return null;
+              return {
+                status_nome: novo as string,
+                created_at: h.created_at as string,
+              };
+            })
+            .filter(Boolean) as { status_nome: string; created_at: string }[];
+
+          // Se não há histórico, mas existe status atual, usa ele
+          if (caminhoStatusRaw.length === 0 && at.status) {
+            caminhoStatusRaw.push({
+              status_nome: at.status,
+              created_at: at.created_at,
+            });
+          }
+
+          // Remove repetições consecutivas
+          const caminhoStatusDedup: { status_nome: string; created_at: string }[] = [];
+          for (const item of caminhoStatusRaw) {
+            const last = caminhoStatusDedup[caminhoStatusDedup.length - 1];
+            if (!last || last.status_nome !== item.status_nome) {
+              caminhoStatusDedup.push(item);
+            }
+          }
+
+          // Enriquecer com descrição pública
+          const caminhoStatus: CaminhoStatusItem[] = caminhoStatusDedup.map((item) => {
+            const config = statusPublicosFluxo.find((s: any) => s.status_nome === item.status_nome);
+            return {
+              status_nome: item.status_nome,
+              descricao_publica: config?.descricao_publica ?? null,
+              created_at: item.created_at,
+            };
+          });
+
           return {
             atendimento: at,
             vistoria: vist,
             fluxoNome: nomeFluxos[at.fluxo_id] || "Fluxo",
             statusPublicos: statusPublicosFluxo,
             andamentos: timeline,
+            caminhoStatus,
           };
         }),
       );
@@ -306,7 +332,7 @@ export default function AcompanhamentoSinistro() {
           <p className="text-center text-muted-foreground">Digite para consultar</p>
         ) : (
           resultados.map((item) => {
-            const { atendimento, vistoria, fluxoNome, statusPublicos, andamentos } = item;
+            const { atendimento, vistoria, fluxoNome, statusPublicos, andamentos, caminhoStatus } = item;
             const isOpen = expandedId === atendimento.id;
 
             const placa = vistoria?.veiculo_placa ? formatPlaca(vistoria.veiculo_placa) : "";
@@ -315,8 +341,19 @@ export default function AcompanhamentoSinistro() {
 
             const resumoVeiculo = [modelo, ano, placa].filter(Boolean).join(" • ");
 
-            const statusAtualIndex = statusPublicos.findIndex((x: any) => x.status_nome === atendimento.status);
-            const statusAtualConfig = statusAtualIndex >= 0 ? statusPublicos[statusAtualIndex] : null;
+            const statusAtualConfig = statusPublicos.find((x: any) => x.status_nome === atendimento.status);
+
+            // Lista real de etapas percorridas; fallback para status configurados
+            const listaFluxo: CaminhoStatusItem[] =
+              caminhoStatus.length > 0
+                ? caminhoStatus
+                : statusPublicos.map((s: any) => ({
+                    status_nome: s.status_nome,
+                    descricao_publica: s.descricao_publica,
+                    created_at: atendimento.created_at,
+                  }));
+
+            const lastIndex = listaFluxo.length - 1;
 
             return (
               <Card className="mb-4" key={atendimento.id}>
@@ -414,25 +451,23 @@ export default function AcompanhamentoSinistro() {
                       </Card>
                     )}
 
-                    {/* Progresso / Fluxo e Status */}
-                    {statusPublicos.length > 0 && (
+                    {/* Fluxo do sinistro – caminho REAL */}
+                    {listaFluxo.length > 0 && (
                       <Card>
                         <CardHeader className="py-3">
                           <CardTitle className="text-base">Fluxo do sinistro</CardTitle>
                           <p className="text-xs text-muted-foreground">
-                            Veja em qual etapa o seu sinistro está e quais já foram concluídas.
+                            Aqui você vê todas as etapas (status) pelas quais o seu sinistro já passou, na ordem em que
+                            aconteceram.
                           </p>
                         </CardHeader>
                         <CardContent className="space-y-2">
-                          {statusPublicos.map((s, i) => {
-                            const currentIndex = statusPublicos.findIndex(
-                              (x: any) => x.status_nome === atendimento.status,
-                            );
-                            const done = currentIndex > i;
-                            const isCurrent = currentIndex === i;
+                          {listaFluxo.map((s, i) => {
+                            const isCurrent = i === lastIndex;
+                            const done = i < lastIndex;
 
                             return (
-                              <div key={s.id} className="flex gap-3 py-3 border-b last:border-0">
+                              <div key={`${s.status_nome}-${i}`} className="flex gap-3 py-3 border-b last:border-0">
                                 <div className="flex flex-col items-center">
                                   <div
                                     className={`w-7 h-7 rounded-full flex items-center justify-center ${
@@ -451,7 +486,7 @@ export default function AcompanhamentoSinistro() {
                                       <div className="w-2 h-2 rounded-full bg-muted-foreground" />
                                     )}
                                   </div>
-                                  {i < statusPublicos.length - 1 && <div className="flex-1 w-px bg-border mt-1" />}
+                                  {i < listaFluxo.length - 1 && <div className="flex-1 w-px bg-border mt-1" />}
                                 </div>
 
                                 <div className="flex-1">
@@ -467,8 +502,15 @@ export default function AcompanhamentoSinistro() {
                                       </span>
                                     )}
                                   </p>
+
                                   {s.descricao_publica && (
                                     <p className="text-xs text-muted-foreground mt-1">{s.descricao_publica}</p>
+                                  )}
+
+                                  {s.created_at && (
+                                    <p className="text-[11px] text-muted-foreground mt-1">
+                                      Atualizado em {new Date(s.created_at).toLocaleString("pt-BR")}
+                                    </p>
                                   )}
                                 </div>
                               </div>
