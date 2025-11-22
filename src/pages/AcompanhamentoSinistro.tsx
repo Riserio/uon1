@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, CheckCircle2, Clock, Car, User, Calendar, Workflow, ChevronDown } from "lucide-react";
+import { Search, CheckCircle2, Workflow, ChevronDown } from "lucide-react";
 import { formatCPF, formatPlaca } from "@/lib/validators";
 import { CriarDadosTesteButton } from "@/components/CriarDadosTesteButton";
 
@@ -35,7 +35,7 @@ export default function AcompanhamentoSinistro() {
       return;
     }
 
-    // Placa
+    // Placa (permite letras e números)
     if (/[a-zA-Z]/.test(cleaned)) {
       setBusca(formatPlaca(cleaned));
       return;
@@ -66,27 +66,45 @@ export default function AcompanhamentoSinistro() {
       if (isNumeric) {
         const numeroSinistro = parseInt(cleanBusca, 10);
 
-        const { data: atendNum } = await supabase.from("atendimentos").select("*").eq("numero", numeroSinistro);
+        const { data: atendNum, error: errAtendNum } = await supabase
+          .from("atendimentos")
+          .select("*")
+          .eq("numero", numeroSinistro);
+
+        if (errAtendNum) {
+          console.error(errAtendNum);
+        }
 
         if (atendNum?.length) atendimentosEncontrados = atendNum;
       }
 
       // 2) Buscar por CPF
       if (isNumeric && cleanBusca.length === 11) {
-        const { data: vistCPF } = await supabase.from("vistorias").select("*").eq("cliente_cpf", cleanBusca);
+        const { data: vistCPF, error: errVistCpf } = await supabase
+          .from("vistorias")
+          .select("*")
+          .eq("cliente_cpf", cleanBusca);
+
+        if (errVistCpf) {
+          console.error(errVistCpf);
+        }
 
         if (vistCPF?.length) vistoriasEncontradas.push(...vistCPF);
       }
 
-      // 3) Buscar por PLACA (correção aplicada)
+      // 3) Buscar por PLACA (aceita letras e números)
       if (isPlaca) {
         const placaLimpa = cleanBusca.toUpperCase(); // ABC1D23
-        const placaFormatada = formatPlaca(cleanBusca); // ABC-1D23 ou ABC1D23 dependendo da função
+        const placaFormatada = formatPlaca(cleanBusca); // ABC-1D23 ou similar
 
-        const { data: vistPlaca } = await supabase
+        const { data: vistPlaca, error: errVistPlaca } = await supabase
           .from("vistorias")
           .select("*")
           .or(`veiculo_placa.eq.${placaLimpa},veiculo_placa.eq.${placaFormatada}`);
+
+        if (errVistPlaca) {
+          console.error(errVistPlaca);
+        }
 
         if (vistPlaca?.length) vistoriasEncontradas.push(...vistPlaca);
       }
@@ -101,13 +119,20 @@ export default function AcompanhamentoSinistro() {
       const atIds = Array.from(new Set(vistoriasEncontradas.map((v: any) => v.atendimento_id).filter(Boolean)));
 
       if (atIds.length > 0) {
-        const { data: atendVist } = await supabase.from("atendimentos").select("*").in("id", atIds);
+        const { data: atendVist, error: errAtendVist } = await supabase
+          .from("atendimentos")
+          .select("*")
+          .in("id", atIds);
+
+        if (errAtendVist) {
+          console.error(errAtendVist);
+        }
 
         if (atendVist?.length) atendimentosEncontrados.push(...atendVist);
       }
 
-      // Remover duplicados
-      const mapaAt = Object.fromEntries(atendimentosEncontrados.map((a: any) => [a.id, a]));
+      // Remover duplicados de atendimentos
+      const mapaAt: Record<string, any> = Object.fromEntries(atendimentosEncontrados.map((a: any) => [a.id, a]));
 
       const atendimentos = Object.values(mapaAt);
 
@@ -116,29 +141,37 @@ export default function AcompanhamentoSinistro() {
         return;
       }
 
-      // Buscar fluxos
+      // Buscar fluxos e configurações de status públicos
       const fluxoIds = Array.from(new Set(atendimentos.map((a: any) => a.fluxo_id).filter(Boolean)));
 
       let nomeFluxos: Record<string, string> = {};
-      let statusPublicos: Record<string, any[]> = {};
+      let statusPublicosPorFluxo: Record<string, any[]> = {};
 
       if (fluxoIds.length > 0) {
-        const { data: fluxos } = await supabase.from("fluxos").select("id, nome").in("id", fluxoIds);
+        const { data: fluxos, error: errFluxos } = await supabase.from("fluxos").select("id, nome").in("id", fluxoIds);
+
+        if (errFluxos) {
+          console.error(errFluxos);
+        }
 
         fluxos?.forEach((f: any) => {
           nomeFluxos[f.id] = f.nome;
         });
 
-        const { data: status } = await supabase
+        const { data: status, error: errStatus } = await supabase
           .from("status_publicos_config")
           .select("*")
           .in("fluxo_id", fluxoIds)
           .eq("visivel_publico", true)
           .order("ordem_exibicao");
 
+        if (errStatus) {
+          console.error(errStatus);
+        }
+
         status?.forEach((s: any) => {
-          if (!statusPublicos[s.fluxo_id]) statusPublicos[s.fluxo_id] = [];
-          statusPublicos[s.fluxo_id].push(s);
+          if (!statusPublicosPorFluxo[s.fluxo_id]) statusPublicosPorFluxo[s.fluxo_id] = [];
+          statusPublicosPorFluxo[s.fluxo_id].push(s);
         });
       }
 
@@ -150,35 +183,61 @@ export default function AcompanhamentoSinistro() {
               .filter((v: any) => v.atendimento_id === at.id)
               .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] || null;
 
+          const statusPublicosFluxo = statusPublicosPorFluxo[at.fluxo_id] || [];
+          const allowedStatusNames = new Set(statusPublicosFluxo.map((s: any) => s.status_nome));
+
           // Buscar andamentos
-          const { data: andamentosData } = await supabase
+          const { data: andamentosData, error: errAnd } = await supabase
             .from("andamentos")
             .select("*, profiles!andamentos_created_by_fkey(nome)")
             .eq("atendimento_id", at.id)
             .order("created_at", { ascending: true });
 
-          // Buscar histórico de status
-          const { data: hist } = await supabase
+          if (errAnd) {
+            console.error(errAnd);
+          }
+
+          // Buscar histórico de status (apenas os campos de status)
+          const { data: hist, error: errHist } = await supabase
             .from("atendimentos_historico")
             .select("*")
             .eq("atendimento_id", at.id)
             .contains("campos_alterados", ["status"])
             .order("created_at", { ascending: true });
 
+          if (errHist) {
+            console.error(errHist);
+          }
+
+          // Filtrar histórico para exibir apenas status permitidos/visíveis
+          const histFiltrado = (hist || []).filter((h: any) => {
+            if (allowedStatusNames.size === 0) return true; // se não há config, mostra tudo
+
+            const anterior = (h.valores_anteriores as any)?.status;
+            const novo = (h.valores_novos as any)?.status;
+
+            const anteriorPermitido = anterior ? allowedStatusNames.has(anterior) : false;
+            const novoPermitido = novo ? allowedStatusNames.has(novo) : false;
+
+            return anteriorPermitido || novoPermitido;
+          });
+
           const timeline = [
             ...(andamentosData || []).map((a: any) => ({
-              id: a.id,
+              id: `and-${a.id}`,
+              tipo: "andamento" as const,
               descricao: a.descricao,
               created_at: a.created_at,
               created_by: a.profiles?.nome || "Sistema",
             })),
-            ...(hist || []).map((h: any) => ({
-              id: h.id,
+            ...histFiltrado.map((h: any) => ({
+              id: `hist-${h.id}`,
+              tipo: "status" as const,
               descricao: `Status alterado: ${
                 (h.valores_anteriores as any)?.status || "N/A"
               } → ${(h.valores_novos as any)?.status || "N/A"}`,
               created_at: h.created_at,
-              created_by: h.user_nome,
+              created_by: h.user_nome || "Sistema",
             })),
           ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
@@ -186,7 +245,7 @@ export default function AcompanhamentoSinistro() {
             atendimento: at,
             vistoria: vist,
             fluxoNome: nomeFluxos[at.fluxo_id] || "Fluxo",
-            statusPublicos: statusPublicos[at.fluxo_id] || [],
+            statusPublicos: statusPublicosFluxo,
             andamentos: timeline,
           };
         }),
@@ -256,22 +315,39 @@ export default function AcompanhamentoSinistro() {
 
             const resumoVeiculo = [modelo, ano, placa].filter(Boolean).join(" • ");
 
+            const statusAtualIndex = statusPublicos.findIndex((x: any) => x.status_nome === atendimento.status);
+            const statusAtualConfig = statusAtualIndex >= 0 ? statusPublicos[statusAtualIndex] : null;
+
             return (
               <Card className="mb-4" key={atendimento.id}>
                 <CardHeader
-                  className="cursor-pointer flex justify-between"
+                  className="cursor-pointer flex justify-between items-center"
                   onClick={() => setExpandedId(isOpen ? null : atendimento.id)}
                 >
-                  <div>
+                  <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <Workflow className="h-4 w-4 text-primary" />
                       <span className="font-medium text-primary">{fluxoNome}</span>
                     </div>
 
-                    <div className="mt-1 text-sm">
+                    <div className="mt-1 text-sm flex flex-wrap items-center gap-2">
                       <span className="font-semibold">#{atendimento.numero}</span>
 
-                      {resumoVeiculo && <span className="ml-3 text-muted-foreground">{resumoVeiculo}</span>}
+                      {resumoVeiculo && (
+                        <>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="text-muted-foreground">{resumoVeiculo}</span>
+                        </>
+                      )}
+
+                      {atendimento.status && (
+                        <>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                            Status atual: {atendimento.status}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -279,55 +355,120 @@ export default function AcompanhamentoSinistro() {
                 </CardHeader>
 
                 {isOpen && (
-                  <CardContent className="space-y-6">
+                  <CardContent className="space-y-6 pb-6">
+                    {/* Resumo do Sinistro */}
+                    <Card>
+                      <CardHeader className="py-3">
+                        <CardTitle className="text-base">Resumo do sinistro</CardTitle>
+                      </CardHeader>
+                      <CardContent className="grid gap-4 text-sm md:grid-cols-2">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Fluxo atual</p>
+                          <p className="font-medium">{fluxoNome}</p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-muted-foreground">Status atual</p>
+                          <p className="font-medium">{atendimento.status || "Em análise"}</p>
+                          {statusAtualConfig?.descricao_publica && (
+                            <p className="text-xs text-muted-foreground mt-1">{statusAtualConfig.descricao_publica}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-muted-foreground">Data de abertura</p>
+                          <p className="font-medium">
+                            {atendimento.created_at ? new Date(atendimento.created_at).toLocaleString("pt-BR") : "-"}
+                          </p>
+                        </div>
+
+                        {vistoria?.cliente_nome && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Segurado</p>
+                            <p className="font-medium">{vistoria.cliente_nome}</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
                     {/* Dados do veículo */}
                     {vistoria && (
                       <Card>
-                        <CardContent className="p-4 space-y-2 text-sm">
+                        <CardHeader className="py-3">
+                          <CardTitle className="text-base">Dados do veículo</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 grid gap-2 text-sm md:grid-cols-3">
                           <p>
-                            <strong>Placa:</strong> {placa}
+                            <span className="text-xs text-muted-foreground block">Placa</span>
+                            <span className="font-medium">{placa || "-"}</span>
                           </p>
                           <p>
-                            <strong>Modelo:</strong> {modelo}
+                            <span className="text-xs text-muted-foreground block">Modelo</span>
+                            <span className="font-medium">{modelo || "-"}</span>
                           </p>
                           <p>
-                            <strong>Ano:</strong> {ano}
+                            <span className="text-xs text-muted-foreground block">Ano</span>
+                            <span className="font-medium">{ano || "-"}</span>
                           </p>
                         </CardContent>
                       </Card>
                     )}
 
-                    {/* Progresso */}
+                    {/* Progresso / Fluxo e Status */}
                     {statusPublicos.length > 0 && (
                       <Card>
-                        <CardHeader>
-                          <CardTitle>Progresso</CardTitle>
+                        <CardHeader className="py-3">
+                          <CardTitle className="text-base">Fluxo do sinistro</CardTitle>
+                          <p className="text-xs text-muted-foreground">
+                            Veja em qual etapa o seu sinistro está e quais já foram concluídas.
+                          </p>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-2">
                           {statusPublicos.map((s, i) => {
-                            const currentIndex = statusPublicos.findIndex((x) => x.status_nome === atendimento.status);
-                            const done = currentIndex >= i;
+                            const currentIndex = statusPublicos.findIndex(
+                              (x: any) => x.status_nome === atendimento.status,
+                            );
+                            const done = currentIndex > i;
+                            const isCurrent = currentIndex === i;
 
                             return (
-                              <div key={s.id} className="flex gap-3 py-3">
-                                <div
-                                  className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                                    done ? "bg-primary text-white" : "bg-muted"
-                                  }`}
-                                >
-                                  {done ? (
-                                    <CheckCircle2 className="h-4 w-4" />
-                                  ) : (
-                                    <div className="w-2 h-2 bg-muted-foreground rounded-full" />
-                                  )}
+                              <div key={s.id} className="flex gap-3 py-3 border-b last:border-0">
+                                <div className="flex flex-col items-center">
+                                  <div
+                                    className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                                      done
+                                        ? "bg-primary text-primary-foreground"
+                                        : isCurrent
+                                          ? "border-2 border-primary bg-background text-primary"
+                                          : "bg-muted text-muted-foreground"
+                                    }`}
+                                  >
+                                    {done ? (
+                                      <CheckCircle2 className="h-4 w-4" />
+                                    ) : isCurrent ? (
+                                      <div className="w-2 h-2 rounded-full bg-primary" />
+                                    ) : (
+                                      <div className="w-2 h-2 rounded-full bg-muted-foreground" />
+                                    )}
+                                  </div>
+                                  {i < statusPublicos.length - 1 && <div className="flex-1 w-px bg-border mt-1" />}
                                 </div>
 
-                                <div>
-                                  <p className={`font-medium ${done ? "" : "text-muted-foreground"}`}>
+                                <div className="flex-1">
+                                  <p
+                                    className={`font-medium text-sm ${
+                                      isCurrent ? "text-primary" : done ? "" : "text-muted-foreground"
+                                    }`}
+                                  >
                                     {s.status_nome}
+                                    {isCurrent && (
+                                      <span className="ml-2 text-[10px] uppercase tracking-wide text-primary font-semibold">
+                                        ETAPA ATUAL
+                                      </span>
+                                    )}
                                   </p>
                                   {s.descricao_publica && (
-                                    <p className="text-xs text-muted-foreground">{s.descricao_publica}</p>
+                                    <p className="text-xs text-muted-foreground mt-1">{s.descricao_publica}</p>
                                   )}
                                 </div>
                               </div>
@@ -337,18 +478,23 @@ export default function AcompanhamentoSinistro() {
                       </Card>
                     )}
 
-                    {/* Histórico */}
+                    {/* Linha do tempo completa */}
                     {andamentos.length > 0 && (
                       <Card>
-                        <CardHeader>
-                          <CardTitle>Histórico</CardTitle>
+                        <CardHeader className="py-3">
+                          <CardTitle className="text-base">Linha do tempo do sinistro</CardTitle>
+                          <p className="text-xs text-muted-foreground">
+                            Aqui você acompanha todos os registros e movimentações do seu sinistro que podem ser
+                            exibidos ao público.
+                          </p>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-3">
                           {andamentos.map((a) => (
-                            <div key={a.id} className="border-l pl-3 py-2 text-sm mb-2">
-                              <p>{a.descricao}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {a.created_by} • {new Date(a.created_at).toLocaleString("pt-BR")}
+                            <div key={a.id} className="border-l pl-3 py-2 text-sm relative">
+                              <span className="w-2 h-2 rounded-full bg-primary absolute -left-1 top-3" />
+                              <p className="whitespace-pre-line">{a.descricao}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {a.created_by || "Sistema"} • {new Date(a.created_at).toLocaleString("pt-BR")}
                               </p>
                             </div>
                           ))}
