@@ -32,7 +32,7 @@ export default function AcompanhamentoSinistro() {
         setBusca(formatCPF(cleaned));
         return;
       }
-      // Acima disso, deixa só o número mesmo (sinistro/protocolo)
+      // Acima disso considera como ID/Nº sinistro/protocolo
       setBusca(cleaned);
       return;
     }
@@ -258,9 +258,7 @@ export default function AcompanhamentoSinistro() {
         {/* Header Minimalista */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-semibold text-foreground mb-2">Acompanhamento de Sinistro</h1>
-          <p className="text-sm text-muted-foreground">
-            Consulte o status do seu processo pelo CPF, placa ou número do sinistro
-          </p>
+          <p className="text-sm text-muted-foreground">Consulte pelo CPF, placa ou número do sinistro/protocolo</p>
         </div>
 
         {/* Botão de teste */}
@@ -274,7 +272,7 @@ export default function AcompanhamentoSinistro() {
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <Input
-                  placeholder="Digite CPF, Placa ou Nº do Sinistro/Protocolo"
+                  placeholder="Digite CPF, placa ou Nº do sinistro/protocolo"
                   value={busca}
                   onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleBuscar()}
@@ -302,6 +300,13 @@ export default function AcompanhamentoSinistro() {
               const { atendimento, vistoria, fluxoNome, statusPublicos, andamentos } = item;
               const isExpanded = expandedId === atendimento.id;
 
+              // Montagem de texto do veículo para não confundir
+              const placa = vistoria?.veiculo_placa ? formatPlaca(vistoria.veiculo_placa) : null;
+              const modelo = vistoria?.veiculo_modelo || null;
+              const ano = vistoria?.veiculo_ano || vistoria?.veiculo_ano_modelo || null;
+
+              const resumoVeiculo = [modelo, ano, placa].filter(Boolean).join(" • ");
+
               return (
                 <Card key={atendimento.id} className="border shadow-sm">
                   <CardHeader
@@ -313,25 +318,29 @@ export default function AcompanhamentoSinistro() {
                         <Workflow className="h-4 w-4 text-primary" />
                         <span className="text-sm font-medium text-primary">{fluxoNome}</span>
                       </div>
+
+                      {/* Linha principal: Nº do sinistro e veículo para não ter dúvida */}
                       <div className="flex flex-wrap items-center gap-3 text-sm">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
                           <span className="text-muted-foreground">Sinistro</span>
                           <span className="font-semibold">#{atendimento.numero}</span>
                         </div>
-                        {vistoria?.veiculo_placa && (
+
+                        {resumoVeiculo && (
                           <div className="flex items-center gap-1">
                             <Car className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">Placa</span>
-                            <span className="font-semibold">{formatPlaca(vistoria.veiculo_placa)}</span>
+                            <span className="font-semibold">{resumoVeiculo}</span>
                           </div>
                         )}
+
                         {vistoria?.cliente_nome && (
                           <div className="flex items-center gap-1">
                             <User className="h-4 w-4 text-muted-foreground" />
                             <span className="font-semibold">{vistoria.cliente_nome}</span>
                           </div>
                         )}
+
                         <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted">
                           <Clock className="h-3 w-3 text-muted-foreground" />
                           <span className="text-xs font-medium">{atendimento.status}</span>
@@ -370,6 +379,14 @@ export default function AcompanhamentoSinistro() {
                                 <div className="flex justify-between">
                                   <span className="text-muted-foreground">Modelo</span>
                                   <span className="font-medium">{vistoria.veiculo_modelo}</span>
+                                </div>
+                              )}
+                              {(vistoria.veiculo_ano || vistoria.veiculo_ano_modelo) && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Ano</span>
+                                  <span className="font-medium">
+                                    {vistoria.veiculo_ano || vistoria.veiculo_ano_modelo}
+                                  </span>
                                 </div>
                               )}
                             </div>
