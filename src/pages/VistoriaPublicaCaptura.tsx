@@ -155,7 +155,7 @@ export default function VistoriaPublicaCaptura() {
     }
   };
 
-  // OCR no CRLV + CNH + FRONTAL
+  // Input único: câmera + galeria + arquivos
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -190,10 +190,7 @@ export default function VistoriaPublicaCaptura() {
       validFiles.push(file);
     }
 
-    if (validFiles.length === 0) {
-      e.target.value = "";
-      return;
-    }
+    if (validFiles.length === 0) return;
 
     if (posicaoAtual.multiple) {
       // CRLV entra aqui (multiple: true)
@@ -212,7 +209,7 @@ export default function VistoriaPublicaCaptura() {
           });
           newPreviews.push(preview);
 
-          // Se for CRLV, guarda a primeira imagem para OCR
+          // Se for CRLV, guarda a primeira imagem para OCR de veículo
           if (posicaoAtual.id === "crlv" && !firstOcrBase64) {
             firstOcrBase64 = preview;
           }
@@ -224,7 +221,7 @@ export default function VistoriaPublicaCaptura() {
       setFotos({ ...fotos, [posicaoAtual.id]: [...existingFiles, ...validFiles] });
       setFotoPreviews({ ...fotoPreviews, [posicaoAtual.id]: [...existingPreviews, ...newPreviews] });
 
-      // Dispara OCR só uma vez para o CRLV (documento do carro)
+      // Dispara OCR do CRLV (uma vez, na primeira imagem)
       if (firstOcrBase64 && posicaoAtual.id === "crlv") {
         await processOcr(firstOcrBase64, "veiculo");
       }
@@ -254,7 +251,7 @@ export default function VistoriaPublicaCaptura() {
       }
     }
 
-    // limpa o input para permitir selecionar o mesmo arquivo de novo se necessário
+    // limpa o input para permitir selecionar o mesmo arquivo novamente
     e.target.value = "";
   };
 
@@ -294,6 +291,7 @@ export default function VistoriaPublicaCaptura() {
     setFotoPreviews(newPreviews);
   };
 
+  // Não salva File no localStorage, só dados serializáveis. Files vão via state.
   const handleContinue = () => {
     if (!vistoria) {
       toast.error("Não foi possível prosseguir com a vistoria.");
