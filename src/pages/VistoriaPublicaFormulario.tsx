@@ -1,33 +1,46 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { MaskedInput } from '@/components/ui/masked-input';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { 
-  ArrowRight, ArrowLeft, User, Calendar, Car, 
-  FileText, AlertCircle, CheckCircle, MapPin, Clock
-} from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
-import SketchPad from '@/components/SketchPad';
-import { validateCPF, validatePhone } from '@/lib/validators';
+import { useState, useEffect } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { MaskedInput } from "@/components/ui/masked-input";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import {
+  ArrowRight,
+  ArrowLeft,
+  User,
+  Calendar,
+  Car,
+  FileText,
+  AlertCircle,
+  CheckCircle,
+  MapPin,
+  Clock,
+} from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import SketchPad from "@/components/SketchPad";
+import { validateCPF, validatePhone } from "@/lib/validators";
 
 const STEPS = [
-  { id: 0, title: 'Dados Pessoais', icon: User, description: 'Informações do segurado' },
-  { id: 1, title: 'Dados do Evento', icon: Calendar, description: 'Quando e onde ocorreu' },
-  { id: 2, title: 'Informações Gerais', icon: AlertCircle, description: 'Detalhes do incidente' },
-  { id: 3, title: 'Documentos', icon: FileText, description: 'Anexos necessários' },
-  { id: 4, title: 'Croqui', icon: MapPin, description: 'Desenho do acidente' },
+  { id: 0, title: "Dados Pessoais", icon: User, description: "Informações do segurado" },
+  { id: 1, title: "Dados do Evento", icon: Calendar, description: "Quando e onde ocorreu" },
+  { id: 2, title: "Informações Gerais", icon: AlertCircle, description: "Detalhes do incidente" },
+  { id: 3, title: "Documentos", icon: FileText, description: "Anexos necessários" },
+  { id: 4, title: "Croqui", icon: MapPin, description: "Desenho do acidente" },
 ];
 
 export default function VistoriaPublicaFormulario() {
   const { token } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = location.state as {
+    fotos?: { [key: string]: File[] };
+  } | null;
+
   const [vistoria, setVistoria] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -35,19 +48,19 @@ export default function VistoriaPublicaFormulario() {
   const [tempData, setTempData] = useState<any>(null);
 
   const [formData, setFormData] = useState({
-    cliente_nome: '',
-    cliente_cpf: '',
-    cliente_email: '',
-    cliente_telefone: '',
-    data_evento: '',
-    hora_evento: '',
-    condutor_veiculo: '',
-    veiculo_placa: '',
-    veiculo_modelo: '',
-    narrar_fatos: '',
-    vitima_ou_causador: '',
+    cliente_nome: "",
+    cliente_cpf: "",
+    cliente_email: "",
+    cliente_telefone: "",
+    data_evento: "",
+    hora_evento: "",
+    condutor_veiculo: "",
+    veiculo_placa: "",
+    veiculo_modelo: "",
+    narrar_fatos: "",
+    vitima_ou_causador: "",
     tem_terceiros: false,
-    placa_terceiro: '',
+    placa_terceiro: "",
     local_tem_camera: false,
     fez_bo: false,
     foi_hospital: false,
@@ -59,7 +72,7 @@ export default function VistoriaPublicaFormulario() {
   const [laudoMedico, setLaudoMedico] = useState<File | null>(null);
   const [atestadoObito, setAtestadoObito] = useState<File | null>(null);
   const [laudoAlcoolemia, setLaudoAlcoolemia] = useState<File | null>(null);
-  const [croqui, setCroqui] = useState<string>('');
+  const [croqui, setCroqui] = useState<string>("");
 
   useEffect(() => {
     loadVistoria();
@@ -68,48 +81,55 @@ export default function VistoriaPublicaFormulario() {
   }, []); // Only run once on mount to prevent clearing user input
 
   const loadTempData = () => {
-    const temp = localStorage.getItem('vistoria_temp');
-    if (temp) {
-      const data = JSON.parse(temp);
-      setTempData(data);
-      
-      if (data.cnhData) {
-        setFormData(prev => ({
-          ...prev,
-          cliente_nome: data.cnhData.nome || '',
-          cliente_cpf: data.cnhData.cpf || '',
-        }));
-      }
-      
-      if (data.vehicleData) {
-        setFormData(prev => ({
-          ...prev,
-          veiculo_placa: data.vehicleData.placa || '',
-          veiculo_modelo: data.vehicleData.modelo || '',
-        }));
-      }
+    const temp = localStorage.getItem("vistoria_temp");
+    const stored = temp ? JSON.parse(temp) : null;
+
+    // Fotos vêm da navegação (state)
+    const fotosFromState = locationState?.fotos || {};
+
+    const data = {
+      ...stored,
+      fotos: fotosFromState,
+    };
+
+    setTempData(data);
+
+    if (data?.cnhData) {
+      setFormData((prev) => ({
+        ...prev,
+        cliente_nome: data.cnhData.nome || "",
+        cliente_cpf: data.cnhData.cpf || "",
+      }));
+    }
+
+    if (data?.vehicleData) {
+      setFormData((prev) => ({
+        ...prev,
+        veiculo_placa: data.vehicleData.placa || "",
+        veiculo_modelo: data.vehicleData.modelo || "",
+      }));
     }
   };
 
   const loadVistoria = async () => {
     try {
       const { data, error } = await supabase
-        .from('vistorias')
-        .select('*, corretoras(nome, logo_url)')
-        .eq('link_token', token)
-        .gt('link_expires_at', new Date().toISOString())
+        .from("vistorias")
+        .select("*, corretoras(nome, logo_url)")
+        .eq("link_token", token)
+        .gt("link_expires_at", new Date().toISOString())
         .single();
 
       if (error) throw error;
       if (!data) {
-        toast.error('Link inválido');
+        toast.error("Link inválido");
         return;
       }
 
       setVistoria(data);
     } catch (error) {
-      console.error('Erro ao carregar vistoria:', error);
-      toast.error('Erro ao carregar vistoria');
+      console.error("Erro ao carregar vistoria:", error);
+      toast.error("Erro ao carregar vistoria");
     } finally {
       setLoading(false);
     }
@@ -117,77 +137,74 @@ export default function VistoriaPublicaFormulario() {
 
   const uploadFile = async (file: File, path: string): Promise<string> => {
     const fileName = `${vistoria.id}/${path}/${Date.now()}_${file.name}`;
-    const { error: uploadError } = await supabase.storage
-      .from('vistorias')
-      .upload(fileName, file);
+    const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, file);
 
     if (uploadError) throw uploadError;
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('vistorias')
-      .getPublicUrl(fileName);
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("vistorias").getPublicUrl(fileName);
 
     return publicUrl;
   };
 
   const uploadDataUrl = async (dataUrl: string, path: string): Promise<string> => {
-    const blob = await fetch(dataUrl).then(r => r.blob());
-    const file = new File([blob], `${path}.png`, { type: 'image/png' });
+    const blob = await fetch(dataUrl).then((r) => r.blob());
+    const file = new File([blob], `${path}.png`, { type: "image/png" });
     return uploadFile(file, path);
   };
 
   const handleSubmit = async () => {
     // Validar campos obrigatórios
     const camposObrigatorios = [];
-    
+
     if (!formData.cliente_nome?.trim()) {
-      camposObrigatorios.push('Nome completo');
+      camposObrigatorios.push("Nome completo");
     }
-    
+
     if (!formData.cliente_cpf?.trim()) {
-      camposObrigatorios.push('CPF');
+      camposObrigatorios.push("CPF");
     } else if (!validateCPF(formData.cliente_cpf)) {
-      toast.error('CPF inválido. Por favor, verifique o número digitado.');
+      toast.error("CPF inválido. Por favor, verifique o número digitado.");
       setCurrentStep(0);
       return;
     }
-    
+
     if (!formData.data_evento) {
-      camposObrigatorios.push('Data do evento');
+      camposObrigatorios.push("Data do evento");
     }
-    
+
     if (!formData.hora_evento) {
-      camposObrigatorios.push('Hora do evento');
+      camposObrigatorios.push("Hora do evento");
     }
-    
+
     if (!formData.narrar_fatos?.trim()) {
-      camposObrigatorios.push('Descrição dos fatos');
+      camposObrigatorios.push("Descrição dos fatos");
     }
-    
+
     if (formData.cliente_telefone && !validatePhone(formData.cliente_telefone)) {
-      toast.error('Telefone inválido. Use o formato (00) 00000-0000');
+      toast.error("Telefone inválido. Use o formato (00) 00000-0000");
       setCurrentStep(0);
       return;
     }
-    
+
     // Validações condicionais
     if (formData.fez_bo && !boFile) {
-      camposObrigatorios.push('Boletim de Ocorrência (arquivo)');
+      camposObrigatorios.push("Boletim de Ocorrência (arquivo)");
     }
-    
+
     if (formData.foi_hospital && !laudoMedico) {
-      camposObrigatorios.push('Laudo Médico (arquivo)');
+      camposObrigatorios.push("Laudo Médico (arquivo)");
     }
-    
+
     if (formData.motorista_faleceu && !atestadoObito) {
-      camposObrigatorios.push('Atestado de Óbito (arquivo)');
+      camposObrigatorios.push("Atestado de Óbito (arquivo)");
     }
-    
+
     if (camposObrigatorios.length > 0) {
-      toast.error(
-        `Por favor, preencha os seguintes campos obrigatórios: ${camposObrigatorios.join(', ')}`,
-        { duration: 5000 }
-      );
+      toast.error(`Por favor, preencha os seguintes campos obrigatórios: ${camposObrigatorios.join(", ")}`, {
+        duration: 5000,
+      });
       setCurrentStep(0);
       return;
     }
@@ -196,63 +213,61 @@ export default function VistoriaPublicaFormulario() {
     try {
       let boUrl = null;
       if (formData.fez_bo && boFile) {
-        boUrl = await uploadFile(boFile, 'bo');
+        boUrl = await uploadFile(boFile, "bo");
       }
 
       let laudoMedicoUrl = null;
       if (formData.foi_hospital && laudoMedico) {
-        laudoMedicoUrl = await uploadFile(laudoMedico, 'laudo_medico');
+        laudoMedicoUrl = await uploadFile(laudoMedico, "laudo_medico");
       }
 
       let atestadoObitoUrl = null;
       if (formData.motorista_faleceu && atestadoObito) {
-        atestadoObitoUrl = await uploadFile(atestadoObito, 'atestado_obito');
+        atestadoObitoUrl = await uploadFile(atestadoObito, "atestado_obito");
       }
 
       let laudoAlcoolemiaUrl = null;
-      const horaEvento = formData.hora_evento ? parseInt(formData.hora_evento.split(':')[0]) : 0;
+      const horaEvento = formData.hora_evento ? parseInt(formData.hora_evento.split(":")[0]) : 0;
       if ((horaEvento >= 20 || horaEvento < 6) && laudoAlcoolemia) {
-        laudoAlcoolemiaUrl = await uploadFile(laudoAlcoolemia, 'alcoolemia');
+        laudoAlcoolemiaUrl = await uploadFile(laudoAlcoolemia, "alcoolemia");
       }
 
       if (tempData?.fotos) {
         for (const [posicao, files] of Object.entries(tempData.fotos) as [string, File[]][]) {
-          if (posicao === 'cnh' || posicao === 'crlv') continue;
-          
+          if (posicao === "cnh" || posicao === "crlv") continue;
+
           for (const file of files) {
-            const url = await uploadFile(file, 'veiculo');
-            
-            await supabase
-              .from('vistoria_fotos')
-              .insert({
-                vistoria_id: vistoria.id,
-                posicao,
-                arquivo_url: url,
-                arquivo_nome: file.name,
-                arquivo_tamanho: file.size,
-                ordem: ['frontal', 'traseira', 'lateral_esquerda', 'lateral_direita'].indexOf(posicao) + 1
-              });
+            const url = await uploadFile(file, "veiculo");
+
+            await supabase.from("vistoria_fotos").insert({
+              vistoria_id: vistoria.id,
+              posicao,
+              arquivo_url: url,
+              arquivo_nome: file.name,
+              arquivo_tamanho: file.size,
+              ordem: ["frontal", "traseira", "lateral_esquerda", "lateral_direita"].indexOf(posicao) + 1,
+            });
           }
         }
       }
 
-      let cnhUrl = '';
+      let cnhUrl = "";
       if (tempData?.fotos?.cnh?.[0]) {
-        cnhUrl = await uploadFile(tempData.fotos.cnh[0], 'cnh');
+        cnhUrl = await uploadFile(tempData.fotos.cnh[0], "cnh");
       }
 
       const crlvUrls: string[] = [];
       if (tempData?.fotos?.crlv) {
         for (const file of tempData.fotos.crlv) {
-          const url = await uploadFile(file, 'crlv');
+          const url = await uploadFile(file, "crlv");
           crlvUrls.push(url);
         }
       }
 
-      const croquiUrl = croqui ? await uploadDataUrl(croqui, 'croqui') : null;
+      const croquiUrl = croqui ? await uploadDataUrl(croqui, "croqui") : null;
 
       const { error: updateError } = await supabase
-        .from('vistorias')
+        .from("vistorias")
         .update({
           ...formData,
           latitude: tempData?.geolocation?.latitude,
@@ -266,41 +281,39 @@ export default function VistoriaPublicaFormulario() {
           laudo_alcoolemia_url: laudoAlcoolemiaUrl,
           croqui_acidente_url: croquiUrl,
         })
-        .eq('id', vistoria.id);
+        .eq("id", vistoria.id);
 
       if (updateError) {
-        console.error('Erro ao atualizar vistoria:', updateError);
+        console.error("Erro ao atualizar vistoria:", updateError);
         throw new Error(`Falha ao salvar os dados: ${updateError.message}`);
       }
 
-      // Verificar se os dados foram salvos
       const { data: verificacao, error: errorVerificacao } = await supabase
-        .from('vistorias')
-        .select('id, cliente_nome, cliente_cpf')
-        .eq('id', vistoria.id)
+        .from("vistorias")
+        .select("id, cliente_nome, cliente_cpf")
+        .eq("id", vistoria.id)
         .single();
 
       if (errorVerificacao || !verificacao) {
-        throw new Error('Não foi possível verificar o salvamento dos dados');
+        throw new Error("Não foi possível verificar o salvamento dos dados");
       }
 
-      console.log('Vistoria salva com sucesso:', verificacao);
-      localStorage.removeItem('vistoria_temp');
-      toast.success('Dados salvos com sucesso! Agora aceite os termos.');
+      console.log("Vistoria salva com sucesso:", verificacao);
+      localStorage.removeItem("vistoria_temp");
+      toast.success("Dados salvos com sucesso! Agora aceite os termos.");
       navigate(`/vistoria/${token}/termos`);
     } catch (error: any) {
-      console.error('Erro ao enviar vistoria:', error);
-      const mensagemErro = error?.message || 'Erro ao enviar vistoria';
-      toast.error(
-        `Erro: ${mensagemErro}. Por favor, tente novamente ou entre em contato com o suporte.`,
-        { duration: 6000 }
-      );
+      console.error("Erro ao enviar vistoria:", error);
+      const mensagemErro = error?.message || "Erro ao enviar vistoria";
+      toast.error(`Erro: ${mensagemErro}. Por favor, tente novamente ou entre em contato com o suporte.`, {
+        duration: 6000,
+      });
     } finally {
       setUploading(false);
     }
   };
 
-  if (loading) {
+  if (loading || !vistoria) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] to-white flex items-center justify-center p-6">
         <Card className="border-none shadow-xl">
@@ -322,7 +335,6 @@ export default function VistoriaPublicaFormulario() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] to-white py-6 px-4">
       <div className="max-w-4xl mx-auto space-y-6">
-        
         {/* Header */}
         <Card className="border-none shadow-lg">
           <CardContent className="p-6">
@@ -344,32 +356,32 @@ export default function VistoriaPublicaFormulario() {
         <Card className="border-none shadow-lg">
           <CardContent className="p-6">
             <div className="flex justify-between items-center mb-4">
-              <span className="text-sm font-bold text-gray-700">Etapa {currentStep + 1} de {STEPS.length}</span>
-              <span className="text-sm font-semibold text-[hsl(var(--vistoria-primary))]">{Math.round(stepProgress)}%</span>
+              <span className="text-sm font-bold text-gray-700">
+                Etapa {currentStep + 1} de {STEPS.length}
+              </span>
+              <span className="text-sm font-semibold text-[hsl(var(--vistoria-primary))]">
+                {Math.round(stepProgress)}%
+              </span>
             </div>
             <Progress value={stepProgress} className="h-3 mb-4" />
-            
+
             {/* Step Indicators */}
             <div className="flex justify-between gap-2">
               {STEPS.map((step, idx) => (
-                <div 
-                  key={step.id} 
-                  className={`flex-1 text-center ${
-                    idx <= currentStep ? 'opacity-100' : 'opacity-30'
-                  }`}
+                <div
+                  key={step.id}
+                  className={`flex-1 text-center ${idx <= currentStep ? "opacity-100" : "opacity-30"}`}
                 >
-                  <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center mb-2 transition-all ${
-                    idx < currentStep 
-                      ? 'bg-green-500 text-white' 
-                      : idx === currentStep 
-                      ? 'bg-[hsl(var(--vistoria-primary))] text-white scale-110' 
-                      : 'bg-gray-200 text-gray-400'
-                  }`}>
-                    {idx < currentStep ? (
-                      <CheckCircle className="h-5 w-5" />
-                    ) : (
-                      <step.icon className="h-5 w-5" />
-                    )}
+                  <div
+                    className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center mb-2 transition-all ${
+                      idx < currentStep
+                        ? "bg-green-500 text-white"
+                        : idx === currentStep
+                          ? "bg-[hsl(var(--vistoria-primary))] text-white scale-110"
+                          : "bg-gray-200 text-gray-400"
+                    }`}
+                  >
+                    {idx < currentStep ? <CheckCircle className="h-5 w-5" /> : <step.icon className="h-5 w-5" />}
                   </div>
                   <p className="text-xs font-medium hidden sm:block">{step.title}</p>
                 </div>
@@ -380,7 +392,6 @@ export default function VistoriaPublicaFormulario() {
 
         {/* Main Form Card */}
         <Card className="border-none shadow-2xl">
-          
           {/* Step Header */}
           <div className="bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 p-8 text-white">
             <div className="flex items-center gap-4">
@@ -395,7 +406,6 @@ export default function VistoriaPublicaFormulario() {
           </div>
 
           <CardContent className="p-8 space-y-6">
-            
             {/* Step 0: Dados Pessoais */}
             {currentStep === 0 && (
               <div className="space-y-6">
@@ -415,7 +425,7 @@ export default function VistoriaPublicaFormulario() {
                     className="mt-2 h-12 text-lg"
                   />
                 </div>
-                
+
                 <div>
                   <Label className="text-base font-semibold">CPF *</Label>
                   <MaskedInput
@@ -426,7 +436,7 @@ export default function VistoriaPublicaFormulario() {
                     className="mt-2 h-12 text-lg"
                   />
                 </div>
-                
+
                 <div>
                   <Label className="text-base font-semibold">Email</Label>
                   <Input
@@ -437,7 +447,7 @@ export default function VistoriaPublicaFormulario() {
                     className="mt-2 h-12 text-lg"
                   />
                 </div>
-                
+
                 <div>
                   <Label className="text-base font-semibold">Telefone</Label>
                   <MaskedInput
@@ -529,11 +539,15 @@ export default function VistoriaPublicaFormulario() {
                   >
                     <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="vitima" id="vitima" />
-                      <Label htmlFor="vitima" className="flex-1 cursor-pointer font-medium">Vítima</Label>
+                      <Label htmlFor="vitima" className="flex-1 cursor-pointer font-medium">
+                        Vítima
+                      </Label>
                     </div>
                     <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="causador" id="causador" />
-                      <Label htmlFor="causador" className="flex-1 cursor-pointer font-medium">Causador</Label>
+                      <Label htmlFor="causador" className="flex-1 cursor-pointer font-medium">
+                        Causador
+                      </Label>
                     </div>
                   </RadioGroup>
                 </div>
@@ -543,7 +557,6 @@ export default function VistoriaPublicaFormulario() {
             {/* Step 2: Informações Gerais */}
             {currentStep === 2 && (
               <div className="space-y-6">
-                
                 <div>
                   <Label className="text-base font-semibold mb-3 block">Houve terceiros envolvidos?</Label>
                   <RadioGroup
@@ -553,11 +566,15 @@ export default function VistoriaPublicaFormulario() {
                   >
                     <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="sim" id="terceiros-sim" />
-                      <Label htmlFor="terceiros-sim" className="flex-1 cursor-pointer font-medium">Sim</Label>
+                      <Label htmlFor="terceiros-sim" className="flex-1 cursor-pointer font-medium">
+                        Sim
+                      </Label>
                     </div>
                     <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="nao" id="terceiros-nao" />
-                      <Label htmlFor="terceiros-nao" className="flex-1 cursor-pointer font-medium">Não</Label>
+                      <Label htmlFor="terceiros-nao" className="flex-1 cursor-pointer font-medium">
+                        Não
+                      </Label>
                     </div>
                   </RadioGroup>
                 </div>
@@ -583,11 +600,15 @@ export default function VistoriaPublicaFormulario() {
                   >
                     <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="sim" id="camera-sim" />
-                      <Label htmlFor="camera-sim" className="flex-1 cursor-pointer font-medium">Sim</Label>
+                      <Label htmlFor="camera-sim" className="flex-1 cursor-pointer font-medium">
+                        Sim
+                      </Label>
                     </div>
                     <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="nao" id="camera-nao" />
-                      <Label htmlFor="camera-nao" className="flex-1 cursor-pointer font-medium">Não</Label>
+                      <Label htmlFor="camera-nao" className="flex-1 cursor-pointer font-medium">
+                        Não
+                      </Label>
                     </div>
                   </RadioGroup>
                 </div>
@@ -601,11 +622,15 @@ export default function VistoriaPublicaFormulario() {
                   >
                     <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="sim" id="policia-sim" />
-                      <Label htmlFor="policia-sim" className="flex-1 cursor-pointer font-medium">Sim</Label>
+                      <Label htmlFor="policia-sim" className="flex-1 cursor-pointer font-medium">
+                        Sim
+                      </Label>
                     </div>
                     <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="nao" id="policia-nao" />
-                      <Label htmlFor="policia-nao" className="flex-1 cursor-pointer font-medium">Não</Label>
+                      <Label htmlFor="policia-nao" className="flex-1 cursor-pointer font-medium">
+                        Não
+                      </Label>
                     </div>
                   </RadioGroup>
                 </div>
@@ -615,7 +640,6 @@ export default function VistoriaPublicaFormulario() {
             {/* Step 3: Documentos */}
             {currentStep === 3 && (
               <div className="space-y-6">
-                
                 {/* BO */}
                 <div className="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-xl p-6">
                   <Label className="text-base font-semibold mb-3 block">Fez Boletim de Ocorrência?</Label>
@@ -626,11 +650,15 @@ export default function VistoriaPublicaFormulario() {
                   >
                     <div className="flex items-center space-x-3">
                       <RadioGroupItem value="sim" id="bo-sim" />
-                      <Label htmlFor="bo-sim" className="flex-1 cursor-pointer font-medium">Sim</Label>
+                      <Label htmlFor="bo-sim" className="flex-1 cursor-pointer font-medium">
+                        Sim
+                      </Label>
                     </div>
                     <div className="flex items-center space-x-3">
                       <RadioGroupItem value="nao" id="bo-nao" />
-                      <Label htmlFor="bo-nao" className="flex-1 cursor-pointer font-medium">Não</Label>
+                      <Label htmlFor="bo-nao" className="flex-1 cursor-pointer font-medium">
+                        Não
+                      </Label>
                     </div>
                   </RadioGroup>
 
@@ -663,11 +691,15 @@ export default function VistoriaPublicaFormulario() {
                   >
                     <div className="flex items-center space-x-3">
                       <RadioGroupItem value="sim" id="hospital-sim" />
-                      <Label htmlFor="hospital-sim" className="flex-1 cursor-pointer font-medium">Sim</Label>
+                      <Label htmlFor="hospital-sim" className="flex-1 cursor-pointer font-medium">
+                        Sim
+                      </Label>
                     </div>
                     <div className="flex items-center space-x-3">
                       <RadioGroupItem value="nao" id="hospital-nao" />
-                      <Label htmlFor="hospital-nao" className="flex-1 cursor-pointer font-medium">Não</Label>
+                      <Label htmlFor="hospital-nao" className="flex-1 cursor-pointer font-medium">
+                        Não
+                      </Label>
                     </div>
                   </RadioGroup>
 
@@ -700,11 +732,15 @@ export default function VistoriaPublicaFormulario() {
                   >
                     <div className="flex items-center space-x-3">
                       <RadioGroupItem value="sim" id="obito-sim" />
-                      <Label htmlFor="obito-sim" className="flex-1 cursor-pointer font-medium">Sim</Label>
+                      <Label htmlFor="obito-sim" className="flex-1 cursor-pointer font-medium">
+                        Sim
+                      </Label>
                     </div>
                     <div className="flex items-center space-x-3">
                       <RadioGroupItem value="nao" id="obito-nao" />
-                      <Label htmlFor="obito-nao" className="flex-1 cursor-pointer font-medium">Não</Label>
+                      <Label htmlFor="obito-nao" className="flex-1 cursor-pointer font-medium">
+                        Não
+                      </Label>
                     </div>
                   </RadioGroup>
 
@@ -728,33 +764,33 @@ export default function VistoriaPublicaFormulario() {
                 </div>
 
                 {/* Alcoolemia (condicional) */}
-                {formData.hora_evento && (
-                  parseInt(formData.hora_evento.split(':')[0]) >= 20 || parseInt(formData.hora_evento.split(':')[0]) < 6
-                ) && (
-                  <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-6">
-                    <div className="flex items-start gap-3 mb-4">
-                      <Clock className="h-5 w-5 text-amber-600 mt-0.5" />
-                      <div>
-                        <Label className="text-base font-semibold">Laudo de Alcoolemia</Label>
-                        <p className="text-sm text-amber-700 mt-1">
-                          O acidente ocorreu entre 20h e 6h. É recomendado anexar o laudo de alcoolemia.
-                        </p>
+                {formData.hora_evento &&
+                  (parseInt(formData.hora_evento.split(":")[0]) >= 20 ||
+                    parseInt(formData.hora_evento.split(":")[0]) < 6) && (
+                    <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-6">
+                      <div className="flex items-start gap-3 mb-4">
+                        <Clock className="h-5 w-5 text-amber-600 mt-0.5" />
+                        <div>
+                          <Label className="text-base font-semibold">Laudo de Alcoolemia</Label>
+                          <p className="text-sm text-amber-700 mt-1">
+                            O acidente ocorreu entre 20h e 6h. É recomendado anexar o laudo de alcoolemia.
+                          </p>
+                        </div>
                       </div>
+                      <Input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        onChange={(e) => setLaudoAlcoolemia(e.target.files?.[0] || null)}
+                        className="mt-2"
+                      />
+                      {laudoAlcoolemia && (
+                        <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
+                          <CheckCircle className="h-4 w-4" />
+                          {laudoAlcoolemia.name}
+                        </div>
+                      )}
                     </div>
-                    <Input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      onChange={(e) => setLaudoAlcoolemia(e.target.files?.[0] || null)}
-                      className="mt-2"
-                    />
-                    {laudoAlcoolemia && (
-                      <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
-                        <CheckCircle className="h-4 w-4" />
-                        {laudoAlcoolemia.name}
-                      </div>
-                    )}
-                  </div>
-                )}
+                  )}
               </div>
             )}
 
@@ -791,17 +827,16 @@ export default function VistoriaPublicaFormulario() {
                 <ArrowLeft className="h-5 w-5 mr-2" />
                 Voltar
               </Button>
-              
+
               {currentStep < STEPS.length - 1 ? (
                 <Button
                   onClick={() => {
-                    // Validação básica antes de avançar
                     if (currentStep === 0 && (!formData.cliente_nome?.trim() || !formData.cliente_cpf?.trim())) {
-                      toast.error('Por favor, preencha seu nome e CPF para continuar');
+                      toast.error("Por favor, preencha seu nome e CPF para continuar");
                       return;
                     }
                     if (currentStep === 1 && (!formData.data_evento || !formData.hora_evento)) {
-                      toast.error('Por favor, preencha a data e hora do evento para continuar');
+                      toast.error("Por favor, preencha a data e hora do evento para continuar");
                       return;
                     }
                     setCurrentStep(currentStep + 1);
@@ -839,9 +874,7 @@ export default function VistoriaPublicaFormulario() {
 
         {/* Help Text */}
         <div className="text-center">
-          <p className="text-sm text-gray-500">
-            Todas as informações são confidenciais e protegidas
-          </p>
+          <p className="text-sm text-gray-500">Todas as informações são confidenciais e protegidas</p>
         </div>
       </div>
     </div>
