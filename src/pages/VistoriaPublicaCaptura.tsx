@@ -52,7 +52,6 @@ export default function VistoriaPublicaCaptura() {
   const { token } = useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [vistoria, setVistoria] = useState<any>(null);
   const [corretora, setCorretora] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -231,6 +230,9 @@ export default function VistoriaPublicaCaptura() {
         setFotoPreviews({ ...fotoPreviews, [posicaoAtual.id]: [file.type] });
       }
     }
+
+    // limpa o input para permitir selecionar o mesmo arquivo de novo se necessário
+    e.target.value = "";
   };
 
   const nextStep = () => {
@@ -269,7 +271,7 @@ export default function VistoriaPublicaCaptura() {
     setFotoPreviews(newPreviews);
   };
 
-  // 🔧 CORRIGIDO: não salva File no localStorage, só dados serializáveis.
+  // 🔧 Não salva File no localStorage, só dados serializáveis.
   // Files vão via state na navegação.
   const handleContinue = () => {
     if (!vistoria) {
@@ -384,17 +386,9 @@ export default function VistoriaPublicaCaptura() {
           <CardContent className="p-8 space-y-6">
             {/* Upload Area */}
             <div className="space-y-6">
+              {/* ÚNICO INPUT - câmera + galeria + arquivos */}
               <input
                 ref={fileInputRef}
-                type="file"
-                accept="image/*,video/*,application/pdf"
-                capture={posicaoAtual.tipo === "veiculo" ? "environment" : undefined}
-                multiple={posicaoAtual.multiple}
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              <input
-                ref={galleryInputRef}
                 type="file"
                 accept="image/*,video/*,application/pdf"
                 multiple={posicaoAtual.multiple}
@@ -412,21 +406,21 @@ export default function VistoriaPublicaCaptura() {
                       <div className="w-20 h-20 bg-gradient-to-br from-[hsl(var(--vistoria-primary))] to-blue-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg">
                         <Camera className="h-10 w-10 text-white" strokeWidth={2.5} />
                       </div>
-                      <h3 className="text-2xl font-bold text-gray-900 mb-2">Tirar Foto</h3>
-                      <p className="text-gray-500 text-sm">Clique para abrir a câmera</p>
+                      <h3 className="text-2xl font-bold text-gray-900 mb-2">Tirar foto ou enviar da galeria</h3>
+                      <p className="text-gray-500 text-sm">Clique para abrir a câmera, galeria ou arquivos</p>
                     </div>
                   </button>
 
                   <button
-                    onClick={() => galleryInputRef.current?.click()}
+                    onClick={() => fileInputRef.current?.click()}
                     className="w-full min-h-[200px] border-2 border-gray-300 hover:border-[hsl(var(--vistoria-primary))] rounded-2xl bg-white hover:bg-blue-50 transition-all duration-300 group"
                   >
                     <div className="flex flex-col items-center justify-center py-6">
                       <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                         <ImageIcon className="h-8 w-8 text-blue-600" />
                       </div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">Enviar da Galeria</h3>
-                      <p className="text-gray-500 text-sm">Escolha fotos/vídeos/PDFs já existentes</p>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">Escolher arquivo existente</h3>
+                      <p className="text-gray-500 text-sm">Fotos, vídeos ou PDFs já existentes</p>
                       <div className="flex gap-2 mt-3">
                         <Badge variant="outline" className="text-xs">
                           JPG
