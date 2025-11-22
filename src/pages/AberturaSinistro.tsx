@@ -16,9 +16,11 @@ import { validateCPF, validatePhone } from "@/lib/validators";
 export default function AberturaSinistro() {
   const navigate = useNavigate();
   const { user } = useAuth();
+
   const [loading, setLoading] = useState(false);
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
+
   const [formData, setFormData] = useState({
     cliente_nome: "",
     cliente_cpf: "",
@@ -48,8 +50,8 @@ export default function AberturaSinistro() {
       const { data, error } = await supabase.from("corretoras").select("*").order("nome");
       if (error) throw error;
       setCorretoras(data || []);
-    } catch (error) {
-      console.error("Erro ao carregar corretoras:", error);
+    } catch (err) {
+      console.error("Erro ao carregar corretoras:", err);
     }
   };
 
@@ -58,8 +60,8 @@ export default function AberturaSinistro() {
       const { data, error } = await supabase.from("profiles").select("id, nome").eq("ativo", true).order("nome");
       if (error) throw error;
       setResponsaveis(data || []);
-    } catch (error) {
-      console.error("Erro ao carregar responsáveis:", error);
+    } catch (err) {
+      console.error("Erro ao carregar responsáveis:", err);
     }
   };
 
@@ -70,49 +72,46 @@ export default function AberturaSinistro() {
     try {
       if (!validateCPF(formData.cliente_cpf)) {
         toast.error("CPF inválido");
-        setLoading(false);
-        return;
+        return setLoading(false);
       }
 
       if (!validatePhone(formData.cliente_telefone)) {
         toast.error("Telefone inválido");
-        setLoading(false);
-        return;
+        return setLoading(false);
       }
 
       if (!formData.tipo_sinistro) {
-        toast.error("Por favor, selecione o tipo de sinistro");
-        setLoading(false);
-        return;
+        toast.error("Selecione o tipo de sinistro");
+        return setLoading(false);
       }
 
       const { data: fluxos } = await supabase.from("fluxos").select("id").eq("ativo", true).order("ordem").limit(1);
 
-      if (!fluxos || fluxos.length === 0) {
+      if (!fluxos?.length) {
         toast.error("Nenhum fluxo ativo encontrado");
         return;
       }
 
-      const primeiroFluxoId = fluxos[0].id;
+      const fluxoId = fluxos[0].id;
 
       const { data: statusList } = await supabase
         .from("status_config")
         .select("nome")
-        .eq("fluxo_id", primeiroFluxoId)
+        .eq("fluxo_id", fluxoId)
         .eq("ativo", true)
         .order("ordem")
         .limit(1);
 
-      if (!statusList || statusList.length === 0) {
-        toast.error("Nenhum status ativo encontrado para o fluxo");
+      if (!statusList?.length) {
+        toast.error("Nenhum status inicial encontrado");
         return;
       }
 
-      const primeiroStatus = statusList[0].nome;
+      const statusInicial = statusList[0].nome;
 
       const vistoriaTag = formData.solicitarVistoria ? "aguardando_vistoria_digital" : "sem_vistoria";
 
-      const { data: atendimento, error: atendimentoError } = await supabase
+      const { data: atendimento, error: atendErr } = await supabase
         .from("atendimentos")
         .insert({
           user_id: user?.id,
@@ -120,8 +119,8 @@ export default function AberturaSinistro() {
           responsavel_id: formData.responsavel_id || null,
           assunto: `Sinistro - ${formData.tipo_sinistro} - ${formData.cliente_nome}`,
           observacoes: formData.relato_incidente,
-          status: primeiroStatus,
-          fluxo_id: primeiroFluxoId,
+          status: statusInicial,
+          fluxo_id: fluxoId,
           prioridade: "Alta",
           tags: ["sinistro", formData.tipo_sinistro.toLowerCase(), vistoriaTag],
           tipo_atendimento: "sinistro",
@@ -129,38 +128,34 @@ export default function AberturaSinistro() {
         .select()
         .single();
 
-      if (atendimentoError) throw atendimentoError;
+      if (atendErr) throw atendErr;
 
-      if (atendimento) {
-        const { error: vistoriaError } = await supabase.from("vistorias").insert({
-          created_by: user?.id,
-          atendimento_id: atendimento.id,
-          corretora_id: formData.corretora_id || null,
-          tipo_vistoria: "sinistro",
-          tipo_abertura: "interno",
-          tipo_sinistro: formData.tipo_sinistro,
-          cliente_nome: formData.cliente_nome,
-          cliente_cpf: formData.cliente_cpf,
-          cliente_telefone: formData.cliente_telefone,
-          cliente_email: formData.cliente_email,
-          veiculo_placa: formData.veiculo_placa,
-          veiculo_marca: formData.veiculo_marca,
-          veiculo_modelo: formData.veiculo_modelo,
-          veiculo_ano: formData.veiculo_ano,
-          veiculo_cor: formData.veiculo_cor,
-          veiculo_chassi: formData.veiculo_chassi,
-          data_incidente: formData.data_incidente,
-          relato_incidente: formData.relato_incidente,
-          status: formData.solicitarVistoria ? "aguardando_fotos" : "pendente",
-        });
-
-        if (vistoriaError) throw vistoriaError;
-      }
+      await supabase.from("vistorias").insert({
+        created_by: user?.id,
+        atendimento_id: atendimento.id,
+        corretora_id: formData.corretora_id || null,
+        tipo_vistoria: "sinistro",
+        tipo_abertura: "interno",
+        tipo_sinistro: formData.tipo_sinistro,
+        cliente_nome: formData.cliente_nome,
+        cliente_cpf: formData.cliente_cpf,
+        cliente_telefone: formData.cliente_telefone,
+        cliente_email: formData.cliente_email,
+        veiculo_placa: formData.veiculo_placa,
+        veiculo_marca: formData.veiculo_marca,
+        veiculo_modelo: formData.veiculo_modelo,
+        veiculo_ano: formData.veiculo_ano,
+        veiculo_cor: formData.veiculo_cor,
+        veiculo_chassi: formData.veiculo_chassi,
+        data_incidente: formData.data_incidente,
+        relato_incidente: formData.relato_incidente,
+        status: formData.solicitarVistoria ? "aguardando_fotos" : "pendente",
+      });
 
       toast.success("Sinistro registrado com sucesso!");
       navigate("/");
-    } catch (error) {
-      console.error("Erro ao registrar sinistro:", error);
+    } catch (err) {
+      console.error("Erro ao registrar sinistro:", err);
       toast.error("Erro ao registrar sinistro");
     } finally {
       setLoading(false);
@@ -169,6 +164,7 @@ export default function AberturaSinistro() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
@@ -193,6 +189,7 @@ export default function AberturaSinistro() {
         </div>
       </div>
 
+      {/* Card */}
       <Card>
         <CardHeader>
           <CardTitle>Dados do Sinistro</CardTitle>
@@ -205,16 +202,14 @@ export default function AberturaSinistro() {
               <h3 className="font-semibold text-lg border-b pb-2">Tipo de Sinistro</h3>
 
               <div>
-                <Label htmlFor="tipo_sinistro">Tipo de Sinistro *</Label>
+                <Label>Tipo de Sinistro *</Label>
                 <Select
                   value={formData.tipo_sinistro}
-                  onValueChange={(value) => setFormData({ ...formData, tipo_sinistro: value })}
-                  required
+                  onValueChange={(v) => setFormData({ ...formData, tipo_sinistro: v })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo de sinistro" />
+                    <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>
-
                   <SelectContent>
                     <SelectItem value="Colisão">Colisão</SelectItem>
                     <SelectItem value="Roubo/Furto">Roubo/Furto</SelectItem>
@@ -234,9 +229,8 @@ export default function AberturaSinistro() {
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="cliente_nome">Nome Completo *</Label>
+                  <Label>Nome Completo *</Label>
                   <Input
-                    id="cliente_nome"
                     value={formData.cliente_nome}
                     onChange={(e) => setFormData({ ...formData, cliente_nome: e.target.value })}
                     required
@@ -244,31 +238,26 @@ export default function AberturaSinistro() {
                 </div>
 
                 <div>
-                  <Label htmlFor="cliente_cpf">CPF *</Label>
+                  <Label>CPF *</Label>
                   <MaskedInput
-                    id="cliente_cpf"
                     format="###.###.###-##"
                     value={formData.cliente_cpf}
-                    onValueChange={(values) => setFormData({ ...formData, cliente_cpf: values.value })}
-                    placeholder="000.000.000-00"
+                    onValueChange={(v) => setFormData({ ...formData, cliente_cpf: v.value })}
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="cliente_telefone">Telefone *</Label>
+                  <Label>Telefone *</Label>
                   <MaskedInput
-                    id="cliente_telefone"
                     format="(##) #####-####"
                     value={formData.cliente_telefone}
-                    onValueChange={(values) => setFormData({ ...formData, cliente_telefone: values.value })}
-                    placeholder="(00) 00000-0000"
+                    onValueChange={(v) => setFormData({ ...formData, cliente_telefone: v.value })}
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="cliente_email">Email *</Label>
+                  <Label>Email *</Label>
                   <Input
-                    id="cliente_email"
                     type="email"
                     value={formData.cliente_email}
                     onChange={(e) => setFormData({ ...formData, cliente_email: e.target.value })}
@@ -283,23 +272,20 @@ export default function AberturaSinistro() {
               <h3 className="font-semibold text-lg border-b pb-2">Dados do Veículo</h3>
 
               <div className="grid md:grid-cols-2 gap-4">
-                {/* PLACA AJUSTADA (ACEITA LETRAS NORMALMENTE) */}
+                {/* PLACA COM LETRAS */}
                 <div>
-                  <Label htmlFor="veiculo_placa">Placa *</Label>
+                  <Label>Placa *</Label>
                   <Input
-                    id="veiculo_placa"
                     type="text"
+                    maxLength={8}
+                    placeholder="ABC-1234"
                     value={formData.veiculo_placa}
                     onChange={(e) => {
                       let value = e.target.value.toUpperCase();
-
-                      // permite somente A-Z, 0-9 e hífen
                       value = value.replace(/[^A-Z0-9-]/g, "");
 
-                      // remove hífen temporariamente
                       const raw = value.replace("-", "");
 
-                      // formata AAA-1234
                       if (raw.length <= 3) {
                         value = raw;
                       } else {
@@ -308,16 +294,13 @@ export default function AberturaSinistro() {
 
                       setFormData({ ...formData, veiculo_placa: value });
                     }}
-                    maxLength={8}
-                    placeholder="ABC-1234"
                     required
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="veiculo_marca">Marca *</Label>
+                  <Label>Marca *</Label>
                   <Input
-                    id="veiculo_marca"
                     value={formData.veiculo_marca}
                     onChange={(e) => setFormData({ ...formData, veiculo_marca: e.target.value })}
                     required
@@ -325,9 +308,8 @@ export default function AberturaSinistro() {
                 </div>
 
                 <div>
-                  <Label htmlFor="veiculo_modelo">Modelo *</Label>
+                  <Label>Modelo *</Label>
                   <Input
-                    id="veiculo_modelo"
                     value={formData.veiculo_modelo}
                     onChange={(e) => setFormData({ ...formData, veiculo_modelo: e.target.value })}
                     required
@@ -335,9 +317,8 @@ export default function AberturaSinistro() {
                 </div>
 
                 <div>
-                  <Label htmlFor="veiculo_ano">Ano *</Label>
+                  <Label>Ano *</Label>
                   <Input
-                    id="veiculo_ano"
                     value={formData.veiculo_ano}
                     onChange={(e) => setFormData({ ...formData, veiculo_ano: e.target.value })}
                     placeholder="2020/2021"
@@ -346,9 +327,8 @@ export default function AberturaSinistro() {
                 </div>
 
                 <div>
-                  <Label htmlFor="veiculo_cor">Cor *</Label>
+                  <Label>Cor *</Label>
                   <Input
-                    id="veiculo_cor"
                     value={formData.veiculo_cor}
                     onChange={(e) => setFormData({ ...formData, veiculo_cor: e.target.value })}
                     required
@@ -356,13 +336,17 @@ export default function AberturaSinistro() {
                 </div>
 
                 <div>
-                  <Label htmlFor="veiculo_chassi">Chassi</Label>
+                  <Label>Chassi</Label>
                   <Input
-                    id="veiculo_chassi"
-                    value={formData.veiculo_chassi}
-                    onChange={(e) => setFormData({ ...formData, veiculo_chassi: e.target.value.toUpperCase() })}
-                    placeholder="Digite o chassi do veículo"
                     maxLength={17}
+                    value={formData.veiculo_chassi}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        veiculo_chassi: e.target.value.toUpperCase(),
+                      })
+                    }
+                    placeholder="Digite o chassi"
                   />
                 </div>
               </div>
@@ -373,9 +357,8 @@ export default function AberturaSinistro() {
               <h3 className="font-semibold text-lg border-b pb-2">Dados do Sinistro</h3>
 
               <div>
-                <Label htmlFor="data_incidente">Data do Incidente *</Label>
+                <Label>Data do Incidente *</Label>
                 <Input
-                  id="data_incidente"
                   type="date"
                   value={formData.data_incidente}
                   onChange={(e) => setFormData({ ...formData, data_incidente: e.target.value })}
@@ -384,13 +367,17 @@ export default function AberturaSinistro() {
               </div>
 
               <div>
-                <Label htmlFor="relato_incidente">Relato do Incidente *</Label>
+                <Label>Relato do Incidente *</Label>
                 <Textarea
-                  id="relato_incidente"
-                  value={formData.relato_incidente}
-                  onChange={(e) => setFormData({ ...formData, relato_incidente: e.target.value })}
                   rows={6}
-                  placeholder="Descreva detalhadamente o que aconteceu..."
+                  placeholder="Descreva o que aconteceu..."
+                  value={formData.relato_incidente}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      relato_incidente: e.target.value,
+                    })
+                  }
                   required
                 />
               </div>
@@ -398,23 +385,26 @@ export default function AberturaSinistro() {
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  id="solicitarVistoria"
-                  checked={formData.solicitarVistoria}
-                  onChange={(e) => setFormData({ ...formData, solicitarVistoria: e.target.checked })}
                   className="h-4 w-4"
+                  checked={formData.solicitarVistoria}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      solicitarVistoria: e.target.checked,
+                    })
+                  }
                 />
-                <Label htmlFor="solicitarVistoria" className="cursor-pointer">
-                  Solicitar vistoria digital imediatamente
-                </Label>
+                <Label className="cursor-pointer">Solicitar vistoria digital imediatamente</Label>
               </div>
             </div>
 
+            {/* Botões */}
             <div className="flex gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={() => navigate(-1)} className="flex-1">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => navigate(-1)}>
                 Cancelar
               </Button>
 
-              <Button type="submit" disabled={loading} className="flex-1">
+              <Button type="submit" className="flex-1" disabled={loading}>
                 {loading ? "Registrando..." : "Registrar Sinistro"}
               </Button>
             </div>
