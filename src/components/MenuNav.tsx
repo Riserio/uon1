@@ -64,6 +64,13 @@ function useMenuPermissionsForRole(userRole: string | null) {
           return;
         }
 
+        // Type guard para garantir que é um role válido
+        const validRoles = ["admin", "administrativo", "comercial", "lider", "superintendente"] as const;
+        if (!validRoles.includes(userRole as any)) {
+          setPermissions({});
+          return;
+        }
+
         const { data, error } = await supabase
           .from("role_menu_permissions")
           .select("menu_item, pode_visualizar, pode_editar")
