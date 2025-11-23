@@ -1317,8 +1317,8 @@ export default function Usuarios() {
                     </p>
                     <ul className="space-y-2 text-sm">
                       <li className="flex items-start gap-2">
-                        <span className="font-semibold text-primary min-w-[140px]">Superintendente:</span>
-                        <span>Visualiza produção de todos os usuários do sistema</span>
+                        
+                        
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="font-semibold text-primary min-w-[140px]">Administrativo:</span>
@@ -1338,7 +1338,10 @@ export default function Usuarios() {
                   <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-900">
                     <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Permissões Especiais</h4>
                     <p className="text-sm text-blue-800 dark:text-blue-200">
-                      • <strong>Superintendente e Admin</strong> têm acesso total a todos os menus automaticamente<br />
+                      
+
+• Permissões individuais por usuário sobrescrevem as permissões do perfil
+• Use a coluna "Ações" na lista de usuários para configurar permissões individuais <strong>Superintendente e Admin</strong> têm acesso total a todos os menus automaticamente<br />
                       • Permissões individuais por usuário sobrescrevem as permissões do perfil<br />
                       • Use a coluna "Ações" na lista de usuários para configurar permissões individuais
                     </p>
