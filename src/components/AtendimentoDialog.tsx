@@ -194,15 +194,15 @@ export function AtendimentoDialog({
     if (atendimento) {
       // Carregar nomes de corretora e contato baseado nos IDs
       const loadNomes = async () => {
-        let corretoraName = "";
-        let contatoName = "";
+        let corretoraName = atendimento.corretora || "";
+        let contatoName = atendimento.contato || "";
 
-        // Buscar nome da corretora se houver ID
-        if (atendimento.corretora) {
+        // Buscar nome da corretora se houver corretoraId (UUID)
+        if (atendimento.corretoraId) {
           const { data: corretoraData } = await supabase
             .from("corretoras")
             .select("nome")
-            .eq("id", atendimento.corretora)
+            .eq("id", atendimento.corretoraId)
             .single();
           
           if (corretoraData) {
@@ -210,8 +210,9 @@ export function AtendimentoDialog({
           }
         }
 
-        // Buscar nome do contato se houver ID
-        if (atendimento.contato) {
+        // Buscar nome do contato se houver contato como string (possível ID)
+        // Verificar se é UUID ou nome direto
+        if (atendimento.contato && atendimento.contato.length > 30) {
           const { data: contatoData } = await supabase
             .from("contatos")
             .select("nome")
