@@ -669,34 +669,6 @@ export function AtendimentoDialog({
 
         onSave(savedAtendimento);
 
-        // Upload de anexos para novo atendimento
-        if (anexos.length > 0) {
-          for (const file of anexos) {
-            const fileExt = file.name.split(".").pop();
-            const fileName = `${savedAtendimento.id}/${Date.now()}.${fileExt}`;
-
-            const { error: uploadError } = await supabase.storage.from("atendimento-anexos").upload(fileName, file);
-
-            if (uploadError) {
-              toast.error(`Erro ao fazer upload de ${file.name}`);
-              continue;
-            }
-
-            const { error: dbError } = await supabase.from("atendimento_anexos").insert({
-              atendimento_id: savedAtendimento.id,
-              arquivo_nome: file.name,
-              arquivo_url: fileName,
-              arquivo_tamanho: file.size,
-              tipo_arquivo: file.type,
-              created_by: user.id,
-            });
-
-            if (dbError) {
-              toast.error(`Erro ao salvar informações de ${file.name}`);
-            }
-          }
-        }
-
         // Adicionar primeiro andamento se houver
         if (primeiroAndamento.trim()) {
           await supabase.from("andamentos").insert({
