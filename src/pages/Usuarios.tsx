@@ -746,6 +746,7 @@ export default function Usuarios() {
             </TabsTrigger>
             <TabsTrigger value="equipes">Equipes</TabsTrigger>
             <TabsTrigger value="hierarquia">Hierarquia</TabsTrigger>
+            <TabsTrigger value="permissoes">Permissões</TabsTrigger>
           </TabsList>
 
           <TabsContent value="lista">
@@ -1089,7 +1090,7 @@ export default function Usuarios() {
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button
+                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
@@ -1100,6 +1101,18 @@ export default function Usuarios() {
                               title="Gerenciar permissões de fluxo"
                             >
                               <Lock className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                setSelectedUserForPermissions({ id: item.id, nome: item.nome, role: userRoles[item.id] || '' });
+                                setMenuPermissionsDialogOpen(true);
+                              }}
+                              title="Gerenciar permissões de menu"
+                            >
+                              <Shield className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -1557,6 +1570,69 @@ export default function Usuarios() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="permissoes">
+            <Card className="border-border/40 shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-medium">Permissões de Menu por Perfil</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-medium text-lg mb-2">Configurar Permissões</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Configure quais menus cada perfil (role) pode visualizar e editar. 
+                      As permissões podem ser definidas por perfil ou individualmente por usuário.
+                    </p>
+                    <Button onClick={() => setRoleMenuPermissionsDialogOpen(true)} className="gap-2">
+                      <Shield className="h-4 w-4" />
+                      Gerenciar Permissões por Perfil
+                    </Button>
+                  </div>
+                  
+                  <div className="p-4 bg-muted/50 rounded-lg border space-y-3">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Network className="h-4 w-4" />
+                      Hierarquia de Visualização de Dados
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      As permissões de menu controlam quais funcionalidades cada perfil pode acessar. 
+                      A hierarquia de visualização de dados determina quais atendimentos cada usuário pode ver:
+                    </p>
+                    <ul className="space-y-2 text-sm">
+                      <li className="flex items-start gap-2">
+                        <span className="font-semibold text-primary min-w-[140px]">Superintendente:</span>
+                        <span>Visualiza produção de todos os usuários do sistema</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="font-semibold text-primary min-w-[140px]">Administrativo:</span>
+                        <span>Visualiza usuários abaixo dele na hierarquia (líderes e comerciais vinculados)</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="font-semibold text-primary min-w-[140px]">Líder:</span>
+                        <span>Visualiza membros da sua equipe</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="font-semibold text-primary min-w-[140px]">Comercial:</span>
+                        <span>Visualiza apenas sua própria produção</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-900">
+                    <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Permissões Especiais</h4>
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      • <strong>Superintendente e Admin</strong> têm acesso total a todos os menus automaticamente<br/>
+                      • Permissões individuais por usuário sobrescrevem as permissões do perfil<br/>
+                      • Use a coluna "Ações" na lista de usuários para configurar permissões individuais
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="equipes">
             <Card className="border-border/40 shadow-sm">
               <CardHeader className="pb-3">
@@ -1737,12 +1813,21 @@ export default function Usuarios() {
 
         {/* Dialogs de Permissões */}
         {selectedUserForPermissions && (
-          <UserFluxoPermissionsDialog
-            open={fluxoPermissionsDialogOpen}
-            onOpenChange={setFluxoPermissionsDialogOpen}
-            userId={selectedUserForPermissions.id}
-            userName={selectedUserForPermissions.nome}
-          />
+          <>
+            <UserFluxoPermissionsDialog
+              open={fluxoPermissionsDialogOpen}
+              onOpenChange={setFluxoPermissionsDialogOpen}
+              userId={selectedUserForPermissions.id}
+              userName={selectedUserForPermissions.nome}
+            />
+            <UserMenuPermissionsDialog
+              open={menuPermissionsDialogOpen}
+              onOpenChange={setMenuPermissionsDialogOpen}
+              userId={selectedUserForPermissions.id}
+              userName={selectedUserForPermissions.nome}
+              userRole={selectedUserForPermissions.role}
+            />
+          </>
         )}
 
         <RoleMenuPermissionsDialog
