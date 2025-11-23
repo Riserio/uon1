@@ -370,14 +370,9 @@ export default function VistoriaPublicaCaptura() {
           throw storageError;
         }
 
-        const { data: publicUrlData, error: publicUrlError } = supabase.storage
+        const { data: publicUrlData } = supabase.storage
           .from(bucketName)
           .getPublicUrl(uploadData?.path || filePath);
-
-        if (publicUrlError) {
-          console.error("❌ Erro ao gerar URL pública:", publicUrlError);
-          throw publicUrlError;
-        }
 
         uploads.push({
           url: publicUrlData.publicUrl,

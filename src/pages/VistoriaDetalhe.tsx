@@ -328,10 +328,10 @@ export default function VistoriaDetalhe() {
       emailEnviadoComSucesso = false;
     }
 
-    // 2) Atualiza o status da vistoria para pendente_correcao SEMPRE
+    // 2) Atualiza o status da vistoria para aguardando_fotos SEMPRE
     const { error: updateError } = await supabase
       .from("vistorias")
-      .update({ status: "pendente_correcao" })
+      .update({ status: "aguardando_fotos" })
       .eq("id", vistoria.id);
 
     if (updateError) {
@@ -346,10 +346,10 @@ export default function VistoriaDetalhe() {
 
     if (!emailEnviadoComSucesso) {
       toast.warning(
-        "Solicitação registrada e vistoria marcada como pendente, mas não foi possível enviar o e-mail automático. Use o botão de WhatsApp Web para avisar o cliente.",
+        "Solicitação registrada e vistoria marcada como aguardando fotos, mas não foi possível enviar o e-mail automático. Use o botão de WhatsApp Web para avisar o cliente.",
       );
     } else {
-      toast.success("Solicitação registrada, vistoria marcada como pendente e e-mail enviado com sucesso!");
+      toast.success("Solicitação registrada, vistoria marcada como aguardando fotos e e-mail enviado com sucesso!");
     }
 
     // 4) Limpa o formulário e fecha o dialog
@@ -1393,7 +1393,7 @@ export default function VistoriaDetalhe() {
               <ul className="text-sm text-blue-700 mt-2 space-y-1 list-disc list-inside">
                 <li>O link será válido por 7 dias</li>
                 <li>Cliente poderá tirar fotos ou enviar da galeria</li>
-                <li>Status da vistoria será alterado para "Pendente Correção" ao enviar a solicitação</li>
+                <li>Status da vistoria será alterado para "Aguardando Fotos" ao enviar a solicitação</li>
               </ul>
             </div>
           </div>
