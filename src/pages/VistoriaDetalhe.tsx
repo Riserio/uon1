@@ -1,193 +1,756 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+  ArrowLeft,
+  Download,
+  FileText,
+  Camera,
+  Check,
+  X,
+  Send,
+  MapPin,
+  User,
+  Car,
+  FileCheck,
+  MessageSquare,
+  Brain,
+  Clock,
+  Phone,
+  Mail,
+  Hash,
+  Shield,
+} from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { generateVistoriaPDF } from "@/components/VistoriaPDF";
+import { useAuth } from "@/hooks/useAuth";
 import { Separator } from "@/components/ui/separator";
-import { Check, X, Clock, Brain, Camera, FileText, Car, Shield } from "lucide-react";
-import { cn, getFileTypeFromUrl, getPosicaoNome } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-export default function VistoriaDetalhes({ vistoria, fotos, termosAceitos }: any) {
-  // Estados de controle
-  const [fotoDialogOpen, setFotoDialogOpen] = useState(false);
-  const [observacaoReprovacao, setObservacaoReprovacao] = useState("");
+export default function VistoriaDetalhe() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [vistoria, setVistoria] = useState<any>(null);
+  const [fotos, setFotos] = useState<any[]>([]);
+  const [termosAceitos, setTermosAceitos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingFotos, setLoadingFotos] = useState(true);
+  const [corretora, setCorretora] = useState<any>(null);
+  const [administradora, setAdministradora] = useState<any>(null);
   const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
-  const [decisaoAnalise, setDecisaoAnalise] = useState<"aprovar" | "pendenciar">("aprovar");
   const [observacaoAnalise, setObservacaoAnalise] = useState("");
+  const [decisaoAnalise, setDecisaoAnalise] = useState<"aprovar" | "pendenciar" | null>(null);
   const [solicitarFotosOpen, setSolicitarFotosOpen] = useState(false);
   const [motivoFotos, setMotivoFotos] = useState("");
-  const [novaFotoInput, setNovaFotoInput] = useState("");
   const [fotosNecessarias, setFotosNecessarias] = useState<string[]>([]);
+  const [novaFotoInput, setNovaFotoInput] = useState("");
 
-  // Funções utilitárias
-  const handleAprovarFoto = (id: number) => { /* lógica */ };
-  const handleReprovarFoto = (foto: any) => { /* lógica */ };
-  const confirmarReprovacao = () => { /* lógica */ };
-  const confirmarAnalise = () => { /* lógica */ };
-  const handleSolicitarMaisFotos = () => { /* lógica */ };
-  const adicionarFotoNecessaria = () => { /* lógica */ };
-  const removerFotoNecessaria = (index: number) => { /* lógica */ };
+  useEffect(() => {
+    loadVistoria();
+  }, [id]);
+
+  const loadVistoria = async () => {
+    try {
+      setLoadingFotos(true);
+      const { data: vistoriaData, error: vistoriaError } = await supabase
+        .from("vistorias")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (vistoriaError) throw vistoriaError;
+      setVistoria(vistoriaData);
+
+      const { data: fotosData, error: fotosError } = await supabase
+        .from("vistoria_fotos")
+        .select("*")
+        .eq("vistoria_id", id)
+        .order("ordem");
+
+      if (fotosError) {
+        console.error("Erro ao carregar fotos:", fotosError);
+        toast.error("Erro ao carregar fotos da vistoria");
+      }
+
+      console.log("Fotos carregadas:", fotosData?.length || 0);
+      setFotos(fotosData || []);
+
+      // Carregar termos aceitos
+      const { data: termosData } = await supabase.from("termos_aceitos").select("*, termos(*)").eq("vistoria_id", id);
+
+      setTermosAceitos(termosData || []);
+
+      // Carregar corretora se existir
+      if (vistoriaData.corretora_id) {
+        const { data: corretoraData } = await supabase
+          .from("corretoras")
+          .select("*")
+          .eq("id", vistoriaData.corretora_id)
+          .single();
+        if (corretoraData) setCorretora(corretoraData);
+      }
+
+      // Carregar administradora
+      const { data: adminData } = await supabase.from("administradora").select("*").limit(1).single();
+      if (adminData) setAdministradora(adminData);
+    } catch (error) {
+      console.error("Erro ao carregar vistoria:", error);
+      toast.error("Erro ao carregar detalhes da vistoria");
+    } finally {
+      setLoading(false);
+      setLoadingFotos(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      toast.loading("Gerando PDF...");
+      await generateVistoriaPDF(vistoria, fotos, corretora, administradora);
+      toast.dismiss();
+      toast.success("PDF gerado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      toast.dismiss();
+      toast.error("Erro ao gerar PDF");
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "aguardando_fotos":
+        return "bg-yellow-500";
+      case "em_analise":
+        return "bg-blue-500";
+      case "concluida":
+        return "bg-green-500";
+      case "aprovada":
+        return "bg-green-600";
+      case "pendente_correcao":
+        return "bg-orange-500";
+      case "cancelada":
+        return "bg-red-500";
+      default:
+        return "bg-gray-500";
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "aguardando_fotos":
+        return "Aguardando Fotos";
+      case "em_analise":
+        return "Em Análise";
+      case "concluida":
+        return "Concluída";
+      case "aprovada":
+        return "Aprovada";
+      case "pendente_correcao":
+        return "Pendente Correção";
+      case "cancelada":
+        return "Cancelada";
+      default:
+        return status;
+    }
+  };
+
+  const getPosicaoNome = (posicao: string) => {
+    const nomes: Record<string, string> = {
+      frontal: "Frontal",
+      traseira: "Traseira",
+      lateral_esquerda: "Lateral Esquerda",
+      lateral_direita: "Lateral Direita",
+    };
+    return nomes[posicao] || posicao;
+  };
+
+  // Detectar tipo do arquivo pela extensão
+  const getFileTypeFromUrl = (url: string): "image" | "video" | "pdf" | "other" => {
+    if (!url) return "other";
+    const clean = url.split("?")[0];
+    const parts = clean.split(".");
+    const ext = parts[parts.length - 1]?.toLowerCase();
+
+    const imageExts = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "avif"];
+    const videoExts = ["mp4", "mov", "webm", "mkv", "avi", "m4v", "3gp"];
+    const pdfExts = ["pdf"];
+
+    if (ext && imageExts.includes(ext)) return "image";
+    if (ext && videoExts.includes(ext)) return "video";
+    if (ext && pdfExts.includes(ext)) return "pdf";
+    return "other";
+  };
+
+  const handleAbrirAnalise = (decisao: "aprovar" | "pendenciar") => {
+    setDecisaoAnalise(decisao);
+    setObservacaoAnalise("");
+    setAnaliseDialogOpen(true);
+  };
+
+  const confirmarAnalise = async () => {
+    if (!observacaoAnalise.trim()) {
+      toast.error("Por favor, informe suas observações sobre a análise");
+      return;
+    }
+
+    try {
+      const novoStatus = decisaoAnalise === "aprovar" ? "aprovada" : "pendente_correcao";
+
+      await supabase
+        .from("vistorias")
+        .update({
+          status: novoStatus,
+          observacoes: observacaoAnalise,
+        })
+        .eq("id", vistoria.id);
+
+      if (vistoria.atendimento_id) {
+        const { data: atendimento } = await supabase
+          .from("atendimentos")
+          .select("tags")
+          .eq("id", vistoria.atendimento_id)
+          .single();
+
+        if (atendimento?.tags) {
+          const newTags = atendimento.tags
+            .filter(
+              (tag: string) =>
+                !["aguardando_vistoria_digital", "vistoria_concluida", "pendente_vistoria"].includes(tag),
+            )
+            .concat(decisaoAnalise === "aprovar" ? "vistoria_aprovada" : "vistoria_pendente");
+
+          await supabase.from("atendimentos").update({ tags: newTags }).eq("id", vistoria.atendimento_id);
+        }
+      }
+
+      toast.success(decisaoAnalise === "aprovar" ? "Vistoria aprovada!" : "Vistoria pendenciada!");
+      setAnaliseDialogOpen(false);
+      setDecisaoAnalise(null);
+      setObservacaoAnalise("");
+      loadVistoria();
+    } catch (error) {
+      console.error("Erro ao analisar vistoria:", error);
+      toast.error("Erro ao processar análise");
+    }
+  };
+
+  const handleSolicitarMaisFotos = async () => {
+    if (!motivoFotos.trim()) {
+      toast.error("Por favor, informe o motivo da solicitação");
+      return;
+    }
+
+    if (fotosNecessarias.length === 0) {
+      toast.error("Por favor, adicione pelo menos uma foto necessária");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke("solicitar-mais-fotos", {
+        body: {
+          vistoriaId: vistoria.id,
+          motivo: motivoFotos,
+          fotosNecessarias,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success("Solicitação enviada! Cliente receberá um email com o link renovado.");
+      setSolicitarFotosOpen(false);
+      setMotivoFotos("");
+      setFotosNecessarias([]);
+      setNovaFotoInput("");
+      loadVistoria();
+    } catch (error) {
+      console.error("Erro ao solicitar fotos:", error);
+      toast.error("Erro ao enviar solicitação");
+    }
+  };
+
+  const adicionarFotoNecessaria = () => {
+    if (novaFotoInput.trim()) {
+      setFotosNecessarias([...fotosNecessarias, novaFotoInput.trim()]);
+      setNovaFotoInput("");
+    }
+  };
+
+  const removerFotoNecessaria = (index: number) => {
+    setFotosNecessarias(fotosNecessarias.filter((_, i) => i !== index));
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!vistoria) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
+        <div className="max-w-7xl mx-auto text-center py-12">
+          <p className="text-muted-foreground">Vistoria não encontrada</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="fotos" className="space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" onClick={() => navigate("/vistorias")} size="lg">
+            <ArrowLeft className="h-5 w-5 mr-2" />
+            Voltar
+          </Button>
 
-        {/* Tab Fotos */}
-        <TabsContent value="fotos" className="space-y-6">
-          <Card>
-            <CardContent className="p-6">
-              {fotos.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <p>
-                    {vistoria.status === "aguardando_fotos"
-                      ? "As fotos aparecerão aqui assim que forem enviadas pelo cliente."
-                      : "Esta vistoria não possui fotos registradas."}
-                  </p>
+          <div className="flex gap-2">
+            {vistoria.tipo_abertura === "digital" && vistoria.analise_ia && (
+              <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-200">
+                <Brain className="h-3 w-3 mr-1" />
+                Análise por IA
+              </Badge>
+            )}
+            {vistoria.status !== "cancelada" && (
+              <Button variant="outline" className="gap-2" onClick={() => setSolicitarFotosOpen(true)}>
+                <Camera className="h-4 w-4" />
+                Solicitar Mais Fotos
+              </Button>
+            )}
+            <Button className="gap-2" onClick={handleExportPDF}>
+              <Download className="h-4 w-4" />
+              Exportar PDF
+            </Button>
+          </div>
+        </div>
+
+        {/* Status Card */}
+        <Card className="border-2">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <Hash className="h-6 w-6 text-muted-foreground" />
+                  <h1 className="text-3xl font-bold">Vistoria #{vistoria.numero}</h1>
                 </div>
-              ) : (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {fotos.map((foto) => {
-                    const fileType = getFileTypeFromUrl(foto.arquivo_url || "");
-                    return (
-                      <Card
-                        key={foto.id}
-                        className="overflow-hidden border-2 hover:border-primary/50 transition-all duration-200"
-                      >
-                        <div className="relative group aspect-[4/3] bg-muted flex items-center justify-center">
-                          {/* Badges topo */}
-                          <div className="absolute top-2 left-2 right-2 flex items-start justify-between gap-2 z-10">
-                            <Badge variant="secondary" className="bg-black/60 text-white backdrop-blur-sm">
-                              {getPosicaoNome(foto.posicao)}
-                            </Badge>
-                            <Badge
-                              className={cn(
-                                "backdrop-blur-sm",
-                                foto.status_aprovacao === "aprovada"
-                                  ? "bg-green-500 hover:bg-green-600"
-                                  : foto.status_aprovacao === "reprovada"
-                                    ? "bg-red-500 hover:bg-red-600"
-                                    : "bg-yellow-500 hover:bg-yellow-600",
-                              )}
-                            >
-                              {foto.status_aprovacao === "aprovada" ? (
-                                <>
-                                  <Check className="h-3 w-3 mr-1" /> Aprovada
-                                </>
-                              ) : foto.status_aprovacao === "reprovada" ? (
-                                <>
-                                  <X className="h-3 w-3 mr-1" /> Reprovada
-                                </>
-                              ) : (
-                                <>
-                                  <Clock className="h-3 w-3 mr-1" /> Pendente
-                                </>
-                              )}
-                            </Badge>
+                <div className="flex gap-2 flex-wrap">
+                  <Badge variant={vistoria.tipo_abertura === "digital" ? "default" : "secondary"} className="text-sm">
+                    {vistoria.tipo_abertura === "digital" ? (
+                      <>
+                        <Camera className="h-3 w-3 mr-1" /> Digital
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="h-3 w-3 mr-1" /> Manual
+                      </>
+                    )}
+                  </Badge>
+                  <Badge variant="outline" className="text-sm">
+                    {vistoria.tipo_vistoria === "sinistro" ? "Sinistro" : "Reativação"}
+                  </Badge>
+                  <Badge className={cn("text-sm", getStatusColor(vistoria.status))}>
+                    {getStatusLabel(vistoria.status)}
+                  </Badge>
+                </div>
+              </div>
+              <div className="text-right space-y-1">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Clock className="h-4 w-4" />
+                  <span>
+                    Criada em {format(new Date(vistoria.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  </span>
+                </div>
+                {vistoria.completed_at && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Check className="h-4 w-4" />
+                    <span>
+                      Concluída em {format(new Date(vistoria.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tabs Content */}
+        <Tabs defaultValue="geral" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-6 lg:w-auto">
+            <TabsTrigger value="geral">
+              <User className="h-4 w-4 mr-2" />
+              Geral
+            </TabsTrigger>
+            <TabsTrigger value="fotos">
+              <Camera className="h-4 w-4 mr-2" />
+              Fotos
+            </TabsTrigger>
+            <TabsTrigger value="ia">
+              <Brain className="h-4 w-4 mr-2" />
+              Análise IA
+            </TabsTrigger>
+            <TabsTrigger value="localizacao">
+              <MapPin className="h-4 w-4 mr-2" />
+              Localização
+            </TabsTrigger>
+            <TabsTrigger value="termos">
+              <FileCheck className="h-4 w-4 mr-2" />
+              Termos
+            </TabsTrigger>
+            <TabsTrigger value="questionario">
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Respostas
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Tab: Geral */}
+          <TabsContent value="geral" className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Cliente */}
+              <Card>
+                <CardHeader className="bg-muted/50">
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="h-5 w-5" />
+                    Dados do Cliente
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  {vistoria.cliente_nome && (
+                    <div>
+                      <span className="text-sm text-muted-foreground">Nome Completo</span>
+                      <p className="font-semibold text-lg">{vistoria.cliente_nome}</p>
+                    </div>
+                  )}
+                  {vistoria.cliente_cpf && (
+                    <div>
+                      <span className="text-sm text-muted-foreground">CPF</span>
+                      <p className="font-mono">{vistoria.cliente_cpf}</p>
+                    </div>
+                  )}
+                  {vistoria.cliente_email && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <span className="text-sm text-muted-foreground block">Email</span>
+                        <p>{vistoria.cliente_email}</p>
+                      </div>
+                    </div>
+                  )}
+                  {vistoria.cliente_telefone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <span className="text-sm text-muted-foreground block">Telefone</span>
+                        <p>{vistoria.cliente_telefone}</p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Veículo */}
+              <Card>
+                <CardHeader className="bg-muted/50">
+                  <CardTitle className="flex items-center gap-2">
+                    <Car className="h-5 w-5" />
+                    Dados do Veículo
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  {vistoria.veiculo_placa && (
+                    <div>
+                      <span className="text-sm text-muted-foreground">Placa</span>
+                      <p className="font-bold text-lg tracking-wider">{vistoria.veiculo_placa}</p>
+                    </div>
+                  )}
+                  {(vistoria.veiculo_marca || vistoria.veiculo_modelo) && (
+                    <div>
+                      <span className="text-sm text-muted-foreground">Marca/Modelo</span>
+                      <p className="font-semibold">
+                        {vistoria.veiculo_marca} {vistoria.veiculo_modelo}
+                      </p>
+                    </div>
+                  )}
+                  {vistoria.veiculo_ano && (
+                    <div>
+                      <span className="text-sm text-muted-foreground">Ano</span>
+                      <p>{vistoria.veiculo_ano}</p>
+                    </div>
+                  )}
+                  {vistoria.veiculo_cor && (
+                    <div>
+                      <span className="text-sm text-muted-foreground">Cor</span>
+                      <p>{vistoria.veiculo_cor}</p>
+                    </div>
+                  )}
+                  {vistoria.veiculo_chassi && (
+                    <div>
+                      <span className="text-sm text-muted-foreground">Chassi</span>
+                      <p className="font-mono text-xs">{vistoria.veiculo_chassi}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* CNH Data */}
+            {vistoria.cnh_dados && (
+              <Card>
+                <CardHeader className="bg-muted/50">
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Dados da CNH (OCR)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="grid md:grid-cols-3 gap-4">
+                    {vistoria.cnh_dados.nome && (
+                      <div>
+                        <span className="text-sm text-muted-foreground">Nome</span>
+                        <p className="font-semibold">{vistoria.cnh_dados.nome}</p>
+                      </div>
+                    )}
+                    {vistoria.cnh_dados.cpf && (
+                      <div>
+                        <span className="text-sm text-muted-foreground">CPF</span>
+                        <p className="font-mono">{vistoria.cnh_dados.cpf}</p>
+                      </div>
+                    )}
+                    {vistoria.cnh_dados.numero_registro && (
+                      <div>
+                        <span className="text-sm text-muted-foreground">Nº Registro</span>
+                        <p className="font-mono">{vistoria.cnh_dados.numero_registro}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Documentos Anexos */}
+            <Card>
+              <CardHeader className="bg-muted/50">
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Documentos Anexados
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid md:grid-cols-2 gap-4">
+                  {vistoria.cnh_url && (
+                    <Button variant="outline" asChild>
+                      <a href={vistoria.cnh_url} target="_blank" rel="noopener noreferrer">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Ver CNH
+                      </a>
+                    </Button>
+                  )}
+                  {vistoria.crlv_fotos_urls && vistoria.crlv_fotos_urls.length > 0 && (
+                    <Button variant="outline" asChild>
+                      <a href={vistoria.crlv_fotos_urls[0]} target="_blank" rel="noopener noreferrer">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Ver CRLV ({vistoria.crlv_fotos_urls.length} foto
+                        {vistoria.crlv_fotos_urls.length > 1 ? "s" : ""})
+                      </a>
+                    </Button>
+                  )}
+                  {vistoria.bo_url && (
+                    <Button variant="outline" asChild>
+                      <a href={vistoria.bo_url} target="_blank" rel="noopener noreferrer">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Boletim de Ocorrência
+                      </a>
+                    </Button>
+                  )}
+                  {vistoria.laudo_medico_url && (
+                    <Button variant="outline" asChild>
+                      <a href={vistoria.laudo_medico_url} target="_blank" rel="noopener noreferrer">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Laudo Médico
+                      </a>
+                    </Button>
+                  )}
+                  {vistoria.atestado_obito_url && (
+                    <Button variant="outline" asChild>
+                      <a href={vistoria.atestado_obito_url} target="_blank" rel="noopener noreferrer">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Atestado de Óbito
+                      </a>
+                    </Button>
+                  )}
+                  {vistoria.laudo_alcoolemia_url && (
+                    <Button variant="outline" asChild>
+                      <a href={vistoria.laudo_alcoolemia_url} target="_blank" rel="noopener noreferrer">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Laudo de Alcoolemia
+                      </a>
+                    </Button>
+                  )}
+                  {vistoria.croqui_acidente_url && (
+                    <Button variant="outline" asChild>
+                      <a href={vistoria.croqui_acidente_url} target="_blank" rel="noopener noreferrer">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Croqui do Acidente
+                      </a>
+                    </Button>
+                  )}
+                  {vistoria.assinatura_url && (
+                    <Button variant="outline" asChild>
+                      <a href={vistoria.assinatura_url} target="_blank" rel="noopener noreferrer">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Assinatura Digital
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab: Fotos */}
+          <TabsContent value="fotos" className="space-y-6">
+            <Card>
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/50 dark:to-purple-950/50 border-b">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-2 text-xl">
+                      <Camera className="h-5 w-5 text-blue-600" />
+                      Fotos do Veículo
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      {loadingFotos
+                        ? "Carregando..."
+                        : `${fotos.length} foto${fotos.length !== 1 ? "s" : ""} ${
+                            fotos.length !== 1 ? "registradas" : "registrada"
+                          }`}
+                    </p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                {loadingFotos ? (
+                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary"></div>
+                    <p className="text-sm text-muted-foreground">Carregando fotos...</p>
+                  </div>
+                ) : fotos.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 space-y-4 text-center">
+                    <div className="rounded-full bg-muted p-6">
+                      <Camera className="h-12 w-12 text-muted-foreground/50" />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-lg font-medium">Nenhuma foto disponível</p>
+                      <p className="text-sm text-muted-foreground max-w-sm">
+                        {vistoria.status === "aguardando_fotos"
+                          ? "As fotos aparecerão aqui assim que forem enviadas pelo cliente."
+                          : "Esta vistoria não possui fotos registradas."}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {fotos.map((foto) => {
+                      const fileType = getFileTypeFromUrl(foto.arquivo_url || "");
+
+                      return (
+                        <Card
+                          key={foto.id}
+                          className="overflow-hidden border-2 hover:border-primary/50 transition-all duration-200"
+                        >
+                          <div className="relative group aspect-[4/3] bg-muted flex items-center justify-center">
+                            {/* Badge de posição */}
+                            <div className="absolute top-2 left-2 z-10">
+                              <Badge variant="secondary" className="bg-black/60 text-white backdrop-blur-sm">
+                                {getPosicaoNome(foto.posicao)}
+                              </Badge>
+                            </div>
+
+                            {/* Conteúdo principal (imagem / vídeo / pdf / placeholder) */}
+                            {fileType === "image" && (
+                              <a
+                                href={foto.arquivo_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full h-full"
+                              >
+                                <img
+                                  src={foto.arquivo_url}
+                                  alt={getPosicaoNome(foto.posicao)}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    console.error("Erro ao carregar imagem:", foto.arquivo_url);
+                                    (e.target as HTMLImageElement).style.display = "none";
+                                  }}
+                                />
+                              </a>
+                            )}
+
+                            {fileType === "video" && (
+                              <video
+                                src={foto.arquivo_url}
+                                controls
+                                className="w-full h-full object-cover rounded-none"
+                              />
+                            )}
+
+                            {fileType === "pdf" && (
+                              <div className="flex flex-col items-center justify-center text-center px-4">
+                                <FileText className="h-10 w-10 text-primary mb-2" />
+                                <p className="text-sm font-medium mb-1">Documento PDF</p>
+                                <p className="text-xs text-muted-foreground mb-3">{foto.arquivo_nome}</p>
+                                <Button size="sm" variant="outline" asChild>
+                                  <a href={foto.arquivo_url} target="_blank" rel="noopener noreferrer">
+                                    Abrir PDF
+                                  </a>
+                                </Button>
+                              </div>
+                            )}
+
+                            {fileType === "other" && (
+                              <div className="flex flex-col items-center justify-center text-center px-4">
+                                <Camera className="h-10 w-10 text-muted-foreground mb-2" />
+                                <p className="text-sm text-muted-foreground">Imagem não disponível</p>
+                              </div>
+                            )}
                           </div>
 
-                          {/* Conteúdo principal */}
-                          {fileType === "image" && (
-                            <a href={foto.arquivo_url} target="_blank" rel="noopener noreferrer" className="w-full h-full">
-                              <img
-                                src={foto.arquivo_url}
-                                alt={getPosicaoNome(foto.posicao)}
-                                className="w-full h-full object-cover"
-                                onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
-                                loading="lazy"
-                              />
-                            </a>
-                          )}
+                          <CardContent className="p-4 space-y-2">
+                            {foto.arquivo_nome && (
+                              <p className="text-xs text-muted-foreground break-all">{foto.arquivo_nome}</p>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-                          {fileType === "video" && (
-                            <video src={foto.arquivo_url} controls className="w-full h-full object-cover rounded-none" />
-                          )}
-
-                          {fileType === "pdf" && (
-                            <div className="flex flex-col items-center justify-center text-center px-4">
-                              <FileText className="h-10 w-10 text-primary mb-2" />
-                              <p className="text-sm font-medium mb-1">Documento PDF</p>
-                              <p className="text-xs text-muted-foreground mb-3">{foto.arquivo_nome}</p>
-                              <Button size="sm" variant="outline" asChild>
-                                <a href={foto.arquivo_url} target="_blank" rel="noopener noreferrer">
-                                  Abrir PDF
-                                </a>
-                              </Button>
-                            </div>
-                          )}
-
-                          {fileType === "other" && (
-                            <div className="flex flex-col items-center justify-center text-center px-4">
-                              <Camera className="h-10 w-10 text-muted-foreground mb-2" />
-                              <p className="text-sm text-muted-foreground">Imagem não disponível</p>
-                            </div>
-                          )}
-
-                          {/* Overlay de ações */}
-                          {vistoria.tipo_abertura === "manual" && foto.status_aprovacao === "pendente" && (
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end">
-                              <div className="w-full p-3 space-y-2">
-                                <p className="text-white text-xs font-medium mb-2">Ações da Foto:</p>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                    onClick={() => handleAprovarFoto(foto.id)}
-                                  >
-                                    <Check className="h-4 w-4 mr-1" />
-                                    Aprovar
-                                  </Button>
-                                  <Button size="sm" variant="destructive" onClick={() => handleReprovarFoto(foto)}>
-                                    <X className="h-4 w-4 mr-1" />
-                                    Reprovar
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        <CardContent className="p-4 space-y-3">
-                          {foto.aprovada_em && (
-                            <div className="text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3 inline mr-1" />
-                              {format(new Date(foto.aprovada_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                            </div>
-                          )}
-
-                          {foto.observacao_reprovacao && (
-                            <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-3 space-y-1">
-                              <p className="text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
-                                <X className="h-3 w-3" /> Motivo da reprovação:
-                              </p>
-                              <p className="text-xs text-red-700 dark:text-red-300">{foto.observacao_reprovacao}</p>
-                            </div>
-                          )}
-
-                          {foto.analise_ia && (
-                            <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3 space-y-1">
-                              <p className="text-xs text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1">
-                                <Brain className="h-3 w-3" /> Análise IA:
-                              </p>
-                              <p className="text-xs text-purple-700 dark:text-purple-300 leading-relaxed">
-                                {typeof foto.analise_ia === "string"
-                                  ? foto.analise_ia
-                                  : foto.analise_ia.analise || "Análise não disponível"}
-                              </p>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-                  {/* Tab: Análise IA */}
+          {/* Tab: Análise IA */}
           <TabsContent value="ia" className="space-y-6">
             {vistoria.analise_ia || vistoria.observacoes_ia || vistoria.danos_detectados?.length > 0 ? (
               <div className="space-y-6">
@@ -439,7 +1002,9 @@ export default function VistoriaDetalhes({ vistoria, fotos, termosAceitos }: any
                           <div>
                             <span className="text-muted-foreground block mb-1">Data e Hora:</span>
                             <p className="font-medium">
-                              {format(new Date(termo.aceito_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}
+                              {format(new Date(termo.aceito_em), "dd/MM/yyyy 'às' HH:mm:ss", {
+                                locale: ptBR,
+                              })}
                             </p>
                           </div>
                           <div>
@@ -524,7 +1089,10 @@ export default function VistoriaDetalhes({ vistoria, fotos, termosAceitos }: any
                     <div>
                       <h4 className="font-semibold mb-2">Data e Hora do Evento</h4>
                       <p className="text-muted-foreground">
-                        {vistoria.data_evento && format(new Date(vistoria.data_evento), "dd/MM/yyyy", { locale: ptBR })}
+                        {vistoria.data_evento &&
+                          format(new Date(vistoria.data_evento), "dd/MM/yyyy", {
+                            locale: ptBR,
+                          })}
                         {vistoria.hora_evento && ` às ${vistoria.hora_evento}`}
                       </p>
                     </div>
@@ -565,19 +1133,180 @@ export default function VistoriaDetalhes({ vistoria, fotos, termosAceitos }: any
                         {vistoria.tem_terceiros ? "Sim" : "Não"}
                       </Badge>
                       {vistoria.tem_terceiros && vistoria.placa_terceiro && (
-                        <p className="text-sm text-muted-foreground mt-1">Placa do terceiro: {vistoria.placa_terceiro}</p>
+                        <p className="text-sm text-muted-foreground mt-1">Placa: {vistoria.placa_terceiro}</p>
                       )}
+                    </div>
+
+                    <div>
+                      <h4 className="font-semibold mb-2">Local possui câmeras?</h4>
+                      <Badge variant={vistoria.local_tem_camera ? "default" : "secondary"}>
+                        {vistoria.local_tem_camera ? "Sim" : "Não"}
+                      </Badge>
+                    </div>
+
+                    <div>
+                      <h4 className="font-semibold mb-2">Fez Boletim de Ocorrência?</h4>
+                      <Badge variant={vistoria.fez_bo ? "default" : "secondary"}>
+                        {vistoria.fez_bo ? "Sim" : "Não"}
+                      </Badge>
+                    </div>
+
+                    <div>
+                      <h4 className="font-semibold mb-2">Foi ao hospital?</h4>
+                      <Badge variant={vistoria.foi_hospital ? "default" : "secondary"}>
+                        {vistoria.foi_hospital ? "Sim" : "Não"}
+                      </Badge>
+                    </div>
+
+                    <div>
+                      <h4 className="font-semibold mb-2">O motorista faleceu?</h4>
+                      <Badge variant={vistoria.motorista_faleceu ? "destructive" : "secondary"}>
+                        {vistoria.motorista_faleceu ? "Sim" : "Não"}
+                      </Badge>
+                    </div>
+
+                    <div>
+                      <h4 className="font-semibold mb-2">A polícia foi ao local?</h4>
+                      <Badge variant={vistoria.policia_foi_local ? "default" : "secondary"}>
+                        {vistoria.policia_foi_local ? "Sim" : "Não"}
+                      </Badge>
                     </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* Dialogs */}
-          <DialogReprovacao />
-          <DialogAnalise />
-          <DialogSolicitarFotos />
         </Tabs>
       </div>
 
+      {/* Dialog de análise da vistoria */}
+      <Dialog open={analiseDialogOpen} onOpenChange={setAnaliseDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{decisaoAnalise === "aprovar" ? "Aprovar Vistoria" : "Pendenciar Vistoria"}</DialogTitle>
+            <DialogDescription>
+              {decisaoAnalise === "aprovar"
+                ? "Adicione observações sobre a aprovação da vistoria (opcional mas recomendado)."
+                : "Informe os motivos pelos quais a vistoria está sendo pendenciada."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="analise">{decisaoAnalise === "aprovar" ? "Observações" : "Motivos da Pendência"} *</Label>
+              <Textarea
+                id="analise"
+                value={observacaoAnalise}
+                onChange={(e) => setObservacaoAnalise(e.target.value)}
+                placeholder={
+                  decisaoAnalise === "aprovar"
+                    ? "Ex: Vistoria aprovada conforme análise técnica. Todas as fotos estão adequadas..."
+                    : "Ex: Fotos do veículo apresentam qualidade insuficiente para análise..."
+                }
+                rows={5}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAnaliseDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant={decisaoAnalise === "aprovar" ? "default" : "destructive"}
+              onClick={confirmarAnalise}
+              className="gap-2"
+            >
+              {decisaoAnalise === "aprovar" ? (
+                <>
+                  <Check className="h-4 w-4" />
+                  Confirmar Aprovação
+                </>
+              ) : (
+                <>
+                  <X className="h-4 w-4" />
+                  Confirmar Pendência
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de solicitar mais fotos */}
+      <Dialog open={solicitarFotosOpen} onOpenChange={setSolicitarFotosOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5" />
+              Solicitar Mais Fotos ao Cliente
+            </DialogTitle>
+            <DialogDescription>
+              O cliente receberá um email com o link renovado para enviar as fotos adicionais.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="motivo">Motivo da Solicitação *</Label>
+              <Textarea
+                id="motivo"
+                value={motivoFotos}
+                onChange={(e) => setMotivoFotos(e.target.value)}
+                placeholder="Ex: Necessário fotos mais próximas dos danos na lateral direita..."
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <Label>Fotos Necessárias *</Label>
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="text"
+                  value={novaFotoInput}
+                  onChange={(e) => setNovaFotoInput(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && adicionarFotoNecessaria()}
+                  placeholder="Ex: Lateral direita - detalhes dos arranhões"
+                  className="flex-1 px-3 py-2 border rounded-md"
+                />
+                <Button onClick={adicionarFotoNecessaria} type="button">
+                  Adicionar
+                </Button>
+              </div>
+
+              {fotosNecessarias.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {fotosNecessarias.map((foto, index) => (
+                    <div key={index} className="flex items-center justify-between bg-muted p-2 rounded-md">
+                      <span className="text-sm">{foto}</span>
+                      <Button variant="ghost" size="sm" onClick={() => removerFotoNecessaria(index)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-800">
+                <strong>ℹ️ Informações:</strong>
+              </p>
+              <ul className="text-sm text-blue-700 mt-2 space-y-1 list-disc list-inside">
+                <li>O link será válido por 7 dias</li>
+                <li>Cliente poderá tirar fotos ou enviar da galeria</li>
+                <li>Status da vistoria será alterado para "Aguardando Fotos"</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSolicitarFotosOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSolicitarMaisFotos} className="gap-2">
+              <Send className="h-4 w-4" />
+              Enviar Solicitação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
