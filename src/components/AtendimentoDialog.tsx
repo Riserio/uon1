@@ -145,7 +145,9 @@ export function AtendimentoDialog({
     onUpdate: () => {
       console.log("🔄 Recarregando dados do atendimento...");
       if (atendimento?.id) {
+        // Apenas recarregar custos e histórico, não sobrescrever formData
         loadVistoriaCustos(atendimento.id);
+        // Incrementar reloadKey apenas para forçar re-render das abas de histórico/andamentos
         setReloadKey((prev) => prev + 1);
       }
     },
@@ -190,7 +192,46 @@ export function AtendimentoDialog({
 
   useEffect(() => {
     if (atendimento) {
-      setFormData(atendimento);
+      // Carregar nomes de corretora e contato baseado nos IDs
+      const loadNomes = async () => {
+        let corretoraName = "";
+        let contatoName = "";
+
+        // Buscar nome da corretora se houver ID
+        if (atendimento.corretora) {
+          const { data: corretoraData } = await supabase
+            .from("corretoras")
+            .select("nome")
+            .eq("id", atendimento.corretora)
+            .single();
+          
+          if (corretoraData) {
+            corretoraName = corretoraData.nome;
+          }
+        }
+
+        // Buscar nome do contato se houver ID
+        if (atendimento.contato) {
+          const { data: contatoData } = await supabase
+            .from("contatos")
+            .select("nome")
+            .eq("id", atendimento.contato)
+            .single();
+          
+          if (contatoData) {
+            contatoName = contatoData.nome;
+          }
+        }
+
+        // Atualizar formData com os nomes
+        setFormData({
+          ...atendimento,
+          corretora: corretoraName,
+          contato: contatoName,
+        });
+      };
+
+      loadNomes();
       setPrimeiroAndamento("");
       setAnexos([]);
       loadVistoriaCustos(atendimento.id);
@@ -599,12 +640,44 @@ export function AtendimentoDialog({
 
       // Se for edição, atualizar o atendimento existente
       if (atendimento?.id) {
+        // Buscar IDs de corretora e contato baseado nos nomes
+        let corretoraId = atendimento.corretora; // Mantém o ID original se não mudou
+        let contatoId = atendimento.contato; // Mantém o ID original se não mudou
+
+        // Se o nome da corretora mudou, buscar novo ID
+        if (formData.corretora && formData.corretora !== atendimento.corretora) {
+          const { data: corretoraData } = await supabase
+            .from("corretoras")
+            .select("id")
+            .eq("nome", formData.corretora)
+            .single();
+          
+          if (corretoraData) {
+            corretoraId = corretoraData.id;
+          }
+        }
+
+        // Se o nome do contato mudou, buscar novo ID
+        if (formData.contato && formData.contato !== atendimento.contato) {
+          const { data: contatoData } = await supabase
+            .from("contatos")
+            .select("id")
+            .eq("nome", formData.contato)
+            .single();
+          
+          if (contatoData) {
+            contatoId = contatoData.id;
+          }
+        }
+
         const { error: updateError } = await supabase
           .from("atendimentos")
           .update({
             assunto: formData.assunto || "",
             prioridade: formData.prioridade || "Média",
             responsavel_id: formData.responsavel || null,
+            corretora_id: corretoraId || null,
+            contato_id: contatoId || null,
             tags: formData.tags || [],
             observacoes: formData.observacoes || "",
             data_retorno: formData.dataRetorno || null,
