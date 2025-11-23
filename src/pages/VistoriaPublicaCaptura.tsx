@@ -63,6 +63,7 @@ export default function VistoriaPublicaCaptura() {
   const [cnhData, setCnhData] = useState<any>(null);
   const [vehicleData, setVehicleData] = useState<any>(null);
   const [processingOcr, setProcessingOcr] = useState(false);
+  const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
     loadVistoria();
@@ -160,7 +161,19 @@ export default function VistoriaPublicaCaptura() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const posicaoAtual = POSICOES[currentStep];
+    const isFotosAdicionais =
+      !!vistoria && (vistoria.status === "pendente_correcao" || vistoria.status === "aguardando_fotos");
+
+    const posicaoAtual = isFotosAdicionais
+      ? {
+          id: "fotos_adicionais",
+          nome: "Fotos adicionais",
+          descricao: "",
+          tipo: "veiculo",
+          multiple: true,
+        }
+      : POSICOES[currentStep];
+
     const validTypes = [
       "image/jpeg",
       "image/jpg",
@@ -190,12 +203,16 @@ export default function VistoriaPublicaCaptura() {
       validFiles.push(file);
     }
 
-    if (validFiles.length === 0) return;
+    if (validFiles.length === 0) {
+      e.target.value = "";
+      return;
+    }
 
-    if (posicaoAtual.multiple) {
-      // CRLV entra aqui (multiple: true)
-      const existingFiles = fotos[posicaoAtual.id] || [];
-      const existingPreviews = fotoPreviews[posicaoAtual.id] || [];
+    // Se for modo fotos adicionais: sempre múltiplas, sem OCR
+    if (isFotosAdicionais || posicaoAtual.multiple) {
+      const key = isFotosAdicionais ? "fotos_adicionais" : posicaoAtual.id;
+      const existingFiles = fotos[key] || [];
+      const existingPreviews = fotoPreviews[key] || [];
 
       const newPreviews: string[] = [];
       let firstOcrBase64: string | null = null;
@@ -209,8 +226,8 @@ export default function VistoriaPublicaCaptura() {
           });
           newPreviews.push(preview);
 
-          // Se for CRLV, guarda a primeira imagem para OCR de veículo
-          if (posicaoAtual.id === "crlv" && !firstOcrBase64) {
+          // OCR apenas se NÃO for modo fotos adicionais
+          if (!isFotosAdicionais && posicaoAtual.id === "crlv" && !firstOcrBase64) {
             firstOcrBase64 = preview;
           }
         } else {
@@ -218,22 +235,23 @@ export default function VistoriaPublicaCaptura() {
         }
       }
 
-      setFotos({ ...fotos, [posicaoAtual.id]: [...existingFiles, ...validFiles] });
-      setFotoPreviews({ ...fotoPreviews, [posicaoAtual.id]: [...existingPreviews, ...newPreviews] });
+      setFotos({ ...fotos, [key]: [...existingFiles, ...validFiles] });
+      setFotoPreviews({ ...fotoPreviews, [key]: [...existingPreviews, ...newPreviews] });
 
-      // Dispara OCR do CRLV (uma vez, na primeira imagem)
-      if (firstOcrBase64 && posicaoAtual.id === "crlv") {
+      // Dispara OCR do CRLV (uma vez, na primeira imagem) – somente no fluxo normal
+      if (!isFotosAdicionais && firstOcrBase64 && posicaoAtual.id === "crlv") {
         await processOcr(firstOcrBase64, "veiculo");
       }
     } else {
-      // CNH, FRONTAL, TRASEIRA, LATERAIS
+      // Fluxo normal: CNH, FRONTAL, TRASEIRA, LATERAIS (uma foto por posição)
       const file = validFiles[0];
-      setFotos({ ...fotos, [posicaoAtual.id]: [file] });
+      const key = posicaoAtual.id;
+      setFotos({ ...fotos, [key]: [file] });
 
       const reader = new FileReader();
       reader.onload = async (ev) => {
         const base64 = ev.target?.result as string;
-        setFotoPreviews({ ...fotoPreviews, [posicaoAtual.id]: [base64] });
+        setFotoPreviews({ ...fotoPreviews, [key]: [base64] });
 
         if (getFileType(file) === "image") {
           if (posicaoAtual.id === "cnh") {
@@ -247,7 +265,7 @@ export default function VistoriaPublicaCaptura() {
       if (getFileType(file) === "image") {
         reader.readAsDataURL(file);
       } else {
-        setFotoPreviews({ ...fotoPreviews, [posicaoAtual.id]: [file.type] });
+        setFotoPreviews({ ...fotoPreviews, [key]: [file.type] });
       }
     }
 
@@ -291,7 +309,7 @@ export default function VistoriaPublicaCaptura() {
     setFotoPreviews(newPreviews);
   };
 
-  // Não salva File no localStorage, só dados serializáveis. Files vão via state.
+  // Fluxo normal: salva dados temporários e vai para o formulário completo
   const handleContinue = () => {
     if (!vistoria) {
       toast.error("Não foi possível prosseguir com a vistoria.");
@@ -319,8 +337,69 @@ export default function VistoriaPublicaCaptura() {
     });
   };
 
-  const totalFotos = Object.values(fotos).reduce((sum, files) => sum + files.length, 0);
-  const progressPercentage = ((currentStep + 1) / POSICOES.length) * 100;
+  // ENVIO SIMPLES: somente fotos adicionais
+  const handleEnviarSomenteFotos = async () => {
+    if (!vistoria) {
+      toast.error("Não foi possível identificar a vistoria.");
+      return;
+    }
+
+    const fotosAdicionais = fotos["fotos_adicionais"] || [];
+    if (fotosAdicionais.length === 0) {
+      toast.error("Envie pelo menos uma foto.");
+      return;
+    }
+
+    try {
+      setEnviando(true);
+
+      // Ajuste o nome do bucket se necessário
+      const bucketName = "vistoria-fotos";
+
+      const uploads: { url: string; nome: string }[] = [];
+
+      for (const file of fotosAdicionais) {
+        const filePath = `${vistoria.id}/${Date.now()}-${Math.random().toString(36).slice(2)}-${file.name}`;
+
+        const { error: storageError } = await supabase.storage.from(bucketName).upload(filePath, file);
+
+        if (storageError) throw storageError;
+
+        const { data: publicUrlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
+
+        uploads.push({
+          url: publicUrlData.publicUrl,
+          nome: file.name,
+        });
+      }
+
+      // Insere na tabela vistoria_fotos (ajuste campos se necessário)
+      const { error: insertError } = await supabase.from("vistoria_fotos").insert(
+        uploads.map((u, index) => ({
+          vistoria_id: vistoria.id,
+          arquivo_url: u.url,
+          arquivo_nome: u.nome,
+          posicao: "adicional",
+          ordem: index + 1,
+          status_aprovacao: "pendente",
+        })),
+      );
+
+      if (insertError) throw insertError;
+
+      // Status depois das fotos adicionais: concluída
+      await supabase.from("vistorias").update({ status: "concluida" }).eq("id", vistoria.id);
+
+      toast.success("Fotos adicionais enviadas com sucesso! Você já pode fechar esta tela.");
+      // Se quiser redirecionar:
+      // navigate("/");
+    } catch (error) {
+      console.error("Erro ao enviar fotos adicionais:", error);
+      toast.error("Erro ao enviar as fotos. Tente novamente.");
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -337,10 +416,205 @@ export default function VistoriaPublicaCaptura() {
     );
   }
 
+  if (!vistoria) {
+    return null;
+  }
+
+  const isFotosAdicionais = vistoria.status === "pendente_correcao" || vistoria.status === "aguardando_fotos";
+
+  // ======== MODO FOTOS ADICIONAIS (SIMPLIFICADO) ========
+  if (isFotosAdicionais) {
+    const fotosAdicionais = fotos["fotos_adicionais"] || [];
+    const previewsAdicionais = fotoPreviews["fotos_adicionais"] || [];
+    const totalFotos = fotosAdicionais.length;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] to-white py-6 px-4">
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Header */}
+          <Card className="border-none shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-4">
+                  {corretora?.logo_url && (
+                    <img src={corretora.logo_url} alt={corretora.nome} className="h-12 object-contain" />
+                  )}
+                  <div>
+                    <h1 className="text-xl md:text-2xl font-bold text-gray-900">Fotos adicionais da vistoria</h1>
+                    <p className="text-sm text-muted-foreground">Sinistro #{vistoria.numero}</p>
+                  </div>
+                </div>
+                <Badge className="bg-[hsl(var(--vistoria-primary))] text-white px-4 py-2 text-sm font-bold">
+                  Fotos adicionais
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Informação rápida */}
+          <Card className="border-none shadow-lg">
+            <CardContent className="p-6 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-[hsl(var(--vistoria-primary))] mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">Envie apenas as fotos adicionais solicitadas pela equipe.</p>
+                <p className="text-xs text-muted-foreground">
+                  Você pode enviar quantas fotos quiser. Assim que terminar, clique em <strong>Enviar fotos</strong>.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card principal de captura */}
+          <Card className="border-none shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 p-8 text-white">
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <Camera className="h-7 w-7" />
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-3xl font-bold">Fotos adicionais</h2>
+                  <p className="text-blue-100 text-lg">Tire novas fotos ou envie da galeria conforme solicitado.</p>
+                </div>
+              </div>
+              <Badge className="bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm">
+                {totalFotos} foto{totalFotos !== 1 ? "s" : ""} selecionada
+                {totalFotos !== 1 ? "s" : ""}
+              </Badge>
+            </div>
+
+            <CardContent className="p-8 space-y-6">
+              {/* Input escondido */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*,application/pdf"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
+              {totalFotos === 0 ? (
+                <div className="space-y-4">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full min-h-[250px] border-4 border-dashed border-gray-300 hover:border-[hsl(var(--vistoria-primary))] rounded-2xl bg-gradient-to-br from-gray-50 to-white hover:from-blue-50 hover:to-blue-100 transition-all duration-300 group"
+                  >
+                    <div className="flex flex-col items-center justify-center py-8">
+                      <div className="w-20 h-20 bg-gradient-to-br from-[hsl(var(--vistoria-primary))] to-blue-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg">
+                        <Camera className="h-10 w-10 text-white" strokeWidth={2.5} />
+                      </div>
+                      <h3 className="text-2xl font-bold text-gray-900 mb-2">Tirar foto ou enviar da galeria</h3>
+                      <p className="text-gray-500 text-sm">Clique para abrir a câmera, galeria ou arquivos</p>
+                    </div>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Grid de previews */}
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    {previewsAdicionais.map((preview, index) => {
+                      const file = fotosAdicionais[index];
+                      const fileType = getFileType(file);
+
+                      return (
+                        <div key={index} className="relative group">
+                          <div className="relative aspect-[4/3] bg-gradient-to-br from-gray-100 to-gray-50 rounded-xl overflow-hidden border-2 border-green-400 shadow-lg">
+                            {fileType === "image" ? (
+                              <img
+                                src={preview}
+                                alt={`Foto adicional ${index + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-4">
+                                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                                  {getFileIcon(fileType)}
+                                </div>
+                                <span className="text-sm font-semibold text-center line-clamp-2">{file.name}</span>
+                                <Badge className="bg-blue-600">{fileType.toUpperCase()}</Badge>
+                              </div>
+                            )}
+
+                            {/* Badge selecionada */}
+                            <div className="absolute top-3 left-3 bg-green-500 text-white px-3 py-1 rounded-full shadow-md flex items-center gap-1">
+                              <CheckCircle2 className="h-4 w-4" />
+                              <span className="text-xs font-bold">Selecionada</span>
+                            </div>
+
+                            {/* Remover */}
+                            <button
+                              onClick={() => removeFoto("fotos_adicionais", index)}
+                              className="absolute top-3 right-3 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-md transition-all opacity-0 group-hover:opacity-100"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Adicionar mais */}
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    variant="outline"
+                    size="lg"
+                    className="w-full border-2 border-dashed border-gray-300 hover:border-[hsl(var(--vistoria-primary))] h-20 text-lg"
+                  >
+                    <Upload className="h-6 w-6 mr-2" />
+                    Adicionar mais fotos
+                  </Button>
+                </div>
+              )}
+
+              {/* Enviar */}
+              <div className="pt-4 border-t">
+                <Button
+                  onClick={handleEnviarSomenteFotos}
+                  disabled={totalFotos === 0 || enviando}
+                  size="lg"
+                  className="w-full h-14 text-base sm:text-lg bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-lg"
+                >
+                  {enviando ? "Enviando fotos..." : "Enviar fotos"}
+                </Button>
+              </div>
+
+              {processingOcr && (
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-xl p-6 flex items-center gap-4">
+                  <div className="relative w-12 h-12">
+                    <div className="absolute inset-0 animate-spin rounded-full border-4 border-purple-200 border-t-purple-600"></div>
+                    <Sparkles className="absolute inset-0 m-auto h-6 w-6 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-purple-900">Processando com IA...</p>
+                    <p className="text-sm text-purple-700">Extraindo dados automaticamente</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Help Info */}
+          <div className="text-center">
+            <div className="inline-flex items-center gap-2 text-sm text-gray-500 bg-white px-4 py-2 rounded-full shadow-md">
+              <AlertCircle className="h-4 w-4" />
+              <span>Certifique-se de que as fotos estejam nítidas e bem iluminadas</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ======== FLUXO NORMAL (VISTORIA COMPLETA) ========
+
   const posicaoAtual = POSICOES[currentStep];
   const fotosPosicaoAtual = fotos[posicaoAtual.id] || [];
   const previewsPosicaoAtual = fotoPreviews[posicaoAtual.id] || [];
   const IconePosicao = posicaoAtual.icon;
+  const totalFotosNormal = Object.values(fotos).reduce((sum, files) => sum + files.length, 0);
+  const progressPercentage = ((currentStep + 1) / POSICOES.length) * 100;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] to-white py-6 px-4">
@@ -371,7 +645,8 @@ export default function VistoriaPublicaCaptura() {
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm font-semibold text-gray-700">Progresso da Captura</span>
               <span className="text-sm font-bold text-[hsl(var(--vistoria-primary))]">
-                {totalFotos} foto{totalFotos !== 1 ? "s" : ""} enviada{totalFotos !== 1 ? "s" : ""}
+                {totalFotosNormal} foto{totalFotosNormal !== 1 ? "s" : ""} enviada
+                {totalFotosNormal !== 1 ? "s" : ""}
               </span>
             </div>
             <Progress value={progressPercentage} className="h-3 bg-gray-200" />
