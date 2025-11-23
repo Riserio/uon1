@@ -69,37 +69,37 @@ export default function PID() {
           <Card className="border-2 border-primary/10 shadow-lg bg-gradient-to-br from-card to-card/80">
             <CardContent className="p-6">
               <div className="flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <Label htmlFor="corretora-select" className="text-lg font-semibold min-w-fit">
-                    Selecionar Corretora:
-                  </Label>
-                  <Select value={selectedCorretora} onValueChange={setSelectedCorretora} disabled={loading}>
-                    <SelectTrigger id="corretora-select" className="w-full sm:w-[400px] h-12 text-base border-2">
-                      <SelectValue placeholder="Escolha uma corretora para visualizar os dados..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {corretoras.map((corretora) => (
-                        <SelectItem key={corretora.id} value={corretora.id} className="text-base py-3">
-                          {corretora.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 flex-1">
+                    <Label htmlFor="corretora-select" className="text-lg font-semibold whitespace-nowrap">
+                      Selecionar Corretora:
+                    </Label>
+                    <Select value={selectedCorretora} onValueChange={setSelectedCorretora} disabled={loading}>
+                      <SelectTrigger id="corretora-select" className="w-full sm:max-w-md h-12 text-base border-2">
+                        <SelectValue placeholder="Escolha uma corretora para visualizar os dados..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {corretoras.map((corretora) => (
+                          <SelectItem key={corretora.id} value={corretora.id} className="text-base py-3">
+                            {corretora.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                {/* Gerenciar Parceiros Button */}
-                {selectedCorretora && (
-                  <div className="flex justify-end">
+                  {/* Gerenciar Parceiros Button */}
+                  {selectedCorretora && (
                     <Button
                       variant="outline"
                       onClick={() => setParceirosDialogOpen(true)}
-                      className="gap-2"
+                      className="gap-2 whitespace-nowrap"
                     >
                       <Users className="h-4 w-4" />
                       Gerenciar Parceiros
                     </Button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
