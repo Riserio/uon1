@@ -121,7 +121,7 @@ export default function AberturaSinistro() {
         .insert({
           user_id: user?.id,
           corretora_id: formData.corretora_id || null,
-          responsavel_id: formData.responsavel_id || null,
+          responsavel_id: formData.responsavel_id || user?.id,
           assunto: `Sinistro - ${formData.tipo_sinistro} - ${formData.cliente_nome}`,
           observacoes: formData.relato_incidente,
           status: primeiroStatus,

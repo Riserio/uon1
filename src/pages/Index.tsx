@@ -329,7 +329,7 @@ const Index = () => {
         tags: atendimento.tags,
         corretora_id: corretoraId,
         contato_id: contatoId,
-        responsavel_id: responsavelId,
+        responsavel_id: responsavelId || user.id,
         user_id: user.id,
         data_retorno: atendimento.dataRetorno || null,
         fluxo_id: selectedFluxoId,

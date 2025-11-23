@@ -115,12 +115,13 @@ export function AtendimentoDialog({
   corretoras,
   responsaveis,
 }: AtendimentoDialogProps) {
+  const { user } = useAuth();
   const [formData, setFormData] = useState<Partial<Atendimento>>({
     corretora: "",
     contato: "",
     assunto: "",
     prioridade: "Média",
-    responsavel: "",
+    responsavel: user?.id || "",
     tags: [],
     observacoes: "",
     dataRetorno: "",
@@ -260,7 +261,7 @@ export function AtendimentoDialog({
         contato: "",
         assunto: "",
         prioridade: "Média",
-        responsavel: "",
+        responsavel: user?.id || "",
         tags: [],
         observacoes: "",
         dataRetorno: "",
@@ -676,7 +677,7 @@ export function AtendimentoDialog({
           .update({
             assunto: formData.assunto || "",
             prioridade: formData.prioridade || "Média",
-            responsavel_id: formData.responsavel || null,
+            responsavel_id: formData.responsavel || user.id,
             corretora_id: corretoraId || null,
             contato_id: contatoId || null,
             tags: formData.tags || [],
