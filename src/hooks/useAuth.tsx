@@ -8,6 +8,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   userRole: string | null;
+  isParceiro: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, nome: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -20,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [isParceiro, setIsParceiro] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -81,6 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (!error && data) {
       setUserRole(data.role);
+      setIsParceiro(data.role === 'parceiro');
+    } else {
+      setIsParceiro(false);
     }
   };
 
@@ -163,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, userRole, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, userRole, isParceiro, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

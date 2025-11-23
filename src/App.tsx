@@ -58,7 +58,7 @@ const queryClient = new QueryClient({
 });
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, userRole } = useAuth();
+  const { user, loading, isParceiro } = useAuth();
   usePushNotifications();
   
   if (loading) {
@@ -70,7 +70,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   // Parceiros não têm acesso ao sidebar - apenas ao portal
-  if (userRole === 'parceiro') {
+  if (isParceiro) {
     return <Navigate to="/portal" replace />;
   }
   
@@ -84,6 +84,27 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       </div>
     </SidebarProvider>
   );
+}
+
+function PortalRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading, isParceiro } = useAuth();
+  usePushNotifications();
+  
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+  }
+  
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  // Apenas parceiros podem acessar o portal
+  if (!isParceiro) {
+    return <Navigate to="/" replace />;
+  }
+  
+  // Sem sidebar para parceiros
+  return <>{children}</>;
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -144,7 +165,7 @@ const App = () => (
               <Route path="/comunicados" element={<ProtectedRoute><AdminRoute><Comunicados /></AdminRoute></ProtectedRoute>} />
               <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
               <Route path="/pid" element={<ProtectedRoute><PID /></ProtectedRoute>} />
-              <Route path="/portal" element={<ProtectedRoute><Portal /></ProtectedRoute>} />
+              <Route path="/portal" element={<PortalRoute><Portal /></PortalRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
