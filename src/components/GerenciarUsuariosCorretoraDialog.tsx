@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Plus, Trash2, Shield, ShieldOff } from 'lucide-react';
-import * as bcrypt from 'bcryptjs';
 
 interface GerenciarUsuariosCorretoraDialogProps {
   open: boolean;
@@ -62,28 +61,25 @@ export function GerenciarUsuariosCorretoraDialog({
 
     setLoading(true);
     try {
-      // Hash da senha
-      const senhaHash = await bcrypt.hash(formData.senha, 10);
-
-      const { error } = await supabase
-        .from('corretora_usuarios')
-        .insert({
-          corretora_id: corretoraId,
+      // Chamar edge function para criar usuário parceiro
+      const { data, error } = await supabase.functions.invoke('criar-usuario-parceiro', {
+        body: {
           email: formData.email,
-          senha_hash: senhaHash,
-          ativo: true,
-          totp_configurado: false,
-          acesso_exclusivo_pid: true,
-        });
+          password: formData.senha,
+          nome: formData.email.split('@')[0], // Usar parte do email como nome
+          corretoraId: corretoraId,
+        }
+      });
 
       if (error) throw error;
+      if (data.error) throw new Error(data.error);
 
-      toast.success('Usuário criado com sucesso');
+      toast.success('Usuário parceiro criado com sucesso! Ele pode fazer login com email e senha.');
       setFormData({ email: '', senha: '' });
       fetchUsuarios();
     } catch (error: any) {
       console.error('Erro ao criar usuário:', error);
-      toast.error('Erro ao criar usuário');
+      toast.error(error.message || 'Erro ao criar usuário');
     } finally {
       setLoading(false);
     }

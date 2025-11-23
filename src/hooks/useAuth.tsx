@@ -115,7 +115,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: null };
     }
     
-    navigate('/');
+    // Check if user is a parceiro (partner)
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', data.user.id)
+      .single();
+    
+    // Redirect parceiros to portal, others to main dashboard
+    if (roleData?.role === 'parceiro') {
+      navigate('/portal');
+    } else {
+      navigate('/');
+    }
+    
     return { error: null };
   };
 
