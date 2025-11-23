@@ -125,7 +125,7 @@ export default function VistoriaDetalhe() {
     }
   };
 
-  // Busca endereço a partir de lat/lng
+  // Busca endereço aproximado a partir da latitude/longitude
   useEffect(() => {
     const fetchAddress = async () => {
       if (!vistoria?.latitude || !vistoria?.longitude) return;
@@ -207,7 +207,7 @@ export default function VistoriaDetalhe() {
       frontal: "Frontal",
       traseira: "Traseira",
       lateral_esquerda: "Lateral Esquerda",
-      lateral_direita: "Lateral Direita",
+      lateral_direita: "Lateral Esquerda",
       adicional: "Foto Adicional",
       cnh: "CNH",
       crlv: "CRLV",
@@ -304,7 +304,7 @@ export default function VistoriaDetalhe() {
       toast.loading("Enviando solicitação de fotos...");
 
       // Tenta enviar o e-mail via Edge Function
-      const { data, error } = await supabase.functions.invoke("solicitar-mais-fotos", {
+      const { error } = await supabase.functions.invoke("solicitar-mais-fotos", {
         body: {
           vistoriaId: vistoria.id,
           motivo: motivoFotos,
@@ -314,7 +314,6 @@ export default function VistoriaDetalhe() {
 
       if (error) {
         console.error("Erro na função 'solicitar-mais-fotos':", error);
-        // Não interrompe o fluxo – apenas avisa
         toast.warning(
           "Não foi possível enviar o e-mail automático agora, mas a vistoria será marcada como pendente."
         );
@@ -368,20 +367,20 @@ export default function VistoriaDetalhe() {
 
   const adicionarFotoNecessaria = () => {
     if (novaFotoInput.trim()) {
-      setFotosNecessarias([...fotosNecessarias, novaFotoInput.trim()]);
+      setFotosNecessarias((prev) => [...prev, novaFotoInput.trim()]);
       setNovaFotoInput("");
     }
   };
 
   const removerFotoNecessaria = (index: number) => {
-    setFotosNecessarias(fotosNecessarias.filter((_, i) => i !== index));
+    setFotosNecessarias((prev) => prev.filter((_, i) => i !== index));
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-center.py-12">
+          <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />
           </div>
         </div>
@@ -400,7 +399,7 @@ export default function VistoriaDetalhe() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
+    <div className="min-h-screen bg-gradient-to-br.from-background to-muted/20 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -462,7 +461,8 @@ export default function VistoriaDetalhe() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
                   <span>
-                    Criada em {format(new Date(vistoria.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    Criada em{" "}
+                    {format(new Date(vistoria.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                   </span>
                 </div>
                 {vistoria.completed_at && (
@@ -545,7 +545,7 @@ export default function VistoriaDetalhe() {
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-muted-foreground" />
                       <div>
-                        <span className="text-sm text-muted-foreground.block">Telefone</span>
+                        <span className="text-sm text-muted-foreground block">Telefone</span>
                         <p>{vistoria.cliente_telefone}</p>
                       </div>
                     </div>
@@ -651,7 +651,7 @@ export default function VistoriaDetalhe() {
                     </Button>
                   )}
                   {vistoria.crlv_fotos_urls && vistoria.crlv_fotos_urls.length > 0 && (
-                    <Button.variant="outline" asChild>
+                    <Button variant="outline" asChild>
                       <a href={vistoria.crlv_fotos_urls[0]} target="_blank" rel="noopener noreferrer">
                         <FileText className="h-4 w-4 mr-2" />
                         Ver CRLV ({vistoria.crlv_fotos_urls.length} foto
@@ -686,7 +686,7 @@ export default function VistoriaDetalhe() {
                   {vistoria.laudo_alcoolemia_url && (
                     <Button variant="outline" asChild>
                       <a href={vistoria.laudo_alcoolemia_url} target="_blank" rel="noopener noreferrer">
-                        <FileText className="h-4 w-4 mr-2" />
+                        <FileText className="h-4.w-4 mr-2" />
                         Laudo de Alcoolemia
                       </a>
                     </Button>
@@ -734,7 +734,7 @@ export default function VistoriaDetalhe() {
               </CardHeader>
               <CardContent className="p-6">
                 {loadingFotos ? (
-                  <div className="flex flex-col items-center justify-center.py-12 space-y-4">
+                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
                     <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />
                     <p className="text-sm text-muted-foreground">Carregando fotos...</p>
                   </div>
@@ -764,7 +764,7 @@ export default function VistoriaDetalhe() {
                         >
                           <div className="relative group aspect-[4/3] bg-muted flex items-center justify-center">
                             {/* Badge posição */}
-                            <div className="absolute top-2 left-2 z-10">
+                            <div className="absolute.top-2 left-2 z-10">
                               <Badge variant="secondary" className="bg-black/60 text-white backdrop-blur-sm">
                                 {getPosicaoNome(foto.posicao)}
                               </Badge>
@@ -800,7 +800,7 @@ export default function VistoriaDetalhe() {
 
                             {fileType === "pdf" && (
                               <div className="flex flex-col items-center justify-center text-center px-4">
-                                <FileText.className="h-10 w-10 text-primary mb-2" />
+                                <FileText className="h-10 w-10 text-primary mb-2" />
                                 <p className="text-sm font-medium mb-1">Documento PDF</p>
                                 <p className="text-xs text-muted-foreground mb-3">
                                   {foto.arquivo_nome || "Arquivo PDF"}
@@ -855,12 +855,12 @@ export default function VistoriaDetalhe() {
                       <div className="grid md:grid-cols-3 gap-4">
                         {vistoria.veiculo_placa && (
                           <div className="bg-white dark:bg-background rounded-lg p-4 border border-blue-200">
-                            <span className="text-xs text-muted-foreground block mb-1">Placa</span>
+                            <span className="text-xs.text-muted-foreground block mb-1">Placa</span>
                             <p className="font-bold text-xl tracking-wider">{vistoria.veiculo_placa}</p>
                           </div>
                         )}
                         {vistoria.veiculo_marca && (
-                          <div.className="bg-white dark:bg-background rounded-lg p-4 border border-blue-200">
+                          <div className="bg-white dark:bg-background rounded-lg p-4 border border-blue-200">
                             <span className="text-xs text-muted-foreground block mb-1">Marca</span>
                             <p className="font-semibold text-lg">{vistoria.veiculo_marca}</p>
                           </div>
@@ -899,7 +899,7 @@ export default function VistoriaDetalhe() {
 
                 <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20">
                   <CardHeader className="bg-purple-100/50 dark:bg-purple-900/20">
-                    <CardTitle.className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                    <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
                       <Brain className="h-6 w-6" />
                       Análise por Inteligência Artificial
                     </CardTitle>
@@ -912,7 +912,7 @@ export default function VistoriaDetalhe() {
                           <h4 className="font-semibold text-purple-900 dark:text-purple-300">Resumo Executivo</h4>
                         </div>
                         <div className="bg-white dark:bg-background rounded-lg border-2 border-purple-200 dark:border-purple-800 p-5">
-                          <p className="whitespace-pre-wrap text-foreground/80.leading-relaxed">
+                          <p className="whitespace-pre-wrap text-foreground/80 leading-relaxed">
                             {vistoria.observacoes_ia}
                           </p>
                         </div>
@@ -986,7 +986,7 @@ export default function VistoriaDetalhe() {
                     <div className="flex flex-wrap gap-3 pt-4 border-t border-purple-200/60 dark:border-purple-800/60">
                       <Button
                         variant="default"
-                        className="bg-green-600 hover:bg-green-700.gap-2"
+                        className="bg-green-600 hover:bg-green-700 gap-2"
                         onClick={() => handleAbrirAnalise("aprovar")}
                       >
                         <Check className="h-4 w-4" />
@@ -1106,7 +1106,7 @@ export default function VistoriaDetalhe() {
                         <h4 className="font-semibold text-sm">Dados do Aceite</h4>
                         <div className="grid md:grid-cols-3 gap-4 text-sm">
                           <div>
-                            <span className="text-muted-foreground block mb-1">Data e Hora:</span>
+                            <span className="text-muted-foreground block.mb-1">Data e Hora:</span>
                             <p className="font-medium">
                               {format(new Date(termo.aceito_em), "dd/MM/yyyy 'às' HH:mm:ss", {
                                 locale: ptBR,
@@ -1114,7 +1114,7 @@ export default function VistoriaDetalhe() {
                             </p>
                           </div>
                           <div>
-                            <span className="text-muted-foreground block.mb-1">Endereço IP:</span>
+                            <span className="text-muted-foreground block mb-1">Endereço IP:</span>
                             <p className="font-mono text-xs bg-background px-2 py-1 rounded border">
                               {termo.ip_address || "Não disponível"}
                             </p>
@@ -1132,7 +1132,7 @@ export default function VistoriaDetalhe() {
 
                       <div className="flex gap-3">
                         {termo.termos.arquivo_url && (
-                          <Button variant="outline" asChild className="flex-1 gap-2">
+                          <Button variant="outline" asChild.className="flex-1 gap-2">
                             <a href={termo.termos.arquivo_url} target="_blank" rel="noopener noreferrer">
                               <FileText className="h-4 w-4" />
                               Ver Documento
@@ -1159,7 +1159,7 @@ export default function VistoriaDetalhe() {
             ) : (
               <Card>
                 <CardContent className="p-12 text-center">
-                  <FileCheck className="h-12 w-12 mx-auto mb-4 text-muted-foreground.opacity-20" />
+                  <FileCheck className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-20" />
                   <p className="text-lg font-medium mb-2">Nenhum termo assinado</p>
                   <p className="text-sm text-muted-foreground">
                     Os termos aceitos aparecerão aqui quando disponíveis
@@ -1369,7 +1369,7 @@ export default function VistoriaDetalhe() {
                   type="text"
                   value={novaFotoInput}
                   onChange={(e) => setNovaFotoInput(e.target.value)}
-                  onKeyPress={(e) => {
+                  onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
                       adicionarFotoNecessaria();
@@ -1378,7 +1378,7 @@ export default function VistoriaDetalhe() {
                   placeholder="Ex: Lateral direita - detalhes dos arranhões"
                   className="flex-1 px-3 py-2 border rounded-md"
                 />
-                <Button.onClick={adicionarFotoNecessaria} type="button">
+                <Button onClick={adicionarFotoNecessaria} type="button">
                   Adicionar
                 </Button>
               </div>
@@ -1409,7 +1409,7 @@ export default function VistoriaDetalhe() {
             </div>
           </div>
           <DialogFooter className="flex flex-wrap gap-3 justify-between">
-            <Button.variant="outline" onClick={() => setSolicitarFotosOpen(false)}>
+            <Button variant="outline" onClick={() => setSolicitarFotosOpen(false)}>
               Cancelar
             </Button>
             <div className="flex gap-2 flex-wrap">
@@ -1423,7 +1423,7 @@ export default function VistoriaDetalhe() {
                 <MessageCircle className="h-4 w-4" />
                 Enviar via WhatsApp Web
               </Button>
-              <Button.onClick={handleSolicitarMaisFotos} className="gap-2">
+              <Button onClick={handleSolicitarMaisFotos} className="gap-2">
                 <Send className="h-4 w-4" />
                 Enviar Email e Marcar como Pendente
               </Button>
