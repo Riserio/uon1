@@ -1,36 +1,36 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import PortalKPI from '@/components/portal/PortalKPI';
-import PortalExtrato from '@/components/portal/PortalExtrato';
-import PortalIndicadores from '@/components/portal/PortalIndicadores';
-import PortalLancamentos from '@/components/portal/PortalLancamentos';
-import PortalSinistros from '@/components/portal/PortalSinistros';
-import PortalComite from '@/components/portal/PortalComite';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { LogOut, Building2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import PortalKPI from "@/components/portal/PortalKPI";
+import PortalExtrato from "@/components/portal/PortalExtrato";
+import PortalIndicadores from "@/components/portal/PortalIndicadores";
+import PortalLancamentos from "@/components/portal/PortalLancamentos";
+import PortalSinistros from "@/components/portal/PortalSinistros";
+import PortalComite from "@/components/portal/PortalComite";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { LogOut, Building2, Activity, FileText, PieChart, ListChecks, ShieldCheck, Users } from "lucide-react";
+import { toast } from "sonner";
 
 /**
  * PORTAL PID - Painel de Indicadores e Demonstrativos para Parceiros
- * 
+ *
  * Este é o portal EXCLUSIVO para usuários com role 'parceiro'.
- * 
+ *
  * SEGURANÇA (DECISÃO DEFINITIVA):
  * - Parceiros veem APENAS dados da sua corretora vinculada
  * - NÃO têm acesso a nenhuma outra parte do sistema
  * - NÃO veem sidebar ou menus administrativos
  * - Podem apenas VISUALIZAR dados financeiros e sinistros
  * - Podem EDITAR apenas deliberações do Comitê de Sinistros
- * 
+ *
  * LOGIN:
  * - Usuários parceiros fazem login em /auth (mesma tela que outros usuários)
  * - São automaticamente redirecionados para /portal após autenticação
  * - O sistema detecta o role 'parceiro' e aplica restrições de acesso
- * 
+ *
  * DADOS EXIBIDOS:
  * - KPI: Métricas financeiras mensais (faturamento, comissões, repasses)
  * - Extrato: Produção financeira detalhada
@@ -48,18 +48,17 @@ export default function Portal() {
   useEffect(() => {
     async function loadCorretoraData() {
       if (!user) {
-        navigate('/auth');
+        navigate("/auth");
         return;
       }
 
       try {
         // Buscar corretora vinculada ao usuário PARCEIRO via corretora_usuarios
-        // RLS garante que o parceiro só pode ver sua própria corretora
         const { data: corretoraUsuario, error: cuError } = await supabase
-          .from('corretora_usuarios')
-          .select('corretora_id, corretoras(id, nome, logo_url)')
-          .eq('profile_id', user.id)
-          .eq('ativo', true)
+          .from("corretora_usuarios")
+          .select("corretora_id, corretoras(id, nome, logo_url)")
+          .eq("profile_id", user.id)
+          .eq("ativo", true)
           .single();
 
         if (cuError) throw cuError;
@@ -67,13 +66,13 @@ export default function Portal() {
         if (corretoraUsuario?.corretoras) {
           setCorretora(corretoraUsuario.corretoras);
         } else {
-          toast.error('Você não está vinculado a nenhuma corretora');
-          navigate('/');
+          toast.error("Você não está vinculado a nenhuma corretora");
+          navigate("/");
         }
       } catch (error: any) {
-        console.error('Erro ao carregar dados da corretora:', error);
-        toast.error('Erro ao carregar dados da corretora');
-        navigate('/');
+        console.error("Erro ao carregar dados da corretora:", error);
+        toast.error("Erro ao carregar dados da corretora");
+        navigate("/");
       } finally {
         setLoading(false);
       }
@@ -84,14 +83,14 @@ export default function Portal() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate('/auth');
+    navigate("/auth");
   };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Carregando portal...</p>
         </div>
       </div>
@@ -107,10 +106,15 @@ export default function Portal() {
       {/* Header */}
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold">{corretora.nome}</h1>
-              <p className="text-sm text-muted-foreground">Portal de Gestão</p>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Building2 className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold leading-tight">{corretora.nome}</h1>
+                <p className="text-sm text-muted-foreground">Portal de Gestão · PID</p>
+              </div>
             </div>
             <div className="flex items-center gap-4">
               <Button variant="outline" onClick={handleLogout} className="gap-2">
@@ -118,11 +122,7 @@ export default function Portal() {
                 Sair
               </Button>
               {corretora.logo_url && (
-                <img
-                  src={corretora.logo_url}
-                  alt={corretora.nome}
-                  className="h-14 w-auto object-contain"
-                />
+                <img src={corretora.logo_url} alt={corretora.nome} className="h-12 w-auto object-contain" />
               )}
             </div>
           </div>
@@ -139,9 +139,7 @@ export default function Portal() {
               </div>
               <div>
                 <h2 className="text-2xl font-bold">Bem-vindo ao Portal</h2>
-                <p className="text-muted-foreground">
-                  Acompanhe seus indicadores e dados financeiros em tempo real
-                </p>
+                <p className="text-muted-foreground">Acompanhe seus indicadores e dados financeiros em tempo real</p>
               </div>
             </div>
           </CardContent>
@@ -149,13 +147,72 @@ export default function Portal() {
 
         {/* Tabs Section */}
         <Tabs defaultValue="kpi" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 h-auto p-1 bg-muted/50">
-            <TabsTrigger value="kpi" className="text-sm sm:text-base py-3">KPI</TabsTrigger>
-            <TabsTrigger value="extrato" className="text-sm sm:text-base py-3">Extrato</TabsTrigger>
-            <TabsTrigger value="indicadores" className="text-sm sm:text-base py-3">Indicadores</TabsTrigger>
-            <TabsTrigger value="lancamentos" className="text-sm sm:text-base py-3">Lançamentos</TabsTrigger>
-            <TabsTrigger value="sinistros" className="text-sm sm:text-base py-3">Sinistros</TabsTrigger>
-            <TabsTrigger value="comite" className="text-sm sm:text-base py-3">Comitê</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 rounded-xl bg-muted/60 p-1.5 shadow-sm">
+            <TabsTrigger
+              value="kpi"
+              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs sm:text-sm font-medium
+                         text-muted-foreground transition-all
+                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                         data-[state=active]:shadow-sm hover:text-foreground"
+            >
+              <Activity className="h-4 w-4" />
+              <span>KPI</span>
+            </TabsTrigger>
+
+            <TabsTrigger
+              value="extrato"
+              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs sm:text-sm font-medium
+                         text-muted-foreground transition-all
+                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                         data-[state=active]:shadow-sm hover:text-foreground"
+            >
+              <FileText className="h-4 w-4" />
+              <span>Extrato</span>
+            </TabsTrigger>
+
+            <TabsTrigger
+              value="indicadores"
+              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium
+                         text-muted-foreground transition-all
+                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                         data-[state=active]:shadow-sm hover:text-foreground"
+            >
+              <PieChart className="h-4 w-4" />
+              <span>Indicadores</span>
+            </TabsTrigger>
+
+            <TabsTrigger
+              value="lancamentos"
+              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium
+                         text-muted-foreground transition-all
+                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                         data-[state=active]:shadow-sm hover:text-foreground"
+            >
+              <ListChecks className="h-4 w-4" />
+              <span>Lançamentos</span>
+            </TabsTrigger>
+
+            <TabsTrigger
+              value="sinistros"
+              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium
+                         text-muted-foreground transition-all
+                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                         data-[state=active]:shadow-sm hover:text-foreground"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span>Sinistros</span>
+            </TabsTrigger>
+
+            <TabsTrigger
+              value="comite"
+              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium
+                         text-muted-foreground transition-all
+                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                         data-[state=active]:shadow-sm hover:text-foreground"
+            >
+              <Users className="h-4 w-4" />
+              <span>Comitê</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="kpi" className="space-y-4">
