@@ -32,44 +32,7 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { validateCPF, validatePlaca } from "@/lib/validators";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { useAtendimentoRealtime } from "@/hooks/useAtendimentoRealtime";
-
-const MARCAS = [
-  "Audi",
-  "BMW",
-  "Chevrolet",
-  "Citroën",
-  "Fiat",
-  "Ford",
-  "Honda",
-  "Hyundai",
-  "Jeep",
-  "Kia",
-  "Mercedes-Benz",
-  "Mitsubishi",
-  "Nissan",
-  "Peugeot",
-  "Renault",
-  "Toyota",
-  "Volkswagen",
-  "Volvo",
-  "Outros",
-];
-
-const MODELOS_POR_MARCA: { [key: string]: string[] } = {
-  Volkswagen: ["Gol", "Fox", "Polo", "Virtus", "T-Cross", "Nivus", "Taos", "Tiguan", "Amarok"],
-  Chevrolet: ["Onix", "Prisma", "Tracker", "Cruze", "S10", "Spin", "Montana"],
-  Fiat: ["Argo", "Cronos", "Mobi", "Pulse", "Fastback", "Toro", "Strada"],
-  Ford: ["Ka", "EcoSport", "Ranger", "Territory", "Maverick"],
-  Toyota: ["Corolla", "Yaris", "Hilux", "SW4", "Etios", "Corolla Cross"],
-  Honda: ["Civic", "City", "HR-V", "CR-V", "Fit"],
-  Hyundai: ["HB20", "Creta", "Tucson", "Santa Fe", "ix35"],
-  Jeep: ["Renegade", "Compass", "Commander"],
-  Renault: ["Kwid", "Sandero", "Logan", "Duster", "Oroch", "Captur"],
-  Nissan: ["Kicks", "Versa", "Frontier", "Sentra"],
-  Peugeot: ["208", "2008", "3008", "5008"],
-  Citroën: ["C3", "C4 Cactus"],
-  Outros: [],
-};
+import { useVeiculos } from "@/hooks/useVeiculos";
 
 const CORES = [
   "Preto",
@@ -116,6 +79,8 @@ export function AtendimentoDialog({
   responsaveis,
 }: AtendimentoDialogProps) {
   const { user } = useAuth();
+  const { marcas, modelos, marcaSelecionada, setMarcaSelecionada } = useVeiculos();
+  
   const [formData, setFormData] = useState<Partial<Atendimento>>({
     corretora: "",
     contato: "",
@@ -255,6 +220,11 @@ export function AtendimentoDialog({
       };
 
       loadTipoAtendimento();
+      
+      // Se houver veiculo_marca, pré-selecionar para carregar modelos
+      if (vistoriaData.veiculo_marca) {
+        setMarcaSelecionada(vistoriaData.veiculo_marca);
+      }
     } else {
       setFormData({
         corretora: "",
@@ -357,8 +327,8 @@ export function AtendimentoDialog({
 
       if (data) {
         setVistoriaId(data.id);
-        setVistoriaData({
-          tipo_atendimento: "sinistro",
+        const vistoriaInfo = {
+          tipo_atendimento: "sinistro" as const,
           tipo_sinistro: data.tipo_sinistro || "",
           data_incidente: data.data_incidente || "",
           relato_incidente: data.relato_incidente || "",
@@ -373,7 +343,14 @@ export function AtendimentoDialog({
           cliente_telefone: data.cliente_telefone || "",
           cliente_email: data.cliente_email || "",
           cof: data.cof || "",
-        });
+        };
+        setVistoriaData(vistoriaInfo);
+        
+        // Pré-selecionar marca para carregar modelos
+        if (data.veiculo_marca) {
+          setMarcaSelecionada(data.veiculo_marca);
+        }
+        
         setCustos({
           custo_oficina: data.custo_oficina || 0,
           custo_reparo: data.custo_reparo || 0,
@@ -1155,15 +1132,16 @@ export function AtendimentoDialog({
                       <Label htmlFor="veiculo_marca">Marca</Label>
                       <Select
                         value={vistoriaData.veiculo_marca}
-                        onValueChange={(value) =>
-                          setVistoriaData({ ...vistoriaData, veiculo_marca: value, veiculo_modelo: "" })
-                        }
+                        onValueChange={(value) => {
+                          setMarcaSelecionada(value);
+                          setVistoriaData({ ...vistoriaData, veiculo_marca: value, veiculo_modelo: "" });
+                        }}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione a marca" />
                         </SelectTrigger>
                         <SelectContent>
-                          {MARCAS.map((marca) => (
+                          {marcas.map((marca) => (
                             <SelectItem key={marca} value={marca}>
                               {marca}
                             </SelectItem>
@@ -1176,19 +1154,17 @@ export function AtendimentoDialog({
                       <Select
                         value={vistoriaData.veiculo_modelo}
                         onValueChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_modelo: value })}
-                        disabled={!vistoriaData.veiculo_marca}
+                        disabled={!marcaSelecionada}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecione o modelo" />
+                          <SelectValue placeholder={marcaSelecionada ? "Selecione o modelo" : "Selecione a marca primeiro"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {vistoriaData.veiculo_marca &&
-                            MODELOS_POR_MARCA[vistoriaData.veiculo_marca]?.map((modelo) => (
-                              <SelectItem key={modelo} value={modelo}>
-                                {modelo}
-                              </SelectItem>
-                            ))}
-                          <SelectItem value="Outro">Outro</SelectItem>
+                          {modelos.map((modelo) => (
+                            <SelectItem key={modelo} value={modelo}>
+                              {modelo}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
