@@ -66,7 +66,7 @@ const handler = async (req: Request): Promise<Response> => {
       .from('vistorias')
       .update({
         link_expires_at: expiresAt.toISOString(),
-        status: 'aguardando_fotos',
+        status: 'pendente_novas_fotos',
         observacoes_ia: motivo
       })
       .eq('id', vistoriaId);

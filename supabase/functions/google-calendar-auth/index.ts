@@ -66,8 +66,8 @@ serve(async (req) => {
     // ====== AÇÃO: authorize ======
     if (action === "authorize") {
       const { user, error: authError } = await authenticateUser();
-      if (authError)
-        return new Response(JSON.stringify({ error: authError }), {
+      if (authError || !user)
+        return new Response(JSON.stringify({ error: authError || "Invalid user" }), {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -159,8 +159,8 @@ serve(async (req) => {
     // ====== AÇÃO: disconnect ======
     if (action === "disconnect") {
       const { user, error: authError } = await authenticateUser();
-      if (authError)
-        return new Response(JSON.stringify({ error: authError }), {
+      if (authError || !user)
+        return new Response(JSON.stringify({ error: authError || "Invalid user" }), {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -185,7 +185,8 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("Error:", error);
-    return new Response(JSON.stringify({ error: "Internal server error", details: error.message }), {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return new Response(JSON.stringify({ error: "Internal server error", details: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

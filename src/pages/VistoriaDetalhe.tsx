@@ -287,10 +287,8 @@ export default function VistoriaDetalhe() {
 
   /**
    * Solicitar mais fotos:
-   * - Tenta enviar e-mail pela edge function
-   * - Se a função falhar, segue o fluxo normalmente
-   * - Sempre tenta atualizar status para "pendente_correcao"
-   * - Fecha o dialog e recarrega a vistoria ao final
+   * - Chama a edge function que envia email e atualiza status
+   * - Fecha o dialog e recarrega ao final
    */
   const handleSolicitarMaisFotos = async () => {
     if (!vistoria) {
@@ -310,13 +308,9 @@ export default function VistoriaDetalhe() {
 
     toast.loading("Registrando solicitação de fotos...", { id: "solicitacao-fotos" });
 
-    let emailEnviadoComSucesso = true;
-
-    // 1) Tenta chamar a edge function, mas NÃO deixa quebrar o fluxo se der erro
     try {
       const { error: functionError } = await supabase.functions.invoke("solicitar-mais-fotos", {
         body: {
-          // mantém os mesmos nomes que você já estava usando
           vistoriaId: vistoria.id,
           motivo: motivoFotos,
           fotosNecessarias,
@@ -325,45 +319,27 @@ export default function VistoriaDetalhe() {
 
       if (functionError) {
         console.error("Erro na função 'solicitar-mais-fotos':", functionError);
-        emailEnviadoComSucesso = false;
+        toast.dismiss("solicitacao-fotos");
+        toast.error("Erro ao processar solicitação. Use o WhatsApp para avisar o cliente.");
+        return;
       }
-    } catch (err) {
-      console.error("Exceção ao chamar edge function 'solicitar-mais-fotos':", err);
-      emailEnviadoComSucesso = false;
-    }
 
-    // 2) Atualiza o status da vistoria para pendente_novas_fotos SEMPRE
-    const { error: updateError } = await supabase
-      .from("vistorias")
-      .update({ status: "pendente_novas_fotos" })
-      .eq("id", vistoria.id);
-
-    if (updateError) {
-      console.error("Erro ao atualizar status da vistoria:", updateError);
       toast.dismiss("solicitacao-fotos");
-      toast.error("Falha ao atualizar o status da vistoria.");
-      return;
+      toast.success("Solicitação enviada e vistoria atualizada com sucesso!");
+
+      // Limpa o formulário e fecha o dialog
+      setSolicitarFotosOpen(false);
+      setMotivoFotos("");
+      setFotosNecessarias([]);
+      setNovaFotoInput("");
+
+      // Recarrega dados da vistoria
+      loadVistoria();
+    } catch (err) {
+      console.error("Exceção ao chamar edge function:", err);
+      toast.dismiss("solicitacao-fotos");
+      toast.error("Erro ao processar solicitação");
     }
-
-    // 3) Feedback para o usuário
-    toast.dismiss("solicitacao-fotos");
-
-    if (!emailEnviadoComSucesso) {
-      toast.warning(
-        "Solicitação registrada e vistoria marcada como pendente de novas fotos, mas não foi possível enviar o e-mail automático. Use o botão de WhatsApp Web para avisar o cliente.",
-      );
-    } else {
-      toast.success("Solicitação registrada, vistoria marcada como pendente de novas fotos e e-mail enviado com sucesso!");
-    }
-
-    // 4) Limpa o formulário e fecha o dialog
-    setSolicitarFotosOpen(false);
-    setMotivoFotos("");
-    setFotosNecessarias([]);
-    setNovaFotoInput("");
-
-    // 5) Recarrega dados da vistoria
-    loadVistoria();
   };
 
   const handleEnviarWhatsApp = async () => {
@@ -372,38 +348,46 @@ export default function VistoriaDetalhe() {
       return;
     }
 
-    // Primeiro atualiza o status
-    const { error: updateError } = await supabase
-      .from("vistorias")
-      .update({ status: "pendente_novas_fotos" })
-      .eq("id", vistoria.id);
+    try {
+      // Chama a edge function para atualizar status e enviar email
+      const { error: functionError } = await supabase.functions.invoke("solicitar-mais-fotos", {
+        body: {
+          vistoriaId: vistoria.id,
+          motivo: motivoFotos,
+          fotosNecessarias,
+        },
+      });
 
-    if (updateError) {
-      console.error("Erro ao atualizar status:", updateError);
-      toast.error("Erro ao atualizar status da vistoria");
-      return;
+      if (functionError) {
+        console.error("Erro ao processar solicitação:", functionError);
+        toast.error("Erro ao atualizar vistoria");
+        return;
+      }
+
+      const link = `${window.location.origin}/vistoria/${vistoria.link_token}`;
+      const listaFotos = fotosNecessarias.length > 0 ? `Fotos necessárias:\n- ${fotosNecessarias.join("\n- ")}\n\n` : "";
+
+      const mensagem = `Olá! Precisamos de fotos adicionais da sua vistoria referente ao sinistro #${
+        vistoria.numero
+      }.\n\nMotivo: ${motivoFotos || "Conforme análise da equipe"}\n\n${listaFotos}Envie as fotos pelo link abaixo:\n${link}`;
+
+      const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
+      window.open(url, "_blank");
+
+      toast.success("Status atualizado! Mensagem pronta para envio via WhatsApp");
+      
+      // Fecha o dialog e limpa os campos
+      setSolicitarFotosOpen(false);
+      setMotivoFotos("");
+      setFotosNecessarias([]);
+      setNovaFotoInput("");
+      
+      // Recarrega a vistoria
+      loadVistoria();
+    } catch (err) {
+      console.error("Erro ao processar:", err);
+      toast.error("Erro ao processar solicitação");
     }
-
-    const link = `${window.location.origin}/vistoria/${vistoria.link_token}`;
-    const listaFotos = fotosNecessarias.length > 0 ? `Fotos necessárias:\n- ${fotosNecessarias.join("\n- ")}\n\n` : "";
-
-    const mensagem = `Olá! Precisamos de fotos adicionais da sua vistoria referente ao sinistro #${
-      vistoria.numero
-    }.\n\nMotivo: ${motivoFotos || "Conforme análise da equipe"}\n\n${listaFotos}Envie as fotos pelo link abaixo:\n${link}`;
-
-    const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
-    window.open(url, "_blank");
-
-    toast.success("Status atualizado! Mensagem pronta para envio via WhatsApp");
-    
-    // Fecha o dialog e limpa os campos
-    setSolicitarFotosOpen(false);
-    setMotivoFotos("");
-    setFotosNecessarias([]);
-    setNovaFotoInput("");
-    
-    // Recarrega a vistoria
-    loadVistoria();
   };
 
   const adicionarFotoNecessaria = () => {
