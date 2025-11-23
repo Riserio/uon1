@@ -98,7 +98,10 @@ export default function VistoriaDetalhe() {
 
       setFotos(fotosData || []);
 
-      const { data: termosData } = await supabase.from("termos_aceitos").select("*, termos(*)").eq("vistoria_id", id);
+      const { data: termosData } = await supabase
+        .from("termos_aceitos")
+        .select("*, termos(*)")
+        .eq("vistoria_id", id);
 
       setTermosAceitos(termosData || []);
 
@@ -130,7 +133,7 @@ export default function VistoriaDetalhe() {
       try {
         setLoadingAddress(true);
         const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${vistoria.latitude}&lon=${vistoria.longitude}&zoom=18&addressdetails=1`,
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${vistoria.latitude}&lon=${vistoria.longitude}&zoom=18&addressdetails=1`
         );
 
         if (!response.ok) throw new Error("Erro ao buscar endereço");
@@ -262,7 +265,7 @@ export default function VistoriaDetalhe() {
           const newTags = atendimento.tags
             .filter(
               (tag: string) =>
-                !["aguardando_vistoria_digital", "vistoria_concluida", "pendente_vistoria"].includes(tag),
+                !["aguardando_vistoria_digital", "vistoria_concluida", "pendente_vistoria"].includes(tag)
             )
             .concat(decisaoAnalise === "aprovar" ? "vistoria_aprovada" : "vistoria_pendente");
 
@@ -283,9 +286,10 @@ export default function VistoriaDetalhe() {
 
   /**
    * Solicitar mais fotos:
+   * - Valida se há e-mail do cliente
    * - Tenta enviar e-mail pela edge function
    * - Se a função falhar, segue o fluxo normalmente
-   * - Sempre tenta atualizar status para "pendente_correcao"
+   * - Sempre atualiza status para "pendente_correcao"
    * - Fecha o dialog e recarrega a vistoria ao final
    */
   const handleSolicitarMaisFotos = async () => {
@@ -304,28 +308,42 @@ export default function VistoriaDetalhe() {
       return;
     }
 
-    toast.loading("Registrando solicitação de fotos...", { id: "solicitacao-fotos" });
+    if (!vistoria.cliente_email) {
+      toast.error("Este registro não possui e-mail do cliente. Use o WhatsApp Web para avisar.");
+      return;
+    }
 
-    let emailEnviadoComSucesso = true;
+    const toastId = "solicitacao-fotos";
+    toast.loading("Registrando solicitação de fotos...", { id: toastId });
+
+    let emailEnviadoComSucesso = false;
+
+    const linkVistoria = `${window.location.origin}/vistoria/${vistoria.link_token}`;
 
     // 1) Tenta chamar a edge function, mas NÃO deixa quebrar o fluxo se der erro
     try {
-      const { error: functionError } = await supabase.functions.invoke("solicitar-mais-fotos", {
+      const { data, error: functionError } = await supabase.functions.invoke("solicitar-mais-fotos", {
         body: {
-          // mantém os mesmos nomes que você já estava usando
           vistoriaId: vistoria.id,
           motivo: motivoFotos,
           fotosNecessarias,
+          clienteEmail: vistoria.cliente_email,
+          clienteNome: vistoria.cliente_nome,
+          numeroVistoria: vistoria.numero,
+          linkVistoria,
         },
       });
 
       if (functionError) {
         console.error("Erro na função 'solicitar-mais-fotos':", functionError);
-        emailEnviadoComSucesso = false;
+      } else if (data && data.success === false) {
+        console.error("Função 'solicitar-mais-fotos' retornou erro lógico:", data);
+      } else {
+        // Se não teve erro explícito, consideramos sucesso
+        emailEnviadoComSucesso = true;
       }
     } catch (err) {
       console.error("Exceção ao chamar edge function 'solicitar-mais-fotos':", err);
-      emailEnviadoComSucesso = false;
     }
 
     // 2) Atualiza o status da vistoria para pendente_correcao SEMPRE
@@ -336,17 +354,17 @@ export default function VistoriaDetalhe() {
 
     if (updateError) {
       console.error("Erro ao atualizar status da vistoria:", updateError);
-      toast.dismiss("solicitacao-fotos");
+      toast.dismiss(toastId);
       toast.error("Falha ao atualizar o status da vistoria.");
       return;
     }
 
     // 3) Feedback para o usuário
-    toast.dismiss("solicitacao-fotos");
+    toast.dismiss(toastId);
 
     if (!emailEnviadoComSucesso) {
       toast.warning(
-        "Solicitação registrada e vistoria marcada como pendente, mas não foi possível enviar o e-mail automático. Use o botão de WhatsApp Web para avisar o cliente.",
+        "Solicitação registrada e vistoria marcada como pendente, mas não foi possível enviar o e-mail automático. Use o botão de WhatsApp Web para avisar o cliente."
       );
     } else {
       toast.success("Solicitação registrada, vistoria marcada como pendente e e-mail enviado com sucesso!");
@@ -389,7 +407,7 @@ export default function VistoriaDetalhe() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
+      <div className="min-h-screen bg-gradient-to-br.from-background to-muted/20 p-6">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />
@@ -402,7 +420,7 @@ export default function VistoriaDetalhe() {
   if (!vistoria) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
-        <div className="max-w-7xl mx-auto text-center py-12">
+        <div className="max-w-7xl mx-auto text-center.py-12">
           <p className="text-muted-foreground">Vistoria não encontrada</p>
         </div>
       </div>
@@ -479,7 +497,8 @@ export default function VistoriaDetalhe() {
                   <div className="flex.items-center gap-2 text-sm text-muted-foreground">
                     <Check className="h-4 w-4" />
                     <span>
-                      Concluída em {format(new Date(vistoria.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      Concluída em{" "}
+                      {format(new Date(vistoria.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                     </span>
                   </div>
                 )}
@@ -554,7 +573,7 @@ export default function VistoriaDetalhe() {
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-muted-foreground" />
                       <div>
-                        <span className="text-sm text-muted-foreground.block">Telefone</span>
+                        <span className="text-sm text-muted-foreground block">Telefone</span>
                         <p>{vistoria.cliente_telefone}</p>
                       </div>
                     </div>
@@ -660,7 +679,7 @@ export default function VistoriaDetalhe() {
                     </Button>
                   )}
                   {vistoria.crlv_fotos_urls && vistoria.crlv_fotos_urls.length > 0 && (
-                    <Button variant="outline" asChild>
+                    <Button.variant="outline" asChild>
                       <a href={vistoria.crlv_fotos_urls[0]} target="_blank" rel="noopener noreferrer">
                         <FileText className="h-4 w-4 mr-2" />
                         Ver CRLV ({vistoria.crlv_fotos_urls.length} foto
@@ -687,7 +706,7 @@ export default function VistoriaDetalhe() {
                   {vistoria.atestado_obito_url && (
                     <Button variant="outline" asChild>
                       <a href={vistoria.atestado_obito_url} target="_blank" rel="noopener noreferrer">
-                        <FileText className="h-4 w-4 mr-2" />
+                        <FileText.className="h-4 w-4 mr-2" />
                         Atestado de Óbito
                       </a>
                     </Button>
@@ -701,7 +720,7 @@ export default function VistoriaDetalhe() {
                     </Button>
                   )}
                   {vistoria.croqui_acidente_url && (
-                    <Button variant="outline" asChild>
+                    <Button.variant="outline" asChild>
                       <a href={vistoria.croqui_acidente_url} target="_blank" rel="noopener noreferrer">
                         <FileText className="h-4 w-4 mr-2" />
                         Croqui do Acidente
@@ -831,7 +850,7 @@ export default function VistoriaDetalhe() {
                           <CardContent className="p-4 space-y-2">
                             {foto.created_at && (
                               <div className="text-xs text-muted-foreground">
-                                <Clock className="h-3 w-3 inline mr-1" />
+                                <Clock className="h-3.w-3 inline mr-1" />
                                 Enviada em{" "}
                                 {format(new Date(foto.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                               </div>
@@ -847,13 +866,13 @@ export default function VistoriaDetalhe() {
           </TabsContent>
 
           {/* Tab: Análise IA */}
-          <TabsContent value="ia" className="space-y-6">
+          <TabsContent.value="ia" className="space-y-6">
             {vistoria.analise_ia || vistoria.observacoes_ia || vistoria.danos_detectados?.length > 0 ? (
               <div className="space-y-6">
                 {(vistoria.veiculo_placa || vistoria.veiculo_marca || vistoria.veiculo_modelo) && (
                   <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
                     <CardHeader className="bg-blue-100/50 dark:bg-blue-900/20">
-                      <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                      <CardTitle className="flex items-center gap-2 text-blue-700.dark:text-blue-400">
                         <Car className="h-5 w-5" />
                         Veículo Identificado pela IA
                       </CardTitle>
@@ -1006,7 +1025,7 @@ export default function VistoriaDetalhe() {
             ) : (
               <Card className="border-2 border-dashed border-muted">
                 <CardContent className="p-12 text-center">
-                  <div className="rounded-full bg-muted/50 p-6 w-fit mx-auto mb-4">
+                  <div className="rounded-full bg-muted/50 p-6 w-fit mx-auto.mb-4">
                     <Brain className="h-12 w-12 text-muted-foreground/50" />
                   </div>
                   <p className="text-lg font-semibold mb-2">Análise de IA não disponível</p>
@@ -1078,7 +1097,10 @@ export default function VistoriaDetalhe() {
             {termosAceitos.length > 0 ? (
               <div className="space-y-4">
                 {termosAceitos.map((termo) => (
-                  <Card key={termo.id} className="border-2 border-green-200 hover:border-green-300 transition-colors">
+                  <Card
+                    key={termo.id}
+                    className="border-2 border-green-200 hover:border-green-300 transition-colors"
+                  >
                     <CardHeader className="bg-green-50/50">
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-lg">
@@ -1177,7 +1199,7 @@ export default function VistoriaDetalhe() {
           <TabsContent value="questionario" className="space-y-6">
             <Card>
               <CardHeader className="bg-muted/50">
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex.items-center gap-2">
                   <MessageSquare className="h-5 w-5" />
                   Respostas do Questionário
                 </CardTitle>
@@ -1188,7 +1210,8 @@ export default function VistoriaDetalhe() {
                     <div>
                       <h4 className="font-semibold mb-2">Data e Hora do Evento</h4>
                       <p className="text-muted-foreground">
-                        {vistoria.data_evento && format(new Date(vistoria.data_evento), "dd/MM/yyyy", { locale: ptBR })}
+                        {vistoria.data_evento &&
+                          format(new Date(vistoria.data_evento), "dd/MM/yyyy", { locale: ptBR })}
                         {vistoria.hora_evento && ` às ${vistoria.hora_evento}`}
                       </p>
                     </div>
@@ -1203,7 +1226,7 @@ export default function VistoriaDetalhe() {
 
                   {vistoria.narrar_fatos && (
                     <div>
-                      <h4 className="font-semibold mb-2">Narração dos Fatos</h4>
+                      <h4 className="font-semibold.mb-2">Narração dos Fatos</h4>
                       <p className="text-muted-foreground whitespace-pre-wrap">{vistoria.narrar_fatos}</p>
                     </div>
                   )}
@@ -1217,8 +1240,8 @@ export default function VistoriaDetalhe() {
                         {vistoria.vitima_ou_causador === "vitima"
                           ? "Vítima"
                           : vistoria.vitima_ou_causador === "causador"
-                            ? "Causador"
-                            : "Não informado"}
+                          ? "Causador"
+                          : "Não informado"}
                       </Badge>
                     </div>
 
@@ -1412,7 +1435,7 @@ export default function VistoriaDetalhe() {
                 <MessageCircle className="h-4 w-4" />
                 Enviar via WhatsApp Web
               </Button>
-              <Button onClick={handleSolicitarMaisFotos} className="gap-2">
+              <Button.onClick={handleSolicitarMaisFotos} className="gap-2">
                 <Send className="h-4 w-4" />
                 Enviar Email e Marcar como Pendente
               </Button>
