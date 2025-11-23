@@ -102,6 +102,7 @@ export function AtendimentoDialog({
   const [corretoraSearch, setCorretoraSearch] = useState("");
   const [filteredCorretoras, setFilteredCorretoras] = useState<string[]>([]);
   const [corretoraDisplay, setCorretoraDisplay] = useState<string>(atendimento?.corretora || "");
+  const [profiles, setProfiles] = useState<Array<{ id: string; nome: string }>>([]);
   const [activeTab, setActiveTab] = useState("geral");
   const { userRole } = useAuth();
   const [reloadKey, setReloadKey] = useState(0);
@@ -298,7 +299,7 @@ export function AtendimentoDialog({
     setFilteredCorretoras([]);
   }, [atendimento, open]);
 
-  // Carregar fluxos
+  // Carregar fluxos e profiles
   useEffect(() => {
     const loadFluxos = async () => {
       const { data } = await supabase.from("fluxos").select("*").eq("ativo", true).order("ordem");
@@ -308,7 +309,20 @@ export function AtendimentoDialog({
       }
     };
 
+    const loadProfiles = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, nome")
+        .eq("ativo", true)
+        .order("nome");
+
+      if (data) {
+        setProfiles(data);
+      }
+    };
+
     loadFluxos();
+    loadProfiles();
   }, []);
 
   // Carregar status quando fluxo é selecionado
@@ -990,17 +1004,21 @@ export function AtendimentoDialog({
 
                     <div className="space-y-2">
                       <Label htmlFor="responsavel">Responsável</Label>
-                      <Input
-                        id="responsavel"
-                        list="responsaveis-list"
+                      <Select
                         value={formData.responsavel}
-                        onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })}
-                      />
-                      <datalist id="responsaveis-list">
-                        {responsaveis.map((r) => (
-                          <option key={r} value={r} />
-                        ))}
-                      </datalist>
+                        onValueChange={(value) => setFormData({ ...formData, responsavel: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o responsável" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {profiles.map((profile) => (
+                            <SelectItem key={profile.id} value={profile.id}>
+                              {profile.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
