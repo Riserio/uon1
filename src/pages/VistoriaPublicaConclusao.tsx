@@ -134,17 +134,16 @@ export default function VistoriaPublicaTermos() {
         return;
       }
 
+      // Buscar termos ativos da corretora da vistoria (ou termos sem corretora específica)
       const { data: termosData, error: termosError } = await supabase
         .from("termos")
         .select("*")
         .eq("ativo", true)
-        .eq("corretora_id", corretoraId)
+        .or(`corretora_id.eq.${corretoraId},corretora_id.is.null`)
         .order("ordem");
 
       if (termosError) throw termosError;
-
-      const termosFiltrados = (termosData || []).filter((t) => t.corretora_id === corretoraId);
-      setTermos(termosFiltrados);
+      setTermos(termosData || []);
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
       toast.error("Erro ao carregar dados");
