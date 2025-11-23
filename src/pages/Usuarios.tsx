@@ -286,6 +286,7 @@ export default function Usuarios() {
             cargo: formData.cargo,
             equipe_id: selectedRole === "comercial" ? formData.equipe_id : null,
             administrativo_id: selectedRole === "lider" ? formData.administrativo_id : null,
+            lider_id: null,
             whatsapp: formData.whatsapp,
             instagram: formData.instagram,
             facebook: formData.facebook,
