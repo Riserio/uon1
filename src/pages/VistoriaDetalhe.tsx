@@ -1000,20 +1000,6 @@ export default function VistoriaDetalhe() {
                       </div>
                     )}
 
-                    <div className="flex flex-wrap gap-3 pt-4 border-t border-purple-200/60 dark:border-purple-800/60">
-                      <Button
-                        variant="default"
-                        className="bg-green-600 hover:bg-green-700 gap-2"
-                        onClick={() => handleAbrirAnalise("aprovar")}
-                      >
-                        <Check className="h-4 w-4" />
-                        Aprovar vistoria
-                      </Button>
-                      <Button variant="destructive" className="gap-2" onClick={() => handleAbrirAnalise("pendenciar")}>
-                        <X className="h-4 w-4" />
-                        Pendenciar vistoria
-                      </Button>
-                    </div>
                   </CardContent>
                 </Card>
               </div>
