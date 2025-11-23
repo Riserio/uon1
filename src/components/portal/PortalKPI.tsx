@@ -14,12 +14,14 @@ export default function PortalKPI() {
   const fetchKPIs = async () => {
     setLoading(true);
     try {
+      const lastDayOfMonth = new Date(parseInt(ano), parseInt(mes), 0).getDate();
+      
       // Buscar dados diretamente do banco
       const { data: producao, error } = await supabase
         .from('producao_financeira')
         .select('*')
         .gte('competencia', `${ano}-${mes}-01`)
-        .lt('competencia', `${ano}-${mes}-31`);
+        .lte('competencia', `${ano}-${mes}-${lastDayOfMonth}`);
 
       if (error) throw error;
 

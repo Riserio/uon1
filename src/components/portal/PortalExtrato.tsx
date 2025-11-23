@@ -21,11 +21,13 @@ export default function PortalExtrato() {
   const fetchExtrato = async () => {
     setLoading(true);
     try {
+      const lastDayOfMonth = new Date(parseInt(filters.ano), parseInt(filters.mes), 0).getDate();
+      
       let query = supabase
         .from('producao_financeira')
         .select('*')
         .gte('competencia', `${filters.ano}-${filters.mes}-01`)
-        .lt('competencia', `${filters.ano}-${filters.mes}-31`)
+        .lte('competencia', `${filters.ano}-${filters.mes}-${lastDayOfMonth}`)
         .order('competencia', { ascending: false });
 
       if (filters.produto) {

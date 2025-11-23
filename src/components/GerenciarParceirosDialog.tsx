@@ -34,15 +34,29 @@ export default function GerenciarParceirosDialog({ open, onOpenChange, corretora
     try {
       setLoading(true);
       
-      // Carregar TODOS os usuários ativos do sistema
-      const { data: usersData, error: usersError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('ativo', true)
-        .order('nome');
+      // Carregar usuários com role parceiro
+      const { data: rolesData, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'parceiro');
 
-      if (usersError) throw usersError;
-      setUsuarios(usersData || []);
+      if (rolesError) throw rolesError;
+      
+      const parceiroIds = rolesData?.map(r => r.user_id) || [];
+      
+      if (parceiroIds.length === 0) {
+        setUsuarios([]);
+      } else {
+        const { data: usersData, error: usersError } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('id', parceiroIds)
+          .eq('ativo', true)
+          .order('nome');
+
+        if (usersError) throw usersError;
+        setUsuarios(usersData || []);
+      }
 
       // Carregar parceiros já vinculados
       const { data: parceirosData, error: parceirosError } = await supabase
