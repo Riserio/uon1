@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -23,13 +22,13 @@ import {
   Car,
   FileCheck,
   MessageSquare,
-  MessageCircle,
   Brain,
   Clock,
   Phone,
   Mail,
   Hash,
   Shield,
+  MessageCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -58,10 +57,6 @@ export default function VistoriaDetalhe() {
   const [corretora, setCorretora] = useState<any>(null);
   const [administradora, setAdministradora] = useState<any>(null);
 
-  const [fotoDialogOpen, setFotoDialogOpen] = useState(false);
-  const [fotoSelecionada, setFotoSelecionada] = useState<any | null>(null);
-  const [observacaoReprovacao, setObservacaoReprovacao] = useState("");
-
   const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
   const [observacaoAnalise, setObservacaoAnalise] = useState("");
   const [decisaoAnalise, setDecisaoAnalise] = useState<"aprovar" | "pendenciar" | null>(null);
@@ -71,6 +66,9 @@ export default function VistoriaDetalhe() {
   const [fotosNecessarias, setFotosNecessarias] = useState<string[]>([]);
   const [novaFotoInput, setNovaFotoInput] = useState("");
 
+  const [geoAddress, setGeoAddress] = useState<string | null>(null);
+  const [loadingAddress, setLoadingAddress] = useState(false);
+
   useEffect(() => {
     loadVistoria();
   }, [id]);
@@ -78,7 +76,6 @@ export default function VistoriaDetalhe() {
   const loadVistoria = async () => {
     try {
       setLoadingFotos(true);
-
       const { data: vistoriaData, error: vistoriaError } = await supabase
         .from("vistorias")
         .select("*")
@@ -124,6 +121,32 @@ export default function VistoriaDetalhe() {
       setLoadingFotos(false);
     }
   };
+
+  // Busca endereço aproximado a partir da latitude/longitude
+  useEffect(() => {
+    const fetchAddress = async () => {
+      if (!vistoria?.latitude || !vistoria?.longitude) return;
+
+      try {
+        setLoadingAddress(true);
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${vistoria.latitude}&lon=${vistoria.longitude}&zoom=18&addressdetails=1`,
+        );
+
+        if (!response.ok) throw new Error("Erro ao buscar endereço");
+
+        const data = await response.json();
+        const displayName = data?.display_name as string | undefined;
+        setGeoAddress(displayName || null);
+      } catch (err) {
+        console.error("Erro ao buscar endereço:", err);
+      } finally {
+        setLoadingAddress(false);
+      }
+    };
+
+    fetchAddress();
+  }, [vistoria?.latitude, vistoria?.longitude]);
 
   const handleExportPDF = async () => {
     try {
@@ -182,6 +205,7 @@ export default function VistoriaDetalhe() {
       traseira: "Traseira",
       lateral_esquerda: "Lateral Esquerda",
       lateral_direita: "Lateral Direita",
+      adicional: "Foto Adicional",
       cnh: "CNH",
       crlv: "CRLV",
     };
@@ -202,130 +226,6 @@ export default function VistoriaDetalhe() {
     if (ext && videoExts.includes(ext)) return "video";
     if (ext && pdfExts.includes(ext)) return "pdf";
     return "other";
-  };
-
-  // Mantemos essas funções caso ainda use em algum fluxo,
-  // mas os status por foto não são mais exibidos na UI de fotos.
-  const handleAprovarFoto = async (fotoId: string) => {
-    try {
-      setFotos((prevFotos) =>
-        prevFotos.map((f) =>
-          f.id === fotoId
-            ? { ...f, status_aprovacao: "aprovada", aprovada_em: new Date().toISOString(), aprovada_por: user?.id }
-            : f,
-        ),
-      );
-
-      const { error } = await supabase
-        .from("vistoria_fotos")
-        .update({
-          status_aprovacao: "aprovada",
-          aprovada_por: user?.id,
-          aprovada_em: new Date().toISOString(),
-          observacao_reprovacao: null,
-        })
-        .eq("id", fotoId);
-
-      if (error) throw error;
-      toast.success("Foto aprovada!");
-    } catch (error) {
-      console.error("Erro ao aprovar foto:", error);
-      toast.error("Erro ao aprovar foto");
-      loadVistoria();
-    }
-  };
-
-  const handleReprovarFoto = (foto: any) => {
-    setFotoSelecionada(foto);
-    setObservacaoReprovacao("");
-    setFotoDialogOpen(true);
-  };
-
-  const confirmarReprovacao = async () => {
-    if (!observacaoReprovacao.trim()) {
-      toast.error("Por favor, informe o motivo da reprovação");
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from("vistoria_fotos")
-        .update({
-          status_aprovacao: "reprovada",
-          aprovada_por: user?.id,
-          aprovada_em: new Date().toISOString(),
-          observacao_reprovacao: observacaoReprovacao,
-        })
-        .eq("id", fotoSelecionada.id);
-
-      if (error) throw error;
-
-      if (vistoria.link_token) {
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7);
-
-        await supabase
-          .from("vistorias")
-          .update({
-            link_expires_at: expiresAt.toISOString(),
-            status: "pendente_correcao",
-          })
-          .eq("id", vistoria.id);
-      }
-
-      toast.success("Foto reprovada. Cliente será notificado para enviar nova foto.");
-      setFotoDialogOpen(false);
-      setFotoSelecionada(null);
-      setObservacaoReprovacao("");
-      loadVistoria();
-    } catch (error) {
-      console.error("Erro ao reprovar foto:", error);
-      toast.error("Erro ao reprovar foto");
-    }
-  };
-
-  const handleAprovarTodasFotos = async () => {
-    try {
-      const fotosPendentes = fotos.filter((f) => f.status_aprovacao === "pendente");
-
-      for (const foto of fotosPendentes) {
-        await supabase
-          .from("vistoria_fotos")
-          .update({
-            status_aprovacao: "aprovada",
-            aprovada_por: user?.id,
-            aprovada_em: new Date().toISOString(),
-          })
-          .eq("id", foto.id);
-      }
-
-      await supabase.from("vistorias").update({ status: "aprovada" }).eq("id", vistoria.id);
-
-      if (vistoria.atendimento_id) {
-        const { data: atendimento } = await supabase
-          .from("atendimentos")
-          .select("tags")
-          .eq("id", vistoria.atendimento_id)
-          .single();
-
-        if (atendimento?.tags) {
-          const newTags = atendimento.tags
-            .filter(
-              (tag: string) =>
-                !["aguardando_vistoria_digital", "vistoria_concluida", "pendente_vistoria"].includes(tag),
-            )
-            .concat("vistoria_aprovada");
-
-          await supabase.from("atendimentos").update({ tags: newTags }).eq("id", vistoria.atendimento_id);
-        }
-      }
-
-      toast.success("Todas as fotos foram aprovadas!");
-      loadVistoria();
-    } catch (error) {
-      console.error("Erro ao aprovar fotos:", error);
-      toast.error("Erro ao aprovar fotos");
-    }
   };
 
   const handleAbrirAnalise = (decisao: "aprovar" | "pendenciar") => {
@@ -381,72 +281,87 @@ export default function VistoriaDetalhe() {
     }
   };
 
+  const handleSolicitarMaisFotos = async () => {
+    if (!vistoria) {
+      toast.error("Vistoria não encontrada para registrar solicitação.");
+      return;
+    }
+
+    if (!motivoFotos.trim()) {
+      toast.error("Por favor, informe o motivo da solicitação");
+      return;
+    }
+
+    if (fotosNecessarias.length === 0) {
+      toast.error("Por favor, adicione pelo menos uma foto necessária");
+      return;
+    }
+
+    try {
+      toast.loading("Enviando solicitação de fotos...");
+
+      const { error } = await supabase.functions.invoke("solicitar-mais-fotos", {
+        body: {
+          vistoriaId: vistoria.id,
+          motivo: motivoFotos,
+          fotosNecessarias,
+        },
+      });
+
+      if (error) {
+        console.error("Erro na função 'solicitar-mais-fotos':", error);
+        toast.warning("Não foi possível enviar o e-mail automático agora, mas a vistoria será marcada como pendente.");
+      }
+
+      const { error: updateError } = await supabase
+        .from("vistorias")
+        .update({ status: "pendente_correcao" })
+        .eq("id", vistoria.id);
+
+      if (updateError) {
+        console.error("Erro ao atualizar status da vistoria:", updateError);
+        throw updateError;
+      }
+
+      toast.dismiss();
+      toast.success("Solicitação registrada e vistoria marcada como pendente de novas fotos.");
+
+      setSolicitarFotosOpen(false);
+      setMotivoFotos("");
+      setFotosNecessarias([]);
+      setNovaFotoInput("");
+
+      loadVistoria();
+    } catch (error) {
+      console.error("Erro ao solicitar fotos:", error);
+      toast.dismiss();
+      toast.error("Erro ao registrar solicitação de fotos.");
+    }
+  };
+
+  const handleEnviarWhatsApp = () => {
+    if (!vistoria) return;
+
+    const link = `${window.location.origin}/vistoria/${vistoria.link_token}`;
+    const listaFotos = fotosNecessarias.length > 0 ? `Fotos necessárias:\n- ${fotosNecessarias.join("\n- ")}\n\n` : "";
+
+    const mensagem = `Olá! Precisamos de fotos adicionais da sua vistoria referente ao sinistro #${
+      vistoria.numero
+    }.\n\nMotivo: ${motivoFotos || "Conforme análise da equipe"}\n\n${listaFotos}Envie as fotos pelo link abaixo:\n${link}`;
+
+    const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
+    window.open(url, "_blank");
+  };
+
   const adicionarFotoNecessaria = () => {
     if (novaFotoInput.trim()) {
-      setFotosNecessarias([...fotosNecessarias, novaFotoInput.trim()]);
+      setFotosNecessarias((prev) => [...prev, novaFotoInput.trim()]);
       setNovaFotoInput("");
     }
   };
 
   const removerFotoNecessaria = (index: number) => {
-    setFotosNecessarias(fotosNecessarias.filter((_, i) => i !== index));
-  };
-
-  const handleSolicitarMaisFotos = async () => {
-    if (!vistoria) {
-      toast.error("Vistoria não encontrada.");
-      return;
-    }
-
-    if (!motivoFotos.trim()) {
-      toast.error("Informe o motivo da solicitação.");
-      return;
-    }
-
-    if (fotosNecessarias.length === 0) {
-      toast.error("Adicione pelo menos um item necessário.");
-      return;
-    }
-
-    toast.loading("Registrando solicitação...", { id: "solicitacao-fotos" });
-
-    const { error: functionError } = await supabase.functions.invoke("solicitar-mais-fotos", {
-      body: {
-        vistoria_id: vistoria.id,
-        motivo: motivoFotos,
-        fotos_necessarias: fotosNecessarias,
-        cliente_email: vistoria.cliente_email,
-        cliente_nome: vistoria.cliente_nome,
-        numero_sinistro: vistoria.numero,
-      },
-    });
-
-    if (functionError) {
-      console.error("Erro edge function:", functionError);
-      toast.warning("Não foi possível enviar o e-mail automático agora. Você ainda pode enviar pelo WhatsApp Web.");
-    }
-
-    const { error: updateError } = await supabase
-      .from("vistorias")
-      .update({ status: "pendente_correcao" })
-      .eq("id", vistoria.id);
-
-    if (updateError) {
-      toast.dismiss("solicitacao-fotos");
-      console.error("Erro update vistoria:", updateError);
-      toast.error("Falha ao atualizar o status da vistoria.");
-      return;
-    }
-
-    toast.dismiss("solicitacao-fotos");
-    toast.success("Solicitação registrada!");
-
-    setSolicitarFotosOpen(false);
-    setMotivoFotos("");
-    setFotosNecessarias([]);
-    setNovaFotoInput("");
-
-    loadVistoria();
+    setFotosNecessarias((prev) => prev.filter((_, i) => i !== index));
   };
 
   if (loading) {
@@ -454,7 +369,7 @@ export default function VistoriaDetalhe() {
       <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />
           </div>
         </div>
       </div>
@@ -463,7 +378,7 @@ export default function VistoriaDetalhe() {
 
   if (!vistoria) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
+      <div className="min-h-screen bg-gradient-to-br.from-background to-muted/20 p-6">
         <div className="max-w-7xl mx-auto text-center py-12">
           <p className="text-muted-foreground">Vistoria não encontrada</p>
         </div>
@@ -471,19 +386,8 @@ export default function VistoriaDetalhe() {
     );
   }
 
-  const baseUrl = window.location.origin;
-  const linkPublico = vistoria.link_token ? `${baseUrl}/vistoria/${vistoria.link_token}` : baseUrl;
-  const phone = vistoria?.cliente_telefone?.replace(/\D/g, "") || "";
-  const mensagemWhats = encodeURIComponent(
-    `Olá ${vistoria.cliente_nome}, precisamos de algumas fotos adicionais para concluir sua vistoria.\n\n` +
-      `Motivo: ${motivoFotos}\n\n` +
-      `Fotos necessárias:\n- ${fotosNecessarias.join("\n- ")}\n\n` +
-      `Clique no link para enviar as fotos:\n${linkPublico}`,
-  );
-  const linkWhats = `https://api.whatsapp.com/send?phone=55${phone}&text=${mensagemWhats}`;
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
+    <div className="min-h-screen.bg-gradient-to-br from-background to-muted/20 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -561,7 +465,7 @@ export default function VistoriaDetalhe() {
           </CardContent>
         </Card>
 
-        {/* Tabs */}
+        {/* Tabs Content */}
         <Tabs defaultValue="geral" className="space-y-6">
           <TabsList className="grid w-full grid-cols-6 lg:w-auto">
             <TabsTrigger value="geral">
@@ -798,7 +702,7 @@ export default function VistoriaDetalhe() {
           <TabsContent value="fotos" className="space-y-6">
             <Card>
               <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/50 dark:to-purple-950/50 border-b">
-                <div className="flex items-center justify-between">
+                <div className="flex.items-center justify-between">
                   <div className="space-y-1">
                     <CardTitle className="flex items-center gap-2 text-xl">
                       <Camera className="h-5 w-5 text-blue-600" />
@@ -812,22 +716,12 @@ export default function VistoriaDetalhe() {
                           }`}
                     </p>
                   </div>
-                  {vistoria.tipo_abertura === "manual" && fotos.some((f) => f.status_aprovacao === "pendente") && (
-                    <Button
-                      onClick={handleAprovarTodasFotos}
-                      size="sm"
-                      className="gap-2 bg-green-600 hover:bg-green-700"
-                    >
-                      <Check className="h-4 w-4" />
-                      Aprovar Todas ({fotos.filter((f) => f.status_aprovacao === "pendente").length})
-                    </Button>
-                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-6">
                 {loadingFotos ? (
                   <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary"></div>
+                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />
                     <p className="text-sm text-muted-foreground">Carregando fotos...</p>
                   </div>
                 ) : fotos.length === 0 ? (
@@ -852,7 +746,7 @@ export default function VistoriaDetalhe() {
                       return (
                         <Card
                           key={foto.id}
-                          className="overflow-hidden border-2 hover:border-primary/50 transition-all duration-200"
+                          className="overflow-hidden border hover:border-primary/50 transition-all duration-200"
                         >
                           <div className="relative group aspect-[4/3] bg-muted flex items-center justify-center">
                             <div className="absolute top-2 left-2 z-10">
@@ -892,7 +786,9 @@ export default function VistoriaDetalhe() {
                               <div className="flex flex-col items-center justify-center text-center px-4">
                                 <FileText className="h-10 w-10 text-primary mb-2" />
                                 <p className="text-sm font-medium mb-1">Documento PDF</p>
-                                <p className="text-xs text-muted-foreground mb-3">{foto.arquivo_nome}</p>
+                                <p className="text-xs text-muted-foreground mb-3">
+                                  {foto.arquivo_nome || "Arquivo PDF"}
+                                </p>
                                 <Button size="sm" variant="outline" asChild>
                                   <a href={foto.arquivo_url} target="_blank" rel="noopener noreferrer">
                                     Abrir PDF
@@ -909,12 +805,11 @@ export default function VistoriaDetalhe() {
                             )}
                           </div>
 
-                          {/* Sem status por foto / sem análise IA aqui */}
-                          <CardContent className="p-4 space-y-3">
+                          <CardContent className="p-4 space-y-2">
                             {foto.created_at && (
                               <div className="text-xs text-muted-foreground">
                                 <Clock className="h-3 w-3 inline mr-1" />
-                                Capturada em{" "}
+                                Enviada em{" "}
                                 {format(new Date(foto.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                               </div>
                             )}
@@ -997,7 +892,7 @@ export default function VistoriaDetalhe() {
                     {vistoria.observacoes_ia && (
                       <div>
                         <div className="flex items-center gap-2 mb-3">
-                          <div className="h-1 w-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"></div>
+                          <div className="h-1 w-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full" />
                           <h4 className="font-semibold text-purple-900 dark:text-purple-300">Resumo Executivo</h4>
                         </div>
                         <div className="bg-white dark:bg-background rounded-lg border-2 border-purple-200 dark:border-purple-800 p-5">
@@ -1013,7 +908,7 @@ export default function VistoriaDetalhe() {
                         {vistoria.observacoes_ia && <Separator className="my-6" />}
                         <div>
                           <div className="flex items-center gap-2 mb-4">
-                            <div className="h-1 w-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"></div>
+                            <div className="h-1 w-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full" />
                             <h4 className="font-semibold text-purple-900 dark:text-purple-300">
                               Análise Detalhada por Foto
                             </h4>
@@ -1067,6 +962,21 @@ export default function VistoriaDetalhe() {
                         </div>
                       </div>
                     )}
+
+                    <div className="flex flex-wrap gap-3 pt-4 border-t border-purple-200/60 dark:border-purple-800/60">
+                      <Button
+                        variant="default"
+                        className="bg-green-600 hover:bg-green-700 gap-2"
+                        onClick={() => handleAbrirAnalise("aprovar")}
+                      >
+                        <Check className="h-4 w-4" />
+                        Aprovar vistoria
+                      </Button>
+                      <Button variant="destructive" className="gap-2" onClick={() => handleAbrirAnalise("pendenciar")}>
+                        <X className="h-4 w-4" />
+                        Pendenciar vistoria
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -1094,27 +1004,20 @@ export default function VistoriaDetalhe() {
                 <CardHeader className="bg-muted/50">
                   <CardTitle className="flex items-center gap-2">
                     <MapPin className="h-5 w-5" />
-                    Geolocalização
+                    Local da Vistoria
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-6 space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <span className="text-sm text-muted-foreground">Latitude</span>
-                      <p className="font-mono">{vistoria.latitude.toFixed(6)}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-muted-foreground">Longitude</span>
-                      <p className="font-mono">{vistoria.longitude.toFixed(6)}</p>
-                    </div>
+                <CardContent className="p-6 space-y-6">
+                  <div>
+                    <span className="text-sm text-muted-foreground block mb-1">Endereço aproximado</span>
+                    {loadingAddress ? (
+                      <p className="text-sm text-muted-foreground">Buscando endereço...</p>
+                    ) : (
+                      <p className="font-semibold text-lg">
+                        {geoAddress || vistoria.endereco || "Endereço não disponível"}
+                      </p>
+                    )}
                   </div>
-
-                  {vistoria.endereco && (
-                    <div>
-                      <span className="text-sm text-muted-foreground">Endereço</span>
-                      <p>{vistoria.endereco}</p>
-                    </div>
-                  )}
 
                   <Separator />
 
@@ -1140,7 +1043,7 @@ export default function VistoriaDetalhe() {
             ) : (
               <Card>
                 <CardContent className="p-12 text-center">
-                  <MapPin className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <MapPin className="h-12 w-12 mx-auto.mb-4 text-muted-foreground" />
                   <p className="text-muted-foreground">Geolocalização não disponível</p>
                 </CardContent>
               </Card>
@@ -1176,7 +1079,9 @@ export default function VistoriaDetalhe() {
                           <div>
                             <span className="text-muted-foreground block mb-1">Data e Hora:</span>
                             <p className="font-medium">
-                              {format(new Date(termo.aceito_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}
+                              {format(new Date(termo.aceito_em), "dd/MM/yyyy 'às' HH:mm:ss", {
+                                locale: ptBR,
+                              })}
                             </p>
                           </div>
                           <div>
@@ -1226,7 +1131,7 @@ export default function VistoriaDetalhe() {
               <Card>
                 <CardContent className="p-12 text-center">
                   <FileCheck className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-20" />
-                  <p className="text-lg font-medium mb-2">Nenhum termo assinado</p>
+                  <p className="text-lg font-medium.mb-2">Nenhum termo assinado</p>
                   <p className="text-sm text-muted-foreground">Os termos aceitos aparecerão aqui quando disponíveis</p>
 
                   {vistoria.assinatura_url && (
@@ -1346,39 +1251,6 @@ export default function VistoriaDetalhe() {
         </Tabs>
       </div>
 
-      {/* Dialog de reprovação de foto (mantido, embora status por foto não seja exibido) */}
-      <Dialog open={fotoDialogOpen} onOpenChange={setFotoDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reprovar Foto</DialogTitle>
-            <DialogDescription>
-              Informe o motivo da reprovação. O cliente poderá enviar uma nova foto através do link.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="observacao">Motivo da Reprovação *</Label>
-              <Textarea
-                id="observacao"
-                value={observacaoReprovacao}
-                onChange={(e) => setObservacaoReprovacao(e.target.value)}
-                placeholder="Ex: Foto fora de foco, ângulo incorreto, etc."
-                rows={4}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFotoDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button variant="destructive" onClick={confirmarReprovacao} className="gap-2">
-              <Send className="h-4 w-4" />
-              Reprovar e Notificar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Dialog de análise da vistoria */}
       <Dialog open={analiseDialogOpen} onOpenChange={setAnaliseDialogOpen}>
         <DialogContent>
@@ -1433,69 +1305,95 @@ export default function VistoriaDetalhe() {
 
       {/* Dialog de solicitar mais fotos */}
       <Dialog open={solicitarFotosOpen} onOpenChange={setSolicitarFotosOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Solicitar Mais Fotos</DialogTitle>
-            <DialogDescription>Informe o motivo e quais fotos adicionais o cliente precisa enviar.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5" />
+              Solicitar Mais Fotos ao Cliente
+            </DialogTitle>
+            <DialogDescription>
+              O cliente receberá um email com o link renovado para enviar as fotos adicionais. Você também pode enviar o
+              link via WhatsApp Web.
+            </DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Motivo da Pendência *</Label>
+            <div>
+              <Label htmlFor="motivo">Motivo da Solicitação *</Label>
               <Textarea
+                id="motivo"
                 value={motivoFotos}
                 onChange={(e) => setMotivoFotos(e.target.value)}
-                placeholder="Ex.: Foto frontal desfocada, CRLV ilegível, etc."
+                placeholder="Ex: Necessário fotos mais próximas dos danos na lateral direita..."
+                rows={3}
               />
             </div>
 
-            <div className="space-y-2">
+            <div>
               <Label>Fotos Necessárias *</Label>
-              <div className="flex gap-2">
-                <Input
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="text"
                   value={novaFotoInput}
                   onChange={(e) => setNovaFotoInput(e.target.value)}
-                  placeholder="Ex.: Lateral esquerda, detalhe do dano, etc."
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), adicionarFotoNecessaria())}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      adicionarFotoNecessaria();
+                    }
+                  }}
+                  placeholder="Ex: Lateral direita - detalhes dos arranhões"
+                  className="flex-1 px-3 py-2 border rounded-md"
                 />
-                <Button type="button" onClick={adicionarFotoNecessaria}>
+                <Button onClick={adicionarFotoNecessaria} type="button">
                   Adicionar
                 </Button>
               </div>
+
               {fotosNecessarias.length > 0 && (
-                <ul className="space-y-1 mt-2">
-                  {fotosNecessarias.map((txt, idx) => (
-                    <li key={idx} className="flex items-center justify-between p-2 bg-muted rounded-md text-sm">
-                      <span>{txt}</span>
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removerFotoNecessaria(idx)}>
+                <div className="mt-3 space-y-2">
+                  {fotosNecessarias.map((foto, index) => (
+                    <div key={index} className="flex items-center justify-between bg-muted p-2 rounded-md">
+                      <span className="text-sm">{foto}</span>
+                      <Button variant="ghost" size="sm" onClick={() => removerFotoNecessaria(index)}>
                         <X className="h-4 w-4" />
                       </Button>
-                    </li>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
 
-            <div className="space-y-2 text-xs text-muted-foreground bg-blue-50 border border-blue-200 rounded-md p-3">
-              <p>
-                O cliente receberá o link para envio das fotos adicionais. A vistoria será marcada como{" "}
-                <strong>pendente de correção</strong>.
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-800">
+                <strong>ℹ️ Informações:</strong>
               </p>
+              <ul className="text-sm text-blue-700 mt-2 space-y-1 list-disc list-inside">
+                <li>O link será válido por 7 dias</li>
+                <li>Cliente poderá tirar fotos ou enviar da galeria</li>
+                <li>Status da vistoria será alterado para "Pendente Correção" ao enviar a solicitação</li>
+              </ul>
             </div>
           </div>
-
-          <DialogFooter className="flex flex-col gap-3">
-            <Button asChild className="w-full gap-2 bg-green-600 hover:bg-green-700" type="button">
-              <a href={linkWhats} target="_blank" rel="noopener noreferrer">
+          <DialogFooter className="flex flex-wrap gap-3 justify-between">
+            <Button variant="outline" onClick={() => setSolicitarFotosOpen(false)}>
+              Cancelar
+            </Button>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2"
+                onClick={handleEnviarWhatsApp}
+                disabled={!vistoria}
+              >
                 <MessageCircle className="h-4 w-4" />
-                Enviar pelo WhatsApp Web
-              </a>
-            </Button>
-
-            <Button className="w-full gap-2" type="button" onClick={handleSolicitarMaisFotos}>
-              <Mail className="h-4 w-4" />
-              Enviar E-mail & Registrar Solicitação
-            </Button>
+                Enviar via WhatsApp Web
+              </Button>
+              <Button onClick={handleSolicitarMaisFotos} className="gap-2">
+                <Send className="h-4 w-4" />
+                Enviar Email e Marcar como Pendente
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
