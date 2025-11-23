@@ -2,6 +2,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import PortalKPI from '@/components/portal/PortalKPI';
 import PortalExtrato from '@/components/portal/PortalExtrato';
 import PortalIndicadores from '@/components/portal/PortalIndicadores';
@@ -11,12 +12,19 @@ import PortalComite from '@/components/portal/PortalComite';
 import { useAuth } from '@/hooks/useAuth';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { Link2, Copy } from 'lucide-react';
 
 export default function PID() {
   const { user } = useAuth();
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  
+  const selectedCorretoraData = corretoras.find(c => c.id === selectedCorretora);
+  const portalLink = selectedCorretoraData?.slug 
+    ? `${window.location.origin}/${selectedCorretoraData.slug}/login`
+    : null;
 
   useEffect(() => {
     async function fetchCorretoras() {
@@ -42,6 +50,13 @@ export default function PID() {
     fetchCorretoras();
   }, []);
 
+  const handleCopyLink = () => {
+    if (portalLink) {
+      navigator.clipboard.writeText(portalLink);
+      toast.success('Link copiado para a área de transferência!');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto p-6 space-y-6">
@@ -61,22 +76,55 @@ export default function PID() {
           {/* Corretora Selection Card */}
           <Card className="border-2 border-primary/10 shadow-lg bg-gradient-to-br from-card to-card/80">
             <CardContent className="p-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                <Label htmlFor="corretora-select" className="text-lg font-semibold min-w-fit">
-                  Selecionar Corretora:
-                </Label>
-                <Select value={selectedCorretora} onValueChange={setSelectedCorretora} disabled={loading}>
-                  <SelectTrigger id="corretora-select" className="w-full sm:w-[400px] h-12 text-base border-2">
-                    <SelectValue placeholder="Escolha uma corretora para visualizar os dados..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {corretoras.map((corretora) => (
-                      <SelectItem key={corretora.id} value={corretora.id} className="text-base py-3">
-                        {corretora.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <Label htmlFor="corretora-select" className="text-lg font-semibold min-w-fit">
+                    Selecionar Corretora:
+                  </Label>
+                  <Select value={selectedCorretora} onValueChange={setSelectedCorretora} disabled={loading}>
+                    <SelectTrigger id="corretora-select" className="w-full sm:w-[400px] h-12 text-base border-2">
+                      <SelectValue placeholder="Escolha uma corretora para visualizar os dados..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {corretoras.map((corretora) => (
+                        <SelectItem key={corretora.id} value={corretora.id} className="text-base py-3">
+                          {corretora.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Portal Link Section */}
+                {portalLink && (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 bg-muted/50 rounded-lg border border-border/50">
+                    <Link2 className="h-5 w-5 text-primary flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium mb-1">Link do Portal Externo:</p>
+                      <code className="text-xs bg-background px-2 py-1 rounded border break-all">
+                        {portalLink}
+                      </code>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyLink}
+                      className="flex-shrink-0 gap-2"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copiar Link
+                    </Button>
+                  </div>
+                )}
+
+                {selectedCorretora && !selectedCorretoraData?.slug && (
+                  <div className="flex items-center gap-2 p-3 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-lg border border-yellow-500/20">
+                    <Link2 className="h-4 w-4 flex-shrink-0" />
+                    <p className="text-sm">
+                      Esta corretora ainda não possui um slug configurado. Configure o slug para habilitar o portal externo.
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
