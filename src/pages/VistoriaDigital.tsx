@@ -255,8 +255,12 @@ export default function VistoriaDigital() {
                   />
                 </div>
 
-                {/* Inputs de Horário e Dias */}
-                <div className="grid grid-cols-3 gap-4">
+                {/* Campos animados */}
+                <div
+                  className={`grid grid-cols-3 gap-4 transition-all duration-300 ease-in-out overflow-hidden ${
+                    validadeAtivada ? "max-h-40 opacity-100" : "max-h-0 opacity-0"
+                  }`}
+                >
                   <div>
                     <Label className="text-xs">Horário Início</Label>
                     <Input
