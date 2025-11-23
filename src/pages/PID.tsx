@@ -9,26 +9,21 @@ import PortalIndicadores from '@/components/portal/PortalIndicadores';
 import PortalLancamentos from '@/components/portal/PortalLancamentos';
 import PortalSinistros from '@/components/portal/PortalSinistros';
 import PortalComite from '@/components/portal/PortalComite';
-import { CorretoraSlugDialog } from '@/components/CorretoraSlugDialog';
 import GerenciarParceirosDialog from '@/components/GerenciarParceirosDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Link2, Copy, Settings, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 
 export default function PID() {
   const { user } = useAuth();
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [slugDialogOpen, setSlugDialogOpen] = useState(false);
   const [parceirosDialogOpen, setParceirosDialogOpen] = useState(false);
   
   const selectedCorretoraData = corretoras.find(c => c.id === selectedCorretora);
-  const portalLink = selectedCorretoraData?.slug 
-    ? `${window.location.origin}/${selectedCorretoraData.slug}/login`
-    : null;
 
   useEffect(() => {
     async function fetchCorretoras() {
@@ -53,29 +48,6 @@ export default function PID() {
 
     fetchCorretoras();
   }, []);
-
-  const handleCopyLink = () => {
-    if (portalLink) {
-      navigator.clipboard.writeText(portalLink);
-      toast.success('Link copiado para a área de transferência!');
-    }
-  };
-
-  const handleSlugConfigured = async () => {
-    // Recarregar lista de corretoras para pegar o slug atualizado
-    try {
-      const { data, error } = await supabase
-        .from('corretoras')
-        .select('id, nome, slug')
-        .order('nome');
-      
-      if (error) throw error;
-      setCorretoras(data || []);
-      toast.success('Slug configurado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao recarregar corretoras:', error);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -114,48 +86,6 @@ export default function PID() {
                     </SelectContent>
                   </Select>
                 </div>
-
-                {/* Portal Link Section */}
-                {portalLink && (
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 bg-muted/50 rounded-lg border border-border/50">
-                    <Link2 className="h-5 w-5 text-primary flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium mb-1">Link do Portal Externo:</p>
-                      <code className="text-xs bg-background px-2 py-1 rounded border break-all">
-                        {portalLink}
-                      </code>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCopyLink}
-                      className="flex-shrink-0 gap-2"
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copiar Link
-                    </Button>
-                  </div>
-                )}
-
-                {selectedCorretora && !selectedCorretoraData?.slug && (
-                  <div className="flex items-center justify-between gap-3 p-3 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-lg border border-yellow-500/20">
-                    <div className="flex items-center gap-2">
-                      <Link2 className="h-4 w-4 flex-shrink-0" />
-                      <p className="text-sm">
-                        Esta corretora ainda não possui um slug configurado. Configure o slug para habilitar o portal externo.
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSlugDialogOpen(true)}
-                      className="gap-2 bg-background hover:bg-background/80"
-                    >
-                      <Settings className="h-4 w-4" />
-                      Configurar
-                    </Button>
-                  </div>
-                )}
 
                 {/* Gerenciar Parceiros Button */}
                 {selectedCorretora && (
@@ -211,20 +141,6 @@ export default function PID() {
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* Dialog de Configuração de Slug */}
-      {selectedCorretoraData && (
-        <CorretoraSlugDialog
-          open={slugDialogOpen}
-          onOpenChange={setSlugDialogOpen}
-          corretora={{
-            id: selectedCorretoraData.id,
-            nome: selectedCorretoraData.nome,
-            slug: selectedCorretoraData.slug
-          }}
-          onSuccess={handleSlugConfigured}
-        />
-      )}
 
       {/* Dialog de Gerenciamento de Parceiros */}
       {selectedCorretoraData && (
