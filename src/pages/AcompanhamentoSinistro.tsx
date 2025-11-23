@@ -204,7 +204,7 @@ export default function AcompanhamentoSinistro() {
             const { data: fluxosLocal, error: errFluxosLocal } = await supabase
               .from("fluxos")
               .select("id, nome")
-              .in("id", fluxosUsadosArray);
+              .in("id", fluxosUsadosArray.map(id => String(id)));
 
             if (errFluxosLocal) console.error(errFluxosLocal);
 
@@ -215,7 +215,7 @@ export default function AcompanhamentoSinistro() {
             const { data: statusLocal, error: errStatusLocal } = await supabase
               .from("status_publicos_config")
               .select("*")
-              .in("fluxo_id", fluxosUsadosArray)
+              .in("fluxo_id", fluxosUsadosArray.map(id => String(id)))
               .eq("visivel_publico", true)
               .order("ordem_exibicao");
 
