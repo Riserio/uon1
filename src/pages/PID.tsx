@@ -1,4 +1,4 @@
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -6,6 +6,8 @@ import PortalKPI from '@/components/portal/PortalKPI';
 import PortalExtrato from '@/components/portal/PortalExtrato';
 import PortalIndicadores from '@/components/portal/PortalIndicadores';
 import PortalLancamentos from '@/components/portal/PortalLancamentos';
+import PortalSinistros from '@/components/portal/PortalSinistros';
+import PortalComite from '@/components/portal/PortalComite';
 import { useAuth } from '@/hooks/useAuth';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,56 +43,81 @@ export default function PID() {
   }, []);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">PID - Painel de Indicadores e Demonstrativos</h1>
-        <p className="text-muted-foreground mt-2">
-          Gestão completa de dados financeiros das corretoras
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto p-6 space-y-6">
+        {/* Header Section */}
+        <div className="space-y-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                PID - Painel de Indicadores e Demonstrativos
+              </h1>
+              <p className="text-muted-foreground mt-2 text-lg">
+                Gestão completa de dados financeiros e sinistros das corretoras
+              </p>
+            </div>
+          </div>
 
-      <Card className="p-4">
-        <div className="flex items-center gap-4">
-          <Label htmlFor="corretora-select" className="min-w-fit">Filtrar por Corretora:</Label>
-          <Select value={selectedCorretora} onValueChange={setSelectedCorretora} disabled={loading}>
-            <SelectTrigger id="corretora-select" className="w-[300px]">
-              <SelectValue placeholder="Selecione uma corretora" />
-            </SelectTrigger>
-            <SelectContent>
-              {corretoras.map((corretora) => (
-                <SelectItem key={corretora.id} value={corretora.id}>
-                  {corretora.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Corretora Selection Card */}
+          <Card className="border-2 border-primary/10 shadow-lg bg-gradient-to-br from-card to-card/80">
+            <CardContent className="p-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <Label htmlFor="corretora-select" className="text-lg font-semibold min-w-fit">
+                  Selecionar Corretora:
+                </Label>
+                <Select value={selectedCorretora} onValueChange={setSelectedCorretora} disabled={loading}>
+                  <SelectTrigger id="corretora-select" className="w-full sm:w-[400px] h-12 text-base border-2">
+                    <SelectValue placeholder="Escolha uma corretora para visualizar os dados..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {corretoras.map((corretora) => (
+                      <SelectItem key={corretora.id} value={corretora.id} className="text-base py-3">
+                        {corretora.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      </Card>
 
-      <Tabs defaultValue="kpi" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="kpi">KPI</TabsTrigger>
-          <TabsTrigger value="extrato">Extrato</TabsTrigger>
-          <TabsTrigger value="indicadores">Indicadores</TabsTrigger>
-          <TabsTrigger value="lancamentos">Lançamentos</TabsTrigger>
-        </TabsList>
+        {/* Tabs Section */}
+        <Tabs defaultValue="kpi" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 h-auto p-1 bg-muted/50">
+            <TabsTrigger value="kpi" className="text-sm sm:text-base py-3">KPI</TabsTrigger>
+            <TabsTrigger value="extrato" className="text-sm sm:text-base py-3">Extrato</TabsTrigger>
+            <TabsTrigger value="indicadores" className="text-sm sm:text-base py-3">Indicadores</TabsTrigger>
+            <TabsTrigger value="lancamentos" className="text-sm sm:text-base py-3">Lançamentos</TabsTrigger>
+            <TabsTrigger value="sinistros" className="text-sm sm:text-base py-3">Sinistros</TabsTrigger>
+            <TabsTrigger value="comite" className="text-sm sm:text-base py-3">Comitê</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="kpi">
-          <PortalKPI corretoraId={selectedCorretora} />
-        </TabsContent>
+          <TabsContent value="kpi" className="space-y-4">
+            <PortalKPI corretoraId={selectedCorretora} />
+          </TabsContent>
 
-        <TabsContent value="extrato">
-          <PortalExtrato corretoraId={selectedCorretora} />
-        </TabsContent>
+          <TabsContent value="extrato" className="space-y-4">
+            <PortalExtrato corretoraId={selectedCorretora} />
+          </TabsContent>
 
-        <TabsContent value="indicadores">
-          <PortalIndicadores corretoraId={selectedCorretora} />
-        </TabsContent>
+          <TabsContent value="indicadores" className="space-y-4">
+            <PortalIndicadores corretoraId={selectedCorretora} />
+          </TabsContent>
 
-        <TabsContent value="lancamentos">
-          <PortalLancamentos corretoraId={selectedCorretora} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="lancamentos" className="space-y-4">
+            <PortalLancamentos corretoraId={selectedCorretora} />
+          </TabsContent>
+
+          <TabsContent value="sinistros" className="space-y-4">
+            <PortalSinistros corretoraId={selectedCorretora} />
+          </TabsContent>
+
+          <TabsContent value="comite" className="space-y-4">
+            <PortalComite corretoraId={selectedCorretora} />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }
