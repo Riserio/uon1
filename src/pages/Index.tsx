@@ -778,6 +778,9 @@ const Index = () => {
             onFilterPriorityChange={setFilterPriority}
             filterResponsavel={filterResponsavel}
             onFilterResponsavelChange={setFilterResponsavel}
+            filterCorretora={filterCorretora}
+            onFilterCorretoraChange={setFilterCorretora}
+            corretoras={corretoras}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
             onNewAtendimento={handleNewAtendimento}
