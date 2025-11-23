@@ -156,13 +156,13 @@ export default function VistoriaPublicaCaptura() {
     }
   };
 
+  // 👉 AGORA: só considera "fotos adicionais" quando estiver pendente_correcao
+  const isFotosAdicionais = !!vistoria && vistoria.status === "pendente_correcao";
+
   // Input único: câmera + galeria + arquivos
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-
-    const isFotosAdicionais =
-      !!vistoria && (vistoria.status === "pendente_correcao" || vistoria.status === "aguardando_fotos");
 
     const posicaoAtual = isFotosAdicionais
       ? {
@@ -226,7 +226,7 @@ export default function VistoriaPublicaCaptura() {
           });
           newPreviews.push(preview);
 
-          // OCR apenas se NÃO for modo fotos adicionais
+          // OCR apenas no fluxo normal de CRLV
           if (!isFotosAdicionais && posicaoAtual.id === "crlv" && !firstOcrBase64) {
             firstOcrBase64 = preview;
           }
@@ -353,8 +353,8 @@ export default function VistoriaPublicaCaptura() {
     try {
       setEnviando(true);
 
-      // ⚠️ CONFERE AQUI: use o MESMO bucket que você já usa no fluxo "normal" da vistoria
-      const bucketName = "vistoria-fotos"; // ex: "vistoria-fotos", "vistorias", etc.
+      // ⚠️ Ajuste para o mesmo bucket que você usa hoje
+      const bucketName = "vistoria-fotos";
 
       const uploads: { url: string; nome: string }[] = [];
 
@@ -385,7 +385,6 @@ export default function VistoriaPublicaCaptura() {
         });
       }
 
-      // 💾 Insert na tabela vistoria_fotos
       const { error: insertError } = await supabase.from("vistoria_fotos").insert(
         uploads.map((u, index) => ({
           vistoria_id: vistoria.id,
@@ -394,8 +393,6 @@ export default function VistoriaPublicaCaptura() {
           posicao: "adicional",
           ordem: index + 1,
           status_aprovacao: "pendente",
-          // se sua tabela tiver NOT NULL em outros campos, preenche aqui
-          // ex: tipo_arquivo, created_by, etc.
         })),
       );
 
@@ -404,7 +401,6 @@ export default function VistoriaPublicaCaptura() {
         throw insertError;
       }
 
-      // 🔁 Atualiza status da vistoria
       const { error: updateError } = await supabase
         .from("vistorias")
         .update({ status: "concluida" })
@@ -445,8 +441,6 @@ export default function VistoriaPublicaCaptura() {
   if (!vistoria) {
     return null;
   }
-
-  const isFotosAdicionais = vistoria.status === "pendente_correcao" || vistoria.status === "aguardando_fotos";
 
   // ======== MODO FOTOS ADICIONAIS (SIMPLIFICADO) ========
   if (isFotosAdicionais) {
@@ -696,7 +690,7 @@ export default function VistoriaPublicaCaptura() {
               </div>
             </div>
             {posicaoAtual.multiple && (
-              <Badge className="bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm">
+              <Badge className="bg-white/20 text.white hover:bg-white/30 backdrop-blur-sm">
                 <Upload className="h-3 w-3 mr-1" />
                 Múltiplas fotos permitidas
               </Badge>
@@ -767,7 +761,7 @@ export default function VistoriaPublicaCaptura() {
                             {/* Remove Button */}
                             <button
                               onClick={() => removeFoto(posicaoAtual.id, index)}
-                              className="absolute top-3 right-3 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-md transition-all opacity-0 group-hover:opacity-100"
+                              className="absolute.top-3 right-3 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-md transition-all opacity-0 group-hover:opacity-100"
                             >
                               <X className="h-4 w-4" />
                             </button>
@@ -823,7 +817,7 @@ export default function VistoriaPublicaCaptura() {
                 onClick={nextStep}
                 disabled={fotosPosicaoAtual.length === 0}
                 size="lg"
-                className="w-full sm:flex-1 h-14 text-base sm:text-lg bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-lg"
+                className="w-full sm:flex-1 h-14 text-base sm:text-lg bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] disabled:opacity-50 disabled:cursor-not-allowed font-bold.shadow-lg"
               >
                 {currentStep === POSICOES.length - 1 ? "Preencher Dados" : "Próxima Foto"}
                 <ArrowRight className="h-5 w-5 ml-2" />
@@ -862,7 +856,7 @@ export default function VistoriaPublicaCaptura() {
                     </div>
 
                     <div
-                      className={`absolute -bottom-6 left-0 right-0 text-center text-[10px] font-medium ${
+                      className={`absolute -bottom-6.left-0 right-0 text-center text-[10px] font-medium ${
                         isCurrent ? "text-[hsl(var(--vistoria-primary))]" : "text-gray-500"
                       }`}
                     >
