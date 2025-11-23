@@ -31,6 +31,7 @@ export default function VistoriaPublicaTermos() {
   const [termosAceitos, setTermosAceitos] = useState<{ [key: string]: boolean }>({});
   const [assinatura, setAssinatura] = useState<string>("");
   const [geolocation, setGeolocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationName, setLocationName] = useState<string | null>(null); // 👈 endereço formatado
 
   useEffect(() => {
     loadData();
@@ -40,14 +41,70 @@ export default function VistoriaPublicaTermos() {
   const getGeolocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setGeolocation({
+        async (position) => {
+          const coords = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
-          });
+          };
+          setGeolocation(coords);
+          await reverseGeocode(coords.latitude, coords.longitude);
         },
         (error) => console.error("Erro ao obter localização:", error),
       );
+    }
+  };
+
+  // 🔄 Converte lat/long em endereço o mais completo possível
+  const reverseGeocode = async (latitude: number, longitude: number) => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=pt-BR`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error("Falha ao obter endereço");
+      }
+
+      const data = await response.json();
+      const address = data.address || {};
+
+      const rua = address.road || address.pedestrian || address.cycleway || address.footway || address.path;
+      const numero = address.house_number;
+      const bairro = address.suburb || address.neighbourhood || address.quarter || address.village || address.hamlet;
+      const cidade = address.city || address.town || address.village || address.municipality;
+      const estado = address.state;
+      const pais = address.country;
+
+      const linha1Parts: string[] = [];
+      if (rua) linha1Parts.push(rua);
+      if (numero) linha1Parts.push(numero);
+      const linha1 = linha1Parts.join(", ");
+
+      const linha2Parts: string[] = [];
+      if (bairro) linha2Parts.push(bairro);
+      if (cidade) linha2Parts.push(cidade);
+      if (estado) linha2Parts.push(estado);
+      const linha2 = linha2Parts.join(" - ");
+
+      let formatted = "";
+
+      if (linha1 && linha2) {
+        formatted = `${linha1} • ${linha2}${pais ? ` • ${pais}` : ""}`;
+      } else if (linha1) {
+        formatted = `${linha1}${cidade || estado || pais ? " • " : ""}${[cidade, estado, pais]
+          .filter(Boolean)
+          .join(" - ")}`;
+      } else if (linha2) {
+        formatted = `${linha2}${pais ? ` • ${pais}` : ""}`;
+      } else if (data.display_name) {
+        formatted = data.display_name;
+      } else {
+        formatted = [cidade, estado, pais].filter(Boolean).join(" - ");
+      }
+
+      setLocationName(formatted || null);
+    } catch (error) {
+      console.error("Erro no reverse geocode:", error);
+      setLocationName(null);
     }
   };
 
@@ -57,8 +114,6 @@ export default function VistoriaPublicaTermos() {
 
       const { data: vistoriaData, error: vistoriaError } = await supabase
         .from("vistorias")
-        // 🔑 importante: trazer o ID da corretora
-        // ajuste o nome da coluna se não for "corretora_id"
         .select("id, numero, corretora_id, link_expires_at, corretoras(id, nome, logo_url)")
         .eq("link_token", token)
         .gt("link_expires_at", new Date().toISOString())
@@ -72,27 +127,23 @@ export default function VistoriaPublicaTermos() {
 
       setVistoria(vistoriaData);
 
-      const corretoraId = vistoriaData.corretora_id; // 👈 coluna da vistoria que referencia a corretora
+      const corretoraId = vistoriaData.corretora_id;
 
       if (!corretoraId) {
-        // se por algum motivo não tiver corretora vinculada, não mostramos termo nenhum
         setTermos([]);
         return;
       }
 
-      // 🔒 Busca apenas termos da corretora da vistoria
       const { data: termosData, error: termosError } = await supabase
         .from("termos")
         .select("*")
         .eq("ativo", true)
-        .eq("corretora_id", corretoraId) // 👈 ajuste aqui se o campo na tabela for outro
+        .eq("corretora_id", corretoraId)
         .order("ordem");
 
       if (termosError) throw termosError;
 
-      // Filtro extra em memória, só por segurança
       const termosFiltrados = (termosData || []).filter((t) => t.corretora_id === corretoraId);
-
       setTermos(termosFiltrados);
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
@@ -307,8 +358,10 @@ export default function VistoriaPublicaTermos() {
                     <MapPin className="h-4 w-4 text-blue-600" />
                     <p className="text-xs font-semibold text-blue-800 uppercase">Localização</p>
                   </div>
-                  <p className="text-xs font-mono text-blue-900">
-                    {geolocation.latitude.toFixed(4)}, {geolocation.longitude.toFixed(4)}
+                  <p className="text-xs text-blue-900">
+                    {locationName
+                      ? locationName
+                      : `${geolocation.latitude.toFixed(4)}, ${geolocation.longitude.toFixed(4)}`}
                   </p>
                 </div>
               )}
