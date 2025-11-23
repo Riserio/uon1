@@ -1,114 +1,263 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { usePortalAuth } from "@/contexts/PortalAuthContext";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Activity, FileText, PieChart, ListChecks } from "lucide-react";
-import PortalKPI from "@/components/portal/PortalKPI";
-import PortalExtrato from "@/components/portal/PortalExtrato";
-import PortalIndicadores from "@/components/portal/PortalIndicadores";
-import PortalLancamentos from "@/components/portal/PortalLancamentos";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Label as RechartsLabel,
+} from "recharts";
 
-export default function PortalDashboard() {
-  const { slug } = useParams<{ slug: string }>();
-  const { token, corretora, logout } = usePortalAuth();
-  const navigate = useNavigate();
+type IndicadoresData = {
+  producaoPorMes: { mes: string; valor: number }[];
+  producaoPorProduto: { produto: string; valor: number }[];
+  producaoPorSeguradora: { seguradora: string; valor: number }[];
+};
 
-  useEffect(() => {
-    if (!token || !corretora || corretora.slug !== slug) {
-      navigate(`/${slug}/login`);
-    }
-  }, [token, corretora, slug, navigate]);
+function formatCurrencyBRL(value: number) {
+  if (!value && value !== 0) return "R$ 0,00";
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    maximumFractionDigits: 2,
+  });
+}
 
-  const handleLogout = () => {
-    logout();
-    navigate(`/${slug}/login`);
-  };
+const COLORS = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+];
 
-  if (!corretora) return null;
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload || payload.length === 0) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-secondary/10">
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">PID - {corretora.nome}</h1>
-            <p className="text-sm text-muted-foreground">Painel de Indicadores e Demonstrativos</p>
+    <div className="rounded-lg border bg-popover px-3 py-2 text-xs shadow-md">
+      {label && <p className="mb-1 font-medium text-foreground">{label}</p>}
+      {payload.map((item: any, index: number) => (
+        <p key={index} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+          <span>{item.name}:</span>
+          <span className="font-semibold text-foreground">{formatCurrencyBRL(Number(item.value || 0))}</span>
+        </p>
+      ))}
+    </div>
+  );
+};
+
+export default function PortalIndicadores({ corretoraId }: { corretoraId?: string }) {
+  const [loading, setLoading] = useState(true);
+  const [indicadores, setIndicadores] = useState<IndicadoresData | null>(null);
+
+  const fetchIndicadores = async () => {
+    if (!corretoraId) return; // Aguardar seleção de corretora
+
+    setLoading(true);
+    try {
+      // Buscar dados dos últimos 12 meses
+      const hoje = new Date();
+      const dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 11, 1);
+
+      const { data: producao, error } = await supabase
+        .from("producao_financeira")
+        .select("*")
+        .eq("corretora_id", corretoraId)
+        .gte("competencia", dataInicio.toISOString().split("T")[0])
+        .order("competencia", { ascending: true });
+
+      if (error) throw error;
+
+      const porMes: Record<string, number> = {};
+      const porProduto: Record<string, number> = {};
+      const porSeguradora: Record<string, number> = {};
+
+      producao?.forEach((p: any) => {
+        const mes = p.competencia?.substring(0, 7) || "";
+        const valor = p.premio_total || 0;
+
+        porMes[mes] = (porMes[mes] || 0) + valor;
+        porProduto[p.produto || "Outros"] = (porProduto[p.produto || "Outros"] || 0) + valor;
+        porSeguradora[p.seguradora || "Outros"] = (porSeguradora[p.seguradora || "Outros"] || 0) + valor;
+      });
+
+      setIndicadores({
+        producaoPorMes: Object.entries(porMes).map(([mes, valor]) => ({
+          mes,
+          valor: Number(valor),
+        })),
+        producaoPorProduto: Object.entries(porProduto).map(([produto, valor]) => ({
+          produto,
+          valor: Number(valor),
+        })),
+        producaoPorSeguradora: Object.entries(porSeguradora).map(([seguradora, valor]) => ({
+          seguradora,
+          valor: Number(valor),
+        })),
+      });
+    } catch (error: any) {
+      console.error("Error fetching indicadores:", error);
+      toast.error("Erro ao carregar indicadores");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (corretoraId) {
+      fetchIndicadores();
+    }
+  }, [corretoraId]);
+
+  if (loading) {
+    return <div className="text-center py-12 text-muted-foreground">Carregando indicadores...</div>;
+  }
+
+  if (!indicadores) return null;
+
+  const totalProdutos = indicadores.producaoPorProduto.reduce((sum, item) => sum + (item.valor || 0), 0);
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
+      {/* Linha moderna - Produção por Mês */}
+      <Card className="lg:col-span-2 xl:col-span-3">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-lg font-semibold">Produção por Mês (Últimos 12 meses)</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={indicadores.producaoPorMes}>
+              <defs>
+                <linearGradient id="colorValor" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.7} />
+                  <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+              <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
+              <YAxis
+                tick={{ fontSize: 12 }}
+                tickFormatter={(value) => formatCurrencyBRL(Number(value)).replace("R$ ", "")}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="valor"
+                name="Produção"
+                stroke="hsl(var(--primary))"
+                strokeWidth={2.4}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+              {/* “Área” com gradiente usando o mesmo dataKey */}
+              <Line type="monotone" dataKey="valor" stroke="transparent" fill="url(#colorValor)" fillOpacity={0.8} />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Donut - Distribuição por Produto */}
+      <Card className="xl:col-span-1">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">Distribuição por Produto</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-2">
+          <div className="flex flex-col items-center justify-center gap-4">
+            <div className="w-full h-72">
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={indicadores.producaoPorProduto}
+                    dataKey="valor"
+                    nameKey="produto"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius="55%"
+                    outerRadius="80%"
+                    paddingAngle={3}
+                  >
+                    {indicadores.producaoPorProduto.map((_: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                    <RechartsLabel
+                      value={formatCurrencyBRL(totalProdutos)}
+                      position="center"
+                      className="text-sm font-semibold text-center"
+                    />
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="grid w-full grid-cols-2 gap-2 text-xs">
+              {indicadores.producaoPorProduto.map((item, index) => (
+                <div
+                  key={item.produto}
+                  className="flex items-center justify-between rounded-md border bg-muted/40 px-2 py-1.5"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-block h-2 w-2 rounded-full"
+                      style={{
+                        backgroundColor: COLORS[index % COLORS.length],
+                      }}
+                    />
+                    <span className="truncate">{item.produto}</span>
+                  </div>
+                  <span className="font-medium">{formatCurrencyBRL(Number(item.valor || 0))}</span>
+                </div>
+              ))}
+            </div>
           </div>
-          <Button variant="outline" onClick={handleLogout}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Sair
-          </Button>
-        </div>
-      </header>
+        </CardContent>
+      </Card>
 
-      <main className="container mx-auto px-4 py-8 space-y-6">
-        <Tabs defaultValue="kpi" className="space-y-6">
-          {/* Abas modernas com ícones e cor do sistema na aba ativa */}
-          <TabsList className="grid w-full grid-cols-4 rounded-xl bg-muted/60 p-1.5 shadow-sm">
-            <TabsTrigger
-              value="kpi"
-              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs sm:text-sm font-medium
-                         text-muted-foreground transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-sm hover:text-foreground"
+      {/* Barras - Produção por Seguradora */}
+      <Card className="xl:col-span-2">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">Produção por Seguradora</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-2">
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart
+              data={indicadores.producaoPorSeguradora}
+              barCategoryGap="20%"
+              margin={{ left: 0, right: 16, top: 16, bottom: 8 }}
             >
-              <Activity className="h-4 w-4 sm:h-4 sm:w-4" />
-              <span>KPI</span>
-            </TabsTrigger>
-
-            <TabsTrigger
-              value="extrato"
-              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs sm:text-sm font-medium
-                         text-muted-foreground transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-sm hover:text-foreground"
-            >
-              <FileText className="h-4 w-4 sm:h-4 sm:w-4" />
-              <span>Extrato</span>
-            </TabsTrigger>
-
-            <TabsTrigger
-              value="indicadores"
-              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium
-                         text-muted-foreground transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-sm hover:text-foreground"
-            >
-              <PieChart className="h-4 w-4 sm:h-4 sm:w-4" />
-              <span>Indicadores</span>
-            </TabsTrigger>
-
-            <TabsTrigger
-              value="lancamentos"
-              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium
-                         text-muted-foreground transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-sm hover:text-foreground"
-            >
-              <ListChecks className="h-4 w-4 sm:h-4 sm:w-4" />
-              <span>Lançamentos</span>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="kpi">
-            <PortalKPI />
-          </TabsContent>
-
-          <TabsContent value="extrato">
-            <PortalExtrato />
-          </TabsContent>
-
-          <TabsContent value="indicadores">
-            <PortalIndicadores />
-          </TabsContent>
-
-          <TabsContent value="lancamentos">
-            <PortalLancamentos />
-          </TabsContent>
-        </Tabs>
-      </main>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+              <XAxis
+                dataKey="seguradora"
+                tick={{ fontSize: 11 }}
+                interval={0}
+                angle={-20}
+                textAnchor="end"
+                height={60}
+              />
+              <YAxis
+                tick={{ fontSize: 12 }}
+                tickFormatter={(value) => formatCurrencyBRL(Number(value)).replace("R$ ", "")}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="valor" name="Produção" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} maxBarSize={40} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
     </div>
   );
 }
