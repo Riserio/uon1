@@ -410,6 +410,50 @@ export type Database = {
           },
         ]
       }
+      corretora_usuarios: {
+        Row: {
+          ativo: boolean | null
+          corretora_id: string
+          created_at: string | null
+          email: string
+          id: string
+          senha_hash: string
+          totp_configurado: boolean | null
+          totp_secret: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          corretora_id: string
+          created_at?: string | null
+          email: string
+          id?: string
+          senha_hash: string
+          totp_configurado?: boolean | null
+          totp_secret?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          corretora_id?: string
+          created_at?: string | null
+          email?: string
+          id?: string
+          senha_hash?: string
+          totp_configurado?: boolean | null
+          totp_secret?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corretora_usuarios_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       corretoras: {
         Row: {
           cep: string | null
@@ -425,6 +469,7 @@ export type Database = {
           nome: string
           observacoes: string | null
           responsavel: string | null
+          slug: string | null
           susep: string | null
           telefone: string | null
           updated_at: string
@@ -443,6 +488,7 @@ export type Database = {
           nome: string
           observacoes?: string | null
           responsavel?: string | null
+          slug?: string | null
           susep?: string | null
           telefone?: string | null
           updated_at?: string
@@ -461,6 +507,7 @@ export type Database = {
           nome?: string
           observacoes?: string | null
           responsavel?: string | null
+          slug?: string | null
           susep?: string | null
           telefone?: string | null
           updated_at?: string
@@ -1179,6 +1226,109 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pid_audit_log: {
+        Row: {
+          acao: string
+          corretora_id: string
+          created_at: string | null
+          detalhes: Json | null
+          id: string
+          usuario_id: string | null
+        }
+        Insert: {
+          acao: string
+          corretora_id: string
+          created_at?: string | null
+          detalhes?: Json | null
+          id?: string
+          usuario_id?: string | null
+        }
+        Update: {
+          acao?: string
+          corretora_id?: string
+          created_at?: string | null
+          detalhes?: Json | null
+          id?: string
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pid_audit_log_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      producao_financeira: {
+        Row: {
+          competencia: string
+          corretora_id: string
+          created_at: string | null
+          criado_por_usuario_id: string | null
+          id: string
+          observacoes: string | null
+          percentual_comissao: number | null
+          premio_total: number | null
+          produto: string | null
+          repasse_pago: number | null
+          repasse_previsto: number | null
+          segurado_nome: string | null
+          seguradora: string | null
+          status: string | null
+          tipo_origem: string
+          updated_at: string | null
+          valor_comissao: number | null
+        }
+        Insert: {
+          competencia: string
+          corretora_id: string
+          created_at?: string | null
+          criado_por_usuario_id?: string | null
+          id?: string
+          observacoes?: string | null
+          percentual_comissao?: number | null
+          premio_total?: number | null
+          produto?: string | null
+          repasse_pago?: number | null
+          repasse_previsto?: number | null
+          segurado_nome?: string | null
+          seguradora?: string | null
+          status?: string | null
+          tipo_origem?: string
+          updated_at?: string | null
+          valor_comissao?: number | null
+        }
+        Update: {
+          competencia?: string
+          corretora_id?: string
+          created_at?: string | null
+          criado_por_usuario_id?: string | null
+          id?: string
+          observacoes?: string | null
+          percentual_comissao?: number | null
+          premio_total?: number | null
+          produto?: string | null
+          repasse_pago?: number | null
+          repasse_previsto?: number | null
+          segurado_nome?: string | null
+          seguradora?: string | null
+          status?: string | null
+          tipo_origem?: string
+          updated_at?: string | null
+          valor_comissao?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "producao_financeira_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
             referencedColumns: ["id"]
           },
         ]
