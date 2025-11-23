@@ -130,7 +130,19 @@ export function GerenciarUsuariosCorretoraDialog({
 
         <div className="space-y-6">
           <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-lg bg-muted/50">
-            <h3 className="font-semibold">Criar Novo Usuário</h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b">
+                <h3 className="font-semibold text-lg">Criar Novo Usuário PID</h3>
+                <Badge variant="secondary" className="text-base px-3 py-1">
+                  Corretora: {corretoraNome}
+                </Badge>
+              </div>
+              
+              <p className="text-sm text-muted-foreground">
+                O usuário será criado e automaticamente vinculado à corretora <strong>{corretoraNome}</strong>
+              </p>
+            </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>

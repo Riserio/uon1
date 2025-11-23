@@ -42,22 +42,50 @@ serve(async (req) => {
 
     console.log('Auth user created:', authData.user.id);
 
-    // 2. Atualizar profile (já criado pelo trigger handle_new_user)
-    const { error: profileError } = await supabaseClient
+    // 2. Aguardar um momento para o trigger criar o profile
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Verificar se o profile foi criado pelo trigger
+    const { data: existingProfile } = await supabaseClient
       .from('profiles')
-      .update({
-        status: 'ativo', // Usuário criado pelo admin já está aprovado
-      })
-      .eq('id', authData.user.id);
+      .select('id')
+      .eq('id', authData.user.id)
+      .single();
 
-    if (profileError) {
-      console.error('Profile error:', profileError);
-      // Se falhou, deletar o usuário criado
-      await supabaseClient.auth.admin.deleteUser(authData.user.id);
-      throw profileError;
+    if (!existingProfile) {
+      // Se o trigger não criou, criar manualmente
+      const { error: profileInsertError } = await supabaseClient
+        .from('profiles')
+        .insert({
+          id: authData.user.id,
+          email,
+          nome: nome || email,
+          ativo: true,
+          status: 'ativo',
+        });
+
+      if (profileInsertError) {
+        console.error('Profile insert error:', profileInsertError);
+        await supabaseClient.auth.admin.deleteUser(authData.user.id);
+        throw profileInsertError;
+      }
+      console.log('Profile created manually');
+    } else {
+      // Profile já existe, apenas atualizar status
+      const { error: profileError } = await supabaseClient
+        .from('profiles')
+        .update({
+          status: 'ativo',
+        })
+        .eq('id', authData.user.id);
+
+      if (profileError) {
+        console.error('Profile update error:', profileError);
+        await supabaseClient.auth.admin.deleteUser(authData.user.id);
+        throw profileError;
+      }
+      console.log('Profile updated with active status');
     }
-
-    console.log('Profile updated with active status');
 
     // 3. Adicionar role parceiro
     const { error: roleError } = await supabaseClient
