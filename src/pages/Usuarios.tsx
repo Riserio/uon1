@@ -717,7 +717,7 @@ export default function Usuarios() {
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="role">Função/Perfil *</Label>
-                          <Select value={selectedRole} onValueChange={(value: "superintendente" | "administrativo" | "lider" | "comercial") => setSelectedRole(value)}>
+                          <Select value={selectedRole} onValueChange={(value: "superintendente" | "administrativo" | "lider" | "comercial" | "parceiro") => setSelectedRole(value)}>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione uma função" />
                             </SelectTrigger>
@@ -726,6 +726,7 @@ export default function Usuarios() {
                               <SelectItem value="administrativo">Administrativo</SelectItem>
                               <SelectItem value="lider">Líder</SelectItem>
                               <SelectItem value="comercial">Comercial</SelectItem>
+                              <SelectItem value="parceiro">Parceiro (Acesso PID)</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
