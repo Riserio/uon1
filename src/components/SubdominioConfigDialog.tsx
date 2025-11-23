@@ -20,7 +20,7 @@ export function SubdominioConfigDialog({ open, onOpenChange }: SubdominioConfigD
   const [copied, setCopied] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const DOMINIO_BASE = "uon1.lovable.app";
+  const DOMINIO_BASE = "uon1.com.br";
 
   useEffect(() => {
     if (open) {
