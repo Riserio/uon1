@@ -25,19 +25,6 @@ import { toast } from "sonner";
  * - NÃO veem sidebar ou menus administrativos
  * - Podem apenas VISUALIZAR dados financeiros e sinistros
  * - Podem EDITAR apenas deliberações do Comitê de Sinistros
- *
- * LOGIN:
- * - Usuários parceiros fazem login em /auth (mesma tela que outros usuários)
- * - São automaticamente redirecionados para /portal após autenticação
- * - O sistema detecta o role 'parceiro' e aplica restrições de acesso
- *
- * DADOS EXIBIDOS:
- * - KPI: Métricas financeiras mensais (faturamento, comissões, repasses)
- * - Extrato: Produção financeira detalhada
- * - Indicadores: Gráficos de análise (mensal, por produto, seguradora)
- * - Lançamentos: Lançamentos financeiros (visualização)
- * - Sinistros: Sinistros da corretora com estatísticas
- * - Comitê: Deliberações sobre indenizações (única área editável)
  */
 export default function Portal() {
   const { user } = useAuth();
@@ -147,13 +134,10 @@ export default function Portal() {
 
         {/* Tabs Section */}
         <Tabs defaultValue="kpi" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 rounded-xl bg-muted/60 p-1.5 shadow-sm">
+          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 rounded-xl bg-muted/30 p-1.5 shadow-sm">
             <TabsTrigger
               value="kpi"
-              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs sm:text-sm font-medium
-                         text-muted-foreground transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-sm hover:text-foreground"
+              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs sm:text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:text-foreground"
             >
               <Activity className="h-4 w-4" />
               <span>KPI</span>
@@ -161,10 +145,7 @@ export default function Portal() {
 
             <TabsTrigger
               value="extrato"
-              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs sm:text-sm font-medium
-                         text-muted-foreground transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-sm hover:text-foreground"
+              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs sm:text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:text-foreground"
             >
               <FileText className="h-4 w-4" />
               <span>Extrato</span>
@@ -172,10 +153,7 @@ export default function Portal() {
 
             <TabsTrigger
               value="indicadores"
-              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium
-                         text-muted-foreground transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-sm hover:text-foreground"
+              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:text-foreground"
             >
               <PieChart className="h-4 w-4" />
               <span>Indicadores</span>
@@ -183,10 +161,7 @@ export default function Portal() {
 
             <TabsTrigger
               value="lancamentos"
-              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium
-                         text-muted-foreground transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-sm hover:text-foreground"
+              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:text-foreground"
             >
               <ListChecks className="h-4 w-4" />
               <span>Lançamentos</span>
@@ -194,10 +169,7 @@ export default function Portal() {
 
             <TabsTrigger
               value="sinistros"
-              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium
-                         text-muted-foreground transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-sm hover:text-foreground"
+              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:text-foreground"
             >
               <ShieldCheck className="h-4 w-4" />
               <span>Sinistros</span>
@@ -205,10 +177,7 @@ export default function Portal() {
 
             <TabsTrigger
               value="comite"
-              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium
-                         text-muted-foreground transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-sm hover:text-foreground"
+              className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[11px] sm:text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:text-foreground"
             >
               <Users className="h-4 w-4" />
               <span>Comitê</span>
