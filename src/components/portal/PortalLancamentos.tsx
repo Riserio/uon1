@@ -6,18 +6,20 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function PortalLancamentos() {
-  const { token } = usePortalAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [lancamentos, setLancamentos] = useState<any[]>([]);
+  const [corretoras, setCorretoras] = useState<any[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
+    corretora_id: '',
     competencia: new Date().toISOString().split('T')[0],
     produto: '',
     seguradora: '',
@@ -31,17 +33,36 @@ export default function PortalLancamentos() {
     observacoes: '',
   });
 
+  useEffect(() => {
+    fetchLancamentos();
+    fetchCorretoras();
+  }, []);
+
+  const fetchCorretoras = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('corretoras')
+        .select('id, nome')
+        .order('nome');
+      
+      if (error) throw error;
+      setCorretoras(data || []);
+    } catch (error: any) {
+      console.error('Error fetching corretoras:', error);
+    }
+  };
+
   const fetchLancamentos = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('portal-lancamentos', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const { data, error } = await supabase
+        .from('producao_financeira')
+        .select('*, corretoras(nome)')
+        .eq('tipo_origem', 'manual')
+        .order('competencia', { ascending: false });
 
       if (error) throw error;
-      setLancamentos(data.data);
+      setLancamentos(data || []);
     } catch (error: any) {
       console.error('Error fetching lancamentos:', error);
       toast.error('Erro ao carregar lançamentos');
@@ -50,29 +71,52 @@ export default function PortalLancamentos() {
     }
   };
 
-  useEffect(() => {
-    if (token) {
-      fetchLancamentos();
-    }
-  }, [token]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const method = editingId ? 'PUT' : 'POST';
-      const { error } = await supabase.functions.invoke('portal-lancamentos', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: editingId ? { id: editingId, ...formData } : formData,
-      });
+    
+    if (!formData.corretora_id) {
+      toast.error('Selecione uma corretora');
+      return;
+    }
 
-      if (error) throw error;
+    try {
+      const dataToSave = {
+        corretora_id: formData.corretora_id,
+        competencia: formData.competencia,
+        tipo_origem: 'manual' as const,
+        produto: formData.produto || null,
+        seguradora: formData.seguradora || null,
+        segurado_nome: formData.segurado_nome || null,
+        premio_total: parseFloat(formData.premio_total) || null,
+        percentual_comissao: parseFloat(formData.percentual_comissao) || null,
+        valor_comissao: parseFloat(formData.valor_comissao) || null,
+        repasse_previsto: parseFloat(formData.repasse_previsto) || null,
+        repasse_pago: parseFloat(formData.repasse_pago) || null,
+        status: formData.status || null,
+        observacoes: formData.observacoes || null,
+        criado_por_usuario_id: user?.id || null,
+      };
+
+      if (editingId) {
+        const { error } = await supabase
+          .from('producao_financeira')
+          .update(dataToSave)
+          .eq('id', editingId);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('producao_financeira')
+          .insert(dataToSave);
+
+        if (error) throw error;
+      }
 
       toast.success(editingId ? 'Lançamento atualizado' : 'Lançamento criado');
       setDialogOpen(false);
       setEditingId(null);
       setFormData({
+        corretora_id: '',
         competencia: new Date().toISOString().split('T')[0],
         produto: '',
         seguradora: '',
@@ -96,11 +140,11 @@ export default function PortalLancamentos() {
     if (!confirm('Deseja realmente excluir este lançamento?')) return;
 
     try {
-      const { error } = await supabase.functions.invoke(`portal-lancamentos?id=${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const { error } = await supabase
+        .from('producao_financeira')
+        .delete()
+        .eq('id', id)
+        .eq('tipo_origem', 'manual');
 
       if (error) throw error;
 
@@ -115,6 +159,46 @@ export default function PortalLancamentos() {
   const handleEdit = (lancamento: any) => {
     setEditingId(lancamento.id);
     setFormData({
+      corretora_id: lancamento.corretora_id,
+      competencia: lancamento.competencia,
+      produto: lancamento.produto || '',
+      seguradora: lancamento.seguradora || '',
+      segurado_nome: lancamento.segurado_nome || '',
+      premio_total: lancamento.premio_total || '',
+      percentual_comissao: lancamento.percentual_comissao || '',
+      valor_comissao: lancamento.valor_comissao || '',
+      repasse_previsto: lancamento.repasse_previsto || '',
+      repasse_pago: lancamento.repasse_pago || '',
+      status: lancamento.status || 'ativo',
+      observacoes: lancamento.observacoes || '',
+    });
+    setDialogOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Deseja realmente excluir este lançamento?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('producao_financeira')
+        .delete()
+        .eq('id', id)
+        .eq('tipo_origem', 'manual');
+
+      if (error) throw error;
+
+      toast.success('Lançamento excluído');
+      fetchLancamentos();
+    } catch (error: any) {
+      console.error('Error deleting lancamento:', error);
+      toast.error('Erro ao excluir lançamento');
+    }
+  };
+
+  const handleEdit = (lancamento: any) => {
+    setEditingId(lancamento.id);
+    setFormData({
+      corretora_id: lancamento.corretora_id,
       competencia: lancamento.competencia,
       produto: lancamento.produto || '',
       seguradora: lancamento.seguradora || '',
@@ -150,7 +234,24 @@ export default function PortalLancamentos() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="competencia">Competência</Label>
+                  <Label htmlFor="corretora">Corretora *</Label>
+                  <Select
+                    value={formData.corretora_id}
+                    onValueChange={(value) => setFormData({ ...formData, corretora_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {corretoras.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="competencia">Competência *</Label>
                   <Input
                     id="competencia"
                     type="date"
@@ -159,23 +260,23 @@ export default function PortalLancamentos() {
                     required
                   />
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select
-                    value={formData.status}
-                    onValueChange={(value) => setFormData({ ...formData, status: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ativo">Ativo</SelectItem>
-                      <SelectItem value="cancelado">Cancelado</SelectItem>
-                      <SelectItem value="estornado">Estornado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) => setFormData({ ...formData, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ativo">Ativo</SelectItem>
+                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                    <SelectItem value="estornado">Estornado</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -209,7 +310,7 @@ export default function PortalLancamentos() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="premio_total">Prêmio Total</Label>
+                  <Label htmlFor="premio_total">Prêmio Total *</Label>
                   <Input
                     id="premio_total"
                     type="number"
@@ -228,7 +329,6 @@ export default function PortalLancamentos() {
                     step="0.01"
                     value={formData.percentual_comissao}
                     onChange={(e) => setFormData({ ...formData, percentual_comissao: e.target.value })}
-                    required
                   />
                 </div>
               </div>
@@ -301,6 +401,7 @@ export default function PortalLancamentos() {
             <TableHeader>
               <TableRow>
                 <TableHead>Data</TableHead>
+                <TableHead>Corretora</TableHead>
                 <TableHead>Produto</TableHead>
                 <TableHead>Segurado</TableHead>
                 <TableHead className="text-right">Prêmio</TableHead>
@@ -312,7 +413,7 @@ export default function PortalLancamentos() {
             <TableBody>
               {lancamentos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center">
+                  <TableCell colSpan={8} className="text-center">
                     Nenhum lançamento manual
                   </TableCell>
                 </TableRow>
@@ -322,6 +423,7 @@ export default function PortalLancamentos() {
                     <TableCell>
                       {new Date(lancamento.competencia).toLocaleDateString('pt-BR')}
                     </TableCell>
+                    <TableCell>{lancamento.corretoras?.nome}</TableCell>
                     <TableCell>{lancamento.produto}</TableCell>
                     <TableCell>{lancamento.segurado_nome}</TableCell>
                     <TableCell className="text-right">

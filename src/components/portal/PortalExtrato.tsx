@@ -3,49 +3,44 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function PortalExtrato() {
-  const { token } = usePortalAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
-  const [pagination, setPagination] = useState<any>(null);
   const [filters, setFilters] = useState({
     ano: new Date().getFullYear().toString(),
     mes: (new Date().getMonth() + 1).toString().padStart(2, '0'),
     produto: '',
     seguradora: '',
     status: '',
-    page: 1,
   });
 
   const fetchExtrato = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: filters.page.toString(),
-        ano: filters.ano,
-        mes: filters.mes,
-        ...(filters.produto && { produto: filters.produto }),
-        ...(filters.seguradora && { seguradora: filters.seguradora }),
-        ...(filters.status && { status: filters.status }),
-      });
+      let query = supabase
+        .from('producao_financeira')
+        .select('*')
+        .gte('competencia', `${filters.ano}-${filters.mes}-01`)
+        .lt('competencia', `${filters.ano}-${filters.mes}-31`)
+        .order('competencia', { ascending: false });
 
-      const { data: result, error } = await supabase.functions.invoke(
-        `portal-extrato?${params}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      if (filters.produto) {
+        query = query.eq('produto', filters.produto);
+      }
+      if (filters.seguradora) {
+        query = query.eq('seguradora', filters.seguradora);
+      }
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
 
+      const { data: result, error } = await query;
       if (error) throw error;
-      setData(result.data);
-      setPagination(result.pagination);
+      setData(result || []);
     } catch (error: any) {
       console.error('Error fetching extrato:', error);
       toast.error('Erro ao carregar extrato');
@@ -55,10 +50,8 @@ export default function PortalExtrato() {
   };
 
   useEffect(() => {
-    if (token) {
-      fetchExtrato();
-    }
-  }, [token, filters]);
+    fetchExtrato();
+  }, [filters.ano, filters.mes, filters.produto, filters.seguradora, filters.status]);
 
   const anos = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
   const meses = [
@@ -81,7 +74,7 @@ export default function PortalExtrato() {
       <div className="flex gap-4 flex-wrap">
         <Select
           value={filters.ano}
-          onValueChange={(value) => setFilters({ ...filters, ano: value, page: 1 })}
+          onValueChange={(value) => setFilters({ ...filters, ano: value })}
         >
           <SelectTrigger className="w-32">
             <SelectValue placeholder="Ano" />
@@ -97,7 +90,7 @@ export default function PortalExtrato() {
 
         <Select
           value={filters.mes}
-          onValueChange={(value) => setFilters({ ...filters, mes: value, page: 1 })}
+          onValueChange={(value) => setFilters({ ...filters, mes: value })}
         >
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Mês" />
@@ -114,20 +107,20 @@ export default function PortalExtrato() {
         <Input
           placeholder="Produto"
           value={filters.produto}
-          onChange={(e) => setFilters({ ...filters, produto: e.target.value, page: 1 })}
+          onChange={(e) => setFilters({ ...filters, produto: e.target.value })}
           className="w-40"
         />
 
         <Input
           placeholder="Seguradora"
           value={filters.seguradora}
-          onChange={(e) => setFilters({ ...filters, seguradora: e.target.value, page: 1 })}
+          onChange={(e) => setFilters({ ...filters, seguradora: e.target.value })}
           className="w-40"
         />
 
         <Select
           value={filters.status}
-          onValueChange={(value) => setFilters({ ...filters, status: value, page: 1 })}
+          onValueChange={(value) => setFilters({ ...filters, status: value })}
         >
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Status" />
@@ -207,34 +200,6 @@ export default function PortalExtrato() {
               </TableBody>
             </Table>
           </div>
-
-          {pagination && pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                Página {pagination.page} de {pagination.totalPages} ({pagination.total} registros)
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setFilters({ ...filters, page: filters.page - 1 })}
-                  disabled={filters.page === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Anterior
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setFilters({ ...filters, page: filters.page + 1 })}
-                  disabled={filters.page === pagination.totalPages}
-                >
-                  Próxima
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
         </>
       )}
     </div>

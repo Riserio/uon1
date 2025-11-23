@@ -1,26 +1,45 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function PortalIndicadores() {
-  const { token } = usePortalAuth();
   const [loading, setLoading] = useState(true);
   const [indicadores, setIndicadores] = useState<any>(null);
 
   const fetchIndicadores = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('portal-indicadores', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // Buscar dados dos últimos 12 meses
+      const hoje = new Date();
+      const dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 11, 1);
+      
+      const { data: producao, error } = await supabase
+        .from('producao_financeira')
+        .select('*')
+        .gte('competencia', dataInicio.toISOString().split('T')[0])
+        .order('competencia', { ascending: true });
 
       if (error) throw error;
-      setIndicadores(data);
+
+      // Processar dados para gráficos
+      const porMes: any = {};
+      const porProduto: any = {};
+      const porSeguradora: any = {};
+
+      producao?.forEach(p => {
+        const mes = p.competencia?.substring(0, 7) || '';
+        porMes[mes] = (porMes[mes] || 0) + (p.premio_total || 0);
+        porProduto[p.produto || 'Outros'] = (porProduto[p.produto || 'Outros'] || 0) + (p.premio_total || 0);
+        porSeguradora[p.seguradora || 'Outros'] = (porSeguradora[p.seguradora || 'Outros'] || 0) + (p.premio_total || 0);
+      });
+
+      setIndicadores({
+        producaoPorMes: Object.entries(porMes).map(([mes, valor]) => ({ mes, valor })),
+        producaoPorProduto: Object.entries(porProduto).map(([produto, valor]) => ({ produto, valor })),
+        producaoPorSeguradora: Object.entries(porSeguradora).map(([seguradora, valor]) => ({ seguradora, valor })),
+      });
     } catch (error: any) {
       console.error('Error fetching indicadores:', error);
       toast.error('Erro ao carregar indicadores');
@@ -30,10 +49,8 @@ export default function PortalIndicadores() {
   };
 
   useEffect(() => {
-    if (token) {
-      fetchIndicadores();
-    }
-  }, [token]);
+    fetchIndicadores();
+  }, []);
 
   const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 

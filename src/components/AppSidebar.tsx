@@ -14,6 +14,7 @@ import {
   Camera,
   AlertTriangle,
   Mail,
+  TrendingUp,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -339,6 +340,18 @@ export function AppSidebar() {
                             </Badge>
                           )}
                         </div>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+
+                {/* PID - Painel de Indicadores */}
+                {canView("pid") && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/pid" activeClassName="bg-primary text-primary-foreground">
+                        <TrendingUp className="h-4 w-4" />
+                        {!collapsed && <span>PID</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

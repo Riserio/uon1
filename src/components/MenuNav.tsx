@@ -312,7 +312,7 @@ export default function MenuNav() {
         )}
 
         {/* PID - Painel de Indicadores */}
-        {(userRole === "admin" || userRole === "superintendente") && canView("pid") && (
+        {canView("pid") && (
           <DropdownMenuItem asChild>
             <Link to="/pid" className="cursor-pointer">
               <TrendingUp className="mr-2 h-4 w-4" />
