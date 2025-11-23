@@ -1,9 +1,13 @@
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, LayoutGrid, List, BarChart3 } from 'lucide-react';
+import { Plus, LayoutGrid, List, BarChart3, Building2, Check, ChevronsUpDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useState, useEffect } from 'react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 interface ToolbarProps {
   searchTerm: string;
@@ -12,6 +16,9 @@ interface ToolbarProps {
   onFilterPriorityChange: (value: string) => void;
   filterResponsavel: string;
   onFilterResponsavelChange: (value: string) => void;
+  filterCorretora: string;
+  onFilterCorretoraChange: (value: string) => void;
+  corretoras: string[];
   viewMode: 'kanban' | 'list';
   onViewModeChange: (mode: 'kanban' | 'list') => void;
   onNewAtendimento: () => void;
@@ -29,6 +36,9 @@ export function Toolbar({
   onFilterPriorityChange,
   filterResponsavel,
   onFilterResponsavelChange,
+  filterCorretora,
+  onFilterCorretoraChange,
+  corretoras,
   viewMode,
   onViewModeChange,
   onNewAtendimento,
@@ -39,6 +49,20 @@ export function Toolbar({
   responsaveis,
 }: ToolbarProps) {
   const isMobile = useIsMobile();
+  const [corretoraSearchOpen, setCorretoraSearchOpen] = useState(false);
+  const [corretoraSearch, setCorretoraSearch] = useState('');
+  const [filteredCorretoras, setFilteredCorretoras] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (corretoraSearch.length >= 3) {
+      const filtered = corretoras.filter((c) =>
+        c.toLowerCase().includes(corretoraSearch.toLowerCase())
+      );
+      setFilteredCorretoras(filtered);
+    } else {
+      setFilteredCorretoras([]);
+    }
+  }, [corretoraSearch, corretoras]);
   
   return (
     <div className="bg-gradient-to-r from-card/95 via-card to-card/95 backdrop-blur-sm border-b border-border/50 sticky top-0 z-10 shadow-sm">
@@ -86,6 +110,78 @@ export function Toolbar({
           <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto">
             {/* Filtros */}
             <div className="flex items-center gap-2">
+              {/* Filtro Corretora */}
+              <Popover open={corretoraSearchOpen} onOpenChange={setCorretoraSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={corretoraSearchOpen}
+                    className="w-48 justify-between"
+                    size="sm"
+                  >
+                    <Building2 className="h-4 w-4 mr-2" />
+                    {filterCorretora === 'all' ? 'Todas corretoras' : filterCorretora.length > 20 ? filterCorretora.substring(0, 20) + '...' : filterCorretora}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0">
+                  <Command>
+                    <CommandInput
+                      placeholder="Digite 3 caracteres..."
+                      value={corretoraSearch}
+                      onValueChange={setCorretoraSearch}
+                    />
+                    <CommandEmpty>
+                      {corretoraSearch.length < 3
+                        ? 'Digite pelo menos 3 caracteres'
+                        : 'Nenhuma corretora encontrada'}
+                    </CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="all"
+                        onSelect={() => {
+                          onFilterCorretoraChange('all');
+                          setCorretoraSearchOpen(false);
+                          setCorretoraSearch('');
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            'mr-2 h-4 w-4',
+                            filterCorretora === 'all' ? 'opacity-100' : 'opacity-0'
+                          )}
+                        />
+                        Todas as corretoras
+                      </CommandItem>
+                    </CommandGroup>
+                    {filteredCorretoras.length > 0 && (
+                      <CommandGroup>
+                        {filteredCorretoras.map((c) => (
+                          <CommandItem
+                            key={c}
+                            value={c}
+                            onSelect={(currentValue) => {
+                              onFilterCorretoraChange(currentValue);
+                              setCorretoraSearchOpen(false);
+                              setCorretoraSearch('');
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                filterCorretora === c ? 'opacity-100' : 'opacity-0'
+                              )}
+                            />
+                            {c}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
               <Select value={filterPriority} onValueChange={onFilterPriorityChange}>
                 <SelectTrigger className="w-32">
                   <SelectValue placeholder="Prioridade" />
