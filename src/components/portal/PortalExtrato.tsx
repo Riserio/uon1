@@ -15,7 +15,7 @@ export default function PortalExtrato() {
     mes: (new Date().getMonth() + 1).toString().padStart(2, '0'),
     produto: '',
     seguradora: '',
-    status: '',
+    status: 'todos',
   });
 
   const fetchExtrato = async () => {
@@ -122,13 +122,13 @@ export default function PortalExtrato() {
 
         <Select
           value={filters.status}
-          onValueChange={(value) => setFilters({ ...filters, status: value })}
+          onValueChange={(value) => setFilters({ ...filters, status: value === 'todos' ? '' : value })}
         >
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todos</SelectItem>
+            <SelectItem value="todos">Todos</SelectItem>
             <SelectItem value="ativo">Ativo</SelectItem>
             <SelectItem value="cancelado">Cancelado</SelectItem>
             <SelectItem value="estornado">Estornado</SelectItem>
