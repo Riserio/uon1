@@ -23,10 +23,18 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const key = await crypto.subtle.generateKey(
-      { name: "HMAC", hash: "SHA-512" },
-      true,
-      ["sign", "verify"]
+    
+    // Usar SERVICE_ROLE_KEY como secret para verificar JWT
+    const jwtSecret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(jwtSecret);
+    
+    const key = await crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'HMAC', hash: 'SHA-512' },
+      false,
+      ['sign', 'verify']
     );
 
     const payload = await verify(token, key);
