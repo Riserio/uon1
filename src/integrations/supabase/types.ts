@@ -2146,6 +2146,7 @@ export type Database = {
         | "comercial"
         | "superintendente"
         | "administrativo"
+        | "parceiro"
       priority_type: "Alta" | "Média" | "Baixa"
       status_type: "novo" | "andamento" | "aguardo" | "concluido"
     }
@@ -2281,6 +2282,7 @@ export const Constants = {
         "comercial",
         "superintendente",
         "administrativo",
+        "parceiro",
       ],
       priority_type: ["Alta", "Média", "Baixa"],
       status_type: ["novo", "andamento", "aguardo", "concluido"],
