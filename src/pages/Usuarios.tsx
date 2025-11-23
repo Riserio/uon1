@@ -1685,9 +1685,8 @@ export default function Usuarios() {
                 <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-900">
                   <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Permissões Especiais</h4>
                   <p className="text-sm text-blue-800 dark:text-blue-200">
-                    • Permissões individuais por usuário sobrescrevem as permissões do perfil • Use a coluna "Ações" na
-                    lista de usuários para configurar permissões individuais <strong></strong> <br />
-                    • Permissões individuais por usuário sobrescrevem as permissões do perfil
+                    • Use a coluna "Ações" na lista de usuários para configurar permissões individuais <strong></strong>{" "}
+                    <br />
                     <br />• Use a coluna "Ações" na lista de usuários para configurar permissões individuais
                   </p>
                 </div>
