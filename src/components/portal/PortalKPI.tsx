@@ -5,13 +5,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { DollarSign, TrendingUp, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function PortalKPI() {
+export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
   const [loading, setLoading] = useState(true);
   const [kpis, setKpis] = useState<any>(null);
   const [ano, setAno] = useState(new Date().getFullYear().toString());
   const [mes, setMes] = useState((new Date().getMonth() + 1).toString().padStart(2, '0'));
 
   const fetchKPIs = async () => {
+    if (!corretoraId) return; // Aguardar seleção de corretora
+    
     setLoading(true);
     try {
       const lastDayOfMonth = new Date(parseInt(ano), parseInt(mes), 0).getDate();
@@ -20,6 +22,7 @@ export default function PortalKPI() {
       const { data: producao, error } = await supabase
         .from('producao_financeira')
         .select('*')
+        .eq('corretora_id', corretoraId)
         .gte('competencia', `${ano}-${mes}-01`)
         .lte('competencia', `${ano}-${mes}-${lastDayOfMonth}`);
 
@@ -47,8 +50,10 @@ export default function PortalKPI() {
   };
 
   useEffect(() => {
-    fetchKPIs();
-  }, [ano, mes]);
+    if (corretoraId) {
+      fetchKPIs();
+    }
+  }, [ano, mes, corretoraId]);
 
   const anos = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
   const meses = [
