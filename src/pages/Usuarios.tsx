@@ -1686,9 +1686,7 @@ export default function Usuarios() {
                   <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Permissões Especiais</h4>
                   <p className="text-sm text-blue-800 dark:text-blue-200">
                     • Permissões individuais por usuário sobrescrevem as permissões do perfil • Use a coluna "Ações" na
-                    lista de usuários para configurar permissões individuais <strong>Superintendente e Admin</strong>{" "}
-                    têm acesso total a todos os menus automaticamente
-                    <br />
+                    lista de usuários para configurar permissões individuais <strong></strong> <br />
                     • Permissões individuais por usuário sobrescrevem as permissões do perfil
                     <br />• Use a coluna "Ações" na lista de usuários para configurar permissões individuais
                   </p>
