@@ -662,7 +662,7 @@ export function AtendimentoDialog({
           status: "novo" as StatusType,
           tags: formData.tags || [],
           observacoes: formData.observacoes || "",
-          dataRetorno: formData.dataRetorno || undefined,
+          dataRetorno: formData.dataRetorno || "",
           createdAt: now,
           updatedAt: now,
         };
