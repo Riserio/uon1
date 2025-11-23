@@ -9,7 +9,7 @@ import PortalIndicadores from '@/components/portal/PortalIndicadores';
 import PortalLancamentos from '@/components/portal/PortalLancamentos';
 import PortalSinistros from '@/components/portal/PortalSinistros';
 import PortalComite from '@/components/portal/PortalComite';
-import GerenciarParceirosDialog from '@/components/GerenciarParceirosDialog';
+import { GerenciarUsuariosCorretoraDialog } from '@/components/GerenciarUsuariosCorretoraDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,7 +21,7 @@ export default function PID() {
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [parceirosDialogOpen, setParceirosDialogOpen] = useState(false);
+  const [usuariosDialogOpen, setUsuariosDialogOpen] = useState(false);
   
   const selectedCorretoraData = corretoras.find(c => c.id === selectedCorretora);
 
@@ -88,15 +88,15 @@ export default function PID() {
                     </Select>
                   </div>
 
-                  {/* Gerenciar Parceiros Button */}
+                  {/* Gerenciar Usuários PID Button */}
                   {selectedCorretora && (
                     <Button
                       variant="outline"
-                      onClick={() => setParceirosDialogOpen(true)}
+                      onClick={() => setUsuariosDialogOpen(true)}
                       className="gap-2 whitespace-nowrap"
                     >
                       <Users className="h-4 w-4" />
-                      Gerenciar Parceiros
+                      Gerenciar Usuários PID
                     </Button>
                   )}
                 </div>
@@ -142,11 +142,11 @@ export default function PID() {
         </Tabs>
       </div>
 
-      {/* Dialog de Gerenciamento de Parceiros */}
+      {/* Dialog de Gerenciamento de Usuários PID */}
       {selectedCorretoraData && (
-        <GerenciarParceirosDialog
-          open={parceirosDialogOpen}
-          onOpenChange={setParceirosDialogOpen}
+        <GerenciarUsuariosCorretoraDialog
+          open={usuariosDialogOpen}
+          onOpenChange={setUsuariosDialogOpen}
           corretoraId={selectedCorretoraData.id}
           corretoraNome={selectedCorretoraData.nome}
         />
