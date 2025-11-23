@@ -141,8 +141,21 @@ export function AtendimentoCard({
 
   const loadResponsavel = async () => {
     if (atendimento.responsavel) {
-      // Já temos o nome do responsável no atendimento
-      setResponsavelNome(atendimento.responsavel);
+      // Se for UUID (mais de 30 caracteres), buscar nome
+      if (atendimento.responsavel.length > 30) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('nome')
+          .eq('id', atendimento.responsavel)
+          .single();
+        
+        if (data) {
+          setResponsavelNome(data.nome);
+        }
+      } else {
+        // Já é o nome
+        setResponsavelNome(atendimento.responsavel);
+      }
     }
   };
 
