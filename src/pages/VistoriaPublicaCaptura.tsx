@@ -156,8 +156,8 @@ export default function VistoriaPublicaCaptura() {
     }
   };
 
-  // 👉 AGORA: só considera "fotos adicionais" quando estiver pendente_correcao
-  const isFotosAdicionais = !!vistoria && vistoria.status === "pendente_correcao";
+  // Considera "fotos adicionais" quando estiver pendente_novas_fotos ou pendente_correcao
+  const isFotosAdicionais = !!vistoria && (vistoria.status === "pendente_novas_fotos" || vistoria.status === "pendente_correcao");
 
   // Input único: câmera + galeria + arquivos
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
