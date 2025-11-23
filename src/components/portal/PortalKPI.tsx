@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { DollarSign, TrendingUp, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/formatters';
 
 export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
   const [loading, setLoading] = useState(true);
@@ -35,11 +36,11 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
       const repassePendente = repassePrevisto - repassePago;
 
       setKpis({
-        faturamento: faturamento.toFixed(2),
-        comissoes: comissoes.toFixed(2),
-        repassePrevisto: repassePrevisto.toFixed(2),
-        repassePago: repassePago.toFixed(2),
-        repassePendente: repassePendente.toFixed(2),
+        faturamento,
+        comissoes,
+        repassePrevisto,
+        repassePago,
+        repassePendente,
       });
     } catch (error: any) {
       console.error('Error fetching KPIs:', error);
@@ -111,7 +112,7 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">R$ {kpis.faturamento}</div>
+              <div className="text-2xl font-bold">{formatCurrency(kpis.faturamento)}</div>
               <p className="text-xs text-muted-foreground">Prêmio total do período</p>
             </CardContent>
           </Card>
@@ -122,7 +123,7 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">R$ {kpis.comissoes}</div>
+              <div className="text-2xl font-bold">{formatCurrency(kpis.comissoes)}</div>
               <p className="text-xs text-muted-foreground">Total de comissões</p>
             </CardContent>
           </Card>
@@ -133,7 +134,7 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">R$ {kpis.repassePrevisto}</div>
+              <div className="text-2xl font-bold">{formatCurrency(kpis.repassePrevisto)}</div>
               <p className="text-xs text-muted-foreground">A receber</p>
             </CardContent>
           </Card>
@@ -144,9 +145,9 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
               <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">R$ {kpis.repassePago}</div>
+              <div className="text-2xl font-bold">{formatCurrency(kpis.repassePago)}</div>
               <p className="text-xs text-muted-foreground">
-                Pendente: R$ {kpis.repassePendente}
+                Pendente: {formatCurrency(kpis.repassePendente)}
               </p>
             </CardContent>
           </Card>

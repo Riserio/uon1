@@ -58,7 +58,7 @@ const queryClient = new QueryClient({
 });
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, userRole } = useAuth();
   usePushNotifications();
   
   if (loading) {
@@ -67,6 +67,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Parceiros não têm acesso ao sidebar - apenas ao portal
+  if (userRole === 'parceiro') {
+    return <Navigate to="/portal" replace />;
   }
   
   return (
