@@ -68,10 +68,12 @@ export default function VistoriaPublicaTermos() {
 
       setVistoria(vistoriaData);
 
+      // Buscar termos ativos da corretora da vistoria (ou termos sem corretora específica)
       const { data: termosData, error: termosError } = await supabase
         .from("termos")
         .select("*")
         .eq("ativo", true)
+        .or(`corretora_id.eq.${vistoriaData.corretora_id},corretora_id.is.null`)
         .order("ordem");
 
       if (termosError) throw termosError;
