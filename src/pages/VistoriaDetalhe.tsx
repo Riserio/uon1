@@ -207,7 +207,7 @@ export default function VistoriaDetalhe() {
       frontal: "Frontal",
       traseira: "Traseira",
       lateral_esquerda: "Lateral Esquerda",
-      lateral_direita: "Lateral Esquerda",
+      lateral_direita: "Lateral Direita",
       adicional: "Foto Adicional",
       cnh: "CNH",
       crlv: "CRLV",
@@ -303,7 +303,6 @@ export default function VistoriaDetalhe() {
     try {
       toast.loading("Enviando solicitação de fotos...");
 
-      // Tenta enviar o e-mail via Edge Function
       const { error } = await supabase.functions.invoke("solicitar-mais-fotos", {
         body: {
           vistoriaId: vistoria.id,
@@ -319,7 +318,6 @@ export default function VistoriaDetalhe() {
         );
       }
 
-      // Atualiza o status da vistoria para pendente_correcao
       const { error: updateError } = await supabase
         .from("vistorias")
         .update({ status: "pendente_correcao" })
@@ -333,13 +331,11 @@ export default function VistoriaDetalhe() {
       toast.dismiss();
       toast.success("Solicitação registrada e vistoria marcada como pendente de novas fotos.");
 
-      // Fecha dialog e limpa campos
       setSolicitarFotosOpen(false);
       setMotivoFotos("");
       setFotosNecessarias([]);
       setNovaFotoInput("");
 
-      // Recarrega vistoria para refletir status
       loadVistoria();
     } catch (error) {
       console.error("Erro ao solicitar fotos:", error);
@@ -399,7 +395,7 @@ export default function VistoriaDetalhe() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br.from-background to-muted/20 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -686,7 +682,7 @@ export default function VistoriaDetalhe() {
                   {vistoria.laudo_alcoolemia_url && (
                     <Button variant="outline" asChild>
                       <a href={vistoria.laudo_alcoolemia_url} target="_blank" rel="noopener noreferrer">
-                        <FileText className="h-4.w-4 mr-2" />
+                        <FileText className="h-4 w-4 mr-2" />
                         Laudo de Alcoolemia
                       </a>
                     </Button>
@@ -734,12 +730,12 @@ export default function VistoriaDetalhe() {
               </CardHeader>
               <CardContent className="p-6">
                 {loadingFotos ? (
-                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                  <div className="flex flex-col.items-center justify-center py-12 space-y-4">
                     <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />
                     <p className="text-sm text-muted-foreground">Carregando fotos...</p>
                   </div>
                 ) : fotos.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 space-y-4 text-center">
+                  <div className="flex flex-col items-center justify-center.py-12 space-y-4 text-center">
                     <div className="rounded-full bg-muted p-6">
                       <Camera className="h-12 w-12 text-muted-foreground/50" />
                     </div>
@@ -763,14 +759,12 @@ export default function VistoriaDetalhe() {
                           className="overflow-hidden border hover:border-primary/50 transition-all duration-200"
                         >
                           <div className="relative group aspect-[4/3] bg-muted flex items-center justify-center">
-                            {/* Badge posição */}
-                            <div className="absolute.top-2 left-2 z-10">
+                            <div className="absolute top-2 left-2 z-10">
                               <Badge variant="secondary" className="bg-black/60 text-white backdrop-blur-sm">
                                 {getPosicaoNome(foto.posicao)}
                               </Badge>
                             </div>
 
-                            {/* Conteúdo principal */}
                             {fileType === "image" && (
                               <a
                                 href={foto.arquivo_url}
@@ -815,7 +809,7 @@ export default function VistoriaDetalhe() {
 
                             {fileType === "other" && (
                               <div className="flex flex-col items-center justify-center text-center px-4">
-                                <Camera className="h-10 w-10 text-muted-foreground mb-2" />
+                                <Camera className="h-10 w-10 text-muted-foreground.mb-2" />
                                 <p className="text-sm text-muted-foreground">Imagem não disponível</p>
                               </div>
                             )}
@@ -855,7 +849,7 @@ export default function VistoriaDetalhe() {
                       <div className="grid md:grid-cols-3 gap-4">
                         {vistoria.veiculo_placa && (
                           <div className="bg-white dark:bg-background rounded-lg p-4 border border-blue-200">
-                            <span className="text-xs.text-muted-foreground block mb-1">Placa</span>
+                            <span className="text-xs text-muted-foreground block mb-1">Placa</span>
                             <p className="font-bold text-xl tracking-wider">{vistoria.veiculo_placa}</p>
                           </div>
                         )}
@@ -911,7 +905,7 @@ export default function VistoriaDetalhe() {
                           <div className="h-1 w-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full" />
                           <h4 className="font-semibold text-purple-900 dark:text-purple-300">Resumo Executivo</h4>
                         </div>
-                        <div className="bg-white dark:bg-background rounded-lg border-2 border-purple-200 dark:border-purple-800 p-5">
+                        <div className="bg-white.dark:bg-background rounded-lg border-2 border-purple-200 dark:border-purple-800 p-5">
                           <p className="whitespace-pre-wrap text-foreground/80 leading-relaxed">
                             {vistoria.observacoes_ia}
                           </p>
@@ -1106,7 +1100,7 @@ export default function VistoriaDetalhe() {
                         <h4 className="font-semibold text-sm">Dados do Aceite</h4>
                         <div className="grid md:grid-cols-3 gap-4 text-sm">
                           <div>
-                            <span className="text-muted-foreground block.mb-1">Data e Hora:</span>
+                            <span className="text-muted-foreground block mb-1">Data e Hora:</span>
                             <p className="font-medium">
                               {format(new Date(termo.aceito_em), "dd/MM/yyyy 'às' HH:mm:ss", {
                                 locale: ptBR,
@@ -1132,7 +1126,7 @@ export default function VistoriaDetalhe() {
 
                       <div className="flex gap-3">
                         {termo.termos.arquivo_url && (
-                          <Button variant="outline" asChild.className="flex-1 gap-2">
+                          <Button variant="outline" asChild className="flex-1 gap-2">
                             <a href={termo.termos.arquivo_url} target="_blank" rel="noopener noreferrer">
                               <FileText className="h-4 w-4" />
                               Ver Documento
@@ -1233,9 +1227,9 @@ export default function VistoriaDetalhe() {
 
                     <div>
                       <h4 className="font-semibold mb-2">Houve terceiros envolvidos?</h4>
-                      <Badge variant={vistoria.tem_terceiros ? "default" : "secondary"}>
+                      <Badge.variant={vistoria.tem_terceiros ? "default" : "secondary"}>
                         {vistoria.tem_terceiros ? "Sim" : "Não"}
-                      </Badge>
+                      </Badge.variant>
                       {vistoria.tem_terceiros && vistoria.placa_terceiro && (
                         <p className="text-sm text-muted-foreground mt-1">Placa: {vistoria.placa_terceiro}</p>
                       )}
@@ -1250,9 +1244,9 @@ export default function VistoriaDetalhe() {
 
                     <div>
                       <h4 className="font-semibold mb-2">Fez Boletim de Ocorrência?</h4>
-                      <Badge variant={vistoria.fez_bo ? "default" : "secondary"}>
+                      <Badge.variant={vistoria.fez_bo ? "default" : "secondary"}>
                         {vistoria.fez_bo ? "Sim" : "Não"}
-                      </Badge>
+                      </Badge.variant>
                     </div>
 
                     <div>
