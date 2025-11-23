@@ -246,9 +246,9 @@ export default function VistoriaDigital() {
               <div className="space-y-4 border rounded-lg p-4 bg-muted/50">
                 <h3 className="font-semibold text-sm">Configurações de Validade do Link</h3>
 
-                {/* Toggle ativar/desativar vencimento */}
-                <div className="flex items-center justify-between mb-2">
-                  <Label className="text-xs">Ativar vencimento do link?</Label>
+                {/* Label acima do switch */}
+                <div className="flex flex-col items-start mb-2">
+                  <Label className="text-xs mb-1">Ativar vencimento do link?</Label>
                   <Switch
                     checked={validadeAtivada}
                     onCheckedChange={(checked) => setValidadeAtivada(checked as boolean)}
