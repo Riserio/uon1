@@ -10,11 +10,12 @@ import PortalLancamentos from '@/components/portal/PortalLancamentos';
 import PortalSinistros from '@/components/portal/PortalSinistros';
 import PortalComite from '@/components/portal/PortalComite';
 import { CorretoraSlugDialog } from '@/components/CorretoraSlugDialog';
+import GerenciarParceirosDialog from '@/components/GerenciarParceirosDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Link2, Copy, Settings } from 'lucide-react';
+import { Link2, Copy, Settings, Users } from 'lucide-react';
 
 export default function PID() {
   const { user } = useAuth();
@@ -22,6 +23,7 @@ export default function PID() {
   const [selectedCorretora, setSelectedCorretora] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [slugDialogOpen, setSlugDialogOpen] = useState(false);
+  const [parceirosDialogOpen, setParceirosDialogOpen] = useState(false);
   
   const selectedCorretoraData = corretoras.find(c => c.id === selectedCorretora);
   const portalLink = selectedCorretoraData?.slug 
@@ -154,6 +156,20 @@ export default function PID() {
                     </Button>
                   </div>
                 )}
+
+                {/* Gerenciar Parceiros Button */}
+                {selectedCorretora && (
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => setParceirosDialogOpen(true)}
+                      className="gap-2"
+                    >
+                      <Users className="h-4 w-4" />
+                      Gerenciar Parceiros
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -207,6 +223,16 @@ export default function PID() {
             slug: selectedCorretoraData.slug
           }}
           onSuccess={handleSlugConfigured}
+        />
+      )}
+
+      {/* Dialog de Gerenciamento de Parceiros */}
+      {selectedCorretoraData && (
+        <GerenciarParceirosDialog
+          open={parceirosDialogOpen}
+          onOpenChange={setParceirosDialogOpen}
+          corretoraId={selectedCorretoraData.id}
+          corretoraNome={selectedCorretoraData.nome}
         />
       )}
     </div>
