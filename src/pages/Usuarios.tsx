@@ -69,8 +69,8 @@ export default function Usuarios() {
   const [approvingItem, setApprovingItem] = useState<Profile | null>(null);
   const [formData, setFormData] = useState<Partial<Profile>>({});
   const [approvalRole, setApprovalRole] = useState<string>("");
-  const [selectedRole, setSelectedRole] = useState<"superintendente" | "administrativo" | "lider" | "comercial">("comercial");
-  const [editingRole, setEditingRole] = useState<"superintendente" | "administrativo" | "lider" | "comercial">("comercial");
+  const [selectedRole, setSelectedRole] = useState<"superintendente" | "administrativo" | "lider" | "comercial" | "parceiro">("comercial");
+  const [editingRole, setEditingRole] = useState<"superintendente" | "administrativo" | "lider" | "comercial" | "parceiro">("comercial");
   const [lideres, setLideres] = useState<Profile[]>([]);
   const [administrativos, setAdministrativos] = useState<Profile[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -286,7 +286,6 @@ export default function Usuarios() {
             cargo: formData.cargo,
             equipe_id: selectedRole === "comercial" ? formData.equipe_id : null,
             administrativo_id: selectedRole === "lider" ? formData.administrativo_id : null,
-            lider_id: null,
             whatsapp: formData.whatsapp,
             instagram: formData.instagram,
             facebook: formData.facebook,
