@@ -109,6 +109,9 @@ serve(async (req) => {
     if (role === 'lider' && !administrativo_id) {
       throw new Error('Líder deve estar vinculado a um administrativo')
     }
+    
+    // Parceiro doesn't need equipe_id or administrativo_id
+    console.log('5. Creating user with role:', role);
 
     // Create auth user
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -173,17 +176,31 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('=== CREATE USER FUNCTION ERROR ===');
     console.error('Error details:', error);
     console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     
-    // Return generic error message to client, log detailed error server-side
+    // Return specific error messages
+    let errorMessage = 'Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.';
+    let errorCode = 'USER_OPERATION_ERROR';
+    
+    if (error?.message?.includes('already been registered')) {
+      errorMessage = 'Este email já está cadastrado no sistema.';
+      errorCode = 'EMAIL_EXISTS';
+    } else if (error?.code === 'email_exists') {
+      errorMessage = 'Este email já está cadastrado no sistema.';
+      errorCode = 'EMAIL_EXISTS';
+    } else if (error?.message) {
+      // Return the actual error message for known errors
+      errorMessage = error.message;
+    }
+    
     return new Response(
       JSON.stringify({ 
-        error: 'Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.',
-        code: 'USER_OPERATION_ERROR'
+        error: errorMessage,
+        code: errorCode
       }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
