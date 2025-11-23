@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Camera, FileText, Eye, Download, Plus } from 'lucide-react';
+import { Camera, FileText, Eye, Download, Plus, Mail, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -239,20 +239,50 @@ export default function Vistorias() {
                           </Button>
                           
                           {vistoria.link_token && (vistoria.status === 'aguardando_fotos' || vistoria.status === 'pendente_novas_fotos') && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const link = `${window.location.origin}/vistoria/${vistoria.link_token}`;
-                                navigator.clipboard.writeText(link);
-                                toast.success('Link de vistoria copiado!');
-                              }}
-                              title="Copiar link de vistoria"
-                              className="text-blue-600 hover:text-blue-700"
-                            >
-                              <FileText className="h-4 w-4" />
-                            </Button>
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const link = `${window.location.origin}/vistoria/${vistoria.link_token}`;
+                                  navigator.clipboard.writeText(link);
+                                  toast.success('Link de vistoria copiado!');
+                                }}
+                                title="Copiar link de vistoria"
+                                className="text-blue-600 hover:text-blue-700"
+                              >
+                                <FileText className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const link = `${window.location.origin}/vistoria/${vistoria.link_token}`;
+                                  const mensagem = `Olá! Acesse o link abaixo para enviar as fotos da vistoria #${vistoria.numero}:\n\n${link}`;
+                                  const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
+                                  window.open(url, '_blank');
+                                }}
+                                title="Enviar via WhatsApp"
+                                className="text-green-600 hover:text-green-700"
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // TODO: Implementar envio de email
+                                  toast.info('Funcionalidade de email em desenvolvimento');
+                                }}
+                                title="Enviar via Email"
+                                className="text-purple-600 hover:text-purple-700"
+                              >
+                                <Mail className="h-4 w-4" />
+                              </Button>
+                            </>
                           )}
                           
                           {vistoria.status === 'concluida' && (

@@ -366,8 +366,23 @@ export default function VistoriaDetalhe() {
     loadVistoria();
   };
 
-  const handleEnviarWhatsApp = () => {
-    if (!vistoria) return;
+  const handleEnviarWhatsApp = async () => {
+    if (!vistoria || !motivoFotos.trim() || fotosNecessarias.length === 0) {
+      toast.error("Por favor, preencha o motivo e adicione pelo menos uma foto necessária");
+      return;
+    }
+
+    // Primeiro atualiza o status
+    const { error: updateError } = await supabase
+      .from("vistorias")
+      .update({ status: "pendente_novas_fotos" })
+      .eq("id", vistoria.id);
+
+    if (updateError) {
+      console.error("Erro ao atualizar status:", updateError);
+      toast.error("Erro ao atualizar status da vistoria");
+      return;
+    }
 
     const link = `${window.location.origin}/vistoria/${vistoria.link_token}`;
     const listaFotos = fotosNecessarias.length > 0 ? `Fotos necessárias:\n- ${fotosNecessarias.join("\n- ")}\n\n` : "";
@@ -378,6 +393,17 @@ export default function VistoriaDetalhe() {
 
     const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
     window.open(url, "_blank");
+
+    toast.success("Status atualizado! Mensagem pronta para envio via WhatsApp");
+    
+    // Fecha o dialog e limpa os campos
+    setSolicitarFotosOpen(false);
+    setMotivoFotos("");
+    setFotosNecessarias([]);
+    setNovaFotoInput("");
+    
+    // Recarrega a vistoria
+    loadVistoria();
   };
 
   const adicionarFotoNecessaria = () => {
@@ -1411,14 +1437,13 @@ export default function VistoriaDetalhe() {
                 variant="outline"
                 className="gap-2"
                 onClick={handleEnviarWhatsApp}
-                disabled={!vistoria}
               >
                 <MessageCircle className="h-4 w-4" />
-                Enviar via WhatsApp Web
+                Enviar via WhatsApp
               </Button>
               <Button onClick={handleSolicitarMaisFotos} className="gap-2">
-                <Send className="h-4 w-4" />
-                Enviar Email e Marcar como Pendente
+                <Mail className="h-4 w-4" />
+                Enviar Email
               </Button>
             </div>
           </DialogFooter>
