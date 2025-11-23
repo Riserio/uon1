@@ -1420,6 +1420,33 @@ export type Database = {
           },
         ]
       }
+      subdominios_personalizados: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          subdominio: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          subdominio: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          subdominio?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       termos: {
         Row: {
           arquivo_nome: string

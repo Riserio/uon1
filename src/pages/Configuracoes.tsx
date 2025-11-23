@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Palette, Image as ImageIcon } from 'lucide-react';
+import { Palette, Image as ImageIcon, Globe } from 'lucide-react';
+import { SubdominioConfigDialog } from '@/components/SubdominioConfigDialog';
 
 interface ConfigColors {
   primary: string;
@@ -51,6 +52,7 @@ export default function Configuracoes() {
     logo: config.logo_url || '',
     login: ''
   });
+  const [subdominioDialogOpen, setSubdominioDialogOpen] = useState(false);
 
   useEffect(() => {
     setTempColors(config.colors);
@@ -153,7 +155,7 @@ export default function Configuracoes() {
         </div>
 
         <Tabs defaultValue="colors" className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
+          <TabsList className="grid w-full max-w-md grid-cols-3 mb-8">
             <TabsTrigger value="colors" className="gap-2">
               <Palette className="h-4 w-4" />
               Cores
@@ -161,6 +163,10 @@ export default function Configuracoes() {
             <TabsTrigger value="images" className="gap-2">
               <ImageIcon className="h-4 w-4" />
               Imagens
+            </TabsTrigger>
+            <TabsTrigger value="subdomain" className="gap-2">
+              <Globe className="h-4 w-4" />
+              Subdomínio
             </TabsTrigger>
           </TabsList>
 
@@ -426,8 +432,37 @@ export default function Configuracoes() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="subdomain" className="space-y-6">
+            <Card className="border-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Globe className="h-5 w-5" />
+                  Subdomínio Personalizado
+                </CardTitle>
+                <CardDescription>
+                  Configure um subdomínio personalizado para aplicar a marca do seu parceiro
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  O subdomínio personalizado permite que você e seus parceiros acessem o sistema com uma URL personalizada,
+                  como <strong>vangard.uon1.lovable.app</strong>
+                </p>
+                <Button onClick={() => setSubdominioDialogOpen(true)} className="w-full md:w-auto">
+                  <Globe className="h-4 w-4 mr-2" />
+                  Configurar Subdomínio
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
+
+      <SubdominioConfigDialog
+        open={subdominioDialogOpen}
+        onOpenChange={setSubdominioDialogOpen}
+      />
     </div>
   );
 }
