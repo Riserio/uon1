@@ -246,41 +246,50 @@ export default function VistoriaDigital() {
               <div className="space-y-4 border rounded-lg p-4 bg-muted/50">
                 <h3 className="font-semibold text-sm">Configurações de Validade do Link</h3>
 
+                {/* Toggle ativar/desativar vencimento */}
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-xs">Ativar vencimento do link?</Label>
+                  <Switch
+                    checked={validadeAtivada}
+                    onCheckedChange={(checked) => setValidadeAtivada(checked as boolean)}
+                  />
+                </div>
+
+                {/* Inputs de Horário e Dias */}
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <Label className="text-xs">Horário Início</Label>
-                    <Input type="time" value={horarioInicio} onChange={(e) => setHorarioInicio(e.target.value)} />
+                    <Input
+                      type="time"
+                      value={horarioInicio}
+                      onChange={(e) => setHorarioInicio(e.target.value)}
+                      disabled={!validadeAtivada}
+                    />
                     <p className="text-xs text-muted-foreground mt-1">A partir de que horas</p>
                   </div>
 
                   <div>
                     <Label className="text-xs">Horário Fim</Label>
-                    <Input type="time" value={horarioFim} onChange={(e) => setHorarioFim(e.target.value)} />
+                    <Input
+                      type="time"
+                      value={horarioFim}
+                      onChange={(e) => setHorarioFim(e.target.value)}
+                      disabled={!validadeAtivada}
+                    />
                     <p className="text-xs text-muted-foreground mt-1">Até que horas</p>
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between mt-2">
-                      <Label className="text-xs">Ativar vencimento do link?</Label>
-                      <Switch
-                        checked={validadeAtivada}
-                        onCheckedChange={(checked) => setValidadeAtivada(checked as boolean)}
-                      />
-                    </div>
-
-                    {validadeAtivada && (
-                      <div className="mt-2">
-                        <Label className="text-xs">Dias de Validade</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          max="30"
-                          value={diasValidade}
-                          onChange={(e) => setDiasValidade(parseInt(e.target.value))}
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">Quantos dias o link ficará ativo</p>
-                      </div>
-                    )}
+                    <Label className="text-xs">Dias de Validade</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={diasValidade}
+                      onChange={(e) => setDiasValidade(parseInt(e.target.value))}
+                      disabled={!validadeAtivada}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Quantos dias ativo</p>
                   </div>
                 </div>
               </div>
