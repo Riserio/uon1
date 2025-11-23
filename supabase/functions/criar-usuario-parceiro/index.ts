@@ -42,16 +42,13 @@ serve(async (req) => {
 
     console.log('Auth user created:', authData.user.id);
 
-    // 2. Criar profile
+    // 2. Atualizar profile (já criado pelo trigger handle_new_user)
     const { error: profileError } = await supabaseClient
       .from('profiles')
-      .insert({
-        id: authData.user.id,
-        email,
-        nome: nome || email,
-        ativo: true,
-        status: 'aprovado',
-      });
+      .update({
+        status: 'ativo', // Usuário criado pelo admin já está aprovado
+      })
+      .eq('id', authData.user.id);
 
     if (profileError) {
       console.error('Profile error:', profileError);
@@ -60,7 +57,7 @@ serve(async (req) => {
       throw profileError;
     }
 
-    console.log('Profile created');
+    console.log('Profile updated with active status');
 
     // 3. Adicionar role parceiro
     const { error: roleError } = await supabaseClient
