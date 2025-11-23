@@ -117,16 +117,18 @@ export function Toolbar({
                     variant="outline"
                     role="combobox"
                     aria-expanded={corretoraSearchOpen}
-                    className="w-48 justify-between"
+                    className="w-[180px] justify-between text-sm"
                     size="sm"
                   >
-                    <Building2 className="h-4 w-4 mr-2" />
-                    {filterCorretora === 'all' ? 'Buscar corretoras' : filterCorretora.length > 20 ? filterCorretora.substring(0, 20) + '...' : filterCorretora}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <Building2 className="h-4 w-4 mr-1 shrink-0" />
+                    <span className="truncate">
+                      {filterCorretora === 'all' ? 'Buscar corretoras' : filterCorretora}
+                    </span>
+                    <ChevronsUpDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[300px] p-0">
-                  <Command>
+                <PopoverContent className="w-[300px] p-0 z-50 bg-popover" align="start">
+                  <Command className="bg-popover">
                     <CommandInput
                       placeholder="Digite 3 caracteres..."
                       value={corretoraSearch}
