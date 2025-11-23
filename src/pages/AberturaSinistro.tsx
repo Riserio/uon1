@@ -12,10 +12,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { AlertTriangle, TrendingUp, ClipboardList } from "lucide-react";
 import { validateCPF, validatePhone } from "@/lib/validators";
+import { useVeiculos } from "@/hooks/useVeiculos";
 
 export default function AberturaSinistro() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { marcas, modelos, marcaSelecionada, setMarcaSelecionada } = useVeiculos();
 
   const [loading, setLoading] = useState(false);
   const [corretoras, setCorretoras] = useState<any[]>([]);
@@ -350,32 +352,55 @@ export default function AberturaSinistro() {
 
                 <div>
                   <Label htmlFor="veiculo_marca">Marca *</Label>
-                  <Input
-                    id="veiculo_marca"
+                  <Select
                     value={formData.veiculo_marca}
-                    onChange={(e) =>
+                    onValueChange={(value) => {
+                      setMarcaSelecionada(value);
                       setFormData({
                         ...formData,
-                        veiculo_marca: e.target.value,
-                      })
-                    }
+                        veiculo_marca: value,
+                        veiculo_modelo: "", // Limpar modelo ao trocar marca
+                      });
+                    }}
                     required
-                  />
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a marca" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {marcas.map((marca) => (
+                        <SelectItem key={marca} value={marca}>
+                          {marca}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div>
                   <Label htmlFor="veiculo_modelo">Modelo *</Label>
-                  <Input
-                    id="veiculo_modelo"
+                  <Select
                     value={formData.veiculo_modelo}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       setFormData({
                         ...formData,
-                        veiculo_modelo: e.target.value,
+                        veiculo_modelo: value,
                       })
                     }
+                    disabled={!marcaSelecionada}
                     required
-                  />
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={marcaSelecionada ? "Selecione o modelo" : "Selecione a marca primeiro"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {modelos.map((modelo) => (
+                        <SelectItem key={modelo} value={modelo}>
+                          {modelo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div>
