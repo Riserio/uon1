@@ -16,10 +16,22 @@ serve(async (req) => {
     const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
     const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!; // Usa anon key em vez da Service Role
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
+    // ====== DEBUG - VERIFICAÇÃO DE VARIÁVEIS ======
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-      throw new Error("Google OAuth credentials not configured");
+      console.error("Google OAuth credentials missing or incorrect");
+      return new Response(
+        JSON.stringify({
+          error: "Google OAuth credentials missing or incorrect",
+          client_id_present: !!GOOGLE_CLIENT_ID,
+          client_secret_present: !!GOOGLE_CLIENT_SECRET,
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -30,13 +42,12 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     let action = url.searchParams.get("action");
-
     if (!action && req.method === "POST") {
       const body = await req.json();
       action = body.action;
     }
 
-    // Função auxiliar para autenticar usuário via JWT
+    // ====== FUNÇÃO AUXILIAR: AUTENTICA USUÁRIO ======
     async function authenticateUser() {
       const authHeader = req.headers.get("Authorization");
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -48,22 +59,18 @@ serve(async (req) => {
         data: { user },
         error,
       } = await supabase.auth.getUser(token);
-      if (error || !user) {
-        return { error: "Invalid authentication" };
-      }
-
+      if (error || !user) return { error: "Invalid authentication" };
       return { user };
     }
 
     // ====== AÇÃO: authorize ======
     if (action === "authorize") {
       const { user, error: authError } = await authenticateUser();
-      if (authError) {
+      if (authError)
         return new Response(JSON.stringify({ error: authError }), {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-      }
 
       const userId = user.id;
       const redirectUri = `${SUPABASE_URL}/functions/v1/google-calendar-auth?action=callback`;
@@ -80,6 +87,9 @@ serve(async (req) => {
         `prompt=consent&` +
         `state=${state}`;
 
+      // ===== DEBUG: MOSTRA PARCIALMENTE O CLIENT_ID =====
+      console.log(`authorize requested - user: ${userId}, client_id: ${GOOGLE_CLIENT_ID.slice(0, 10)}...`);
+
       return new Response(JSON.stringify({ authUrl }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -91,24 +101,18 @@ serve(async (req) => {
       const state = url.searchParams.get("state");
       const error = url.searchParams.get("error");
 
-      if (error) {
-        return new Response(
-          `<html><body><script>window.close();</script><p>Autorização cancelada. Você pode fechar esta janela.</p></body></html>`,
-          { headers: { ...corsHeaders, "Content-Type": "text/html" } },
-        );
-      }
-
-      if (!code || !state || !state.includes(":")) {
-        return new Response(
-          `<html><body><script>window.close();</script><p>Erro na autorização. Você pode fechar esta janela.</p></body></html>`,
-          { headers: { ...corsHeaders, "Content-Type": "text/html" } },
-        );
-      }
+      if (error)
+        return new Response(`<html><body><script>window.close();</script><p>Autorização cancelada.</p></body></html>`, {
+          headers: { ...corsHeaders, "Content-Type": "text/html" },
+        });
+      if (!code || !state || !state.includes(":"))
+        return new Response(`<html><body><script>window.close();</script><p>Erro na autorização.</p></body></html>`, {
+          headers: { ...corsHeaders, "Content-Type": "text/html" },
+        });
 
       const userId = state.split(":")[0];
       const redirectUri = `${SUPABASE_URL}/functions/v1/google-calendar-auth?action=callback`;
 
-      // Troca code por tokens
       const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -124,16 +128,14 @@ serve(async (req) => {
       if (!tokenResponse.ok) {
         const errorData = await tokenResponse.text();
         console.error("Token exchange failed:", errorData);
-        return new Response(
-          `<html><body><script>window.close();</script><p>Falha ao conectar. Você pode fechar esta janela.</p></body></html>`,
-          { headers: { ...corsHeaders, "Content-Type": "text/html" } },
-        );
+        return new Response(`<html><body><script>window.close();</script><p>Falha ao conectar.</p></body></html>`, {
+          headers: { ...corsHeaders, "Content-Type": "text/html" },
+        });
       }
 
       const tokens = await tokenResponse.json();
       const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
 
-      // Salva tokens no Supabase
       const { error: dbError } = await supabase.from("google_calendar_integrations").upsert({
         user_id: userId,
         access_token: tokens.access_token,
@@ -144,38 +146,33 @@ serve(async (req) => {
       if (dbError) {
         console.error("Failed to store tokens:", dbError);
         return new Response(
-          `<html><body><script>window.close();</script><p>Erro ao salvar credenciais. Você pode fechar esta janela.</p></body></html>`,
+          `<html><body><script>window.close();</script><p>Erro ao salvar credenciais.</p></body></html>`,
           { headers: { ...corsHeaders, "Content-Type": "text/html" } },
         );
       }
 
-      return new Response(
-        `<html><body><script>window.close();</script><p>Conectado com sucesso! Você pode fechar esta janela.</p></body></html>`,
-        { headers: { ...corsHeaders, "Content-Type": "text/html" } },
-      );
+      return new Response(`<html><body><script>window.close();</script><p>Conectado com sucesso!</p></body></html>`, {
+        headers: { ...corsHeaders, "Content-Type": "text/html" },
+      });
     }
 
     // ====== AÇÃO: disconnect ======
     if (action === "disconnect") {
       const { user, error: authError } = await authenticateUser();
-      if (authError) {
+      if (authError)
         return new Response(JSON.stringify({ error: authError }), {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-      }
 
       const userId = user.id;
-
       const { error: deleteError } = await supabase.from("google_calendar_integrations").delete().eq("user_id", userId);
 
-      if (deleteError) {
-        console.error("Failed to disconnect:", deleteError);
+      if (deleteError)
         return new Response(JSON.stringify({ error: "Failed to disconnect" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-      }
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
