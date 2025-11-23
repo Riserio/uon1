@@ -90,6 +90,12 @@ export default function AberturaSinistro() {
         return;
       }
 
+      if (!formData.corretora_id) {
+        toast.error("Por favor, selecione a corretora");
+        setLoading(false);
+        return;
+      }
+
       const { data: fluxos } = await supabase.from("fluxos").select("id").eq("ativo", true).order("ordem").limit(1);
 
       if (!fluxos || fluxos.length === 0) {
@@ -425,20 +431,42 @@ export default function AberturaSinistro() {
             <div className="space-y-4">
               <h3 className="font-semibold text-lg border-b pb-2">Dados do Sinistro</h3>
 
-              <div>
-                <Label htmlFor="data_incidente">Data do Incidente *</Label>
-                <Input
-                  id="data_incidente"
-                  type="date"
-                  value={formData.data_incidente}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      data_incidente: e.target.value,
-                    })
-                  }
-                  required
-                />
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="corretora">Corretora *</Label>
+                  <Select
+                    value={formData.corretora_id}
+                    onValueChange={(value) => setFormData({ ...formData, corretora_id: value })}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a corretora" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {corretoras.map((corretora) => (
+                        <SelectItem key={corretora.id} value={corretora.id}>
+                          {corretora.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="data_incidente">Data do Incidente *</Label>
+                  <Input
+                    id="data_incidente"
+                    type="date"
+                    value={formData.data_incidente}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        data_incidente: e.target.value,
+                      })
+                    }
+                    required
+                  />
+                </div>
               </div>
 
               <div>
