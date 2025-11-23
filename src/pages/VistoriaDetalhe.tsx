@@ -98,10 +98,7 @@ export default function VistoriaDetalhe() {
 
       setFotos(fotosData || []);
 
-      const { data: termosData } = await supabase
-        .from("termos_aceitos")
-        .select("*, termos(*)")
-        .eq("vistoria_id", id);
+      const { data: termosData } = await supabase.from("termos_aceitos").select("*, termos(*)").eq("vistoria_id", id);
 
       setTermosAceitos(termosData || []);
 
@@ -133,7 +130,7 @@ export default function VistoriaDetalhe() {
       try {
         setLoadingAddress(true);
         const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${vistoria.latitude}&lon=${vistoria.longitude}&zoom=18&addressdetails=1`
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${vistoria.latitude}&lon=${vistoria.longitude}&zoom=18&addressdetails=1`,
         );
 
         if (!response.ok) throw new Error("Erro ao buscar endereço");
@@ -265,7 +262,7 @@ export default function VistoriaDetalhe() {
           const newTags = atendimento.tags
             .filter(
               (tag: string) =>
-                !["aguardando_vistoria_digital", "vistoria_concluida", "pendente_vistoria"].includes(tag)
+                !["aguardando_vistoria_digital", "vistoria_concluida", "pendente_vistoria"].includes(tag),
             )
             .concat(decisaoAnalise === "aprovar" ? "vistoria_aprovada" : "vistoria_pendente");
 
@@ -313,9 +310,7 @@ export default function VistoriaDetalhe() {
 
       if (error) {
         console.error("Erro na função 'solicitar-mais-fotos':", error);
-        toast.warning(
-          "Não foi possível enviar o e-mail automático agora, mas a vistoria será marcada como pendente."
-        );
+        toast.warning("Não foi possível enviar o e-mail automático agora, mas a vistoria será marcada como pendente.");
       }
 
       const { error: updateError } = await supabase
@@ -348,10 +343,7 @@ export default function VistoriaDetalhe() {
     if (!vistoria) return;
 
     const link = `${window.location.origin}/vistoria/${vistoria.link_token}`;
-    const listaFotos =
-      fotosNecessarias.length > 0
-        ? `Fotos necessárias:\n- ${fotosNecessarias.join("\n- ")}\n\n`
-        : "";
+    const listaFotos = fotosNecessarias.length > 0 ? `Fotos necessárias:\n- ${fotosNecessarias.join("\n- ")}\n\n` : "";
 
     const mensagem = `Olá! Precisamos de fotos adicionais da sua vistoria referente ao sinistro #${
       vistoria.numero
@@ -386,7 +378,7 @@ export default function VistoriaDetalhe() {
 
   if (!vistoria) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
+      <div className="min-h-screen bg-gradient-to-br.from-background to-muted/20 p-6">
         <div className="max-w-7xl mx-auto text-center py-12">
           <p className="text-muted-foreground">Vistoria não encontrada</p>
         </div>
@@ -395,7 +387,7 @@ export default function VistoriaDetalhe() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
+    <div className="min-h-screen.bg-gradient-to-br from-background to-muted/20 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -457,16 +449,14 @@ export default function VistoriaDetalhe() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
                   <span>
-                    Criada em{" "}
-                    {format(new Date(vistoria.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    Criada em {format(new Date(vistoria.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                   </span>
                 </div>
                 {vistoria.completed_at && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Check className="h-4 w-4" />
                     <span>
-                      Concluída em{" "}
-                      {format(new Date(vistoria.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      Concluída em {format(new Date(vistoria.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                     </span>
                   </div>
                 )}
@@ -712,7 +702,7 @@ export default function VistoriaDetalhe() {
           <TabsContent value="fotos" className="space-y-6">
             <Card>
               <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/50 dark:to-purple-950/50 border-b">
-                <div className="flex items-center justify-between">
+                <div className="flex.items-center justify-between">
                   <div className="space-y-1">
                     <CardTitle className="flex items-center gap-2 text-xl">
                       <Camera className="h-5 w-5 text-blue-600" />
@@ -730,12 +720,12 @@ export default function VistoriaDetalhe() {
               </CardHeader>
               <CardContent className="p-6">
                 {loadingFotos ? (
-                  <div className="flex flex-col.items-center justify-center py-12 space-y-4">
+                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
                     <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />
                     <p className="text-sm text-muted-foreground">Carregando fotos...</p>
                   </div>
                 ) : fotos.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center.py-12 space-y-4 text-center">
+                  <div className="flex flex-col items-center justify-center py-12 space-y-4 text-center">
                     <div className="rounded-full bg-muted p-6">
                       <Camera className="h-12 w-12 text-muted-foreground/50" />
                     </div>
@@ -809,7 +799,7 @@ export default function VistoriaDetalhe() {
 
                             {fileType === "other" && (
                               <div className="flex flex-col items-center justify-center text-center px-4">
-                                <Camera className="h-10 w-10 text-muted-foreground.mb-2" />
+                                <Camera className="h-10 w-10 text-muted-foreground mb-2" />
                                 <p className="text-sm text-muted-foreground">Imagem não disponível</p>
                               </div>
                             )}
@@ -905,7 +895,7 @@ export default function VistoriaDetalhe() {
                           <div className="h-1 w-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full" />
                           <h4 className="font-semibold text-purple-900 dark:text-purple-300">Resumo Executivo</h4>
                         </div>
-                        <div className="bg-white.dark:bg-background rounded-lg border-2 border-purple-200 dark:border-purple-800 p-5">
+                        <div className="bg-white dark:bg-background rounded-lg border-2 border-purple-200 dark:border-purple-800 p-5">
                           <p className="whitespace-pre-wrap text-foreground/80 leading-relaxed">
                             {vistoria.observacoes_ia}
                           </p>
@@ -913,57 +903,53 @@ export default function VistoriaDetalhe() {
                       </div>
                     )}
 
-                    {vistoria.analise_ia &&
-                      vistoria.analise_ia.analises &&
-                      vistoria.analise_ia.analises.length > 0 && (
-                        <>
-                          {vistoria.observacoes_ia && <Separator className="my-6" />}
-                          <div>
-                            <div className="flex items-center gap-2 mb-4">
-                              <div className="h-1 w-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full" />
-                              <h4 className="font-semibold text-purple-900 dark:text-purple-300">
-                                Análise Detalhada por Foto
-                              </h4>
-                            </div>
-                            <div className="space-y-4">
-                              {vistoria.analise_ia.analises.map((analise: any, index: number) => (
-                                <Card
-                                  key={index}
-                                  className="bg-white dark:bg-background border-2 border-purple-200/50 hover:border-purple-300 transition-colors"
-                                >
-                                  <CardContent className="p-5">
-                                    <div className="flex items-start gap-4">
-                                      <div className="flex-shrink-0">
-                                        <Badge
-                                          variant="outline"
-                                          className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300"
-                                        >
-                                          <Camera className="h-3 w-3 mr-1" />
-                                          {getPosicaoNome(analise.posicao)}
-                                        </Badge>
-                                      </div>
-                                      <div className="flex-1 space-y-2">
-                                        <p className="text-sm text-foreground/70 leading-relaxed">
-                                          {analise.analise}
-                                        </p>
-                                        {analise.danos_encontrados && analise.danos_encontrados.length > 0 && (
-                                          <div className="flex gap-1 flex-wrap mt-2">
-                                            {analise.danos_encontrados.map((dano: string, idx: number) => (
-                                              <Badge key={idx} variant="secondary" className="text-xs">
-                                                {dano}
-                                              </Badge>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              ))}
-                            </div>
+                    {vistoria.analise_ia && vistoria.analise_ia.analises && vistoria.analise_ia.analises.length > 0 && (
+                      <>
+                        {vistoria.observacoes_ia && <Separator className="my-6" />}
+                        <div>
+                          <div className="flex items-center gap-2 mb-4">
+                            <div className="h-1 w-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full" />
+                            <h4 className="font-semibold text-purple-900 dark:text-purple-300">
+                              Análise Detalhada por Foto
+                            </h4>
                           </div>
-                        </>
-                      )}
+                          <div className="space-y-4">
+                            {vistoria.analise_ia.analises.map((analise: any, index: number) => (
+                              <Card
+                                key={index}
+                                className="bg-white dark:bg-background border-2 border-purple-200/50 hover:border-purple-300 transition-colors"
+                              >
+                                <CardContent className="p-5">
+                                  <div className="flex items-start gap-4">
+                                    <div className="flex-shrink-0">
+                                      <Badge
+                                        variant="outline"
+                                        className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300"
+                                      >
+                                        <Camera className="h-3 w-3 mr-1" />
+                                        {getPosicaoNome(analise.posicao)}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex-1 space-y-2">
+                                      <p className="text-sm text-foreground/70 leading-relaxed">{analise.analise}</p>
+                                      {analise.danos_encontrados && analise.danos_encontrados.length > 0 && (
+                                        <div className="flex gap-1 flex-wrap mt-2">
+                                          {analise.danos_encontrados.map((dano: string, idx: number) => (
+                                            <Badge key={idx} variant="secondary" className="text-xs">
+                                              {dano}
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
 
                     {vistoria.analise_ia && (
                       <div className="bg-purple-100/50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
@@ -986,11 +972,7 @@ export default function VistoriaDetalhe() {
                         <Check className="h-4 w-4" />
                         Aprovar vistoria
                       </Button>
-                      <Button
-                        variant="destructive"
-                        className="gap-2"
-                        onClick={() => handleAbrirAnalise("pendenciar")}
-                      >
+                      <Button variant="destructive" className="gap-2" onClick={() => handleAbrirAnalise("pendenciar")}>
                         <X className="h-4 w-4" />
                         Pendenciar vistoria
                       </Button>
@@ -1061,7 +1043,7 @@ export default function VistoriaDetalhe() {
             ) : (
               <Card>
                 <CardContent className="p-12 text-center">
-                  <MapPin className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <MapPin className="h-12 w-12 mx-auto.mb-4 text-muted-foreground" />
                   <p className="text-muted-foreground">Geolocalização não disponível</p>
                 </CardContent>
               </Card>
@@ -1073,10 +1055,7 @@ export default function VistoriaDetalhe() {
             {termosAceitos.length > 0 ? (
               <div className="space-y-4">
                 {termosAceitos.map((termo) => (
-                  <Card
-                    key={termo.id}
-                    className="border-2 border-green-200 hover:border-green-300 transition-colors"
-                  >
+                  <Card key={termo.id} className="border-2 border-green-200 hover:border-green-300 transition-colors">
                     <CardHeader className="bg-green-50/50">
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-lg">
@@ -1090,9 +1069,7 @@ export default function VistoriaDetalhe() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-6 space-y-4">
-                      {termo.termos.descricao && (
-                        <p className="text-muted-foreground">{termo.termos.descricao}</p>
-                      )}
+                      {termo.termos.descricao && <p className="text-muted-foreground">{termo.termos.descricao}</p>}
 
                       <Separator />
 
@@ -1154,10 +1131,8 @@ export default function VistoriaDetalhe() {
               <Card>
                 <CardContent className="p-12 text-center">
                   <FileCheck className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-20" />
-                  <p className="text-lg font-medium mb-2">Nenhum termo assinado</p>
-                  <p className="text-sm text-muted-foreground">
-                    Os termos aceitos aparecerão aqui quando disponíveis
-                  </p>
+                  <p className="text-lg font-medium.mb-2">Nenhum termo assinado</p>
+                  <p className="text-sm text-muted-foreground">Os termos aceitos aparecerão aqui quando disponíveis</p>
 
                   {vistoria.assinatura_url && (
                     <div className="mt-6">
@@ -1190,8 +1165,7 @@ export default function VistoriaDetalhe() {
                     <div>
                       <h4 className="font-semibold mb-2">Data e Hora do Evento</h4>
                       <p className="text-muted-foreground">
-                        {vistoria.data_evento &&
-                          format(new Date(vistoria.data_evento), "dd/MM/yyyy", { locale: ptBR })}
+                        {vistoria.data_evento && format(new Date(vistoria.data_evento), "dd/MM/yyyy", { locale: ptBR })}
                         {vistoria.hora_evento && ` às ${vistoria.hora_evento}`}
                       </p>
                     </div>
@@ -1220,16 +1194,16 @@ export default function VistoriaDetalhe() {
                         {vistoria.vitima_ou_causador === "vitima"
                           ? "Vítima"
                           : vistoria.vitima_ou_causador === "causador"
-                          ? "Causador"
-                          : "Não informado"}
+                            ? "Causador"
+                            : "Não informado"}
                       </Badge>
                     </div>
 
                     <div>
                       <h4 className="font-semibold mb-2">Houve terceiros envolvidos?</h4>
-                      <Badge.variant={vistoria.tem_terceiros ? "default" : "secondary"}>
+                      <Badge variant={vistoria.tem_terceiros ? "default" : "secondary"}>
                         {vistoria.tem_terceiros ? "Sim" : "Não"}
-                      </Badge.variant>
+                      </Badge>
                       {vistoria.tem_terceiros && vistoria.placa_terceiro && (
                         <p className="text-sm text-muted-foreground mt-1">Placa: {vistoria.placa_terceiro}</p>
                       )}
@@ -1244,9 +1218,9 @@ export default function VistoriaDetalhe() {
 
                     <div>
                       <h4 className="font-semibold mb-2">Fez Boletim de Ocorrência?</h4>
-                      <Badge.variant={vistoria.fez_bo ? "default" : "secondary"}>
+                      <Badge variant={vistoria.fez_bo ? "default" : "secondary"}>
                         {vistoria.fez_bo ? "Sim" : "Não"}
-                      </Badge.variant>
+                      </Badge>
                     </div>
 
                     <div>
@@ -1290,9 +1264,7 @@ export default function VistoriaDetalhe() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="analise">
-                {decisaoAnalise === "aprovar" ? "Observações" : "Motivos da Pendência"} *
-              </Label>
+              <Label htmlFor="analise">{decisaoAnalise === "aprovar" ? "Observações" : "Motivos da Pendência"} *</Label>
               <Textarea
                 id="analise"
                 value={observacaoAnalise}
