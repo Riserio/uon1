@@ -44,6 +44,12 @@ export default function VistoriaPublicaLanding() {
         return;
       }
 
+      // Se for pendente_novas_fotos, redireciona direto para captura
+      if (data.status === 'pendente_novas_fotos') {
+        navigate(`/vistoria/${token}/captura`);
+        return;
+      }
+
       setVistoria(data);
       setCorretora(data.corretoras || data.atendimentos?.corretoras);
     } catch (error) {
