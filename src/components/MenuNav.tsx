@@ -67,7 +67,7 @@ function useMenuPermissionsForRole(userRole: string | null) {
         const { data, error } = await supabase
           .from("role_menu_permissions")
           .select("menu_item, pode_visualizar, pode_editar")
-          .eq("role", userRole);
+          .eq("role", userRole as "admin" | "administrativo" | "comercial" | "lider" | "superintendente");
 
         if (error) {
           console.error("Erro ao carregar permissões de menu:", error);
