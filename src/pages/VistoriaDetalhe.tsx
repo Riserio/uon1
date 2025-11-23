@@ -32,7 +32,6 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { generateVistoriaPDF } from "@/components/VistoriaPDF";
-import { useAuth } from "@/hooks/useAuth";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -46,7 +45,6 @@ import {
 export default function VistoriaDetalhe() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [vistoria, setVistoria] = useState<any>(null);
   const [fotos, setFotos] = useState<any[]>([]);
   const [termosAceitos, setTermosAceitos] = useState<any[]>([]);
@@ -299,32 +297,14 @@ export default function VistoriaDetalhe() {
     setNovaFotoInput("");
   };
 
+  // ✅ Agora envia o e-mail diretamente (via Supabase Function), sem abrir o cliente de e-mail
   const handleEnviarEmail = async () => {
     const link = await registrarSolicitacaoMaisFotos();
     if (!link) return;
 
-    if (!vistoria.cliente_email) {
-      toast.error("Cliente não possui e-mail cadastrado");
-      return;
-    }
-
-    const assunto = `Solicitação de fotos adicionais - Vistoria ${vistoria.numero}`;
-    const listaFotos = fotosNecessarias.length > 0 ? "\n\nFotos necessárias:\n- " + fotosNecessarias.join("\n- ") : "";
-
-    const corpo =
-      `Olá ${vistoria.cliente_nome || ""},\n\n` +
-      `Precisamos de fotos adicionais para dar sequência à análise da sua vistoria.\n\n` +
-      `Motivo:\n${motivoFotos}${listaFotos}\n\n` +
-      `Você pode enviar as fotos pelo link abaixo:\n${link}\n\n` +
-      `Atenciosamente,\nBP Seguradora`;
-
-    const mailtoUrl = `mailto:${encodeURIComponent(
-      vistoria.cliente_email,
-    )}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
-
-    window.location.href = mailtoUrl;
-
-    toast.success("E-mail preparado. Confira e envie pelo seu cliente de e-mail.");
+    // Aqui assumimos que a Edge Function "solicitar-mais-fotos" já é responsável por
+    // enviar o e-mail para o cliente, com o link renovado e as informações necessárias.
+    toast.success("Solicitação enviada! O cliente receberá um e-mail com o link renovado.");
     limparDialogSolicitacao();
   };
 
