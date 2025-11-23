@@ -120,14 +120,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: null };
     }
     
-    // Check if user is a parceiro (partner)
+    // Check if user is a parceiro (partner) - PORTAL PID
+    // Parceiros são usuários de corretoras com acesso EXCLUSIVO ao Portal PID
+    // Eles fazem login na mesma tela (/auth) mas são automaticamente redirecionados para /portal
     const { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', data.user.id)
       .single();
     
-    // Redirect parceiros to portal, others to main dashboard
+    // DECISÃO DEFINITIVA: Parceiros vão direto para /portal, outros usuários vão para /
     if (roleData?.role === 'parceiro') {
       navigate('/portal');
     } else {

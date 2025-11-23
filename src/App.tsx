@@ -69,7 +69,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
-  // Parceiros não têm acesso ao sidebar - apenas ao portal
+  // DECISÃO DEFINITIVA: Parceiros têm acesso EXCLUSIVO ao portal PID
+  // Eles NÃO podem acessar nenhuma outra parte do sistema
   if (isParceiro) {
     return <Navigate to="/portal" replace />;
   }
@@ -98,12 +99,13 @@ function PortalRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
-  // Apenas parceiros podem acessar o portal
+  // DECISÃO DEFINITIVA: Apenas usuários com role 'parceiro' podem acessar o portal PID
+  // Todos os outros usuários são redirecionados para o dashboard principal
   if (!isParceiro) {
     return <Navigate to="/" replace />;
   }
   
-  // Sem sidebar para parceiros
+  // Parceiros veem APENAS o portal - sem sidebar, sem acesso a outras rotas
   return <>{children}</>;
 }
 
