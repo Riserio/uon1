@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { usePortalAuth } from '@/contexts/PortalAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { DollarSign, TrendingUp, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function PortalKPI() {
-  const { token } = usePortalAuth();
   const [loading, setLoading] = useState(true);
   const [kpis, setKpis] = useState<any>(null);
   const [ano, setAno] = useState(new Date().getFullYear().toString());
@@ -16,15 +14,28 @@ export default function PortalKPI() {
   const fetchKPIs = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('portal-kpi', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: { ano, mes },
-      });
+      // Buscar dados diretamente do banco
+      const { data: producao, error } = await supabase
+        .from('producao_financeira')
+        .select('*')
+        .gte('competencia', `${ano}-${mes}-01`)
+        .lt('competencia', `${ano}-${mes}-31`);
 
       if (error) throw error;
-      setKpis(data.kpis);
+
+      const faturamento = producao?.reduce((sum, p) => sum + (p.premio_total || 0), 0) || 0;
+      const comissoes = producao?.reduce((sum, p) => sum + (p.valor_comissao || 0), 0) || 0;
+      const repassePrevisto = producao?.reduce((sum, p) => sum + (p.repasse_previsto || 0), 0) || 0;
+      const repassePago = producao?.reduce((sum, p) => sum + (p.repasse_pago || 0), 0) || 0;
+      const repassePendente = repassePrevisto - repassePago;
+
+      setKpis({
+        faturamento: faturamento.toFixed(2),
+        comissoes: comissoes.toFixed(2),
+        repassePrevisto: repassePrevisto.toFixed(2),
+        repassePago: repassePago.toFixed(2),
+        repassePendente: repassePendente.toFixed(2),
+      });
     } catch (error: any) {
       console.error('Error fetching KPIs:', error);
       toast.error('Erro ao carregar KPIs');
@@ -34,10 +45,8 @@ export default function PortalKPI() {
   };
 
   useEffect(() => {
-    if (token) {
-      fetchKPIs();
-    }
-  }, [token, ano, mes]);
+    fetchKPIs();
+  }, [ano, mes]);
 
   const anos = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
   const meses = [

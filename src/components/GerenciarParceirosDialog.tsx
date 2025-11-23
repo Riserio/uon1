@@ -35,13 +35,19 @@ export default function GerenciarParceirosDialog({ open, onOpenChange, corretora
       setLoading(true);
       
       // Carregar usuários do sistema com role parceiro
+      const { data: rolesData, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'parceiro');
+
+      if (rolesError) throw rolesError;
+      
+      const parceiroIds = rolesData?.map(r => r.user_id) || [];
+      
       const { data: usersData, error: usersError } = await supabase
         .from('profiles')
-        .select(`
-          *,
-          user_roles!inner(role)
-        `)
-        .eq('user_roles.role', 'parceiro')
+        .select('*')
+        .in('id', parceiroIds.length > 0 ? parceiroIds : ['00000000-0000-0000-0000-000000000000'])
         .eq('ativo', true);
 
       if (usersError) throw usersError;
