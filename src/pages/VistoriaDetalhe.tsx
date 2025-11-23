@@ -28,6 +28,7 @@ import {
   Mail,
   Hash,
   Shield,
+  MessageCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -97,10 +98,7 @@ export default function VistoriaDetalhe() {
 
       setFotos(fotosData || []);
 
-      const { data: termosData } = await supabase
-        .from("termos_aceitos")
-        .select("*, termos(*)")
-        .eq("vistoria_id", id);
+      const { data: termosData } = await supabase.from("termos_aceitos").select("*, termos(*)").eq("vistoria_id", id);
 
       setTermosAceitos(termosData || []);
 
@@ -279,15 +277,16 @@ export default function VistoriaDetalhe() {
       loadVistoria();
     } catch (error) {
       console.error("Erro ao analisar vistoria:", error);
-      toast.error("Erro ao.processar análise");
+      toast.error("Erro ao processar análise");
     }
   };
 
   /**
-   * Solicitar mais fotos (versão simplificada, sem e-mail/WhatsApp):
-   * - Valida motivo e lista de fotos
-   * - Atualiza status para "pendente_correcao"
-   * - Fecha o dialog e recarrega a vistoria
+   * Solicitar mais fotos:
+   * - Tenta enviar e-mail pela edge function
+   * - Se a função falhar, segue o fluxo normalmente
+   * - Sempre tenta atualizar status para "pendente_correcao"
+   * - Fecha o dialog e recarrega a vistoria ao final
    */
   const handleSolicitarMaisFotos = async () => {
     if (!vistoria) {
@@ -307,29 +306,74 @@ export default function VistoriaDetalhe() {
 
     toast.loading("Registrando solicitação de fotos...", { id: "solicitacao-fotos" });
 
+    let emailEnviadoComSucesso = true;
+
+    // 1) Tenta chamar a edge function, mas NÃO deixa quebrar o fluxo se der erro
+    try {
+      const { error: functionError } = await supabase.functions.invoke("solicitar-mais-fotos", {
+        body: {
+          // mantém os mesmos nomes que você já estava usando
+          vistoriaId: vistoria.id,
+          motivo: motivoFotos,
+          fotosNecessarias,
+        },
+      });
+
+      if (functionError) {
+        console.error("Erro na função 'solicitar-mais-fotos':", functionError);
+        emailEnviadoComSucesso = false;
+      }
+    } catch (err) {
+      console.error("Exceção ao chamar edge function 'solicitar-mais-fotos':", err);
+      emailEnviadoComSucesso = false;
+    }
+
+    // 2) Atualiza o status da vistoria para pendente_correcao SEMPRE
     const { error: updateError } = await supabase
       .from("vistorias")
       .update({ status: "pendente_correcao" })
       .eq("id", vistoria.id);
 
-    toast.dismiss("solicitacao-fotos");
-
     if (updateError) {
       console.error("Erro ao atualizar status da vistoria:", updateError);
+      toast.dismiss("solicitacao-fotos");
       toast.error("Falha ao atualizar o status da vistoria.");
       return;
     }
 
-    toast.success("Solicitação registrada e vistoria marcada como pendente para envio de novas fotos.");
+    // 3) Feedback para o usuário
+    toast.dismiss("solicitacao-fotos");
 
-    // Limpa o formulário e fecha o dialog
+    if (!emailEnviadoComSucesso) {
+      toast.warning(
+        "Solicitação registrada e vistoria marcada como pendente, mas não foi possível enviar o e-mail automático. Use o botão de WhatsApp Web para avisar o cliente.",
+      );
+    } else {
+      toast.success("Solicitação registrada, vistoria marcada como pendente e e-mail enviado com sucesso!");
+    }
+
+    // 4) Limpa o formulário e fecha o dialog
     setSolicitarFotosOpen(false);
     setMotivoFotos("");
     setFotosNecessarias([]);
     setNovaFotoInput("");
 
-    // Recarrega dados da vistoria
+    // 5) Recarrega dados da vistoria
     loadVistoria();
+  };
+
+  const handleEnviarWhatsApp = () => {
+    if (!vistoria) return;
+
+    const link = `${window.location.origin}/vistoria/${vistoria.link_token}`;
+    const listaFotos = fotosNecessarias.length > 0 ? `Fotos necessárias:\n- ${fotosNecessarias.join("\n- ")}\n\n` : "";
+
+    const mensagem = `Olá! Precisamos de fotos adicionais da sua vistoria referente ao sinistro #${
+      vistoria.numero
+    }.\n\nMotivo: ${motivoFotos || "Conforme análise da equipe"}\n\n${listaFotos}Envie as fotos pelo link abaixo:\n${link}`;
+
+    const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
+    window.open(url, "_blank");
   };
 
   const adicionarFotoNecessaria = () => {
@@ -405,10 +449,7 @@ export default function VistoriaDetalhe() {
                   <h1 className="text-3xl font-bold">Vistoria #{vistoria.numero}</h1>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <Badge
-                    variant={vistoria.tipo_abertura === "digital" ? "default" : "secondary"}
-                    className="text-sm"
-                  >
+                  <Badge variant={vistoria.tipo_abertura === "digital" ? "default" : "secondary"} className="text-sm">
                     {vistoria.tipo_abertura === "digital" ? (
                       <>
                         <Camera className="h-3 w-3 mr-1" /> Digital
@@ -435,11 +476,10 @@ export default function VistoriaDetalhe() {
                   </span>
                 </div>
                 {vistoria.completed_at && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex.items-center gap-2 text-sm text-muted-foreground">
                     <Check className="h-4 w-4" />
                     <span>
-                      Concluída em{" "}
-                      {format(new Date(vistoria.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      Concluída em {format(new Date(vistoria.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                     </span>
                   </div>
                 )}
@@ -479,7 +519,7 @@ export default function VistoriaDetalhe() {
 
           {/* Tab: Geral */}
           <TabsContent value="geral" className="space-y-6">
-            <div className="grid.md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-2 gap-6">
               {/* Cliente */}
               <Card>
                 <CardHeader className="bg-muted/50">
@@ -514,7 +554,7 @@ export default function VistoriaDetalhe() {
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-muted-foreground" />
                       <div>
-                        <span className="text-sm text-muted-foreground block">Telefone</span>
+                        <span className="text-sm text-muted-foreground.block">Telefone</span>
                         <p>{vistoria.cliente_telefone}</p>
                       </div>
                     </div>
@@ -547,7 +587,7 @@ export default function VistoriaDetalhe() {
                   )}
                   {vistoria.veiculo_ano && (
                     <div>
-                      <span className="text-sm.text-muted-foreground">Ano</span>
+                      <span className="text-sm text-muted-foreground">Ano</span>
                       <p>{vistoria.veiculo_ano}</p>
                     </div>
                   )}
@@ -577,7 +617,7 @@ export default function VistoriaDetalhe() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
-                  <div className="grid md:grid-cols-3.gap-4">
+                  <div className="grid md:grid-cols-3 gap-4">
                     {vistoria.cnh_dados.nome && (
                       <div>
                         <span className="text-sm text-muted-foreground">Nome</span>
@@ -703,7 +743,7 @@ export default function VistoriaDetalhe() {
               </CardHeader>
               <CardContent className="p-6">
                 {loadingFotos ? (
-                  <div className="flex flex-col.items-center justify-center py-12 space-y-4">
+                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
                     <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />
                     <p className="text-sm text-muted-foreground">Carregando fotos...</p>
                   </div>
@@ -729,7 +769,7 @@ export default function VistoriaDetalhe() {
                       return (
                         <Card
                           key={foto.id}
-                          className="overflow-hidden border hover:border-primary/50 transition-all duration-200"
+                          className="overflow-hidden border hover:border-primary/50 transition-all.duration-200"
                         >
                           <div className="relative group aspect-[4/3] bg-muted flex items-center justify-center">
                             <div className="absolute top-2 left-2 z-10">
@@ -768,7 +808,7 @@ export default function VistoriaDetalhe() {
                             {fileType === "pdf" && (
                               <div className="flex flex-col items-center justify-center text-center px-4">
                                 <FileText className="h-10 w-10 text-primary mb-2" />
-                                <p className="text-sm font-medium mb-1">Documento PDF</p>
+                                <p className="text-sm font-medium.mb-1">Documento PDF</p>
                                 <p className="text-xs text-muted-foreground mb-3">
                                   {foto.arquivo_nome || "Arquivo PDF"}
                                 </p>
@@ -834,7 +874,7 @@ export default function VistoriaDetalhe() {
                         )}
                         {vistoria.veiculo_modelo && (
                           <div className="bg-white dark:bg-background rounded-lg p-4 border border-blue-200">
-                            <span className="text-xs text-muted-foreground block mb-1">Modelo</span>
+                            <span className="text-xs text-muted-foreground block.mb-1">Modelo</span>
                             <p className="font-semibold text-lg">{vistoria.veiculo_modelo}</p>
                           </div>
                         )}
@@ -864,7 +904,7 @@ export default function VistoriaDetalhe() {
                   </Card>
                 )}
 
-                <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20">
+                <Card className="border-2 border-purple-200.bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20">
                   <CardHeader className="bg-purple-100/50 dark:bg-purple-900/20">
                     <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
                       <Brain className="h-6 w-6" />
@@ -955,11 +995,7 @@ export default function VistoriaDetalhe() {
                         <Check className="h-4 w-4" />
                         Aprovar vistoria
                       </Button>
-                      <Button
-                        variant="destructive"
-                        className="gap-2"
-                        onClick={() => handleAbrirAnalise("pendenciar")}
-                      >
+                      <Button variant="destructive" className="gap-2" onClick={() => handleAbrirAnalise("pendenciar")}>
                         <X className="h-4 w-4" />
                         Pendenciar vistoria
                       </Button>
@@ -1042,29 +1078,21 @@ export default function VistoriaDetalhe() {
             {termosAceitos.length > 0 ? (
               <div className="space-y-4">
                 {termosAceitos.map((termo) => (
-                  <Card
-                    key={termo.id}
-                    className="border-2 border-green-200 hover:border-green-300 transition-colors"
-                  >
+                  <Card key={termo.id} className="border-2 border-green-200 hover:border-green-300 transition-colors">
                     <CardHeader className="bg-green-50/50">
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-lg">
                           <FileCheck className="h-5 w-5 text-green-600" />
                           {termo.termos.titulo}
                         </div>
-                        <Badge
-                          variant="outline"
-                          className="bg-green-100 text-green-700 border-green-300"
-                        >
+                        <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
                           <Check className="h-3 w-3 mr-1" />
                           Aceito
                         </Badge>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-6 space-y-4">
-                      {termo.termos.descricao && (
-                        <p className="text-muted-foreground">{termo.termos.descricao}</p>
-                      )}
+                      {termo.termos.descricao && <p className="text-muted-foreground">{termo.termos.descricao}</p>}
 
                       <Separator />
 
@@ -1125,21 +1153,19 @@ export default function VistoriaDetalhe() {
             ) : (
               <Card>
                 <CardContent className="p-12 text-center">
-                  <FileCheck className="h-12 w-12 mx-auto.mb-4 text-muted-foreground opacity-20" />
+                  <FileCheck className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-20" />
                   <p className="text-lg font-medium mb-2">Nenhum termo assinado</p>
-                  <p className="text-sm text-muted-foreground">
-                    Os termos aceitos aparecerão aqui quando disponíveis
-                  </p>
+                  <p className="text-sm text-muted-foreground">Os termos aceitos aparecerão aqui quando disponíveis</p>
 
                   {vistoria.assinatura_url && (
                     <div className="mt-6">
                       <Separator className="mb-6" />
-                      <Button.variant="outline" asChild className="gap-2">
+                      <Button variant="outline" asChild className="gap-2">
                         <a href={vistoria.assinatura_url} target="_blank" rel="noopener noreferrer">
                           <FileCheck className="h-4 w-4" />
                           Visualizar Assinatura Digital
                         </a>
-                      </Button.variant="outline">
+                      </Button>
                     </div>
                   )}
                 </CardContent>
@@ -1162,8 +1188,7 @@ export default function VistoriaDetalhe() {
                     <div>
                       <h4 className="font-semibold mb-2">Data e Hora do Evento</h4>
                       <p className="text-muted-foreground">
-                        {vistoria.data_evento &&
-                          format(new Date(vistoria.data_evento), "dd/MM/yyyy", { locale: ptBR })}
+                        {vistoria.data_evento && format(new Date(vistoria.data_evento), "dd/MM/yyyy", { locale: ptBR })}
                         {vistoria.hora_evento && ` às ${vistoria.hora_evento}`}
                       </p>
                     </div>
@@ -1179,9 +1204,7 @@ export default function VistoriaDetalhe() {
                   {vistoria.narrar_fatos && (
                     <div>
                       <h4 className="font-semibold mb-2">Narração dos Fatos</h4>
-                      <p className="text-muted-foreground whitespace-pre-wrap">
-                        {vistoria.narrar_fatos}
-                      </p>
+                      <p className="text-muted-foreground whitespace-pre-wrap">{vistoria.narrar_fatos}</p>
                     </div>
                   )}
 
@@ -1194,8 +1217,8 @@ export default function VistoriaDetalhe() {
                         {vistoria.vitima_ou_causador === "vitima"
                           ? "Vítima"
                           : vistoria.vitima_ou_causador === "causador"
-                          ? "Causador"
-                          : "Não informado"}
+                            ? "Causador"
+                            : "Não informado"}
                       </Badge>
                     </div>
 
@@ -1205,9 +1228,7 @@ export default function VistoriaDetalhe() {
                         {vistoria.tem_terceiros ? "Sim" : "Não"}
                       </Badge>
                       {vistoria.tem_terceiros && vistoria.placa_terceiro && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Placa: {vistoria.placa_terceiro}
-                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">Placa: {vistoria.placa_terceiro}</p>
                       )}
                     </div>
 
@@ -1266,9 +1287,7 @@ export default function VistoriaDetalhe() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="analise">
-                {decisaoAnalise === "aprovar" ? "Observações" : "Motivos da Pendência"} *
-              </Label>
+              <Label htmlFor="analise">{decisaoAnalise === "aprovar" ? "Observações" : "Motivos da Pendência"} *</Label>
               <Textarea
                 id="analise"
                 value={observacaoAnalise}
@@ -1316,7 +1335,8 @@ export default function VistoriaDetalhe() {
               Solicitar Mais Fotos ao Cliente
             </DialogTitle>
             <DialogDescription>
-              Registre o motivo e as fotos necessárias. A vistoria será marcada como pendente para envio de novas fotos.
+              O cliente receberá um email com o link renovado para enviar as fotos adicionais. Você também pode enviar o
+              link via WhatsApp Web.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1355,10 +1375,7 @@ export default function VistoriaDetalhe() {
               {fotosNecessarias.length > 0 && (
                 <div className="mt-3 space-y-2">
                   {fotosNecessarias.map((foto, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between bg-muted p-2 rounded-md"
-                    >
+                    <div key={index} className="flex items-center justify-between bg-muted p-2 rounded-md">
                       <span className="text-sm">{foto}</span>
                       <Button variant="ghost" size="sm" onClick={() => removerFotoNecessaria(index)}>
                         <X className="h-4 w-4" />
@@ -1374,9 +1391,9 @@ export default function VistoriaDetalhe() {
                 <strong>ℹ️ Informações:</strong>
               </p>
               <ul className="text-sm text-blue-700 mt-2 space-y-1 list-disc list-inside">
-                <li>O link de vistoria poderá ser reenviado manualmente ao cliente.</li>
-                <li>Cliente poderá tirar fotos ou enviar da galeria pelo fluxo padrão da vistoria.</li>
-                <li>Status da vistoria será alterado para "Pendente Correção" ao registrar a solicitação.</li>
+                <li>O link será válido por 7 dias</li>
+                <li>Cliente poderá tirar fotos ou enviar da galeria</li>
+                <li>Status da vistoria será alterado para "Pendente Correção" ao enviar a solicitação</li>
               </ul>
             </div>
           </div>
@@ -1384,10 +1401,22 @@ export default function VistoriaDetalhe() {
             <Button variant="outline" onClick={() => setSolicitarFotosOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSolicitarMaisFotos} className="gap-2">
-              <Send className="h-4 w-4" />
-              Marcar como Pendente
-            </Button>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2"
+                onClick={handleEnviarWhatsApp}
+                disabled={!vistoria}
+              >
+                <MessageCircle className="h-4 w-4" />
+                Enviar via WhatsApp Web
+              </Button>
+              <Button onClick={handleSolicitarMaisFotos} className="gap-2">
+                <Send className="h-4 w-4" />
+                Enviar Email e Marcar como Pendente
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
