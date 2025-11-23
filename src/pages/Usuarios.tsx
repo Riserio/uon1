@@ -649,7 +649,7 @@ export default function Usuarios() {
         </div>
         <div className="flex items-center gap-2">
           {activeTab === "equipes" && (
-            <Button variant="outline" onClick={() => openEquipeDialog()} className="gap-2">
+            <Button onClick={() => openEquipeDialog()} className="gap-2">
               <UsersRound className="h-4 w-4" />
               Nova Equipe
             </Button>
