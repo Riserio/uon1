@@ -412,33 +412,39 @@ export type Database = {
       }
       corretora_usuarios: {
         Row: {
+          acesso_exclusivo_pid: boolean | null
           ativo: boolean | null
           corretora_id: string
           created_at: string | null
           email: string
           id: string
+          profile_id: string | null
           senha_hash: string
           totp_configurado: boolean | null
           totp_secret: string | null
           updated_at: string | null
         }
         Insert: {
+          acesso_exclusivo_pid?: boolean | null
           ativo?: boolean | null
           corretora_id: string
           created_at?: string | null
           email: string
           id?: string
+          profile_id?: string | null
           senha_hash: string
           totp_configurado?: boolean | null
           totp_secret?: string | null
           updated_at?: string | null
         }
         Update: {
+          acesso_exclusivo_pid?: boolean | null
           ativo?: boolean | null
           corretora_id?: string
           created_at?: string | null
           email?: string
           id?: string
+          profile_id?: string | null
           senha_hash?: string
           totp_configurado?: boolean | null
           totp_secret?: string | null
@@ -450,6 +456,13 @@ export type Database = {
             columns: ["corretora_id"]
             isOneToOne: false
             referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corretora_usuarios_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
