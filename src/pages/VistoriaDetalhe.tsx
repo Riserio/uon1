@@ -145,8 +145,6 @@ export default function VistoriaDetalhe() {
         return "bg-green-500";
       case "aprovada":
         return "bg-green-600";
-      case "pendente_correcao":
-        return "bg-orange-500";
       case "cancelada":
         return "bg-red-500";
       default:
@@ -199,6 +197,141 @@ export default function VistoriaDetalhe() {
     if (ext && pdfExts.includes(ext)) return "pdf";
     return "other";
   };
+
+  const handleAprovarFoto = async (fotoId: string) => {
+    try {
+      setFotos((prevFotos) =>
+        prevFotos.map((f) =>
+          f.id === fotoId
+            ? { ...f, status_aprovacao: "aprovada", aprovada_em: new Date().toISOString(), aprovada_por: user?.id }
+            : f,
+        ),
+      );
+
+      const { error } = await supabase
+        .from("vistoria_fotos")
+        .update({
+          status_aprovacao: "aprovada",
+          aprovada_por: user?.id,
+          aprovada_em: new Date().toISOString(),
+          observacao_reprovacao: null,
+        })
+        .eq("id", fotoId);
+
+      if (error) throw error;
+      toast.success("Foto aprovada!");
+    } catch (error) {
+      console.error("Erro ao aprovar foto:", error);
+      toast.error("Erro ao aprovar foto");
+      loadVistoria();
+    }
+  };
+
+  const handleReprovarFoto = (foto: any) => {
+    setFotoSelecionada(foto);
+    setObservacaoReprovacao("");
+    setFotoDialogOpen(true);
+  };
+
+  const confirmarReprovacao = async () => {
+    if (!observacaoReprovacao.trim()) {
+      toast.error("Por favor, informe o motivo da reprovação");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("vistoria_fotos")
+        .update({
+          status_aprovacao: "reprovada",
+          aprovada_por: user?.id,
+          aprovada_em: new Date().toISOString(),
+          observacao_reprovacao: observacaoReprovacao,
+        })
+        .eq("id", fotoSelecionada.id);
+
+      if (error) throw error;
+
+      // Gerar novo link para cliente refazer fotos reprovadas
+      if (vistoria.link_token) {
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7);
+
+        await supabase
+          .from("vistorias")
+          .update({
+            link_expires_at: expiresAt.toISOString(),
+            status: "pendente_correcao",
+          })
+          .eq("id", vistoria.id);
+      }
+
+      toast.success("Foto reprovada. Cliente será notificado para enviar nova foto.");
+      setFotoDialogOpen(false);
+      setFotoSelecionada(null);
+      setObservacaoReprovacao("");
+      loadVistoria();
+    } catch (error) {
+      console.error("Erro ao reprovar foto:", error);
+      toast.error("Erro ao reprovar foto");
+    }
+  };
+
+  const handleAprovarTodasFotos = async () => {
+    try {
+      const fotosPendentes = fotos.filter((f) => f.status_aprovacao === "pendente");
+
+      for (const foto of fotosPendentes) {
+        await supabase
+          .from("vistoria_fotos")
+          .update({
+            status_aprovacao: "aprovada",
+            aprovada_por: user?.id,
+            aprovada_em: new Date().toISOString(),
+          })
+          .eq("id", foto.id);
+      }
+
+      await supabase.from("vistorias").update({ status: "aprovada" }).eq("id", vistoria.id);
+
+      if (vistoria.atendimento_id) {
+        const { data: atendimento } = await supabase
+          .from("atendimentos")
+          .select("tags")
+          .eq("id", vistoria.atendimento_id)
+          .single();
+
+        if (atendimento?.tags) {
+          const newTags = atendimento.tags
+            .filter(
+              (tag: string) =>
+                !["aguardando_vistoria_digital", "vistoria_concluida", "pendente_vistoria"].includes(tag),
+            )
+            .concat("vistoria_aprovada");
+
+          await supabase.from("atendimentos").update({ tags: newTags }).eq("id", vistoria.atendimento_id);
+        }
+      }
+
+      toast.success("Todas as fotos foram aprovadas!");
+      loadVistoria();
+    } catch (error) {
+      console.error("Erro ao aprovar fotos:", error);
+      toast.error("Erro ao aprovar fotos");
+    }
+  };
+
+  const handleAbrirAnalise = (decisao: "aprovar" | "pendenciar") => {
+    setDecisaoAnalise(decisao);
+    setObservacaoAnalise("");
+    setAnaliseDialogOpen(true);
+  };
+
+  const confirmarAnalise = async () => {
+    if (!observacaoAnalise.trim()) {
+      toast.error("Por favor, informe suas observações sobre a análise");
+      return;
+    }
 
     try {
       const novoStatus = decisaoAnalise === "aprovar" ? "aprovada" : "pendente_correcao";
