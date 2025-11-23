@@ -121,7 +121,16 @@ serve(async (req) => {
       user_metadata: { nome }
     })
 
-    if (authError) throw authError
+      if (authError) {
+        console.error('ERROR creating user:', authError);
+        
+        // Mensagens de erro mais específicas
+        if (authError.message?.includes('already been registered')) {
+          throw new Error('EMAIL_EXISTS: Este email já está cadastrado no sistema.');
+        }
+        
+        throw new Error(authError.message || 'Erro ao criar usuário');
+      }
 
     if (!authData.user) {
       throw new Error('Erro ao criar usuário')
