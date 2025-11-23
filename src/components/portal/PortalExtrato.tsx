@@ -7,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function PortalExtrato() {
+export default function PortalExtrato({ corretoraId }: { corretoraId?: string }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
   const [filters, setFilters] = useState({
@@ -19,6 +19,8 @@ export default function PortalExtrato() {
   });
 
   const fetchExtrato = async () => {
+    if (!corretoraId) return; // Aguardar seleção de corretora
+    
     setLoading(true);
     try {
       const lastDayOfMonth = new Date(parseInt(filters.ano), parseInt(filters.mes), 0).getDate();
@@ -26,6 +28,7 @@ export default function PortalExtrato() {
       let query = supabase
         .from('producao_financeira')
         .select('*')
+        .eq('corretora_id', corretoraId)
         .gte('competencia', `${filters.ano}-${filters.mes}-01`)
         .lte('competencia', `${filters.ano}-${filters.mes}-${lastDayOfMonth}`)
         .order('competencia', { ascending: false });
@@ -52,8 +55,10 @@ export default function PortalExtrato() {
   };
 
   useEffect(() => {
-    fetchExtrato();
-  }, [filters.ano, filters.mes, filters.produto, filters.seguradora, filters.status]);
+    if (corretoraId) {
+      fetchExtrato();
+    }
+  }, [filters.ano, filters.mes, filters.produto, filters.seguradora, filters.status, corretoraId]);
 
   const anos = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
   const meses = [

@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
-export default function PortalLancamentos() {
+export default function PortalLancamentos({ corretoraId }: { corretoraId?: string }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [lancamentos, setLancamentos] = useState<any[]>([]);
@@ -34,9 +34,13 @@ export default function PortalLancamentos() {
   });
 
   useEffect(() => {
-    fetchLancamentos();
+    if (corretoraId) {
+      fetchLancamentos();
+      // Se tem corretora selecionada, pré-preencher o formulário
+      setFormData(prev => ({ ...prev, corretora_id: corretoraId }));
+    }
     fetchCorretoras();
-  }, []);
+  }, [corretoraId]);
 
   const fetchCorretoras = async () => {
     try {
@@ -53,12 +57,15 @@ export default function PortalLancamentos() {
   };
 
   const fetchLancamentos = async () => {
+    if (!corretoraId) return; // Aguardar seleção de corretora
+    
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('producao_financeira')
         .select('*, corretoras(nome)')
         .eq('tipo_origem', 'manual')
+        .eq('corretora_id', corretoraId)
         .order('competencia', { ascending: false });
 
       if (error) throw error;

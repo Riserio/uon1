@@ -4,11 +4,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-export default function PortalIndicadores() {
+export default function PortalIndicadores({ corretoraId }: { corretoraId?: string }) {
   const [loading, setLoading] = useState(true);
   const [indicadores, setIndicadores] = useState<any>(null);
 
   const fetchIndicadores = async () => {
+    if (!corretoraId) return; // Aguardar seleção de corretora
+    
     setLoading(true);
     try {
       // Buscar dados dos últimos 12 meses
@@ -18,6 +20,7 @@ export default function PortalIndicadores() {
       const { data: producao, error } = await supabase
         .from('producao_financeira')
         .select('*')
+        .eq('corretora_id', corretoraId)
         .gte('competencia', dataInicio.toISOString().split('T')[0])
         .order('competencia', { ascending: true });
 
@@ -49,8 +52,10 @@ export default function PortalIndicadores() {
   };
 
   useEffect(() => {
-    fetchIndicadores();
-  }, []);
+    if (corretoraId) {
+      fetchIndicadores();
+    }
+  }, [corretoraId]);
 
   const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 

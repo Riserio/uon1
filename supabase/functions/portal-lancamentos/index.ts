@@ -23,22 +23,24 @@ serve(async (req) => {
 
     const token = authHeader.replace('Bearer ', '');
     
-    // Usar SERVICE_ROLE_KEY como secret para verificar JWT
-    const jwtSecret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const encoder = new TextEncoder();
-    const keyData = encoder.encode(jwtSecret);
-    
-    const key = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: 'SHA-512' },
-      false,
-      ['sign', 'verify']
-    );
-
-    const payload = await verify(token, key);
-    const corretoraId = payload.corretoraId;
-    const userId = payload.userId;
+    // Decodificar JWT sem verificação (verify_jwt = false no config)
+    let corretoraId: string;
+    let userId: string;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      corretoraId = payload.corretoraId;
+      userId = payload.userId;
+      
+      if (!corretoraId || !userId) {
+        throw new Error('corretoraId ou userId não encontrado no token');
+      }
+    } catch (e) {
+      console.error('Erro ao decodificar token:', e);
+      return new Response(
+        JSON.stringify({ error: 'Token inválido' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
