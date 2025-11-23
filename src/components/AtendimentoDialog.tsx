@@ -228,11 +228,6 @@ export function AtendimentoDialog({
       };
 
       loadTipoAtendimento();
-      
-      // Se houver veiculo_marca, pré-selecionar para carregar modelos
-      if (vistoriaData.veiculo_marca) {
-        setMarcaSelecionada(vistoriaData.veiculo_marca);
-      }
     } else {
       setFormData({
         corretora: "",
@@ -244,6 +239,8 @@ export function AtendimentoDialog({
         observacoes: "",
         dataRetorno: "",
       });
+      setCorretoraDisplay("");
+      setMarcaSelecionada("");
       setPrimeiroAndamento("");
       setAnexos([]);
       setParecerFinal("");
@@ -627,7 +624,7 @@ export function AtendimentoDialog({
 
       // Se for edição, atualizar o atendimento existente
       if (atendimento?.id) {
-        // Usar o ID da corretora diretamente do formData
+        // Usar o ID da corretora diretamente do formData (já é UUID)
         const corretoraId = formData.corretora || null;
         
         // Buscar ID do contato se houver nome
@@ -637,7 +634,7 @@ export function AtendimentoDialog({
             .from("contatos")
             .select("id")
             .eq("nome", formData.contato)
-            .single();
+            .maybeSingle();
           
           if (contatoData) {
             contatoId = contatoData.id;
