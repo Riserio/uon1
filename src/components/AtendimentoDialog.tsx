@@ -82,14 +82,14 @@ export function AtendimentoDialog({
   const { marcas, modelos, marcaSelecionada, setMarcaSelecionada } = useVeiculos();
   
   const [formData, setFormData] = useState<Partial<Atendimento>>({
-    corretora: "",
-    contato: "",
-    assunto: "",
-    prioridade: "Média",
-    responsavel: user?.id || "",
-    tags: [],
-    observacoes: "",
-    dataRetorno: "",
+    corretora: atendimento?.corretoraId || "",
+    contato: atendimento?.contato || "",
+    assunto: atendimento?.assunto || "",
+    prioridade: atendimento?.prioridade || "Média",
+    responsavel: atendimento?.responsavel || user?.id || "",
+    tags: atendimento?.tags || [],
+    observacoes: atendimento?.observacoes || "",
+    dataRetorno: atendimento?.dataRetorno || "",
   });
 
   const [tagInput, setTagInput] = useState("");
@@ -101,6 +101,7 @@ export function AtendimentoDialog({
   const [corretoraSearchOpen, setCorretoraSearchOpen] = useState(false);
   const [corretoraSearch, setCorretoraSearch] = useState("");
   const [filteredCorretoras, setFilteredCorretoras] = useState<string[]>([]);
+  const [corretoraDisplay, setCorretoraDisplay] = useState<string>(atendimento?.corretora || "");
   const [activeTab, setActiveTab] = useState("geral");
   const { userRole } = useAuth();
   const [reloadKey, setReloadKey] = useState(0);
@@ -161,7 +162,6 @@ export function AtendimentoDialog({
       // Carregar nomes de corretora e contato baseado nos IDs
       const loadNomes = async () => {
         let corretoraName = atendimento.corretora || "";
-        let contatoName = atendimento.contato || "";
 
         // Buscar nome da corretora se houver corretoraId (UUID)
         if (atendimento.corretoraId) {
@@ -176,6 +176,10 @@ export function AtendimentoDialog({
           }
         }
 
+        setCorretoraDisplay(corretoraName);
+
+        let contatoName = atendimento.contato || "";
+        
         // Buscar nome do contato se houver contato como string (possível ID)
         // Verificar se é UUID ou nome direto
         if (atendimento.contato && atendimento.contato.length > 30) {
@@ -190,11 +194,15 @@ export function AtendimentoDialog({
           }
         }
 
-        // Atualizar formData com os nomes
         setFormData({
-          ...atendimento,
-          corretora: corretoraName,
+          corretora: atendimento.corretoraId || "",
           contato: contatoName,
+          assunto: atendimento.assunto,
+          prioridade: atendimento.prioridade,
+          responsavel: atendimento.responsavel || user?.id || "",
+          tags: atendimento.tags,
+          observacoes: atendimento.observacoes || "",
+          dataRetorno: atendimento.dataRetorno || "",
         });
       };
 
@@ -619,25 +627,12 @@ export function AtendimentoDialog({
 
       // Se for edição, atualizar o atendimento existente
       if (atendimento?.id) {
-        // Buscar IDs de corretora e contato baseado nos nomes
-        let corretoraId = atendimento.corretora; // Mantém o ID original se não mudou
-        let contatoId = atendimento.contato; // Mantém o ID original se não mudou
-
-        // Se o nome da corretora mudou, buscar novo ID
-        if (formData.corretora && formData.corretora !== atendimento.corretora) {
-          const { data: corretoraData } = await supabase
-            .from("corretoras")
-            .select("id")
-            .eq("nome", formData.corretora)
-            .single();
-          
-          if (corretoraData) {
-            corretoraId = corretoraData.id;
-          }
-        }
-
-        // Se o nome do contato mudou, buscar novo ID
-        if (formData.contato && formData.contato !== atendimento.contato) {
+        // Usar o ID da corretora diretamente do formData
+        const corretoraId = formData.corretora || null;
+        
+        // Buscar ID do contato se houver nome
+        let contatoId = null;
+        if (formData.contato) {
           const { data: contatoData } = await supabase
             .from("contatos")
             .select("id")
@@ -834,7 +829,7 @@ export function AtendimentoDialog({
                             aria-expanded={corretoraSearchOpen}
                             className="w-full justify-between"
                           >
-                            {formData.corretora || "Selecione uma corretora..."}
+                            {corretoraDisplay || "Selecione uma corretora..."}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </PopoverTrigger>
@@ -850,27 +845,43 @@ export function AtendimentoDialog({
                                 ? "Digite pelo menos 3 caracteres para buscar"
                                 : "Nenhuma corretora encontrada"}
                             </CommandEmpty>
-                            {filteredCorretoras.length > 0 && (
+                            {corretoraSearch.length >= 3 && corretoras && (
                               <CommandGroup>
-                                {filteredCorretoras.map((c) => (
-                                  <CommandItem
-                                    key={c}
-                                    value={c}
-                                    onSelect={(currentValue) => {
-                                      setFormData({ ...formData, corretora: currentValue });
-                                      setCorretoraSearchOpen(false);
-                                      setCorretoraSearch("");
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        formData.corretora === c ? "opacity-100" : "opacity-0",
-                                      )}
-                                    />
-                                    {c}
-                                  </CommandItem>
-                                ))}
+                                {corretoras
+                                  .filter((c) => c.toLowerCase().includes(corretoraSearch.toLowerCase()))
+                                  .map((c) => {
+                                    // Buscar o ID da corretora pelo nome
+                                    const corretoraObj = corretoras.find((cor) => cor === c);
+                                    return (
+                                      <CommandItem
+                                        key={c}
+                                        value={c}
+                                        onSelect={async () => {
+                                          // Buscar o ID da corretora
+                                          const { data } = await supabase
+                                            .from("corretoras")
+                                            .select("id")
+                                            .eq("nome", c)
+                                            .single();
+                                          
+                                          if (data) {
+                                            setFormData({ ...formData, corretora: data.id });
+                                            setCorretoraDisplay(c);
+                                          }
+                                          setCorretoraSearchOpen(false);
+                                          setCorretoraSearch("");
+                                        }}
+                                      >
+                                        <Check
+                                          className={cn(
+                                            "mr-2 h-4 w-4",
+                                            corretoraDisplay === c ? "opacity-100" : "opacity-0",
+                                          )}
+                                        />
+                                        {c}
+                                      </CommandItem>
+                                    );
+                                  })}
                               </CommandGroup>
                             )}
                           </Command>
