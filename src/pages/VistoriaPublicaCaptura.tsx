@@ -353,19 +353,31 @@ export default function VistoriaPublicaCaptura() {
     try {
       setEnviando(true);
 
-      // Ajuste o nome do bucket se necessário
-      const bucketName = "vistoria-fotos";
+      // ⚠️ CONFERE AQUI: use o MESMO bucket que você já usa no fluxo "normal" da vistoria
+      const bucketName = "vistoria-fotos"; // ex: "vistoria-fotos", "vistorias", etc.
 
       const uploads: { url: string; nome: string }[] = [];
 
       for (const file of fotosAdicionais) {
         const filePath = `${vistoria.id}/${Date.now()}-${Math.random().toString(36).slice(2)}-${file.name}`;
 
-        const { error: storageError } = await supabase.storage.from(bucketName).upload(filePath, file);
+        const { data: uploadData, error: storageError } = await supabase.storage
+          .from(bucketName)
+          .upload(filePath, file);
 
-        if (storageError) throw storageError;
+        if (storageError) {
+          console.error("❌ Erro no upload de arquivo:", storageError);
+          throw storageError;
+        }
 
-        const { data: publicUrlData } = supabase.storage.from(bucketName).getPublicUrl(filePath);
+        const { data: publicUrlData, error: publicUrlError } = supabase.storage
+          .from(bucketName)
+          .getPublicUrl(uploadData?.path || filePath);
+
+        if (publicUrlError) {
+          console.error("❌ Erro ao gerar URL pública:", publicUrlError);
+          throw publicUrlError;
+        }
 
         uploads.push({
           url: publicUrlData.publicUrl,
@@ -373,7 +385,7 @@ export default function VistoriaPublicaCaptura() {
         });
       }
 
-      // Insere na tabela vistoria_fotos (ajuste campos se necessário)
+      // 💾 Insert na tabela vistoria_fotos
       const { error: insertError } = await supabase.from("vistoria_fotos").insert(
         uploads.map((u, index) => ({
           vistoria_id: vistoria.id,
@@ -382,20 +394,34 @@ export default function VistoriaPublicaCaptura() {
           posicao: "adicional",
           ordem: index + 1,
           status_aprovacao: "pendente",
+          // se sua tabela tiver NOT NULL em outros campos, preenche aqui
+          // ex: tipo_arquivo, created_by, etc.
         })),
       );
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("❌ Erro ao inserir em vistoria_fotos:", insertError);
+        throw insertError;
+      }
 
-      // Status depois das fotos adicionais: concluída
-      await supabase.from("vistorias").update({ status: "concluida" }).eq("id", vistoria.id);
+      // 🔁 Atualiza status da vistoria
+      const { error: updateError } = await supabase
+        .from("vistorias")
+        .update({ status: "concluida" })
+        .eq("id", vistoria.id);
+
+      if (updateError) {
+        console.error("❌ Erro ao atualizar status da vistoria:", updateError);
+        throw updateError;
+      }
 
       toast.success("Fotos adicionais enviadas com sucesso! Você já pode fechar esta tela.");
-      // Se quiser redirecionar:
-      // navigate("/");
-    } catch (error) {
-      console.error("Erro ao enviar fotos adicionais:", error);
-      toast.error("Erro ao enviar as fotos. Tente novamente.");
+      setFotos({});
+      setFotoPreviews({});
+    } catch (error: any) {
+      console.error("❌ Erro ao enviar fotos adicionais (geral):", error);
+      const msg = error?.message || "Erro ao enviar as fotos. Tente novamente.";
+      toast.error(msg);
     } finally {
       setEnviando(false);
     }
