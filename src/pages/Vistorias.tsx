@@ -52,6 +52,7 @@ export default function Vistorias() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'aguardando_fotos': return 'bg-yellow-500';
+      case 'pendente_novas_fotos': return 'bg-amber-500';
       case 'em_analise': return 'bg-blue-500';
       case 'concluida': return 'bg-green-500';
       case 'cancelada': return 'bg-red-500';
@@ -62,6 +63,7 @@ export default function Vistorias() {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'aguardando_fotos': return 'Aguardando Fotos';
+      case 'pendente_novas_fotos': return 'Pendente Novas Fotos';
       case 'em_analise': return 'Em Análise';
       case 'concluida': return 'Concluída';
       case 'cancelada': return 'Cancelada';
@@ -236,7 +238,7 @@ export default function Vistorias() {
                             <Eye className="h-4 w-4" />
                           </Button>
                           
-                          {vistoria.link_token && vistoria.status === 'aguardando_fotos' && (
+                          {vistoria.link_token && (vistoria.status === 'aguardando_fotos' || vistoria.status === 'pendente_novas_fotos') && (
                             <Button
                               variant="ghost"
                               size="sm"
