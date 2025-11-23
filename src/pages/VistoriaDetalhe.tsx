@@ -16,7 +16,6 @@ import {
   Camera,
   Check,
   X,
-  Send,
   MapPin,
   User,
   Car,
@@ -28,6 +27,7 @@ import {
   Mail,
   Hash,
   Shield,
+  MessageCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -250,15 +250,16 @@ export default function VistoriaDetalhe() {
     }
   };
 
-  const handleSolicitarMaisFotos = async () => {
+  // Registra solicitação no backend e devolve o link público para enviar ao cliente
+  const registrarSolicitacaoMaisFotos = async (): Promise<string | null> => {
     if (!motivoFotos.trim()) {
       toast.error("Por favor, informe o motivo da solicitação");
-      return;
+      return null;
     }
 
     if (fotosNecessarias.length === 0) {
       toast.error("Por favor, adicione pelo menos uma foto necessária");
-      return;
+      return null;
     }
 
     try {
@@ -272,16 +273,94 @@ export default function VistoriaDetalhe() {
 
       if (error) throw error;
 
-      toast.success("Solicitação enviada! Cliente receberá um email com o link renovado.");
-      setSolicitarFotosOpen(false);
-      setMotivoFotos("");
-      setFotosNecessarias([]);
-      setNovaFotoInput("");
-      loadVistoria();
+      const linkFromFunction = data?.link as string | undefined;
+
+      const link =
+        linkFromFunction ||
+        (vistoria.link_token ? `${window.location.origin}/vistoria-publica/${vistoria.link_token}` : null);
+
+      if (!link) {
+        toast.error("Não foi possível obter o link da vistoria.");
+        return null;
+      }
+
+      return link;
     } catch (error) {
-      console.error("Erro ao solicitar fotos:", error);
-      toast.error("Erro ao enviar solicitação");
+      console.error("Erro ao preparar solicitação de fotos:", error);
+      toast.error("Erro ao preparar solicitação");
+      return null;
     }
+  };
+
+  const limparDialogSolicitacao = () => {
+    setSolicitarFotosOpen(false);
+    setMotivoFotos("");
+    setFotosNecessarias([]);
+    setNovaFotoInput("");
+  };
+
+  const handleEnviarEmail = async () => {
+    const link = await registrarSolicitacaoMaisFotos();
+    if (!link) return;
+
+    if (!vistoria.cliente_email) {
+      toast.error("Cliente não possui e-mail cadastrado");
+      return;
+    }
+
+    const assunto = `Solicitação de fotos adicionais - Vistoria ${vistoria.numero}`;
+    const listaFotos = fotosNecessarias.length > 0 ? "\n\nFotos necessárias:\n- " + fotosNecessarias.join("\n- ") : "";
+
+    const corpo =
+      `Olá ${vistoria.cliente_nome || ""},\n\n` +
+      `Precisamos de fotos adicionais para dar sequência à análise da sua vistoria.\n\n` +
+      `Motivo:\n${motivoFotos}${listaFotos}\n\n` +
+      `Você pode enviar as fotos pelo link abaixo:\n${link}\n\n` +
+      `Atenciosamente,\nBP Seguradora`;
+
+    const mailtoUrl = `mailto:${encodeURIComponent(
+      vistoria.cliente_email,
+    )}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+
+    window.location.href = mailtoUrl;
+
+    toast.success("E-mail preparado. Confira e envie pelo seu cliente de e-mail.");
+    limparDialogSolicitacao();
+  };
+
+  const handleEnviarWhatsApp = async () => {
+    const link = await registrarSolicitacaoMaisFotos();
+    if (!link) return;
+
+    if (!vistoria.cliente_telefone) {
+      toast.error("Cliente não possui telefone cadastrado");
+      return;
+    }
+
+    const telefoneLimpo = vistoria.cliente_telefone.replace(/\D/g, "");
+    if (!telefoneLimpo) {
+      toast.error("Telefone do cliente inválido");
+      return;
+    }
+
+    // assume Brasil (55); se já vier com 55, mantém
+    const phone = telefoneLimpo.startsWith("55") ? telefoneLimpo : `55${telefoneLimpo}`;
+
+    const listaFotos = fotosNecessarias.length > 0 ? "\n\nFotos necessárias:\n- " + fotosNecessarias.join("\n- ") : "";
+
+    const mensagem =
+      `Olá ${vistoria.cliente_nome || ""}, tudo bem?\n\n` +
+      `Precisamos de fotos adicionais para dar sequência à análise da sua vistoria.\n\n` +
+      `Motivo:\n${motivoFotos}${listaFotos}\n\n` +
+      `Você pode enviar as fotos pelo link abaixo:\n${link}\n\n` +
+      `Qualquer dúvida, estamos à disposição.`;
+
+    const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(mensagem)}`;
+
+    window.open(waUrl, "_blank", "noopener,noreferrer");
+
+    toast.success("Mensagem preparada no WhatsApp Web.");
+    limparDialogSolicitacao();
   };
 
   const adicionarFotoNecessaria = () => {
@@ -1240,7 +1319,7 @@ export default function VistoriaDetalhe() {
               Solicitar Mais Fotos ao Cliente
             </DialogTitle>
             <DialogDescription>
-              O cliente receberá um email com o link renovado para enviar as fotos adicionais.
+              O link será renovado e você poderá enviá-lo ao cliente por e-mail ou WhatsApp Web.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1296,14 +1375,20 @@ export default function VistoriaDetalhe() {
               </ul>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-between gap-2">
             <Button variant="outline" onClick={() => setSolicitarFotosOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSolicitarMaisFotos} className="gap-2">
-              <Send className="h-4 w-4" />
-              Enviar Solicitação
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button type="button" variant="outline" className="gap-2" onClick={handleEnviarWhatsApp}>
+                <MessageCircle className="h-4 w-4" />
+                Enviar por WhatsApp Web
+              </Button>
+              <Button type="button" className="gap-2" onClick={handleEnviarEmail}>
+                <Mail className="h-4 w-4" />
+                Enviar por E-mail
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
