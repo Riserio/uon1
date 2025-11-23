@@ -66,6 +66,36 @@ export default function VistoriaDetalhe() {
   const [novaFotoInput, setNovaFotoInput] = useState("");
 
   useEffect(() => {
+    const aprovarFotosAutomaticamente = async () => {
+      if (!vistoria || vistoria.status !== "aprovada") return;
+
+      const fotosPendentes = fotos.filter((f) => f.status_aprovacao === "pendente");
+      if (fotosPendentes.length === 0) return;
+
+      try {
+        for (const foto of fotosPendentes) {
+          await supabase
+            .from("vistoria_fotos")
+            .update({
+              status_aprovacao: "aprovada",
+              aprovada_por: user?.id,
+              aprovada_em: new Date().toISOString(),
+            })
+            .eq("id", foto.id);
+        }
+
+        toast.success("Novas fotos aprovadas automaticamente!");
+        loadVistoria(); // recarrega fotos
+      } catch (error) {
+        console.error("Erro ao aprovar fotos automaticamente:", error);
+        toast.error("Erro ao aprovar fotos automaticamente");
+      }
+    };
+
+    aprovarFotosAutomaticamente();
+  }, [fotos, vistoria]);
+
+  useEffect(() => {
     loadVistoria();
   }, [id]);
 
@@ -145,6 +175,8 @@ export default function VistoriaDetalhe() {
         return "bg-green-500";
       case "aprovada":
         return "bg-green-600";
+      case "pendente_correcao":
+        return "bg-orange-500";
       case "cancelada":
         return "bg-red-500";
       default:
