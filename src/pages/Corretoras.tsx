@@ -8,13 +8,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Mail, History, Building2, Upload, MapPin } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Mail, History, Building2, Upload, MapPin, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MaskedInput } from '@/components/ui/masked-input';
 import { Link } from 'react-router-dom';
 import { UploadCorretorasDialog } from '@/components/UploadCorretorasDialog';
 import { EnviarEmailSMTPDialog } from '@/components/EnviarEmailSMTPDialog';
 import { CorretoraHistoricoDialog } from '@/components/CorretoraHistoricoDialog';
+import GerenciarParceirosDialog from '@/components/GerenciarParceirosDialog';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
 import { useCepLookup } from '@/hooks/useCepLookup';
@@ -44,6 +45,7 @@ export default function Corretoras() {
   const [selectedCorretoras, setSelectedCorretoras] = useState<string[]>([]);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
+  const [parceiroDialogOpen, setParceiroDialogOpen] = useState(false);
   const [selectedCorretoraForHistory, setSelectedCorretoraForHistory] = useState<{ id: string; nome: string } | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const { lookupCep, loading: cepLoading } = useCepLookup();
@@ -516,7 +518,7 @@ export default function Corretoras() {
                   <TableCell>
                     {item.cidade && item.estado ? `${item.cidade}/${item.estado}` : item.cidade || item.estado || '-'}
                   </TableCell>
-                  <TableCell className="text-right">
+                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       <Button
                         variant="ghost"
@@ -525,6 +527,17 @@ export default function Corretoras() {
                         title="Ver histórico de atendimentos"
                       >
                         <History className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedCorretoraForHistory({ id: item.id, nome: item.nome });
+                          setParceiroDialogOpen(true);
+                        }}
+                        title="Gerenciar Parceiros PID"
+                      >
+                        <Users className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -570,12 +583,20 @@ export default function Corretoras() {
       />
 
       {selectedCorretoraForHistory && (
-        <CorretoraHistoricoDialog
-          open={historicoDialogOpen}
-          onOpenChange={setHistoricoDialogOpen}
-          corretoraId={selectedCorretoraForHistory.id}
-          corretoraName={selectedCorretoraForHistory.nome}
-        />
+        <>
+          <CorretoraHistoricoDialog
+            open={historicoDialogOpen}
+            onOpenChange={setHistoricoDialogOpen}
+            corretoraId={selectedCorretoraForHistory.id}
+            corretoraName={selectedCorretoraForHistory.nome}
+          />
+          <GerenciarParceirosDialog
+            open={parceiroDialogOpen}
+            onOpenChange={setParceiroDialogOpen}
+            corretoraId={selectedCorretoraForHistory.id}
+            corretoraNome={selectedCorretoraForHistory.nome}
+          />
+        </>
       )}
     </div>
   );

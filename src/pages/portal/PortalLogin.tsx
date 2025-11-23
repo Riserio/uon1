@@ -48,7 +48,7 @@ export default function PortalLogin() {
       } else if (data.token) {
         login(data.token, data.corretora);
         toast.success('Login realizado com sucesso');
-        navigate(`/portal/${slug}/dashboard`);
+        navigate(`/${slug}/dashboard`);
       }
     } catch (error: any) {
       console.error('Login error:', error);

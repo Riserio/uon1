@@ -45,6 +45,7 @@ import DashboardSinistros from './pages/DashboardSinistros';
 import { PortalAuthProvider } from '@/contexts/PortalAuthContext';
 import PortalLogin from './pages/portal/PortalLogin';
 import PortalDashboard from './pages/portal/PortalDashboard';
+import PID from './pages/PID';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,8 +95,8 @@ const App = () => (
             <Sonner />
             <Routes>
               {/* Portal PID Routes */}
-              <Route path="/portal/:slug/login" element={<PortalLogin />} />
-              <Route path="/portal/:slug/dashboard" element={<PortalDashboard />} />
+          <Route path="/:slug/login" element={<PortalLogin />} />
+          <Route path="/:slug/dashboard" element={<PortalDashboard />} />
               
               {/* Regular App Routes */}
               <Route path="/auth" element={<Auth />} />
@@ -136,6 +137,7 @@ const App = () => (
               <Route path="/emails" element={<ProtectedRoute><Emails /></ProtectedRoute>} />
               <Route path="/comunicados" element={<ProtectedRoute><AdminRoute><Comunicados /></AdminRoute></ProtectedRoute>} />
               <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
+              <Route path="/pid" element={<ProtectedRoute><PID /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

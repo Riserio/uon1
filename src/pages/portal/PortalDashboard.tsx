@@ -17,13 +17,13 @@ export default function PortalDashboard() {
 
   useEffect(() => {
     if (!token || !corretora || corretora.slug !== slug) {
-      navigate(`/portal/${slug}/login`);
+      navigate(`/${slug}/login`);
     }
   }, [token, corretora, slug, navigate]);
 
   const handleLogout = () => {
     logout();
-    navigate(`/portal/${slug}/login`);
+    navigate(`/${slug}/login`);
   };
 
   if (!corretora) return null;
