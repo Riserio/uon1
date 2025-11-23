@@ -140,14 +140,24 @@ serve(async (req) => {
       }
     );
 
-  } catch (error: any) {
-    console.error('Error creating partner user:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400 
+    } catch (error: any) {
+      console.error('Error creating partner user:', error);
+      
+      // Mensagens específicas para o usuário
+      let errorMessage = error.message || 'Erro ao criar usuário parceiro';
+      
+      if (error.message?.includes('already been registered')) {
+        errorMessage = 'Este email já está cadastrado. Por favor, use outro email.';
+      } else if (error.code === '23503') {
+        errorMessage = 'Erro ao vincular usuário à corretora. Tente novamente.';
       }
-    );
-  }
+      
+      return new Response(
+        JSON.stringify({ error: errorMessage }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400 
+        }
+      );
+    }
 });
