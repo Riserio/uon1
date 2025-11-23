@@ -450,7 +450,8 @@ export default function Usuarios() {
     const roleNames: Record<string, string> = {
       admin: "Administrativo",
       lider: "Líder",
-      comercial: "Comercial"
+      comercial: "Comercial",
+      parceiro: "Parceiro"
     };
     return roleNames[role] || role;
   };
@@ -902,11 +903,12 @@ export default function Usuarios() {
                           <TableCell>
                             <Badge variant="outline">
                               {userRoles[item.id] === "admin" && "Admin"}
-                              {userRoles[item.id] === "superintendente" && "Superintendente"}
-                              {userRoles[item.id] === "administrativo" && "Administrativo"}
-                              {userRoles[item.id] === "lider" && "Líder"}
-                              {userRoles[item.id] === "comercial" && "Comercial"}
-                            </Badge>
+                            {userRoles[item.id] === "superintendente" && "Superintendente"}
+                            {userRoles[item.id] === "administrativo" && "Administrativo"}
+                            {userRoles[item.id] === "lider" && "Líder"}
+                            {userRoles[item.id] === "comercial" && "Comercial"}
+                            {userRoles[item.id] === "parceiro" && "Parceiro"}
+                          </Badge>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -1018,6 +1020,7 @@ export default function Usuarios() {
                           <SelectItem value="administrativo">Administrativo</SelectItem>
                           <SelectItem value="lider">Líder</SelectItem>
                           <SelectItem value="comercial">Comercial</SelectItem>
+                          <SelectItem value="parceiro">Parceiro</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
