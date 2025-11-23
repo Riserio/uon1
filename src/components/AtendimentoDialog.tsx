@@ -194,12 +194,32 @@ export function AtendimentoDialog({
           }
         }
 
+        // Buscar UUID do responsável se for nome
+        let responsavelId = user?.id || "";
+        if (atendimento.responsavel) {
+          // Se parecer ser UUID (mais de 30 caracteres), usar direto
+          if (atendimento.responsavel.length > 30) {
+            responsavelId = atendimento.responsavel;
+          } else {
+            // Caso contrário, buscar pelo nome
+            const { data: profileData } = await supabase
+              .from("profiles")
+              .select("id")
+              .eq("nome", atendimento.responsavel)
+              .maybeSingle();
+            
+            if (profileData) {
+              responsavelId = profileData.id;
+            }
+          }
+        }
+
         setFormData({
           corretora: atendimento.corretoraId || "",
           contato: contatoName,
           assunto: atendimento.assunto,
           prioridade: atendimento.prioridade,
-          responsavel: atendimento.responsavel || user?.id || "",
+          responsavel: responsavelId,
           tags: atendimento.tags,
           observacoes: atendimento.observacoes || "",
           dataRetorno: atendimento.dataRetorno || "",
