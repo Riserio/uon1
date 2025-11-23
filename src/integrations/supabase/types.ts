@@ -2130,6 +2130,7 @@ export type Database = {
         Args: { target_profile_id: string; viewer_id: string }
         Returns: boolean
       }
+      get_user_corretora_id: { Args: { _user_id: string }; Returns: string }
       get_user_lider_id: { Args: { _user_id: string }; Returns: string }
       get_user_role: {
         Args: { _user_id: string }
