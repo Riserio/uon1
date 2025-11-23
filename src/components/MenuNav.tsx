@@ -38,6 +38,7 @@ type MenuPermission = {
 };
 
 type MenuPermissionMap = Record<string, MenuPermission>;
+type RoleType = "admin" | "administrativo" | "comercial" | "lider" | "superintendente";
 
 // ---- hook que busca permissões baseado no userRole do useAuth ----
 function useMenuPermissionsForRole(userRole: string | null) {
@@ -45,36 +46,25 @@ function useMenuPermissionsForRole(userRole: string | null) {
 
   useEffect(() => {
     const loadPermissions = async () => {
-      // sem role -> não carrega nada, assume padrão (tudo liberado)
       if (!userRole) {
         setPermissions({});
         return;
       }
 
-      // admin enxerga tudo, sem restrição em role_menu_permissions
-      if (userRole === "admin") {
+      const normalizedRole = userRole.toLowerCase() as RoleType;
+
+      const validRoles: RoleType[] = ["admin", "administrativo", "comercial", "lider", "superintendente"];
+      if (!validRoles.includes(normalizedRole)) {
+        console.warn("Role inválido ou não mapeado em permissões:", userRole);
         setPermissions({});
         return;
       }
 
       try {
-        // Garantir que userRole não é null antes de usar
-        if (!userRole) {
-          setPermissions({});
-          return;
-        }
-
-        // Type guard para garantir que é um role válido
-        const validRoles = ["admin", "administrativo", "comercial", "lider", "superintendente"] as const;
-        if (!validRoles.includes(userRole as any)) {
-          setPermissions({});
-          return;
-        }
-
         const { data, error } = await supabase
           .from("role_menu_permissions")
           .select("menu_item, pode_visualizar, pode_editar")
-          .eq("role", userRole as "admin" | "administrativo" | "comercial" | "lider" | "superintendente");
+          .eq("role", normalizedRole);
 
         if (error) {
           console.error("Erro ao carregar permissões de menu:", error);
@@ -98,7 +88,7 @@ function useMenuPermissionsForRole(userRole: string | null) {
     };
 
     loadPermissions();
-  }, [userRole]); // 🔑 recarrega sempre que o role mudar
+  }, [userRole]);
 
   // mesma regra do Dialog:
   // se não tem registro -> acesso total
