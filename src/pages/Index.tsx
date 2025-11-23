@@ -34,6 +34,7 @@ const Index = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterResponsavel, setFilterResponsavel] = useState("all");
+  const [filterCorretora, setFilterCorretora] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAtendimento, setEditingAtendimento] = useState<Atendimento | null>(null);
   const [andamentosDialogOpen, setAndamentosDialogOpen] = useState(false);
@@ -234,10 +235,11 @@ const Index = () => {
 
       const matchesPriority = filterPriority === "all" || atendimento.prioridade === filterPriority;
       const matchesResponsavel = filterResponsavel === "all" || atendimento.responsavel === filterResponsavel;
+      const matchesCorretora = filterCorretora === "all" || atendimento.corretora === filterCorretora;
 
-      return matchesSearch && matchesPriority && matchesResponsavel;
+      return matchesSearch && matchesPriority && matchesResponsavel && matchesCorretora;
     });
-  }, [atendimentos, searchTerm, filterPriority, filterResponsavel, canViewFluxo, selectedFluxoId]);
+  }, [atendimentos, searchTerm, filterPriority, filterResponsavel, filterCorretora, canViewFluxo, selectedFluxoId]);
 
   const handleSaveAtendimento = async (atendimento: Atendimento) => {
     try {

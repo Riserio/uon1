@@ -29,6 +29,9 @@ export default function AcompanhamentoSinistrosInterno() {
   const [loading, setLoading] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCorretora, setSelectedCorretora] = useState('all');
+  const [selectedPriority, setSelectedPriority] = useState('all');
+  const [corretoras, setCorretoras] = useState<string[]>([]);
   const [editingClaim, setEditingClaim] = useState<Claim | null>(null);
   const [editForm, setEditForm] = useState({
     custo_oficina: 0,
@@ -104,6 +107,13 @@ export default function AcompanhamentoSinistrosInterno() {
 
       if (statusError) throw statusError;
       setStatusConfigs(statusData || []);
+
+      // Buscar corretoras
+      const { data: corretorasData } = await supabase
+        .from('corretoras')
+        .select('nome')
+        .order('nome');
+      setCorretoras(corretorasData?.map(c => c.nome) || []);
 
       // Buscar atendimentos (sinistros) com vistorias relacionadas
       const { data: atendimentosData, error: atendimentosError } = await supabase
@@ -340,6 +350,11 @@ export default function AcompanhamentoSinistrosInterno() {
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
               statusOptions={statusOptions}
+              selectedCorretora={selectedCorretora}
+              onCorretoraChange={setSelectedCorretora}
+              corretoras={corretoras}
+              selectedPriority={selectedPriority}
+              onPriorityChange={setSelectedPriority}
             />
 
             {/* Claims List */}
