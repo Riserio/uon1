@@ -425,7 +425,7 @@ export default function Configuracoes() {
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   O subdomínio personalizado permite que você e seus parceiros acessem o sistema com uma URL
-                  personalizada, como <strong>parceiro.uon1.lovable.app</strong>
+                  personalizada, como <strong>parceiro.uon1.com.br</strong>
                 </p>
                 <Button onClick={() => setSubdominioDialogOpen(true)} className="w-full md:w-auto">
                   <Globe className="h-4 w-4 mr-2" />
