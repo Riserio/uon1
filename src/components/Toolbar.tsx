@@ -121,7 +121,7 @@ export function Toolbar({
                     size="sm"
                   >
                     <Building2 className="h-4 w-4 mr-2" />
-                    {filterCorretora === 'all' ? 'Todas corretoras' : filterCorretora.length > 20 ? filterCorretora.substring(0, 20) + '...' : filterCorretora}
+                    {filterCorretora === 'all' ? 'Buscar corretoras' : filterCorretora.length > 20 ? filterCorretora.substring(0, 20) + '...' : filterCorretora}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
