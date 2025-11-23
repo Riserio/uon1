@@ -14,6 +14,31 @@ import { supabase } from '@/integrations/supabase/client';
 import { LogOut, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+/**
+ * PORTAL PID - Painel de Indicadores e Demonstrativos para Parceiros
+ * 
+ * Este é o portal EXCLUSIVO para usuários com role 'parceiro'.
+ * 
+ * SEGURANÇA (DECISÃO DEFINITIVA):
+ * - Parceiros veem APENAS dados da sua corretora vinculada
+ * - NÃO têm acesso a nenhuma outra parte do sistema
+ * - NÃO veem sidebar ou menus administrativos
+ * - Podem apenas VISUALIZAR dados financeiros e sinistros
+ * - Podem EDITAR apenas deliberações do Comitê de Sinistros
+ * 
+ * LOGIN:
+ * - Usuários parceiros fazem login em /auth (mesma tela que outros usuários)
+ * - São automaticamente redirecionados para /portal após autenticação
+ * - O sistema detecta o role 'parceiro' e aplica restrições de acesso
+ * 
+ * DADOS EXIBIDOS:
+ * - KPI: Métricas financeiras mensais (faturamento, comissões, repasses)
+ * - Extrato: Produção financeira detalhada
+ * - Indicadores: Gráficos de análise (mensal, por produto, seguradora)
+ * - Lançamentos: Lançamentos financeiros (visualização)
+ * - Sinistros: Sinistros da corretora com estatísticas
+ * - Comitê: Deliberações sobre indenizações (única área editável)
+ */
 export default function Portal() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -28,7 +53,8 @@ export default function Portal() {
       }
 
       try {
-        // Buscar corretora vinculada ao usuário
+        // Buscar corretora vinculada ao usuário PARCEIRO via corretora_usuarios
+        // RLS garante que o parceiro só pode ver sua própria corretora
         const { data: corretoraUsuario, error: cuError } = await supabase
           .from('corretora_usuarios')
           .select('corretora_id, corretoras(id, nome, logo_url)')
