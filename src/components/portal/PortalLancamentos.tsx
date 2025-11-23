@@ -175,45 +175,6 @@ export default function PortalLancamentos() {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Deseja realmente excluir este lançamento?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('producao_financeira')
-        .delete()
-        .eq('id', id)
-        .eq('tipo_origem', 'manual');
-
-      if (error) throw error;
-
-      toast.success('Lançamento excluído');
-      fetchLancamentos();
-    } catch (error: any) {
-      console.error('Error deleting lancamento:', error);
-      toast.error('Erro ao excluir lançamento');
-    }
-  };
-
-  const handleEdit = (lancamento: any) => {
-    setEditingId(lancamento.id);
-    setFormData({
-      corretora_id: lancamento.corretora_id,
-      competencia: lancamento.competencia,
-      produto: lancamento.produto || '',
-      seguradora: lancamento.seguradora || '',
-      segurado_nome: lancamento.segurado_nome || '',
-      premio_total: lancamento.premio_total || '',
-      percentual_comissao: lancamento.percentual_comissao || '',
-      valor_comissao: lancamento.valor_comissao || '',
-      repasse_previsto: lancamento.repasse_previsto || '',
-      repasse_pago: lancamento.repasse_pago || '',
-      status: lancamento.status || 'ativo',
-      observacoes: lancamento.observacoes || '',
-    });
-    setDialogOpen(true);
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
