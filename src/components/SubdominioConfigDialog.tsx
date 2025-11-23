@@ -30,7 +30,9 @@ export function SubdominioConfigDialog({ open, onOpenChange }: SubdominioConfigD
 
   const loadSubdominioAtual = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data, error } = await supabase
@@ -85,7 +87,9 @@ export function SubdominioConfigDialog({ open, onOpenChange }: SubdominioConfigD
 
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         toast.error("Usuário não autenticado");
         return;
@@ -109,13 +113,11 @@ export function SubdominioConfigDialog({ open, onOpenChange }: SubdominioConfigD
         }
       } else {
         // Criar novo subdomínio
-        const { error } = await supabase
-          .from("subdominios_personalizados")
-          .insert({
-            user_id: user.id,
-            subdominio: subdominio.toLowerCase(),
-            ativo: true,
-          });
+        const { error } = await supabase.from("subdominios_personalizados").insert({
+          user_id: user.id,
+          subdominio: subdominio.toLowerCase(),
+          ativo: true,
+        });
 
         if (error) {
           if (error.code === "23505") {
@@ -174,7 +176,7 @@ export function SubdominioConfigDialog({ open, onOpenChange }: SubdominioConfigD
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
               O subdomínio personalizado permite que você e seus parceiros acessem o sistema com uma URL personalizada,
-              como <strong>vangard.{DOMINIO_BASE}</strong>
+              como <strong>parceiro.{DOMINIO_BASE}</strong>
             </AlertDescription>
           </Alert>
 
@@ -186,12 +188,10 @@ export function SubdominioConfigDialog({ open, onOpenChange }: SubdominioConfigD
                   id="subdominio"
                   value={subdominio}
                   onChange={(e) => handleSubdominioChange(e.target.value)}
-                  placeholder="vangard"
+                  placeholder="parceiro"
                   className={validationError ? "border-destructive" : ""}
                 />
-                {validationError && (
-                  <p className="text-sm text-destructive mt-1">{validationError}</p>
-                )}
+                {validationError && <p className="text-sm text-destructive mt-1">{validationError}</p>}
               </div>
               <div className="flex items-center px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground whitespace-nowrap">
                 .{DOMINIO_BASE}
@@ -206,22 +206,9 @@ export function SubdominioConfigDialog({ open, onOpenChange }: SubdominioConfigD
             <div className="space-y-2">
               <Label>URL Atual</Label>
               <div className="flex gap-2">
-                <Input
-                  value={`https://${subdominioAtual}.${DOMINIO_BASE}`}
-                  readOnly
-                  className="font-mono text-sm"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={handleCopy}
-                >
-                  {copied ? (
-                    <Check className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
+                <Input value={`https://${subdominioAtual}.${DOMINIO_BASE}`} readOnly className="font-mono text-sm" />
+                <Button type="button" variant="outline" size="icon" onClick={handleCopy}>
+                  {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
@@ -231,7 +218,12 @@ export function SubdominioConfigDialog({ open, onOpenChange }: SubdominioConfigD
             <h4 className="font-medium text-sm">Como funciona:</h4>
             <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
               <li>O subdomínio deve ser único no sistema</li>
-              <li>Após configurar, você poderá acessar via: <strong>{subdominio || "seusubdominio"}.{DOMINIO_BASE}</strong></li>
+              <li>
+                Após configurar, você poderá acessar via:{" "}
+                <strong>
+                  {subdominio || "seusubdominio"}.{DOMINIO_BASE}
+                </strong>
+              </li>
               <li>Ideal para aplicar a identidade da marca do seu parceiro</li>
               <li>Você pode alterar o subdomínio a qualquer momento</li>
             </ul>
@@ -239,17 +231,10 @@ export function SubdominioConfigDialog({ open, onOpenChange }: SubdominioConfigD
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={loading || !subdominio || !!validationError}
-          >
+          <Button onClick={handleSave} disabled={loading || !subdominio || !!validationError}>
             {loading ? "Salvando..." : subdominioAtual ? "Atualizar" : "Configurar"}
           </Button>
         </div>
