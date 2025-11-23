@@ -9,23 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import {
-  Pencil,
-  CheckCircle,
-  Search,
-  Copy,
-  RefreshCw,
-  Users as UsersIcon,
-  Network,
-  UserPlus,
-  UsersRound,
-  Plus,
-  Trash2,
-  Key,
-  ChevronLeft,
-  ChevronRight,
-  Lock,
-} from "lucide-react";
+import { Pencil, CheckCircle, Search, Copy, RefreshCw, Users as UsersIcon, Network, UserPlus, UsersRound, Plus, Trash2, Key, ChevronLeft, ChevronRight, Lock } from "lucide-react";
 import { UserFluxoPermissionsDialog } from "@/components/UserFluxoPermissionsDialog";
 import { UserMenuPermissionsDialog } from "@/components/UserMenuPermissionsDialog";
 import { RoleMenuPermissionsDialog } from "@/components/RoleMenuPermissionsDialog";
@@ -40,14 +24,7 @@ import { ChevronDown, Building2, Shield, Briefcase, UserCircle } from "lucide-re
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 interface Profile {
   id: string;
   nome: string;
@@ -78,7 +55,10 @@ interface Equipe {
   lideres?: string[];
 }
 export default function Usuarios() {
-  const { user, userRole } = useAuth();
+  const {
+    user,
+    userRole
+  } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [pendingProfiles, setPendingProfiles] = useState<Profile[]>([]);
   const [userRoles, setUserRoles] = useState<Record<string, string>>({});
@@ -89,12 +69,8 @@ export default function Usuarios() {
   const [approvingItem, setApprovingItem] = useState<Profile | null>(null);
   const [formData, setFormData] = useState<Partial<Profile>>({});
   const [approvalRole, setApprovalRole] = useState<string>("");
-  const [selectedRole, setSelectedRole] = useState<"superintendente" | "administrativo" | "lider" | "comercial">(
-    "comercial",
-  );
-  const [editingRole, setEditingRole] = useState<"superintendente" | "administrativo" | "lider" | "comercial">(
-    "comercial",
-  );
+  const [selectedRole, setSelectedRole] = useState<"superintendente" | "administrativo" | "lider" | "comercial">("comercial");
+  const [editingRole, setEditingRole] = useState<"superintendente" | "administrativo" | "lider" | "comercial">("comercial");
   const [lideres, setLideres] = useState<Profile[]>([]);
   const [administrativos, setAdministrativos] = useState<Profile[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -112,7 +88,7 @@ export default function Usuarios() {
     password: string;
   }>({
     profile: null,
-    password: "",
+    password: ""
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -129,13 +105,7 @@ export default function Usuarios() {
   const filteredProfiles = useMemo(() => {
     if (!searchTerm) return profiles;
     const term = searchTerm.toLowerCase();
-    return profiles.filter(
-      (p) =>
-        p.nome.toLowerCase().includes(term) ||
-        p.email.toLowerCase().includes(term) ||
-        p.telefone?.toLowerCase().includes(term) ||
-        p.cargo?.toLowerCase().includes(term),
-    );
+    return profiles.filter(p => p.nome.toLowerCase().includes(term) || p.email.toLowerCase().includes(term) || p.telefone?.toLowerCase().includes(term) || p.cargo?.toLowerCase().includes(term));
   }, [profiles, searchTerm]);
   const paginatedProfiles = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -159,17 +129,19 @@ export default function Usuarios() {
     }
   }, [userRole]);
   const fetchProfiles = async () => {
-    const { data, error } = await supabase.from("profiles").select("*").neq("status", "pendente").order("nome");
+    const {
+      data,
+      error
+    } = await supabase.from("profiles").select("*").neq("status", "pendente").order("nome");
     if (error) {
       toast.error("Erro ao carregar usuários");
     } else {
       setProfiles(data || []);
     }
-    const { data: pending, error: pendingError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("status", "pendente")
-      .order("nome");
+    const {
+      data: pending,
+      error: pendingError
+    } = await supabase.from("profiles").select("*").eq("status", "pendente").order("nome");
     if (pendingError) {
       toast.error("Erro ao carregar usuários pendentes");
     } else {
@@ -177,7 +149,10 @@ export default function Usuarios() {
     }
   };
   const fetchUserRoles = async () => {
-    const { data, error } = await supabase.from("user_roles").select("user_id, role");
+    const {
+      data,
+      error
+    } = await supabase.from("user_roles").select("user_id, role");
     if (error) {
       toast.error("Erro ao carregar funções");
     } else {
@@ -189,9 +164,10 @@ export default function Usuarios() {
     }
 
     // Fetch equipes for leaders
-    const { data: equipesData, error: equipesError } = await supabase
-      .from("equipe_lideres")
-      .select("lider_id, equipe_id");
+    const {
+      data: equipesData,
+      error: equipesError
+    } = await supabase.from("equipe_lideres").select("lider_id, equipe_id");
     if (!equipesError && equipesData) {
       const equipesMap: Record<string, string[]> = {};
       equipesData.forEach((item: any) => {
@@ -208,47 +184,45 @@ export default function Usuarios() {
     if (userRole === "lider" && user) {
       query = query.eq("lider_id", user?.id);
     }
-    const { data, error } = await query.order("nome");
+    const {
+      data,
+      error
+    } = await query.order("nome");
     if (error) {
       toast.error("Erro ao carregar equipes");
       return;
     }
 
     // Buscar líderes adicionais de cada equipe
-    const equipesComLideres = await Promise.all(
-      (data || []).map(async (equipe) => {
-        const { data: lideresData } = await supabase
-          .from("equipe_lideres")
-          .select("lider_id")
-          .eq("equipe_id", equipe.id);
-        return {
-          ...equipe,
-          lideres: lideresData?.map((l) => l.lider_id) || [],
-        };
-      }),
-    );
+    const equipesComLideres = await Promise.all((data || []).map(async equipe => {
+      const {
+        data: lideresData
+      } = await supabase.from("equipe_lideres").select("lider_id").eq("equipe_id", equipe.id);
+      return {
+        ...equipe,
+        lideres: lideresData?.map(l => l.lider_id) || []
+      };
+    }));
     setEquipes(equipesComLideres);
   };
   const fetchLideres = async () => {
-    const { data: liderRoles, error: rolesError } = await supabase
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "lider");
+    const {
+      data: liderRoles,
+      error: rolesError
+    } = await supabase.from("user_roles").select("user_id").eq("role", "lider");
     if (rolesError) {
       console.error("Erro ao carregar líderes:", rolesError);
       return;
     }
-    const liderIds = liderRoles.map((r) => r.user_id);
+    const liderIds = liderRoles.map(r => r.user_id);
     if (liderIds.length === 0) {
       setLideres([]);
       return;
     }
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .in("id", liderIds)
-      .eq("status", "ativo")
-      .order("nome");
+    const {
+      data,
+      error
+    } = await supabase.from("profiles").select("*").in("id", liderIds).eq("status", "ativo").order("nome");
     if (error) {
       console.error("Erro ao carregar perfis de líderes:", error);
     } else {
@@ -256,25 +230,23 @@ export default function Usuarios() {
     }
   };
   const fetchAdministrativos = async () => {
-    const { data: adminRoles, error: rolesError } = await supabase
-      .from("user_roles")
-      .select("user_id")
-      .in("role", ["administrativo", "admin"]);
+    const {
+      data: adminRoles,
+      error: rolesError
+    } = await supabase.from("user_roles").select("user_id").in("role", ["administrativo", "admin"]);
     if (rolesError) {
       console.error("Erro ao carregar administrativos:", rolesError);
       return;
     }
-    const adminIds = adminRoles.map((r) => r.user_id);
+    const adminIds = adminRoles.map(r => r.user_id);
     if (adminIds.length === 0) {
       setAdministrativos([]);
       return;
     }
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .in("id", adminIds)
-      .eq("status", "ativo")
-      .order("nome");
+    const {
+      data,
+      error
+    } = await supabase.from("profiles").select("*").in("id", adminIds).eq("status", "ativo").order("nome");
     if (error) {
       console.error("Erro ao carregar perfis de administrativos:", error);
     } else {
@@ -293,7 +265,9 @@ export default function Usuarios() {
           toast.error("Por favor, gere uma senha antes de criar o usuário");
           return;
         }
-        const { data: session } = await supabase.auth.getSession();
+        const {
+          data: session
+        } = await supabase.auth.getSession();
         if (!session?.session) {
           toast.error("Sessão inválida");
           return;
@@ -302,7 +276,7 @@ export default function Usuarios() {
           method: "POST",
           headers: {
             Authorization: `Bearer ${session.session.access_token}`,
-            "Content-Type": "application/json",
+            "Content-Type": "application/json"
           },
           body: JSON.stringify({
             email: validatedData.email,
@@ -318,8 +292,8 @@ export default function Usuarios() {
             linkedin: formData.linkedin,
             cpf_cnpj: formData.cpf_cnpj,
             role: selectedRole,
-            equipes: selectedRole === "lider" ? selectedEquipes : [],
-          }),
+            equipes: selectedRole === "lider" ? selectedEquipes : []
+          })
         });
         const result = await response.json();
         if (!response.ok || result.error) {
@@ -341,35 +315,33 @@ export default function Usuarios() {
     }
 
     // Atualizar usuário existente
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        telefone: formData.telefone,
-        cargo: formData.cargo,
-        equipe_id: editingRole === "comercial" ? formData.equipe_id : null,
-        lider_id: null,
-        // Comercial não usa lider_id direto
-        administrativo_id: editingRole === "lider" ? formData.administrativo_id : null,
-        ativo: formData.ativo,
-        whatsapp: formData.whatsapp,
-        instagram: formData.instagram,
-        facebook: formData.facebook,
-        linkedin: formData.linkedin,
-        cpf_cnpj: formData.cpf_cnpj,
-      })
-      .eq("id", editingItem.id);
+    const {
+      error
+    } = await supabase.from("profiles").update({
+      telefone: formData.telefone,
+      cargo: formData.cargo,
+      equipe_id: editingRole === "comercial" ? formData.equipe_id : null,
+      lider_id: null,
+      // Comercial não usa lider_id direto
+      administrativo_id: editingRole === "lider" ? formData.administrativo_id : null,
+      ativo: formData.ativo,
+      whatsapp: formData.whatsapp,
+      instagram: formData.instagram,
+      facebook: formData.facebook,
+      linkedin: formData.linkedin,
+      cpf_cnpj: formData.cpf_cnpj
+    }).eq("id", editingItem.id);
     if (error) {
       toast.error("Erro ao atualizar usuário");
       return;
     }
 
     // Update role
-    const { error: roleError } = await supabase
-      .from("user_roles")
-      .update({
-        role: editingRole,
-      })
-      .eq("user_id", editingItem.id);
+    const {
+      error: roleError
+    } = await supabase.from("user_roles").update({
+      role: editingRole
+    }).eq("user_id", editingItem.id);
     if (roleError) {
       toast.error("Erro ao atualizar função");
       return;
@@ -382,11 +354,13 @@ export default function Usuarios() {
 
       // Insert new associations
       if (selectedEquipes.length > 0) {
-        const equipeLideresData = selectedEquipes.map((equipeId) => ({
+        const equipeLideresData = selectedEquipes.map(equipeId => ({
           lider_id: editingItem.id,
-          equipe_id: equipeId,
+          equipe_id: equipeId
         }));
-        const { error: equipeLideresError } = await supabase.from("equipe_lideres").insert(equipeLideresData);
+        const {
+          error: equipeLideresError
+        } = await supabase.from("equipe_lideres").insert(equipeLideresData);
         if (equipeLideresError) {
           toast.error("Erro ao associar equipes");
           return;
@@ -408,28 +382,27 @@ export default function Usuarios() {
     }
 
     // Update profile status
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({
-        status: "ativo",
-        equipe_id: approvalRole === "comercial" ? formData.equipe_id : null,
-        lider_id: approvalRole === "administrativo" ? formData.lider_id : null,
-        administrativo_id: approvalRole === "lider" ? formData.administrativo_id : null,
-        cargo: formData.cargo,
-      })
-      .eq("id", approvingItem.id);
+    const {
+      error: profileError
+    } = await supabase.from("profiles").update({
+      status: "ativo",
+      equipe_id: approvalRole === "comercial" ? formData.equipe_id : null,
+      lider_id: approvalRole === "administrativo" ? formData.lider_id : null,
+      administrativo_id: approvalRole === "lider" ? formData.administrativo_id : null,
+      cargo: formData.cargo
+    }).eq("id", approvingItem.id);
     if (profileError) {
       toast.error("Erro ao aprovar usuário");
       return;
     }
 
     // Insert user role
-    const { error: roleError } = await supabase.from("user_roles").insert([
-      {
-        user_id: approvingItem.id,
-        role: approvalRole as "superintendente" | "administrativo" | "lider" | "comercial",
-      },
-    ]);
+    const {
+      error: roleError
+    } = await supabase.from("user_roles").insert([{
+      user_id: approvingItem.id,
+      role: approvalRole as "superintendente" | "administrativo" | "lider" | "comercial"
+    }]);
     if (roleError) {
       toast.error("Erro ao atribuir função");
       return;
@@ -443,9 +416,7 @@ export default function Usuarios() {
     if (item) {
       setEditingItem(item);
       setFormData(item);
-      setEditingRole(
-        (userRoles[item.id] as "superintendente" | "administrativo" | "lider" | "comercial") || "comercial",
-      );
+      setEditingRole(userRoles[item.id] as "superintendente" | "administrativo" | "lider" | "comercial" || "comercial");
       setSelectedEquipes(userEquipes[item.id] || []);
     } else {
       setEditingItem(null);
@@ -460,29 +431,26 @@ export default function Usuarios() {
     setApprovingItem(item);
     setFormData({
       equipe_id: "",
-      cargo: "",
+      cargo: ""
     });
     setApprovalRole("");
     setApprovalDialogOpen(true);
   };
   const getEquipeName = (equipeId?: string) => {
     if (!equipeId) return "-";
-    const equipe = equipes.find((e) => e.id === equipeId);
+    const equipe = equipes.find(e => e.id === equipeId);
     return equipe?.nome || "-";
   };
   const getEquipesNames = (userId: string) => {
     const equipesIds = userEquipes[userId] || [];
     if (equipesIds.length === 0) return "-";
-    return equipesIds
-      .map((id) => equipes.find((e) => e.id === id)?.nome)
-      .filter(Boolean)
-      .join(", ");
+    return equipesIds.map(id => equipes.find(e => e.id === id)?.nome).filter(Boolean).join(", ");
   };
   const getRoleName = (role: string) => {
     const roleNames: Record<string, string> = {
       admin: "Administrativo",
       lider: "Líder",
-      comercial: "Comercial",
+      comercial: "Comercial"
     };
     return roleNames[role] || role;
   };
@@ -505,7 +473,9 @@ export default function Usuarios() {
     }
     if (editingEquipe) {
       // Atualizar equipe
-      const { error } = await supabase.from("equipes").update(equipeFormData).eq("id", editingEquipe.id);
+      const {
+        error
+      } = await supabase.from("equipes").update(equipeFormData).eq("id", editingEquipe.id);
       if (error) {
         toast.error("Erro ao atualizar equipe");
         return;
@@ -514,11 +484,13 @@ export default function Usuarios() {
       // Atualizar líderes adicionais
       await supabase.from("equipe_lideres").delete().eq("equipe_id", editingEquipe.id);
       if (selectedEquipeLideres.length > 0) {
-        const lideresData = selectedEquipeLideres.map((liderId) => ({
+        const lideresData = selectedEquipeLideres.map(liderId => ({
           equipe_id: editingEquipe.id,
-          lider_id: liderId,
+          lider_id: liderId
         }));
-        const { error: lideresError } = await supabase.from("equipe_lideres").insert(lideresData);
+        const {
+          error: lideresError
+        } = await supabase.from("equipe_lideres").insert(lideresData);
         if (lideresError) {
           toast.error("Erro ao atualizar líderes da equipe");
           return;
@@ -527,17 +499,14 @@ export default function Usuarios() {
       toast.success("Equipe atualizada com sucesso!");
     } else {
       // Criar nova equipe
-      const { data, error } = await supabase
-        .from("equipes")
-        .insert([
-          {
-            nome: equipeFormData.nome,
-            descricao: equipeFormData.descricao,
-            lider_id: equipeFormData.lider_id || null,
-          },
-        ])
-        .select()
-        .single();
+      const {
+        data,
+        error
+      } = await supabase.from("equipes").insert([{
+        nome: equipeFormData.nome,
+        descricao: equipeFormData.descricao,
+        lider_id: equipeFormData.lider_id || null
+      }]).select().single();
       if (error) {
         toast.error("Erro ao criar equipe");
         return;
@@ -545,11 +514,13 @@ export default function Usuarios() {
 
       // Adicionar líderes adicionais se houver
       if (selectedEquipeLideres.length > 0 && data) {
-        const lideresData = selectedEquipeLideres.map((liderId) => ({
+        const lideresData = selectedEquipeLideres.map(liderId => ({
           equipe_id: data.id,
-          lider_id: liderId,
+          lider_id: liderId
         }));
-        const { error: lideresError } = await supabase.from("equipe_lideres").insert(lideresData);
+        const {
+          error: lideresError
+        } = await supabase.from("equipe_lideres").insert(lideresData);
         if (lideresError) {
           toast.error("Erro ao adicionar líderes à equipe");
           return;
@@ -565,7 +536,9 @@ export default function Usuarios() {
 
     // Primeiro remover os líderes da equipe
     await supabase.from("equipe_lideres").delete().eq("equipe_id", id);
-    const { error } = await supabase.from("equipes").delete().eq("id", id);
+    const {
+      error
+    } = await supabase.from("equipes").delete().eq("id", id);
     if (error) {
       toast.error("Erro ao excluir equipe");
     } else {
@@ -574,22 +547,27 @@ export default function Usuarios() {
     }
   };
   const getLiderName = (liderId: string) => {
-    const lider = profiles.find((p) => p.id === liderId) || lideres.find((l) => l.id === liderId);
+    const lider = profiles.find(p => p.id === liderId) || lideres.find(l => l.id === liderId);
     return lider?.nome || "Sem líder";
   };
   const handleResetPassword = async (profile: Profile) => {
     const newPassword = generateSecurePassword();
     setResetPasswordData({
       profile,
-      password: newPassword,
+      password: newPassword
     });
     setResetPasswordDialog(true);
   };
   const confirmResetPassword = async () => {
-    const { profile, password } = resetPasswordData;
+    const {
+      profile,
+      password
+    } = resetPasswordData;
     if (!profile) return;
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const {
+        data: session
+      } = await supabase.auth.getSession();
       if (!session?.session) {
         toast.error("Sessão inválida");
         return;
@@ -598,13 +576,13 @@ export default function Usuarios() {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session.session.access_token}`,
-          "Content-Type": "application/json",
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           userId: profile.id,
           password: password,
-          resetPassword: true,
-        }),
+          resetPassword: true
+        })
       });
       const result = await response.json();
       if (!response.ok || result.error) {
@@ -622,8 +600,7 @@ export default function Usuarios() {
     }
   };
   if (userRole !== "admin" && userRole !== "administrativo" && userRole !== "superintendente") {
-    return (
-      <div className="min-h-screen bg-background p-8">
+    return <div className="min-h-screen bg-background p-8">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -632,11 +609,9 @@ export default function Usuarios() {
             </div>
           </div>
         </div>
-      </div>
-    );
+      </div>;
   }
-  return (
-    <div className="flex flex-col gap-6 p-6">
+  return <div className="flex flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
@@ -648,19 +623,15 @@ export default function Usuarios() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {activeTab === "equipes" && (
-            <Button onClick={() => openEquipeDialog()} className="gap-2">
+          {activeTab === "equipes" && <Button onClick={() => openEquipeDialog()} className="gap-2">
               <UsersRound className="h-4 w-4" />
               Nova Equipe
-            </Button>
-          )}
+            </Button>}
 
-          {activeTab === "lista" && (
-            <Button onClick={() => openDialog()} className="gap-2">
+          {activeTab === "lista" && <Button onClick={() => openDialog()} className="gap-2">
               <UserPlus className="h-4 w-4" />
               Novo Usuário
-            </Button>
-          )}
+            </Button>}
         </div>
       </div>
 
@@ -669,11 +640,9 @@ export default function Usuarios() {
           <TabsTrigger value="lista">Lista</TabsTrigger>
           <TabsTrigger value="pendentes">
             Pendentes
-            {pendingProfiles.length > 0 && (
-              <Badge variant="destructive" className="ml-2">
+            {pendingProfiles.length > 0 && <Badge variant="destructive" className="ml-2">
                 {pendingProfiles.length}
-              </Badge>
-            )}
+              </Badge>}
           </TabsTrigger>
           <TabsTrigger value="equipes">Equipes</TabsTrigger>
           <TabsTrigger value="hierarquia">Hierarquia</TabsTrigger>
@@ -693,12 +662,7 @@ export default function Usuarios() {
             <CardContent>
               <div className="relative mb-4">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por nome, email, telefone ou cargo..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+                <Input placeholder="Buscar por nome, email, telefone ou cargo..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
               </div>
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -706,102 +670,53 @@ export default function Usuarios() {
                     <DialogTitle className="text-2xl">{editingItem ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
                   </DialogHeader>
 
-                  {editingItem && (
-                    <div className="flex justify-center py-4 border-b">
-                      <AvatarUpload
-                        userId={editingItem.id}
-                        currentAvatarUrl={editingItem.avatar_url}
-                        userName={editingItem.nome}
-                      />
-                    </div>
-                  )}
+                  {editingItem && <div className="flex justify-center py-4 border-b">
+                      <AvatarUpload userId={editingItem.id} currentAvatarUrl={editingItem.avatar_url} userName={editingItem.nome} />
+                    </div>}
 
                   <div className="grid gap-6 py-4">
                     {/* Informações de Acesso - Apenas para novo usuário */}
-                    {!editingItem && (
-                      <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+                    {!editingItem && <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                         <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
                           Informações de Acesso
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="grid gap-2">
                             <Label htmlFor="nome">Nome *</Label>
-                            <Input
-                              id="nome"
-                              value={formData.nome || ""}
-                              onChange={(e) =>
-                                setFormData({
-                                  ...formData,
-                                  nome: e.target.value,
-                                })
-                              }
-                              required
-                            />
+                            <Input id="nome" value={formData.nome || ""} onChange={e => setFormData({
+                          ...formData,
+                          nome: e.target.value
+                        })} required />
                           </div>
                           <div className="grid gap-2">
                             <Label htmlFor="email">Email *</Label>
-                            <Input
-                              id="email"
-                              type="email"
-                              value={formData.email || ""}
-                              onChange={(e) =>
-                                setFormData({
-                                  ...formData,
-                                  email: e.target.value,
-                                })
-                              }
-                              required
-                            />
+                            <Input id="email" type="email" value={formData.email || ""} onChange={e => setFormData({
+                          ...formData,
+                          email: e.target.value
+                        })} required />
                           </div>
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="password">Senha Temporária *</Label>
                           <div className="flex gap-2">
-                            <Input
-                              id="password"
-                              type="text"
-                              value={tempPassword}
-                              onChange={(e) => setTempPassword(e.target.value)}
-                              placeholder="Clique em 'Gerar Senha'"
-                              required
-                              readOnly
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setTempPassword(generateSecurePassword())}
-                              title="Gerar nova senha"
-                            >
+                            <Input id="password" type="text" value={tempPassword} onChange={e => setTempPassword(e.target.value)} placeholder="Clique em 'Gerar Senha'" required readOnly />
+                            <Button type="button" variant="outline" onClick={() => setTempPassword(generateSecurePassword())} title="Gerar nova senha">
                               <RefreshCw className="h-4 w-4" />
                             </Button>
-                            {tempPassword && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(tempPassword);
-                                  toast.success("Senha copiada!");
-                                }}
-                                title="Copiar senha"
-                              >
+                            {tempPassword && <Button type="button" variant="outline" onClick={() => {
+                          navigator.clipboard.writeText(tempPassword);
+                          toast.success("Senha copiada!");
+                        }} title="Copiar senha">
                                 <Copy className="h-4 w-4" />
-                              </Button>
-                            )}
+                              </Button>}
                           </div>
-                          {tempPassword && (
-                            <p className="text-xs text-muted-foreground">
+                          {tempPassword && <p className="text-xs text-muted-foreground">
                               Esta senha será enviada ao usuário. Use o botão de copiar para compartilhar.
-                            </p>
-                          )}
+                            </p>}
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="role">Função/Perfil *</Label>
-                          <Select
-                            value={selectedRole}
-                            onValueChange={(value: "superintendente" | "administrativo" | "lider" | "comercial") =>
-                              setSelectedRole(value)
-                            }
-                          >
+                          <Select value={selectedRole} onValueChange={(value: "superintendente" | "administrativo" | "lider" | "comercial") => setSelectedRole(value)}>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione uma função" />
                             </SelectTrigger>
@@ -813,16 +728,14 @@ export default function Usuarios() {
                             </SelectContent>
                           </Select>
                         </div>
-                      </div>
-                    )}
+                      </div>}
 
                     {/* Informações Pessoais */}
                     <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                       <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
                         Informações Pessoais
                       </h3>
-                      {editingItem && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {editingItem && <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="grid gap-2">
                             <Label>Nome</Label>
                             <Input value={editingItem?.nome || ""} disabled className="bg-muted" />
@@ -831,52 +744,29 @@ export default function Usuarios() {
                             <Label>Email</Label>
                             <Input value={editingItem?.email || ""} disabled className="bg-muted" />
                           </div>
-                        </div>
-                      )}
+                        </div>}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="grid gap-2">
                           <Label htmlFor="telefone">Telefone</Label>
-                          <MaskedInput
-                            id="telefone"
-                            format="(##) #####-####"
-                            value={formData.telefone || ""}
-                            onValueChange={(values) =>
-                              setFormData({
-                                ...formData,
-                                telefone: values.value,
-                              })
-                            }
-                            placeholder="(00) 00000-0000"
-                          />
+                          <MaskedInput id="telefone" format="(##) #####-####" value={formData.telefone || ""} onValueChange={values => setFormData({
+                          ...formData,
+                          telefone: values.value
+                        })} placeholder="(00) 00000-0000" />
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="cargo">Cargo</Label>
-                          <Input
-                            id="cargo"
-                            value={formData.cargo || ""}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                cargo: e.target.value,
-                              })
-                            }
-                          />
+                          <Input id="cargo" value={formData.cargo || ""} onChange={e => setFormData({
+                          ...formData,
+                          cargo: e.target.value
+                        })} />
                         </div>
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="cpf_cnpj">CPF/CNPJ</Label>
-                        <MaskedInput
-                          id="cpf_cnpj"
-                          format="###.###.###-##"
-                          value={formData.cpf_cnpj || ""}
-                          onValueChange={(values) =>
-                            setFormData({
-                              ...formData,
-                              cpf_cnpj: values.value,
-                            })
-                          }
-                          placeholder="000.000.000-00"
-                        />
+                        <MaskedInput id="cpf_cnpj" format="###.###.###-##" value={formData.cpf_cnpj || ""} onValueChange={values => setFormData({
+                        ...formData,
+                        cpf_cnpj: values.value
+                      })} placeholder="000.000.000-00" />
                       </div>
                     </div>
 
@@ -888,148 +778,89 @@ export default function Usuarios() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="grid gap-2">
                           <Label htmlFor="whatsapp">WhatsApp</Label>
-                          <MaskedInput
-                            id="whatsapp"
-                            format="(##) #####-####"
-                            value={formData.whatsapp || ""}
-                            onValueChange={(values) =>
-                              setFormData({
-                                ...formData,
-                                whatsapp: values.value,
-                              })
-                            }
-                            placeholder="(00) 00000-0000"
-                          />
+                          <MaskedInput id="whatsapp" format="(##) #####-####" value={formData.whatsapp || ""} onValueChange={values => setFormData({
+                          ...formData,
+                          whatsapp: values.value
+                        })} placeholder="(00) 00000-0000" />
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="instagram">Instagram</Label>
-                          <Input
-                            id="instagram"
-                            value={formData.instagram || ""}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                instagram: e.target.value,
-                              })
-                            }
-                            placeholder="@usuario"
-                          />
+                          <Input id="instagram" value={formData.instagram || ""} onChange={e => setFormData({
+                          ...formData,
+                          instagram: e.target.value
+                        })} placeholder="@usuario" />
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="facebook">Facebook</Label>
-                          <Input
-                            id="facebook"
-                            value={formData.facebook || ""}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                facebook: e.target.value,
-                              })
-                            }
-                            placeholder="facebook.com/usuario"
-                          />
+                          <Input id="facebook" value={formData.facebook || ""} onChange={e => setFormData({
+                          ...formData,
+                          facebook: e.target.value
+                        })} placeholder="facebook.com/usuario" />
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="linkedin">LinkedIn</Label>
-                          <Input
-                            id="linkedin"
-                            value={formData.linkedin || ""}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                linkedin: e.target.value,
-                              })
-                            }
-                            placeholder="linkedin.com/in/usuario"
-                          />
+                          <Input id="linkedin" value={formData.linkedin || ""} onChange={e => setFormData({
+                          ...formData,
+                          linkedin: e.target.value
+                        })} placeholder="linkedin.com/in/usuario" />
                         </div>
                       </div>
                     </div>
 
                     {/* Hierarquia - Baseado no role */}
-                    {(editingItem ? editingRole : selectedRole) && (
-                      <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+                    {(editingItem ? editingRole : selectedRole) && <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                         <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
                           Hierarquia
                         </h3>
-                        {(editingItem ? editingRole : selectedRole) === "lider" ? (
-                          <>
+                        {(editingItem ? editingRole : selectedRole) === "lider" ? <>
                             <div className="grid gap-2">
                               <Label>Equipes (Líder)</Label>
                               <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto bg-background">
-                                {equipes.map((equipe) => (
-                                  <label
-                                    key={equipe.id}
-                                    className="flex items-center gap-2 cursor-pointer hover:bg-accent/50 p-2 rounded"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedEquipes.includes(equipe.id)}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setSelectedEquipes([...selectedEquipes, equipe.id]);
-                                        } else {
-                                          setSelectedEquipes(selectedEquipes.filter((id) => id !== equipe.id));
-                                        }
-                                      }}
-                                      className="rounded border-border"
-                                    />
+                                {equipes.map(equipe => <label key={equipe.id} className="flex items-center gap-2 cursor-pointer hover:bg-accent/50 p-2 rounded">
+                                    <input type="checkbox" checked={selectedEquipes.includes(equipe.id)} onChange={e => {
+                              if (e.target.checked) {
+                                setSelectedEquipes([...selectedEquipes, equipe.id]);
+                              } else {
+                                setSelectedEquipes(selectedEquipes.filter(id => id !== equipe.id));
+                              }
+                            }} className="rounded border-border" />
                                     <span className="text-sm">{equipe.nome}</span>
-                                  </label>
-                                ))}
+                                  </label>)}
                               </div>
                             </div>
                             <div className="grid gap-2">
                               <Label htmlFor="administrativo_id">Administrativo Responsável *</Label>
-                              <Select
-                                value={formData.administrativo_id || ""}
-                                onValueChange={(value) =>
-                                  setFormData({
-                                    ...formData,
-                                    administrativo_id: value,
-                                  })
-                                }
-                              >
+                              <Select value={formData.administrativo_id || ""} onValueChange={value => setFormData({
+                          ...formData,
+                          administrativo_id: value
+                        })}>
                                 <SelectTrigger>
                                   <SelectValue placeholder="Selecione um administrativo" />
                                 </SelectTrigger>
                                 <SelectContent className="bg-background z-50">
-                                  {administrativos.map((admin) => (
-                                    <SelectItem key={admin.id} value={admin.id}>
+                                  {administrativos.map(admin => <SelectItem key={admin.id} value={admin.id}>
                                       {admin.nome}
-                                    </SelectItem>
-                                  ))}
+                                    </SelectItem>)}
                                 </SelectContent>
                               </Select>
                             </div>
-                          </>
-                        ) : (editingItem ? editingRole : selectedRole) === "comercial" ? (
-                          <div className="grid gap-2">
+                          </> : (editingItem ? editingRole : selectedRole) === "comercial" ? <div className="grid gap-2">
                             <Label htmlFor="equipe_id">Equipe *</Label>
-                            <Select
-                              value={formData.equipe_id || ""}
-                              onValueChange={(value) =>
-                                setFormData({
-                                  ...formData,
-                                  equipe_id: value,
-                                })
-                              }
-                            >
+                            <Select value={formData.equipe_id || ""} onValueChange={value => setFormData({
+                        ...formData,
+                        equipe_id: value
+                      })}>
                               <SelectTrigger>
                                 <SelectValue placeholder="Selecione uma equipe" />
                               </SelectTrigger>
                               <SelectContent className="bg-background z-50">
-                                {equipes.map((equipe) => (
-                                  <SelectItem key={equipe.id} value={equipe.id}>
+                                {equipes.map(equipe => <SelectItem key={equipe.id} value={equipe.id}>
                                     {equipe.nome}
-                                  </SelectItem>
-                                ))}
+                                  </SelectItem>)}
                               </SelectContent>
                             </Select>
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
+                          </div> : null}
+                      </div>}
                   </div>
 
                   <div className="flex justify-end gap-2 pt-4 border-t">
@@ -1054,15 +885,11 @@ export default function Usuarios() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedProfiles.length === 0 ? (
-                      <TableRow>
+                    {paginatedProfiles.length === 0 ? <TableRow>
                         <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                           Nenhum usuário encontrado
                         </TableCell>
-                      </TableRow>
-                    ) : (
-                      paginatedProfiles.map((item) => (
-                        <TableRow key={item.id}>
+                      </TableRow> : paginatedProfiles.map(item => <TableRow key={item.id}>
                           <TableCell>
                             <Avatar className="h-10 w-10">
                               <AvatarImage src={item.avatar_url || undefined} alt={item.nome} />
@@ -1083,78 +910,39 @@ export default function Usuarios() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => openDialog(item)}
-                                title="Editar usuário"
-                              >
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDialog(item)} title="Editar usuário">
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => {
-                                  setSelectedUserForPermissions({
-                                    id: item.id,
-                                    nome: item.nome,
-                                    role: userRoles[item.id] || "",
-                                  });
-                                  setFluxoPermissionsDialogOpen(true);
-                                }}
-                                title="Gerenciar permissões de fluxo"
-                              >
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                          setSelectedUserForPermissions({
+                            id: item.id,
+                            nome: item.nome,
+                            role: userRoles[item.id] || ""
+                          });
+                          setFluxoPermissionsDialogOpen(true);
+                        }} title="Gerenciar permissões de fluxo">
                                 <Lock className="h-4 w-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => {
-                                  setSelectedUserForPermissions({
-                                    id: item.id,
-                                    nome: item.nome,
-                                    role: userRoles[item.id] || "",
-                                  });
-                                  setMenuPermissionsDialogOpen(true);
-                                }}
-                                title="Gerenciar permissões de menu"
-                              >
-                                <Shield className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handleResetPassword(item)}
-                                title="Resetar senha"
-                              >
+                              
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleResetPassword(item)} title="Resetar senha">
                                 <Key className="h-4 w-4" />
                               </Button>
                             </div>
                           </TableCell>
-                        </TableRow>
-                      ))
-                    )}
+                        </TableRow>)}
                   </TableBody>
                 </Table>
               </div>
             </CardContent>
           </Card>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
+          {totalPages > 1 && <div className="flex items-center justify-between mt-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Itens por página:</span>
-                <Select
-                  value={itemsPerPage.toString()}
-                  onValueChange={(value) => {
-                    setItemsPerPage(Number(value));
-                    setCurrentPage(1);
-                  }}
-                >
+                <Select value={itemsPerPage.toString()} onValueChange={value => {
+              setItemsPerPage(Number(value));
+              setCurrentPage(1);
+            }}>
                   <SelectTrigger className="w-20">
                     <SelectValue />
                   </SelectTrigger>
@@ -1173,41 +961,25 @@ export default function Usuarios() {
               <Pagination>
                 <PaginationContent>
                   <PaginationItem>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                   </PaginationItem>
-                  {Array.from(
-                    {
-                      length: totalPages,
-                    },
-                    (_, i) => i + 1,
-                  ).map((page) => (
-                    <PaginationItem key={page}>
+                  {Array.from({
+                length: totalPages
+              }, (_, i) => i + 1).map(page => <PaginationItem key={page}>
                       <PaginationLink onClick={() => setCurrentPage(page)} isActive={currentPage === page}>
                         {page}
                       </PaginationLink>
-                    </PaginationItem>
-                  ))}
+                    </PaginationItem>)}
                   <PaginationItem>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </PaginationItem>
                 </PaginationContent>
               </Pagination>
-            </div>
-          )}
+            </div>}
         </TabsContent>
 
         <TabsContent value="pendentes">
@@ -1251,95 +1023,62 @@ export default function Usuarios() {
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="approval-cargo">Cargo</Label>
-                      <Input
-                        id="approval-cargo"
-                        value={formData.cargo || ""}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            cargo: e.target.value,
-                          })
-                        }
-                      />
+                      <Input id="approval-cargo" value={formData.cargo || ""} onChange={e => setFormData({
+                      ...formData,
+                      cargo: e.target.value
+                    })} />
                     </div>
-                    {approvalRole === "administrativo" && (
-                      <div className="grid gap-2">
+                    {approvalRole === "administrativo" && <div className="grid gap-2">
                         <Label htmlFor="approval-lider">Líder Vinculado *</Label>
-                        <Select
-                          value={formData.lider_id || "none"}
-                          onValueChange={(value) =>
-                            setFormData({
-                              ...formData,
-                              lider_id: value === "none" ? undefined : value,
-                            })
-                          }
-                        >
+                        <Select value={formData.lider_id || "none"} onValueChange={value => setFormData({
+                      ...formData,
+                      lider_id: value === "none" ? undefined : value
+                    })}>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione um líder" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">Nenhum</SelectItem>
-                            {lideres.map((lider) => (
-                              <SelectItem key={lider.id} value={lider.id}>
+                            {lideres.map(lider => <SelectItem key={lider.id} value={lider.id}>
                                 {lider.nome}
-                              </SelectItem>
-                            ))}
+                              </SelectItem>)}
                           </SelectContent>
                         </Select>
-                      </div>
-                    )}
-                    {approvalRole === "lider" && (
-                      <div className="grid gap-2">
+                      </div>}
+                    {approvalRole === "lider" && <div className="grid gap-2">
                         <Label htmlFor="approval-administrativo">Administrativo Responsável</Label>
-                        <Select
-                          value={formData.administrativo_id || "none"}
-                          onValueChange={(value) =>
-                            setFormData({
-                              ...formData,
-                              administrativo_id: value === "none" ? undefined : value,
-                            })
-                          }
-                        >
+                        <Select value={formData.administrativo_id || "none"} onValueChange={value => setFormData({
+                      ...formData,
+                      administrativo_id: value === "none" ? undefined : value
+                    })}>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione um administrativo" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">Nenhum</SelectItem>
-                            {administrativos.map((admin) => (
-                              <SelectItem key={admin.id} value={admin.id}>
+                            {administrativos.map(admin => <SelectItem key={admin.id} value={admin.id}>
                                 {admin.nome}
-                              </SelectItem>
-                            ))}
+                              </SelectItem>)}
                           </SelectContent>
                         </Select>
-                      </div>
-                    )}
-                    {approvalRole === "comercial" && (
-                      <div className="grid gap-2">
+                      </div>}
+                    {approvalRole === "comercial" && <div className="grid gap-2">
                         <Label htmlFor="approval-equipe">Equipe</Label>
-                        <Select
-                          value={formData.equipe_id || "none"}
-                          onValueChange={(value) =>
-                            setFormData({
-                              ...formData,
-                              equipe_id: value === "none" ? undefined : value,
-                            })
-                          }
-                        >
+                        <Select value={formData.equipe_id || "none"} onValueChange={value => setFormData({
+                      ...formData,
+                      equipe_id: value === "none" ? undefined : value
+                    })}>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione uma equipe" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">Nenhuma</SelectItem>
-                            {equipes.map((equipe) => (
-                              <SelectItem key={equipe.id} value={equipe.id}>
+                            {equipes.map(equipe => <SelectItem key={equipe.id} value={equipe.id}>
                                 {equipe.nome}
-                              </SelectItem>
-                            ))}
+                              </SelectItem>)}
                           </SelectContent>
                         </Select>
-                      </div>
-                    )}
+                      </div>}
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setApprovalDialogOpen(false)}>
@@ -1361,15 +1100,11 @@ export default function Usuarios() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedPendingProfiles.length === 0 ? (
-                      <TableRow>
+                    {paginatedPendingProfiles.length === 0 ? <TableRow>
                         <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                           Nenhum usuário pendente de aprovação
                         </TableCell>
-                      </TableRow>
-                    ) : (
-                      paginatedPendingProfiles.map((item) => (
-                        <TableRow key={item.id}>
+                      </TableRow> : paginatedPendingProfiles.map(item => <TableRow key={item.id}>
                           <TableCell className="font-medium">{item.nome}</TableCell>
                           <TableCell>{item.email}</TableCell>
                           <TableCell>{item.telefone || "-"}</TableCell>
@@ -1379,24 +1114,18 @@ export default function Usuarios() {
                               Aprovar
                             </Button>
                           </TableCell>
-                        </TableRow>
-                      ))
-                    )}
+                        </TableRow>)}
                   </TableBody>
                 </Table>
               </div>
 
-              {totalPendingPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
+              {totalPendingPages > 1 && <div className="flex items-center justify-between mt-4">
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Itens por página:</span>
-                    <Select
-                      value={pendingItemsPerPage.toString()}
-                      onValueChange={(value) => {
-                        setPendingItemsPerPage(Number(value));
-                        setPendingPage(1);
-                      }}
-                    >
+                    <Select value={pendingItemsPerPage.toString()} onValueChange={value => {
+                  setPendingItemsPerPage(Number(value));
+                  setPendingPage(1);
+                }}>
                       <SelectTrigger className="w-20">
                         <SelectValue />
                       </SelectTrigger>
@@ -1415,41 +1144,25 @@ export default function Usuarios() {
                   <Pagination>
                     <PaginationContent>
                       <PaginationItem>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPendingPage((p) => Math.max(1, p - 1))}
-                          disabled={pendingPage === 1}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => setPendingPage(p => Math.max(1, p - 1))} disabled={pendingPage === 1}>
                           <ChevronLeft className="h-4 w-4" />
                         </Button>
                       </PaginationItem>
-                      {Array.from(
-                        {
-                          length: totalPendingPages,
-                        },
-                        (_, i) => i + 1,
-                      ).map((page) => (
-                        <PaginationItem key={page}>
+                      {Array.from({
+                    length: totalPendingPages
+                  }, (_, i) => i + 1).map(page => <PaginationItem key={page}>
                           <PaginationLink onClick={() => setPendingPage(page)} isActive={pendingPage === page}>
                             {page}
                           </PaginationLink>
-                        </PaginationItem>
-                      ))}
+                        </PaginationItem>)}
                       <PaginationItem>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPendingPage((p) => Math.min(totalPendingPages, p + 1))}
-                          disabled={pendingPage === totalPendingPages}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => setPendingPage(p => Math.min(totalPendingPages, p + 1))} disabled={pendingPage === totalPendingPages}>
                           <ChevronRight className="h-4 w-4" />
                         </Button>
                       </PaginationItem>
                     </PaginationContent>
                   </Pagination>
-                </div>
-              )}
+                </div>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1464,10 +1177,7 @@ export default function Usuarios() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Superintendentes */}
-              {profiles
-                .filter((p) => userRoles[p.id] === "superintendente")
-                .map((superintendente) => (
-                  <Collapsible key={superintendente.id} defaultOpen>
+              {profiles.filter(p => userRoles[p.id] === "superintendente").map(superintendente => <Collapsible key={superintendente.id} defaultOpen>
                     <CollapsibleTrigger className="flex items-center gap-2 w-full hover:bg-muted p-3 rounded-lg">
                       <ChevronDown className="h-4 w-4" />
                       <Shield className="h-5 w-5 text-purple-500" />
@@ -1478,10 +1188,7 @@ export default function Usuarios() {
                     </CollapsibleTrigger>
                     <CollapsibleContent className="ml-6 mt-2 space-y-2 border-l-2 border-border pl-4">
                       {/* Administrativos do Superintendente */}
-                      {profiles
-                        .filter((p) => userRoles[p.id] === "administrativo")
-                        .map((administrativo) => (
-                          <Collapsible key={administrativo.id}>
+                      {profiles.filter(p => userRoles[p.id] === "administrativo").map(administrativo => <Collapsible key={administrativo.id}>
                             <CollapsibleTrigger className="flex items-center gap-2 w-full hover:bg-muted p-2 rounded-lg">
                               <ChevronRight className="h-4 w-4" />
                               <Briefcase className="h-4 w-4 text-blue-500" />
@@ -1492,14 +1199,9 @@ export default function Usuarios() {
                             </CollapsibleTrigger>
                             <CollapsibleContent className="ml-6 mt-2 space-y-2 border-l border-border pl-4">
                               {/* Líderes do Administrativo */}
-                              {profiles
-                                .filter((p) => userRoles[p.id] === "lider" && p.administrativo_id === administrativo.id)
-                                .map((lider) => {
-                                  const liderEquipes = equipes.filter(
-                                    (e) => e.lider_id === lider.id || (e.lideres && e.lideres.includes(lider.id)),
-                                  );
-                                  return (
-                                    <Collapsible key={lider.id}>
+                              {profiles.filter(p => userRoles[p.id] === "lider" && p.administrativo_id === administrativo.id).map(lider => {
+                      const liderEquipes = equipes.filter(e => e.lider_id === lider.id || e.lideres && e.lideres.includes(lider.id));
+                      return <Collapsible key={lider.id}>
                                       <CollapsibleTrigger className="flex items-center gap-2 w-full hover:bg-muted p-2 rounded-lg">
                                         <ChevronRight className="h-4 w-4" />
                                         <UserCircle className="h-4 w-4 text-green-500" />
@@ -1512,8 +1214,7 @@ export default function Usuarios() {
                                       </CollapsibleTrigger>
                                       <CollapsibleContent className="ml-6 mt-2 space-y-2 border-l border-border pl-4">
                                         {/* Equipes do Líder */}
-                                        {liderEquipes.map((equipe) => (
-                                          <Collapsible key={equipe.id}>
+                                        {liderEquipes.map(equipe => <Collapsible key={equipe.id}>
                                             <CollapsibleTrigger className="flex items-center gap-2 w-full hover:bg-muted p-2 rounded-lg">
                                               <ChevronRight className="h-4 w-4" />
                                               <UsersRound className="h-4 w-4 text-orange-500" />
@@ -1524,50 +1225,28 @@ export default function Usuarios() {
                                             </CollapsibleTrigger>
                                             <CollapsibleContent className="ml-6 mt-2 space-y-1 border-l border-border pl-4">
                                               {/* Membros da Equipe */}
-                                              {profiles
-                                                .filter(
-                                                  (p) => p.equipe_id === equipe.id && userRoles[p.id] === "comercial",
-                                                )
-                                                .map((membro) => (
-                                                  <div
-                                                    key={membro.id}
-                                                    className="flex items-center gap-2 p-2 hover:bg-muted rounded"
-                                                  >
+                                              {profiles.filter(p => p.equipe_id === equipe.id && userRoles[p.id] === "comercial").map(membro => <div key={membro.id} className="flex items-center gap-2 p-2 hover:bg-muted rounded">
                                                     <UserCircle className="h-3 w-3 text-muted-foreground" />
                                                     <p className="text-sm">{membro.nome}</p>
                                                     <Badge variant="outline" className="text-xs">
                                                       Comercial
                                                     </Badge>
-                                                  </div>
-                                                ))}
-                                              {profiles.filter(
-                                                (p) => p.equipe_id === equipe.id && userRoles[p.id] === "comercial",
-                                              ).length === 0 && (
-                                                <p className="text-xs text-muted-foreground p-2">Nenhum membro</p>
-                                              )}
+                                                  </div>)}
+                                              {profiles.filter(p => p.equipe_id === equipe.id && userRoles[p.id] === "comercial").length === 0 && <p className="text-xs text-muted-foreground p-2">Nenhum membro</p>}
                                             </CollapsibleContent>
-                                          </Collapsible>
-                                        ))}
-                                        {liderEquipes.length === 0 && (
-                                          <p className="text-xs text-muted-foreground p-2">Sem equipes</p>
-                                        )}
+                                          </Collapsible>)}
+                                        {liderEquipes.length === 0 && <p className="text-xs text-muted-foreground p-2">Sem equipes</p>}
                                       </CollapsibleContent>
-                                    </Collapsible>
-                                  );
-                                })}
-                              {profiles.filter(
-                                (p) => userRoles[p.id] === "lider" && p.administrativo_id === administrativo.id,
-                              ).length === 0 && <p className="text-xs text-muted-foreground p-2">Nenhum líder</p>}
+                                    </Collapsible>;
+                    })}
+                              {profiles.filter(p => userRoles[p.id] === "lider" && p.administrativo_id === administrativo.id).length === 0 && <p className="text-xs text-muted-foreground p-2">Nenhum líder</p>}
                             </CollapsibleContent>
-                          </Collapsible>
-                        ))}
+                          </Collapsible>)}
                     </CollapsibleContent>
-                  </Collapsible>
-                ))}
+                  </Collapsible>)}
 
               {/* Líderes sem Administrativo */}
-              {profiles.filter((p) => userRoles[p.id] === "lider" && !p.administrativo_id).length > 0 && (
-                <Collapsible>
+              {profiles.filter(p => userRoles[p.id] === "lider" && !p.administrativo_id).length > 0 && <Collapsible>
                   <CollapsibleTrigger className="flex items-center gap-2 w-full hover:bg-muted p-3 rounded-lg">
                     <ChevronRight className="h-4 w-4" />
                     <UserCircle className="h-5 w-5 text-gray-500" />
@@ -1577,14 +1256,9 @@ export default function Usuarios() {
                     </div>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="ml-6 mt-2 space-y-2 border-l-2 border-border pl-4">
-                    {profiles
-                      .filter((p) => userRoles[p.id] === "lider" && !p.administrativo_id)
-                      .map((lider) => {
-                        const liderEquipes = equipes.filter(
-                          (e) => e.lider_id === lider.id || (e.lideres && e.lideres.includes(lider.id)),
-                        );
-                        return (
-                          <Collapsible key={lider.id}>
+                    {profiles.filter(p => userRoles[p.id] === "lider" && !p.administrativo_id).map(lider => {
+                  const liderEquipes = equipes.filter(e => e.lider_id === lider.id || e.lideres && e.lideres.includes(lider.id));
+                  return <Collapsible key={lider.id}>
                             <CollapsibleTrigger className="flex items-center gap-2 w-full hover:bg-muted p-2 rounded-lg">
                               <ChevronRight className="h-4 w-4" />
                               <UserCircle className="h-4 w-4 text-green-500" />
@@ -1596,8 +1270,7 @@ export default function Usuarios() {
                               </div>
                             </CollapsibleTrigger>
                             <CollapsibleContent className="ml-6 mt-2 space-y-2 border-l border-border pl-4">
-                              {liderEquipes.map((equipe) => (
-                                <Collapsible key={equipe.id}>
+                              {liderEquipes.map(equipe => <Collapsible key={equipe.id}>
                                   <CollapsibleTrigger className="flex items-center gap-2 w-full hover:bg-muted p-2 rounded-lg">
                                     <ChevronRight className="h-4 w-4" />
                                     <UsersRound className="h-4 w-4 text-orange-500" />
@@ -1607,30 +1280,20 @@ export default function Usuarios() {
                                     </div>
                                   </CollapsibleTrigger>
                                   <CollapsibleContent className="ml-6 mt-2 space-y-1 border-l border-border pl-4">
-                                    {profiles
-                                      .filter((p) => p.equipe_id === equipe.id && userRoles[p.id] === "comercial")
-                                      .map((membro) => (
-                                        <div
-                                          key={membro.id}
-                                          className="flex items-center gap-2 p-2 hover:bg-muted rounded"
-                                        >
+                                    {profiles.filter(p => p.equipe_id === equipe.id && userRoles[p.id] === "comercial").map(membro => <div key={membro.id} className="flex items-center gap-2 p-2 hover:bg-muted rounded">
                                           <UserCircle className="h-3 w-3 text-muted-foreground" />
                                           <p className="text-sm">{membro.nome}</p>
                                           <Badge variant="outline" className="text-xs">
                                             Comercial
                                           </Badge>
-                                        </div>
-                                      ))}
+                                        </div>)}
                                   </CollapsibleContent>
-                                </Collapsible>
-                              ))}
+                                </Collapsible>)}
                             </CollapsibleContent>
-                          </Collapsible>
-                        );
-                      })}
+                          </Collapsible>;
+                })}
                   </CollapsibleContent>
-                </Collapsible>
-              )}
+                </Collapsible>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1713,81 +1376,51 @@ export default function Usuarios() {
                   <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
                       <Label htmlFor="equipe-nome">Nome *</Label>
-                      <Input
-                        id="equipe-nome"
-                        value={equipeFormData.nome || ""}
-                        onChange={(e) =>
-                          setEquipeFormData({
-                            ...equipeFormData,
-                            nome: e.target.value,
-                          })
-                        }
-                        required
-                      />
+                      <Input id="equipe-nome" value={equipeFormData.nome || ""} onChange={e => setEquipeFormData({
+                      ...equipeFormData,
+                      nome: e.target.value
+                    })} required />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="equipe-descricao">Descrição</Label>
-                      <Textarea
-                        id="equipe-descricao"
-                        value={equipeFormData.descricao || ""}
-                        onChange={(e) =>
-                          setEquipeFormData({
-                            ...equipeFormData,
-                            descricao: e.target.value,
-                          })
-                        }
-                      />
+                      <Textarea id="equipe-descricao" value={equipeFormData.descricao || ""} onChange={e => setEquipeFormData({
+                      ...equipeFormData,
+                      descricao: e.target.value
+                    })} />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="equipe-lider">Líder Principal</Label>
-                      <Select
-                        value={equipeFormData.lider_id || "none"}
-                        onValueChange={(value) =>
-                          setEquipeFormData({
-                            ...equipeFormData,
-                            lider_id: value === "none" ? undefined : value,
-                          })
-                        }
-                      >
+                      <Select value={equipeFormData.lider_id || "none"} onValueChange={value => setEquipeFormData({
+                      ...equipeFormData,
+                      lider_id: value === "none" ? undefined : value
+                    })}>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione um líder" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">Nenhum</SelectItem>
-                          {lideres.map((lider) => (
-                            <SelectItem key={lider.id} value={lider.id}>
+                          {lideres.map(lider => <SelectItem key={lider.id} value={lider.id}>
                               {lider.nome}
-                            </SelectItem>
-                          ))}
+                            </SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="grid gap-2">
                       <Label>Líderes Adicionais</Label>
                       <div className="border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
-                        {lideres.map((lider) => (
-                          <div key={lider.id} className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id={`lider-${lider.id}`}
-                              checked={selectedEquipeLideres.includes(lider.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedEquipeLideres([...selectedEquipeLideres, lider.id]);
-                                } else {
-                                  setSelectedEquipeLideres(selectedEquipeLideres.filter((id) => id !== lider.id));
-                                }
-                              }}
-                              className="rounded"
-                            />
+                        {lideres.map(lider => <div key={lider.id} className="flex items-center space-x-2">
+                            <input type="checkbox" id={`lider-${lider.id}`} checked={selectedEquipeLideres.includes(lider.id)} onChange={e => {
+                          if (e.target.checked) {
+                            setSelectedEquipeLideres([...selectedEquipeLideres, lider.id]);
+                          } else {
+                            setSelectedEquipeLideres(selectedEquipeLideres.filter(id => id !== lider.id));
+                          }
+                        }} className="rounded" />
                             <label htmlFor={`lider-${lider.id}`} className="text-sm cursor-pointer">
                               {lider.nome}
                             </label>
-                          </div>
-                        ))}
-                        {lideres.length === 0 && (
-                          <p className="text-sm text-muted-foreground">Nenhum líder disponível</p>
-                        )}
+                          </div>)}
+                        {lideres.length === 0 && <p className="text-sm text-muted-foreground">Nenhum líder disponível</p>}
                       </div>
                     </div>
                   </div>
@@ -1812,22 +1445,16 @@ export default function Usuarios() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {equipes.length === 0 ? (
-                      <TableRow>
+                    {equipes.length === 0 ? <TableRow>
                         <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                           Nenhuma equipe cadastrada
                         </TableCell>
-                      </TableRow>
-                    ) : (
-                      equipes.map((equipe) => (
-                        <TableRow key={equipe.id}>
+                      </TableRow> : equipes.map(equipe => <TableRow key={equipe.id}>
                           <TableCell className="font-medium">{equipe.nome}</TableCell>
                           <TableCell>{equipe.descricao || "-"}</TableCell>
                           <TableCell>{equipe.lider_id ? getLiderName(equipe.lider_id) : "-"}</TableCell>
                           <TableCell>
-                            {equipe.lideres && equipe.lideres.length > 0
-                              ? equipe.lideres.map((id) => getLiderName(id)).join(", ")
-                              : "-"}
+                            {equipe.lideres && equipe.lideres.length > 0 ? equipe.lideres.map(id => getLiderName(id)).join(", ") : "-"}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
@@ -1839,9 +1466,7 @@ export default function Usuarios() {
                               </Button>
                             </div>
                           </TableCell>
-                        </TableRow>
-                      ))
-                    )}
+                        </TableRow>)}
                   </TableBody>
                 </Table>
               </div>
@@ -1878,29 +1503,12 @@ export default function Usuarios() {
         </Dialog>
 
         {/* Dialogs de Permissões */}
-        {selectedUserForPermissions && (
-          <>
-            <UserFluxoPermissionsDialog
-              open={fluxoPermissionsDialogOpen}
-              onOpenChange={setFluxoPermissionsDialogOpen}
-              userId={selectedUserForPermissions.id}
-              userName={selectedUserForPermissions.nome}
-            />
-            <UserMenuPermissionsDialog
-              open={menuPermissionsDialogOpen}
-              onOpenChange={setMenuPermissionsDialogOpen}
-              userId={selectedUserForPermissions.id}
-              userName={selectedUserForPermissions.nome}
-              userRole={selectedUserForPermissions.role}
-            />
-          </>
-        )}
+        {selectedUserForPermissions && <>
+            <UserFluxoPermissionsDialog open={fluxoPermissionsDialogOpen} onOpenChange={setFluxoPermissionsDialogOpen} userId={selectedUserForPermissions.id} userName={selectedUserForPermissions.nome} />
+            <UserMenuPermissionsDialog open={menuPermissionsDialogOpen} onOpenChange={setMenuPermissionsDialogOpen} userId={selectedUserForPermissions.id} userName={selectedUserForPermissions.nome} userRole={selectedUserForPermissions.role} />
+          </>}
 
-        <RoleMenuPermissionsDialog
-          open={roleMenuPermissionsDialogOpen}
-          onOpenChange={setRoleMenuPermissionsDialogOpen}
-        />
+        <RoleMenuPermissionsDialog open={roleMenuPermissionsDialogOpen} onOpenChange={setRoleMenuPermissionsDialogOpen} />
       </Tabs>
-    </div>
-  );
+    </div>;
 }
