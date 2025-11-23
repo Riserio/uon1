@@ -602,7 +602,6 @@ export function AtendimentoDialog({
         const { error: updateError } = await supabase
           .from("atendimentos")
           .update({
-            corretora: formData.corretora || "",
             assunto: formData.assunto || "",
             prioridade: formData.prioridade || "Média",
             responsavel_id: formData.responsavel || null,
