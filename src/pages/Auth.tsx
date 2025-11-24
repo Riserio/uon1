@@ -482,9 +482,6 @@ export default function Auth() {
           )}
         </CardContent>
 
-        <CardHeader className="space-y-4 pb-6 flex flex-col items-center">
-          <img src={LogoUon1} alt="Uon1" className="w-32 h-auto mb-2" />
-
         <CardFooter className="flex flex-col space-y-4">
           {showCredentialsStep ? (
             <div className="text-sm text-center text-muted-foreground">
