@@ -246,7 +246,7 @@ export default function Auth() {
         <div className="space-y-4">
           <h1 className="text-6xl font-bold tracking-tight">Seja bem-vindo à Uon1</h1>
           <p className="text-xl opacity-90">
-            {showCredentialsStep ? "Tudo começa no 1" : "Confirme seu acesso seguro"}
+            {showCredentialsStep ? "Tudo começa no 1!" : "Confirme seu acesso seguro"}
           </p>
         </div>
       </div>
