@@ -9,9 +9,9 @@ import { useNavigate } from "react-router-dom";
 import { signInSchema, signUpSchema } from "@/lib/validationSchemas";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { ShieldCheck, ArrowLeft } from "lucide-react";
+import { ShieldCheck, ArrowLeft, QrCode } from "lucide-react";
 
-type Step = "CREDENTIALS" | "TOTP";
+type Step = "CREDENTIALS" | "TOTP" | "TOTP_SETUP";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -21,43 +21,83 @@ export default function Auth() {
 
   const [step, setStep] = useState<Step>("CREDENTIALS");
   const [totpCode, setTotpCode] = useState("");
+  const [qrCodeUri, setQrCodeUri] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // 🔐 controla se já validou o TOTP (só faz sentido pra parceiro)
   const [totpValidated, setTotpValidated] = useState(false);
-  // loading pós-login até descobrir o papel
   const [checkingRole, setCheckingRole] = useState(false);
 
-  const { signIn, signUp, user, userRole, loading: authLoading } = useAuth();
+  const { signIn, signUp, user, userRole, loading: authLoading, isParceiro } = useAuth();
   const navigate = useNavigate();
 
-  // helper pra identificar parceiro
-  const isPartner = userRole === "partner" || userRole === "parceiro" || userRole === "parceiro_externo";
-
-  // 🔐 Decisão central de pra onde mandar o usuário
+  // Redirect logic after authentication
   useEffect(() => {
     if (authLoading) return;
     if (!user) return;
-
-    // se ainda estamos checando papel depois do login, só continua quando já tiver role
     if (checkingRole && !userRole) return;
 
-    if (isPartner) {
-      // parceiro SEM TOTP validado → fica na tela de TOTP
+    if (isParceiro) {
+      // Partner without TOTP validation stays on TOTP screen
       if (!totpValidated) {
-        setStep("TOTP");
-        setCheckingRole(false);
+        // Check if TOTP is already configured
+        checkTOTPStatus();
         return;
       }
 
-      // parceiro COM TOTP ok → manda pro PID
-      navigate("/pid", { replace: true });
+      // Partner with TOTP validated goes to portal
+      navigate("/portal", { replace: true });
       return;
     }
 
-    // NÃO parceiro → fluxo normal, sem TOTP
+    // Non-partner users go to dashboard (no TOTP required)
     navigate("/dashboard", { replace: true });
-  }, [authLoading, user, userRole, isPartner, totpValidated, checkingRole, navigate]);
+  }, [authLoading, user, userRole, isParceiro, totpValidated, checkingRole, navigate]);
+
+  const checkTOTPStatus = async () => {
+    if (!user) return;
+
+    try {
+      const { data: totpData } = await supabase
+        .from('user_totp')
+        .select('enabled')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!totpData) {
+        // No TOTP configured - need to setup
+        setupTOTP();
+      } else if (!totpData.enabled) {
+        // TOTP exists but not enabled - need to setup again
+        setupTOTP();
+      } else {
+        // TOTP configured and enabled - just verify
+        setStep("TOTP");
+      }
+    } catch (error) {
+      console.error('Error checking TOTP status:', error);
+      toast.error("Erro ao verificar autenticação");
+    }
+  };
+
+  const setupTOTP = async () => {
+    if (!user?.email) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-totp/setup', {
+        body: { email: user.email }
+      });
+
+      if (error) throw error;
+
+      if (data.qrCodeUri) {
+        setQrCodeUri(data.qrCodeUri);
+        setStep("TOTP_SETUP");
+      }
+    } catch (error: any) {
+      console.error('Error setting up TOTP:', error);
+      toast.error("Erro ao configurar autenticação");
+    }
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,12 +112,8 @@ export default function Auth() {
         toast.error(error.message || "Erro ao fazer login");
         setCheckingRole(false);
       } else {
-        // credencial ok → agora vamos descobrir o papel
         setCheckingRole(true);
         toast.success("Credenciais válidas! Validando seu acesso...");
-        // o useEffect acima vai cuidar de:
-        // - se for parceiro → mostrar TOTP
-        // - se não for → redirecionar direto
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -119,9 +155,8 @@ export default function Auth() {
     setSubmitting(true);
 
     try {
-      // ✅ Só parceiro cai aqui, por causa do useEffect + isPartner
       const { data, error } = await supabase.functions.invoke("verify-totp", {
-        body: { code: totpCode, email },
+        body: { code: totpCode, email: user?.email },
       });
 
       if (error || !data?.valid) {
@@ -129,7 +164,7 @@ export default function Auth() {
       } else {
         toast.success("Acesso confirmado com sucesso!");
         setTotpValidated(true);
-        // o useEffect vai redirecionar para /pid quando totpValidated = true
+        // useEffect will redirect to portal
       }
     } catch (err) {
       console.error(err);
@@ -139,7 +174,45 @@ export default function Auth() {
     setSubmitting(false);
   };
 
-  // carregamento inicial da sessão (antes de saber se está logado ou não)
+  const handleSetupTotp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!totpCode || totpCode.length !== 6) return;
+
+    setSubmitting(true);
+
+    try {
+      // Verify the code
+      const { data, error } = await supabase.functions.invoke('verify-totp', {
+        body: { 
+          email: user?.email,
+          code: totpCode 
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.valid) {
+        // Enable TOTP
+        await supabase
+          .from('user_totp')
+          .update({ enabled: true })
+          .eq('user_id', user?.id);
+        
+        toast.success("Google Authenticator configurado com sucesso!");
+        setTotpValidated(true);
+        // useEffect will redirect to portal
+      } else {
+        toast.error("Código inválido. Verifique e tente novamente.");
+      }
+    } catch (error: any) {
+      console.error("TOTP setup error:", error);
+      toast.error(error.message || "Erro ao configurar autenticação");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Initial loading
   if (authLoading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700">
@@ -176,18 +249,26 @@ export default function Auth() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-2xl font-semibold">
-                {showCredentialsStep ? (isSignUp ? "Sign up" : "Sign in") : "Validação em duas etapas"}
+                {showCredentialsStep 
+                  ? (isSignUp ? "Sign up" : "Sign in") 
+                  : step === "TOTP_SETUP"
+                  ? "Configure Google Authenticator"
+                  : "Validação em duas etapas"}
               </CardTitle>
               <CardDescription className="text-muted-foreground">
                 {showCredentialsStep
                   ? isSignUp
                     ? "Create your account to get started"
                     : "Enter your credentials to continue"
+                  : step === "TOTP_SETUP"
+                  ? "Escaneie o QR code e digite o código gerado"
                   : "Digite o código do Google Authenticator para concluir o login"}
               </CardDescription>
             </div>
 
-            {!showCredentialsStep && <ShieldCheck className="w-8 h-8 text-blue-600" />}
+            {!showCredentialsStep && (
+              step === "TOTP_SETUP" ? <QrCode className="w-8 h-8 text-blue-600" /> : <ShieldCheck className="w-8 h-8 text-blue-600" />
+            )}
           </div>
         </CardHeader>
 
@@ -258,8 +339,56 @@ export default function Auth() {
                 )}
               </Button>
             </form>
+          ) : step === "TOTP_SETUP" ? (
+            <form onSubmit={handleSetupTotp} className="space-y-4">
+              <div className="flex flex-col items-center space-y-4">
+                <div className="p-4 bg-white rounded-lg border-2 border-border">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUri)}`}
+                    alt="QR Code TOTP"
+                    className="w-48 h-48"
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  1. Abra o Google Authenticator no seu celular<br />
+                  2. Escaneie este código QR<br />
+                  3. Digite o código de 6 dígitos gerado abaixo
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="totp-setup" className="text-sm font-medium">
+                  Código do Google Authenticator
+                </Label>
+                <Input
+                  id="totp-setup"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
+                  required
+                  placeholder="000000"
+                  className="h-11 tracking-[0.4em] text-center text-lg"
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                disabled={submitting || totpCode.length !== 6}
+              >
+                {submitting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Verificando...
+                  </div>
+                ) : (
+                  "Confirmar e Ativar"
+                )}
+              </Button>
+            </form>
           ) : (
-            // 🔐 Tela de TOTP – só será usada se isPartner === true
             <form onSubmit={handleVerifyTotp} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="totp" className="text-sm font-medium">
@@ -320,6 +449,7 @@ export default function Auth() {
                   setTotpCode("");
                   setPassword("");
                   setTotpValidated(false);
+                  setQrCodeUri("");
                 }}
                 className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
               >

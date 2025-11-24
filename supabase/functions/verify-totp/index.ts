@@ -7,6 +7,24 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper to generate TOTP secret
+function generateTOTPSecret(): string {
+  const buffer = new Uint8Array(20);
+  crypto.getRandomValues(buffer);
+  // Convert to base32
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = '';
+  for (let i = 0; i < buffer.length; i++) {
+    bits += buffer[i].toString(2).padStart(8, '0');
+  }
+  let result = '';
+  for (let i = 0; i < bits.length; i += 5) {
+    const chunk = bits.substr(i, 5).padEnd(5, '0');
+    result += alphabet[parseInt(chunk, 2)];
+  }
+  return result;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -26,7 +44,84 @@ serve(async (req) => {
       }
     );
 
-    // Parse request body
+    const url = new URL(req.url);
+    const action = url.pathname.split('/').pop();
+
+    // Setup TOTP - generate QR code
+    if (action === 'setup') {
+      const { email } = await req.json();
+
+      if (!email) {
+        return new Response(
+          JSON.stringify({ error: "Missing email" }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+
+      // Find user by email
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .select('id, nome')
+        .eq('email', email)
+        .single();
+
+      if (profileError || !profile) {
+        console.error('Profile not found:', profileError);
+        return new Response(
+          JSON.stringify({ error: "User not found" }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+
+      // Generate new TOTP secret
+      const secret = generateTOTPSecret();
+      
+      // Create or update TOTP record
+      const { error: upsertError } = await supabaseAdmin
+        .from('user_totp')
+        .upsert({
+          user_id: profile.id,
+          secret: secret,
+          enabled: false // Will be enabled after first successful verification
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (upsertError) {
+        console.error('Error creating TOTP:', upsertError);
+        return new Response(
+          JSON.stringify({ error: "Failed to setup TOTP" }),
+          { 
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+
+      // Generate QR code URI
+      const issuer = 'Portal PID';
+      const accountName = `${profile.nome} (${email})`;
+      const qrCodeUri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(accountName)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}`;
+
+      return new Response(
+        JSON.stringify({ 
+          qrCodeUri,
+          secret
+        }),
+        { 
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    // Verify TOTP code
     const { email, code } = await req.json();
 
     if (!email || !code) {
