@@ -20,6 +20,11 @@ type MinimalUser = {
   email?: string | null;
 };
 
+type ParceiroTotpSetup = {
+  needsTotp: boolean;
+  userId?: string;
+};
+
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,6 +36,8 @@ export default function Auth() {
   const [qrCodeUri, setQrCodeUri] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loginPhase, setLoginPhase] = useState<LoginPhase>("idle");
+  const [needsTotp, setNeedsTotp] = useState(false);
+  const [parceiroUserId, setParceiroUserId] = useState("");
 
   const { signIn, signUp, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -122,39 +129,97 @@ export default function Auth() {
         password,
       });
 
-      const result = await signIn(validated.email, validated.password);
+      // Verificar se é um usuário parceiro primeiro
+      const { data: parceiroData } = await supabase
+        .from("corretora_usuarios")
+        .select("id, email, corretora_id, ativo, totp_configurado")
+        .eq("email", validated.email)
+        .eq("ativo", true)
+        .maybeSingle();
 
-      if (result.error) {
-        toast.error(result.error.message || "Erro ao fazer login");
-        setSubmitting(false);
-        setLoginPhase("idle");
-        return;
-      }
+      if (parceiroData) {
+        // Login de parceiro via portal-auth
+        const { data: loginData, error: loginError } = await supabase.functions.invoke(
+          "portal-auth/login",
+          {
+            body: { 
+              email: validated.email, 
+              password: validated.password 
+            },
+          }
+        );
 
-      if (result.isParceiro) {
-        toast.success("Credenciais válidas! Verificando autenticação...");
-
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (userError || !userData.user) {
-          console.error("Erro ao obter usuário após login:", userError);
-          toast.error("Erro ao carregar seus dados. Tente novamente.");
+        if (loginError || loginData?.error) {
+          toast.error(loginData?.error || "Credenciais inválidas");
           setSubmitting(false);
           setLoginPhase("idle");
           return;
         }
 
-        const currentUser: MinimalUser = {
-          id: userData.user.id,
-          email: userData.user.email,
-        };
+        // Verificar se precisa configurar TOTP
+        if (loginData.needsTotp && !loginData.token) {
+          setNeedsTotp(true);
+          setParceiroUserId(loginData.userId);
+          
+          // Buscar QR Code
+          const { data: totpData } = await supabase.functions.invoke(
+            "portal-auth/configure-totp",
+            {
+              body: { userId: loginData.userId },
+            }
+          );
 
-        setLoginPhase("totp");
-        await checkTOTPStatus(currentUser);
+          if (totpData?.qrCodeUri) {
+            setQrCodeUri(totpData.qrCodeUri);
+            setStep("TOTP_SETUP");
+            toast.info("Configure o Google Authenticator para continuar");
+          }
+          setSubmitting(false);
+          return;
+        }
+
+        // Login bem-sucedido com token
+        if (loginData.token) {
+          toast.success("Login realizado com sucesso!");
+          // O parceiro será redirecionado automaticamente para /portal pelo ProtectedRoute
+          window.location.href = "/portal";
+        }
       } else {
-        toast.success("Login realizado com sucesso!");
-        navigate("/dashboard", {
-          replace: true,
-        });
+        // Login de usuário normal via Supabase Auth
+        const result = await signIn(validated.email, validated.password);
+
+        if (result.error) {
+          toast.error(result.error.message || "Erro ao fazer login");
+          setSubmitting(false);
+          setLoginPhase("idle");
+          return;
+        }
+
+        if (result.isParceiro) {
+          toast.success("Credenciais válidas! Verificando autenticação...");
+
+          const { data: userData, error: userError } = await supabase.auth.getUser();
+          if (userError || !userData.user) {
+            console.error("Erro ao obter usuário após login:", userError);
+            toast.error("Erro ao carregar seus dados. Tente novamente.");
+            setSubmitting(false);
+            setLoginPhase("idle");
+            return;
+          }
+
+          const currentUser: MinimalUser = {
+            id: userData.user.id,
+            email: userData.user.email,
+          };
+
+          setLoginPhase("totp");
+          await checkTOTPStatus(currentUser);
+        } else {
+          toast.success("Login realizado com sucesso!");
+          navigate("/dashboard", {
+            replace: true,
+          });
+        }
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -248,42 +313,70 @@ export default function Auth() {
     setSubmitting(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("verify-totp", {
-        body: {
-          email: user?.email,
-          code: totpCode,
-        },
-      });
+      // Se é um parceiro (needsTotp = true), usar portal-auth
+      if (needsTotp && parceiroUserId) {
+        const { data, error } = await supabase.functions.invoke(
+          "portal-auth/verify-totp-setup",
+          {
+            body: {
+              userId: parceiroUserId,
+              totpCode,
+            },
+          }
+        );
 
-      if (error) {
-        console.error("Edge function error:", error);
-        toast.error("Erro ao configurar autenticação");
-        setSubmitting(false);
-        return;
-      }
+        if (error || !data) {
+          console.error("Edge function error:", error);
+          toast.error("Erro ao configurar autenticação");
+          setSubmitting(false);
+          return;
+        }
 
-      // Validate response structure
-      if (!data || !data.success) {
-        console.error("Invalid response from verify-totp:", data);
-        toast.error("Erro ao configurar autenticação: resposta inválida");
-        setSubmitting(false);
-        return;
-      }
-
-      if (data.valid) {
-        await supabase
-          .from("user_totp")
-          .update({
-            enabled: true,
-          })
-          .eq("user_id", user?.id);
-
-        toast.success("Google Authenticator configurado com sucesso!");
-        navigate("/portal", {
-          replace: true,
-        });
+        if (data.valid && data.token) {
+          toast.success("Google Authenticator configurado com sucesso!");
+          window.location.href = "/portal";
+        } else {
+          toast.error(data.error || "Código inválido. Verifique e tente novamente.");
+        }
       } else {
-        toast.error("Código inválido. Verifique e tente novamente.");
+        // Login normal de usuário
+        const { data, error } = await supabase.functions.invoke("verify-totp", {
+          body: {
+            email: user?.email,
+            code: totpCode,
+          },
+        });
+
+        if (error) {
+          console.error("Edge function error:", error);
+          toast.error("Erro ao configurar autenticação");
+          setSubmitting(false);
+          return;
+        }
+
+        // Validate response structure
+        if (!data || !data.success) {
+          console.error("Invalid response from verify-totp:", data);
+          toast.error("Erro ao configurar autenticação: resposta inválida");
+          setSubmitting(false);
+          return;
+        }
+
+        if (data.valid) {
+          await supabase
+            .from("user_totp")
+            .update({
+              enabled: true,
+            })
+            .eq("user_id", user?.id);
+
+          toast.success("Google Authenticator configurado com sucesso!");
+          navigate("/portal", {
+            replace: true,
+          });
+        } else {
+          toast.error("Código inválido. Verifique e tente novamente.");
+        }
       }
     } catch (error: any) {
       console.error("TOTP setup error:", error);

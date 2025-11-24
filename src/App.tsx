@@ -43,7 +43,6 @@ import Administradora from "./pages/Administradora";
 import AberturaSinistro from './pages/AberturaSinistro';
 import DashboardSinistros from './pages/DashboardSinistros';
 import { PortalAuthProvider } from '@/contexts/PortalAuthContext';
-import PortalLogin from './pages/portal/PortalLogin';
 import PortalDashboard from './pages/portal/PortalDashboard';
 import PID from './pages/PID';
 import Portal from './pages/Portal';
@@ -123,10 +122,6 @@ const App = () => (
             <Toaster />
             <Sonner />
             <Routes>
-              {/* Portal PID Routes */}
-          <Route path="/:slug/login" element={<PortalLogin />} />
-          <Route path="/:slug/dashboard" element={<PortalDashboard />} />
-              
               {/* Regular App Routes */}
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />
