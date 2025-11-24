@@ -24,34 +24,8 @@ export default function Auth() {
   const [qrCodeUri, setQrCodeUri] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const [totpValidated, setTotpValidated] = useState(false);
-  const [checkingRole, setCheckingRole] = useState(false);
-
-  const { signIn, signUp, user, userRole, loading: authLoading, isParceiro } = useAuth();
+  const { signIn, signUp, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-
-  // Redirect logic after authentication
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) return;
-    if (checkingRole && !userRole) return;
-
-    if (isParceiro) {
-      // Partner without TOTP validation stays on TOTP screen
-      if (!totpValidated) {
-        // Check if TOTP is already configured
-        checkTOTPStatus();
-        return;
-      }
-
-      // Partner with TOTP validated goes to portal
-      navigate("/portal", { replace: true });
-      return;
-    }
-
-    // Non-partner users go to dashboard (no TOTP required)
-    navigate("/dashboard", { replace: true });
-  }, [authLoading, user, userRole, isParceiro, totpValidated, checkingRole, navigate]);
 
   const checkTOTPStatus = async () => {
     if (!user) return;
@@ -106,20 +80,27 @@ export default function Auth() {
     try {
       const validated = signInSchema.parse({ email, password });
 
-      const { error } = await signIn(validated.email, validated.password);
+      const result = await signIn(validated.email, validated.password);
 
-      if (error) {
-        toast.error(error.message || "Erro ao fazer login");
-        setCheckingRole(false);
+      if (result.error) {
+        toast.error(result.error.message || "Erro ao fazer login");
+        setSubmitting(false);
+        return;
+      }
+
+      // Check if user is a partner - if so, check TOTP
+      if (result.isParceiro) {
+        toast.success("Credenciais válidas! Verificando autenticação...");
+        await checkTOTPStatus();
       } else {
-        setCheckingRole(true);
-        toast.success("Credenciais válidas! Validando seu acesso...");
+        // Non-partner users go directly to dashboard
+        toast.success("Login realizado com sucesso!");
+        navigate("/dashboard", { replace: true });
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
       }
-      setCheckingRole(false);
     }
 
     setSubmitting(false);
@@ -163,8 +144,7 @@ export default function Auth() {
         toast.error("Código inválido. Tente novamente.");
       } else {
         toast.success("Acesso confirmado com sucesso!");
-        setTotpValidated(true);
-        // useEffect will redirect to portal
+        navigate("/portal", { replace: true });
       }
     } catch (err) {
       console.error(err);
@@ -199,8 +179,7 @@ export default function Auth() {
           .eq('user_id', user?.id);
         
         toast.success("Google Authenticator configurado com sucesso!");
-        setTotpValidated(true);
-        // useEffect will redirect to portal
+        navigate("/portal", { replace: true });
       } else {
         toast.error("Código inválido. Verifique e tente novamente.");
       }
@@ -325,9 +304,9 @@ export default function Auth() {
               <Button
                 type="submit"
                 className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                disabled={submitting || checkingRole}
+                disabled={submitting}
               >
-                {submitting || checkingRole ? (
+                {submitting ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     {isSignUp ? "Criando conta..." : "Validando credenciais..."}
@@ -448,7 +427,6 @@ export default function Auth() {
                   setStep("CREDENTIALS");
                   setTotpCode("");
                   setPassword("");
-                  setTotpValidated(false);
                   setQrCodeUri("");
                 }}
                 className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
