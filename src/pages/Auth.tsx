@@ -1,3 +1,4 @@
+import LogoUon1 from "@/assets/logo-uon1.png";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -44,54 +45,29 @@ export default function Auth() {
           }
         : undefined);
 
-    if (!effectiveUser) {
-      setSubmitting(false);
-      setLoginPhase("idle");
-      return;
-    }
+    if (!effectiveUser) return;
 
     try {
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 8000));
-
-      const queryPromise = supabase.from("user_totp").select("enabled").eq("user_id", effectiveUser.id).maybeSingle();
-
-      const { data: totpData, error } = (await Promise.race([queryPromise, timeoutPromise])) as any;
+      const { data: totpData, error } = await supabase
+        .from("user_totp")
+        .select("enabled")
+        .eq("user_id", effectiveUser.id)
+        .maybeSingle();
 
       if (error) {
         console.error("Error checking TOTP status:", error);
         toast.error("Erro ao verificar autenticação");
-        setSubmitting(false);
-        setLoginPhase("idle");
         return;
       }
 
       if (!totpData || !totpData.enabled) {
         await setupTOTP(effectiveUser);
       } else {
-        const { data: totpRecord } = await supabase
-          .from("user_totp")
-          .select("secret")
-          .eq("user_id", effectiveUser.id)
-          .maybeSingle();
-
-        if (totpRecord?.secret) {
-          const qrUri = `otpauth://totp/Uon1:${effectiveUser.email}?secret=${totpRecord.secret}&issuer=Uon1`;
-          setQrCodeUri(qrUri);
-        }
-
         setStep("TOTP");
-        setSubmitting(false);
-        setLoginPhase("idle");
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error checking TOTP status:", error);
-      if (error.message === "Timeout") {
-        toast.error("Conexão lenta detectada. Verifique sua internet e tente novamente.");
-      } else {
-        toast.error("Erro ao verificar autenticação");
-      }
-      setSubmitting(false);
-      setLoginPhase("idle");
+      toast.error("Erro ao verificar autenticação");
     }
   };
 
@@ -105,59 +81,38 @@ export default function Auth() {
           }
         : undefined);
 
-    if (!effectiveUser?.email) {
-      setSubmitting(false);
-      setLoginPhase("idle");
-      return;
-    }
+    if (!effectiveUser?.email) return;
 
     try {
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10000));
-
-      const setupPromise = supabase.functions.invoke("verify-totp/setup", {
+      const { data, error } = await supabase.functions.invoke("verify-totp/setup", {
         body: {
           email: effectiveUser.email,
         },
       });
 
-      const { data, error } = (await Promise.race([setupPromise, timeoutPromise])) as any;
-
       if (error) {
         console.error("Edge function error:", error);
         toast.error("Erro ao configurar autenticação");
-        setSubmitting(false);
-        setLoginPhase("idle");
         return;
       }
 
+      // Validate response structure
       if (!data || !data.success || !data.qrCodeUri) {
         console.error("Invalid response from verify-totp/setup:", data);
         toast.error("Erro ao configurar autenticação: resposta inválida");
-        setSubmitting(false);
-        setLoginPhase("idle");
         return;
       }
 
       setQrCodeUri(data.qrCodeUri);
       setStep("TOTP_SETUP");
-      setSubmitting(false);
-      setLoginPhase("idle");
     } catch (error: any) {
       console.error("Error setting up TOTP:", error);
-      if (error.message === "Timeout") {
-        toast.error("Conexão lenta detectada. Verifique sua internet e tente novamente.");
-      } else {
-        toast.error("Erro ao configurar autenticação");
-      }
-      setSubmitting(false);
-      setLoginPhase("idle");
+      toast.error("Erro ao configurar autenticação");
     }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitting) return;
-
     setSubmitting(true);
     setLoginPhase("credentials");
 
@@ -167,23 +122,18 @@ export default function Auth() {
         password,
       });
 
-      const signInPromise = signIn(validated.email, validated.password);
+      const result = await signIn(validated.email, validated.password);
 
-      const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10000));
-
-      const result: any = await Promise.race([signInPromise, timeoutPromise]);
-
-      if (!result || result.error) {
-        if (result?.error) {
-          console.error("Erro no signIn:", result.error);
-        }
-        toast.error(result?.error?.message || "Erro ao fazer login");
+      if (result.error) {
+        toast.error(result.error.message || "Erro ao fazer login");
         setSubmitting(false);
         setLoginPhase("idle");
         return;
       }
 
       if (result.isParceiro) {
+        toast.success("Credenciais válidas! Verificando autenticação...");
+
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError || !userData.user) {
           console.error("Erro ao obter usuário após login:", userError);
@@ -200,33 +150,27 @@ export default function Auth() {
 
         setLoginPhase("totp");
         await checkTOTPStatus(currentUser);
-        return;
+      } else {
+        toast.success("Login realizado com sucesso!");
+        navigate("/dashboard", {
+          replace: true,
+        });
       }
-
-      toast.success("Login realizado com sucesso!");
-      setSubmitting(false);
-      setLoginPhase("idle");
-      navigate("/dashboard", { replace: true });
-    } catch (error: any) {
-      console.error("Erro no handleSignIn:", error);
-
+    } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
-      } else if (error.message === "Timeout") {
-        toast.error("Tempo limite ao validar credenciais. Verifique sua conexão e tente novamente.");
       } else {
+        console.error(error);
         toast.error("Erro ao fazer login");
       }
-
-      setSubmitting(false);
-      setLoginPhase("idle");
     }
+
+    setSubmitting(false);
+    setLoginPhase("idle");
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitting) return;
-
     setSubmitting(true);
 
     try {
@@ -248,9 +192,6 @@ export default function Auth() {
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
-      } else {
-        console.error(error);
-        toast.error("Erro ao criar conta");
       }
     }
 
@@ -259,21 +200,15 @@ export default function Auth() {
 
   const handleVerifyTotp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitting) return;
-
     setSubmitting(true);
 
     try {
-      const verifyPromise = supabase.functions.invoke("verify-totp", {
+      const { data, error } = await supabase.functions.invoke("verify-totp", {
         body: {
           code: totpCode,
           email: user?.email,
         },
       });
-
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10000));
-
-      const { data, error } = (await Promise.race([verifyPromise, timeoutPromise])) as any;
 
       if (error) {
         console.error("Edge function error:", error);
@@ -282,6 +217,7 @@ export default function Auth() {
         return;
       }
 
+      // Validate response structure
       if (!data || !data.success) {
         console.error("Invalid response from verify-totp:", data);
         toast.error("Erro ao validar código: resposta inválida");
@@ -293,37 +229,31 @@ export default function Auth() {
         toast.error("Código inválido. Tente novamente.");
       } else {
         toast.success("Acesso confirmado com sucesso!");
-        navigate("/portal", { replace: true });
+        navigate("/portal", {
+          replace: true,
+        });
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      if (err.message === "Timeout") {
-        toast.error("Tempo limite excedido. Tente novamente.");
-      } else {
-        toast.error("Erro ao validar código. Tente novamente.");
-      }
-    } finally {
-      setSubmitting(false);
+      toast.error("Erro ao validar código. Tente novamente.");
     }
+
+    setSubmitting(false);
   };
 
   const handleSetupTotp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!totpCode || totpCode.length !== 6 || submitting) return;
+    if (!totpCode || totpCode.length !== 6) return;
 
     setSubmitting(true);
 
     try {
-      const verifyPromise = supabase.functions.invoke("verify-totp", {
+      const { data, error } = await supabase.functions.invoke("verify-totp", {
         body: {
           email: user?.email,
           code: totpCode,
         },
       });
-
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10000));
-
-      const { data, error } = (await Promise.race([verifyPromise, timeoutPromise])) as any;
 
       if (error) {
         console.error("Edge function error:", error);
@@ -332,6 +262,7 @@ export default function Auth() {
         return;
       }
 
+      // Validate response structure
       if (!data || !data.success) {
         console.error("Invalid response from verify-totp:", data);
         toast.error("Erro ao configurar autenticação: resposta inválida");
@@ -340,20 +271,23 @@ export default function Auth() {
       }
 
       if (data.valid) {
-        await supabase.from("user_totp").update({ enabled: true }).eq("user_id", user?.id);
+        await supabase
+          .from("user_totp")
+          .update({
+            enabled: true,
+          })
+          .eq("user_id", user?.id);
 
         toast.success("Google Authenticator configurado com sucesso!");
-        navigate("/portal", { replace: true });
+        navigate("/portal", {
+          replace: true,
+        });
       } else {
         toast.error("Código inválido. Verifique e tente novamente.");
       }
     } catch (error: any) {
       console.error("TOTP setup error:", error);
-      if (error.message === "Timeout") {
-        toast.error("Tempo limite excedido. Tente novamente.");
-      } else {
-        toast.error(error.message || "Erro ao configurar autenticação");
-      }
+      toast.error(error.message || "Erro ao configurar autenticação");
     } finally {
       setSubmitting(false);
     }
@@ -485,7 +419,7 @@ export default function Auth() {
                       ? "Criando conta..."
                       : loginPhase === "credentials"
                         ? "Validando credenciais..."
-                        : "Verificando TOTP..."}
+                        : "Validando autenticação por TOTP..."}
                   </div>
                 ) : isSignUp ? (
                   "Criar Conta"
@@ -499,9 +433,7 @@ export default function Auth() {
               <div className="flex flex-col items-center space-y-4">
                 <div className="p-4 bg-white rounded-lg border-2 border-border">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-                      qrCodeUri,
-                    )}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUri)}`}
                     alt="QR Code TOTP"
                     className="w-48 h-48"
                   />
@@ -549,21 +481,6 @@ export default function Auth() {
             </form>
           ) : (
             <form onSubmit={handleVerifyTotp} className="space-y-4">
-              {qrCodeUri && (
-                <div className="flex flex-col items-center space-y-3 mb-4">
-                  <div className="p-3 bg-white rounded-lg border-2 border-border">
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
-                        qrCodeUri,
-                      )}`}
-                      alt="QR Code TOTP"
-                      className="w-40 h-40"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground text-center">Escaneie novamente se perdeu o acesso</p>
-                </div>
-              )}
-
               <div className="space-y-2">
                 <Label htmlFor="totp" className="text-sm font-medium">
                   Código de verificação

@@ -38,7 +38,7 @@ type CorretoraUsuarioResult = {
 };
 
 export default function Portal() {
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [corretora, setCorretora] = useState<Corretora | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,7 +88,8 @@ export default function Portal() {
   }, [user, authLoading, navigate]);
 
   const handleLogout = async () => {
-    await signOut();
+    await supabase.auth.signOut();
+    navigate("/auth", { replace: true });
   };
 
   if (loading || authLoading) {
