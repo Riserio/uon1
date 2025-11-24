@@ -155,15 +155,23 @@ export default function Auth() {
           }
         );
 
-        if (loginError || loginData?.error) {
-          toast.error(loginData?.error || "Credenciais inválidas");
+        if (loginError) {
+          console.error("Erro no login do parceiro:", loginError);
+          toast.error("Erro ao validar credenciais");
+          setSubmitting(false);
+          setLoginPhase("idle");
+          return;
+        }
+
+        if (loginData?.error) {
+          toast.error(loginData.error);
           setSubmitting(false);
           setLoginPhase("idle");
           return;
         }
 
         // Verificar se precisa configurar TOTP pela primeira vez
-        if (loginData.needsTotp && !loginData.token) {
+        if (loginData?.needsTotp && !loginData.token) {
           setNeedsTotp(true);
           setParceiroUserId(loginData.userId);
           
@@ -181,62 +189,62 @@ export default function Auth() {
             toast.info("Configure o Google Authenticator para continuar");
           }
           setSubmitting(false);
-          return;
-        }
-
-        // Se recebeu erro pedindo código TOTP (já configurado)
-        if (loginData.error && loginData.error.includes("TOTP")) {
-          setNeedsTotp(true);
-          setParceiroUserId(parceiroData.id);
-          setStep("TOTP");
-          toast.info("Digite o código do Google Authenticator");
-          setSubmitting(false);
+          setLoginPhase("idle");
           return;
         }
 
         // Login bem-sucedido com token
-        if (loginData.token) {
+        if (loginData?.token) {
           toast.success("Login realizado com sucesso!");
-          // O parceiro será redirecionado automaticamente para /portal pelo ProtectedRoute
           window.location.href = "/portal";
           return;
         }
-      } else {
-        // Login de usuário normal via Supabase Auth
-        const result = await signIn(validated.email, validated.password);
 
-        if (result.error) {
-          toast.error(result.error.message || "Erro ao fazer login");
+        // Se chegou aqui, algo inesperado aconteceu
+        console.error("Resposta inesperada do login:", loginData);
+        toast.error("Erro inesperado no login. Tente novamente.");
+        setSubmitting(false);
+        setLoginPhase("idle");
+        return;
+      }
+      
+      // Login de usuário normal via Supabase Auth
+      const result = await signIn(validated.email, validated.password);
+
+      if (result.error) {
+        toast.error(result.error.message || "Erro ao fazer login");
+        setSubmitting(false);
+        setLoginPhase("idle");
+        return;
+      }
+
+      if (result.isParceiro) {
+        toast.success("Credenciais válidas! Verificando autenticação...");
+
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData.user) {
+          console.error("Erro ao obter usuário após login:", userError);
+          toast.error("Erro ao carregar seus dados. Tente novamente.");
           setSubmitting(false);
           setLoginPhase("idle");
           return;
         }
 
-        if (result.isParceiro) {
-          toast.success("Credenciais válidas! Verificando autenticação...");
+        const currentUser: MinimalUser = {
+          id: userData.user.id,
+          email: userData.user.email,
+        };
 
-          const { data: userData, error: userError } = await supabase.auth.getUser();
-          if (userError || !userData.user) {
-            console.error("Erro ao obter usuário após login:", userError);
-            toast.error("Erro ao carregar seus dados. Tente novamente.");
-            setSubmitting(false);
-            setLoginPhase("idle");
-            return;
-          }
-
-          const currentUser: MinimalUser = {
-            id: userData.user.id,
-            email: userData.user.email,
-          };
-
-          setLoginPhase("totp");
-          await checkTOTPStatus(currentUser);
-        } else {
-          toast.success("Login realizado com sucesso!");
-          navigate("/dashboard", {
-            replace: true,
-          });
-        }
+        setLoginPhase("totp");
+        await checkTOTPStatus(currentUser);
+        setSubmitting(false);
+        setLoginPhase("idle");
+        return;
+      } else {
+        toast.success("Login realizado com sucesso!");
+        navigate("/dashboard", {
+          replace: true,
+        });
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
