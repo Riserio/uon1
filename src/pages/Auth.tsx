@@ -1,3 +1,4 @@
+import LogoUon1 from "@/assets/logo-uon1.png";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -480,6 +481,9 @@ export default function Auth() {
             </form>
           )}
         </CardContent>
+
+        <CardHeader className="space-y-4 pb-6 flex flex-col items-center">
+          <img src={LogoUon1} alt="Uon1" className="w-32 h-auto mb-2" />
 
         <CardFooter className="flex flex-col space-y-4">
           {showCredentialsStep ? (
