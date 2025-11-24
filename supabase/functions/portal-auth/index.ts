@@ -184,30 +184,56 @@ serve(async (req) => {
 
       console.log('Login attempt:', { slug, email, hasTotpCode: !!totpCode });
 
-      // Buscar corretora pelo slug
-      const { data: corretora } = await supabaseClient
-        .from('corretoras')
-        .select('id, nome, slug')
-        .eq('slug', slug)
-        .single();
+      let corretora = null;
+      let usuario = null;
 
-      if (!corretora) {
-        return new Response(
-          JSON.stringify({ error: 'Corretora não encontrada' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
-        );
+      // Se tem slug, buscar corretora pelo slug
+      if (slug) {
+        const { data: corretoraData } = await supabaseClient
+          .from('corretoras')
+          .select('id, nome, slug')
+          .eq('slug', slug)
+          .single();
+
+        if (!corretoraData) {
+          return new Response(
+            JSON.stringify({ error: 'Corretora não encontrada' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+          );
+        }
+
+        corretora = corretoraData;
+
+        // Buscar usuário da corretora específica
+        const { data: usuarioData } = await supabaseClient
+          .from('corretora_usuarios')
+          .select('*')
+          .eq('corretora_id', corretora.id)
+          .eq('email', email)
+          .eq('ativo', true)
+          .single();
+
+        usuario = usuarioData;
+      } else {
+        // Sem slug - buscar usuário pelo email e depois a corretora
+        const { data: usuarioData } = await supabaseClient
+          .from('corretora_usuarios')
+          .select('*, corretoras(*)')
+          .eq('email', email)
+          .eq('ativo', true)
+          .maybeSingle();
+
+        if (usuarioData && usuarioData.corretoras) {
+          usuario = usuarioData;
+          corretora = {
+            id: usuarioData.corretoras.id,
+            nome: usuarioData.corretoras.nome,
+            slug: usuarioData.corretoras.slug,
+          };
+        }
       }
 
-      // Buscar usuário
-      const { data: usuario } = await supabaseClient
-        .from('corretora_usuarios')
-        .select('*')
-        .eq('corretora_id', corretora.id)
-        .eq('email', email)
-        .eq('ativo', true)
-        .single();
-
-      if (!usuario) {
+      if (!usuario || !corretora) {
         return new Response(
           JSON.stringify({ error: 'Credenciais inválidas' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
