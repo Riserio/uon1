@@ -283,7 +283,6 @@ export default function Auth() {
           <p className="text-xl opacity-90">
             {showCredentialsStep ? "Tudo começa no 1!" : "Confirme seu acesso seguro"}
           </p>
-          <img src={LogoUon1} alt="Uon1" className="w-40 h-auto mt-4 drop-shadow-xl" />
         </div>
       </div>
 
