@@ -276,14 +276,10 @@ export default function Auth() {
       <div className="absolute bottom-20 right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
       <div className="absolute top-1/2 left-1/4 w-72 h-72 bg-blue-400/20 rounded-full blur-2xl" />
 
-      {/* Texto lateral + LOGO (opção 2) */}
+      {/* Texto lateral */}
       <div className="hidden lg:block absolute left-24 top-1/2 -translate-y-1/2 text-white z-10">
-        <div className="space-y-6">
-          <div className="flex items-center gap-4">
-            <img src={LogoUon1} alt="Uon1" className="w-20 h-auto drop-shadow-lg" />
-            <h1 className="text-6xl font-bold tracking-tight">Seja bem-vindo à Uon1</h1>
-          </div>
-
+        <div className="space-y-4">
+          <h1 className="text-6xl font-bold tracking-tight">Seja bem-vindo à Uon1</h1>
           <p className="text-xl opacity-90">
             {showCredentialsStep ? "Tudo começa no 1!" : "Confirme seu acesso seguro"}
           </p>
