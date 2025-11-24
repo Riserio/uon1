@@ -110,7 +110,7 @@ export default function Auth() {
     try {
       const validated = signInSchema.parse({
         email,
-        password,
+        senha,
       });
 
       const result = await signIn(validated.email, validated.password);
@@ -168,7 +168,7 @@ export default function Auth() {
       const validated = signUpSchema.parse({
         nome,
         email,
-        password,
+        senha,
       });
 
       const { error } = await signUp(validated.email, validated.password, validated.nome);
@@ -294,8 +294,8 @@ export default function Auth() {
               <CardTitle className="text-2xl font-semibold">
                 {showCredentialsStep
                   ? isSignUp
-                    ? "Sign up"
-                    : "Sign in"
+                    ? "Cadastrar"
+                    : "Entrar"
                   : step === "TOTP_SETUP"
                     ? "Configure Google Authenticator"
                     : "Validação em duas etapas"}
@@ -303,8 +303,8 @@ export default function Auth() {
               <CardDescription className="text-muted-foreground">
                 {showCredentialsStep
                   ? isSignUp
-                    ? "Create your account to get started"
-                    : "Enter your credentials to continue"
+                    ? "Crie sua conta para começar."
+                    : "Insira suas credenciais para continuar."
                   : step === "TOTP_SETUP"
                     ? "Escaneie o QR code e digite o código gerado"
                     : "Digite o código do Google Authenticator para concluir o login"}
@@ -485,7 +485,7 @@ export default function Auth() {
         <CardFooter className="flex flex-col space-y-4">
           {showCredentialsStep ? (
             <div className="text-sm text-center text-muted-foreground">
-              {isSignUp ? "Já tem uma conta?" : "Don't have an account?"}
+              {isSignUp ? "Já tem uma conta?" : "Não tem uma conta?"}
               <button
                 type="button"
                 onClick={() => setIsSignUp(!isSignUp)}
