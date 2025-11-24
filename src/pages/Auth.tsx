@@ -194,7 +194,7 @@ export default function Auth() {
     setSubmitting(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("verify-totp", {
+      const { data, error } = await supabase.functions.invoke("verify/totp", {
         body: {
           code: totpCode,
           email: user?.email,
