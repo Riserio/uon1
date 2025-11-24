@@ -1,4 +1,3 @@
-import LogoUon1 from "@/assets/logo-uon1.png";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
