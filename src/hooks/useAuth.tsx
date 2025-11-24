@@ -26,30 +26,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
           // Check user status before allowing access
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('status')
-            .eq('id', session.user.id)
-            .single();
-          
-          // If pending or inactive, sign out immediately
-          if (profile?.status === 'pendente' || profile?.status === 'inativo') {
-            await supabase.auth.signOut();
-            setUser(null);
-            setSession(null);
-            setUserRole(null);
-            setLoading(false);
-            return;
-          }
-          
-          // If approved, fetch user role
-          await fetchUserRole(session.user.id);
+          setTimeout(async () => {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('status')
+              .eq('id', session.user.id)
+              .single();
+            
+            // If pending or inactive, sign out immediately
+            if (profile?.status === 'pendente' || profile?.status === 'inativo') {
+              await supabase.auth.signOut();
+              setUser(null);
+              setSession(null);
+              setUserRole(null);
+              setLoading(false);
+              return;
+            }
+            
+            // If approved, fetch user role
+            fetchUserRole(session.user.id);
+          }, 0);
         } else {
           setUserRole(null);
         }
