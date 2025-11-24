@@ -182,15 +182,8 @@ serve(async (req) => {
       });
     }
 
-    if (!totpData.enabled) {
-      return new Response(JSON.stringify({ error: "TOTP not enabled" }), {
-        status: 403,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      });
-    }
+    // Note: We allow verification even if not enabled yet (during initial setup)
+    // The frontend will enable it after successful verification
 
     // Verify TOTP code using speakeasy
     const isValid = speakeasy.totp.verify({
