@@ -9,7 +9,7 @@ interface AuthContextType {
   loading: boolean;
   userRole: string | null;
   isParceiro: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signIn: (email: string, password: string) => Promise<{ error: any; isParceiro?: boolean }>;
   signUp: (email: string, password: string, nome: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 }
@@ -121,22 +121,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     // Check if user is a parceiro (partner) - PORTAL PID
-    // Parceiros são usuários de corretoras com acesso EXCLUSIVO ao Portal PID
-    // Eles fazem login na mesma tela (/auth) mas são automaticamente redirecionados para /portal
     const { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', data.user.id)
       .single();
     
-    // DECISÃO DEFINITIVA: Parceiros vão direto para /portal, outros usuários vão para /
-    if (roleData?.role === 'parceiro') {
-      navigate('/portal');
-    } else {
-      navigate('/');
-    }
-    
-    return { error: null };
+    // Return role info, but DON'T navigate yet - Auth.tsx will handle TOTP flow first
+    return { error: null, isParceiro: roleData?.role === 'parceiro' };
   };
 
   const signUp = async (email: string, password: string, nome: string) => {
