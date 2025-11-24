@@ -45,7 +45,10 @@ export default function Auth() {
           }
         : undefined);
 
-    if (!effectiveUser) return;
+    if (!effectiveUser) {
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const { data: totpData, error } = await supabase
@@ -57,6 +60,8 @@ export default function Auth() {
       if (error) {
         console.error("Error checking TOTP status:", error);
         toast.error("Erro ao verificar autenticação");
+        setSubmitting(false);
+        setLoginPhase("idle");
         return;
       }
 
@@ -64,10 +69,13 @@ export default function Auth() {
         await setupTOTP(effectiveUser);
       } else {
         setStep("TOTP");
+        setSubmitting(false);
       }
     } catch (error) {
       console.error("Error checking TOTP status:", error);
       toast.error("Erro ao verificar autenticação");
+      setSubmitting(false);
+      setLoginPhase("idle");
     }
   };
 
@@ -81,7 +89,10 @@ export default function Auth() {
           }
         : undefined);
 
-    if (!effectiveUser?.email) return;
+    if (!effectiveUser?.email) {
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase.functions.invoke("verify-totp/setup", {
@@ -93,6 +104,8 @@ export default function Auth() {
       if (error) {
         console.error("Edge function error:", error);
         toast.error("Erro ao configurar autenticação");
+        setSubmitting(false);
+        setLoginPhase("idle");
         return;
       }
 
@@ -100,14 +113,19 @@ export default function Auth() {
       if (!data || !data.success || !data.qrCodeUri) {
         console.error("Invalid response from verify-totp/setup:", data);
         toast.error("Erro ao configurar autenticação: resposta inválida");
+        setSubmitting(false);
+        setLoginPhase("idle");
         return;
       }
 
       setQrCodeUri(data.qrCodeUri);
       setStep("TOTP_SETUP");
+      setSubmitting(false);
     } catch (error: any) {
       console.error("Error setting up TOTP:", error);
       toast.error("Erro ao configurar autenticação");
+      setSubmitting(false);
+      setLoginPhase("idle");
     }
   };
 
@@ -135,17 +153,19 @@ export default function Auth() {
         toast.success("Credenciais válidas! Verificando autenticação...");
         setLoginPhase("totp");
         
-        // Aguardar um momento para a sessão ser atualizada
-        setTimeout(async () => {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            const currentUser: MinimalUser = {
-              id: session.user.id,
-              email: session.user.email,
-            };
-            await checkTOTPStatus(currentUser);
-          }
-        }, 100);
+        // Buscar sessão atual
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const currentUser: MinimalUser = {
+            id: session.user.id,
+            email: session.user.email,
+          };
+          await checkTOTPStatus(currentUser);
+        } else {
+          toast.error("Erro ao carregar seus dados. Tente novamente.");
+          setSubmitting(false);
+          setLoginPhase("idle");
+        }
       } else {
         toast.success("Login realizado com sucesso!");
         setSubmitting(false);
