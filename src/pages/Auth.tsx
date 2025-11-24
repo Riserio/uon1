@@ -90,12 +90,21 @@ export default function Auth() {
         },
       });
 
-      if (error) throw error;
-
-      if (data?.qrCodeUri) {
-        setQrCodeUri(data.qrCodeUri);
-        setStep("TOTP_SETUP");
+      if (error) {
+        console.error("Edge function error:", error);
+        toast.error("Erro ao configurar autenticação");
+        return;
       }
+
+      // Validate response structure
+      if (!data || !data.success || !data.qrCodeUri) {
+        console.error("Invalid response from verify-totp/setup:", data);
+        toast.error("Erro ao configurar autenticação: resposta inválida");
+        return;
+      }
+
+      setQrCodeUri(data.qrCodeUri);
+      setStep("TOTP_SETUP");
     } catch (error: any) {
       console.error("Error setting up TOTP:", error);
       toast.error("Erro ao configurar autenticação");
@@ -201,7 +210,22 @@ export default function Auth() {
         },
       });
 
-      if (error || !data?.valid) {
+      if (error) {
+        console.error("Edge function error:", error);
+        toast.error("Erro ao validar código. Tente novamente.");
+        setSubmitting(false);
+        return;
+      }
+
+      // Validate response structure
+      if (!data || !data.success) {
+        console.error("Invalid response from verify-totp:", data);
+        toast.error("Erro ao validar código: resposta inválida");
+        setSubmitting(false);
+        return;
+      }
+
+      if (!data.valid) {
         toast.error("Código inválido. Tente novamente.");
       } else {
         toast.success("Acesso confirmado com sucesso!");
@@ -231,7 +255,20 @@ export default function Auth() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Edge function error:", error);
+        toast.error("Erro ao configurar autenticação");
+        setSubmitting(false);
+        return;
+      }
+
+      // Validate response structure
+      if (!data || !data.success) {
+        console.error("Invalid response from verify-totp:", data);
+        toast.error("Erro ao configurar autenticação: resposta inválida");
+        setSubmitting(false);
+        return;
+      }
 
       if (data.valid) {
         await supabase
