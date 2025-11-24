@@ -133,23 +133,19 @@ export default function Auth() {
 
       if (result.isParceiro) {
         toast.success("Credenciais válidas! Verificando autenticação...");
-
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (userError || !userData.user) {
-          console.error("Erro ao obter usuário após login:", userError);
-          toast.error("Erro ao carregar seus dados. Tente novamente.");
-          setSubmitting(false);
-          setLoginPhase("idle");
-          return;
-        }
-
-        const currentUser: MinimalUser = {
-          id: userData.user.id,
-          email: userData.user.email,
-        };
-
         setLoginPhase("totp");
-        await checkTOTPStatus(currentUser);
+        
+        // Aguardar um momento para a sessão ser atualizada
+        setTimeout(async () => {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            const currentUser: MinimalUser = {
+              id: session.user.id,
+              email: session.user.email,
+            };
+            await checkTOTPStatus(currentUser);
+          }
+        }, 100);
       } else {
         toast.success("Login realizado com sucesso!");
         setSubmitting(false);
