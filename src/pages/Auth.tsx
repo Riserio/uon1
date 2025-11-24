@@ -397,7 +397,7 @@ export default function Auth() {
 
               <Button
                 type="submit"
-                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                className="w-full h-11 bg-[#362c89] hover:bg-[#2a2270] text-white font-medium transition-colors"
                 disabled={submitting || totpCode.length !== 6}
               >
                 {submitting ? (
@@ -457,7 +457,7 @@ export default function Auth() {
               <button
                 type="button"
                 onClick={() => setIsSignUp(!isSignUp)}
-                className="ml-2 text-blue-600 hover:text-blue-700 font-medium"
+                className="ml-2 text-[#362c89] hover:text-[#2a2270] font-medium"
               >
                 {isSignUp ? "Fazer login" : "Sign up"}
               </button>
@@ -472,7 +472,7 @@ export default function Auth() {
                   setPassword("");
                   setQrCodeUri("");
                 }}
-                className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
+                className="flex items-center gap-1 text-[#362c89] hover:text-[#2a2270] font-medium"
               >
                 <ArrowLeft className="w-3 h-3" />
                 Trocar usuário
