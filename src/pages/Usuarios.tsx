@@ -19,7 +19,6 @@ import {
   Network,
   UserPlus,
   UsersRound,
-  Plus,
   Trash2,
   Key,
   ChevronLeft,
@@ -28,6 +27,7 @@ import {
   Shield,
   Briefcase,
   UserCircle,
+  ChevronDown,
 } from "lucide-react";
 import { UserFluxoPermissionsDialog } from "@/components/UserFluxoPermissionsDialog";
 import { UserMenuPermissionsDialog } from "@/components/UserMenuPermissionsDialog";
@@ -39,17 +39,9 @@ import { z } from "zod";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, Building2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination";
 
 type RoleType = "superintendente" | "administrativo" | "lider" | "comercial" | "parceiro";
 
@@ -189,7 +181,7 @@ export default function Usuarios() {
   };
 
   const fetchProfiles = async () => {
-    // Usuários ativos/inativos (lista principal)
+    // usuários ativos/inativos
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
@@ -202,7 +194,7 @@ export default function Usuarios() {
       setProfiles(data || []);
     }
 
-    // Usuários pendentes ou recém criados sem status
+    // pendentes ou sem status (novos da tela de login)
     const { data: pending, error: pendingError } = await supabase
       .from("profiles")
       .select("*")
@@ -228,7 +220,6 @@ export default function Usuarios() {
       setUserRoles(rolesMap);
     }
 
-    // Fetch equipes para líderes
     const { data: equipesData, error: equipesError } = await supabase
       .from("equipe_lideres")
       .select("lider_id, equipe_id");
@@ -359,7 +350,7 @@ export default function Usuarios() {
         const validatedData = createUserSchema.parse(formData);
 
         if (!tempPassword) {
-          toast.error("Por favor, gere uma senha antes de criar o usuário");
+          toast.error("Por favor, gere ou digite uma senha antes de criar o usuário");
           return;
         }
 
@@ -422,6 +413,7 @@ export default function Usuarios() {
       .from("profiles")
       .update({
         nome: formData.nome || editingItem.nome,
+        email: formData.email || editingItem.email,
         telefone: formData.telefone,
         cargo: formData.cargo,
         equipe_id: editingRole === "comercial" ? formData.equipe_id : null,
@@ -554,7 +546,9 @@ export default function Usuarios() {
   const openDialog = (item?: Profile) => {
     if (item) {
       setEditingItem(item);
-      setFormData(item);
+      setFormData({
+        ...item,
+      });
       setEditingRole((userRoles[item.id] as RoleType) || "comercial");
       setSelectedEquipes(userEquipes[item.id] || []);
     } else {
@@ -850,7 +844,7 @@ export default function Usuarios() {
                   )}
 
                   <div className="grid gap-6 py-4">
-                    {/* INFORMAÇÕES DE ACESSO */}
+                    {/* INFORMAÇÕES DE ACESSO - NOVO USUÁRIO */}
                     {!editingItem && (
                       <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                         <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
@@ -895,15 +889,14 @@ export default function Usuarios() {
                               type="text"
                               value={tempPassword}
                               onChange={(e) => setTempPassword(e.target.value)}
-                              placeholder="Clique em 'Gerar Senha'"
+                              placeholder="Digite uma senha ou clique em 'Gerar Senha'"
                               required
-                              readOnly
                             />
                             <Button
                               type="button"
                               variant="outline"
                               onClick={() => setTempPassword(generateSecurePassword())}
-                              title="Gerar nova senha"
+                              title="Gerar nova senha aleatória"
                             >
                               <RefreshCw className="h-4 w-4" />
                             </Button>
@@ -923,7 +916,7 @@ export default function Usuarios() {
                           </div>
                           {tempPassword && (
                             <p className="text-xs text-muted-foreground">
-                              Esta senha será enviada ao usuário. Use o botão de copiar para compartilhar.
+                              Você pode digitar uma senha manualmente ou usar a gerada automaticamente.
                             </p>
                           )}
                         </div>
@@ -956,7 +949,7 @@ export default function Usuarios() {
                           <div className="grid gap-2">
                             <Label>Nome</Label>
                             <Input
-                              value={formData.nome || ""}
+                              value={formData.nome ?? editingItem.nome}
                               onChange={(e) =>
                                 setFormData({
                                   ...formData,
@@ -967,7 +960,16 @@ export default function Usuarios() {
                           </div>
                           <div className="grid gap-2">
                             <Label>Email</Label>
-                            <Input value={editingItem?.email || ""} disabled className="bg-muted" />
+                            <Input
+                              type="email"
+                              value={formData.email ?? editingItem.email}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  email: e.target.value,
+                                })
+                              }
+                            />
                           </div>
                         </div>
                       )}
