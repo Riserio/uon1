@@ -26,54 +26,73 @@ import { toast } from "sonner";
  * - Podem apenas VISUALIZAR dados financeiros e sinistros
  * - Podem EDITAR apenas deliberações do Comitê de Sinistros
  */
+type Corretora = {
+  id: string;
+  nome: string;
+  logo_url?: string | null;
+};
+
+type CorretoraUsuarioResult = {
+  corretora_id: string;
+  corretoras: Corretora;
+};
+
 export default function Portal() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [corretora, setCorretora] = useState<any>(null);
+  const [corretora, setCorretora] = useState<Corretora | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadCorretoraData() {
+      // enquanto o auth ainda está carregando, não faz nada
+      if (authLoading) return;
+
       if (!user) {
-        navigate("/auth");
+        navigate("/auth", { replace: true });
         return;
       }
 
       try {
-        // Buscar corretora vinculada ao usuário PARCEIRO via corretora_usuarios
-        const { data: corretoraUsuario, error: cuError } = await supabase
+        const { data, error } = await supabase
           .from("corretora_usuarios")
           .select("corretora_id, corretoras(id, nome, logo_url)")
           .eq("profile_id", user.id)
           .eq("ativo", true)
-          .single();
+          .single<CorretoraUsuarioResult>();
 
-        if (cuError) throw cuError;
+        if (error) {
+          // erro típico de "nenhuma linha" no .single()
+          console.error("Erro ao buscar corretora_usuarios:", error);
+          toast.error("Você não está vinculado a nenhuma corretora");
+          navigate("/", { replace: true });
+          return;
+        }
 
-        if (corretoraUsuario?.corretoras) {
-          setCorretora(corretoraUsuario.corretoras);
+        if (data?.corretoras) {
+          setCorretora(data.corretoras);
         } else {
           toast.error("Você não está vinculado a nenhuma corretora");
-          navigate("/");
+          navigate("/", { replace: true });
         }
-      } catch (error: any) {
+      } catch (error) {
         console.error("Erro ao carregar dados da corretora:", error);
         toast.error("Erro ao carregar dados da corretora");
-        navigate("/");
+        navigate("/", { replace: true });
       } finally {
         setLoading(false);
       }
     }
 
     loadCorretoraData();
-  }, [user, navigate]);
+  }, [user, authLoading, navigate]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/auth");
+    navigate("/auth", { replace: true });
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -85,6 +104,7 @@ export default function Portal() {
   }
 
   if (!corretora) {
+    // já tratamos com toast + navigate no efeito; aqui só evita quebrar render
     return null;
   }
 
