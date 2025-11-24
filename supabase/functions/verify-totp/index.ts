@@ -75,7 +75,7 @@ serve(async (req) => {
       if (profileError || !profile) {
         console.error("Profile not found:", profileError);
         return new Response(JSON.stringify({ error: "User not found" }), {
-          status: 400,
+          status: 404,
           headers: {
             ...corsHeaders,
             "Content-Type": "application/json",
@@ -116,8 +116,10 @@ serve(async (req) => {
         issuer,
       )}:${encodeURIComponent(accountName)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}`;
 
+      console.log("TOTP setup successful for user:", profile.id);
       return new Response(
         JSON.stringify({
+          success: true,
           qrCodeUri,
           secret,
         }),
@@ -154,7 +156,7 @@ serve(async (req) => {
     if (profileError || !profile) {
       console.error("Profile not found:", profileError);
       return new Response(JSON.stringify({ error: "User not found" }), {
-        status: 400,
+        status: 404,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json",
@@ -172,7 +174,7 @@ serve(async (req) => {
     if (totpError || !totpData) {
       console.error("TOTP not found:", totpError);
       return new Response(JSON.stringify({ error: "TOTP not configured" }), {
-        status: 400,
+        status: 404,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json",
@@ -181,8 +183,8 @@ serve(async (req) => {
     }
 
     if (!totpData.enabled) {
-      return new Response(JSON.stringify({ error: "TOTP not configured" }), {
-        status: 400,
+      return new Response(JSON.stringify({ error: "TOTP not enabled" }), {
+        status: 403,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json",
@@ -198,7 +200,8 @@ serve(async (req) => {
       window: 1,
     });
 
-    return new Response(JSON.stringify({ valid: isValid }), {
+    console.log("TOTP verification for user:", profile.id, "result:", isValid);
+    return new Response(JSON.stringify({ success: true, valid: isValid }), {
       status: 200,
       headers: {
         ...corsHeaders,
