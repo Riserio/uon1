@@ -340,7 +340,7 @@ export default function Auth() {
 
               <Button
                 type="submit"
-                className="w-full h-11 bg-[#362c89] hover:bg-[#362c89]/90 text-white font-medium transition-colors
+                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
                 disabled={submitting}
               >
                 {submitting ? (
@@ -397,7 +397,7 @@ export default function Auth() {
 
               <Button
                 type="submit"
-                className="w-full h-11 bg-[#362c89] hover:bg-[#362c89]/90 text-white font-medium transition-colors
+                className="w-full h-11 bg-[#362c89] hover:bg-[#2a2270] text-white font-medium transition-colors"
                 disabled={submitting || totpCode.length !== 6}
               >
                 {submitting ? (
