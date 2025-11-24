@@ -608,6 +608,45 @@ export default function Auth() {
                   "Confirmar acesso"
                 )}
               </Button>
+
+              {needsTotp && parceiroUserId && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full text-sm text-muted-foreground hover:text-foreground"
+                  onClick={async () => {
+                    setSubmitting(true);
+                    try {
+                      const { data, error } = await supabase.functions.invoke(
+                        "portal-auth/reset-totp",
+                        {
+                          body: { userId: parceiroUserId },
+                        }
+                      );
+
+                      if (error || !data) {
+                        toast.error("Erro ao resetar autenticação");
+                        setSubmitting(false);
+                        return;
+                      }
+
+                      if (data.qrCodeUri) {
+                        setQrCodeUri(data.qrCodeUri);
+                        setStep("TOTP_SETUP");
+                        setTotpCode("");
+                        toast.info("Escaneie o novo QR code no Google Authenticator");
+                      }
+                    } catch (err) {
+                      console.error(err);
+                      toast.error("Erro ao resetar autenticação");
+                    }
+                    setSubmitting(false);
+                  }}
+                  disabled={submitting}
+                >
+                  Perdi meu código do Google Authenticator
+                </Button>
+              )}
             </form>
           )}
         </CardContent>
