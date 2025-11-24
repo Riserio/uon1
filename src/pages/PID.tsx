@@ -49,14 +49,14 @@ export default function PID() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 max-w-7xl">
+      <div className="container mx-auto px-2 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 space-y-3 sm:space-y-4 md:space-y-6 max-w-7xl">
         {/* Header */}
         <div className="space-y-3 sm:space-y-4">
           <div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
               PID - Painel de Indicadores e Demonstrativos
             </h1>
-            <p className="text-muted-foreground mt-1.5 sm:mt-2 text-xs sm:text-sm md:text-base lg:text-lg">
+            <p className="text-muted-foreground mt-1 sm:mt-2 text-xs sm:text-sm md:text-base">
               Gestão completa de dados financeiros e sinistros das corretoras
             </p>
           </div>
@@ -66,14 +66,14 @@ export default function PID() {
             <CardContent className="p-3 sm:p-4 md:p-6">
               <div className="flex flex-col lg:flex-row justify-between gap-3 sm:gap-4 items-stretch lg:items-center">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 md:gap-4 flex-1 w-full min-w-0">
-                  <Label htmlFor="corretora-select" className="text-sm sm:text-base md:text-lg font-semibold whitespace-nowrap flex-shrink-0">
+                  <Label htmlFor="corretora-select" className="text-xs sm:text-sm md:text-base font-semibold whitespace-nowrap flex-shrink-0">
                     Selecionar Corretora:
                   </Label>
 
                   <Select value={selectedCorretora} onValueChange={setSelectedCorretora} disabled={loading}>
                     <SelectTrigger
                       id="corretora-select"
-                      className="w-full sm:max-w-md h-10 sm:h-11 md:h-12 border-2 text-xs sm:text-sm md:text-base"
+                      className="w-full sm:max-w-md h-9 sm:h-10 md:h-11 border-2 text-xs sm:text-sm"
                     >
                       <SelectValue placeholder="Escolha uma corretora..." />
                     </SelectTrigger>
@@ -83,7 +83,7 @@ export default function PID() {
                         <SelectItem
                           key={corretora.id}
                           value={corretora.id}
-                          className="text-xs sm:text-sm md:text-base py-1.5 sm:py-2 md:py-3"
+                          className="text-xs sm:text-sm py-2"
                         >
                           {corretora.nome}
                         </SelectItem>
@@ -97,9 +97,9 @@ export default function PID() {
                   <Button
                     variant="outline"
                     onClick={() => setUsuariosDialogOpen(true)}
-                    className="gap-2 whitespace-nowrap w-full sm:w-auto flex-shrink-0 h-10 sm:h-11"
+                    className="gap-2 whitespace-nowrap w-full sm:w-auto flex-shrink-0 h-9 sm:h-10"
                   >
-                    <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <Users className="h-4 w-4" />
                     <span className="text-xs sm:text-sm">Gerenciar Usuários PID</span>
                   </Button>
                 )}
@@ -109,74 +109,78 @@ export default function PID() {
         </div>
 
         {/* Abas */}
-        <Tabs defaultValue="kpi" className="space-y-4 sm:space-y-6">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 rounded-lg sm:rounded-xl bg-muted/30 p-1 sm:p-1.5 shadow-sm gap-0.5 sm:gap-1">
-            <TabsTrigger
-              value="kpi"
-              className="flex items-center justify-center gap-1 sm:gap-2 rounded-md sm:rounded-lg px-1.5 sm:px-2 md:px-3 py-2 sm:py-2.5 
-                         text-[10px] sm:text-xs md:text-sm font-medium transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-md hover:bg-muted/50"
-            >
-              <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">KPI</span>
-            </TabsTrigger>
+        <Tabs defaultValue="kpi" className="space-y-3 sm:space-y-4 md:space-y-6">
+          <div className="w-full overflow-x-hidden">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 rounded-lg bg-muted/30 p-1 gap-1">
+              <TabsTrigger
+                value="kpi"
+                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
+                           text-xs sm:text-sm font-medium transition-all
+                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                           data-[state=active]:shadow-md hover:bg-muted/50"
+              >
+                <Activity className="h-4 w-4" />
+                <span className="text-[10px] sm:text-xs">KPI</span>
+              </TabsTrigger>
 
-            <TabsTrigger
-              value="extrato"
-              className="flex items-center justify-center gap-1 sm:gap-2 rounded-md sm:rounded-lg px-1.5 sm:px-2 md:px-3 py-2 sm:py-2.5 
-                         text-[10px] sm:text-xs md:text-sm font-medium transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-md hover:bg-muted/50"
-            >
-              <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">Extrato</span>
-            </TabsTrigger>
+              <TabsTrigger
+                value="extrato"
+                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
+                           text-xs sm:text-sm font-medium transition-all
+                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                           data-[state=active]:shadow-md hover:bg-muted/50"
+              >
+                <FileText className="h-4 w-4" />
+                <span className="text-[10px] sm:text-xs">Extrato</span>
+              </TabsTrigger>
 
-            <TabsTrigger
-              value="indicadores"
-              className="flex items-center justify-center gap-1 sm:gap-2 rounded-md sm:rounded-lg px-1.5 sm:px-2 md:px-3 py-2 sm:py-2.5 
-                         text-[10px] sm:text-xs md:text-sm font-medium transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-md hover:bg-muted/50"
-            >
-              <PieChart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline sm:hidden md:inline">Indicadores</span>
-            </TabsTrigger>
+              <TabsTrigger
+                value="indicadores"
+                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
+                           text-xs sm:text-sm font-medium transition-all
+                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                           data-[state=active]:shadow-md hover:bg-muted/50"
+              >
+                <PieChart className="h-4 w-4" />
+                <span className="text-[10px] sm:text-xs hidden sm:inline">Indicadores</span>
+                <span className="text-[10px] sm:hidden">Indic.</span>
+              </TabsTrigger>
 
-            <TabsTrigger
-              value="lancamentos"
-              className="flex items-center justify-center gap-1 sm:gap-2 rounded-md sm:rounded-lg px-1.5 sm:px-2 md:px-3 py-2 sm:py-2.5 
-                         text-[10px] sm:text-xs md:text-sm font-medium transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-md hover:bg-muted/50"
-            >
-              <ListChecks className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline sm:hidden md:inline">Lançamentos</span>
-            </TabsTrigger>
+              <TabsTrigger
+                value="lancamentos"
+                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
+                           text-xs sm:text-sm font-medium transition-all
+                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                           data-[state=active]:shadow-md hover:bg-muted/50"
+              >
+                <ListChecks className="h-4 w-4" />
+                <span className="text-[10px] sm:text-xs hidden sm:inline">Lançamentos</span>
+                <span className="text-[10px] sm:hidden">Lanç.</span>
+              </TabsTrigger>
 
-            <TabsTrigger
-              value="sinistros"
-              className="flex items-center justify-center gap-1 sm:gap-2 rounded-md sm:rounded-lg px-1.5 sm:px-2 md:px-3 py-2 sm:py-2.5 
-                         text-[10px] sm:text-xs md:text-sm font-medium transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-md hover:bg-muted/50"
-            >
-              <ShieldCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">Sinistros</span>
-            </TabsTrigger>
+              <TabsTrigger
+                value="sinistros"
+                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
+                           text-xs sm:text-sm font-medium transition-all
+                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                           data-[state=active]:shadow-md hover:bg-muted/50"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                <span className="text-[10px] sm:text-xs">Sinistros</span>
+              </TabsTrigger>
 
-            <TabsTrigger
-              value="comite"
-              className="flex items-center justify-center gap-1 sm:gap-2 rounded-md sm:rounded-lg px-1.5 sm:px-2 md:px-3 py-2 sm:py-2.5 
-                         text-[10px] sm:text-xs md:text-sm font-medium transition-all
-                         data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                         data-[state=active]:shadow-md hover:bg-muted/50"
-            >
-              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">Comitê</span>
-            </TabsTrigger>
-          </TabsList>
+              <TabsTrigger
+                value="comite"
+                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
+                           text-xs sm:text-sm font-medium transition-all
+                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                           data-[state=active]:shadow-md hover:bg-muted/50"
+              >
+                <Users className="h-4 w-4" />
+                <span className="text-[10px] sm:text-xs">Comitê</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="kpi" className="space-y-4">
             <PortalKPI corretoraId={selectedCorretora} />
