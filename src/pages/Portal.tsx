@@ -112,27 +112,27 @@ export default function Portal() {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       {/* Header */}
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 md:gap-4">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 md:h-5 md:w-5 text-primary" />
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold leading-tight truncate">{corretora.nome}</h1>
-                <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground truncate">Portal de Gestão · PID</p>
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl md:text-2xl font-bold leading-tight truncate">{corretora.nome}</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground">Portal de Gestão · PID</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 sm:gap-3 md:gap-4 justify-end flex-shrink-0">
-              <Button variant="outline" onClick={handleLogout} className="gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-4 text-[11px] sm:text-xs md:text-sm h-8 sm:h-9 md:h-10">
-                <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span className="hidden xs:inline">Sair</span>
+            <div className="flex items-center gap-3 sm:gap-4 justify-end">
+              <Button variant="outline" onClick={handleLogout} className="gap-2 px-3 sm:px-4 text-xs sm:text-sm">
+                <LogOut className="h-4 w-4" />
+                Sair
               </Button>
               {corretora.logo_url && (
                 <img
                   src={corretora.logo_url}
                   alt={corretora.nome}
-                  className="h-7 sm:h-8 md:h-10 lg:h-12 w-auto object-contain"
+                  className="h-8 sm:h-10 md:h-12 w-auto object-contain"
                 />
               )}
             </div>
@@ -140,17 +140,17 @@ export default function Portal() {
         </div>
       </header>
 
-      <div className="container mx-auto px-2 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 space-y-3 sm:space-y-4 md:space-y-6 max-w-7xl">
+      <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Welcome Card */}
         <Card className="border-2 border-primary/10 shadow-lg bg-gradient-to-br from-card to-card/80">
-          <CardContent className="p-3 sm:p-4 md:p-6">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
               </div>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold truncate">Bem-vindo ao Portal</h2>
-                <p className="text-xs sm:text-sm md:text-base text-muted-foreground line-clamp-2">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold">Bem-vindo ao Portal</h2>
+                <p className="text-xs sm:text-sm md:text-base text-muted-foreground">
                   Acompanhe seus indicadores e dados financeiros em tempo real
                 </p>
               </div>
@@ -159,75 +159,80 @@ export default function Portal() {
         </Card>
 
         {/* Tabs Section */}
-        <Tabs defaultValue="kpi" className="space-y-3 sm:space-y-4 md:space-y-6">
-          <div className="w-full overflow-x-hidden">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 rounded-lg bg-muted/30 p-1 gap-1">
+        <Tabs defaultValue="kpi" className="space-y-6">
+          {/* Wrapper para scroll horizontal em telas pequenas */}
+          <div className="w-full overflow-x-auto">
+            <TabsList
+              className="
+                inline-flex md:grid md:w-full md:grid-cols-3 lg:grid-cols-6
+                rounded-xl bg-muted/30 p-1.5 shadow-sm
+                min-w-max md:min-w-0
+              "
+            >
               <TabsTrigger
                 value="kpi"
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
-                           text-xs sm:text-sm font-medium transition-all
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[11px] sm:text-sm font-medium text-muted-foreground transition-all
                            data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-md hover:bg-muted/50"
+                           data-[state=active]:shadow-sm hover:text-foreground"
               >
                 <Activity className="h-4 w-4" />
-                <span className="text-[10px] sm:text-xs">KPI</span>
+                <span>KPI</span>
               </TabsTrigger>
 
               <TabsTrigger
                 value="extrato"
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
-                           text-xs sm:text-sm font-medium transition-all
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[11px] sm:text-sm font-medium text-muted-foreground transition-all
                            data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-md hover:bg-muted/50"
+                           data-[state=active]:shadow-sm hover:text-foreground"
               >
                 <FileText className="h-4 w-4" />
-                <span className="text-[10px] sm:text-xs">Extrato</span>
+                <span>Extrato</span>
               </TabsTrigger>
 
               <TabsTrigger
                 value="indicadores"
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
-                           text-xs sm:text-sm font-medium transition-all
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
                            data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-md hover:bg-muted/50"
+                           data-[state=active]:shadow-sm hover:text-foreground"
               >
                 <PieChart className="h-4 w-4" />
-                <span className="text-[10px] sm:text-xs hidden sm:inline">Indicadores</span>
-                <span className="text-[10px] sm:hidden">Indic.</span>
+                <span>Indicadores</span>
               </TabsTrigger>
 
               <TabsTrigger
                 value="lancamentos"
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
-                           text-xs sm:text-sm font-medium transition-all
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
                            data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-md hover:bg-muted/50"
+                           data-[state=active]:shadow-sm hover:text-foreground"
               >
                 <ListChecks className="h-4 w-4" />
-                <span className="text-[10px] sm:text-xs hidden sm:inline">Lançamentos</span>
-                <span className="text-[10px] sm:hidden">Lanç.</span>
+                <span>Lançamentos</span>
               </TabsTrigger>
 
               <TabsTrigger
                 value="sinistros"
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
-                           text-xs sm:text-sm font-medium transition-all
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
                            data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-md hover:bg-muted/50"
+                           data-[state=active]:shadow-sm hover:text-foreground"
               >
                 <ShieldCheck className="h-4 w-4" />
-                <span className="text-[10px] sm:text-xs">Sinistros</span>
+                <span>Sinistros</span>
               </TabsTrigger>
 
               <TabsTrigger
                 value="comite"
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
-                           text-xs sm:text-sm font-medium transition-all
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
                            data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-md hover:bg-muted/50"
+                           data-[state=active]:shadow-sm hover:text-foreground"
               >
                 <Users className="h-4 w-4" />
-                <span className="text-[10px] sm:text-xs">Comitê</span>
+                <span>Comitê</span>
               </TabsTrigger>
             </TabsList>
           </div>
