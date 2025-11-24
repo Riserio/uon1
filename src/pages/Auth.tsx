@@ -152,6 +152,8 @@ export default function Auth() {
         await checkTOTPStatus(currentUser);
       } else {
         toast.success("Login realizado com sucesso!");
+        setSubmitting(false);
+        setLoginPhase("idle");
         navigate("/dashboard", {
           replace: true,
         });
@@ -163,10 +165,9 @@ export default function Auth() {
         console.error(error);
         toast.error("Erro ao fazer login");
       }
+      setSubmitting(false);
+      setLoginPhase("idle");
     }
-
-    setSubmitting(false);
-    setLoginPhase("idle");
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
