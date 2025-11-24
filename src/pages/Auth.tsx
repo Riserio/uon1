@@ -235,7 +235,10 @@ export default function Auth() {
   }
   const showCredentialsStep = step === "CREDENTIALS";
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700">
+    <div
+      className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-[#6e2cff] via-[#8b4dff] to-[#4c1bb3]
+"
+    >
       {/* Decor */}
       <div className="absolute top-20 left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
       <div className="absolute bottom-20 right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
