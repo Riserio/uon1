@@ -462,6 +462,45 @@ serve(async (req) => {
       );
     }
 
+    // Reset TOTP (quando usuário perdeu o código)
+    if (action === 'reset-totp') {
+      const { userId } = await req.json();
+
+      // Buscar usuário
+      const { data: usuario, error: userError } = await supabaseClient
+        .from('corretora_usuarios')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (userError || !usuario) {
+        return new Response(
+          JSON.stringify({ error: 'Usuário não encontrado' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+        );
+      }
+
+      // Gerar novo secret TOTP
+      const newSecret = generateTOTPSecret();
+      const issuer = 'UON1 Portal';
+      const label = usuario.email;
+      const qrCodeUri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(label)}?secret=${newSecret}&issuer=${encodeURIComponent(issuer)}`;
+
+      // Atualizar com novo secret e marcar como não configurado
+      await supabaseClient
+        .from('corretora_usuarios')
+        .update({
+          totp_secret: newSecret,
+          totp_configurado: false,
+        })
+        .eq('id', userId);
+
+      return new Response(
+        JSON.stringify({ qrCodeUri }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ error: 'Ação não encontrada' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
