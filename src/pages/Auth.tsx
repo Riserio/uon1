@@ -1,4 +1,3 @@
-import LogoUon1 from "@/assets/logo-uon1.png";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -69,7 +68,6 @@ export default function Auth() {
       if (!totpData || !totpData.enabled) {
         await setupTOTP(effectiveUser);
       } else {
-        // Buscar o QR code existente para exibir na tela de TOTP
         const { data: totpRecord } = await supabase
           .from("user_totp")
           .select("secret")
@@ -158,6 +156,8 @@ export default function Auth() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
     setSubmitting(true);
     setLoginPhase("credentials");
 
@@ -167,10 +167,17 @@ export default function Auth() {
         password,
       });
 
-      const result = await signIn(validated.email, validated.password);
+      const signInPromise = signIn(validated.email, validated.password);
 
-      if (result.error) {
-        toast.error(result.error.message || "Erro ao fazer login");
+      const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10000));
+
+      const result: any = await Promise.race([signInPromise, timeoutPromise]);
+
+      if (!result || result.error) {
+        if (result?.error) {
+          console.error("Erro no signIn:", result.error);
+        }
+        toast.error(result?.error?.message || "Erro ao fazer login");
         setSubmitting(false);
         setLoginPhase("idle");
         return;
@@ -193,19 +200,24 @@ export default function Auth() {
 
         setLoginPhase("totp");
         await checkTOTPStatus(currentUser);
-      } else {
-        toast.success("Login realizado com sucesso!");
-        setSubmitting(false);
-        setLoginPhase("idle");
-        navigate("/dashboard", { replace: true });
+        return;
       }
-    } catch (error) {
+
+      toast.success("Login realizado com sucesso!");
+      setSubmitting(false);
+      setLoginPhase("idle");
+      navigate("/dashboard", { replace: true });
+    } catch (error: any) {
+      console.error("Erro no handleSignIn:", error);
+
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
+      } else if (error.message === "Timeout") {
+        toast.error("Tempo limite ao validar credenciais. Verifique sua conexão e tente novamente.");
       } else {
-        console.error(error);
         toast.error("Erro ao fazer login");
       }
+
       setSubmitting(false);
       setLoginPhase("idle");
     }
@@ -213,6 +225,8 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
     setSubmitting(true);
 
     try {
@@ -234,6 +248,9 @@ export default function Auth() {
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
+      } else {
+        console.error(error);
+        toast.error("Erro ao criar conta");
       }
     }
 
@@ -242,6 +259,8 @@ export default function Auth() {
 
   const handleVerifyTotp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
     setSubmitting(true);
 
     try {
@@ -290,7 +309,7 @@ export default function Auth() {
 
   const handleSetupTotp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!totpCode || totpCode.length !== 6) return;
+    if (!totpCode || totpCode.length !== 6 || submitting) return;
 
     setSubmitting(true);
 
@@ -480,7 +499,9 @@ export default function Auth() {
               <div className="flex flex-col items-center space-y-4">
                 <div className="p-4 bg-white rounded-lg border-2 border-border">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUri)}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                      qrCodeUri,
+                    )}`}
                     alt="QR Code TOTP"
                     className="w-48 h-48"
                   />
@@ -532,7 +553,9 @@ export default function Auth() {
                 <div className="flex flex-col items-center space-y-3 mb-4">
                   <div className="p-3 bg-white rounded-lg border-2 border-border">
                     <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(qrCodeUri)}`}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+                        qrCodeUri,
+                      )}`}
                       alt="QR Code TOTP"
                       className="w-40 h-40"
                     />
