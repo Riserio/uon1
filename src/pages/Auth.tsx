@@ -153,10 +153,20 @@ export default function Auth() {
         setLoginPhase("totp");
         await checkTOTPStatus(currentUser);
       } else {
-        toast.success("Login realizado com sucesso!");
-        navigate("/dashboard", {
-          replace: true,
-        });
+        // Check for force_password_change flag
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('force_password_change')
+          .eq('id', (await supabase.auth.getUser()).data.user?.id)
+          .single();
+
+        if (profile?.force_password_change) {
+          toast.info("Por favor, atualize sua senha antes de continuar.");
+          navigate("/change-password", { replace: true });
+        } else {
+          toast.success("Login realizado com sucesso!");
+          navigate("/dashboard", { replace: true });
+        }
       }
     } catch (error) {
       if (error instanceof z.ZodError) {

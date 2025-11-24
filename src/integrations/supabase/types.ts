@@ -1357,6 +1357,7 @@ export type Database = {
           email: string
           equipe_id: string | null
           facebook: string | null
+          force_password_change: boolean | null
           id: string
           instagram: string | null
           lider_id: string | null
@@ -1377,6 +1378,7 @@ export type Database = {
           email: string
           equipe_id?: string | null
           facebook?: string | null
+          force_password_change?: boolean | null
           id: string
           instagram?: string | null
           lider_id?: string | null
@@ -1397,6 +1399,7 @@ export type Database = {
           email?: string
           equipe_id?: string | null
           facebook?: string | null
+          force_password_change?: boolean | null
           id?: string
           instagram?: string | null
           lider_id?: string | null
@@ -1762,6 +1765,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_logs: {
+        Row: {
+          action: string
+          changes: Json | null
+          created_at: string | null
+          id: string
+          target_user_id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          changes?: Json | null
+          created_at?: string | null
+          id?: string
+          target_user_id: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          changes?: Json | null
+          created_at?: string | null
+          id?: string
+          target_user_id?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_menu_permissions: {
         Row: {

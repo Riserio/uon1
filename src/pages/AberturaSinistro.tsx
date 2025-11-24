@@ -144,7 +144,7 @@ export default function AberturaSinistro() {
       if (atendimentoError) throw atendimentoError;
 
       if (atendimento) {
-        const { error: vistoriaError } = await supabase.from("vistorias").insert({
+        const { data: vistoria, error: vistoriaError } = await supabase.from("vistorias").insert({
           created_by: user?.id,
           atendimento_id: atendimento.id,
           corretora_id: formData.corretora_id || null,
@@ -164,20 +164,20 @@ export default function AberturaSinistro() {
           data_incidente: formData.data_incidente,
           relato_incidente: formData.relato_incidente,
           status: formData.solicitarVistoria ? "aguardando_fotos" : "pendente",
-        });
+        })
+        .select()
+        .single();
 
         if (vistoriaError) throw vistoriaError;
-      }
 
-      toast.success("Sinistro registrado com sucesso!");
+        toast.success("Sinistro registrado com sucesso!");
 
-      // 🔥 REDIRECIONA PARA A TELA DE VISTORIA EM VEZ DO PAINEL
-      if (atendimento?.id) {
-        // ajuste aqui se sua rota de vistoria for diferente
-        navigate(`/vistorias/`);
-      } else {
-        // fallback genérico
-        navigate("/vistorias");
+        // Redirect to specific vistoria if not requesting digital survey
+        if (!formData.solicitarVistoria && vistoria) {
+          navigate(`/vistorias/${vistoria.id}`);
+        } else {
+          navigate(`/vistorias`);
+        }
       }
     } catch (error) {
       console.error("Erro ao registrar sinistro:", error);

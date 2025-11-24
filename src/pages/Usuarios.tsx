@@ -80,9 +80,9 @@ interface Equipe {
 interface UserLog {
   id: string;
   action: string;
-  description?: string | null;
-  target_user_id?: string | null;
-  performed_by?: string | null;
+  changes?: any;
+  target_user_id: string;
+  user_id: string;
   created_at: string;
 }
 
@@ -163,15 +163,18 @@ export default function Usuarios() {
 
   const totalPendingPages = Math.ceil(pendingProfiles.length / pendingItemsPerPage);
 
-  const logUserAction = async (action: string, description: string, targetUserId?: string | null) => {
+  const logUserAction = async (action: string, targetUserId: string, changes?: any) => {
     try {
       if (!user) return;
-      await supabase.from("user_logs").insert({
-        action,
-        description,
-        target_user_id: targetUserId || null,
-        performed_by: user.id,
+      
+      const { error } = await supabase.functions.invoke('log-user-change', {
+        body: { targetUserId, action, changes }
       });
+      
+      if (error) {
+        console.error("Erro ao registrar log:", error);
+      }
+      
       if (activeTab === "logs") {
         fetchLogs();
       }
@@ -462,7 +465,22 @@ export default function Usuarios() {
       await supabase.from("equipe_lideres").delete().eq("lider_id", editingItem.id);
     }
 
-    await logUserAction("update", "Dados do usuário atualizados", editingItem.id);
+    await logUserAction("Atualização de Usuário", editingItem.id, {
+      nome: formData.nome || editingItem.nome,
+      email: formData.email || editingItem.email,
+      cargo: formData.cargo,
+      role: editingRole
+    });
+
+    // Update email in auth if changed
+    if (formData.email && formData.email !== editingItem.email) {
+      const { error: emailError } = await supabase.functions.invoke('update-user-email', {
+        body: { userId: editingItem.id, newEmail: formData.email }
+      });
+      if (emailError) {
+        console.error("Erro ao atualizar email no auth:", emailError);
+      }
+    }
 
     toast.success("Usuário atualizado!");
     setDialogOpen(false);
@@ -504,7 +522,11 @@ export default function Usuarios() {
       return;
     }
 
-    await logUserAction("approve", `Usuário aprovado como ${approvalRole}`, approvingItem.id);
+    await logUserAction("Aprovação de Usuário", approvingItem.id, {
+      role: approvalRole,
+      status: 'ativo',
+      cargo: formData.cargo
+    });
 
     toast.success("Usuário aprovado com sucesso!");
     setApprovalDialogOpen(false);
@@ -532,7 +554,10 @@ export default function Usuarios() {
         return;
       }
 
-      await logUserAction("delete", "Usuário inativado/excluído", profile.id);
+      await logUserAction("Exclusão/Inativação de Usuário", profile.id, {
+        ativo: false,
+        status: 'inativo'
+      });
 
       toast.success("Usuário excluído (inativado) com sucesso!");
       fetchProfiles();
@@ -725,10 +750,19 @@ export default function Usuarios() {
       }
 
       await navigator.clipboard.writeText(password);
+      
+      // Set force_password_change flag
+      await supabase
+        .from('profiles')
+        .update({ force_password_change: true })
+        .eq('id', profile.id);
+      
       setResetPasswordDialog(false);
       toast.success("Senha resetada e copiada para área de transferência!");
 
-      await logUserAction("reset_password", "Senha do usuário resetada", profile.id);
+      await logUserAction("Reset de Senha", profile.id, {
+        force_password_change: true
+      });
     } catch (error) {
       console.error("Erro ao resetar senha:", error);
       toast.error("Erro ao resetar senha");
@@ -2016,9 +2050,11 @@ export default function Usuarios() {
                             </Badge>
                           </TableCell>
                           <TableCell>{getProfileName(log.target_user_id)}</TableCell>
-                          <TableCell>{getProfileName(log.performed_by)}</TableCell>
+                          <TableCell>{getProfileName(log.user_id)}</TableCell>
                           <TableCell className="max-w-xl">
-                            <span className="text-sm text-muted-foreground">{log.description || "-"}</span>
+                            <span className="text-sm text-muted-foreground">
+                              {log.changes ? JSON.stringify(log.changes) : "-"}
+                            </span>
                           </TableCell>
                         </TableRow>
                       ))
