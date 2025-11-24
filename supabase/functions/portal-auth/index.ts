@@ -182,111 +182,47 @@ serve(async (req) => {
     if (action === 'login') {
       const { slug, email, password, totpCode } = await req.json();
 
-      console.log('Login attempt:', { slug, email, hasTotpCode: !!totpCode });
+      // Buscar corretora pelo slug
+      const { data: corretora } = await supabaseClient
+        .from('corretoras')
+        .select('id, nome, slug')
+        .eq('slug', slug)
+        .single();
 
-      let corretora = null;
-      let usuario = null;
-
-      // Se tem slug, buscar corretora pelo slug
-      if (slug) {
-        const { data: corretoraData } = await supabaseClient
-          .from('corretoras')
-          .select('id, nome, slug')
-          .eq('slug', slug)
-          .single();
-
-        if (!corretoraData) {
-          return new Response(
-            JSON.stringify({ error: 'Corretora não encontrada' }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
-          );
-        }
-
-        corretora = corretoraData;
-
-        // Buscar usuário da corretora específica
-        const { data: usuarioData } = await supabaseClient
-          .from('corretora_usuarios')
-          .select('*')
-          .eq('corretora_id', corretora.id)
-          .eq('email', email)
-          .eq('ativo', true)
-          .single();
-
-        usuario = usuarioData;
-      } else {
-        // Sem slug - buscar usuário pelo email e depois a corretora
-        const { data: usuarioData } = await supabaseClient
-          .from('corretora_usuarios')
-          .select('*, corretoras(*)')
-          .eq('email', email)
-          .eq('ativo', true)
-          .maybeSingle();
-
-        if (usuarioData && usuarioData.corretoras) {
-          usuario = usuarioData;
-          corretora = {
-            id: usuarioData.corretoras.id,
-            nome: usuarioData.corretoras.nome,
-            slug: usuarioData.corretoras.slug,
-          };
-        }
+      if (!corretora) {
+        return new Response(
+          JSON.stringify({ error: 'Corretora não encontrada' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+        );
       }
 
-      if (!usuario || !corretora) {
+      // Buscar usuário
+      const { data: usuario } = await supabaseClient
+        .from('corretora_usuarios')
+        .select('*')
+        .eq('corretora_id', corretora.id)
+        .eq('email', email)
+        .eq('ativo', true)
+        .single();
+
+      if (!usuario) {
         return new Response(
           JSON.stringify({ error: 'Credenciais inválidas' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
         );
       }
 
-      // Verificar senha (se gerenciado por Supabase Auth ou hash próprio)
-      if (usuario.senha_hash === 'managed_by_supabase_auth' && usuario.profile_id) {
-        // Usuário gerenciado pelo Supabase Auth - validar via auth
-        const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (authError || !authData.user) {
-          console.log('Supabase auth validation failed:', authError);
-          return new Response(
-            JSON.stringify({ error: 'Credenciais inválidas' }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-          );
-        }
-        
-        // Verificar se o profile_id corresponde
-        if (authData.user.id !== usuario.profile_id) {
-          console.log('Profile ID mismatch');
-          return new Response(
-            JSON.stringify({ error: 'Credenciais inválidas' }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-          );
-        }
-
-        // Fazer logout imediatamente para não manter sessão do Supabase Auth
-        await supabaseClient.auth.signOut();
-      } else {
-        // Usuário com senha hash própria - validar com bcrypt
-        const senhaValida = await bcrypt.compare(password, usuario.senha_hash);
-        if (!senhaValida) {
-          console.log('Bcrypt validation failed');
-          return new Response(
-            JSON.stringify({ error: 'Credenciais inválidas' }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-          );
-        }
+      // Verificar senha
+      const senhaValida = await bcrypt.compare(password, usuario.senha_hash);
+      if (!senhaValida) {
+        return new Response(
+          JSON.stringify({ error: 'Credenciais inválidas' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        );
       }
 
-      console.log('User found:', { 
-        userId: usuario.id, 
-        totp_configurado: usuario.totp_configurado,
-        has_totp_secret: !!usuario.totp_secret 
-      });
-
       // Verificar se TOTP está configurado
-      if (!usuario.totp_configurado || !usuario.totp_secret) {
+      if (!usuario.totp_configurado) {
         return new Response(
           JSON.stringify({ 
             needsTotp: true,
@@ -297,26 +233,15 @@ serve(async (req) => {
         );
       }
 
-      // Validar TOTP (obrigatório quando já configurado)
-      if (!totpCode) {
-        return new Response(
-          JSON.stringify({ error: 'Código TOTP é obrigatório' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-        );
-      }
-
-      console.log('Validating TOTP code...');
+      // Validar TOTP
       const totpValido = validateTOTP(usuario.totp_secret, totpCode);
       
       if (!totpValido) {
-        console.log('Invalid TOTP code');
         return new Response(
           JSON.stringify({ error: 'Código TOTP inválido' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
         );
       }
-
-      console.log('TOTP valid, generating JWT...');
 
       // Gerar JWT usando SERVICE_ROLE_KEY como secret
       const jwtSecret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -341,8 +266,6 @@ serve(async (req) => {
         },
         key
       );
-
-      console.log('Login successful');
 
       return new Response(
         JSON.stringify({
@@ -386,12 +309,12 @@ serve(async (req) => {
       const issuer = corretora?.nome || 'Portal PID';
       const qrCodeUri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(usuario.email)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}`;
 
-      // Atualizar secret no banco (configurado será marcado após validação do código)
+      // Atualizar no banco
       await supabaseClient
         .from('corretora_usuarios')
         .update({ 
           totp_secret: secret,
-          totp_configurado: false 
+          totp_configurado: true 
         })
         .eq('id', userId);
 
@@ -400,129 +323,6 @@ serve(async (req) => {
           secret,
           qrCodeUri,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (action === 'verify-totp-setup') {
-      const { userId, totpCode } = await req.json();
-
-      const { data: usuario } = await supabaseClient
-        .from('corretora_usuarios')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (!usuario || !usuario.totp_secret) {
-        return new Response(
-          JSON.stringify({ error: 'Usuário ou TOTP não encontrado' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
-        );
-      }
-
-      // Validar código TOTP
-      const totpValido = validateTOTP(usuario.totp_secret, totpCode);
-      
-      if (!totpValido) {
-        return new Response(
-          JSON.stringify({ valid: false, error: 'Código TOTP inválido' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Marcar TOTP como configurado
-      await supabaseClient
-        .from('corretora_usuarios')
-        .update({ totp_configurado: true })
-        .eq('id', userId);
-
-      // Buscar corretora
-      const { data: corretora } = await supabaseClient
-        .from('corretoras')
-        .select('id, nome, slug')
-        .eq('id', usuario.corretora_id)
-        .single();
-
-      if (!corretora) {
-        return new Response(
-          JSON.stringify({ error: 'Corretora não encontrada' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
-        );
-      }
-
-      // Gerar JWT para login automático
-      const jwtSecret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-      const encoder = new TextEncoder();
-      const keyData = encoder.encode(jwtSecret);
-      
-      const key = await crypto.subtle.importKey(
-        'raw',
-        keyData,
-        { name: 'HMAC', hash: 'SHA-512' },
-        false,
-        ['sign', 'verify']
-      );
-
-      const jwt = await create(
-        { alg: "HS512", typ: "JWT" },
-        {
-          userId: usuario.id,
-          corretoraId: corretora.id,
-          slug: corretora.slug,
-          exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 horas
-        },
-        key
-      );
-
-      return new Response(
-        JSON.stringify({
-          valid: true,
-          token: jwt,
-          corretora: {
-            id: corretora.id,
-            nome: corretora.nome,
-            slug: corretora.slug,
-          },
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Reset TOTP (quando usuário perdeu o código)
-    if (action === 'reset-totp') {
-      const { userId } = await req.json();
-
-      // Buscar usuário
-      const { data: usuario, error: userError } = await supabaseClient
-        .from('corretora_usuarios')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (userError || !usuario) {
-        return new Response(
-          JSON.stringify({ error: 'Usuário não encontrado' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
-        );
-      }
-
-      // Gerar novo secret TOTP
-      const newSecret = generateTOTPSecret();
-      const issuer = 'UON1 Portal';
-      const label = usuario.email;
-      const qrCodeUri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(label)}?secret=${newSecret}&issuer=${encodeURIComponent(issuer)}`;
-
-      // Atualizar com novo secret e marcar como não configurado
-      await supabaseClient
-        .from('corretora_usuarios')
-        .update({
-          totp_secret: newSecret,
-          totp_configurado: false,
-        })
-        .eq('id', userId);
-
-      return new Response(
-        JSON.stringify({ qrCodeUri }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
