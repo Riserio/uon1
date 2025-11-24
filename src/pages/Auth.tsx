@@ -32,12 +32,16 @@ export default function Auth() {
   const [submitting, setSubmitting] = useState(false);
   const [loginPhase, setLoginPhase] = useState<LoginPhase>("idle");
 
+  // usuário associado ao fluxo de TOTP
+  const [totpUser, setTotpUser] = useState<MinimalUser | null>(null);
+
   const { signIn, signUp, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const checkTOTPStatus = async (currentUser?: MinimalUser) => {
     const effectiveUser: MinimalUser | undefined =
       currentUser ??
+      totpUser ??
       (user
         ? {
             id: user.id,
@@ -74,6 +78,7 @@ export default function Auth() {
   const setupTOTP = async (currentUser?: MinimalUser) => {
     const effectiveUser: MinimalUser | undefined =
       currentUser ??
+      totpUser ??
       (user
         ? {
             id: user.id,
@@ -84,17 +89,24 @@ export default function Auth() {
     if (!effectiveUser?.email) return;
 
     try {
-      const { data, error } = await supabase.functions.invoke("verify-totp/setup", {
+      // ATENÇÃO: certifique-se de que o nome da função é "verify-totp-setup"
+      const { data, error } = await supabase.functions.invoke("verify-totp-setup", {
         body: {
           email: effectiveUser.email,
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error from verify-totp-setup:", error);
+        throw error;
+      }
 
       if (data?.qrCodeUri) {
         setQrCodeUri(data.qrCodeUri);
         setStep("TOTP_SETUP");
+      } else {
+        console.error("No qrCodeUri returned from verify-totp-setup", data);
+        toast.error("Erro ao gerar QR Code de autenticação");
       }
     } catch (error: any) {
       console.error("Error setting up TOTP:", error);
@@ -139,6 +151,7 @@ export default function Auth() {
           email: userData.user.email,
         };
 
+        setTotpUser(currentUser);
         setLoginPhase("totp");
         await checkTOTPStatus(currentUser);
       } else {
@@ -193,15 +206,18 @@ export default function Auth() {
     e.preventDefault();
     setSubmitting(true);
 
+    const effectiveUser = totpUser ?? (user && { id: user.id, email: user.email });
+
     try {
       const { data, error } = await supabase.functions.invoke("verify-totp", {
         body: {
           code: totpCode,
-          email: user?.email,
+          email: effectiveUser?.email,
         },
       });
 
       if (error || !data?.valid) {
+        console.error("Error or invalid TOTP:", error, data);
         toast.error("Código inválido. Tente novamente.");
       } else {
         toast.success("Acesso confirmado com sucesso!");
@@ -223,23 +239,28 @@ export default function Auth() {
 
     setSubmitting(true);
 
+    const effectiveUser = totpUser ?? (user && { id: user.id, email: user.email });
+
     try {
       const { data, error } = await supabase.functions.invoke("verify-totp", {
         body: {
-          email: user?.email,
+          email: effectiveUser?.email,
           code: totpCode,
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error from verify-totp:", error);
+        throw error;
+      }
 
-      if (data.valid) {
+      if (data?.valid && effectiveUser?.id) {
         await supabase
           .from("user_totp")
           .update({
             enabled: true,
           })
-          .eq("user_id", user?.id);
+          .eq("user_id", effectiveUser.id);
 
         toast.success("Google Authenticator configurado com sucesso!");
         navigate("/portal", {
@@ -276,13 +297,16 @@ export default function Auth() {
       <div className="absolute bottom-20 right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
       <div className="absolute top-1/2 left-1/4 w-72 h-72 bg-blue-400/20 rounded-full blur-2xl" />
 
-      {/* Texto lateral */}
+      {/* Texto lateral + logo */}
       <div className="hidden lg:block absolute left-24 top-1/2 -translate-y-1/2 text-white z-10">
         <div className="space-y-4">
           <h1 className="text-6xl font-bold tracking-tight">Seja bem-vindo à Uon1</h1>
           <p className="text-xl opacity-90">
             {showCredentialsStep ? "Tudo começa no 1!" : "Confirme seu acesso seguro"}
           </p>
+          <div className="mt-6">
+            <img src={LogoUon1} alt="Logo Uon1" className="h-16 object-contain drop-shadow-lg" />
+          </div>
         </div>
       </div>
 
@@ -396,7 +420,9 @@ export default function Auth() {
               <div className="flex flex-col items-center space-y-4">
                 <div className="p-4 bg-white rounded-lg border-2 border-border">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUri)}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                      qrCodeUri,
+                    )}`}
                     alt="QR Code TOTP"
                     className="w-48 h-48"
                   />
@@ -503,6 +529,7 @@ export default function Auth() {
                   setTotpCode("");
                   setPassword("");
                   setQrCodeUri("");
+                  setTotpUser(null);
                 }}
                 className="flex items-center gap-1 text-[#362c89] hover:text-[#362c89]/80 font-medium"
               >
