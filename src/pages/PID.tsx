@@ -14,7 +14,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Activity, FileText, PieChart, ListChecks, ShieldCheck } from "lucide-react";
+import { Users, Activity, FileText, PieChart, ListChecks, ShieldCheck, Link as LinkIcon, ExternalLink } from "lucide-react";
+import { CorretoraSlugDialog } from "@/components/CorretoraSlugDialog";
 
 export default function PID() {
   const { user } = useAuth();
@@ -22,8 +23,40 @@ export default function PID() {
   const [selectedCorretora, setSelectedCorretora] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [usuariosDialogOpen, setUsuariosDialogOpen] = useState(false);
+  const [slugDialogOpen, setSlugDialogOpen] = useState(false);
 
   const selectedCorretoraData = corretoras.find((c) => c.id === selectedCorretora);
+
+  const handleRefreshCorretoras = async () => {
+    try {
+      const { data, error } = await supabase.from("corretoras").select("id, nome, slug").order("nome");
+      if (error) throw error;
+      setCorretoras(data || []);
+    } catch (error) {
+      console.error("Erro ao recarregar corretoras:", error);
+    }
+  };
+
+  const handleCopyPortalLink = () => {
+    if (!selectedCorretoraData?.slug) {
+      toast.error("Configure um slug primeiro");
+      return;
+    }
+    
+    const portalUrl = `${window.location.origin}/${selectedCorretoraData.slug}/login`;
+    navigator.clipboard.writeText(portalUrl);
+    toast.success("Link copiado para a área de transferência");
+  };
+
+  const handleOpenPortalLink = () => {
+    if (!selectedCorretoraData?.slug) {
+      toast.error("Configure um slug primeiro");
+      return;
+    }
+    
+    const portalUrl = `${window.location.origin}/${selectedCorretoraData.slug}/login`;
+    window.open(portalUrl, '_blank');
+  };
 
   useEffect(() => {
     async function fetchCorretoras() {
@@ -92,16 +125,51 @@ export default function PID() {
                   </Select>
                 </div>
 
-                {/* Botão Gerenciar Usuários PID */}
+                {/* Botões de Ação */}
                 {selectedCorretora && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setUsuariosDialogOpen(true)}
-                    className="gap-2 whitespace-nowrap w-full sm:w-auto flex-shrink-0 h-9 sm:h-10"
-                  >
-                    <Users className="h-4 w-4" />
-                    <span className="text-xs sm:text-sm">Gerenciar Usuários PID</span>
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <Button
+                      variant="outline"
+                      onClick={() => setUsuariosDialogOpen(true)}
+                      className="gap-2 whitespace-nowrap flex-shrink-0 h-9 sm:h-10"
+                    >
+                      <Users className="h-4 w-4" />
+                      <span className="text-xs sm:text-sm">Gerenciar Usuários</span>
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      onClick={() => setSlugDialogOpen(true)}
+                      className="gap-2 whitespace-nowrap flex-shrink-0 h-9 sm:h-10"
+                    >
+                      <LinkIcon className="h-4 w-4" />
+                      <span className="text-xs sm:text-sm">
+                        {selectedCorretoraData?.slug ? 'Editar Slug' : 'Configurar Slug'}
+                      </span>
+                    </Button>
+                    
+                    {selectedCorretoraData?.slug && (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={handleCopyPortalLink}
+                          className="gap-2 whitespace-nowrap flex-shrink-0 h-9 sm:h-10"
+                        >
+                          <LinkIcon className="h-4 w-4" />
+                          <span className="text-xs sm:text-sm">Copiar Link</span>
+                        </Button>
+                        
+                        <Button
+                          variant="default"
+                          onClick={handleOpenPortalLink}
+                          className="gap-2 whitespace-nowrap flex-shrink-0 h-9 sm:h-10"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          <span className="text-xs sm:text-sm">Abrir Portal</span>
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -208,14 +276,23 @@ export default function PID() {
         </Tabs>
       </div>
 
-      {/* Modal Gerenciar Usuários PID */}
+      {/* Modals */}
       {selectedCorretoraData && (
-        <GerenciarUsuariosCorretoraDialog
-          open={usuariosDialogOpen}
-          onOpenChange={setUsuariosDialogOpen}
-          corretoraId={selectedCorretoraData.id}
-          corretoraNome={selectedCorretoraData.nome}
-        />
+        <>
+          <GerenciarUsuariosCorretoraDialog
+            open={usuariosDialogOpen}
+            onOpenChange={setUsuariosDialogOpen}
+            corretoraId={selectedCorretoraData.id}
+            corretoraNome={selectedCorretoraData.nome}
+          />
+          
+          <CorretoraSlugDialog
+            open={slugDialogOpen}
+            onOpenChange={setSlugDialogOpen}
+            corretora={selectedCorretoraData}
+            onSuccess={handleRefreshCorretoras}
+          />
+        </>
       )}
     </div>
   );
