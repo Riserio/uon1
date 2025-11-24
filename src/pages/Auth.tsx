@@ -10,50 +10,46 @@ import { signInSchema, signUpSchema } from "@/lib/validationSchemas";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { ShieldCheck, ArrowLeft, QrCode } from "lucide-react";
-
 type Step = "CREDENTIALS" | "TOTP" | "TOTP_SETUP";
 type LoginPhase = "idle" | "credentials" | "totp";
-
 type MinimalUser = {
   id: string;
   email?: string | null;
 };
-
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nome, setNome] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
-
   const [step, setStep] = useState<Step>("CREDENTIALS");
   const [totpCode, setTotpCode] = useState("");
   const [qrCodeUri, setQrCodeUri] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loginPhase, setLoginPhase] = useState<LoginPhase>("idle");
-
-  const { signIn, signUp, user, loading: authLoading } = useAuth();
+  const {
+    signIn,
+    signUp,
+    user,
+    loading: authLoading
+  } = useAuth();
   const navigate = useNavigate();
-
   const checkTOTPStatus = async (currentUser?: MinimalUser) => {
     // usa o usuário recebido (logo após o login) ou cai no do contexto
-    const effectiveUser: MinimalUser | undefined =
-      currentUser ?? (user ? { id: user.id, email: user.email } : undefined);
-
+    const effectiveUser: MinimalUser | undefined = currentUser ?? (user ? {
+      id: user.id,
+      email: user.email
+    } : undefined);
     if (!effectiveUser) return;
-
     try {
-      const { data: totpData, error } = await supabase
-        .from("user_totp")
-        .select("enabled")
-        .eq("user_id", effectiveUser.id)
-        .maybeSingle();
-
+      const {
+        data: totpData,
+        error
+      } = await supabase.from("user_totp").select("enabled").eq("user_id", effectiveUser.id).maybeSingle();
       if (error) {
         console.error("Error checking TOTP status:", error);
         toast.error("Erro ao verificar autenticação");
         return;
       }
-
       if (!totpData || !totpData.enabled) {
         // precisa configurar
         await setupTOTP(effectiveUser);
@@ -66,20 +62,22 @@ export default function Auth() {
       toast.error("Erro ao verificar autenticação");
     }
   };
-
   const setupTOTP = async (currentUser?: MinimalUser) => {
-    const effectiveUser: MinimalUser | undefined =
-      currentUser ?? (user ? { id: user.id, email: user.email } : undefined);
-
+    const effectiveUser: MinimalUser | undefined = currentUser ?? (user ? {
+      id: user.id,
+      email: user.email
+    } : undefined);
     if (!effectiveUser?.email) return;
-
     try {
-      const { data, error } = await supabase.functions.invoke("verify-totp/setup", {
-        body: { email: effectiveUser.email },
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke("verify-totp/setup", {
+        body: {
+          email: effectiveUser.email
+        }
       });
-
       if (error) throw error;
-
       if (data?.qrCodeUri) {
         setQrCodeUri(data.qrCodeUri);
         setStep("TOTP_SETUP");
@@ -89,15 +87,15 @@ export default function Auth() {
       toast.error("Erro ao configurar autenticação");
     }
   };
-
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setLoginPhase("credentials");
-
     try {
-      const validated = signInSchema.parse({ email, password });
-
+      const validated = signInSchema.parse({
+        email,
+        password
+      });
       const result = await signIn(validated.email, validated.password);
       // assumindo que signIn retorna algo como { error, isParceiro }
 
@@ -107,13 +105,14 @@ export default function Auth() {
         setLoginPhase("idle");
         return;
       }
-
       if (result.isParceiro) {
         toast.success("Credenciais válidas! Verificando autenticação...");
 
         // pega o usuário diretamente do Supabase, sem depender do contexto ainda atualizar
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-
+        const {
+          data: userData,
+          error: userError
+        } = await supabase.auth.getUser();
         if (userError || !userData.user) {
           console.error("Erro ao obter usuário após login:", userError);
           toast.error("Erro ao carregar seus dados. Tente novamente.");
@@ -121,17 +120,17 @@ export default function Auth() {
           setLoginPhase("idle");
           return;
         }
-
         const currentUser: MinimalUser = {
           id: userData.user.id,
-          email: userData.user.email,
+          email: userData.user.email
         };
-
         setLoginPhase("totp"); // muda mensagem do botão
         await checkTOTPStatus(currentUser);
       } else {
         toast.success("Login realizado com sucesso!");
-        navigate("/dashboard", { replace: true });
+        navigate("/dashboard", {
+          replace: true
+        });
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -141,19 +140,21 @@ export default function Auth() {
         toast.error("Erro ao fazer login");
       }
     }
-
     setSubmitting(false);
     setLoginPhase("idle");
   };
-
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-
     try {
-      const validated = signUpSchema.parse({ nome, email, password });
-      const { error } = await signUp(validated.email, validated.password, validated.nome);
-
+      const validated = signUpSchema.parse({
+        nome,
+        email,
+        password
+      });
+      const {
+        error
+      } = await signUp(validated.email, validated.password, validated.nome);
       if (error) {
         toast.error(error.message || "Erro ao criar conta");
       } else {
@@ -167,54 +168,58 @@ export default function Auth() {
         toast.error(error.errors[0].message);
       }
     }
-
     setSubmitting(false);
   };
-
   const handleVerifyTotp = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-
     try {
-      const { data, error } = await supabase.functions.invoke("verify-totp", {
-        body: { code: totpCode, email: user?.email },
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke("verify-totp", {
+        body: {
+          code: totpCode,
+          email: user?.email
+        }
       });
-
       if (error || !data?.valid) {
         toast.error("Código inválido. Tente novamente.");
       } else {
         toast.success("Acesso confirmado com sucesso!");
-        navigate("/portal", { replace: true });
+        navigate("/portal", {
+          replace: true
+        });
       }
     } catch (err) {
       console.error(err);
       toast.error("Erro ao validar código. Tente novamente.");
     }
-
     setSubmitting(false);
   };
-
   const handleSetupTotp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!totpCode || totpCode.length !== 6) return;
-
     setSubmitting(true);
-
     try {
-      const { data, error } = await supabase.functions.invoke("verify-totp", {
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke("verify-totp", {
         body: {
           email: user?.email,
-          code: totpCode,
-        },
+          code: totpCode
+        }
       });
-
       if (error) throw error;
-
       if (data.valid) {
-        await supabase.from("user_totp").update({ enabled: true }).eq("user_id", user?.id);
-
+        await supabase.from("user_totp").update({
+          enabled: true
+        }).eq("user_id", user?.id);
         toast.success("Google Authenticator configurado com sucesso!");
-        navigate("/portal", { replace: true });
+        navigate("/portal", {
+          replace: true
+        });
       } else {
         toast.error("Código inválido. Verifique e tente novamente.");
       }
@@ -225,22 +230,16 @@ export default function Auth() {
       setSubmitting(false);
     }
   };
-
   if (authLoading && !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700">
+    return <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700">
         <div className="flex flex-col items-center gap-4 text-white">
           <div className="w-10 h-10 border-4 border-white/60 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm opacity-90">Carregando seu acesso com segurança...</p>
         </div>
-      </div>
-    );
+      </div>;
   }
-
   const showCredentialsStep = step === "CREDENTIALS";
-
-  return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700">
+  return <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700">
       {/* Decor */}
       <div className="absolute top-20 left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
       <div className="absolute bottom-20 right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
@@ -249,7 +248,9 @@ export default function Auth() {
       {/* Texto lateral */}
       <div className="hidden lg:block absolute left-24 top-1/2 -translate-y-1/2 text-white z-10">
         <div className="space-y-4">
-          <h1 className="text-6xl font-bold tracking-tight">WELCOME</h1>
+          <h1 className="text-6xl font-bold tracking-tight">Seja
+bem-vindo
+à Uon1</h1>
           <p className="text-xl opacity-90">
             {showCredentialsStep ? "Back! Please login" : "Confirme seu acesso seguro"}
           </p>
@@ -262,116 +263,50 @@ export default function Auth() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-2xl font-semibold">
-                {showCredentialsStep
-                  ? isSignUp
-                    ? "Sign up"
-                    : "Sign in"
-                  : step === "TOTP_SETUP"
-                    ? "Configure Google Authenticator"
-                    : "Validação em duas etapas"}
+                {showCredentialsStep ? isSignUp ? "Sign up" : "Sign in" : step === "TOTP_SETUP" ? "Configure Google Authenticator" : "Validação em duas etapas"}
               </CardTitle>
               <CardDescription className="text-muted-foreground">
-                {showCredentialsStep
-                  ? isSignUp
-                    ? "Create your account to get started"
-                    : "Enter your credentials to continue"
-                  : step === "TOTP_SETUP"
-                    ? "Escaneie o QR code e digite o código gerado"
-                    : "Digite o código do Google Authenticator para concluir o login"}
+                {showCredentialsStep ? isSignUp ? "Create your account to get started" : "Enter your credentials to continue" : step === "TOTP_SETUP" ? "Escaneie o QR code e digite o código gerado" : "Digite o código do Google Authenticator para concluir o login"}
               </CardDescription>
             </div>
 
-            {!showCredentialsStep &&
-              (step === "TOTP_SETUP" ? (
-                <QrCode className="w-8 h-8 text-blue-600" />
-              ) : (
-                <ShieldCheck className="w-8 h-8 text-blue-600" />
-              ))}
+            {!showCredentialsStep && (step === "TOTP_SETUP" ? <QrCode className="w-8 h-8 text-blue-600" /> : <ShieldCheck className="w-8 h-8 text-blue-600" />)}
           </div>
         </CardHeader>
 
         <CardContent>
-          {showCredentialsStep ? (
-            <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="space-y-4">
-              {isSignUp && (
-                <div className="space-y-2">
+          {showCredentialsStep ? <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="space-y-4">
+              {isSignUp && <div className="space-y-2">
                   <Label htmlFor="nome" className="text-sm font-medium">
                     Nome Completo
                   </Label>
-                  <Input
-                    id="nome"
-                    type="text"
-                    value={nome}
-                    onChange={(e) => setNome(e.target.value)}
-                    required
-                    placeholder="Seu nome completo"
-                    className="h-11"
-                  />
-                </div>
-              )}
+                  <Input id="nome" type="text" value={nome} onChange={e => setNome(e.target.value)} required placeholder="Seu nome completo" className="h-11" />
+                </div>}
 
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-medium">
                   Email
                 </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  placeholder="example@email.com"
-                  className="h-11"
-                />
+                <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="example@email.com" className="h-11" />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-sm font-medium">
                   Password
                 </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="h-11"
-                />
+                <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" className="h-11" />
               </div>
 
-              <Button
-                type="submit"
-                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <div className="flex items-center gap-2">
+              <Button type="submit" className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium" disabled={submitting}>
+                {submitting ? <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    {isSignUp
-                      ? "Criando conta..."
-                      : loginPhase === "credentials"
-                        ? "Validando credenciais..."
-                        : "Validando autenticação por TOTP..."}
-                  </div>
-                ) : isSignUp ? (
-                  "Criar Conta"
-                ) : (
-                  "Entrar"
-                )}
+                    {isSignUp ? "Criando conta..." : loginPhase === "credentials" ? "Validando credenciais..." : "Validando autenticação por TOTP..."}
+                  </div> : isSignUp ? "Criar Conta" : "Entrar"}
               </Button>
-            </form>
-          ) : step === "TOTP_SETUP" ? (
-            <form onSubmit={handleSetupTotp} className="space-y-4">
+            </form> : step === "TOTP_SETUP" ? <form onSubmit={handleSetupTotp} className="space-y-4">
               <div className="flex flex-col items-center space-y-4">
                 <div className="p-4 bg-white rounded-lg border-2 border-border">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-                      qrCodeUri,
-                    )}`}
-                    alt="QR Code TOTP"
-                    className="w-48 h-48"
-                  />
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUri)}`} alt="QR Code TOTP" className="w-48 h-48" />
                 </div>
                 <p className="text-sm text-muted-foreground text-center">
                   1. Abra o Google Authenticator no seu celular
@@ -386,106 +321,54 @@ export default function Auth() {
                 <Label htmlFor="totp-setup" className="text-sm font-medium">
                   Código do Google Authenticator
                 </Label>
-                <Input
-                  id="totp-setup"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={totpCode}
-                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
-                  required
-                  placeholder="000000"
-                  className="h-11 tracking-[0.4em] text-center text-lg"
-                />
+                <Input id="totp-setup" type="text" inputMode="numeric" maxLength={6} value={totpCode} onChange={e => setTotpCode(e.target.value.replace(/\D/g, ""))} required placeholder="000000" className="h-11 tracking-[0.4em] text-center text-lg" />
               </div>
 
-              <Button
-                type="submit"
-                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                disabled={submitting || totpCode.length !== 6}
-              >
-                {submitting ? (
-                  <div className="flex items-center gap-2">
+              <Button type="submit" className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium" disabled={submitting || totpCode.length !== 6}>
+                {submitting ? <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     Verificando...
-                  </div>
-                ) : (
-                  "Confirmar e Ativar"
-                )}
+                  </div> : "Confirmar e Ativar"}
               </Button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyTotp} className="space-y-4">
+            </form> : <form onSubmit={handleVerifyTotp} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="totp" className="text-sm font-medium">
                   Código de verificação
                 </Label>
-                <Input
-                  id="totp"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={totpCode}
-                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
-                  required
-                  placeholder="000000"
-                  className="h-11 tracking-[0.4em] text-center text-lg"
-                />
+                <Input id="totp" type="text" inputMode="numeric" maxLength={6} value={totpCode} onChange={e => setTotpCode(e.target.value.replace(/\D/g, ""))} required placeholder="000000" className="h-11 tracking-[0.4em] text-center text-lg" />
                 <p className="text-xs text-muted-foreground">
                   Abra o app Google Authenticator e digite o código de 6 dígitos gerado para a sua conta.
                 </p>
               </div>
 
-              <Button
-                type="submit"
-                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <div className="flex items-center gap-2">
+              <Button type="submit" className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium" disabled={submitting}>
+                {submitting ? <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     Validando código...
-                  </div>
-                ) : (
-                  "Confirmar acesso"
-                )}
+                  </div> : "Confirmar acesso"}
               </Button>
-            </form>
-          )}
+            </form>}
         </CardContent>
 
         <CardFooter className="flex flex-col space-y-4">
-          {showCredentialsStep ? (
-            <div className="text-sm text-center text-muted-foreground">
+          {showCredentialsStep ? <div className="text-sm text-center text-muted-foreground">
               {isSignUp ? "Já tem uma conta?" : "Don't have an account?"}
-              <button
-                type="button"
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="ml-2 text-blue-600 hover:text-blue-700 font-medium"
-              >
+              <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="ml-2 text-blue-600 hover:text-blue-700 font-medium">
                 {isSignUp ? "Fazer login" : "Sign up"}
               </button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("CREDENTIALS");
-                  setTotpCode("");
-                  setPassword("");
-                  setQrCodeUri("");
-                }}
-                className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
-              >
+            </div> : <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <button type="button" onClick={() => {
+            setStep("CREDENTIALS");
+            setTotpCode("");
+            setPassword("");
+            setQrCodeUri("");
+          }} className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium">
                 <ArrowLeft className="w-3 h-3" />
                 Trocar usuário
               </button>
               <span>Seu acesso está protegido com autenticação em duas etapas.</span>
-            </div>
-          )}
+            </div>}
         </CardFooter>
       </Card>
-    </div>
-  );
+    </div>;
 }
