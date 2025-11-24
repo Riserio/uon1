@@ -182,6 +182,8 @@ serve(async (req) => {
     if (action === 'login') {
       const { slug, email, password, totpCode } = await req.json();
 
+      console.log('Login attempt:', { slug, email, hasTotpCode: !!totpCode });
+
       // Buscar corretora pelo slug
       const { data: corretora } = await supabaseClient
         .from('corretoras')
@@ -221,8 +223,14 @@ serve(async (req) => {
         );
       }
 
+      console.log('User found:', { 
+        userId: usuario.id, 
+        totp_configurado: usuario.totp_configurado,
+        has_totp_secret: !!usuario.totp_secret 
+      });
+
       // Verificar se TOTP está configurado
-      if (!usuario.totp_configurado) {
+      if (!usuario.totp_configurado || !usuario.totp_secret) {
         return new Response(
           JSON.stringify({ 
             needsTotp: true,
@@ -233,15 +241,26 @@ serve(async (req) => {
         );
       }
 
-      // Validar TOTP
+      // Validar TOTP (obrigatório quando já configurado)
+      if (!totpCode) {
+        return new Response(
+          JSON.stringify({ error: 'Código TOTP é obrigatório' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        );
+      }
+
+      console.log('Validating TOTP code...');
       const totpValido = validateTOTP(usuario.totp_secret, totpCode);
       
       if (!totpValido) {
+        console.log('Invalid TOTP code');
         return new Response(
           JSON.stringify({ error: 'Código TOTP inválido' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
         );
       }
+
+      console.log('TOTP valid, generating JWT...');
 
       // Gerar JWT usando SERVICE_ROLE_KEY como secret
       const jwtSecret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -266,6 +285,8 @@ serve(async (req) => {
         },
         key
       );
+
+      console.log('Login successful');
 
       return new Response(
         JSON.stringify({
@@ -309,12 +330,12 @@ serve(async (req) => {
       const issuer = corretora?.nome || 'Portal PID';
       const qrCodeUri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(usuario.email)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}`;
 
-      // Atualizar no banco
+      // Atualizar secret no banco (configurado será marcado após validação do código)
       await supabaseClient
         .from('corretora_usuarios')
         .update({ 
           totp_secret: secret,
-          totp_configurado: true 
+          totp_configurado: false 
         })
         .eq('id', userId);
 
@@ -322,6 +343,90 @@ serve(async (req) => {
         JSON.stringify({
           secret,
           qrCodeUri,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (action === 'verify-totp-setup') {
+      const { userId, totpCode } = await req.json();
+
+      const { data: usuario } = await supabaseClient
+        .from('corretora_usuarios')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (!usuario || !usuario.totp_secret) {
+        return new Response(
+          JSON.stringify({ error: 'Usuário ou TOTP não encontrado' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+        );
+      }
+
+      // Validar código TOTP
+      const totpValido = validateTOTP(usuario.totp_secret, totpCode);
+      
+      if (!totpValido) {
+        return new Response(
+          JSON.stringify({ valid: false, error: 'Código TOTP inválido' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Marcar TOTP como configurado
+      await supabaseClient
+        .from('corretora_usuarios')
+        .update({ totp_configurado: true })
+        .eq('id', userId);
+
+      // Buscar corretora
+      const { data: corretora } = await supabaseClient
+        .from('corretoras')
+        .select('id, nome, slug')
+        .eq('id', usuario.corretora_id)
+        .single();
+
+      if (!corretora) {
+        return new Response(
+          JSON.stringify({ error: 'Corretora não encontrada' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+        );
+      }
+
+      // Gerar JWT para login automático
+      const jwtSecret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      const encoder = new TextEncoder();
+      const keyData = encoder.encode(jwtSecret);
+      
+      const key = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-512' },
+        false,
+        ['sign', 'verify']
+      );
+
+      const jwt = await create(
+        { alg: "HS512", typ: "JWT" },
+        {
+          userId: usuario.id,
+          corretoraId: corretora.id,
+          slug: corretora.slug,
+          exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 horas
+        },
+        key
+      );
+
+      return new Response(
+        JSON.stringify({
+          valid: true,
+          token: jwt,
+          corretora: {
+            id: corretora.id,
+            nome: corretora.nome,
+            slug: corretora.slug,
+          },
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

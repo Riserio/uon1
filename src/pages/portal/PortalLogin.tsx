@@ -27,7 +27,7 @@ export default function PortalLogin() {
 
     try {
       const { data, error } = await supabase.functions.invoke("portal-auth/login", {
-        body: { slug, email, password, totpCode },
+        body: { slug, email, password, totpCode: needsTotp ? totpCode : undefined },
       });
 
       if (error) throw error;
@@ -53,6 +53,32 @@ export default function PortalLogin() {
     } catch (error: any) {
       console.error("Login error:", error);
       toast.error(error.message || "Erro ao fazer login");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyTotp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("portal-auth/verify-totp-setup", {
+        body: { userId, totpCode },
+      });
+
+      if (error) throw error;
+
+      if (data.valid && data.token) {
+        login(data.token, data.corretora);
+        toast.success("Google Authenticator configurado com sucesso!");
+        navigate(`/${slug}/dashboard`);
+      } else {
+        toast.error(data.error || "Código inválido");
+      }
+    } catch (error: any) {
+      console.error("TOTP verification error:", error);
+      toast.error(error.message || "Erro ao verificar código");
     } finally {
       setLoading(false);
     }
@@ -112,7 +138,7 @@ export default function PortalLogin() {
                 </div>
               )}
 
-              <form onSubmit={handleLogin} className="space-y-4">
+              <form onSubmit={handleVerifyTotp} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="totpCode">Código do Google Authenticator</Label>
                   <Input
@@ -125,7 +151,7 @@ export default function PortalLogin() {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading || totpCode.length !== 6}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Verificar e Entrar
                 </Button>
