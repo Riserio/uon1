@@ -62,15 +62,20 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   usePushNotifications();
   
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#362c89] via-[#4a3cc1] to-[#221a66]">
+        <div className="flex flex-col items-center gap-4 text-white">
+          <div className="w-10 h-10 border-4 border-white/60 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm opacity-90">Carregando...</p>
+        </div>
+      </div>
+    );
   }
   
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
 
-  // DECISÃO DEFINITIVA: Parceiros têm acesso EXCLUSIVO ao portal PID
-  // Eles NÃO podem acessar nenhuma outra parte do sistema
   if (isParceiro) {
     return <Navigate to="/portal" replace />;
   }
@@ -92,20 +97,24 @@ function PortalRoute({ children }: { children: React.ReactNode }) {
   usePushNotifications();
   
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#362c89] via-[#4a3cc1] to-[#221a66]">
+        <div className="flex flex-col items-center gap-4 text-white">
+          <div className="w-10 h-10 border-4 border-white/60 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm opacity-90">Carregando...</p>
+        </div>
+      </div>
+    );
   }
   
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
 
-  // DECISÃO DEFINITIVA: Apenas usuários com role 'parceiro' podem acessar o portal PID
-  // Todos os outros usuários são redirecionados para o dashboard principal
   if (!isParceiro) {
     return <Navigate to="/" replace />;
   }
   
-  // Parceiros veem APENAS o portal - sem sidebar, sem acesso a outras rotas
   return <>{children}</>;
 }
 
