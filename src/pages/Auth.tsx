@@ -52,17 +52,11 @@ export default function Auth() {
     }
 
     try {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Timeout")), 8000)
-      );
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 8000));
 
-      const queryPromise = supabase
-        .from("user_totp")
-        .select("enabled")
-        .eq("user_id", effectiveUser.id)
-        .maybeSingle();
+      const queryPromise = supabase.from("user_totp").select("enabled").eq("user_id", effectiveUser.id).maybeSingle();
 
-      const { data: totpData, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+      const { data: totpData, error } = (await Promise.race([queryPromise, timeoutPromise])) as any;
 
       if (error) {
         console.error("Error checking TOTP status:", error);
@@ -75,18 +69,18 @@ export default function Auth() {
       if (!totpData || !totpData.enabled) {
         await setupTOTP(effectiveUser);
       } else {
-        // Buscar o QR code existente para exibir na tela de TOTP
+        // Buscar o QR code existente para exibir na tela de TOTP (opcional)
         const { data: totpRecord } = await supabase
           .from("user_totp")
           .select("secret")
           .eq("user_id", effectiveUser.id)
           .maybeSingle();
-        
+
         if (totpRecord?.secret) {
           const qrUri = `otpauth://totp/Uon1:${effectiveUser.email}?secret=${totpRecord.secret}&issuer=Uon1`;
           setQrCodeUri(qrUri);
         }
-        
+
         setStep("TOTP");
         setSubmitting(false);
         setLoginPhase("idle");
@@ -120,9 +114,7 @@ export default function Auth() {
     }
 
     try {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Timeout")), 10000)
-      );
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10000));
 
       const setupPromise = supabase.functions.invoke("verify-totp/setup", {
         body: {
@@ -130,7 +122,7 @@ export default function Auth() {
         },
       });
 
-      const { data, error } = await Promise.race([setupPromise, timeoutPromise]) as any;
+      const { data, error } = (await Promise.race([setupPromise, timeoutPromise])) as any;
 
       if (error) {
         console.error("Edge function error:", error);
@@ -166,6 +158,10 @@ export default function Auth() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // evita múltiplos submits simultâneos
+    if (submitting) return;
+
     setSubmitting(true);
     setLoginPhase("credentials");
 
@@ -175,15 +171,23 @@ export default function Auth() {
         password,
       });
 
-      const result = await signIn(validated.email, validated.password);
+      const signInPromise = signIn(validated.email, validated.password);
 
-      if (result.error) {
-        toast.error(result.error.message || "Erro ao fazer login");
+      const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10000));
+
+      const result: any = await Promise.race([signInPromise, timeoutPromise]);
+
+      if (!result || result.error) {
+        if (result?.error) {
+          console.error("Erro no signIn:", result.error);
+        }
+        toast.error(result?.error?.message || "Erro ao fazer login");
         setSubmitting(false);
         setLoginPhase("idle");
         return;
       }
 
+      // se for parceiro, entra no fluxo de TOTP
       if (result.isParceiro) {
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError || !userData.user) {
@@ -201,19 +205,26 @@ export default function Auth() {
 
         setLoginPhase("totp");
         await checkTOTPStatus(currentUser);
-      } else {
-        toast.success("Login realizado com sucesso!");
-        setSubmitting(false);
-        setLoginPhase("idle");
-        navigate("/dashboard", { replace: true });
+        // o próprio checkTOTPStatus controla submitting/loginPhase
+        return;
       }
-    } catch (error) {
+
+      // login normal (não parceiro)
+      toast.success("Login realizado com sucesso!");
+      setSubmitting(false);
+      setLoginPhase("idle");
+      navigate("/dashboard", { replace: true });
+    } catch (error: any) {
+      console.error("Erro no handleSignIn:", error);
+
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
+      } else if (error.message === "Timeout") {
+        toast.error("Tempo limite ao validar credenciais. Verifique sua conexão e tente novamente.");
       } else {
-        console.error(error);
         toast.error("Erro ao fazer login");
       }
+
       setSubmitting(false);
       setLoginPhase("idle");
     }
@@ -221,6 +232,8 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
     setSubmitting(true);
 
     try {
@@ -242,6 +255,9 @@ export default function Auth() {
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
+      } else {
+        console.error(error);
+        toast.error("Erro ao criar conta");
       }
     }
 
@@ -250,6 +266,8 @@ export default function Auth() {
 
   const handleVerifyTotp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
     setSubmitting(true);
 
     try {
@@ -260,11 +278,9 @@ export default function Auth() {
         },
       });
 
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Timeout")), 10000)
-      );
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10000));
 
-      const { data, error } = await Promise.race([verifyPromise, timeoutPromise]) as any;
+      const { data, error } = (await Promise.race([verifyPromise, timeoutPromise])) as any;
 
       if (error) {
         console.error("Edge function error:", error);
@@ -300,7 +316,7 @@ export default function Auth() {
 
   const handleSetupTotp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!totpCode || totpCode.length !== 6) return;
+    if (!totpCode || totpCode.length !== 6 || submitting) return;
 
     setSubmitting(true);
 
@@ -312,11 +328,9 @@ export default function Auth() {
         },
       });
 
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Timeout")), 10000)
-      );
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10000));
 
-      const { data, error } = await Promise.race([verifyPromise, timeoutPromise]) as any;
+      const { data, error } = (await Promise.race([verifyPromise, timeoutPromise])) as any;
 
       if (error) {
         console.error("Edge function error:", error);
@@ -333,10 +347,7 @@ export default function Auth() {
       }
 
       if (data.valid) {
-        await supabase
-          .from("user_totp")
-          .update({ enabled: true })
-          .eq("user_id", user?.id);
+        await supabase.from("user_totp").update({ enabled: true }).eq("user_id", user?.id);
 
         toast.success("Google Authenticator configurado com sucesso!");
         navigate("/portal", { replace: true });
@@ -375,13 +386,17 @@ export default function Auth() {
       <div className="absolute bottom-20 right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
       <div className="absolute top-1/2 left-1/4 w-72 h-72 bg-blue-400/20 rounded-full blur-2xl" />
 
-      {/* Texto lateral */}
+      {/* Texto lateral + logo */}
       <div className="hidden lg:block absolute left-24 top-1/2 -translate-y-1/2 text-white z-10">
         <div className="space-y-4">
           <h1 className="text-6xl font-bold tracking-tight">Seja bem-vindo à Uon1</h1>
           <p className="text-xl opacity-90">
             {showCredentialsStep ? "Tudo começa no 1!" : "Confirme seu acesso seguro"}
           </p>
+
+          <div className="mt-6">
+            <img src={LogoUon1} alt="Logo Uon1" className="h-16 object-contain drop-shadow-lg" />
+          </div>
         </div>
       </div>
 
@@ -477,7 +492,11 @@ export default function Auth() {
                 {submitting ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    {isSignUp ? "Criando conta..." : loginPhase === "credentials" ? "Validando credenciais..." : "Verificando TOTP..."}
+                    {isSignUp
+                      ? "Criando conta..."
+                      : loginPhase === "credentials"
+                        ? "Validando credenciais..."
+                        : "Verificando TOTP..."}
                   </div>
                 ) : isSignUp ? (
                   "Criar Conta"
@@ -491,7 +510,9 @@ export default function Auth() {
               <div className="flex flex-col items-center space-y-4">
                 <div className="p-4 bg-white rounded-lg border-2 border-border">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUri)}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                      qrCodeUri,
+                    )}`}
                     alt="QR Code TOTP"
                     className="w-48 h-48"
                   />
@@ -543,14 +564,14 @@ export default function Auth() {
                 <div className="flex flex-col items-center space-y-3 mb-4">
                   <div className="p-3 bg-white rounded-lg border-2 border-border">
                     <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(qrCodeUri)}`}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+                        qrCodeUri,
+                      )}`}
                       alt="QR Code TOTP"
                       className="w-40 h-40"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground text-center">
-                    Escaneie novamente se perdeu o acesso
-                  </p>
+                  <p className="text-xs text-muted-foreground text-center">Escaneie novamente se perdeu o acesso</p>
                 </div>
               )}
 
