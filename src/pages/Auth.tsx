@@ -10,26 +10,31 @@ import { signInSchema, signUpSchema } from "@/lib/validationSchemas";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { ShieldCheck, ArrowLeft, QrCode } from "lucide-react";
+
 type Step = "CREDENTIALS" | "TOTP" | "TOTP_SETUP";
 type LoginPhase = "idle" | "credentials" | "totp";
+
 type MinimalUser = {
   id: string;
   email?: string | null;
 };
+
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nome, setNome] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
+
   const [step, setStep] = useState<Step>("CREDENTIALS");
   const [totpCode, setTotpCode] = useState("");
   const [qrCodeUri, setQrCodeUri] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loginPhase, setLoginPhase] = useState<LoginPhase>("idle");
+
   const { signIn, signUp, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
   const checkTOTPStatus = async (currentUser?: MinimalUser) => {
-    // usa o usuário recebido (logo após o login) ou cai no do contexto
     const effectiveUser: MinimalUser | undefined =
       currentUser ??
       (user
@@ -38,23 +43,25 @@ export default function Auth() {
             email: user.email,
           }
         : undefined);
+
     if (!effectiveUser) return;
+
     try {
       const { data: totpData, error } = await supabase
         .from("user_totp")
         .select("enabled")
         .eq("user_id", effectiveUser.id)
         .maybeSingle();
+
       if (error) {
         console.error("Error checking TOTP status:", error);
         toast.error("Erro ao verificar autenticação");
         return;
       }
+
       if (!totpData || !totpData.enabled) {
-        // precisa configurar
         await setupTOTP(effectiveUser);
       } else {
-        // já tem TOTP configurado → só validar
         setStep("TOTP");
       }
     } catch (error) {
@@ -62,6 +69,7 @@ export default function Auth() {
       toast.error("Erro ao verificar autenticação");
     }
   };
+
   const setupTOTP = async (currentUser?: MinimalUser) => {
     const effectiveUser: MinimalUser | undefined =
       currentUser ??
@@ -71,14 +79,18 @@ export default function Auth() {
             email: user.email,
           }
         : undefined);
+
     if (!effectiveUser?.email) return;
+
     try {
       const { data, error } = await supabase.functions.invoke("verify-totp/setup", {
         body: {
           email: effectiveUser.email,
         },
       });
+
       if (error) throw error;
+
       if (data?.qrCodeUri) {
         setQrCodeUri(data.qrCodeUri);
         setStep("TOTP_SETUP");
@@ -88,17 +100,19 @@ export default function Auth() {
       toast.error("Erro ao configurar autenticação");
     }
   };
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setLoginPhase("credentials");
+
     try {
       const validated = signInSchema.parse({
         email,
         password,
       });
+
       const result = await signIn(validated.email, validated.password);
-      // assumindo que signIn retorna algo como { error, isParceiro }
 
       if (result.error) {
         toast.error(result.error.message || "Erro ao fazer login");
@@ -106,10 +120,10 @@ export default function Auth() {
         setLoginPhase("idle");
         return;
       }
+
       if (result.isParceiro) {
         toast.success("Credenciais válidas! Verificando autenticação...");
 
-        // pega o usuário diretamente do Supabase, sem depender do contexto ainda atualizar
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError || !userData.user) {
           console.error("Erro ao obter usuário após login:", userError);
@@ -118,11 +132,13 @@ export default function Auth() {
           setLoginPhase("idle");
           return;
         }
+
         const currentUser: MinimalUser = {
           id: userData.user.id,
           email: userData.user.email,
         };
-        setLoginPhase("totp"); // muda mensagem do botão
+
+        setLoginPhase("totp");
         await checkTOTPStatus(currentUser);
       } else {
         toast.success("Login realizado com sucesso!");
@@ -138,18 +154,22 @@ export default function Auth() {
         toast.error("Erro ao fazer login");
       }
     }
+
     setSubmitting(false);
     setLoginPhase("idle");
   };
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+
     try {
       const validated = signUpSchema.parse({
         nome,
         email,
         password,
       });
+
       const { error } = await signUp(validated.email, validated.password, validated.nome);
       if (error) {
         toast.error(error.message || "Erro ao criar conta");
@@ -164,11 +184,14 @@ export default function Auth() {
         toast.error(error.errors[0].message);
       }
     }
+
     setSubmitting(false);
   };
+
   const handleVerifyTotp = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+
     try {
       const { data, error } = await supabase.functions.invoke("verify-totp", {
         body: {
@@ -176,6 +199,7 @@ export default function Auth() {
           email: user?.email,
         },
       });
+
       if (error || !data?.valid) {
         toast.error("Código inválido. Tente novamente.");
       } else {
@@ -188,12 +212,16 @@ export default function Auth() {
       console.error(err);
       toast.error("Erro ao validar código. Tente novamente.");
     }
+
     setSubmitting(false);
   };
+
   const handleSetupTotp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!totpCode || totpCode.length !== 6) return;
+
     setSubmitting(true);
+
     try {
       const { data, error } = await supabase.functions.invoke("verify-totp", {
         body: {
@@ -201,7 +229,9 @@ export default function Auth() {
           code: totpCode,
         },
       });
+
       if (error) throw error;
+
       if (data.valid) {
         await supabase
           .from("user_totp")
@@ -209,6 +239,7 @@ export default function Auth() {
             enabled: true,
           })
           .eq("user_id", user?.id);
+
         toast.success("Google Authenticator configurado com sucesso!");
         navigate("/portal", {
           replace: true,
@@ -223,6 +254,7 @@ export default function Auth() {
       setSubmitting(false);
     }
   };
+
   if (authLoading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700">
@@ -233,12 +265,11 @@ export default function Auth() {
       </div>
     );
   }
+
   const showCredentialsStep = step === "CREDENTIALS";
+
   return (
-    <div
-      className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-[#362c89] via-[#4a3cc1] to-[#221a66]
-"
-    >
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-[#362c89] via-[#4a3cc1] to-[#221a66]">
       {/* Decor */}
       <div className="absolute top-20 left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
       <div className="absolute bottom-20 right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
@@ -340,7 +371,7 @@ export default function Auth() {
 
               <Button
                 type="submit"
-                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                className="w-full h-11 bg-[#362c89] hover:bg-[#362c89]/90 text-white font-medium transition-colors"
                 disabled={submitting}
               >
                 {submitting ? (
@@ -397,7 +428,7 @@ export default function Auth() {
 
               <Button
                 type="submit"
-                className="w-full h-11 bg-[#362c89] hover:bg-[#2a2270] text-white font-medium transition-colors"
+                className="w-full h-11 bg-[#362c89] hover:bg-[#362c89]/90 text-white font-medium transition-colors"
                 disabled={submitting || totpCode.length !== 6}
               >
                 {submitting ? (
@@ -434,7 +465,7 @@ export default function Auth() {
 
               <Button
                 type="submit"
-                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                className="w-full h-11 bg-[#362c89] hover:bg-[#362c89]/90 text-white font-medium transition-colors"
                 disabled={submitting}
               >
                 {submitting ? (
@@ -457,7 +488,7 @@ export default function Auth() {
               <button
                 type="button"
                 onClick={() => setIsSignUp(!isSignUp)}
-                className="ml-2 text-[#362c89] hover:text-[#2a2270] font-medium"
+                className="ml-2 text-[#362c89] hover:text-[#362c89]/80 font-medium"
               >
                 {isSignUp ? "Fazer login" : "Sign up"}
               </button>
@@ -472,7 +503,7 @@ export default function Auth() {
                   setPassword("");
                   setQrCodeUri("");
                 }}
-                className="flex items-center gap-1 text-[#362c89] hover:text-[#2a2270] font-medium"
+                className="flex items-center gap-1 text-[#362c89] hover:text-[#362c89]/80 font-medium"
               >
                 <ArrowLeft className="w-3 h-3" />
                 Trocar usuário
