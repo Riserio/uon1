@@ -14,8 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Activity, FileText, PieChart, ListChecks, ShieldCheck, Link as LinkIcon, ExternalLink } from "lucide-react";
-import { CorretoraSlugDialog } from "@/components/CorretoraSlugDialog";
+import { Users, Activity, FileText, PieChart, ListChecks, ShieldCheck } from "lucide-react";
 
 export default function PID() {
   const { user } = useAuth();
@@ -23,40 +22,8 @@ export default function PID() {
   const [selectedCorretora, setSelectedCorretora] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [usuariosDialogOpen, setUsuariosDialogOpen] = useState(false);
-  const [slugDialogOpen, setSlugDialogOpen] = useState(false);
 
   const selectedCorretoraData = corretoras.find((c) => c.id === selectedCorretora);
-
-  const handleRefreshCorretoras = async () => {
-    try {
-      const { data, error } = await supabase.from("corretoras").select("id, nome, slug").order("nome");
-      if (error) throw error;
-      setCorretoras(data || []);
-    } catch (error) {
-      console.error("Erro ao recarregar corretoras:", error);
-    }
-  };
-
-  const handleCopyPortalLink = () => {
-    if (!selectedCorretoraData?.slug) {
-      toast.error("Configure um slug primeiro");
-      return;
-    }
-    
-    const portalUrl = `${window.location.origin}/${selectedCorretoraData.slug}/login`;
-    navigator.clipboard.writeText(portalUrl);
-    toast.success("Link copiado para a área de transferência");
-  };
-
-  const handleOpenPortalLink = () => {
-    if (!selectedCorretoraData?.slug) {
-      toast.error("Configure um slug primeiro");
-      return;
-    }
-    
-    const portalUrl = `${window.location.origin}/${selectedCorretoraData.slug}/login`;
-    window.open(portalUrl, '_blank');
-  };
 
   useEffect(() => {
     async function fetchCorretoras() {
@@ -82,31 +49,31 @@ export default function PID() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="container mx-auto px-2 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 space-y-3 sm:space-y-4 md:space-y-6 max-w-7xl">
+      <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Header */}
-        <div className="space-y-3 sm:space-y-4">
+        <div className="space-y-4">
           <div>
-            <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
               PID - Painel de Indicadores e Demonstrativos
             </h1>
-            <p className="text-muted-foreground mt-1 sm:mt-2 text-xs sm:text-sm md:text-base">
+            <p className="text-muted-foreground mt-2 text-sm sm:text-base lg:text-lg">
               Gestão completa de dados financeiros e sinistros das corretoras
             </p>
           </div>
 
           {/* Seleção de Corretora */}
           <Card className="border-2 border-primary/10 shadow-lg bg-gradient-to-br from-card to-card/80">
-            <CardContent className="p-3 sm:p-4 md:p-6">
-              <div className="flex flex-col lg:flex-row justify-between gap-3 sm:gap-4 items-stretch lg:items-center">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 md:gap-4 flex-1 w-full min-w-0">
-                  <Label htmlFor="corretora-select" className="text-xs sm:text-sm md:text-base font-semibold whitespace-nowrap flex-shrink-0">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 flex-1 w-full">
+                  <Label htmlFor="corretora-select" className="text-base sm:text-lg font-semibold whitespace-nowrap">
                     Selecionar Corretora:
                   </Label>
 
                   <Select value={selectedCorretora} onValueChange={setSelectedCorretora} disabled={loading}>
                     <SelectTrigger
                       id="corretora-select"
-                      className="w-full sm:max-w-md h-9 sm:h-10 md:h-11 border-2 text-xs sm:text-sm"
+                      className="w-full sm:max-w-md h-11 sm:h-12 border-2 text-sm sm:text-base"
                     >
                       <SelectValue placeholder="Escolha uma corretora..." />
                     </SelectTrigger>
@@ -116,7 +83,7 @@ export default function PID() {
                         <SelectItem
                           key={corretora.id}
                           value={corretora.id}
-                          className="text-xs sm:text-sm py-2"
+                          className="text-sm sm:text-base py-2 sm:py-3"
                         >
                           {corretora.nome}
                         </SelectItem>
@@ -125,51 +92,16 @@ export default function PID() {
                   </Select>
                 </div>
 
-                {/* Botões de Ação */}
+                {/* Botão Gerenciar Usuários PID */}
                 {selectedCorretora && (
-                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                    <Button
-                      variant="outline"
-                      onClick={() => setUsuariosDialogOpen(true)}
-                      className="gap-2 whitespace-nowrap flex-shrink-0 h-9 sm:h-10"
-                    >
-                      <Users className="h-4 w-4" />
-                      <span className="text-xs sm:text-sm">Gerenciar Usuários</span>
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      onClick={() => setSlugDialogOpen(true)}
-                      className="gap-2 whitespace-nowrap flex-shrink-0 h-9 sm:h-10"
-                    >
-                      <LinkIcon className="h-4 w-4" />
-                      <span className="text-xs sm:text-sm">
-                        {selectedCorretoraData?.slug ? 'Editar Slug' : 'Configurar Slug'}
-                      </span>
-                    </Button>
-                    
-                    {selectedCorretoraData?.slug && (
-                      <>
-                        <Button
-                          variant="outline"
-                          onClick={handleCopyPortalLink}
-                          className="gap-2 whitespace-nowrap flex-shrink-0 h-9 sm:h-10"
-                        >
-                          <LinkIcon className="h-4 w-4" />
-                          <span className="text-xs sm:text-sm">Copiar Link</span>
-                        </Button>
-                        
-                        <Button
-                          variant="default"
-                          onClick={handleOpenPortalLink}
-                          className="gap-2 whitespace-nowrap flex-shrink-0 h-9 sm:h-10"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          <span className="text-xs sm:text-sm">Abrir Portal</span>
-                        </Button>
-                      </>
-                    )}
-                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setUsuariosDialogOpen(true)}
+                    className="gap-2 whitespace-nowrap w-full sm:w-auto"
+                  >
+                    <Users className="h-4 w-4" />
+                    <span className="text-sm">Gerenciar Usuários PID</span>
+                  </Button>
                 )}
               </div>
             </CardContent>
@@ -177,75 +109,80 @@ export default function PID() {
         </div>
 
         {/* Abas */}
-        <Tabs defaultValue="kpi" className="space-y-3 sm:space-y-4 md:space-y-6">
-          <div className="w-full overflow-x-hidden">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 rounded-lg bg-muted/30 p-1 gap-1">
+        <Tabs defaultValue="kpi" className="space-y-6">
+          {/* Responsivo: scroll horizontal no mobile, grid em telas maiores */}
+          <div className="w-full overflow-x-auto">
+            <TabsList
+              className="
+                inline-flex md:grid md:w-full md:grid-cols-3 lg:grid-cols-6
+                rounded-xl bg-muted/30 p-1.5 shadow-sm
+                min-w-max md:min-w-0
+              "
+            >
               <TabsTrigger
                 value="kpi"
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
-                           text-xs sm:text-sm font-medium transition-all
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[11px] sm:text-sm font-medium text-muted-foreground transition-all
                            data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-md hover:bg-muted/50"
+                           data-[state=active]:shadow-sm hover:text-foreground"
               >
                 <Activity className="h-4 w-4" />
-                <span className="text-[10px] sm:text-xs">KPI</span>
+                <span>KPI</span>
               </TabsTrigger>
 
               <TabsTrigger
                 value="extrato"
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
-                           text-xs sm:text-sm font-medium transition-all
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[11px] sm:text-sm font-medium text-muted-foreground transition-all
                            data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-md hover:bg-muted/50"
+                           data-[state=active]:shadow-sm hover:text-foreground"
               >
                 <FileText className="h-4 w-4" />
-                <span className="text-[10px] sm:text-xs">Extrato</span>
+                <span>Extrato</span>
               </TabsTrigger>
 
               <TabsTrigger
                 value="indicadores"
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
-                           text-xs sm:text-sm font-medium transition-all
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
                            data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-md hover:bg-muted/50"
+                           data-[state=active]:shadow-sm hover:text-foreground"
               >
                 <PieChart className="h-4 w-4" />
-                <span className="text-[10px] sm:text-xs hidden sm:inline">Indicadores</span>
-                <span className="text-[10px] sm:hidden">Indic.</span>
+                <span>Indicadores</span>
               </TabsTrigger>
 
               <TabsTrigger
                 value="lancamentos"
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
-                           text-xs sm:text-sm font-medium transition-all
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
                            data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-md hover:bg-muted/50"
+                           data-[state=active]:shadow-sm hover:text-foreground"
               >
                 <ListChecks className="h-4 w-4" />
-                <span className="text-[10px] sm:text-xs hidden sm:inline">Lançamentos</span>
-                <span className="text-[10px] sm:hidden">Lanç.</span>
+                <span>Lançamentos</span>
               </TabsTrigger>
 
               <TabsTrigger
                 value="sinistros"
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
-                           text-xs sm:text-sm font-medium transition-all
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
                            data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-md hover:bg-muted/50"
+                           data-[state=active]:shadow-sm hover:text-foreground"
               >
                 <ShieldCheck className="h-4 w-4" />
-                <span className="text-[10px] sm:text-xs">Sinistros</span>
+                <span>Sinistros</span>
               </TabsTrigger>
 
               <TabsTrigger
                 value="comite"
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 rounded-md px-2 py-2
-                           text-xs sm:text-sm font-medium transition-all
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
                            data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-md hover:bg-muted/50"
+                           data-[state=active]:shadow-sm hover:text-foreground"
               >
                 <Users className="h-4 w-4" />
-                <span className="text-[10px] sm:text-xs">Comitê</span>
+                <span>Comitê</span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -276,23 +213,14 @@ export default function PID() {
         </Tabs>
       </div>
 
-      {/* Modals */}
+      {/* Modal Gerenciar Usuários PID */}
       {selectedCorretoraData && (
-        <>
-          <GerenciarUsuariosCorretoraDialog
-            open={usuariosDialogOpen}
-            onOpenChange={setUsuariosDialogOpen}
-            corretoraId={selectedCorretoraData.id}
-            corretoraNome={selectedCorretoraData.nome}
-          />
-          
-          <CorretoraSlugDialog
-            open={slugDialogOpen}
-            onOpenChange={setSlugDialogOpen}
-            corretora={selectedCorretoraData}
-            onSuccess={handleRefreshCorretoras}
-          />
-        </>
+        <GerenciarUsuariosCorretoraDialog
+          open={usuariosDialogOpen}
+          onOpenChange={setUsuariosDialogOpen}
+          corretoraId={selectedCorretoraData.id}
+          corretoraNome={selectedCorretoraData.nome}
+        />
       )}
     </div>
   );
