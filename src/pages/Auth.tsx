@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,10 @@ import { ShieldCheck, ArrowLeft, QrCode } from "lucide-react";
 type Step = "CREDENTIALS" | "TOTP" | "TOTP_SETUP";
 type LoginPhase = "idle" | "credentials" | "totp";
 
-type SimpleUser = { id: string; email: string };
+type MinimalUser = {
+  id: string;
+  email?: string | null;
+};
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -31,9 +34,11 @@ export default function Auth() {
   const { signIn, signUp, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // ⚙️ Verifica status do TOTP usando o usuário já conhecido
-  const checkTOTPStatus = async (currentUser?: SimpleUser) => {
-    const effectiveUser = currentUser ?? (user ? { id: user.id, email: user.email! } : undefined);
+  const checkTOTPStatus = async (currentUser?: MinimalUser) => {
+    // usa o usuário recebido (logo após o login) ou cai no do contexto
+    const effectiveUser: MinimalUser | undefined =
+      currentUser ?? (user ? { id: user.id, email: user.email } : undefined);
+
     if (!effectiveUser) return;
 
     try {
@@ -53,7 +58,7 @@ export default function Auth() {
         // precisa configurar
         await setupTOTP(effectiveUser);
       } else {
-        // já tem TOTP habilitado → vai direto pra tela de código
+        // já tem TOTP configurado → só validar
         setStep("TOTP");
       }
     } catch (error) {
@@ -62,13 +67,13 @@ export default function Auth() {
     }
   };
 
-  // 📲 Configuração inicial do TOTP (gera QR)
-  const setupTOTP = async (currentUser?: SimpleUser) => {
-    const effectiveUser = currentUser ?? (user ? { id: user.id, email: user.email! } : undefined);
+  const setupTOTP = async (currentUser?: MinimalUser) => {
+    const effectiveUser: MinimalUser | undefined =
+      currentUser ?? (user ? { id: user.id, email: user.email } : undefined);
+
     if (!effectiveUser?.email) return;
 
     try {
-      // aqui você já disse que está usando verify-totp/setup e está funcionando
       const { data, error } = await supabase.functions.invoke("verify-totp/setup", {
         body: { email: effectiveUser.email },
       });
@@ -93,8 +98,8 @@ export default function Auth() {
     try {
       const validated = signInSchema.parse({ email, password });
 
-      // IMPORTANTE: signIn precisa retornar { error, user, isParceiro }
       const result = await signIn(validated.email, validated.password);
+      // assumindo que signIn retorna algo como { error, isParceiro }
 
       if (result.error) {
         toast.error(result.error.message || "Erro ao fazer login");
@@ -103,17 +108,28 @@ export default function Auth() {
         return;
       }
 
-      // Se for parceiro, entra no fluxo TOTP
       if (result.isParceiro) {
         toast.success("Credenciais válidas! Verificando autenticação...");
+
+        // pega o usuário diretamente do Supabase, sem depender do contexto ainda atualizar
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+
+        if (userError || !userData.user) {
+          console.error("Erro ao obter usuário após login:", userError);
+          toast.error("Erro ao carregar seus dados. Tente novamente.");
+          setSubmitting(false);
+          setLoginPhase("idle");
+          return;
+        }
+
+        const currentUser: MinimalUser = {
+          id: userData.user.id,
+          email: userData.user.email,
+        };
+
         setLoginPhase("totp"); // muda mensagem do botão
-        await checkTOTPStatus({
-          id: result.user.id,
-          email: result.user.email,
-        });
-        // daqui em diante a UI muda para TOTP ou TOTP_SETUP
+        await checkTOTPStatus(currentUser);
       } else {
-        // Usuário normal → direto pro dashboard
         toast.success("Login realizado com sucesso!");
         navigate("/dashboard", { replace: true });
       }
@@ -223,60 +239,252 @@ export default function Auth() {
 
   const showCredentialsStep = step === "CREDENTIALS";
 
-  // 🔤 Texto dinâmico do botão na tela de credenciais
-  const getCredentialsButtonLabel = () => {
-    if (!submitting) return isSignUp ? "Criar Conta" : "Entrar";
-
-    if (isSignUp) return "Criando conta...";
-
-    if (loginPhase === "credentials") return "Validando credenciais...";
-    if (loginPhase === "totp") return "Validando autenticação por TOTP...";
-
-    return "Processando...";
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700">
-      {/* ... resto do layout igual ao seu, só mudo o botão principal */}
+      {/* Decor */}
+      <div className="absolute top-20 left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
+      <div className="absolute bottom-20 right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
+      <div className="absolute top-1/2 left-1/4 w-72 h-72 bg-blue-400/20 rounded-full blur-2xl" />
 
+      {/* Texto lateral */}
+      <div className="hidden lg:block absolute left-24 top-1/2 -translate-y-1/2 text-white z-10">
+        <div className="space-y-4">
+          <h1 className="text-6xl font-bold tracking-tight">WELCOME</h1>
+          <p className="text-xl opacity-90">
+            {showCredentialsStep ? "Back! Please login" : "Confirme seu acesso seguro"}
+          </p>
+        </div>
+      </div>
+
+      {/* Card */}
       <Card className="w-full max-w-md mx-4 lg:ml-auto lg:mr-32 bg-white shadow-2xl border-0 relative z-20">
         <CardHeader className="space-y-2 pb-6">
-          {/* cabeçalho igual ao seu */}
-          {/* ... */}
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-2xl font-semibold">
+                {showCredentialsStep
+                  ? isSignUp
+                    ? "Sign up"
+                    : "Sign in"
+                  : step === "TOTP_SETUP"
+                    ? "Configure Google Authenticator"
+                    : "Validação em duas etapas"}
+              </CardTitle>
+              <CardDescription className="text-muted-foreground">
+                {showCredentialsStep
+                  ? isSignUp
+                    ? "Create your account to get started"
+                    : "Enter your credentials to continue"
+                  : step === "TOTP_SETUP"
+                    ? "Escaneie o QR code e digite o código gerado"
+                    : "Digite o código do Google Authenticator para concluir o login"}
+              </CardDescription>
+            </div>
+
+            {!showCredentialsStep &&
+              (step === "TOTP_SETUP" ? (
+                <QrCode className="w-8 h-8 text-blue-600" />
+              ) : (
+                <ShieldCheck className="w-8 h-8 text-blue-600" />
+              ))}
+          </div>
         </CardHeader>
 
         <CardContent>
           {showCredentialsStep ? (
             <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="space-y-4">
-              {/* campos nome/email/senha iguais aos seus */}
-              {/* ... */}
+              {isSignUp && (
+                <div className="space-y-2">
+                  <Label htmlFor="nome" className="text-sm font-medium">
+                    Nome Completo
+                  </Label>
+                  <Input
+                    id="nome"
+                    type="text"
+                    value={nome}
+                    onChange={(e) => setNome(e.target.value)}
+                    required
+                    placeholder="Seu nome completo"
+                    className="h-11"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-medium">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="example@email.com"
+                  className="h-11"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-sm font-medium">
+                  Password
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  className="h-11"
+                />
+              </div>
 
               <Button
                 type="submit"
                 className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
                 disabled={submitting}
               >
-                {submitting && (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                {submitting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    {isSignUp
+                      ? "Criando conta..."
+                      : loginPhase === "credentials"
+                        ? "Validando credenciais..."
+                        : "Validando autenticação por TOTP..."}
+                  </div>
+                ) : isSignUp ? (
+                  "Criar Conta"
+                ) : (
+                  "Entrar"
                 )}
-                {getCredentialsButtonLabel()}
               </Button>
             </form>
           ) : step === "TOTP_SETUP" ? (
-            // ... sua tela de setup TOTP igual
             <form onSubmit={handleSetupTotp} className="space-y-4">
-              {/* QR + Input + Botão */}
+              <div className="flex flex-col items-center space-y-4">
+                <div className="p-4 bg-white rounded-lg border-2 border-border">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                      qrCodeUri,
+                    )}`}
+                    alt="QR Code TOTP"
+                    className="w-48 h-48"
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  1. Abra o Google Authenticator no seu celular
+                  <br />
+                  2. Escaneie este código QR
+                  <br />
+                  3. Digite o código de 6 dígitos gerado abaixo
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="totp-setup" className="text-sm font-medium">
+                  Código do Google Authenticator
+                </Label>
+                <Input
+                  id="totp-setup"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
+                  required
+                  placeholder="000000"
+                  className="h-11 tracking-[0.4em] text-center text-lg"
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                disabled={submitting || totpCode.length !== 6}
+              >
+                {submitting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Verificando...
+                  </div>
+                ) : (
+                  "Confirmar e Ativar"
+                )}
+              </Button>
             </form>
           ) : (
-            // ... sua tela de verificação TOTP igual
             <form onSubmit={handleVerifyTotp} className="space-y-4">
-              {/* Input + Botão */}
+              <div className="space-y-2">
+                <Label htmlFor="totp" className="text-sm font-medium">
+                  Código de verificação
+                </Label>
+                <Input
+                  id="totp"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
+                  required
+                  placeholder="000000"
+                  className="h-11 tracking-[0.4em] text-center text-lg"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Abra o app Google Authenticator e digite o código de 6 dígitos gerado para a sua conta.
+                </p>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Validando código...
+                  </div>
+                ) : (
+                  "Confirmar acesso"
+                )}
+              </Button>
             </form>
           )}
         </CardContent>
 
-        {/* Footer igual ao seu */}
-        <CardFooter>...</CardFooter>
+        <CardFooter className="flex flex-col space-y-4">
+          {showCredentialsStep ? (
+            <div className="text-sm text-center text-muted-foreground">
+              {isSignUp ? "Já tem uma conta?" : "Don't have an account?"}
+              <button
+                type="button"
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="ml-2 text-blue-600 hover:text-blue-700 font-medium"
+              >
+                {isSignUp ? "Fazer login" : "Sign up"}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("CREDENTIALS");
+                  setTotpCode("");
+                  setPassword("");
+                  setQrCodeUri("");
+                }}
+                className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
+              >
+                <ArrowLeft className="w-3 h-3" />
+                Trocar usuário
+              </button>
+              <span>Seu acesso está protegido com autenticação em duas etapas.</span>
+            </div>
+          )}
+        </CardFooter>
       </Card>
     </div>
   );
