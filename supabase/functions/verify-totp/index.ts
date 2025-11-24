@@ -9,12 +9,9 @@ const corsHeaders = {
 
 // Helper to generate TOTP secret
 function generateTOTPSecret(): string {
-  // Nota: Para maior robustez, você pode usar:
-  // return speakeasy.generateSecret({ encoding: 'base32' }).base32;
-
   const buffer = new Uint8Array(20);
   crypto.getRandomValues(buffer);
-
+  // Convert to base32
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
   let bits = "";
   for (let i = 0; i < buffer.length; i++) {
@@ -22,50 +19,37 @@ function generateTOTPSecret(): string {
   }
   let result = "";
   for (let i = 0; i < bits.length; i += 5) {
-    const chunk = bits.substring(i, i + 5).padEnd(5, "0"); // Corrigido substr para substring para evitar erros em alguns ambientes Deno
+    const chunk = bits.substr(i, 5).padEnd(5, "0");
     result += alphabet[parseInt(chunk, 2)];
   }
   return result;
 }
 
 serve(async (req) => {
-  // 1. Handle CORS preflight requests
+  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Define o cliente Supabase Admin fora do try/catch para melhor legibilidade
-  const supabaseAdmin = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    },
-  );
-
   try {
+    // Create admin Supabase client
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      },
+    );
+
     const url = new URL(req.url);
     const action = url.pathname.split("/").pop();
 
-    // 2. CORREÇÃO PRINCIPAL: Leitura e validação do JSON body uma única vez
-    let body: any;
-    try {
-      body = await req.json();
-    } catch (e) {
-      console.error("Error parsing request body:", e);
-      // Retorna 400 se o corpo não for JSON válido ou estiver vazio
-      return new Response(JSON.stringify({ error: "Invalid or empty request body" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // --- ROTA: /verify-totp/setup ---
+    // Setup TOTP - generate QR code
     if (action === "setup") {
-      const { email } = body;
+      const { email } = await req.json();
 
       if (!email) {
         return new Response(JSON.stringify({ error: "Missing email" }), {
@@ -106,7 +90,7 @@ serve(async (req) => {
 
       if (upsertError) {
         console.error("Error creating TOTP:", upsertError);
-        return new Response(JSON.stringify({ error: "Failed to setup TOTP in database" }), {
+        return new Response(JSON.stringify({ error: "Failed to setup TOTP" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -114,7 +98,7 @@ serve(async (req) => {
 
       // Generate QR code URI
       const issuer = "Portal PID";
-      const accountName = `${profile.nome || profile.id} (${email})`;
+      const accountName = `${profile.nome} (${email})`;
       const qrCodeUri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(accountName)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}`;
 
       return new Response(
@@ -129,10 +113,8 @@ serve(async (req) => {
       );
     }
 
-    // --- ROTA: /verify-totp ---
-
-    // Se não for 'setup', assume que é a rota de verificação
-    const { email, code } = body; // Usa o corpo lido
+    // Verify TOTP code
+    const { email, code } = await req.json();
 
     if (!email || !code) {
       return new Response(JSON.stringify({ error: "Missing email or code" }), {
@@ -165,18 +147,18 @@ serve(async (req) => {
 
     if (totpError || !totpData) {
       console.error("TOTP not found:", totpError);
-      // Retorna 400 se TOTP não está configurado para o usuário
       return new Response(JSON.stringify({ error: "TOTP not configured" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Se o TOTP não estiver habilitado, mas estiver na rota de verificação,
-    // significa que o usuário está finalizando a configuração (handleSetupTotp).
-    // O frontend é responsável por verificar totpData.enabled.
-    // A função de backend deve tentar verificar o código em ambos os casos.
-    // Nota: O seu frontend só passa para esta etapa se `isParceiro` for true e a verificação inicial falhar.
+    if (!totpData.enabled) {
+      return new Response(JSON.stringify({ error: "TOTP not configured" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Verify TOTP code using speakeasy
     const isValid = speakeasy.totp.verify({
@@ -186,16 +168,14 @@ serve(async (req) => {
       window: 1,
     });
 
-    // A verificação retorna o status 200 com a validade
     return new Response(JSON.stringify({ valid: isValid }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    // 3. Este catch agora pega APENAS erros lógicos/inesperados do servidor
-    console.error("Fatal Error in verify-totp function:", error);
+    console.error("Error in verify-totp function:", error);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
-      status: 500, // Non-2xx
+      status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
