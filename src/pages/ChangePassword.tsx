@@ -43,10 +43,13 @@ export default function ChangePassword() {
 
       if (error) throw error;
 
-      // Marcar que o usuário já alterou a senha
+      // Clear force_password_change flag and set status as active
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({ status: 'ativo' })
+        .update({ 
+          status: 'ativo',
+          force_password_change: false 
+        })
         .eq('id', user?.id);
 
       if (profileError) console.error('Error updating profile:', profileError);
