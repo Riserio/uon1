@@ -1832,6 +1832,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_totp: {
+        Row: {
+          created_at: string | null
+          enabled: boolean | null
+          id: string
+          secret: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          secret: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          secret?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       vistoria_fotos: {
         Row: {
           analise_ia: Json | null
