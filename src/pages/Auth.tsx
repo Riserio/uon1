@@ -75,6 +75,18 @@ export default function Auth() {
       if (!totpData || !totpData.enabled) {
         await setupTOTP(effectiveUser);
       } else {
+        // Buscar o QR code existente para exibir na tela de TOTP
+        const { data: totpRecord } = await supabase
+          .from("user_totp")
+          .select("secret")
+          .eq("user_id", effectiveUser.id)
+          .maybeSingle();
+        
+        if (totpRecord?.secret) {
+          const qrUri = `otpauth://totp/Uon1:${effectiveUser.email}?secret=${totpRecord.secret}&issuer=Uon1`;
+          setQrCodeUri(qrUri);
+        }
+        
         setStep("TOTP");
         setSubmitting(false);
         setLoginPhase("idle");
@@ -167,6 +179,8 @@ export default function Auth() {
 
       if (result.error) {
         toast.error(result.error.message || "Erro ao fazer login");
+        setSubmitting(false);
+        setLoginPhase("idle");
         return;
       }
 
@@ -175,6 +189,8 @@ export default function Auth() {
         if (userError || !userData.user) {
           console.error("Erro ao obter usuário após login:", userError);
           toast.error("Erro ao carregar seus dados. Tente novamente.");
+          setSubmitting(false);
+          setLoginPhase("idle");
           return;
         }
 
@@ -523,6 +539,21 @@ export default function Auth() {
             </form>
           ) : (
             <form onSubmit={handleVerifyTotp} className="space-y-4">
+              {qrCodeUri && (
+                <div className="flex flex-col items-center space-y-3 mb-4">
+                  <div className="p-3 bg-white rounded-lg border-2 border-border">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(qrCodeUri)}`}
+                      alt="QR Code TOTP"
+                      className="w-40 h-40"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Escaneie novamente se perdeu o acesso
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="totp" className="text-sm font-medium">
                   Código de verificação
