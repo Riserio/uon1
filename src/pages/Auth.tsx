@@ -63,6 +63,8 @@ export default function Auth() {
       if (!totpData || !totpData.enabled) {
         await setupTOTP(effectiveUser);
       } else {
+        // Always fetch QR code even if already enabled
+        await setupTOTP(effectiveUser);
         setStep("TOTP");
       }
     } catch (error) {
@@ -481,6 +483,21 @@ export default function Auth() {
             </form>
           ) : (
             <form onSubmit={handleVerifyTotp} className="space-y-4">
+              {qrCodeUri && (
+                <div className="flex flex-col items-center space-y-4 pb-4">
+                  <div className="p-4 bg-white rounded-lg border-2 border-border">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUri)}`}
+                      alt="QR Code TOTP"
+                      className="w-48 h-48"
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground text-center">
+                    Escaneie este código com o Google Authenticator
+                  </p>
+                </div>
+              )}
+              
               <div className="space-y-2">
                 <Label htmlFor="totp" className="text-sm font-medium">
                   Código de verificação
@@ -497,7 +514,7 @@ export default function Auth() {
                   className="h-11 tracking-[0.4em] text-center text-lg"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Abra o app Google Authenticator e digite o código de 6 dígitos gerado para a sua conta.
+                  Digite o código de 6 dígitos gerado no app Google Authenticator.
                 </p>
               </div>
 
