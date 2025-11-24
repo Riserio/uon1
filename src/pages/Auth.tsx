@@ -132,8 +132,6 @@ export default function Auth() {
       }
 
       if (result.isParceiro) {
-        toast.success("Credenciais válidas! Verificando autenticação...");
-
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError || !userData.user) {
           console.error("Erro ao obter usuário após login:", userError);
@@ -152,9 +150,7 @@ export default function Auth() {
         await checkTOTPStatus(currentUser);
       } else {
         toast.success("Login realizado com sucesso!");
-        navigate("/dashboard", {
-          replace: true,
-        });
+        navigate("/dashboard", { replace: true });
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -203,12 +199,18 @@ export default function Auth() {
     setSubmitting(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("verify-totp", {
+      const verifyPromise = supabase.functions.invoke("verify-totp", {
         body: {
           code: totpCode,
           email: user?.email,
         },
       });
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Timeout")), 10000)
+      );
+
+      const { data, error } = await Promise.race([verifyPromise, timeoutPromise]) as any;
 
       if (error) {
         console.error("Edge function error:", error);
@@ -217,7 +219,6 @@ export default function Auth() {
         return;
       }
 
-      // Validate response structure
       if (!data || !data.success) {
         console.error("Invalid response from verify-totp:", data);
         toast.error("Erro ao validar código: resposta inválida");
@@ -229,16 +230,18 @@ export default function Auth() {
         toast.error("Código inválido. Tente novamente.");
       } else {
         toast.success("Acesso confirmado com sucesso!");
-        navigate("/portal", {
-          replace: true,
-        });
+        navigate("/portal", { replace: true });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error("Erro ao validar código. Tente novamente.");
+      if (err.message === "Timeout") {
+        toast.error("Tempo limite excedido. Tente novamente.");
+      } else {
+        toast.error("Erro ao validar código. Tente novamente.");
+      }
+    } finally {
+      setSubmitting(false);
     }
-
-    setSubmitting(false);
   };
 
   const handleSetupTotp = async (e: React.FormEvent) => {
@@ -248,12 +251,18 @@ export default function Auth() {
     setSubmitting(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("verify-totp", {
+      const verifyPromise = supabase.functions.invoke("verify-totp", {
         body: {
           email: user?.email,
           code: totpCode,
         },
       });
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Timeout")), 10000)
+      );
+
+      const { data, error } = await Promise.race([verifyPromise, timeoutPromise]) as any;
 
       if (error) {
         console.error("Edge function error:", error);
@@ -262,7 +271,6 @@ export default function Auth() {
         return;
       }
 
-      // Validate response structure
       if (!data || !data.success) {
         console.error("Invalid response from verify-totp:", data);
         toast.error("Erro ao configurar autenticação: resposta inválida");
@@ -273,21 +281,21 @@ export default function Auth() {
       if (data.valid) {
         await supabase
           .from("user_totp")
-          .update({
-            enabled: true,
-          })
+          .update({ enabled: true })
           .eq("user_id", user?.id);
 
         toast.success("Google Authenticator configurado com sucesso!");
-        navigate("/portal", {
-          replace: true,
-        });
+        navigate("/portal", { replace: true });
       } else {
         toast.error("Código inválido. Verifique e tente novamente.");
       }
     } catch (error: any) {
       console.error("TOTP setup error:", error);
-      toast.error(error.message || "Erro ao configurar autenticação");
+      if (error.message === "Timeout") {
+        toast.error("Tempo limite excedido. Tente novamente.");
+      } else {
+        toast.error(error.message || "Erro ao configurar autenticação");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -415,11 +423,7 @@ export default function Auth() {
                 {submitting ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    {isSignUp
-                      ? "Criando conta..."
-                      : loginPhase === "credentials"
-                        ? "Validando credenciais..."
-                        : "Validando autenticação por TOTP..."}
+                    {isSignUp ? "Criando conta..." : loginPhase === "credentials" ? "Validando credenciais..." : "Verificando TOTP..."}
                   </div>
                 ) : isSignUp ? (
                   "Criar Conta"
