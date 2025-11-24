@@ -73,7 +73,7 @@ export function CorretoraSlugDialog({
             <Label htmlFor="slug">
               Slug do Portal *
               <span className="text-xs text-muted-foreground ml-2">
-                (usado para acesso: /{slug}/login)
+                (usado para acesso: /{slug || "slug"}/login)
               </span>
             </Label>
             <Input
