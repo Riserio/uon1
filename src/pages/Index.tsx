@@ -1,3 +1,4 @@
+import LogoUon1 from "@/assets/logo-uon1.png";
 import { useState, useMemo, useEffect } from "react";
 import { Atendimento, StatusType } from "@/types/atendimento";
 import { KanbanBoard } from "@/components/KanbanBoard";
