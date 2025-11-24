@@ -804,6 +804,9 @@ const Index = () => {
         </div>
       </div>
 
+      <CardHeader className="space-y-4 pb-6 flex flex-col items-center">
+        <img src={LogoUon1} alt="Uon1" className="w-32 h-auto mb-2" />
+
       <main className="container mx-auto px-6 py-6">
         {loading ? (
           <div className="flex items-center justify-center py-12">
