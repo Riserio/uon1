@@ -214,13 +214,43 @@ serve(async (req) => {
         );
       }
 
-      // Verificar senha
-      const senhaValida = await bcrypt.compare(password, usuario.senha_hash);
-      if (!senhaValida) {
-        return new Response(
-          JSON.stringify({ error: 'Credenciais inválidas' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-        );
+      // Verificar senha (se gerenciado por Supabase Auth ou hash próprio)
+      if (usuario.senha_hash === 'managed_by_supabase_auth' && usuario.profile_id) {
+        // Usuário gerenciado pelo Supabase Auth - validar via auth
+        const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (authError || !authData.user) {
+          console.log('Supabase auth validation failed:', authError);
+          return new Response(
+            JSON.stringify({ error: 'Credenciais inválidas' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+          );
+        }
+        
+        // Verificar se o profile_id corresponde
+        if (authData.user.id !== usuario.profile_id) {
+          console.log('Profile ID mismatch');
+          return new Response(
+            JSON.stringify({ error: 'Credenciais inválidas' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+          );
+        }
+
+        // Fazer logout imediatamente para não manter sessão do Supabase Auth
+        await supabaseClient.auth.signOut();
+      } else {
+        // Usuário com senha hash própria - validar com bcrypt
+        const senhaValida = await bcrypt.compare(password, usuario.senha_hash);
+        if (!senhaValida) {
+          console.log('Bcrypt validation failed');
+          return new Response(
+            JSON.stringify({ error: 'Credenciais inválidas' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+          );
+        }
       }
 
       console.log('User found:', { 
