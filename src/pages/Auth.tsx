@@ -84,7 +84,7 @@ export default function Auth() {
     if (!effectiveUser?.email) return;
 
     try {
-      const { data, error } = await supabase.functions.invoke("verify-totp-setup", {
+      const { data, error } = await supabase.functions.invoke("verify-totp/setup", {
         body: {
           email: effectiveUser.email,
         },
