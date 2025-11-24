@@ -110,7 +110,7 @@ export default function Auth() {
     try {
       const validated = signInSchema.parse({
         email,
-        senha,
+        password,
       });
 
       const result = await signIn(validated.email, validated.password);
@@ -168,7 +168,7 @@ export default function Auth() {
       const validated = signUpSchema.parse({
         nome,
         email,
-        senha,
+        password,
       });
 
       const { error } = await signUp(validated.email, validated.password, validated.nome);
@@ -491,7 +491,7 @@ export default function Auth() {
                 onClick={() => setIsSignUp(!isSignUp)}
                 className="ml-2 text-[#362c89] hover:text-[#362c89]/80 font-medium"
               >
-                {isSignUp ? "Fazer login" : "Sign up"}
+                {isSignUp ? "Fazer login" : "Cadastre-se"}
               </button>
             </div>
           ) : (
