@@ -65,6 +65,7 @@ export default function VistoriaDetalhe() {
   const [motivoFotos, setMotivoFotos] = useState("");
   const [fotosNecessarias, setFotosNecessarias] = useState<string[]>([]);
   const [novaFotoInput, setNovaFotoInput] = useState("");
+  const [uploadingManualPhotos, setUploadingManualPhotos] = useState(false);
 
   const [geoAddress, setGeoAddress] = useState<string | null>(null);
   const [loadingAddress, setLoadingAddress] = useState(false);
@@ -165,6 +166,7 @@ export default function VistoriaDetalhe() {
     switch (status) {
       case "aguardando_fotos":
         return "bg-yellow-500";
+      case "pendente":
       case "pendente_novas_fotos":
         return "bg-amber-500";
       case "em_analise":
@@ -186,6 +188,7 @@ export default function VistoriaDetalhe() {
     switch (status) {
       case "aguardando_fotos":
         return "Aguardando Fotos";
+      case "pendente":
       case "pendente_novas_fotos":
         return "Pendente Novas Fotos";
       case "em_analise":
@@ -399,6 +402,82 @@ export default function VistoriaDetalhe() {
 
   const removerFotoNecessaria = (index: number) => {
     setFotosNecessarias((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleFotosRecebidas = async () => {
+    if (!vistoria) {
+      toast.error("Vistoria não encontrada");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("vistorias")
+        .update({ status: "em_analise" })
+        .eq("id", vistoria.id);
+
+      if (error) throw error;
+
+      toast.success("Status atualizado para 'Em Análise'!");
+      setSolicitarFotosOpen(false);
+      setMotivoFotos("");
+      setFotosNecessarias([]);
+      setNovaFotoInput("");
+      loadVistoria();
+    } catch (error) {
+      console.error("Erro ao atualizar status:", error);
+      toast.error("Erro ao atualizar status da vistoria");
+    }
+  };
+
+  const handleManualPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !vistoria) return;
+
+    setUploadingManualPhotos(true);
+    toast.loading("Enviando fotos...", { id: "upload-manual" });
+
+    try {
+      const uploadPromises = Array.from(files).map(async (file, index) => {
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${vistoria.id}-manual-${Date.now()}-${index}.${fileExt}`;
+        const filePath = `${vistoria.id}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("vistoria-fotos")
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from("vistoria-fotos")
+          .getPublicUrl(filePath);
+
+        const { error: insertError } = await supabase.from("vistoria_fotos").insert({
+          vistoria_id: vistoria.id,
+          arquivo_url: publicUrl,
+          arquivo_nome: file.name,
+          arquivo_tamanho: file.size,
+          posicao: "adicional",
+          ordem: 999 + index,
+        });
+
+        if (insertError) throw insertError;
+      });
+
+      await Promise.all(uploadPromises);
+
+      toast.dismiss("upload-manual");
+      toast.success(`${files.length} foto(s) enviada(s) com sucesso!`);
+      loadVistoria();
+    } catch (error) {
+      console.error("Erro ao enviar fotos:", error);
+      toast.dismiss("upload-manual");
+      toast.error("Erro ao enviar fotos");
+    } finally {
+      setUploadingManualPhotos(false);
+      e.target.value = "";
+    }
   };
 
   if (loading) {
@@ -753,15 +832,35 @@ export default function VistoriaDetalhe() {
                           }`}
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSolicitarFotosOpen(true)}
-                    className="gap-2"
-                  >
-                    <Send className="h-4 w-4" />
-                    Solicitar Mais Fotos
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSolicitarFotosOpen(true)}
+                      className="gap-2"
+                    >
+                      <Send className="h-4 w-4" />
+                      Solicitar Mais Fotos
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => document.getElementById("manual-photo-upload")?.click()}
+                      disabled={uploadingManualPhotos}
+                      className="gap-2"
+                    >
+                      <Camera className="h-4 w-4" />
+                      {uploadingManualPhotos ? "Enviando..." : "Upload Manual"}
+                    </Button>
+                    <input
+                      id="manual-photo-upload"
+                      type="file"
+                      accept="image/*,video/*"
+                      multiple
+                      onChange={handleManualPhotoUpload}
+                      className="hidden"
+                    />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="p-6">
@@ -1396,8 +1495,7 @@ export default function VistoriaDetalhe() {
               Solicitar Mais Fotos ao Cliente
             </DialogTitle>
             <DialogDescription>
-              O cliente receberá um email com o link renovado para enviar as fotos adicionais. Você também pode enviar o
-              link via WhatsApp Web.
+              Você pode solicitar mais fotos ao cliente (enviando email ou WhatsApp) ou marcar como "Fotos Recebidas" caso o cliente tenha enviado por outro meio.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1455,6 +1553,7 @@ export default function VistoriaDetalhe() {
                 <li>O link será válido por 7 dias</li>
                 <li>Cliente poderá tirar fotos ou enviar da galeria</li>
                 <li>Status da vistoria será alterado para "Pendente Novas Fotos" ao enviar a solicitação</li>
+                <li>Ou use "Fotos Recebidas" para marcar como recebidas sem enviar solicitação</li>
               </ul>
             </div>
           </div>
@@ -1463,6 +1562,15 @@ export default function VistoriaDetalhe() {
               Cancelar
             </Button>
             <div className="flex gap-2 flex-wrap">
+              <Button
+                type="button"
+                variant="secondary"
+                className="gap-2"
+                onClick={handleFotosRecebidas}
+              >
+                <Check className="h-4 w-4" />
+                Fotos Recebidas
+              </Button>
               <Button
                 type="button"
                 variant="outline"

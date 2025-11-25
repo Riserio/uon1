@@ -391,8 +391,8 @@ export default function Sinistros() {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      pendente: "Pendente novas fotos",
-      aguardando_fotos: "Aguardando fotos",
+      pendente: "Pendente Novas Fotos",
+      aguardando_fotos: "Aguardando Fotos",
       em_analise: "Em Análise",
       concluida: "Concluída",
       cancelada: "Cancelada",
@@ -425,16 +425,27 @@ export default function Sinistros() {
   });
 
   const getVistoriaPublicLink = (vistoria: Vistoria) => {
-    return `${window.location.origin}/vistoria-publica/${vistoria.link_token}`;
+    if (!vistoria.link_token) {
+      return null;
+    }
+    return `${window.location.origin}/vistoria/${vistoria.link_token}`;
   };
 
   const handleOpenPublicLink = (vistoria: Vistoria) => {
     const link = getVistoriaPublicLink(vistoria);
+    if (!link) {
+      toast.error("Esta vistoria não possui um link de acesso público gerado.");
+      return;
+    }
     window.open(link, "_blank", "noopener,noreferrer");
   };
 
   const handleShareWhatsApp = (vistoria: Vistoria) => {
     const link = getVistoriaPublicLink(vistoria);
+    if (!link) {
+      toast.error("Esta vistoria não possui um link de acesso público gerado.");
+      return;
+    }
     const text = `Olá, segue o link para continuar a vistoria do veículo ${vistoria.veiculo_placa}:\n${link}`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank", "noopener,noreferrer");
@@ -442,6 +453,10 @@ export default function Sinistros() {
 
   const handleShareEmail = (vistoria: Vistoria) => {
     const link = getVistoriaPublicLink(vistoria);
+    if (!link) {
+      toast.error("Esta vistoria não possui um link de acesso público gerado.");
+      return;
+    }
     const subject = `Vistoria #${vistoria.numero} - Continuidade`;
     const body = `Olá,\n\nSegue o link para acessar e continuar a vistoria do veículo ${vistoria.veiculo_placa} (${vistoria.cliente_nome}):\n${link}\n\nQualquer dúvida, estamos à disposição.\n`;
     const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
