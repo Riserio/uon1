@@ -523,7 +523,7 @@ export default function VistoriaDetalhe() {
             </TabsTrigger>
             <TabsTrigger value="termos">
               <FileCheck className="h-4 w-4 mr-2" />
-              Termos
+              Termos e Documentos
             </TabsTrigger>
             <TabsTrigger value="questionario">
               <MessageSquare className="h-4 w-4 mr-2" />

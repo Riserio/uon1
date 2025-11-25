@@ -115,7 +115,17 @@ export default function VistoriaManual() {
     data_incidente: "",
     // Vinculação
     corretora_id: "",
+    // Novas perguntas
+    chovia: null as boolean | null,
+    acionou_assistencia: null as boolean | null,
+    houve_remocao: null as boolean | null,
   });
+
+  // Estados para anexos/documentos
+  const [boFile, setBoFile] = useState<File | null>(null);
+  const [laudoMedicoFile, setLaudoMedicoFile] = useState<File | null>(null);
+  const [laudoAlcoolemiaFile, setLaudoAlcoolemiaFile] = useState<File | null>(null);
+  const [atestadoObitoFile, setAtestadoObitoFile] = useState<File | null>(null);
 
   useEffect(() => {
     loadCorretoras();
@@ -240,6 +250,10 @@ export default function VistoriaManual() {
           tipo_sinistro: formData.tipo_sinistro,
           relato_incidente: formData.relato_incidente,
           data_incidente: formData.data_incidente,
+          // Novas perguntas
+          estava_chovendo: formData.chovia,
+          acionou_assistencia_24h: formData.acionou_assistencia,
+          houve_remocao_veiculo: formData.houve_remocao,
         })
         .select()
         .single();
@@ -269,6 +283,50 @@ export default function VistoriaManual() {
         });
 
         if (fotoError) throw fotoError;
+      }
+
+      // Upload de documentos anexos
+      const documentUpdates: any = {};
+
+      if (boFile) {
+        const fileName = `${vistoria.id}/bo_${Date.now()}.${boFile.name.split(".").pop()}`;
+        const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, boFile);
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage.from("vistorias").getPublicUrl(fileName);
+          documentUpdates.bo_url = publicUrl;
+        }
+      }
+
+      if (laudoMedicoFile) {
+        const fileName = `${vistoria.id}/laudo_medico_${Date.now()}.${laudoMedicoFile.name.split(".").pop()}`;
+        const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, laudoMedicoFile);
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage.from("vistorias").getPublicUrl(fileName);
+          documentUpdates.laudo_medico_url = publicUrl;
+        }
+      }
+
+      if (laudoAlcoolemiaFile) {
+        const fileName = `${vistoria.id}/laudo_alcoolemia_${Date.now()}.${laudoAlcoolemiaFile.name.split(".").pop()}`;
+        const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, laudoAlcoolemiaFile);
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage.from("vistorias").getPublicUrl(fileName);
+          documentUpdates.laudo_alcoolemia_url = publicUrl;
+        }
+      }
+
+      if (atestadoObitoFile) {
+        const fileName = `${vistoria.id}/atestado_obito_${Date.now()}.${atestadoObitoFile.name.split(".").pop()}`;
+        const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, atestadoObitoFile);
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage.from("vistorias").getPublicUrl(fileName);
+          documentUpdates.atestado_obito_url = publicUrl;
+        }
+      }
+
+      // Atualizar vistoria com URLs dos documentos
+      if (Object.keys(documentUpdates).length > 0) {
+        await supabase.from("vistorias").update(documentUpdates).eq("id", vistoria.id);
       }
 
       const { data: atendimento, error: atendimentoError } = await supabase
@@ -533,6 +591,116 @@ export default function VistoriaManual() {
                     placeholder="Descreva o que aconteceu..."
                     rows={4}
                   />
+                </div>
+
+                {/* Novas Perguntas */}
+                <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+                  <div>
+                    <Label>Estava chovendo?</Label>
+                    <RadioGroup
+                      value={formData.chovia === null ? "" : formData.chovia ? "sim" : "nao"}
+                      onValueChange={(value) => setFormData({ ...formData, chovia: value === "sim" })}
+                    >
+                      <div className="flex gap-4 mt-2">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="sim" id="chovia-m-sim" />
+                          <Label htmlFor="chovia-m-sim">Sim</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="nao" id="chovia-m-nao" />
+                          <Label htmlFor="chovia-m-nao">Não</Label>
+                        </div>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  <div>
+                    <Label>Acionou assistência 24h?</Label>
+                    <RadioGroup
+                      value={formData.acionou_assistencia === null ? "" : formData.acionou_assistencia ? "sim" : "nao"}
+                      onValueChange={(value) => setFormData({ ...formData, acionou_assistencia: value === "sim" })}
+                    >
+                      <div className="flex gap-4 mt-2">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="sim" id="assist-m-sim" />
+                          <Label htmlFor="assist-m-sim">Sim</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="nao" id="assist-m-nao" />
+                          <Label htmlFor="assist-m-nao">Não</Label>
+                        </div>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  <div>
+                    <Label>Houve remoção do veículo?</Label>
+                    <RadioGroup
+                      value={formData.houve_remocao === null ? "" : formData.houve_remocao ? "sim" : "nao"}
+                      onValueChange={(value) => setFormData({ ...formData, houve_remocao: value === "sim" })}
+                    >
+                      <div className="flex gap-4 mt-2">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="sim" id="remocao-m-sim" />
+                          <Label htmlFor="remocao-m-sim">Sim</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="nao" id="remocao-m-nao" />
+                          <Label htmlFor="remocao-m-nao">Não</Label>
+                        </div>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Anexar Documentos */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Documentos e Laudos (Opcional)</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="bo">Boletim de Ocorrência</Label>
+                  <Input
+                    id="bo"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => setBoFile(e.target.files?.[0] || null)}
+                  />
+                  {boFile && <p className="text-xs text-muted-foreground mt-1">{boFile.name}</p>}
+                </div>
+
+                <div>
+                  <Label htmlFor="laudo-medico">Laudo Médico</Label>
+                  <Input
+                    id="laudo-medico"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => setLaudoMedicoFile(e.target.files?.[0] || null)}
+                  />
+                  {laudoMedicoFile && <p className="text-xs text-muted-foreground mt-1">{laudoMedicoFile.name}</p>}
+                </div>
+
+                <div>
+                  <Label htmlFor="laudo-alcoolemia">Laudo de Alcoolemia</Label>
+                  <Input
+                    id="laudo-alcoolemia"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => setLaudoAlcoolemiaFile(e.target.files?.[0] || null)}
+                  />
+                  {laudoAlcoolemiaFile && <p className="text-xs text-muted-foreground mt-1">{laudoAlcoolemiaFile.name}</p>}
+                </div>
+
+                <div>
+                  <Label htmlFor="atestado-obito">Atestado de Óbito</Label>
+                  <Input
+                    id="atestado-obito"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => setAtestadoObitoFile(e.target.files?.[0] || null)}
+                  />
+                  {atestadoObitoFile && <p className="text-xs text-muted-foreground mt-1">{atestadoObitoFile.name}</p>}
                 </div>
               </div>
             </div>

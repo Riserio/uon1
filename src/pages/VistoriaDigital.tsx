@@ -32,6 +32,11 @@ export default function VistoriaDigital() {
   const [validadeAtivada, setValidadeAtivada] = useState(false); // por padrão desativado
   const [diasValidade, setDiasValidade] = useState(2);
 
+  // Novas perguntas do sinistro
+  const [chovia, setChovia] = useState<boolean | null>(null);
+  const [acionouAssistencia, setAcionouAssistencia] = useState<boolean | null>(null);
+  const [houveRemocao, setHouveRemocao] = useState<boolean | null>(null);
+
   useEffect(() => {
     loadCorretoras();
   }, []);
@@ -52,7 +57,7 @@ export default function VistoriaDigital() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const { data: vistoria, error: vistoriaError } = await supabase
+      const { data: vistoria, error: vistoriaError} = await supabase
         .from("vistorias")
         .insert({
           tipo_abertura: "digital",
@@ -65,6 +70,10 @@ export default function VistoriaDigital() {
           horario_inicio: horarioInicio,
           horario_fim: horarioFim,
           dias_validade: validadeAtivada ? diasValidade : null,
+          // Novas perguntas
+          estava_chovendo: chovia,
+          acionou_assistencia_24h: acionouAssistencia,
+          houve_remocao_veiculo: houveRemocao,
         })
         .select()
         .single();
@@ -241,6 +250,84 @@ export default function VistoriaDigital() {
                   />
                 </div>
               </div>
+
+              {/* Novas Perguntas do Sinistro */}
+              {tipoVistoria === "sinistro" && (
+                <div className="space-y-4 border rounded-lg p-4 bg-muted/50">
+                  <h3 className="font-semibold text-sm">Informações Adicionais do Sinistro</h3>
+
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Estava chovendo no momento do acidente?</Label>
+                      <RadioGroup
+                        value={chovia === null ? "" : chovia ? "sim" : "nao"}
+                        onValueChange={(value) => setChovia(value === "sim")}
+                      >
+                        <div className="flex gap-4 mt-2">
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sim" id="chovia-sim" />
+                            <Label htmlFor="chovia-sim" className="cursor-pointer">
+                              Sim
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="nao" id="chovia-nao" />
+                            <Label htmlFor="chovia-nao" className="cursor-pointer">
+                              Não
+                            </Label>
+                          </div>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                    <div>
+                      <Label>Acionou assistência 24h?</Label>
+                      <RadioGroup
+                        value={acionouAssistencia === null ? "" : acionouAssistencia ? "sim" : "nao"}
+                        onValueChange={(value) => setAcionouAssistencia(value === "sim")}
+                      >
+                        <div className="flex gap-4 mt-2">
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sim" id="assist-sim" />
+                            <Label htmlFor="assist-sim" className="cursor-pointer">
+                              Sim
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="nao" id="assist-nao" />
+                            <Label htmlFor="assist-nao" className="cursor-pointer">
+                              Não
+                            </Label>
+                          </div>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                    <div>
+                      <Label>Houve remoção do veículo?</Label>
+                      <RadioGroup
+                        value={houveRemocao === null ? "" : houveRemocao ? "sim" : "nao"}
+                        onValueChange={(value) => setHouveRemocao(value === "sim")}
+                      >
+                        <div className="flex gap-4 mt-2">
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sim" id="remocao-sim" />
+                            <Label htmlFor="remocao-sim" className="cursor-pointer">
+                              Sim
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="nao" id="remocao-nao" />
+                            <Label htmlFor="remocao-nao" className="cursor-pointer">
+                              Não
+                            </Label>
+                          </div>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Configurações de Horário e Validade */}
               <div className="space-y-4 border rounded-lg p-4 bg-muted/50">
