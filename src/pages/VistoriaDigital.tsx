@@ -148,7 +148,7 @@ export default function VistoriaDigital() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="mb-6">
-        <Button variant="outline" onClick={() => navigate("/vistorias")}>
+        <Button variant="outline" onClick={() => navigate("/sinistros")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar
         </Button>
@@ -352,7 +352,7 @@ export default function VistoriaDigital() {
                 </Button>
               </div>
 
-              <Button onClick={() => navigate("/vistorias")} className="w-full" variant="secondary">
+              <Button onClick={() => navigate("/sinistros")} className="w-full" variant="secondary">
                 Concluir
               </Button>
             </div>

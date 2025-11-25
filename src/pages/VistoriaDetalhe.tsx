@@ -428,7 +428,7 @@ export default function VistoriaDetalhe() {
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={() => navigate("/vistorias")} size="lg">
+          <Button variant="ghost" onClick={() => navigate("/sinistros")} size="lg">
             <ArrowLeft className="h-5 w-5 mr-2" />
             Voltar
           </Button>

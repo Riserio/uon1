@@ -30,6 +30,7 @@ export interface Claim {
   valor_franquia?: number | null;
   valor_indenizacao?: number | null;
   timeline: ClaimTimeline[];
+  corretoraInfo?: { nome: string } | null;
 }
 
 interface ClaimCardProps {

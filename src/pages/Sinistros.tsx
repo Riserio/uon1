@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -15,23 +18,18 @@ import {
   Plus,
   DollarSign,
   Building2,
-  Wrench,
-  Users,
-  Car,
   Eye,
   Link2,
   MessageCircle,
   Mail,
+  Search,
+  Filter,
 } from "lucide-react";
 import { ClaimCard, Claim } from "@/components/ClaimCard";
-import { ClaimStats } from "@/components/ClaimStats";
-import { ClaimFilters } from "@/components/ClaimFilters";
 import { useAuth } from "@/hooks/useAuth";
 import { useFluxoPermissions } from "@/hooks/useFluxoPermissions";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   BarChart,
   Bar,
@@ -43,9 +41,12 @@ import {
   PieChart,
   Pie,
   Cell,
+  LineChart,
+  Line,
+  Legend,
 } from "recharts";
 
-const COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6"];
+const COLORS = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6"];
 
 interface Vistoria {
   id: string;
@@ -77,7 +78,7 @@ export default function Sinistros() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { canViewFluxo } = useFluxoPermissions(user?.id);
-  const [activeTab, setActiveTab] = useState<TabType>("vistorias");
+  const [activeTab, setActiveTab] = useState<TabType>("acompanhamento");
   const [vistorias, setVistorias] = useState<Vistoria[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -87,8 +88,7 @@ export default function Sinistros() {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCorretora, setSelectedCorretora] = useState("all");
-  const [selectedPriority, setSelectedPriority] = useState("all");
-  const [corretoras, setCorretoras] = useState<string[]>([]);
+  const [corretoras, setCorretoras] = useState<any[]>([]);
 
   // Dashboard states
   const [dashboardStats, setDashboardStats] = useState<any>({});
@@ -106,7 +106,7 @@ export default function Sinistros() {
     } else if (activeTab === "dashboard") {
       loadDashboard();
     }
-  }, [activeTab, selectedDashboardCorretora]);
+  }, [activeTab, selectedDashboardCorretora, selectedCorretora]);
 
   const loadVistorias = async () => {
     try {
@@ -136,10 +136,10 @@ export default function Sinistros() {
       if (statusError) throw statusError;
       setStatusConfigs(statusData || []);
 
-      const { data: corretorasData } = await supabase.from("corretoras").select("nome").order("nome");
-      setCorretoras(corretorasData?.map((c) => c.nome) || []);
+      const { data: corretorasData } = await supabase.from("corretoras").select("id, nome").order("nome");
+      setCorretoras(corretorasData || []);
 
-      const { data: atendimentosData, error: atendimentosError } = await supabase
+      let atendimentosQuery = supabase
         .from("atendimentos")
         .select(
           `
@@ -150,10 +150,18 @@ export default function Sinistros() {
           observacoes,
           created_at,
           updated_at,
-          fluxo_id
+          fluxo_id,
+          corretora_id,
+          corretoras(nome)
         `,
         )
         .order("created_at", { ascending: false });
+
+      if (selectedCorretora !== "all") {
+        atendimentosQuery = atendimentosQuery.eq("corretora_id", selectedCorretora);
+      }
+
+      const { data: atendimentosData, error: atendimentosError } = await atendimentosQuery;
 
       if (atendimentosError) throw atendimentosError;
 
@@ -222,6 +230,7 @@ export default function Sinistros() {
             valor_franquia: vistoria?.valor_franquia,
             valor_indenizacao: vistoria?.valor_indenizacao,
             timeline,
+            corretoraInfo: atendimento.corretoras,
           };
         });
 
@@ -265,12 +274,6 @@ export default function Sinistros() {
         concluidas: vistoriasData.filter((v) => v.status === "concluida").length,
         custoTotal,
         custoMedio: vistoriasData.length > 0 ? custoTotal / vistoriasData.length : 0,
-        custoOficina: vistoriasData.reduce((sum, v) => sum + (Number(v.custo_oficina) || 0), 0),
-        custoReparo: vistoriasData.reduce((sum, v) => sum + (Number(v.custo_reparo) || 0), 0),
-        custoAcordo: vistoriasData.reduce((sum, v) => sum + (Number(v.custo_acordo) || 0), 0),
-        custoTerceiros: vistoriasData.reduce((sum, v) => sum + (Number(v.custo_terceiros) || 0), 0),
-        custoPerdaTotal: vistoriasData.reduce((sum, v) => sum + (Number(v.custo_perda_total) || 0), 0),
-        custoPerdaParcial: vistoriasData.reduce((sum, v) => sum + (Number(v.custo_perda_parcial) || 0), 0),
       });
 
       setStatusData([
@@ -289,7 +292,7 @@ export default function Sinistros() {
       setTipoData(
         Object.entries(tipos).map(([name, data]: any) => ({
           name,
-          value: data.count,
+          quantidade: data.count,
           custo: data.custo,
         })),
       );
@@ -351,22 +354,7 @@ export default function Sinistros() {
     return matchesStatus && matchesSearch;
   });
 
-  const statusOptions = statusConfigs.map((config) => ({
-    value: config.nome,
-    label: config.nome,
-    color: config.cor,
-  }));
-
-  const statusCounts = statusConfigs.map((config) => ({
-    status: config.nome,
-    count: claims.filter((c) => c.status === config.nome).length,
-    color: config.cor,
-  }));
-
-  // ---------- Ações de link da Vistoria ----------
-
   const getVistoriaPublicLink = (vistoria: Vistoria) => {
-    // ajuste se sua rota pública tiver outro path
     return `${window.location.origin}/vistoria-publica/${vistoria.link_token}`;
   };
 
@@ -390,97 +378,126 @@ export default function Sinistros() {
     window.location.href = mailto;
   };
 
+  // Calcular totais para Visão Geral
+  const totalSinistros = claims.length;
+  const totalValor = claims.reduce((sum, c) => {
+    return (
+      sum +
+      (Number(c.custo_oficina) || 0) +
+      (Number(c.custo_reparo) || 0) +
+      (Number(c.custo_acordo) || 0) +
+      (Number(c.custo_terceiros) || 0) +
+      (Number(c.custo_perda_total) || 0) +
+      (Number(c.custo_perda_parcial) || 0)
+    );
+  }, 0);
+  const valorMedio = totalSinistros > 0 ? totalValor / totalSinistros : 0;
+
+  const statusCounts = statusConfigs.map((config) => ({
+    status: config.nome,
+    count: claims.filter((c) => c.status === config.nome).length,
+    color: config.cor,
+  }));
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <AlertTriangle className="h-6 w-6 text-primary" />
+          <div className="p-3 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl">
+            <AlertTriangle className="h-7 w-7 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Sinistros</h1>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+              Sinistros
+            </h1>
             <p className="text-sm text-muted-foreground">
-              Gerencie sinistros, vistorias e acompanhamento de forma integrada
+              Gestão integrada de sinistros, vistorias e acompanhamento
             </p>
           </div>
         </div>
 
         <div className="flex gap-2">
-          <Button onClick={() => navigate("/vistorias/nova/manual")} className="gap-2">
+          <Button onClick={() => navigate("/vistorias/nova/manual")} size="lg" className="gap-2 shadow-lg">
             <Plus className="h-4 w-4" />
             Nova Abertura Manual
           </Button>
-          <Button onClick={() => navigate("/vistorias/nova/digital")} variant="outline" className="gap-2">
+          <Button
+            onClick={() => navigate("/vistorias/nova/digital")}
+            variant="outline"
+            size="lg"
+            className="gap-2 shadow-sm"
+          >
             <Plus className="h-4 w-4" />
             Nova Abertura Digital
           </Button>
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Modernizados */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+        <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <FileText className="h-4 w-4 text-blue-500" />
-              Total
+            <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <span className="text-muted-foreground">Total</span>
+              <FileText className="h-5 w-5 text-blue-500" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{vistorias.length}</div>
-            <p className="text-xs text-muted-foreground">Registros totais</p>
+            <div className="text-3xl font-bold">{vistorias.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">Registros totais</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-yellow-500 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Clock className="h-4 w-4 text-yellow-500" />
-              Pendentes
+            <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <span className="text-muted-foreground">Pendentes</span>
+              <Clock className="h-5 w-5 text-yellow-500" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold">
               {vistorias.filter((v) => v.status === "pendente" || v.status === "aguardando_fotos").length}
             </div>
-            <p className="text-xs text-muted-foreground">Em andamento</p>
+            <p className="text-xs text-muted-foreground mt-1">Em andamento</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              Concluídos
+            <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <span className="text-muted-foreground">Concluídos</span>
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{vistorias.filter((v) => v.status === "concluida").length}</div>
-            <p className="text-xs text-muted-foreground">Finalizados</p>
+            <div className="text-3xl font-bold">{vistorias.filter((v) => v.status === "concluida").length}</div>
+            <p className="text-xs text-muted-foreground mt-1">Finalizados</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-red-500 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-500" />
-              Cancelados
+            <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <span className="text-muted-foreground">Cancelados</span>
+              <AlertTriangle className="h-5 w-5 text-red-500" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{vistorias.filter((v) => v.status === "cancelada").length}</div>
-            <p className="text-xs text-muted-foreground">Cancelados</p>
+            <div className="text-3xl font-bold">{vistorias.filter((v) => v.status === "cancelada").length}</div>
+            <p className="text-xs text-muted-foreground mt-1">Cancelados</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Tab Buttons - CENTRALIZADOS */}
-      <div className="border-b pb-2">
-        <div className="flex justify-center gap-3">
+      {/* Tab Buttons */}
+      <div className="border-b">
+        <div className="flex justify-center gap-2">
           <Button
             variant={activeTab === "acompanhamento" ? "default" : "ghost"}
             onClick={() => setActiveTab("acompanhamento")}
+            size="lg"
             className="gap-2"
           >
             <FileText className="h-4 w-4" />
@@ -489,6 +506,7 @@ export default function Sinistros() {
           <Button
             variant={activeTab === "vistorias" ? "default" : "ghost"}
             onClick={() => setActiveTab("vistorias")}
+            size="lg"
             className="gap-2"
           >
             <Camera className="h-4 w-4" />
@@ -497,6 +515,7 @@ export default function Sinistros() {
           <Button
             variant={activeTab === "dashboard" ? "default" : "ghost"}
             onClick={() => setActiveTab("dashboard")}
+            size="lg"
             className="gap-2"
           >
             <BarChart3 className="h-4 w-4" />
@@ -507,307 +526,274 @@ export default function Sinistros() {
 
       {/* Tab Content */}
       {loading ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Carregando...</p>
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />
         </div>
       ) : (
         <>
-          {/* Acompanhamento Tab - levemente modernizado */}
+          {/* ACOMPANHAMENTO TAB */}
           {activeTab === "acompanhamento" && (
             <div className="space-y-6">
-              <div className="grid gap-4 lg:grid-cols-[2fr,3fr]">
-                <Card className="shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      Visão Geral dos Sinistros
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ClaimStats claims={claims} statusCounts={statusCounts} />
+              {/* Visão Geral - Melhorada */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total de Sinistros</p>
+                        <p className="text-3xl font-bold mt-2">{totalSinistros}</p>
+                      </div>
+                      <FileText className="h-12 w-12 text-blue-500/30" />
+                    </div>
                   </CardContent>
                 </Card>
 
-                <Card className="shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FilterIcon />
-                      Filtros avançados
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ClaimFilters
-                      selectedStatus={selectedStatus}
-                      onStatusChange={setSelectedStatus}
-                      searchTerm={searchTerm}
-                      onSearchChange={setSearchTerm}
-                      statusOptions={statusOptions}
-                      selectedCorretora={selectedCorretora}
-                      onCorretoraChange={setSelectedCorretora}
-                      corretoras={corretoras}
-                      selectedPriority={selectedPriority}
-                      onPriorityChange={setSelectedPriority}
-                    />
+                <Card className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-green-600 dark:text-green-400">Valor Total</p>
+                        <p className="text-2xl font-bold mt-2">{formatCurrency(totalValor)}</p>
+                      </div>
+                      <DollarSign className="h-12 w-12 text-green-500/30" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-800">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Valor Médio</p>
+                        <p className="text-2xl font-bold mt-2">{formatCurrency(valorMedio)}</p>
+                      </div>
+                      <TrendingUp className="h-12 w-12 text-purple-500/30" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20 border-orange-200 dark:border-orange-800">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Ativos</p>
+                        <p className="text-3xl font-bold mt-2">
+                          {claims.filter((c) => c.status !== "concluido" && c.status !== "cancelado").length}
+                        </p>
+                      </div>
+                      <Clock className="h-12 w-12 text-orange-500/30" />
+                    </div>
                   </CardContent>
                 </Card>
               </div>
 
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ClipboardIcon />
-                    Linha do tempo dos casos
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {filteredClaims.length > 0 ? (
-                      filteredClaims.map((claim) => <ClaimCard key={claim.id} claim={claim} onEdit={() => {}} />)
-                    ) : (
-                      <div className="p-12 text-center">
-                        <TrendingUp className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-                        <h3 className="mt-4 text-lg font-semibold">Nenhum sinistro encontrado</h3>
-                        <p className="mt-2 text-sm text-muted-foreground">Tente ajustar os filtros ou termo de busca</p>
+              {/* Filtros Modernizados */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex-1 min-w-[200px]">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar por número, assunto..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-10"
+                        />
                       </div>
-                    )}
+                    </div>
+
+                    <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                      <SelectTrigger className="w-[200px]">
+                        <Filter className="h-4 w-4 mr-2" />
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os Status</SelectItem>
+                        {statusConfigs.map((s) => (
+                          <SelectItem key={s.nome} value={s.nome}>
+                            {s.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={selectedCorretora} onValueChange={setSelectedCorretora}>
+                      <SelectTrigger className="w-[200px]">
+                        <Building2 className="h-4 w-4 mr-2" />
+                        <SelectValue placeholder="Corretora" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas as Corretoras</SelectItem>
+                        {corretoras.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Lista de Claims */}
+              <div className="space-y-4">
+                {filteredClaims.map((claim) => (
+                  <ClaimCard key={claim.id} claim={claim} onEdit={() => {}} />
+                ))}
+                {filteredClaims.length === 0 && (
+                  <Card>
+                    <CardContent className="p-12 text-center">
+                      <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">Nenhum sinistro encontrado com os filtros aplicados</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Vistorias Tab - cards com botões de ação */}
+          {/* VISTORIAS TAB */}
           {activeTab === "vistorias" && (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Histórico de Vistorias</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Visualize, abra o link de captura e compartilhe com o cliente
-                  </p>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {vistorias.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Camera className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-                    <h3 className="mt-4 text-lg font-semibold">Nenhuma vistoria encontrada</h3>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Comece criando uma nova abertura manual ou digital
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {vistorias.map((vistoria) => (
-                      <Card key={vistoria.id} className="hover:bg-accent/40 transition-colors">
-                        <CardContent className="p-4 space-y-3">
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3">
-                                <div className="font-semibold text-sm">#{vistoria.numero}</div>
-                                <Badge className={`${getStatusColor(vistoria.status)} text-white`}>
-                                  {getStatusLabel(vistoria.status)}
-                                </Badge>
-                              </div>
-                              <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-                                <div className="flex items-center gap-2">
-                                  <Car className="h-4 w-4" />
-                                  <span className="font-medium text-foreground">
-                                    {vistoria.veiculo_placa} - {vistoria.cliente_nome}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Clock className="h-4 w-4" />
-                                  <span>
-                                    {format(new Date(vistoria.created_at), "dd/MM/yyyy 'às' HH:mm", {
-                                      locale: ptBR,
-                                    })}
-                                  </span>
-                                </div>
-                              </div>
+            <div className="space-y-4">
+              <div className="grid gap-4">
+                {vistorias.map((vistoria) => (
+                  <Card key={vistoria.id} className="hover:shadow-lg transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-semibold">Vistoria #{vistoria.numero}</h3>
+                            <Badge className={getStatusColor(vistoria.status)}>
+                              {getStatusLabel(vistoria.status)}
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-3 gap-4 text-sm text-muted-foreground">
+                            <div>
+                              <span className="font-medium">Cliente:</span> {vistoria.cliente_nome}
                             </div>
-
-                            {/* Ações principais */}
-                            <div className="flex flex-col sm:flex-row gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1"
-                                onClick={() => navigate(`/vistorias/${vistoria.id}`)}
-                              >
-                                <Eye className="h-4 w-4" />
-                                <span className="hidden sm:inline">Visualizar</span>
-                              </Button>
-
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1"
-                                onClick={() => handleOpenPublicLink(vistoria)}
-                                disabled={!vistoria.link_token}
-                              >
-                                <Link2 className="h-4 w-4" />
-                                <span className="hidden sm:inline">Abrir link</span>
-                              </Button>
-
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1"
-                                onClick={() => handleShareWhatsApp(vistoria)}
-                                disabled={!vistoria.link_token}
-                              >
-                                <MessageCircle className="h-4 w-4" />
-                                <span className="hidden sm:inline">WhatsApp</span>
-                              </Button>
-
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1"
-                                onClick={() => handleShareEmail(vistoria)}
-                                disabled={!vistoria.link_token}
-                              >
-                                <Mail className="h-4 w-4" />
-                                <span className="hidden sm:inline">E-mail</span>
-                              </Button>
+                            <div>
+                              <span className="font-medium">Placa:</span> {vistoria.veiculo_placa}
+                            </div>
+                            <div>
+                              <span className="font-medium">Data:</span>{" "}
+                              {format(new Date(vistoria.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                             </div>
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => navigate(`/vistorias/${vistoria.id}`)}
+                            title="Visualizar"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleOpenPublicLink(vistoria)}
+                            title="Abrir Link"
+                          >
+                            <Link2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleShareWhatsApp(vistoria)}
+                            title="WhatsApp"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleShareEmail(vistoria)}
+                            title="Email"
+                          >
+                            <Mail className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
           )}
 
-          {/* Dashboard Tab - gráficos em rosca (donut) */}
+          {/* DASHBOARD TAB */}
           {activeTab === "dashboard" && (
             <div className="space-y-6">
-              <div className="flex justify-end">
-                <Select value={selectedDashboardCorretora} onValueChange={setSelectedDashboardCorretora}>
-                  <SelectTrigger className="w-[220px]">
-                    <SelectValue placeholder="Filtrar corretora" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas as corretoras</SelectItem>
-                    {dashboardCorretoras.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Filtro de Corretora */}
+              <Card>
+                <CardContent className="p-4">
+                  <Select value={selectedDashboardCorretora} onValueChange={setSelectedDashboardCorretora}>
+                    <SelectTrigger className="w-full max-w-xs">
+                      <Building2 className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Filtrar por corretora" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as Corretoras</SelectItem>
+                      {dashboardCorretoras.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CardContent>
+              </Card>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-none shadow-sm">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Car className="h-4 w-4" />
-                      Total
+              {/* Cards de Estatísticas */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                      <FileText className="h-5 w-5" />
+                      Total de Vistorias
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-blue-600">{dashboardStats.total || 0}</div>
+                    <p className="text-4xl font-bold">{dashboardStats.total || 0}</p>
+                    <p className="text-sm text-muted-foreground mt-2">Registros no período</p>
                   </CardContent>
                 </Card>
-                <Card className="bg-gradient-to-br from-yellow-500/10 to-yellow-500/5 border-none shadow-sm">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      Aguardando
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold text-yellow-600">{dashboardStats.aguardando || 0}</div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-none shadow-sm">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4" />
-                      Em Análise
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold text-purple-600">{dashboardStats.analise || 0}</div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-none shadow-sm">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Concluídos
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold text-green-600">{dashboardStats.concluidas || 0}</div>
-                  </CardContent>
-                </Card>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="bg-gradient-to-br from-red-500/10 to-red-500/5 border-none shadow-sm">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <DollarSign className="h-4 w-4" />
+                <Card className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                      <DollarSign className="h-5 w-5" />
                       Custo Total
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-red-600">
-                      {formatCurrency(dashboardStats.custoTotal || 0)}
-                    </div>
+                    <p className="text-4xl font-bold">{formatCurrency(dashboardStats.custoTotal || 0)}</p>
+                    <p className="text-sm text-muted-foreground mt-2">Soma de todos os custos</p>
                   </CardContent>
                 </Card>
-                <Card className="bg-gradient-to-br from-orange-500/10 to-orange-500/5 border-none shadow-sm">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4" />
+
+                <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-800">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                      <TrendingUp className="h-5 w-5" />
                       Custo Médio
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-orange-600">
-                      {formatCurrency(dashboardStats.custoMedio || 0)}
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-gradient-to-br from-indigo-500/10 to-indigo-500/5 border-none shadow-sm">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Wrench className="h-4 w-4" />
-                      Oficinas
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-indigo-600">
-                      {formatCurrency(dashboardStats.custoOficina || 0)}
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-gradient-to-br from-pink-500/10 to-pink-500/5 border-none shadow-sm">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Building2 className="h-4 w-4" />
-                      Reparos
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-pink-600">
-                      {formatCurrency(dashboardStats.custoReparo || 0)}
-                    </div>
+                    <p className="text-4xl font-bold">{formatCurrency(dashboardStats.custoMedio || 0)}</p>
+                    <p className="text-sm text-muted-foreground mt-2">Por vistoria</p>
                   </CardContent>
                 </Card>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Status - rosca */}
-                <Card className="shadow-sm">
+              {/* Gráficos */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
                   <CardHeader>
-                    <CardTitle>Status das Vistorias</CardTitle>
+                    <CardTitle>Distribuição por Status</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -816,64 +802,37 @@ export default function Sinistros() {
                           data={statusData}
                           cx="50%"
                           cy="50%"
-                          innerRadius={60}
-                          outerRadius={100}
-                          paddingAngle={3}
-                          dataKey="value"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        >
-                          {statusData.map((_, i) => (
-                            <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-
-                {/* Por Tipo - mantém barra */}
-                <Card className="shadow-sm">
-                  <CardHeader>
-                    <CardTitle>Por Tipo de Sinistro</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={tipoData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="value" fill="#3b82f6" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-
-                {/* Fluxos - rosca */}
-                <Card className="shadow-sm">
-                  <CardHeader>
-                    <CardTitle>Distribuição por Fluxos</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={fluxoData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={50}
-                          outerRadius={90}
                           labelLine={false}
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          label={(entry) => `${entry.name}: ${entry.value}`}
+                          outerRadius={100}
+                          fill="#8884d8"
                           dataKey="value"
                         >
-                          {fluxoData.map((_, index) => (
+                          {statusData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
                         <Tooltip />
                       </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Tipos de Sinistro</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={tipoData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip formatter={(value) => (typeof value === "number" ? formatCurrency(value) : value)} />
+                        <Legend />
+                        <Bar dataKey="quantidade" fill="#3b82f6" name="Quantidade" />
+                        <Bar dataKey="custo" fill="#22c55e" name="Custo Total" />
+                      </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
@@ -883,23 +842,5 @@ export default function Sinistros() {
         </>
       )}
     </div>
-  );
-}
-
-/** Ícones “internos” simples para não poluir o import principal */
-function FilterIcon() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M3 4h14M5 9h10M8 14h4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ClipboardIcon() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <rect x="6" y="5" width="8" height="11" rx="1.5" />
-      <path d="M8 4h4a1 1 0 0 1 1 1v0.5H7V5a1 1 0 0 1 1-1z" />
-    </svg>
   );
 }

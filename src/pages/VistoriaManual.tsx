@@ -291,7 +291,7 @@ export default function VistoriaManual() {
       if (atendimentoError) throw atendimentoError;
 
       toast.success("Vistoria manual criada com sucesso!");
-      navigate(`/vistorias/${vistoria.id}`);
+      navigate(`/sinistros`);
     } catch (error) {
       console.error("Erro ao criar vistoria:", error);
       toast.error("Erro ao criar vistoria manual");
@@ -303,7 +303,7 @@ export default function VistoriaManual() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="mb-6">
-        <Button variant="outline" onClick={() => navigate("/vistorias")}>
+        <Button variant="outline" onClick={() => navigate("/sinistros")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar
         </Button>
