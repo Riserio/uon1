@@ -7,6 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { VehicleTypeSelector } from "@/components/VehicleTypeSelector";
+import { SearchableVehicleSelect } from "@/components/SearchableVehicleSelect";
+import { useVeiculos } from "@/hooks/useVeiculos";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, Camera, Upload, X, Save } from "lucide-react";
@@ -113,6 +116,8 @@ export default function VistoriaManual() {
   const [previewLateralDir, setPreviewLateralDir] = useState<string>("");
   const [previewsAdicionais, setPreviewsAdicionais] = useState<string[]>([]);
   const [selectedPreview, setSelectedPreview] = useState<string>("");
+  const [vehicleType, setVehicleType] = useState("");
+  const { marcas, modelos, marcaSelecionada, setMarcaSelecionada } = useVeiculos();
   const [formData, setFormData] = useState({
     // Veículo
     veiculo_placa: "",
@@ -538,47 +543,43 @@ export default function VistoriaManual() {
                     Formato: ABC1D23 ou ABC-1234
                   </p>
                 </div>
-                <div>
-                  <Label>Marca *</Label>
-                  <Select
-                    required
-                    value={formData.veiculo_marca}
-                    onValueChange={(value) => setFormData({ ...formData, veiculo_marca: value, veiculo_modelo: "" })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a marca" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MARCAS.map((marca) => (
-                        <SelectItem key={marca} value={marca}>
-                          {marca}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Modelo *</Label>
-                  <Select
-                    required
-                    value={formData.veiculo_modelo}
-                    onValueChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
-                    disabled={!formData.veiculo_marca}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o modelo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {formData.veiculo_marca &&
-                        MODELOS_POR_MARCA[formData.veiculo_marca]?.map((modelo) => (
-                          <SelectItem key={modelo} value={modelo}>
-                            {modelo}
-                          </SelectItem>
-                        ))}
-                      <SelectItem value="Outro">Outro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              </div>
+              
+              <div className="mt-4">
+                <VehicleTypeSelector
+                  value={vehicleType}
+                  onChange={(value) => {
+                    setVehicleType(value);
+                    setFormData({ ...formData, veiculo_marca: "", veiculo_modelo: "" });
+                    setMarcaSelecionada("");
+                  }}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <SearchableVehicleSelect
+                  label="Marca *"
+                  value={formData.veiculo_marca || ""}
+                  options={marcas}
+                  onChange={(value) => {
+                    setFormData({ ...formData, veiculo_marca: value, veiculo_modelo: "" });
+                    setMarcaSelecionada(value);
+                  }}
+                  placeholder="Selecione a marca"
+                  vehicleType={vehicleType}
+                />
+                <SearchableVehicleSelect
+                  label="Modelo *"
+                  value={formData.veiculo_modelo || ""}
+                  options={modelos}
+                  onChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
+                  placeholder="Selecione o modelo"
+                  disabled={!formData.veiculo_marca}
+                  vehicleType={vehicleType}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-4">
                 <div>
                   <Label>Ano *</Label>
                   <Select
