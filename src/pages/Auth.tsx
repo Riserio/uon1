@@ -342,6 +342,13 @@ export default function Auth() {
 
       {/* Card */}
       <Card className="w-full max-w-md mx-4 lg:ml-auto lg:mr-32 bg-white shadow-2xl border-0 relative z-20">
+        {/* Logo para telas menores - no topo do card */}
+        {showCredentialsStep && (
+          <div className="lg:hidden flex justify-center pt-6 pb-2">
+            <img src={LogoUon1} alt="UON1 Logo" className="w-32 h-auto opacity-80" />
+          </div>
+        )}
+        
         <CardHeader className="space-y-2 pb-6">
           <div className="flex items-center justify-between">
             <div>
@@ -422,11 +429,6 @@ export default function Auth() {
                   placeholder="••••••••"
                   className="h-11"
                 />
-              </div>
-
-              {/* Logo para telas menores - abaixo da senha */}
-              <div className="lg:hidden flex justify-center pt-2">
-                <img src={LogoUon1} alt="UON1 Logo" className="w-32 h-auto opacity-80" />
               </div>
 
               <Button
