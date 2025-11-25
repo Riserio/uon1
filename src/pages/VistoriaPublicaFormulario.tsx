@@ -14,7 +14,8 @@ import { Progress } from "@/components/ui/progress";
 import SketchPad from "@/components/SketchPad";
 import { validateCPF, validatePhone } from "@/lib/validators";
 import { VehicleTypeSelector } from "@/components/VehicleTypeSelector";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableVehicleSelect } from "@/components/SearchableVehicleSelect";
+import { useVeiculos } from "@/hooks/useVeiculos";
 
 const STEPS = [
   { id: 0, title: "Dados Pessoais", icon: User, description: "Informações do segurado" },
@@ -83,10 +84,9 @@ export default function VistoriaPublicaFormulario() {
     policia_foi_local: false,
   });
 
-  // novo estado para tipo de veículo e listas de marcas/modelos
+  // novo estado para tipo de veículo e hook para marcas/modelos
   const [vehicleType, setVehicleType] = useState<string>("");
-  const [marcas, setMarcas] = useState<string[]>([]);
-  const [modelos, setModelos] = useState<string[]>([]);
+  const { marcas, modelos, marcaSelecionada, setMarcaSelecionada } = useVeiculos();
 
   const [boFile, setBoFile] = useState<File | null>(null);
   const [laudoMedico, setLaudoMedico] = useState<File | null>(null);
@@ -206,7 +206,7 @@ export default function VistoriaPublicaFormulario() {
     }));
   };
 
-  // quando trocar o tipo de veículo, resetar marca/modelo e carregar novas marcas
+  // quando trocar o tipo de veículo, resetar marca/modelo
   const handleVehicleTypeChange = (value: string) => {
     setVehicleType(value);
     setFormData((prev) => ({
@@ -214,78 +214,17 @@ export default function VistoriaPublicaFormulario() {
       veiculo_marca: "",
       veiculo_modelo: "",
     }));
-    setMarcas([]);
-    setModelos([]);
+    setMarcaSelecionada("");
   };
 
-  // carregar MARCAS do Supabase conforme tipo (1,2,3)
+  // sincronizar marca selecionada com formData
   useEffect(() => {
-    const loadMarcas = async () => {
-      const tipoCodigo = getTipoCodigo(vehicleType);
-      if (!tipoCodigo) {
-        setMarcas([]);
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase
-          .from("veiculos") // ajuste o nome da tabela se for diferente
-          .select("marca", { distinct: true })
-          .eq("tipo", tipoCodigo)
-          .order("marca", { ascending: true });
-
-        if (error) {
-          console.error("Erro ao carregar marcas:", error);
-          toast.error("Não foi possível carregar as marcas");
-          return;
-        }
-
-        const listaMarcas = (data || []).map((item: any) => item.marca).filter(Boolean);
-
-        setMarcas(listaMarcas);
-      } catch (err) {
-        console.error("Erro inesperado ao carregar marcas:", err);
-        toast.error("Erro inesperado ao carregar as marcas");
-      }
-    };
-
-    loadMarcas();
-  }, [vehicleType]);
-
-  // carregar MODELOS do Supabase conforme tipo + marca
-  useEffect(() => {
-    const loadModelos = async () => {
-      const tipoCodigo = getTipoCodigo(vehicleType);
-      if (!tipoCodigo || !formData.veiculo_marca) {
-        setModelos([]);
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase
-          .from("veiculos") // ajuste o nome da tabela se for diferente
-          .select("modelo", { distinct: true })
-          .eq("tipo", tipoCodigo)
-          .eq("marca", formData.veiculo_marca)
-          .order("modelo", { ascending: true });
-
-        if (error) {
-          console.error("Erro ao carregar modelos:", error);
-          toast.error("Não foi possível carregar os modelos");
-          return;
-        }
-
-        const listaModelos = (data || []).map((item: any) => item.modelo).filter(Boolean);
-
-        setModelos(listaModelos);
-      } catch (err) {
-        console.error("Erro inesperado ao carregar modelos:", err);
-        toast.error("Erro inesperado ao carregar os modelos");
-      }
-    };
-
-    loadModelos();
-  }, [vehicleType, formData.veiculo_marca]);
+    if (!formData.veiculo_marca) {
+      setMarcaSelecionada("");
+    } else if (marcaSelecionada !== formData.veiculo_marca) {
+      setMarcaSelecionada(formData.veiculo_marca);
+    }
+  }, [formData.veiculo_marca, marcaSelecionada, setMarcaSelecionada]);
 
   const handleSubmit = async () => {
     const camposObrigatorios: string[] = [];
@@ -681,83 +620,38 @@ export default function VistoriaPublicaFormulario() {
 
                 <div className="grid sm:grid-cols-3 gap-4">
                   {/* Marca */}
-                  <div>
-                    <Label className="text-base font-semibold">Marca *</Label>
-                    <Select
-                      disabled={!vehicleType || marcas.length === 0}
-                      value={formData.veiculo_marca || undefined}
-                      onValueChange={(value) => {
-                        setFormData((prev) => ({
-                          ...prev,
-                          veiculo_marca: value,
-                          veiculo_modelo: "",
-                        }));
-                      }}
-                    >
-                      <SelectTrigger className="mt-2 h-12">
-                        <SelectValue
-                          placeholder={
-                            !vehicleType
-                              ? "Selecione o tipo de veículo"
-                              : marcas.length === 0
-                                ? "Nenhuma marca encontrada"
-                                : "Selecione a marca"
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {marcas.map((marca) => (
-                          <SelectItem key={marca} value={marca}>
-                            {marca}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <SearchableVehicleSelect
+                    label="Marca *"
+                    value={formData.veiculo_marca || ""}
+                    options={marcas}
+                    onChange={(value) => {
+                      setFormData({ ...formData, veiculo_marca: value, veiculo_modelo: "" });
+                      setMarcaSelecionada(value);
+                    }}
+                    placeholder="Selecione a marca"
+                    vehicleType={vehicleType}
+                  />
 
                   {/* Modelo */}
-                  <div>
-                    <Label className="text-base font-semibold">Modelo *</Label>
-                    <Select
-                      disabled={!formData.veiculo_marca || modelos.length === 0}
-                      value={formData.veiculo_modelo || undefined}
-                      onValueChange={(value) => {
-                        setFormData((prev) => ({
-                          ...prev,
-                          veiculo_modelo: value,
-                        }));
-                      }}
-                    >
-                      <SelectTrigger className="mt-2 h-12">
-                        <SelectValue
-                          placeholder={
-                            !formData.veiculo_marca
-                              ? "Selecione a marca primeiro"
-                              : modelos.length === 0
-                                ? "Nenhum modelo encontrado"
-                                : "Selecione o modelo"
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {modelos.map((modelo) => (
-                          <SelectItem key={modelo} value={modelo}>
-                            {modelo}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <SearchableVehicleSelect
+                    label="Modelo *"
+                    value={formData.veiculo_modelo || ""}
+                    options={modelos}
+                    onChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
+                    placeholder="Selecione o modelo"
+                    disabled={!formData.veiculo_marca}
+                    vehicleType={vehicleType}
+                  />
 
                   {/* Ano */}
-                  <div>
+                  <div className="space-y-2">
                     <Label className="text-base font-semibold">Ano</Label>
                     <Input
                       type="number"
                       value={formData.veiculo_ano}
                       onChange={(e) => setFormData({ ...formData, veiculo_ano: e.target.value })}
                       placeholder="2020"
-                      className="mt-2 h-12"
+                      className="h-12"
                       min="1900"
                       max={new Date().getFullYear() + 1}
                     />
