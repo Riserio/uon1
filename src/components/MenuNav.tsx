@@ -202,30 +202,12 @@ export default function MenuNav() {
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Sinistros</DropdownMenuLabel>
 
-        {/* Sinistro novo – se quiser controlar com id próprio, depois criamos "sinistros" */}
-        <DropdownMenuItem asChild>
-          <Link to="/sinistros/novo" className="cursor-pointer">
-            <FileX className="mr-2 h-4 w-4" />
-            <span>Sinistro</span>
-          </Link>
-        </DropdownMenuItem>
-
-        {/* Acompanhamento (id "acompanhamento") */}
-        {canView("acompanhamento") && (
+        {/* Sinistros (unificado) */}
+        {canView("sinistros") && (
           <DropdownMenuItem asChild>
-            <Link to="/sinistros/acompanhamento" className="cursor-pointer">
-              <ClipboardList className="mr-2 h-4 w-4" />
-              <span>Acompanhamento</span>
-            </Link>
-          </DropdownMenuItem>
-        )}
-
-        {/* Vistorias */}
-        {canView("vistorias") && (
-          <DropdownMenuItem asChild>
-            <Link to="/vistorias" className="cursor-pointer">
-              <Camera className="mr-2 h-4 w-4" />
-              <span>Vistorias</span>
+            <Link to="/sinistros" className="cursor-pointer">
+              <FileX className="mr-2 h-4 w-4" />
+              <span>Sinistros</span>
             </Link>
           </DropdownMenuItem>
         )}
