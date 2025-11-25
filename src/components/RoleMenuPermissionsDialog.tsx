@@ -46,8 +46,8 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "emails", label: "E-mails", icon: "📧" },
   { id: "analytics", label: "Analytics", icon: "📊" },
   { id: "performance", label: "Performance", icon: "🎯" },
-  // 🔹 Termos de Aceite incluído na lista de menus
   { id: "termos_aceite", label: "Termos de Aceite", icon: "📄" },
+  { id: "pid", label: "PID", icon: "📈" },
 ];
 
 const ROLES = [
