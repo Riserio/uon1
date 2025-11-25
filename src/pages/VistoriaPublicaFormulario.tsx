@@ -358,6 +358,7 @@ export default function VistoriaPublicaFormulario() {
 
       console.log("Vistoria salva com sucesso:", verificacao);
       localStorage.removeItem("vistoria_temp");
+      localStorage.removeItem(`vistoria_fotos_${token}`);
       toast.success("Dados salvos com sucesso! Agora aceite os termos.");
       navigate(`/vistoria/${token}/termos`);
     } catch (error: any) {
