@@ -150,7 +150,8 @@ serve(async (req) => {
         facebook,
         linkedin,
         cpf_cnpj,
-        status: 'ativo'  // User created manually is already approved
+        status: 'ativo',  // User created manually is already approved
+        ativo: true  // User is active immediately
       })
       .eq('id', authData.user.id)
 
