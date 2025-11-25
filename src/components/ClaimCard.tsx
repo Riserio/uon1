@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, FileText, Calendar, DollarSign, Edit2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, Calendar, DollarSign, Edit2, Camera } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -31,6 +32,8 @@ export interface Claim {
   valor_indenizacao?: number | null;
   timeline: ClaimTimeline[];
   corretoraInfo?: { nome: string } | null;
+  vistoria_id?: string | null;
+  vistoria_numero?: number | null;
 }
 
 interface ClaimCardProps {
@@ -40,6 +43,7 @@ interface ClaimCardProps {
 
 export function ClaimCard({ claim, onEdit }: ClaimCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const navigate = useNavigate();
 
   const formatCurrency = (value: number | null | undefined) => {
     if (!value) return 'R$ 0,00';
@@ -66,7 +70,7 @@ export function ClaimCard({ claim, onEdit }: ClaimCardProps) {
     <Card className="overflow-hidden transition-all hover:shadow-md">
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <h3 className="text-xl font-bold text-foreground">
               SIN-{new Date(claim.created_at).getFullYear()}-{String(claim.numero).padStart(6, '0')}
             </h3>
@@ -76,8 +80,24 @@ export function ClaimCard({ claim, onEdit }: ClaimCardProps) {
             >
               {claim.status}
             </Badge>
+            {claim.vistoria_numero && (
+              <Badge variant="outline" className="gap-1">
+                <Camera className="h-3 w-3" />
+                Vistoria #{claim.vistoria_numero}
+              </Badge>
+            )}
           </div>
           <div className="flex gap-2">
+            {claim.vistoria_id && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate(`/vistorias/${claim.vistoria_id}`)}
+                title="Ver vistoria vinculada"
+              >
+                <Camera className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"

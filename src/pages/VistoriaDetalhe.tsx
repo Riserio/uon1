@@ -753,6 +753,15 @@ export default function VistoriaDetalhe() {
                           }`}
                     </p>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSolicitarFotosOpen(true)}
+                    className="gap-2"
+                  >
+                    <Send className="h-4 w-4" />
+                    Solicitar Mais Fotos
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-6">
