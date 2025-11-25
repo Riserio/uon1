@@ -31,11 +31,24 @@ export default function VistoriaPublicaTermos() {
   const [termosAceitos, setTermosAceitos] = useState<{ [key: string]: boolean }>({});
   const [assinatura, setAssinatura] = useState<string>("");
   const [geolocation, setGeolocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [userIp, setUserIp] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
     getGeolocation();
+    getUserIp();
   }, [token]);
+
+  const getUserIp = async () => {
+    try {
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      setUserIp(data.ip);
+    } catch (error) {
+      console.error("Erro ao obter IP:", error);
+      setUserIp(null);
+    }
+  };
 
   const getGeolocation = () => {
     if (navigator.geolocation) {
@@ -84,6 +97,15 @@ export default function VistoriaPublicaTermos() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const generateTermoHash = async (termoConteudo: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(termoConteudo);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
   };
 
   const uploadDataUrl = async (dataUrl: string, path: string): Promise<string> => {
@@ -139,16 +161,26 @@ export default function VistoriaPublicaTermos() {
 
       const assinaturaUrl = await uploadDataUrl(assinatura, "assinatura");
 
-      // Usar UPSERT para evitar duplicatas (ON CONFLICT)
-      const termosAceitosData = termos
-        .filter((t) => termosAceitos[t.id])
-        .map((termo) => ({
-          vistoria_id: vistoria.id,
-          termo_id: termo.id,
-          ip_address: null,
-          user_agent: navigator.userAgent,
-          aceito_em: new Date().toISOString(),
-        }));
+      // Processar termos aceitos com hash
+      const termosAceitosData = await Promise.all(
+        termos
+          .filter((t) => termosAceitos[t.id])
+          .map(async (termo) => {
+            // Gerar conteúdo completo do termo para hash
+            const termoConteudo = `${termo.titulo}\n${termo.descricao || ''}\n${termo.arquivo_url || ''}`;
+            const termoHash = await generateTermoHash(termoConteudo);
+            
+            return {
+              vistoria_id: vistoria.id,
+              termo_id: termo.id,
+              ip_address: userIp,
+              user_agent: navigator.userAgent,
+              aceito_em: new Date().toISOString(),
+              termo_hash: termoHash,
+              termo_version: termo.ordem || 1, // Usar ordem como versão
+            };
+          })
+      );
 
       if (termosAceitosData.length > 0) {
         // Usar upsert para evitar erro de constraint

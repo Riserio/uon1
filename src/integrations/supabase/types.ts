@@ -1674,7 +1674,9 @@ export type Database = {
           aceito_em: string | null
           id: string
           ip_address: string | null
+          termo_hash: string | null
           termo_id: string
+          termo_version: number | null
           user_agent: string | null
           vistoria_id: string
         }
@@ -1682,7 +1684,9 @@ export type Database = {
           aceito_em?: string | null
           id?: string
           ip_address?: string | null
+          termo_hash?: string | null
           termo_id: string
+          termo_version?: number | null
           user_agent?: string | null
           vistoria_id: string
         }
@@ -1690,7 +1694,9 @@ export type Database = {
           aceito_em?: string | null
           id?: string
           ip_address?: string | null
+          termo_hash?: string | null
           termo_id?: string
+          termo_version?: number | null
           user_agent?: string | null
           vistoria_id?: string
         }

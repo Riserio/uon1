@@ -1270,9 +1270,25 @@ export default function VistoriaDetalhe() {
                           <div>
                             <span className="text-muted-foreground block mb-1">Endereço IP:</span>
                             <p className="font-mono text-xs bg-background px-2 py-1 rounded border">
-                              {termo.ip_address || "Não disponível"}
+                              {termo.ip_address || "IP Indisponível"}
                             </p>
                           </div>
+                          {termo.termo_version && (
+                            <div>
+                              <span className="text-muted-foreground block mb-1">Versão do Termo:</span>
+                              <p className="font-medium">
+                                v{termo.termo_version}
+                              </p>
+                            </div>
+                          )}
+                          {termo.termo_hash && (
+                            <div className="md:col-span-3">
+                              <span className="text-muted-foreground block mb-1">Hash SHA-256:</span>
+                              <p className="font-mono text-xs bg-background px-2 py-1 rounded border break-all">
+                                {termo.termo_hash}
+                              </p>
+                            </div>
+                          )}
                           {termo.user_agent && (
                             <div className="md:col-span-3">
                               <span className="text-muted-foreground block mb-1">Dispositivo:</span>
