@@ -270,6 +270,8 @@ export default function VistoriaManual() {
           status: "em_analise",
           created_by: user.id,
           corretora_id: formData.corretora_id || null,
+          link_token: crypto.randomUUID(),
+          dias_validade: 7,
           latitude,
           longitude,
           endereco,
