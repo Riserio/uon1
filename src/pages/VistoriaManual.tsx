@@ -113,12 +113,17 @@ export default function VistoriaManual() {
     tipo_sinistro: "",
     relato_incidente: "",
     data_incidente: "",
+    hora_evento: "",
+    condutor_veiculo: "",
+    vitima_ou_causador: "",
+    tem_terceiros: null as boolean | null,
+    local_tem_camera: null as boolean | null,
+    policia_foi_local: null as boolean | null,
+    fez_bo: null as boolean | null,
+    foi_hospital: null as boolean | null,
+    motorista_faleceu: null as boolean | null,
     // Vinculação
     corretora_id: "",
-    // Novas perguntas
-    chovia: null as boolean | null,
-    acionou_assistencia: null as boolean | null,
-    houve_remocao: null as boolean | null,
   });
 
   // Estados para anexos/documentos
@@ -126,6 +131,7 @@ export default function VistoriaManual() {
   const [laudoMedicoFile, setLaudoMedicoFile] = useState<File | null>(null);
   const [laudoAlcoolemiaFile, setLaudoAlcoolemiaFile] = useState<File | null>(null);
   const [atestadoObitoFile, setAtestadoObitoFile] = useState<File | null>(null);
+  const [croquiFile, setCroquiFile] = useState<File | null>(null);
 
   useEffect(() => {
     loadCorretoras();
@@ -250,10 +256,15 @@ export default function VistoriaManual() {
           tipo_sinistro: formData.tipo_sinistro,
           relato_incidente: formData.relato_incidente,
           data_incidente: formData.data_incidente,
-          // Novas perguntas
-          estava_chovendo: formData.chovia,
-          acionou_assistencia_24h: formData.acionou_assistencia,
-          houve_remocao_veiculo: formData.houve_remocao,
+          hora_evento: formData.hora_evento || null,
+          condutor_veiculo: formData.condutor_veiculo || null,
+          vitima_ou_causador: formData.vitima_ou_causador || null,
+          tem_terceiros: formData.tem_terceiros,
+          local_tem_camera: formData.local_tem_camera,
+          policia_foi_local: formData.policia_foi_local,
+          fez_bo: formData.fez_bo,
+          foi_hospital: formData.foi_hospital,
+          motorista_faleceu: formData.motorista_faleceu,
         })
         .select()
         .single();
@@ -329,6 +340,17 @@ export default function VistoriaManual() {
             data: { publicUrl },
           } = supabase.storage.from("vistorias").getPublicUrl(fileName);
           documentUpdates.atestado_obito_url = publicUrl;
+        }
+      }
+
+      if (croquiFile) {
+        const fileName = `${vistoria.id}/croqui_${Date.now()}.${croquiFile.name.split(".").pop()}`;
+        const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, croquiFile);
+        if (!uploadError) {
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("vistorias").getPublicUrl(fileName);
+          documentUpdates.croqui_acidente_url = publicUrl;
         }
       }
 
@@ -581,15 +603,35 @@ export default function VistoriaManual() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Data do Incidente *</Label>
+                    <Input
+                      required
+                      type="date"
+                      value={formData.data_incidente}
+                      onChange={(e) => setFormData({ ...formData, data_incidente: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Hora do Incidente</Label>
+                    <Input
+                      type="time"
+                      value={formData.hora_evento}
+                      onChange={(e) => setFormData({ ...formData, hora_evento: e.target.value })}
+                    />
+                  </div>
+                </div>
+                
                 <div>
-                  <Label>Data do Incidente *</Label>
+                  <Label>Nome do Condutor do Veículo</Label>
                   <Input
-                    required
-                    type="datetime-local"
-                    value={formData.data_incidente}
-                    onChange={(e) => setFormData({ ...formData, data_incidente: e.target.value })}
+                    value={formData.condutor_veiculo}
+                    onChange={(e) => setFormData({ ...formData, condutor_veiculo: e.target.value })}
+                    placeholder="Nome de quem conduzia o veículo"
                   />
                 </div>
+
                 <div>
                   <Label>Relato do Incidente *</Label>
                   <Textarea
@@ -601,63 +643,145 @@ export default function VistoriaManual() {
                   />
                 </div>
 
-                {/* Novas Perguntas */}
-                <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+                {/* Perguntas Adicionais */}
+                <div className="space-y-4 pt-4 border-t">
                   <div>
-                    <Label>Estava chovendo?</Label>
+                    <Label>Você foi vítima ou causador?</Label>
                     <RadioGroup
-                      value={formData.chovia === null ? "" : formData.chovia ? "sim" : "nao"}
-                      onValueChange={(value) => setFormData({ ...formData, chovia: value === "sim" })}
+                      value={formData.vitima_ou_causador}
+                      onValueChange={(value) => setFormData({ ...formData, vitima_ou_causador: value })}
                     >
                       <div className="flex gap-4 mt-2">
                         <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="sim" id="chovia-m-sim" />
-                          <Label htmlFor="chovia-m-sim">Sim</Label>
+                          <RadioGroupItem value="vitima" id="vitima" />
+                          <Label htmlFor="vitima">Vítima</Label>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="nao" id="chovia-m-nao" />
-                          <Label htmlFor="chovia-m-nao">Não</Label>
+                          <RadioGroupItem value="causador" id="causador" />
+                          <Label htmlFor="causador">Causador</Label>
                         </div>
                       </div>
                     </RadioGroup>
                   </div>
 
-                  <div>
-                    <Label>Acionou assistência 24h?</Label>
-                    <RadioGroup
-                      value={formData.acionou_assistencia === null ? "" : formData.acionou_assistencia ? "sim" : "nao"}
-                      onValueChange={(value) => setFormData({ ...formData, acionou_assistencia: value === "sim" })}
-                    >
-                      <div className="flex gap-4 mt-2">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="sim" id="assist-m-sim" />
-                          <Label htmlFor="assist-m-sim">Sim</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Houve terceiros envolvidos?</Label>
+                      <RadioGroup
+                        value={formData.tem_terceiros === null ? "" : formData.tem_terceiros ? "sim" : "nao"}
+                        onValueChange={(value) => setFormData({ ...formData, tem_terceiros: value === "sim" })}
+                      >
+                        <div className="flex gap-4 mt-2">
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sim" id="terceiros-sim" />
+                            <Label htmlFor="terceiros-sim">Sim</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="nao" id="terceiros-nao" />
+                            <Label htmlFor="terceiros-nao">Não</Label>
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="nao" id="assist-m-nao" />
-                          <Label htmlFor="assist-m-nao">Não</Label>
+                      </RadioGroup>
+                    </div>
+
+                    <div>
+                      <Label>O local possui câmeras de segurança?</Label>
+                      <RadioGroup
+                        value={formData.local_tem_camera === null ? "" : formData.local_tem_camera ? "sim" : "nao"}
+                        onValueChange={(value) => setFormData({ ...formData, local_tem_camera: value === "sim" })}
+                      >
+                        <div className="flex gap-4 mt-2">
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sim" id="camera-sim" />
+                            <Label htmlFor="camera-sim">Sim</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="nao" id="camera-nao" />
+                            <Label htmlFor="camera-nao">Não</Label>
+                          </div>
                         </div>
-                      </div>
-                    </RadioGroup>
+                      </RadioGroup>
+                    </div>
                   </div>
 
-                  <div>
-                    <Label>Houve remoção do veículo?</Label>
-                    <RadioGroup
-                      value={formData.houve_remocao === null ? "" : formData.houve_remocao ? "sim" : "nao"}
-                      onValueChange={(value) => setFormData({ ...formData, houve_remocao: value === "sim" })}
-                    >
-                      <div className="flex gap-4 mt-2">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="sim" id="remocao-m-sim" />
-                          <Label htmlFor="remocao-m-sim">Sim</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>A polícia foi ao local?</Label>
+                      <RadioGroup
+                        value={formData.policia_foi_local === null ? "" : formData.policia_foi_local ? "sim" : "nao"}
+                        onValueChange={(value) => setFormData({ ...formData, policia_foi_local: value === "sim" })}
+                      >
+                        <div className="flex gap-4 mt-2">
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sim" id="policia-sim" />
+                            <Label htmlFor="policia-sim">Sim</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="nao" id="policia-nao" />
+                            <Label htmlFor="policia-nao">Não</Label>
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="nao" id="remocao-m-nao" />
-                          <Label htmlFor="remocao-m-nao">Não</Label>
+                      </RadioGroup>
+                    </div>
+
+                    <div>
+                      <Label>Fez Boletim de Ocorrência?</Label>
+                      <RadioGroup
+                        value={formData.fez_bo === null ? "" : formData.fez_bo ? "sim" : "nao"}
+                        onValueChange={(value) => setFormData({ ...formData, fez_bo: value === "sim" })}
+                      >
+                        <div className="flex gap-4 mt-2">
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sim" id="bo-sim" />
+                            <Label htmlFor="bo-sim">Sim</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="nao" id="bo-nao" />
+                            <Label htmlFor="bo-nao">Não</Label>
+                          </div>
                         </div>
-                      </div>
-                    </RadioGroup>
+                      </RadioGroup>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Foi ao hospital?</Label>
+                      <RadioGroup
+                        value={formData.foi_hospital === null ? "" : formData.foi_hospital ? "sim" : "nao"}
+                        onValueChange={(value) => setFormData({ ...formData, foi_hospital: value === "sim" })}
+                      >
+                        <div className="flex gap-4 mt-2">
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sim" id="hospital-sim" />
+                            <Label htmlFor="hospital-sim">Sim</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="nao" id="hospital-nao" />
+                            <Label htmlFor="hospital-nao">Não</Label>
+                          </div>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                    <div>
+                      <Label>O motorista faleceu?</Label>
+                      <RadioGroup
+                        value={formData.motorista_faleceu === null ? "" : formData.motorista_faleceu ? "sim" : "nao"}
+                        onValueChange={(value) => setFormData({ ...formData, motorista_faleceu: value === "sim" })}
+                      >
+                        <div className="flex gap-4 mt-2">
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sim" id="faleceu-sim" />
+                            <Label htmlFor="faleceu-sim">Sim</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="nao" id="faleceu-nao" />
+                            <Label htmlFor="faleceu-nao">Não</Label>
+                          </div>
+                        </div>
+                      </RadioGroup>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -711,6 +835,17 @@ export default function VistoriaManual() {
                     onChange={(e) => setAtestadoObitoFile(e.target.files?.[0] || null)}
                   />
                   {atestadoObitoFile && <p className="text-xs text-muted-foreground mt-1">{atestadoObitoFile.name}</p>}
+                </div>
+
+                <div>
+                  <Label htmlFor="croqui">Croqui do Acidente</Label>
+                  <Input
+                    id="croqui"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => setCroquiFile(e.target.files?.[0] || null)}
+                  />
+                  {croquiFile && <p className="text-xs text-muted-foreground mt-1">{croquiFile.name}</p>}
                 </div>
               </div>
             </div>
