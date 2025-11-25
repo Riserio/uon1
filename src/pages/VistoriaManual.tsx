@@ -524,14 +524,13 @@ export default function VistoriaManual() {
                   <Label>Placa *</Label>
                   <MaskedInput
                     required
-                    format="@@@#@##"
-                    mask=""
+                    format="@@@-####"
+                    mask="_"
                     patternChar="@"
                     allowEmptyFormatting={false}
                     value={formData.veiculo_placa}
-                    onChange={(e) => setFormData({ ...formData, veiculo_placa: formatPlaca(e.target.value) })}
+                    onValueChange={(values) => setFormData({ ...formData, veiculo_placa: values.value.toUpperCase() })}
                     placeholder="ABC-1234"
-                    maxLength={8}
                     className="uppercase"
                   />
                 </div>
