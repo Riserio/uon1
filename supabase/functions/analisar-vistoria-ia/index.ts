@@ -40,7 +40,7 @@ const handler = async (req: Request): Promise<Response> => {
     for (const foto of fotos) {
       console.log('Analisando foto:', foto.posicao);
       
-      // Primeira análise: detectar placa e modelo (especialmente na foto frontal)
+      // Primeira análise: detectar placa, modelo, marca e ano (especialmente na foto frontal)
       if (foto.posicao === 'frontal') {
         const placaResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
           method: 'POST',
@@ -53,14 +53,14 @@ const handler = async (req: Request): Promise<Response> => {
             messages: [
               {
                 role: 'system',
-                content: 'Você é um especialista em OCR de placas e identificação de veículos brasileiros. Extraia APENAS a placa do veículo (formato ABC-1234 ou ABC1D234) e o modelo/marca do veículo com máxima precisão.'
+                content: 'Você é um especialista em OCR de placas e identificação de veículos brasileiros. Extraia PLACA, MARCA, MODELO e ANO do veículo com máxima precisão.'
               },
               {
                 role: 'user',
                 content: [
                   {
                     type: 'text',
-                    text: 'Identifique com PRECISÃO a PLACA do veículo (padrão brasileiro ABC-1234 ou Mercosul ABC1D23) e o MODELO/MARCA/ANO. Responda EXATAMENTE no formato: PLACA: XXX-0000 | MODELO: Marca Modelo Ano. Se não conseguir identificar algum dado, indique como "Não identificado".'
+                    text: 'Identifique com PRECISÃO a PLACA do veículo (padrão brasileiro ABC-1234 ou Mercosul ABC1D23), a MARCA, o MODELO e o ANO. Responda EXATAMENTE no formato: PLACA: XXX-0000 | MARCA: NomeMarca | MODELO: NomeModelo | ANO: 2020. Se não conseguir identificar algum dado, indique como "Não identificado".'
                   },
                   {
                     type: 'image_url',
@@ -69,7 +69,7 @@ const handler = async (req: Request): Promise<Response> => {
                 ]
               }
             ],
-            max_tokens: 200,
+            max_tokens: 300,
             temperature: 0.1
           })
         });
@@ -189,6 +189,24 @@ const handler = async (req: Request): Promise<Response> => {
     const resumoData = await resumoResponse.json();
     const observacoesIA = resumoData.choices?.[0]?.message?.content || 'Resumo não disponível';
 
+    // Extrair marca e ano do texto da IA
+    let marca = '';
+    let ano = '';
+    
+    for (const analise of analises) {
+      if (analise.posicao === 'frontal') {
+        const marcaMatch = analise.analise.match(/MARCA:\s*([^\|\n]+)/i);
+        if (marcaMatch && !marcaMatch[1].includes('Não identificado')) {
+          marca = marcaMatch[1].trim();
+        }
+        
+        const anoMatch = analise.analise.match(/ANO:\s*(\d{4})/i);
+        if (anoMatch) {
+          ano = anoMatch[1];
+        }
+      }
+    }
+
     // Atualizar vistoria com análise completa e dados do veículo
     const updateData: any = {
       status: 'concluida',
@@ -203,11 +221,12 @@ const handler = async (req: Request): Promise<Response> => {
     }
     if (modelo) {
       updateData.veiculo_modelo = modelo;
-      // Tentar extrair marca
-      const marcaMatch = modelo.match(/^([A-Za-z]+)/);
-      if (marcaMatch) {
-        updateData.veiculo_marca = marcaMatch[1];
-      }
+    }
+    if (marca) {
+      updateData.veiculo_marca = marca;
+    }
+    if (ano) {
+      updateData.veiculo_ano = ano;
     }
 
     const { error: updateError } = await supabase
