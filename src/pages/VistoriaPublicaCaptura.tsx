@@ -120,30 +120,23 @@ export default function VistoriaPublicaCaptura() {
   // Salvar fotos no localStorage sempre que houver mudanças
   useEffect(() => {
     const saveFotos = async () => {
-      // Só salva se houver dados reais para salvar
-      const hasFotos = Object.keys(fotos).length > 0;
-      const hasPreviews = Object.keys(fotoPreviews).length > 0;
-      
-      if (hasFotos || hasPreviews || cnhData || vehicleData || geolocation) {
+      try {
         const fotosData: { [key: string]: { name: string; type: string; dataUrl: string }[] } = {};
         
-        // Converte todas as fotos para DataURL
+        // Converte TODAS as fotos para DataURL, incluindo CNH, CRLV e veículo
         for (const [key, files] of Object.entries(fotos)) {
           if (files && files.length > 0) {
-            try {
-              fotosData[key] = await Promise.all(
-                files.map(async (file) => ({
-                  name: file.name,
-                  type: file.type,
-                  dataUrl: await fileToDataUrl(file)
-                }))
-              );
-            } catch (error) {
-              console.error(`Erro ao salvar fotos da posição ${key}:`, error);
-            }
+            fotosData[key] = await Promise.all(
+              files.map(async (file) => ({
+                name: file.name,
+                type: file.type,
+                dataUrl: await fileToDataUrl(file)
+              }))
+            );
           }
         }
 
+        // Salva sempre que houver alteração
         setStoredFotos({
           fotosData,
           previews: fotoPreviews,
@@ -152,10 +145,16 @@ export default function VistoriaPublicaCaptura() {
           vehicleData,
           geolocation,
         });
+      } catch (error) {
+        console.error('Erro ao salvar fotos no localStorage:', error);
       }
     };
-    saveFotos();
-  }, [fotos, fotoPreviews, currentStep, cnhData, vehicleData, geolocation]);
+    
+    // Executa apenas se houver fotos
+    if (Object.keys(fotos).length > 0) {
+      saveFotos();
+    }
+  }, [fotos, fotoPreviews, currentStep, cnhData, vehicleData, geolocation, setStoredFotos]);
 
   useEffect(() => {
     loadVistoria();
