@@ -242,6 +242,7 @@ export default function VistoriaPublicaTermos() {
       }
 
       localStorage.removeItem("vistoria_temp");
+      localStorage.removeItem(`vistoria_fotos_${token}`);
       toast.success("Vistoria concluída com sucesso!");
       navigate(`/vistoria/${token}/conclusao`);
     } catch (error: any) {
