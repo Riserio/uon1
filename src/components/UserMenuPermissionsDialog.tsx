@@ -52,6 +52,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'emails', label: 'E-mails', icon: '📧' },
   { id: 'analytics', label: 'Analytics', icon: '📊' },
   { id: 'performance', label: 'Performance', icon: '🎯' },
+  { id: 'pid', label: 'PID', icon: '📈' },
 ];
 
 export function UserMenuPermissionsDialog({

@@ -485,7 +485,7 @@ export default function VistoriaManual() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Upload className="h-6 w-6" />
-              Vistoria Manual
+              Abertura Manual
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -519,13 +519,22 @@ export default function VistoriaManual() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Placa *</Label>
-                  <Input
+                  <MaskedInput
                     required
+                    format="@@@#@##"
+                    mask=""
+                    patternChar="@"
+                    allowEmptyFormatting={false}
                     value={formData.veiculo_placa}
-                    onChange={(e) => setFormData({ ...formData, veiculo_placa: e.target.value.toUpperCase() })}
+                    onValueChange={(values) => 
+                      setFormData({ ...formData, veiculo_placa: values.value.toUpperCase() })
+                    }
                     placeholder="ABC1D23"
-                    maxLength={7}
+                    className="uppercase"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Formato: ABC1D23 ou ABC-1234
+                  </p>
                 </div>
                 <div>
                   <Label>Marca *</Label>
