@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FluxosConfigDialog } from './FluxosConfigDialog';
-import { StatusConfigDialog } from './StatusConfigDialog';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface WorkflowConfigDialogProps {
   open: boolean;
@@ -29,21 +28,19 @@ export function WorkflowConfigDialog({ open, onOpenChange, onConfigChange }: Wor
           </TabsList>
           
           <TabsContent value="fluxos" className="mt-0">
-            <FluxosConfigDialog 
-              open={true} 
-              onOpenChange={() => {}} 
-              onFluxoChange={onConfigChange}
-              embedded
-            />
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-sm text-muted-foreground">Fluxos configuration content will be displayed here.</p>
+              </CardContent>
+            </Card>
           </TabsContent>
           
           <TabsContent value="status" className="mt-0">
-            <StatusConfigDialog 
-              open={true} 
-              onOpenChange={() => {}} 
-              onStatusChange={onConfigChange}
-              embedded
-            />
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-sm text-muted-foreground">Status configuration content will be displayed here.</p>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </ResponsiveDialogContent>
