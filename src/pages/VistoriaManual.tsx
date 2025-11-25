@@ -777,7 +777,7 @@ export default function VistoriaManual() {
 
             {/* Botões */}
             <div className="flex gap-4">
-              <Button type="button" variant="outline" onClick={() => navigate("/vistorias")} className="flex-1">
+              <Button type="button" variant="outline" onClick={() => navigate("/sinistros")} className="flex-1">
                 Cancelar
               </Button>
               <Button
