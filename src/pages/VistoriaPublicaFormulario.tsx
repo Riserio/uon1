@@ -107,7 +107,7 @@ export default function VistoriaPublicaFormulario() {
         veiculo_modelo: data.vehicleData.modelo || "",
         veiculo_ano: data.vehicleData.ano || "",
       }));
-      
+
       // Se tiver marca nos dados do veículo, selecionar no hook
       if (data.vehicleData.marca) {
         setMarcaSelecionada(data.vehicleData.marca);
@@ -578,7 +578,6 @@ export default function VistoriaPublicaFormulario() {
                   />
                 </div>
 
-
                 <VehicleTypeSelector value={vehicleType} onChange={setVehicleType} />
 
                 <div className="grid sm:grid-cols-3 gap-4">
@@ -586,12 +585,12 @@ export default function VistoriaPublicaFormulario() {
                     label="Marca *"
                     value={formData.veiculo_marca}
                     options={marcas}
-                    vehicleType={vehicleType}
+                    vehicleType={vehicleType as any}
                     onChange={(value) => {
                       setFormData({ ...formData, veiculo_marca: value, veiculo_modelo: "" });
                       setMarcaSelecionada(value);
                     }}
-                    placeholder="Digite 3+ letras"
+                    placeholder="Selecione ou pesquise a marca"
                     disabled={!vehicleType}
                   />
 
@@ -600,7 +599,7 @@ export default function VistoriaPublicaFormulario() {
                     value={formData.veiculo_modelo}
                     options={modelos}
                     onChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
-                    placeholder={marcaSelecionada ? "Digite 3+ letras" : "Selecione marca primeiro"}
+                    placeholder={marcaSelecionada ? "Selecione ou pesquise o modelo" : "Selecione a marca primeiro"}
                     disabled={!marcaSelecionada}
                   />
 
@@ -746,7 +745,8 @@ export default function VistoriaPublicaFormulario() {
                 <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-start gap-3 mb-6">
                   <FileText className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-blue-800">
-                    Anexe os documentos solicitados conforme aplicável ao seu caso. Estes documentos são importantes para a análise do sinistro.
+                    Anexe os documentos solicitados conforme aplicável ao seu caso. Estes documentos são importantes
+                    para a análise do sinistro.
                   </p>
                 </div>
 
