@@ -7,12 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { MaskedInput } from "@/components/ui/masked-input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, User, Calendar, FileText, AlertCircle, CheckCircle, MapPin, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import SketchPad from "@/components/SketchPad";
 import { validateCPF, validatePhone } from "@/lib/validators";
+import { useVeiculos } from "@/hooks/useVeiculos";
 
 const STEPS = [
   { id: 0, title: "Dados Pessoais", icon: User, description: "Informações do segurado" },
@@ -45,7 +47,9 @@ export default function VistoriaPublicaFormulario() {
     hora_evento: "",
     condutor_veiculo: "",
     veiculo_placa: "",
+    veiculo_marca: "",
     veiculo_modelo: "",
+    veiculo_ano: "",
     narrar_fatos: "",
     vitima_ou_causador: "",
     tem_terceiros: false,
@@ -56,6 +60,8 @@ export default function VistoriaPublicaFormulario() {
     motorista_faleceu: false,
     policia_foi_local: false,
   });
+
+  const { marcas, modelos, marcaSelecionada, setMarcaSelecionada } = useVeiculos();
 
   const [boFile, setBoFile] = useState<File | null>(null);
   const [laudoMedico, setLaudoMedico] = useState<File | null>(null);
@@ -87,6 +93,7 @@ export default function VistoriaPublicaFormulario() {
         ...prev,
         cliente_nome: data.cnhData.nome || "",
         cliente_cpf: data.cnhData.cpf || "",
+        condutor_veiculo: data.cnhData.nome || "", // Usar nome da CNH como condutor
       }));
     }
 
@@ -94,8 +101,15 @@ export default function VistoriaPublicaFormulario() {
       setFormData((prev) => ({
         ...prev,
         veiculo_placa: data.vehicleData.placa || "",
+        veiculo_marca: data.vehicleData.marca || "",
         veiculo_modelo: data.vehicleData.modelo || "",
+        veiculo_ano: data.vehicleData.ano || "",
       }));
+      
+      // Se tiver marca nos dados do veículo, selecionar no hook
+      if (data.vehicleData.marca) {
+        setMarcaSelecionada(data.vehicleData.marca);
+      }
     }
   };
 
@@ -563,14 +577,61 @@ export default function VistoriaPublicaFormulario() {
                   />
                 </div>
 
-                <div>
-                  <Label className="text-base font-semibold">Modelo do Veículo</Label>
-                  <Input
-                    value={formData.veiculo_modelo}
-                    onChange={(e) => setFormData({ ...formData, veiculo_modelo: e.target.value })}
-                    placeholder="Ex: Toyota Corolla 2020"
-                    className="mt-2 h-12"
-                  />
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-base font-semibold">Marca</Label>
+                    <Select
+                      value={formData.veiculo_marca}
+                      onValueChange={(value) => {
+                        setFormData({ ...formData, veiculo_marca: value, veiculo_modelo: "" });
+                        setMarcaSelecionada(value);
+                      }}
+                    >
+                      <SelectTrigger className="mt-2 h-12">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {marcas.map((marca) => (
+                          <SelectItem key={marca} value={marca}>
+                            {marca}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-base font-semibold">Modelo</Label>
+                    <Select
+                      value={formData.veiculo_modelo}
+                      onValueChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
+                      disabled={!marcaSelecionada}
+                    >
+                      <SelectTrigger className="mt-2 h-12">
+                        <SelectValue placeholder={marcaSelecionada ? "Selecione" : "Selecione marca primeiro"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {modelos.map((modelo) => (
+                          <SelectItem key={modelo} value={modelo}>
+                            {modelo}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-base font-semibold">Ano</Label>
+                    <Input
+                      type="number"
+                      value={formData.veiculo_ano}
+                      onChange={(e) => setFormData({ ...formData, veiculo_ano: e.target.value })}
+                      placeholder="2020"
+                      className="mt-2 h-12"
+                      min="1900"
+                      max={new Date().getFullYear() + 1}
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -698,7 +759,14 @@ export default function VistoriaPublicaFormulario() {
             {/* Step 3: Documentos */}
             {currentStep === 3 && (
               <div className="space-y-6">
-                <div className="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-xl p-6">
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-start gap-3 mb-6">
+                  <FileText className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-blue-800">
+                    Anexe os documentos solicitados conforme aplicável ao seu caso. Estes documentos são importantes para a análise do sinistro.
+                  </p>
+                </div>
+
+                <div className="bg-white border-2 border-gray-200 rounded-xl p-6 space-y-4">
                   <Label className="text-base font-semibold mb-3 block">Fez Boletim de Ocorrência?</Label>
                   <RadioGroup
                     value={formData.fez_bo ? "sim" : "nao"}
@@ -738,7 +806,7 @@ export default function VistoriaPublicaFormulario() {
                   )}
                 </div>
 
-                <div className="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-xl p-6">
+                <div className="bg-white border-2 border-gray-200 rounded-xl p-6 space-y-4">
                   <Label className="text-base font-semibold mb-3 block">Foi ao hospital?</Label>
                   <RadioGroup
                     value={formData.foi_hospital ? "sim" : "nao"}
@@ -778,7 +846,7 @@ export default function VistoriaPublicaFormulario() {
                   )}
                 </div>
 
-                <div className="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-xl p-6">
+                <div className="bg-white border-2 border-gray-200 rounded-xl p-6 space-y-4">
                   <Label className="text-base font-semibold mb-3 block">O motorista faleceu?</Label>
                   <RadioGroup
                     value={formData.motorista_faleceu ? "sim" : "nao"}
