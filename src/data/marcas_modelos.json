@@ -9156,13 +9156,6 @@
     "SE-2 2300W (Elétrica)",
     "SHE-S 3000W (Elétrica)"
   ],
-    "smart": [
-    "fortwo BRABUS Coupe 1.0 72kw",
-    "fortwo passion coupé 1.0 62kw",
-    "fortwo passion cabrio 1.0 62kw/Tritop",
-    "fortwo coupé/Brasil.Edition 1.0 mhd 71cv",
-    "fortwo BRABUS cabrio 1.0 72kw"
-  ]
   "SIAMOTO": ["SCROSS 50cc"],
   "SINOTRUK": [
     "HOWO 380 A7 4x2 2p (diesel)(E5)",
@@ -11279,4 +11272,11 @@
   ],
   "ZONTES": ["GK 350", "E 350", "R 350", "V 310", "T 350", "T 310", "T 350 X", "S 350", "V 350", "R 310"],
   "byCristo": ["Triciclo Star II / Top", "Triciclo Star I / Sport", "Triciclo Star II Top / Super Top/Flex"],
+  "smart": [
+    "fortwo BRABUS Coupe 1.0 72kw",
+    "fortwo passion coupé 1.0 62kw",
+    "fortwo passion cabrio 1.0 62kw/Tritop",
+    "fortwo coupé/Brasil.Edition 1.0 mhd 71cv",
+    "fortwo BRABUS cabrio 1.0 72kw"
+  ]
 }
