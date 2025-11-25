@@ -1,11 +1,5 @@
 {
-  "ADLY": [
-    "JAGUAR JT 50",
-    "ATV 100",
-    "RT 50",
-    "JAGUAR JT 100",
-    "ATV 50"
-  ],
+  "ADLY": ["JAGUAR JT 50", "ATV 100", "RT 50", "JAGUAR JT 100", "ATV 50"],
   "AGRALE": [
     "DAKAR 30.0 190cc",
     "SUPER CITY 150",
@@ -71,12 +65,7 @@
     "Hummer Wagon 6.5 4x4 Diesel TB",
     "Hummer Hard-Top 6.5 4x4 Diesel TB"
   ],
-  "AMAZONAS": [
-    "AME-150 TC/ SC",
-    "AME-110 MIX",
-    "AME-LX 125/26",
-    "AME-250 C1"
-  ],
+  "AMAZONAS": ["AME-150 TC/ SC", "AME-110 MIX", "AME-LX 125/26", "AME-250 C1"],
   "APRILIA": [
     "RS 250cc",
     "AREA-51 50cc",
@@ -98,9 +87,7 @@
     "SR RACING 50cc",
     "SR RACE 150cc"
   ],
-  "ARROW": [
-    "ONE Work (Elétrico)"
-  ],
+  "ARROW": ["ONE Work (Elétrico)"],
   "ASTON MARTIN": [
     "Vantage 6.0 V12 510cv",
     "Vantage Cupê 4.0 V8 510cv",
@@ -124,21 +111,9 @@
     "DBX707 4.0 V8 707cv",
     "Rapide 6.0 V12 477cv"
   ],
-  "ATALA": [
-    "SKEGIA 50cc",
-    "CALIFFONE 50cc",
-    "MASTER 50cc"
-  ],
-  "AVELLOZ": [
-    "AZ 125 ALFA",
-    "AZ 01 50cc",
-    "AZ 160 XTREME"
-  ],
-  "Acura": [
-    "NSX 3.0",
-    "Legend 3.2/3.5",
-    "Integra GS 1.8"
-  ],
+  "ATALA": ["SKEGIA 50cc", "CALIFFONE 50cc", "MASTER 50cc"],
+  "AVELLOZ": ["AZ 125 ALFA", "AZ 01 50cc", "AZ 160 XTREME"],
+  "Acura": ["NSX 3.0", "Legend 3.2/3.5", "Integra GS 1.8"],
   "Agrale": [
     "MARRUÁ AM 150 2.8 CS TDI Diesel",
     "MARRUÁ AM 100 2.8 CS TDI Diesel",
@@ -527,13 +502,7 @@
     "DOMINAR NS200",
     "DOMINAR NS400Z"
   ],
-  "BEE": [
-    "BEE 200cc Royale",
-    "BEE 125cc Monaco",
-    "Monaco 150cc",
-    "BEE 200cc GT",
-    "BEE 50cc"
-  ],
+  "BEE": ["BEE 200cc Royale", "BEE 125cc Monaco", "Monaco 150cc", "BEE 200cc GT", "BEE 50cc"],
   "BEPOBUS": [
     "NÀSCERE URBANO (diesel)(E5)",
     "NÀSCERE RODOVIÁRIO (diesel)(E5)",
@@ -541,10 +510,7 @@
     "NÀSCERE URBANO (diesel)(E6)",
     "NÀSCERE RODOVIARIO (diesel)(E6)"
   ],
-  "BETA": [
-    "MX-50 CROSS 50cc",
-    "MX-50 ENDURO 50cc"
-  ],
+  "BETA": ["MX-50 CROSS 50cc", "MX-50 ENDURO 50cc"],
   "BIMOTA": [
     "SBR8 SPECIAL 996cc",
     "MANTRA 904cc",
@@ -1003,20 +969,9 @@
     "F 800 S 798cc",
     "F 850 GS Adventure Premium"
   ],
-  "BRANDY": [
-    "FOSTI 125",
-    "ELEGANT 50",
-    "ZANELLA NEW FIRE 50 FULL",
-    "TURBO PLUS",
-    "PISTA 70"
-  ],
-  "BRAVA": [
-    "YB 150T-15 150cc"
-  ],
-  "BRM": [
-    "Buggy W. Turing/Luxo/M-11 Absolut 1.6 8V",
-    "Buggy/M-8/M-8 Long 1.6"
-  ],
+  "BRANDY": ["FOSTI 125", "ELEGANT 50", "ZANELLA NEW FIRE 50 FULL", "TURBO PLUS", "PISTA 70"],
+  "BRAVA": ["YB 150T-15 150cc"],
+  "BRM": ["Buggy W. Turing/Luxo/M-11 Absolut 1.6 8V", "Buggy/M-8/M-8 Long 1.6"],
   "BRP": [
     "can-am Maver. X3 MAX XRS TB 900 RR (UTV)",
     "can-am DS 90 4X2 Quadriciclo",
@@ -1091,11 +1046,7 @@
     "LIGHTNING XB12SS",
     "LIGHTNING XB12STT"
   ],
-  "BUENO": [
-    "JBr 150e",
-    "JBr 125e",
-    "JBr 250e"
-  ],
+  "BUENO": ["JBr 150e", "JBr 125e", "JBr 250e"],
   "BULL": [
     "NOW 125",
     "Spirit SE 50",
@@ -1131,27 +1082,10 @@
     "TAN EV 4x4 (Elétrico)",
     "Yuan Pro (Elétrico)"
   ],
-  "Baby": [
-    "Buggy RS Evolution 1.8 8V",
-    "Buggy 1.6 2-Lug.",
-    "Buggy 1.6/ TST/ RS 1.6 4-Lug."
-  ],
-  "Benelli": [
-    "TNT 1130 Sport evo",
-    "TNT 899",
-    "TRE 899 K",
-    "TRE 1130 K Amazonas",
-    "TRE 1130 K",
-    "TNT Café 1130 Racer"
-  ],
-  "Bugre": [
-    "Buggy VII/VII BIG/VII Flex",
-    "Buggy IV e V"
-  ],
-  "CAB Motors": [
-    "Stark Superação 2.3 AWD 2.3 TDI Die. 3p",
-    "Stark Mountaim 2.3 AWD TDI Diesel 3p "
-  ],
+  "Baby": ["Buggy RS Evolution 1.8 8V", "Buggy 1.6 2-Lug.", "Buggy 1.6/ TST/ RS 1.6 4-Lug."],
+  "Benelli": ["TNT 1130 Sport evo", "TNT 899", "TRE 899 K", "TRE 1130 K Amazonas", "TRE 1130 K", "TNT Café 1130 Racer"],
+  "Bugre": ["Buggy VII/VII BIG/VII Flex", "Buggy IV e V"],
+  "CAB Motors": ["Stark Superação 2.3 AWD 2.3 TDI Die. 3p", "Stark Mountaim 2.3 AWD TDI Diesel 3p "],
   "CAGIVA": [
     "GRAN CANYON 900",
     "NAVIGATOR 1000",
@@ -1164,13 +1098,8 @@
     "W-16 600cc",
     "CANYON 500"
   ],
-  "CALOI": [
-    "MONDO 75cc",
-    "MOBILETE 50cc"
-  ],
-  "CBT Jipe": [
-    "Javali 3.0 4x4 Diesel"
-  ],
+  "CALOI": ["MONDO 75cc", "MOBILETE 50cc"],
+  "CBT Jipe": ["Javali 3.0 4x4 Diesel"],
   "CHANA": [
     "Cargo CE 1.0 8V 53cv (Pick-Up)",
     "Utility 1.0 8V 53cv (Furgão)",
@@ -1213,10 +1142,7 @@
     "Alleanza Mini Urbano/SPTRANS 2p (die.)",
     "Alleanza Gran Exe./Turismo 2p (diesel)"
   ],
-  "Cadillac": [
-    "Deville/Eldorado 4.9",
-    "Seville 4.6"
-  ],
+  "Cadillac": ["Deville/Eldorado 4.9", "Seville 4.6"],
   "Caoa Chery": [
     "Tiggo 5X SPORT 1.5 Turbo Flex Aut.",
     "ARRIZO 6 PRO 1.5 Turbo (Híbrido)",
@@ -1553,14 +1479,8 @@
     "C3 Tendance 1.6 VTi Flex Start 16V Aut.",
     "C3 Tendance Pure Tech 1.2 Flex 12V Mec."
   ],
-  "Cross Lander": [
-    "CL-330 2.8 132cv 4x4 TB INTEGER. Diesel",
-    "CL-244 2.8 132cv 4x4 TB INTEGER. Diesel"
-  ],
-  "D2D Motors": [
-    "Buggy SKY 1.6 Flex 16V Mec.",
-    "Buggy SKY GT 1.6 Flex 16V Mec."
-  ],
+  "Cross Lander": ["CL-330 2.8 132cv 4x4 TB INTEGER. Diesel", "CL-244 2.8 132cv 4x4 TB INTEGER. Diesel"],
+  "D2D Motors": ["Buggy SKY 1.6 Flex 16V Mec.", "Buggy SKY GT 1.6 Flex 16V Mec."],
   "DAELIM": [
     "ALTINO 100cc",
     "MESSAGE 50cc",
@@ -1756,10 +1676,7 @@
     "GPR 50R 49cc",
     "PREDATOR AR 49cc"
   ],
-  "DFSK": [
-    "EC31 Chassi (Elétrico)",
-    "EC35 Furgão (Elétrico)"
-  ],
+  "DFSK": ["EC31 Chassi (Elétrico)", "EC35 Furgão (Elétrico)"],
   "DUCATI": [
     "HYPERMOTARD 1100 EVO SP 1078cc",
     "MONSTER 937cc",
@@ -1948,20 +1865,9 @@
     "Plutus 3.2 8V 4x2 CD Turbo Diesel",
     "Start Picape CD 1.0 8V 5p"
   ],
-  "EFFA-JMC": [
-    "N900 2.8 2p (diesel)",
-    "JBC 3.2 Turbo Intercooler 2p (diesel)",
-    "N601 2.8 2p (diesel)"
-  ],
-  "EMME": [
-    "ONE RACING 50cc",
-    "MIRAGE 50cc",
-    "ONE 50cc"
-  ],
-  "Engesa": [
-    "Engesa 4x4 4.0 Diesel",
-    "Engesa 4x4 2.5/4.1"
-  ],
+  "EFFA-JMC": ["N900 2.8 2p (diesel)", "JBC 3.2 Turbo Intercooler 2p (diesel)", "N601 2.8 2p (diesel)"],
+  "EMME": ["ONE RACING 50cc", "MIRAGE 50cc", "ONE 50cc"],
+  "Engesa": ["Engesa 4x4 4.0 Diesel", "Engesa 4x4 2.5/4.1"],
   "Envemo": [
     "Camper 4x4 2.5 Diesel",
     "Camper GL/GLS 4x4 4.0 Diesel",
@@ -1979,12 +1885,6 @@
     "FR250 CAGE (Elétrica)",
     "FR250 BOX (Elétrica)",
     "FR150 FRIGO (Elétrica)"
-  ],
-  "FIAT": [
-    "190 2p (diesel)",
-    "190 T 2p (diesel)",
-    "190 H 2p (diesel)",
-    "190 E 2p (diesel)"
   ],
   "FORD": [
     "F-4 MILHA CD 3.9 TDI (diesel)",
@@ -2186,10 +2086,7 @@
     "AUMARK S 916 4x2 (diese) (E6)",
     "CITYTRUCK 10-16DT 3.8 4x2 (diesel)(E5)"
   ],
-  "FOX": [
-    "250T-10 Elite",
-    "150T-3 Adventure"
-  ],
+  "FOX": ["250T-10 Elite", "150T-3 Adventure"],
   "FUSCO MOTOSEGURA": [
     "CARGA Caçamba 160cc",
     "CARGA Baú 125cc",
@@ -3355,11 +3252,7 @@
     "Fusion SEL 3.0 V6 AWD 24V 243cv Aut.",
     "Fusion SEL 3.0 V6 24V 243cv Aut."
   ],
-  "Fyber": [
-    "Buggy FyberX 1.6 8V",
-    "Buggy 2000W 1.6 8V",
-    "Buggy 2000W 1.8 8V/ 1.8 8V Flex"
-  ],
+  "Fyber": ["Buggy FyberX 1.6 8V", "Buggy 2000W 1.6 8V", "Buggy 2000W 1.8 8V/ 1.8 8V Flex"],
   "GAC": [
     "GS4 Elite (Híbrido)",
     "GS4 Premium (Híbrido)",
@@ -3401,12 +3294,7 @@
     "TXT 50 ROOKIE",
     "EC 300 ENDUCROSS"
   ],
-  "GEELY": [
-    "EX5 PRO (Elétrico)",
-    "GC2 1.0 12V 68cv 5p",
-    "EC7 1.8 16V 130cv 4p Mec.",
-    "EX5 MAX (Elétrico)"
-  ],
+  "GEELY": ["EX5 PRO (Elétrico)", "GC2 1.0 12V 68cv 5p", "EC7 1.8 16V 130cv 4p Mec.", "EX5 MAX (Elétrico)"],
   "GM - Chevrolet": [
     "Astra GSi 2.0 16V 136cv Hatchback 5p",
     "Astra GLS 2.0 MPFI SW",
@@ -3973,16 +3861,8 @@
     "6-150 Turbo 2p (diesel)",
     "7-110 Turbo 2p (diesel)"
   ],
-  "GREAT WALL": [
-    "HOVER CUV 2.4 16V 5p Mec.",
-    "HOVER CUV 2.4 16V 4WD 5p Mec."
-  ],
-  "GREEN": [
-    "SAFARI 150cc",
-    "RUNNER 125cc",
-    "EASY 110cc",
-    "SPORT 150cc"
-  ],
+  "GREAT WALL": ["HOVER CUV 2.4 16V 5p Mec.", "HOVER CUV 2.4 16V 4WD 5p Mec."],
+  "GREEN": ["SAFARI 150cc", "RUNNER 125cc", "EASY 110cc", "SPORT 150cc"],
   "GWM": [
     "Haval H9 Exclusive TD480",
     "Haval H6 ONE 1.5 (Hibrido)",
@@ -4007,11 +3887,7 @@
     "Haval H6 PHEV19 (Hibrido)",
     "Haval H6 PHEV AWD (Hibrido)"
   ],
-  "Gurgel": [
-    "Carajas Diesel",
-    "Carajas/Tocantis/Xavante/Vip",
-    "BR-800 (todos)/Supermini"
-  ],
+  "Gurgel": ["Carajas Diesel", "Carajas/Tocantis/Xavante/Vip", "BR-800 (todos)/Supermini"],
   "HAFEI": [
     "Towner Jr. Pick-up Baú 1.0 8V 48cv 2p",
     "Towner Passageiro 1.0 8V 48cv 7L 5p",
@@ -4022,13 +3898,7 @@
     "Towner Jr. Pick-up 1.0 8V 48cv CS 2p",
     "Towner Jr. Pick-up Baú 1.0 8V 48cv CD 4p"
   ],
-  "HAOBAO": [
-    "HB 50Q",
-    "HB150",
-    "HB125-9 FEARFULSPEED",
-    "HB110-3",
-    "HB150-T R5 FEARFULSPEED"
-  ],
+  "HAOBAO": ["HB 50Q", "HB150", "HB125-9 FEARFULSPEED", "HB110-3", "HB150-T R5 FEARFULSPEED"],
   "HAOJUE": [
     "DK 160",
     "DK 150 S",
@@ -4167,15 +4037,8 @@
     "DEUCE",
     "ELECTRA GLIDE SCREAMING EAGLE"
   ],
-  "HARTFORD": [
-    "LEGION 125"
-  ],
-  "HERO": [
-    "PUCH 65",
-    "PUCH 50",
-    "ANKUR 50",
-    "STREAM 50"
-  ],
+  "HARTFORD": ["LEGION 125"],
+  "HERO": ["PUCH 65", "PUCH 50", "ANKUR 50", "STREAM 50"],
   "HITECH ELECTRIC": [
     "e.coTruck 31,4 kW (Elétrico)",
     "e.co Tech4 6kW (Elétrico)",
@@ -4386,11 +4249,7 @@
     "BIZ 125 KS/ KS F.INJ./KS MIX F.INJECTION",
     "BIZ 125 ES/ ES F.INJ./ES MIX F.INJECTION"
   ],
-  "HUSABERG": [
-    "FE 550 E",
-    "FE 400 400cc",
-    "FE 501 500cc"
-  ],
+  "HUSABERG": ["FE 550 E", "FE 400 400cc", "FE 501 500cc"],
   "HUSQVARNA": [
     "TE 250 Heritage",
     "TE 150",
@@ -4427,10 +4286,7 @@
     "TE 300 Pro",
     "TE 300"
   ],
-  "HYUNDAI": [
-    "HD80 3.0 16V (diesel)(E5)",
-    "HD78 3.0 16V 155cv (diesel) 2p"
-  ],
+  "HYUNDAI": ["HD80 3.0 16V (diesel)(E5)", "HD78 3.0 16V 155cv (diesel) 2p"],
   "Honda": [
     "Civic Hatch DX",
     "Civic CRX/ Targa VTi",
@@ -5087,11 +4943,7 @@
     "TECTOR 24-320 6x2 2p (Diesel)(E6)",
     "TECTOR 17-320 4x2 2p (Diesel)(E6)"
   ],
-  "Isuzu": [
-    "Hombre 2 WD XS 2.2",
-    "Amigo 2.3 4x2/4x4",
-    "Rodeo 3.2 V6"
-  ],
+  "Isuzu": ["Hombre 2 WD XS 2.2", "Amigo 2.3 4x2/4x4", "Rodeo 3.2 V6"],
   "JAC": [
     "J6 2.0 JET Flex 5p Mec.",
     "T 140 2.8 2p (diesel)",
@@ -5144,10 +4996,7 @@
     "iEV 1200T (Elétrico)",
     "E-JT 18 (Elétrico)"
   ],
-  "JIAPENG VOLCANO": [
-    "JP 150",
-    "JP 110"
-  ],
+  "JIAPENG VOLCANO": ["JP 150", "JP 110"],
   "JINBEI": [
     "TOPIC VAN Lon./GRAN TOPIC SL",
     "TOPIC ESCOLAR SL 2.2 8V/ 2.0 16V 4p",
@@ -5158,11 +5007,7 @@
     "TOPIC VAN SL 2.2 8V/ 2.0 16V 4p",
     "TOPIC ESCOLAR L 2.2 8V/ 2.0 16V 4p"
   ],
-  "JOHNNYPAG": [
-    "BARHOG 300cc",
-    "PROSTREET 300cc",
-    "SPYDER 300cc"
-  ],
+  "JOHNNYPAG": ["BARHOG 300cc", "PROSTREET 300cc", "SPYDER 300cc"],
   "JONNY": [
     "TEXAS 150cc",
     "Orbit 150cc",
@@ -5186,10 +5031,7 @@
     "Jipe Montez 4x4 CD Teto Rígido Diesel",
     "Jipe Montez 4x4 CD Teto de Lona Diesel"
   ],
-  "Jaecoo": [
-    "7 Prestige1.5 TB 16v Aut (Híbrido)",
-    "7 Luxury 1.5 TB 16v Aut 5p (Híbrido)"
-  ],
+  "Jaecoo": ["7 Prestige1.5 TB 16v Aut (Híbrido)", "7 Luxury 1.5 TB 16v Aut 5p (Híbrido)"],
   "Jaguar": [
     "F-Type Supercharged Coupe 3.0 V6",
     "F-Type SVR AWD Supercharged Coupe 5.0 V8",
@@ -5384,12 +5226,7 @@
     "COMPASS LONGITUDE 2.0 4x4 Dies. 16V Aut.",
     "Renegade Willys T270 1.3 TB 4x2 Flex Aut"
   ],
-  "KAHENA": [
-    "125 K-TOP",
-    "250 DUAL-T",
-    "125 TOP",
-    "250 DUAL"
-  ],
+  "KAHENA": ["125 K-TOP", "250 DUAL-T", "125 TOP", "250 DUAL"],
   "KASINSKI": [
     "ERO PLUS 125cc",
     "COMET 250cc / COMET GT 250cc",
@@ -5687,13 +5524,7 @@
     "Sportage DLX 2.2 Diesel Mec",
     "Carens LS 1.8 16V 130cv Mec."
   ],
-  "L'AQUILA": [
-    "PALIO 50",
-    "AKROS 90",
-    "AKROS 50",
-    "NIX 50",
-    "ERGON 50"
-  ],
+  "L'AQUILA": ["PALIO 50", "AKROS 90", "AKROS 50", "NIX 50", "ERGON 50"],
   "LAMBORGHINI": [
     "AVENTADOR LP 700-4 ROADSTER",
     "Gallardo Spyder LP560-4",
@@ -5727,20 +5558,10 @@
     "URUS LP-650-4",
     "URUS S LP-650-4"
   ],
-  "LANDUM": [
-    "MOTO TRUCK LD 150 ZH"
-  ],
-  "LAVRALE": [
-    "QUATTOR 30.0 190cc"
-  ],
-  "LERIVO": [
-    "Formigão Pick-Up 200cc",
-    "Formigão Furgão 200cc"
-  ],
-  "LEVA": [
-    "ES1 5000W",
-    "EG1 5000W"
-  ],
+  "LANDUM": ["MOTO TRUCK LD 150 ZH"],
+  "LAVRALE": ["QUATTOR 30.0 190cc"],
+  "LERIVO": ["Formigão Pick-Up 200cc", "Formigão Furgão 200cc"],
+  "LEVA": ["ES1 5000W", "EG1 5000W"],
   "LIFAN": [
     "620 TALENT 1.6 16V 106cv 4p",
     "320 ELITE 1.3 16V 88cv 5p",
@@ -5752,9 +5573,7 @@
     "530 1.5 16V 103cv 4p",
     "CARGO 200 ZH (triciclo carga)"
   ],
-  "LOBINI": [
-    "H1 1.8 20V Turbo 180cv 2p"
-  ],
+  "LOBINI": ["H1 1.8 20V Turbo 180cv 2p"],
   "Lada": [
     "Niva 1.6/ CD 4x4",
     "Niva 1.6 RC/ Pantanal 4x4",
@@ -6083,20 +5902,9 @@
     "LY 150T-5 RETRÔ",
     "LY 150T-6A CLASSIC"
   ],
-  "Lotus": [
-    "Esprit S-4 2.2 16V",
-    "Elan S-2 1.6 16V"
-  ],
-  "MAGRÃO TRICICLOS": [
-    "MT7 CHOPPER 1.6 Top.",
-    "MT7 CHOPPER 1.6 Std.",
-    "MT7 CHOPPER 1.6 Pop"
-  ],
-  "MAN": [
-    "TGX 29.440 6x4 2p (diesel)(E5)",
-    "TGX 29.480 6x4 2p (diesel)(E5)",
-    "TGX 28.440 6x2 2p (diesel)(E5)"
-  ],
+  "Lotus": ["Esprit S-4 2.2 16V", "Elan S-2 1.6 16V"],
+  "MAGRÃO TRICICLOS": ["MT7 CHOPPER 1.6 Top.", "MT7 CHOPPER 1.6 Std.", "MT7 CHOPPER 1.6 Pop"],
+  "MAN": ["TGX 29.440 6x4 2p (diesel)(E5)", "TGX 29.480 6x4 2p (diesel)(E5)", "TGX 28.440 6x2 2p (diesel)(E5)"],
   "MARCOPOLO": [
     "VOLARE ESCOLAR W-L (diesel)(E5)",
     "VOLARE ESCOLAR/LOT. W6 FLY (diesel) (E5)",
@@ -6216,11 +6024,7 @@
     "Gran Mini Urbano (diesel)(E5)",
     "Gran Mini Rodoviário (diesel)(E5)"
   ],
-  "MAXIBUS": [
-    "ASTOR TURISMO (diesel)(E5)",
-    "ASTOR URBANO (diesel)(E5)",
-    "ASTOR ESCOLAR (diesel)(E5)"
-  ],
+  "MAXIBUS": ["ASTOR TURISMO (diesel)(E5)", "ASTOR URBANO (diesel)(E5)", "ASTOR ESCOLAR (diesel)(E5)"],
   "MERCEDES-BENZ": [
     "Axor 3131 K 6x4 2p (diesel)(E5)",
     "Atego 1725 2p (diesel)",
@@ -6527,10 +6331,7 @@
     "1114 3-Eixos 2p (diesel)",
     "L-1630 3-Eixos 2p (diesel)"
   ],
-  "MG": [
-    "MG6 1.8 16V Turbo 170cv Aut.",
-    "550 1.8 16V Turbo 170cv Aut."
-  ],
+  "MG": ["MG6 1.8 16V Turbo 170cv Aut.", "550 1.8 16V Turbo 170cv Aut."],
   "MINI": [
     "COOPER John Works 25K Edit. 2.0 Turbo 3p",
     "COOPER John Works Aceman E 5p ",
@@ -6600,14 +6401,7 @@
     "COOPER John Works 1.6 Mec.",
     "COOPER John Works 2.0 Turbo 3p Aut."
   ],
-  "MIZA": [
-    "VITE LJ 150T-7",
-    "EASY LJ 125-10",
-    "Skema LJ 125-6",
-    "FAST LJ 150-2",
-    "EASY LJ 110-10",
-    "DRAGO LJ 150-7"
-  ],
+  "MIZA": ["VITE LJ 150T-7", "EASY LJ 125-10", "Skema LJ 125-6", "FAST LJ 150-2", "EASY LJ 110-10", "DRAGO LJ 150-7"],
   "MOTO GUZZI": [
     "CALIFORNIA Stone 1064cc",
     "CALIFORNIA Jackal 1064cc",
@@ -6616,13 +6410,7 @@
     "CALIFORNIA EV 1064cc",
     "QUOTA 1100 ES"
   ],
-  "MOTOCAR": [
-    "MCA-200",
-    "MCF-200",
-    "MCF-250",
-    "MTX-150",
-    "MCA-250"
-  ],
+  "MOTOCAR": ["MCA-200", "MCF-200", "MCF-250", "MTX-150", "MCA-250"],
   "MOTOMORINI": [
     "X-CAPE SPOKE 650 ",
     "SEIEMMEZZO STREET 650 ",
@@ -6653,9 +6441,7 @@
     "Velvet LT 125cc",
     "Velvet 50cc"
   ],
-  "MRX": [
-    "230R"
-  ],
+  "MRX": ["230R"],
   "MV AGUSTA": [
     "F4- R312",
     "F4 750s (Prata)",
@@ -6705,10 +6491,7 @@
     "SCORPIO 2.6 CD TB Diesel CRDe 4x4",
     "PIK-UP CD 2.2 4X2 (diesel) Mec."
   ],
-  "Malaguti": [
-    "SPIDER MAXGT 500",
-    "CIAK MASTER 200"
-  ],
+  "Malaguti": ["SPIDER MAXGT 500", "CIAK MASTER 200"],
   "Maserati": [
     "Ghibli 2.0 V6",
     "3200 GT Cupê",
@@ -7347,10 +7130,7 @@
     "eSprinter 420 FURGÃO Ex.Longa (Elétrico)",
     "260-E 2.6"
   ],
-  "Mercury": [
-    "Mystique GS 2.5 V6 Mec.",
-    "Sable LS 3.0 V6"
-  ],
+  "Mercury": ["Mystique GS 2.5 V6 Mec.", "Sable LS 3.0 V6"],
   "Mitsubishi": [
     "OUTLANDER 2.0 16V 4x4 Aut. (Híbrido)",
     "OUTLANDER 2.4 16V 170cv Aut.",
@@ -7568,13 +7348,8 @@
     "OUTLANDER 2.0 16V 160cv Aut.",
     "OUTLANDER 2.2 165cv Diesel Aut."
   ],
-  "Miura": [
-    "Picape BG-Truck CD Turbo Diesel"
-  ],
-  "Mobílli": [
-    "GW12B",
-    "GW12"
-  ],
+  "Miura": ["Picape BG-Truck CD Turbo Diesel"],
+  "Mobílli": ["GW12B", "GW12"],
   "NAVISTAR": [
     "DURASTAR 4400 6x4 2p (diesel)",
     "DURASTAR 4400 6x2 2p (diesel)(E5)",
@@ -7615,11 +7390,7 @@
     "X 500 Luxury Aut. (Elétrico)",
     "X 500 Comfort Aut. (Elétrico)"
   ],
-  "NIU": [
-    "UQI GT 1200W (Elétrica)",
-    "NQI Sport 1500W (Elétrica)",
-    "NQI GTS 3000W (Elétrica)"
-  ],
+  "NIU": ["UQI GT 1200W (Elétrica)", "NQI Sport 1500W (Elétrica)", "NQI GTS 3000W (Elétrica)"],
   "Nissan": [
     "MARCH SL 1.6 16V FlexStart 5p Aut.",
     "MARCH SL 1.6 16V Flex Fuel 5p",
@@ -7816,20 +7587,9 @@
     "Frontier S CD 4x4 2.3 TB Diesel Mec.",
     "Frontier S CD 4x2 2.5 TB Diesel"
   ],
-  "ORCA": [
-    "JC 125",
-    "AX 100-A",
-    "AX 100",
-    "QM 50",
-    "JC 125-8",
-    "JC 125-2"
-  ],
-  "Omoda": [
-    "E5 (Elétrico)"
-  ],
-  "PEGASSI": [
-    "BR III 150CC"
-  ],
+  "ORCA": ["JC 125", "AX 100-A", "AX 100", "QM 50", "JC 125-8", "JC 125-2"],
+  "Omoda": ["E5 (Elétrico)"],
+  "PEGASSI": ["BR III 150CC"],
   "PEUGEOT": [
     "VIVACITY 50",
     "ZENITH 50",
@@ -8211,14 +7971,8 @@
     "106 Passion 1.0 3p",
     "106 KID 1.0"
   ],
-  "Plymouth": [
-    "Gran Voyager LE 2.5",
-    "Sundance 2.5"
-  ],
-  "Pontiac": [
-    "Trans-AM 5.7 V8",
-    "Trans-Sport SE 3.1"
-  ],
+  "Plymouth": ["Gran Voyager LE 2.5", "Sundance 2.5"],
+  "Pontiac": ["Trans-AM 5.7 V8", "Trans-Sport SE 3.1"],
   "Porsche": [
     "Boxster Tiptronic",
     "Taycan Turbo S (Elétrico)",
@@ -8423,12 +8177,7 @@
     "3500 LIMITED LONGHORN 6.7 TB CD Diesel",
     "RAMPAGE REBEL IGNIT. 2.0 TB CD 4X4 Aut."
   ],
-  "REGAL RAPTOR": [
-    "GHOST 270/320",
-    "SPYDER 320",
-    "BLACK JACK 320",
-    "FENIX GOLD 240"
-  ],
+  "REGAL RAPTOR": ["GHOST 270/320", "SPYDER 320", "BLACK JACK 320", "FENIX GOLD 240"],
   "RELY": [
     "VAN Q22 1.0 5p",
     "PICK-UP Q22D CS 1.0 2p",
@@ -8798,9 +8547,7 @@
     "Ghost 6.7 V12 Aut.",
     "Ghost 6.6 V12 Aut."
   ],
-  "Rover": [
-    "Mini Cooper 1.3"
-  ],
+  "Rover": ["Mini Cooper 1.3"],
   "Royal Enfield": [
     "Hunter 350 Dapper",
     "Himalayan Sleet 411 EFI",
@@ -8906,11 +8653,7 @@
     "T-142 ES 450 6x4 2p (diesel)",
     "T-142 EW 450 6x4 2p (diesel)"
   ],
-  "SANYANG": [
-    "HUSKY 150",
-    "ENJOY 50",
-    "PASSING 110"
-  ],
+  "SANYANG": ["HUSKY 150", "ENJOY 50", "PASSING 110"],
   "SCANIA": [
     "G-440 B 8x4 2p (diesel)",
     "G-450 A 4x2 2p (diesel)(E5)",
@@ -9337,10 +9080,7 @@
     "G-440 B 6x4 2p (diesel) (E5)",
     "G-440 B 8x4 2p (diesel) (E5)"
   ],
-  "SERES": [
-    "SERES 5 BEV (Elétrico)",
-    "SERES 3 BEV (Elétrico)"
-  ],
+  "SERES": ["SERES 5 BEV (Elétrico)", "SERES 3 BEV (Elétrico)"],
   "SHACMAN": [
     "TT 385 4x2 2p (diesel)(E5)",
     "LT 385 6x4 2p (diesel)(E5)",
@@ -9416,9 +9156,7 @@
     "SE-2 2300W (Elétrica)",
     "SHE-S 3000W (Elétrica)"
   ],
-  "SIAMOTO": [
-    "SCROSS 50cc"
-  ],
+  "SIAMOTO": ["SCROSS 50cc"],
   "SINOTRUK": [
     "HOWO 380 A7 4x2 2p (diesel)(E5)",
     "HOWO 380 8x4 2p (diesel)",
@@ -9588,12 +9326,8 @@
     "GSX 1100 F",
     "GSX 650F"
   ],
-  "Saab": [
-    "9000 CD 2.3 Turbo"
-  ],
-  "Saturn": [
-    "SL-2 1.9"
-  ],
+  "Saab": ["9000 CD 2.3 Turbo"],
+  "Saturn": ["SL-2 1.9"],
   "Seat": [
     "Cordoba 1.6L",
     "Cordoba SXE 1.8 / GLX 1.8 4p",
@@ -9754,13 +9488,8 @@
     "SX4 S-CROSS GLX 1.6 16V Aut.",
     "Vitara 4ALL 1.6 16V Aut."
   ],
-  "TAC": [
-    "Stark 2.3 4WD 127cv TDI Diesel 3p"
-  ],
-  "TARGOS": [
-    "TRIMOTO 125cc Picape Baú",
-    "TRIMOTO 125cc Picape"
-  ],
+  "TAC": ["Stark 2.3 4WD 127cv TDI Diesel 3p"],
+  "TARGOS": ["TRIMOTO 125cc Picape Baú", "TRIMOTO 125cc Picape"],
   "TIGER": [
     "Triciclo TC Cargo Plataforma",
     "Trciclo TC Cargo Chassi",
@@ -10145,11 +9874,7 @@
     "T-4 Connect 4x4 3.2 Tdi Cap.Rig. Diesel",
     "T-4 Connect 4x4 3.2 Tdi Cap.Rig.Die.Aut."
   ],
-  "VENTO": [
-    "VTHUNDER 250",
-    "TRITON Li 150",
-    "REBELLIAN 250"
-  ],
+  "VENTO": ["VTHUNDER 250", "TRITON Li 150", "REBELLIAN 250"],
   "VESPA": [
     "Primavera 150",
     "SXL 150",
@@ -10368,11 +10093,7 @@
     "Meteor 29.520 6x4 2p (diesel)(E5)",
     "Meteor 29.530 6x4 2p (diesel)(E6)"
   ],
-  "VOLTZ": [
-    "EV01 1800W (Elétrica)",
-    "EV1 Sport 3000W (elétrica)",
-    "EVS 3000W (elétrica)"
-  ],
+  "VOLTZ": ["EV01 1800W (Elétrica)", "EV1 Sport 3000W (elétrica)", "EVS 3000W (elétrica)"],
   "VOLVO": [
     "FH-460 4x2 2p (diesel) (E5)",
     "FH-420 GLOBETROTTER XL 8X2 (diesel) (E6)",
@@ -11395,9 +11116,7 @@
     "Cross TSI 1.0 TB 12V Flex Mec.",
     "Cross W 1.0 12V Flex Mec."
   ],
-  "Walk": [
-    "Buggy Walk Sport 1.6 8V 58cv"
-  ],
+  "Walk": ["Buggy Walk Sport 1.6 8V 58cv"],
   "YAMAHA": [
     "MT-01 1.670cc",
     "MT-03 321 ABS Homem de Ferro",
@@ -11551,23 +11270,8 @@
     "001 Premium AWD (Elétrico)",
     "001 Flagship AWD (Elétrico)"
   ],
-  "ZONTES": [
-    "GK 350",
-    "E 350",
-    "R 350",
-    "V 310",
-    "T 350",
-    "T 310",
-    "T 350 X",
-    "S 350",
-    "V 350",
-    "R 310"
-  ],
-  "byCristo": [
-    "Triciclo Star II / Top",
-    "Triciclo Star I / Sport",
-    "Triciclo Star II Top / Super Top/Flex"
-  ],
+  "ZONTES": ["GK 350", "E 350", "R 350", "V 310", "T 350", "T 310", "T 350 X", "S 350", "V 350", "R 310"],
+  "byCristo": ["Triciclo Star II / Top", "Triciclo Star I / Sport", "Triciclo Star II Top / Super Top/Flex"],
   "smart": [
     "fortwo BRABUS Coupe 1.0 72kw",
     "fortwo passion coupé 1.0 62kw",
