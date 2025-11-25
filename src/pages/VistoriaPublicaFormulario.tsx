@@ -13,9 +13,8 @@ import { ArrowRight, ArrowLeft, User, Calendar, FileText, AlertCircle, CheckCirc
 import { Progress } from "@/components/ui/progress";
 import SketchPad from "@/components/SketchPad";
 import { validateCPF, validatePhone } from "@/lib/validators";
-import { useVeiculos } from "@/hooks/useVeiculos";
 import { VehicleTypeSelector } from "@/components/VehicleTypeSelector";
-import { SearchableVehicleSelect } from "@/components/SearchableVehicleSelect";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const STEPS = [
   { id: 0, title: "Dados Pessoais", icon: User, description: "Informações do segurado" },
@@ -24,6 +23,28 @@ const STEPS = [
   { id: 3, title: "Documentos", icon: FileText, description: "Anexos necessários" },
   { id: 4, title: "Croqui", icon: MapPin, description: "Desenho do acidente" },
 ];
+
+// helper para mapear o tipo de veículo em código numérico
+const getTipoCodigo = (vehicleType: string): number | null => {
+  switch (vehicleType) {
+    case "carro":
+    case "CARRO":
+    case "1":
+      return 1;
+    case "moto":
+    case "MOTO":
+    case "2":
+      return 2;
+    case "caminhao":
+    case "caminhão":
+    case "CAMINHAO":
+    case "CAMINHÃO":
+    case "3":
+      return 3;
+    default:
+      return null;
+  }
+};
 
 export default function VistoriaPublicaFormulario() {
   const { token } = useParams();
@@ -62,8 +83,10 @@ export default function VistoriaPublicaFormulario() {
     policia_foi_local: false,
   });
 
-  const { marcas, modelos, marcaSelecionada, setMarcaSelecionada } = useVeiculos();
+  // novo estado para tipo de veículo e listas de marcas/modelos
   const [vehicleType, setVehicleType] = useState<string>("");
+  const [marcas, setMarcas] = useState<string[]>([]);
+  const [modelos, setModelos] = useState<string[]>([]);
 
   const [boFile, setBoFile] = useState<File | null>(null);
   const [laudoMedico, setLaudoMedico] = useState<File | null>(null);
@@ -107,11 +130,6 @@ export default function VistoriaPublicaFormulario() {
         veiculo_modelo: data.vehicleData.modelo || "",
         veiculo_ano: data.vehicleData.ano || "",
       }));
-
-      // Se tiver marca nos dados do veículo, selecionar no hook
-      if (data.vehicleData.marca) {
-        setMarcaSelecionada(data.vehicleData.marca);
-      }
     }
   };
 
@@ -187,6 +205,87 @@ export default function VistoriaPublicaFormulario() {
       placa_terceiro: value,
     }));
   };
+
+  // quando trocar o tipo de veículo, resetar marca/modelo e carregar novas marcas
+  const handleVehicleTypeChange = (value: string) => {
+    setVehicleType(value);
+    setFormData((prev) => ({
+      ...prev,
+      veiculo_marca: "",
+      veiculo_modelo: "",
+    }));
+    setMarcas([]);
+    setModelos([]);
+  };
+
+  // carregar MARCAS do Supabase conforme tipo (1,2,3)
+  useEffect(() => {
+    const loadMarcas = async () => {
+      const tipoCodigo = getTipoCodigo(vehicleType);
+      if (!tipoCodigo) {
+        setMarcas([]);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("veiculos") // ajuste o nome da tabela se for diferente
+          .select("marca", { distinct: true })
+          .eq("tipo", tipoCodigo)
+          .order("marca", { ascending: true });
+
+        if (error) {
+          console.error("Erro ao carregar marcas:", error);
+          toast.error("Não foi possível carregar as marcas");
+          return;
+        }
+
+        const listaMarcas = (data || []).map((item: any) => item.marca).filter(Boolean);
+
+        setMarcas(listaMarcas);
+      } catch (err) {
+        console.error("Erro inesperado ao carregar marcas:", err);
+        toast.error("Erro inesperado ao carregar as marcas");
+      }
+    };
+
+    loadMarcas();
+  }, [vehicleType]);
+
+  // carregar MODELOS do Supabase conforme tipo + marca
+  useEffect(() => {
+    const loadModelos = async () => {
+      const tipoCodigo = getTipoCodigo(vehicleType);
+      if (!tipoCodigo || !formData.veiculo_marca) {
+        setModelos([]);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("veiculos") // ajuste o nome da tabela se for diferente
+          .select("modelo", { distinct: true })
+          .eq("tipo", tipoCodigo)
+          .eq("marca", formData.veiculo_marca)
+          .order("modelo", { ascending: true });
+
+        if (error) {
+          console.error("Erro ao carregar modelos:", error);
+          toast.error("Não foi possível carregar os modelos");
+          return;
+        }
+
+        const listaModelos = (data || []).map((item: any) => item.modelo).filter(Boolean);
+
+        setModelos(listaModelos);
+      } catch (err) {
+        console.error("Erro inesperado ao carregar modelos:", err);
+        toast.error("Erro inesperado ao carregar os modelos");
+      }
+    };
+
+    loadModelos();
+  }, [vehicleType, formData.veiculo_marca]);
 
   const handleSubmit = async () => {
     const camposObrigatorios: string[] = [];
@@ -578,31 +677,79 @@ export default function VistoriaPublicaFormulario() {
                   />
                 </div>
 
-                <VehicleTypeSelector value={vehicleType} onChange={setVehicleType} />
+                <VehicleTypeSelector value={vehicleType} onChange={handleVehicleTypeChange} />
 
                 <div className="grid sm:grid-cols-3 gap-4">
-                  <SearchableVehicleSelect
-                    label="Marca *"
-                    value={formData.veiculo_marca}
-                    options={marcas}
-                    vehicleType={vehicleType as any}
-                    onChange={(value) => {
-                      setFormData({ ...formData, veiculo_marca: value, veiculo_modelo: "" });
-                      setMarcaSelecionada(value);
-                    }}
-                    placeholder="Selecione ou pesquise a marca"
-                    disabled={!vehicleType}
-                  />
+                  {/* Marca */}
+                  <div>
+                    <Label className="text-base font-semibold">Marca *</Label>
+                    <Select
+                      disabled={!vehicleType || marcas.length === 0}
+                      value={formData.veiculo_marca || undefined}
+                      onValueChange={(value) => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          veiculo_marca: value,
+                          veiculo_modelo: "",
+                        }));
+                      }}
+                    >
+                      <SelectTrigger className="mt-2 h-12">
+                        <SelectValue
+                          placeholder={
+                            !vehicleType
+                              ? "Selecione o tipo de veículo"
+                              : marcas.length === 0
+                                ? "Nenhuma marca encontrada"
+                                : "Selecione a marca"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {marcas.map((marca) => (
+                          <SelectItem key={marca} value={marca}>
+                            {marca}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  <SearchableVehicleSelect
-                    label="Modelo *"
-                    value={formData.veiculo_modelo}
-                    options={modelos}
-                    onChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
-                    placeholder={marcaSelecionada ? "Selecione ou pesquise o modelo" : "Selecione a marca primeiro"}
-                    disabled={!marcaSelecionada}
-                  />
+                  {/* Modelo */}
+                  <div>
+                    <Label className="text-base font-semibold">Modelo *</Label>
+                    <Select
+                      disabled={!formData.veiculo_marca || modelos.length === 0}
+                      value={formData.veiculo_modelo || undefined}
+                      onValueChange={(value) => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          veiculo_modelo: value,
+                        }));
+                      }}
+                    >
+                      <SelectTrigger className="mt-2 h-12">
+                        <SelectValue
+                          placeholder={
+                            !formData.veiculo_marca
+                              ? "Selecione a marca primeiro"
+                              : modelos.length === 0
+                                ? "Nenhum modelo encontrado"
+                                : "Selecione o modelo"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {modelos.map((modelo) => (
+                          <SelectItem key={modelo} value={modelo}>
+                            {modelo}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
+                  {/* Ano */}
                   <div>
                     <Label className="text-base font-semibold">Ano</Label>
                     <Input
