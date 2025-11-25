@@ -39,7 +39,7 @@ export function VehicleTypeSelector({ value, onChange }: VehicleTypeSelectorProp
             className="flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all"
           >
             <Truck className="mb-2 h-6 w-6" />
-            <span className="text-sm font-medium">Caminhão</span>
+            <span className="text-sm font-medium">Caminhão / Ônibus</span>
           </Label>
         </div>
       </RadioGroup>
