@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { MaskedInput } from "@/components/ui/masked-input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, User, Calendar, FileText, AlertCircle, CheckCircle, MapPin, Clock } from "lucide-react";
@@ -15,6 +14,8 @@ import { Progress } from "@/components/ui/progress";
 import SketchPad from "@/components/SketchPad";
 import { validateCPF, validatePhone } from "@/lib/validators";
 import { useVeiculos } from "@/hooks/useVeiculos";
+import { VehicleTypeSelector } from "@/components/VehicleTypeSelector";
+import { SearchableVehicleSelect } from "@/components/SearchableVehicleSelect";
 
 const STEPS = [
   { id: 0, title: "Dados Pessoais", icon: User, description: "Informações do segurado" },
@@ -62,6 +63,7 @@ export default function VistoriaPublicaFormulario() {
   });
 
   const { marcas, modelos, marcaSelecionada, setMarcaSelecionada } = useVeiculos();
+  const [vehicleType, setVehicleType] = useState<string>("");
 
   const [boFile, setBoFile] = useState<File | null>(null);
   const [laudoMedico, setLaudoMedico] = useState<File | null>(null);
@@ -576,48 +578,31 @@ export default function VistoriaPublicaFormulario() {
                   />
                 </div>
 
-                <div className="grid sm:grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-base font-semibold">Marca</Label>
-                    <Select
-                      value={formData.veiculo_marca}
-                      onValueChange={(value) => {
-                        setFormData({ ...formData, veiculo_marca: value, veiculo_modelo: "" });
-                        setMarcaSelecionada(value);
-                      }}
-                    >
-                      <SelectTrigger className="mt-2 h-12">
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {marcas.map((marca) => (
-                          <SelectItem key={marca} value={marca}>
-                            {marca}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
 
-                  <div>
-                    <Label className="text-base font-semibold">Modelo</Label>
-                    <Select
-                      value={formData.veiculo_modelo}
-                      onValueChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
-                      disabled={!marcaSelecionada}
-                    >
-                      <SelectTrigger className="mt-2 h-12">
-                        <SelectValue placeholder={marcaSelecionada ? "Selecione" : "Selecione marca primeiro"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {modelos.map((modelo) => (
-                          <SelectItem key={modelo} value={modelo}>
-                            {modelo}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <VehicleTypeSelector value={vehicleType} onChange={setVehicleType} />
+
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <SearchableVehicleSelect
+                    label="Marca *"
+                    value={formData.veiculo_marca}
+                    options={marcas}
+                    vehicleType={vehicleType}
+                    onChange={(value) => {
+                      setFormData({ ...formData, veiculo_marca: value, veiculo_modelo: "" });
+                      setMarcaSelecionada(value);
+                    }}
+                    placeholder="Digite 3+ letras"
+                    disabled={!vehicleType}
+                  />
+
+                  <SearchableVehicleSelect
+                    label="Modelo *"
+                    value={formData.veiculo_modelo}
+                    options={modelos}
+                    onChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
+                    placeholder={marcaSelecionada ? "Digite 3+ letras" : "Selecione marca primeiro"}
+                    disabled={!marcaSelecionada}
+                  />
 
                   <div>
                     <Label className="text-base font-semibold">Ano</Label>
