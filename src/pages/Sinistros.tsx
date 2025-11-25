@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -26,6 +28,9 @@ import {
   Filter,
   XCircle,
   Activity,
+  Wrench,
+  Users,
+  Handshake,
 } from "lucide-react";
 import { ClaimCard, Claim } from "@/components/ClaimCard";
 import { useAuth } from "@/hooks/useAuth";
@@ -47,7 +52,6 @@ import {
   AreaChart,
   Area,
 } from "recharts";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const COLORS = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6"];
 
@@ -94,20 +98,6 @@ export default function Sinistros() {
   const [selectedCorretora, setSelectedCorretora] = useState("all");
   const [corretoras, setCorretoras] = useState<any[]>([]);
 
-  // Edição de custos (sinistro)
-  const [editingClaim, setEditingClaim] = useState<Claim | null>(null);
-  const [editingCosts, setEditingCosts] = useState({
-    custo_oficina: "",
-    custo_reparo: "",
-    custo_acordo: "",
-    custo_terceiros: "",
-    custo_perda_total: "",
-    custo_perda_parcial: "",
-    valor_franquia: "",
-    valor_indenizacao: "",
-  });
-  const [savingCosts, setSavingCosts] = useState(false);
-
   // Vistorias filtro
   const [vistoriaSearchTerm, setVistoriaSearchTerm] = useState("");
 
@@ -119,6 +109,18 @@ export default function Sinistros() {
   const [dashboardCorretoras, setDashboardCorretoras] = useState<any[]>([]);
   const [selectedDashboardCorretora, setSelectedDashboardCorretora] = useState("all");
   const [timelineData, setTimelineData] = useState<any[]>([]);
+
+  // Edição de custos (sinistro / vistoria)
+  const [editingClaim, setEditingClaim] = useState<Claim | null>(null);
+  const [editingValues, setEditingValues] = useState({
+    custo_oficina: "",
+    custo_reparo: "",
+    custo_acordo: "",
+    custo_terceiros: "",
+    custo_perda_total: "",
+    custo_perda_parcial: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     if (activeTab === "vistorias") {
@@ -192,6 +194,7 @@ export default function Sinistros() {
         .from("vistorias")
         .select(
           `
+          id,
           atendimento_id,
           veiculo_placa,
           custo_oficina,
@@ -251,9 +254,10 @@ export default function Sinistros() {
             custo_perda_parcial: vistoria?.custo_perda_parcial,
             valor_franquia: vistoria?.valor_franquia,
             valor_indenizacao: vistoria?.valor_indenizacao,
+            vistoria_id: vistoria?.id,
             timeline,
             corretoraInfo: atendimento.corretoras,
-          };
+          } as any;
         });
 
       setClaims(claimsWithTimeline);
@@ -277,22 +281,31 @@ export default function Sinistros() {
       const { data: vistoriasData } = await query;
       if (!vistoriasData) return;
 
-      const custoOficinas = vistoriasData.reduce((sum, v) => sum + (Number(v.custo_oficina) || 0), 0);
-      const custoReparos = vistoriasData.reduce((sum, v) => sum + (Number(v.custo_reparo) || 0), 0);
-      const custoAcordos = vistoriasData.reduce((sum, v) => sum + (Number(v.custo_acordo) || 0), 0);
-      const custoTerceiros = vistoriasData.reduce((sum, v) => sum + (Number(v.custo_terceiros) || 0), 0);
-      const custoPerdaTotal = vistoriasData.reduce((sum, v) => sum + (Number(v.custo_perda_total) || 0), 0);
-      const custoPerdaParcial = vistoriasData.reduce((sum, v) => sum + (Number(v.custo_perda_parcial) || 0), 0);
+      let custoOficinas = 0;
+      let custoReparos = 0;
+      let custoAcordos = 0;
+      let custoTerceiros = 0;
+      let custoPerdaTotal = 0;
+      let custoPerdaParcial = 0;
+
+      vistoriasData.forEach((v: any) => {
+        custoOficinas += Number(v.custo_oficina) || 0;
+        custoReparos += Number(v.custo_reparo) || 0;
+        custoAcordos += Number(v.custo_acordo) || 0;
+        custoTerceiros += Number(v.custo_terceiros) || 0;
+        custoPerdaTotal += Number(v.custo_perda_total) || 0;
+        custoPerdaParcial += Number(v.custo_perda_parcial) || 0;
+      });
 
       const custoTotal =
         custoOficinas + custoReparos + custoAcordos + custoTerceiros + custoPerdaTotal + custoPerdaParcial;
 
       setDashboardStats({
         total: vistoriasData.length,
-        aguardando: vistoriasData.filter((v) => v.status === "aguardando_fotos").length,
-        analise: vistoriasData.filter((v) => v.status === "em_analise").length,
-        concluidas: vistoriasData.filter((v) => v.status === "concluida").length,
-        canceladas: vistoriasData.filter((v) => v.status === "cancelada").length,
+        aguardando: vistoriasData.filter((v: any) => v.status === "aguardando_fotos").length,
+        analise: vistoriasData.filter((v: any) => v.status === "em_analise").length,
+        concluidas: vistoriasData.filter((v: any) => v.status === "concluida").length,
+        canceladas: vistoriasData.filter((v: any) => v.status === "cancelada").length,
         custoTotal,
         custoMedio: vistoriasData.length > 0 ? custoTotal / vistoriasData.length : 0,
         custoOficinas,
@@ -304,15 +317,15 @@ export default function Sinistros() {
       });
 
       setStatusData([
-        { name: "Aguardando", value: vistoriasData.filter((v) => v.status === "aguardando_fotos").length },
-        { name: "Em Análise", value: vistoriasData.filter((v) => v.status === "em_analise").length },
-        { name: "Concluídas", value: vistoriasData.filter((v) => v.status === "concluida").length },
-        { name: "Canceladas", value: vistoriasData.filter((v) => v.status === "cancelada").length },
+        { name: "Aguardando", value: vistoriasData.filter((v: any) => v.status === "aguardando_fotos").length },
+        { name: "Em Análise", value: vistoriasData.filter((v: any) => v.status === "em_analise").length },
+        { name: "Concluídas", value: vistoriasData.filter((v: any) => v.status === "concluida").length },
+        { name: "Canceladas", value: vistoriasData.filter((v: any) => v.status === "cancelada").length },
       ]);
 
       const tipos: any = {};
-      vistoriasData.forEach((v) => {
-        const tipo = (v as any).tipo_sinistro || "Não especificado";
+      vistoriasData.forEach((v: any) => {
+        const tipo = v.tipo_sinistro || "Não especificado";
         if (!tipos[tipo]) tipos[tipo] = { count: 0, custo: 0 };
         tipos[tipo].count++;
         tipos[tipo].custo += (Number(v.custo_oficina) || 0) + (Number(v.custo_reparo) || 0);
@@ -332,7 +345,7 @@ export default function Sinistros() {
 
       if (atendimentosData) {
         const fluxos: any = {};
-        atendimentosData.forEach((a: any) => {
+        (atendimentosData as any[]).forEach((a) => {
           const fluxoNome = a.fluxos?.nome || "Sem fluxo";
           if (!fluxos[fluxoNome]) fluxos[fluxoNome] = 0;
           fluxos[fluxoNome]++;
@@ -341,7 +354,7 @@ export default function Sinistros() {
       }
 
       const timelineMap: any = {};
-      vistoriasData.forEach((v) => {
+      vistoriasData.forEach((v: any) => {
         const month = format(new Date(v.created_at), "MMM/yy", { locale: ptBR });
         if (!timelineMap[month]) {
           timelineMap[month] = { month, total: 0, custos: 0 };
@@ -351,9 +364,7 @@ export default function Sinistros() {
           (Number(v.custo_oficina) || 0) +
           (Number(v.custo_reparo) || 0) +
           (Number(v.custo_acordo) || 0) +
-          (Number(v.custo_terceiros) || 0) +
-          (Number(v.custo_perda_total) || 0) +
-          (Number(v.custo_perda_parcial) || 0);
+          (Number(v.custo_terceiros) || 0);
       });
       setTimelineData(Object.values(timelineMap).slice(-6));
     } catch (error) {
@@ -387,7 +398,7 @@ export default function Sinistros() {
   };
 
   const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 
   const filteredClaims = claims.filter((claim) => {
     const matchesStatus = selectedStatus === "all" || claim.status === selectedStatus;
@@ -444,7 +455,7 @@ export default function Sinistros() {
     setSelectedStatus("all");
     setSelectedCorretora("all");
 
-    const claim = claims.find((c) => c.id === vistoria.atendimento_id);
+    const claim = claims.find((c: any) => c.id === vistoria.atendimento_id);
     if (claim) {
       setSearchTerm(claim.numero.toString());
     } else {
@@ -452,69 +463,80 @@ export default function Sinistros() {
     }
   };
 
-  // ----- HEADER DE SINISTROS (Acompanhamento) -----
-  const getSinistrosCountByStatus = (statusName?: string) => {
-    if (!statusName) return 0;
-    return claims.filter((c) => c.status === statusName).length;
-  };
+  const normalizeStatus = (status?: string | null) => (status || "").toString().toLowerCase();
 
-  const primaryStatus = statusConfigs[0]?.nome;
-  const secondaryStatus = statusConfigs[1]?.nome;
-  const tertiaryStatus = statusConfigs[2]?.nome;
+  const totalSinistros = claims.length;
+  const sinistrosConcluidos = claims.filter((c: any) => normalizeStatus(c.status).includes("conclu")).length;
+  const sinistrosCancelados = claims.filter((c: any) => normalizeStatus(c.status).includes("cancel")).length;
+  const sinistrosEmAndamento = totalSinistros - sinistrosConcluidos - sinistrosCancelados;
 
-  // ----- EDIÇÃO DE CUSTOS -----
-  const parseNumber = (value: string) => {
-    if (!value) return null;
-    const normalized = value.replace(".", "").replace(",", ".");
-    const num = Number(normalized);
-    return Number.isNaN(num) ? null : num;
-  };
-
-  const handleOpenEditCosts = (claim: Claim) => {
+  const handleOpenEditClaim = (claim: Claim) => {
     setEditingClaim(claim);
-    setEditingCosts({
+    setEditingValues({
       custo_oficina: claim.custo_oficina != null ? String(claim.custo_oficina).replace(".", ",") : "",
       custo_reparo: claim.custo_reparo != null ? String(claim.custo_reparo).replace(".", ",") : "",
       custo_acordo: claim.custo_acordo != null ? String(claim.custo_acordo).replace(".", ",") : "",
       custo_terceiros: claim.custo_terceiros != null ? String(claim.custo_terceiros).replace(".", ",") : "",
       custo_perda_total: claim.custo_perda_total != null ? String(claim.custo_perda_total).replace(".", ",") : "",
       custo_perda_parcial: claim.custo_perda_parcial != null ? String(claim.custo_perda_parcial).replace(".", ",") : "",
-      valor_franquia: claim.valor_franquia != null ? String(claim.valor_franquia).replace(".", ",") : "",
-      valor_indenizacao: claim.valor_indenizacao != null ? String(claim.valor_indenizacao).replace(".", ",") : "",
     });
   };
 
-  const handleSaveCosts = async () => {
-    if (!editingClaim) return;
+  const parseCurrencyToNumber = (value: string) => {
+    const cleaned = value.replace(/\./g, "").replace(",", ".");
+    const num = Number(cleaned);
+    return isNaN(num) ? 0 : num;
+  };
+
+  const handleSaveEditClaim = async () => {
+    if (!editingClaim || !(editingClaim as any).vistoria_id) {
+      toast.error("Não foi possível identificar a vistoria vinculada a este sinistro.");
+      return;
+    }
+
+    const vistoriaId = (editingClaim as any).vistoria_id as string;
+
+    const payload: any = {};
+    if (editingValues.custo_oficina.trim() !== "") {
+      payload.custo_oficina = parseCurrencyToNumber(editingValues.custo_oficina);
+    }
+    if (editingValues.custo_reparo.trim() !== "") {
+      payload.custo_reparo = parseCurrencyToNumber(editingValues.custo_reparo);
+    }
+    if (editingValues.custo_acordo.trim() !== "") {
+      payload.custo_acordo = parseCurrencyToNumber(editingValues.custo_acordo);
+    }
+    if (editingValues.custo_terceiros.trim() !== "") {
+      payload.custo_terceiros = parseCurrencyToNumber(editingValues.custo_terceiros);
+    }
+    if (editingValues.custo_perda_total.trim() !== "") {
+      payload.custo_perda_total = parseCurrencyToNumber(editingValues.custo_perda_total);
+    }
+    if (editingValues.custo_perda_parcial.trim() !== "") {
+      payload.custo_perda_parcial = parseCurrencyToNumber(editingValues.custo_perda_parcial);
+    }
+
+    if (Object.keys(payload).length === 0) {
+      toast.error("Informe ao menos um valor para atualizar.");
+      return;
+    }
 
     try {
-      setSavingCosts(true);
-
-      const payload = {
-        custo_oficina: parseNumber(editingCosts.custo_oficina),
-        custo_reparo: parseNumber(editingCosts.custo_reparo),
-        custo_acordo: parseNumber(editingCosts.custo_acordo),
-        custo_terceiros: parseNumber(editingCosts.custo_terceiros),
-        custo_perda_total: parseNumber(editingCosts.custo_perda_total),
-        custo_perda_parcial: parseNumber(editingCosts.custo_perda_parcial),
-        valor_franquia: parseNumber(editingCosts.valor_franquia),
-        valor_indenizacao: parseNumber(editingCosts.valor_indenizacao),
-      };
-
-      const { error } = await supabase.from("vistorias").update(payload).eq("atendimento_id", editingClaim.id);
+      setSavingEdit(true);
+      const { error } = await supabase.from("vistorias").update(payload).eq("id", vistoriaId);
 
       if (error) throw error;
 
-      toast.success("Custos do sinistro atualizados com sucesso.");
+      toast.success("Custos atualizados com sucesso.");
       setEditingClaim(null);
 
-      // Recarrega dados para refletir nos cards/tabelas
+      // Recarrega dados para refletir nos cards, acompanhamento e dashboard
       await Promise.all([loadAcompanhamento(), loadDashboard(), loadVistorias()]);
     } catch (error) {
-      console.error("Erro ao salvar custos:", error);
-      toast.error("Erro ao salvar custos do sinistro.");
+      console.error("Erro ao atualizar custos:", error);
+      toast.error("Erro ao atualizar custos da vistoria.");
     } finally {
-      setSavingCosts(false);
+      setSavingEdit(false);
     }
   };
 
@@ -588,7 +610,7 @@ export default function Sinistros() {
           {/* ACOMPANHAMENTO TAB */}
           {activeTab === "acompanhamento" && (
             <div className="space-y-6">
-              {/* Header de informações (sinistros) */}
+              {/* Header com informações de sinistros */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
@@ -598,47 +620,47 @@ export default function Sinistros() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold">{claims.length}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Registros de sinistros</p>
+                    <div className="text-3xl font-bold">{totalSinistros}</div>
+                    <p className="text-xs text-muted-foreground mt-1">Registros totais</p>
                   </CardContent>
                 </Card>
 
                 <Card className="border-l-4 border-l-yellow-500 shadow-sm hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      <span className="text-muted-foreground">{primaryStatus ? primaryStatus : "Status 1"}</span>
+                      <span className="text-muted-foreground">Em andamento</span>
                       <Clock className="h-5 w-5 text-yellow-500" />
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold">{getSinistrosCountByStatus(primaryStatus)}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Quantidade neste status</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      <span className="text-muted-foreground">{secondaryStatus ? secondaryStatus : "Status 2"}</span>
-                      <Activity className="h-5 w-5 text-blue-500" />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{getSinistrosCountByStatus(secondaryStatus)}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Quantidade neste status</p>
+                    <div className="text-3xl font-bold">{sinistrosEmAndamento}</div>
+                    <p className="text-xs text-muted-foreground mt-1">Em análise / em fluxo</p>
                   </CardContent>
                 </Card>
 
                 <Card className="border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      <span className="text-muted-foreground">{tertiaryStatus ? tertiaryStatus : "Status 3"}</span>
+                      <span className="text-muted-foreground">Concluídos</span>
                       <CheckCircle2 className="h-5 w-5 text-green-500" />
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold">{getSinistrosCountByStatus(tertiaryStatus)}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Quantidade neste status</p>
+                    <div className="text-3xl font-bold">{sinistrosConcluidos}</div>
+                    <p className="text-xs text-muted-foreground mt-1">Sinistros finalizados</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-red-500 shadow-sm hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center justify-between">
+                      <span className="text-muted-foreground">Cancelados</span>
+                      <XCircle className="h-5 w-5 text-red-500" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{sinistrosCancelados}</div>
+                    <p className="text-xs text-muted-foreground mt-1">Cancelados / encerrados</p>
                   </CardContent>
                 </Card>
               </div>
@@ -693,7 +715,7 @@ export default function Sinistros() {
               {/* Lista de Claims */}
               <div className="space-y-4">
                 {filteredClaims.map((claim) => (
-                  <ClaimCard key={claim.id} claim={claim} onEdit={() => handleOpenEditCosts(claim)} />
+                  <ClaimCard key={claim.id} claim={claim} onEdit={() => handleOpenEditClaim(claim)} />
                 ))}
                 {filteredClaims.length === 0 && (
                   <Card>
@@ -903,26 +925,27 @@ export default function Sinistros() {
                 </CardContent>
               </Card>
 
-              {/* Cards de indicadores de status + custos */}
-              <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
-                {/* Status */}
+              {/* Cards de Métricas */}
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {/* TOTAL */}
                 <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400 text-base">
-                      <FileText className="h-4 w-4" />
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                      <BarChart3 className="h-5 w-5" />
                       Total
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-3xl font-bold">{dashboardStats.total || 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Vistorias registradas</p>
+                    <p className="text-xs text-muted-foreground mt-1">Total de vistorias</p>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100/50 dark:from-yellow-950/30 dark:to-yellow-900/20 border-yellow-200 dark:border-yellow-800">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400 text-base">
-                      <Clock className="h-4 w-4" />
+                {/* AGUARDANDO */}
+                <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100/50 dark:from-yellow-950/20 dark:to-yellow-900/10 border-yellow-200 dark:border-yellow-800">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
+                      <Clock className="h-5 w-5" />
                       Aguardando
                     </CardTitle>
                   </CardHeader>
@@ -932,33 +955,35 @@ export default function Sinistros() {
                   </CardContent>
                 </Card>
 
+                {/* EM ANÁLISE */}
                 <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-800">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400 text-base">
-                      <Camera className="h-4 w-4" />
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                      <Activity className="h-5 w-5" />
                       Em Análise
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-3xl font-bold">{dashboardStats.analise || 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Sendo analisadas</p>
+                    <p className="text-xs text-muted-foreground mt-1">Análises em andamento</p>
                   </CardContent>
                 </Card>
 
+                {/* CONCLUÍDOS */}
                 <Card className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400 text-base">
-                      <CheckCircle2 className="h-4 w-4" />
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                      <CheckCircle2 className="h-5 w-5" />
                       Concluídas
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-3xl font-bold">{dashboardStats.concluidas || 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Finalizadas</p>
+                    <p className="text-xs text-muted-foreground mt-1">Vistorias finalizadas</p>
                   </CardContent>
                 </Card>
 
-                {/* Custos gerais */}
+                {/* CUSTO TOTAL */}
                 <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20 border-emerald-200 dark:border-emerald-800">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
@@ -967,11 +992,12 @@ export default function Sinistros() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-2xl font-bold">{formatCurrency(dashboardStats.custoTotal || 0)}</p>
-                    <p className="text-xs text-muted-foreground mt-2">Soma de todos os custos</p>
+                    <p className="text-3xl font-bold">{formatCurrency(dashboardStats.custoTotal || 0)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Somatório geral</p>
                   </CardContent>
                 </Card>
 
+                {/* CUSTO MÉDIO */}
                 <Card className="bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-950/30 dark:to-violet-900/20 border-violet-200 dark:border-violet-800">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-violet-700 dark:text-violet-400">
@@ -980,105 +1006,92 @@ export default function Sinistros() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-2xl font-bold">{formatCurrency(dashboardStats.custoMedio || 0)}</p>
-                    <p className="text-xs text-muted-foreground mt-2">Por vistoria</p>
+                    <p className="text-3xl font-bold">{formatCurrency(dashboardStats.custoMedio || 0)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Por vistoria</p>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20 border-orange-200 dark:border-orange-800">
+                {/* OFICINAS */}
+                <Card className="bg-gradient-to-br from-blue-50/50 to-blue-100/50 dark:from-blue-950/20 dark:to-blue-900/10 border-blue-200 dark:border-blue-800">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
-                      <Activity className="h-5 w-5" />
-                      Taxa de Conclusão
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold">
-                      {dashboardStats.total > 0
-                        ? Math.round((dashboardStats.concluidas / dashboardStats.total) * 100)
-                        : 0}
-                      %
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">Vistorias concluídas</p>
-                  </CardContent>
-                </Card>
-
-                {/* Custos detalhados */}
-                <Card className="bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-950/30 dark:to-slate-900/20 border-slate-200 dark:border-slate-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                      <Building2 className="h-5 w-5" />
+                    <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                      <Wrench className="h-5 w-5" />
                       Oficinas
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xl font-bold">{formatCurrency(dashboardStats.custoOficinas || 0)}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Custos de oficina</p>
+                    <p className="text-xs text-muted-foreground">Custos de oficina</p>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-950/30 dark:to-slate-900/20 border-slate-200 dark:border-slate-800">
+                {/* REPAROS */}
+                <Card className="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/20 dark:to-orange-900/10 border-orange-200 dark:border-orange-800">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                    <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
                       <Wrench className="h-5 w-5" />
                       Reparos
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xl font-bold">{formatCurrency(dashboardStats.custoReparos || 0)}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Custos de reparo</p>
+                    <p className="text-xs text-muted-foreground">Custos de reparo</p>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-950/30 dark:to-slate-900/20 border-slate-200 dark:border-slate-800">
+                {/* ACORDOS */}
+                <Card className="bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-950/20 dark:to-slate-900/10 border-slate-200 dark:border-slate-800">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                      <HandshakeIcon className="h-5 w-5" />
+                      <Handshake className="h-5 w-5" />
                       Acordos
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xl font-bold">{formatCurrency(dashboardStats.custoAcordos || 0)}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Custos de acordos</p>
+                    <p className="text-xs text-muted-foreground">Custo de acordos</p>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-950/30 dark:to-slate-900/20 border-slate-200 dark:border-slate-800">
+                {/* TERCEIROS */}
+                <Card className="bg-gradient-to-br from-pink-50 to-pink-100/50 dark:from-pink-950/20 dark:to-pink-900/10 border-pink-200 dark:border-pink-800">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                    <CardTitle className="flex items-center gap-2 text-pink-700 dark:text-pink-400">
                       <Users className="h-5 w-5" />
                       Terceiros
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xl font-bold">{formatCurrency(dashboardStats.custoTerceiros || 0)}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Indenizações a terceiros</p>
+                    <p className="text-xs text-muted-foreground">Custo com terceiros</p>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-950/30 dark:to-slate-900/20 border-slate-200 dark:border-slate-800">
+                {/* PERDA TOTAL */}
+                <Card className="bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20 border-red-200 dark:border-red-800">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                    <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400">
                       <AlertTriangle className="h-5 w-5" />
                       Perda Total
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xl font-bold">{formatCurrency(dashboardStats.custoPerdaTotal || 0)}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Indenizações de perda total</p>
+                    <p className="text-xs text-muted-foreground">Indenizações</p>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-950/30 dark:to-slate-900/20 border-slate-200 dark:border-slate-800">
+                {/* PERDA PARCIAL */}
+                <Card className="bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/20 dark:to-amber-900/10 border-amber-200 dark:border-amber-800">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                    <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
                       <AlertTriangle className="h-5 w-5" />
                       Perda Parcial
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xl font-bold">{formatCurrency(dashboardStats.custoPerdaParcial || 0)}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Indenizações de perda parcial</p>
+                    <p className="text-xs text-muted-foreground">Custos parciais</p>
                   </CardContent>
                 </Card>
               </div>
@@ -1100,9 +1113,9 @@ export default function Sinistros() {
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          label={(entry) => `${entry.name}: ${entry.value}`}
+                          label={(entry: any) => `${entry.name}: ${entry.value}`}
                           outerRadius={110}
-                          innerRadius={60} // rosca (doughnut)
+                          innerRadius={60}
                           fill="#8884d8"
                           dataKey="value"
                         >
@@ -1212,95 +1225,86 @@ export default function Sinistros() {
               )}
             </div>
           )}
-
-          {/* MODAL EDIÇÃO DE CUSTOS */}
-          {editingClaim && (
-            <Dialog open={true} onOpenChange={(open) => !open && setEditingClaim(null)}>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Editar custos do sinistro #{editingClaim.numero}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <span className="text-xs font-medium text-muted-foreground">Custo Oficina</span>
-                      <Input
-                        value={editingCosts.custo_oficina}
-                        onChange={(e) => setEditingCosts((prev) => ({ ...prev, custo_oficina: e.target.value }))}
-                        placeholder="0,00"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-xs font-medium text-muted-foreground">Custo Reparo</span>
-                      <Input
-                        value={editingCosts.custo_reparo}
-                        onChange={(e) => setEditingCosts((prev) => ({ ...prev, custo_reparo: e.target.value }))}
-                        placeholder="0,00"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-xs font-medium text-muted-foreground">Custo Acordo</span>
-                      <Input
-                        value={editingCosts.custo_acordo}
-                        onChange={(e) => setEditingCosts((prev) => ({ ...prev, custo_acordo: e.target.value }))}
-                        placeholder="0,00"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-xs font-medium text-muted-foreground">Custo Terceiros</span>
-                      <Input
-                        value={editingCosts.custo_terceiros}
-                        onChange={(e) => setEditingCosts((prev) => ({ ...prev, custo_terceiros: e.target.value }))}
-                        placeholder="0,00"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-xs font-medium text-muted-foreground">Perda Total</span>
-                      <Input
-                        value={editingCosts.custo_perda_total}
-                        onChange={(e) => setEditingCosts((prev) => ({ ...prev, custo_perda_total: e.target.value }))}
-                        placeholder="0,00"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-xs font-medium text-muted-foreground">Perda Parcial</span>
-                      <Input
-                        value={editingCosts.custo_perda_parcial}
-                        onChange={(e) => setEditingCosts((prev) => ({ ...prev, custo_perda_parcial: e.target.value }))}
-                        placeholder="0,00"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-xs font-medium text-muted-foreground">Valor Franquia</span>
-                      <Input
-                        value={editingCosts.valor_franquia}
-                        onChange={(e) => setEditingCosts((prev) => ({ ...prev, valor_franquia: e.target.value }))}
-                        placeholder="0,00"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-xs font-medium text-muted-foreground">Valor Indenização</span>
-                      <Input
-                        value={editingCosts.valor_indenizacao}
-                        onChange={(e) => setEditingCosts((prev) => ({ ...prev, valor_indenizacao: e.target.value }))}
-                        placeholder="0,00"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter className="mt-2">
-                  <Button variant="outline" onClick={() => setEditingClaim(null)} disabled={savingCosts}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleSaveCosts} disabled={savingCosts}>
-                    {savingCosts ? "Salvando..." : "Salvar"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
         </>
       )}
+
+      {/* Modal de edição de custos do sinistro/vistoria */}
+      <Dialog
+        open={!!editingClaim}
+        onOpenChange={(open) => {
+          if (!open && !savingEdit) setEditingClaim(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Editar custos do sinistro {editingClaim ? `#${(editingClaim as any).numero ?? ""}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label>Custo Oficina</Label>
+                <Input
+                  value={editingValues.custo_oficina}
+                  onChange={(e) => setEditingValues((prev) => ({ ...prev, custo_oficina: e.target.value }))}
+                  placeholder="0,00"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Custo Reparos</Label>
+                <Input
+                  value={editingValues.custo_reparo}
+                  onChange={(e) => setEditingValues((prev) => ({ ...prev, custo_reparo: e.target.value }))}
+                  placeholder="0,00"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Custo Acordos</Label>
+                <Input
+                  value={editingValues.custo_acordo}
+                  onChange={(e) => setEditingValues((prev) => ({ ...prev, custo_acordo: e.target.value }))}
+                  placeholder="0,00"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Custo Terceiros</Label>
+                <Input
+                  value={editingValues.custo_terceiros}
+                  onChange={(e) => setEditingValues((prev) => ({ ...prev, custo_terceiros: e.target.value }))}
+                  placeholder="0,00"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Perda Total</Label>
+                <Input
+                  value={editingValues.custo_perda_total}
+                  onChange={(e) => setEditingValues((prev) => ({ ...prev, custo_perda_total: e.target.value }))}
+                  placeholder="0,00"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Perda Parcial</Label>
+                <Input
+                  value={editingValues.custo_perda_parcial}
+                  onChange={(e) => setEditingValues((prev) => ({ ...prev, custo_perda_parcial: e.target.value }))}
+                  placeholder="0,00"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-4">
+            <Button variant="outline" onClick={() => !savingEdit && setEditingClaim(null)} disabled={savingEdit}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveEditClaim} disabled={savingEdit}>
+              {savingEdit ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
