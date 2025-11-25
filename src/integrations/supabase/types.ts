@@ -1950,6 +1950,7 @@ export type Database = {
       }
       vistorias: {
         Row: {
+          acionou_assistencia_24h: boolean | null
           analise_ia: Json | null
           assinatura_url: string | null
           atendimento_id: string | null
@@ -1980,11 +1981,13 @@ export type Database = {
           data_incidente: string | null
           dias_validade: number | null
           endereco: string | null
+          estava_chovendo: boolean | null
           fez_bo: boolean | null
           foi_hospital: boolean | null
           hora_evento: string | null
           horario_fim: string | null
           horario_inicio: string | null
+          houve_remocao_veiculo: boolean | null
           id: string
           latitude: number | null
           laudo_alcoolemia_url: string | null
@@ -2018,6 +2021,7 @@ export type Database = {
           vitima_ou_causador: string | null
         }
         Insert: {
+          acionou_assistencia_24h?: boolean | null
           analise_ia?: Json | null
           assinatura_url?: string | null
           atendimento_id?: string | null
@@ -2048,11 +2052,13 @@ export type Database = {
           data_incidente?: string | null
           dias_validade?: number | null
           endereco?: string | null
+          estava_chovendo?: boolean | null
           fez_bo?: boolean | null
           foi_hospital?: boolean | null
           hora_evento?: string | null
           horario_fim?: string | null
           horario_inicio?: string | null
+          houve_remocao_veiculo?: boolean | null
           id?: string
           latitude?: number | null
           laudo_alcoolemia_url?: string | null
@@ -2086,6 +2092,7 @@ export type Database = {
           vitima_ou_causador?: string | null
         }
         Update: {
+          acionou_assistencia_24h?: boolean | null
           analise_ia?: Json | null
           assinatura_url?: string | null
           atendimento_id?: string | null
@@ -2116,11 +2123,13 @@ export type Database = {
           data_incidente?: string | null
           dias_validade?: number | null
           endereco?: string | null
+          estava_chovendo?: boolean | null
           fez_bo?: boolean | null
           foi_hospital?: boolean | null
           hora_evento?: string | null
           horario_fim?: string | null
           horario_inicio?: string | null
+          houve_remocao_veiculo?: boolean | null
           id?: string
           latitude?: number | null
           laudo_alcoolemia_url?: string | null

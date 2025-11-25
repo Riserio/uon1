@@ -1073,8 +1073,60 @@ export default function VistoriaDetalhe() {
             )}
           </TabsContent>
 
-          {/* Tab: Termos */}
+          {/* Tab: Termos e Documentos */}
           <TabsContent value="termos" className="space-y-6">
+            {/* Documentos Anexados */}
+            {(vistoria.bo_url ||
+              vistoria.laudo_medico_url ||
+              vistoria.laudo_alcoolemia_url ||
+              vistoria.atestado_obito_url) && (
+              <Card className="border-2 border-blue-200">
+                <CardHeader className="bg-blue-50/50 dark:bg-blue-950/20">
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                    Documentos Anexados
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {vistoria.bo_url && (
+                      <Button variant="outline" asChild>
+                        <a href={vistoria.bo_url} target="_blank" rel="noopener noreferrer">
+                          <FileText className="h-4 w-4 mr-2" />
+                          Boletim de Ocorrência
+                        </a>
+                      </Button>
+                    )}
+                    {vistoria.laudo_medico_url && (
+                      <Button variant="outline" asChild>
+                        <a href={vistoria.laudo_medico_url} target="_blank" rel="noopener noreferrer">
+                          <FileText className="h-4 w-4 mr-2" />
+                          Laudo Médico
+                        </a>
+                      </Button>
+                    )}
+                    {vistoria.laudo_alcoolemia_url && (
+                      <Button variant="outline" asChild>
+                        <a href={vistoria.laudo_alcoolemia_url} target="_blank" rel="noopener noreferrer">
+                          <FileText className="h-4 w-4 mr-2" />
+                          Laudo de Alcoolemia
+                        </a>
+                      </Button>
+                    )}
+                    {vistoria.atestado_obito_url && (
+                      <Button variant="outline" asChild>
+                        <a href={vistoria.atestado_obito_url} target="_blank" rel="noopener noreferrer">
+                          <FileText className="h-4 w-4 mr-2" />
+                          Atestado de Óbito
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Termos Aceitos */}
             {termosAceitos.length > 0 ? (
               <div className="space-y-4">
                 {termosAceitos.map((termo) => (

@@ -24,6 +24,8 @@ import {
   Mail,
   Search,
   Filter,
+  XCircle,
+  Activity,
 } from "lucide-react";
 import { ClaimCard, Claim } from "@/components/ClaimCard";
 import { useAuth } from "@/hooks/useAuth";
@@ -44,6 +46,8 @@ import {
   LineChart,
   Line,
   Legend,
+  AreaChart,
+  Area,
 } from "recharts";
 
 const COLORS = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6"];
@@ -97,6 +101,7 @@ export default function Sinistros() {
   const [fluxoData, setFluxoData] = useState<any[]>([]);
   const [dashboardCorretoras, setDashboardCorretoras] = useState<any[]>([]);
   const [selectedDashboardCorretora, setSelectedDashboardCorretora] = useState("all");
+  const [timelineData, setTimelineData] = useState<any[]>([]);
 
   useEffect(() => {
     if (activeTab === "vistorias") {
@@ -272,6 +277,7 @@ export default function Sinistros() {
         aguardando: vistoriasData.filter((v) => v.status === "aguardando_fotos").length,
         analise: vistoriasData.filter((v) => v.status === "em_analise").length,
         concluidas: vistoriasData.filter((v) => v.status === "concluida").length,
+        canceladas: vistoriasData.filter((v) => v.status === "cancelada").length,
         custoTotal,
         custoMedio: vistoriasData.length > 0 ? custoTotal / vistoriasData.length : 0,
       });
@@ -280,6 +286,7 @@ export default function Sinistros() {
         { name: "Aguardando", value: vistoriasData.filter((v) => v.status === "aguardando_fotos").length },
         { name: "Em Análise", value: vistoriasData.filter((v) => v.status === "em_analise").length },
         { name: "Concluídas", value: vistoriasData.filter((v) => v.status === "concluida").length },
+        { name: "Canceladas", value: vistoriasData.filter((v) => v.status === "cancelada").length },
       ]);
 
       const tipos: any = {};
@@ -311,6 +318,22 @@ export default function Sinistros() {
         });
         setFluxoData(Object.entries(fluxos).map(([name, value]) => ({ name, value })));
       }
+
+      // Timeline de vistorias criadas por mês
+      const timelineMap: any = {};
+      vistoriasData.forEach((v) => {
+        const month = format(new Date(v.created_at), "MMM/yy", { locale: ptBR });
+        if (!timelineMap[month]) {
+          timelineMap[month] = { month, total: 0, custos: 0 };
+        }
+        timelineMap[month].total++;
+        timelineMap[month].custos +=
+          (Number(v.custo_oficina) || 0) +
+          (Number(v.custo_reparo) || 0) +
+          (Number(v.custo_acordo) || 0) +
+          (Number(v.custo_terceiros) || 0);
+      });
+      setTimelineData(Object.values(timelineMap).slice(-6)); // Últimos 6 meses
     } catch (error) {
       console.error("Erro ao carregar dashboard:", error);
       toast.error("Erro ao carregar dashboard");
@@ -377,27 +400,6 @@ export default function Sinistros() {
     const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = mailto;
   };
-
-  // Calcular totais para Visão Geral
-  const totalSinistros = claims.length;
-  const totalValor = claims.reduce((sum, c) => {
-    return (
-      sum +
-      (Number(c.custo_oficina) || 0) +
-      (Number(c.custo_reparo) || 0) +
-      (Number(c.custo_acordo) || 0) +
-      (Number(c.custo_terceiros) || 0) +
-      (Number(c.custo_perda_total) || 0) +
-      (Number(c.custo_perda_parcial) || 0)
-    );
-  }, 0);
-  const valorMedio = totalSinistros > 0 ? totalValor / totalSinistros : 0;
-
-  const statusCounts = statusConfigs.map((config) => ({
-    status: config.nome,
-    count: claims.filter((c) => c.status === config.nome).length,
-    color: config.cor,
-  }));
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -481,7 +483,7 @@ export default function Sinistros() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center justify-between">
               <span className="text-muted-foreground">Cancelados</span>
-              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <XCircle className="h-5 w-5 text-red-500" />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -491,122 +493,61 @@ export default function Sinistros() {
         </Card>
       </div>
 
-      {/* Tab Buttons */}
-      <div className="border-b">
-        <div className="flex justify-center gap-2">
-          <Button
-            variant={activeTab === "acompanhamento" ? "default" : "ghost"}
-            onClick={() => setActiveTab("acompanhamento")}
-            size="lg"
-            className="gap-2"
-          >
-            <FileText className="h-4 w-4" />
-            Acompanhamento
-          </Button>
-          <Button
-            variant={activeTab === "vistorias" ? "default" : "ghost"}
-            onClick={() => setActiveTab("vistorias")}
-            size="lg"
-            className="gap-2"
-          >
-            <Camera className="h-4 w-4" />
-            Vistorias
-          </Button>
-          <Button
-            variant={activeTab === "dashboard" ? "default" : "ghost"}
-            onClick={() => setActiveTab("dashboard")}
-            size="lg"
-            className="gap-2"
-          >
-            <BarChart3 className="h-4 w-4" />
-            Dashboard
-          </Button>
-        </div>
-      </div>
-
-      {/* Tab Content */}
+      {/* Tabs Navigation */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />
         </div>
       ) : (
         <>
+          <div className="flex gap-2 border-b">
+            <Button
+              variant={activeTab === "acompanhamento" ? "default" : "ghost"}
+              onClick={() => setActiveTab("acompanhamento")}
+              className="gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              Acompanhamento
+            </Button>
+            <Button
+              variant={activeTab === "vistorias" ? "default" : "ghost"}
+              onClick={() => setActiveTab("vistorias")}
+              className="gap-2"
+            >
+              <Camera className="h-4 w-4" />
+              Vistorias
+            </Button>
+            <Button
+              variant={activeTab === "dashboard" ? "default" : "ghost"}
+              onClick={() => setActiveTab("dashboard")}
+              className="gap-2"
+            >
+              <BarChart3 className="h-4 w-4" />
+              Dashboard
+            </Button>
+          </div>
+
           {/* ACOMPANHAMENTO TAB */}
           {activeTab === "acompanhamento" && (
             <div className="space-y-6">
-              {/* Visão Geral - Melhorada */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total de Sinistros</p>
-                        <p className="text-3xl font-bold mt-2">{totalSinistros}</p>
-                      </div>
-                      <FileText className="h-12 w-12 text-blue-500/30" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-green-600 dark:text-green-400">Valor Total</p>
-                        <p className="text-2xl font-bold mt-2">{formatCurrency(totalValor)}</p>
-                      </div>
-                      <DollarSign className="h-12 w-12 text-green-500/30" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-800">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Valor Médio</p>
-                        <p className="text-2xl font-bold mt-2">{formatCurrency(valorMedio)}</p>
-                      </div>
-                      <TrendingUp className="h-12 w-12 text-purple-500/30" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20 border-orange-200 dark:border-orange-800">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Ativos</p>
-                        <p className="text-3xl font-bold mt-2">
-                          {claims.filter((c) => c.status !== "concluido" && c.status !== "cancelado").length}
-                        </p>
-                      </div>
-                      <Clock className="h-12 w-12 text-orange-500/30" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Filtros Modernizados */}
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex flex-wrap gap-4">
-                    <div className="flex-1 min-w-[200px]">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Buscar por número, assunto..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10"
-                        />
-                      </div>
+              {/* Filtros Compactos */}
+              <Card className="border-2">
+                <CardContent className="p-6">
+                  <div className="flex gap-4 flex-wrap items-center">
+                    <div className="flex-1 min-w-[280px] relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar por número, assunto ou observações..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 h-11"
+                      />
                     </div>
 
                     <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                      <SelectTrigger className="w-[200px]">
+                      <SelectTrigger className="w-[200px] h-11">
                         <Filter className="h-4 w-4 mr-2" />
-                        <SelectValue placeholder="Status" />
+                        <SelectValue placeholder="Filtrar Status" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Todos os Status</SelectItem>
@@ -619,9 +560,9 @@ export default function Sinistros() {
                     </Select>
 
                     <Select value={selectedCorretora} onValueChange={setSelectedCorretora}>
-                      <SelectTrigger className="w-[200px]">
+                      <SelectTrigger className="w-[220px] h-11">
                         <Building2 className="h-4 w-4 mr-2" />
-                        <SelectValue placeholder="Corretora" />
+                        <SelectValue placeholder="Filtrar Corretora" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Todas as Corretoras</SelectItem>
@@ -753,12 +694,12 @@ export default function Sinistros() {
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400 text-base">
                       <FileText className="h-4 w-4" />
-                      Total de Vistorias
+                      Total
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-3xl font-bold">{dashboardStats.total || 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Registros no período</p>
+                    <p className="text-xs text-muted-foreground mt-1">Vistorias registradas</p>
                   </CardContent>
                 </Card>
 
@@ -802,7 +743,7 @@ export default function Sinistros() {
                 </Card>
               </div>
 
-              {/* Cards de Custos */}
+              {/* Cards de Custos - Linha separada */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20 border-emerald-200 dark:border-emerald-800">
                   <CardHeader>
@@ -833,7 +774,7 @@ export default function Sinistros() {
                 <Card className="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20 border-orange-200 dark:border-orange-800">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
-                      <BarChart3 className="h-5 w-5" />
+                      <Activity className="h-5 w-5" />
                       Taxa de Conclusão
                     </CardTitle>
                   </CardHeader>
@@ -859,7 +800,7 @@ export default function Sinistros() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={320}>
                       <PieChart>
                         <Pie
                           data={statusData}
@@ -889,15 +830,15 @@ export default function Sinistros() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={320}>
                       <BarChart data={tipoData}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+                        <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} fontSize={12} />
                         <YAxis />
                         <Tooltip formatter={(value) => (typeof value === "number" ? formatCurrency(value) : value)} />
                         <Legend />
-                        <Bar dataKey="quantidade" fill="#3b82f6" name="Quantidade" />
-                        <Bar dataKey="custo" fill="#22c55e" name="Custo Total" />
+                        <Bar dataKey="quantidade" fill="#3b82f6" name="Quantidade" radius={[8, 8, 0, 0]} />
+                        <Bar dataKey="custo" fill="#22c55e" name="Custo Total" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -914,14 +855,63 @@ export default function Sinistros() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={320}>
                       <BarChart data={fluxoData} layout="horizontal">
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis type="number" />
                         <YAxis dataKey="name" type="category" width={150} />
                         <Tooltip />
-                        <Bar dataKey="value" fill="#8b5cf6" name="Atendimentos" />
+                        <Bar dataKey="value" fill="#8b5cf6" name="Atendimentos" radius={[0, 8, 8, 0]} />
                       </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Evolução Temporal */}
+              {timelineData.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Activity className="h-5 w-5" />
+                      Evolução nos Últimos Meses
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={320}>
+                      <AreaChart data={timelineData}>
+                        <defs>
+                          <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="colorCustos" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8} />
+                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="month" />
+                        <YAxis />
+                        <Tooltip formatter={(value) => (typeof value === "number" ? formatCurrency(value) : value)} />
+                        <Legend />
+                        <Area
+                          type="monotone"
+                          dataKey="total"
+                          stroke="#3b82f6"
+                          fillOpacity={1}
+                          fill="url(#colorTotal)"
+                          name="Total de Vistorias"
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="custos"
+                          stroke="#22c55e"
+                          fillOpacity={1}
+                          fill="url(#colorCustos)"
+                          name="Custos (R$)"
+                        />
+                      </AreaChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
