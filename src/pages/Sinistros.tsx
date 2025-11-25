@@ -72,6 +72,7 @@ interface Vistoria {
   custo_perda_total?: number;
   custo_perda_parcial?: number;
   atendimento_id?: string | null;
+  tipo_abertura: string;
 }
 
 interface StatusConfig {
@@ -195,6 +196,7 @@ export default function Sinistros() {
         .select(
           `
           id,
+          numero,
           atendimento_id,
           veiculo_placa,
           custo_oficina,
@@ -255,6 +257,7 @@ export default function Sinistros() {
             valor_franquia: vistoria?.valor_franquia,
             valor_indenizacao: vistoria?.valor_indenizacao,
             vistoria_id: vistoria?.id,
+            vistoria_numero: vistoria?.numero,
             timeline,
             corretoraInfo: atendimento.corretoras,
           } as any;
@@ -813,12 +816,21 @@ export default function Sinistros() {
                     key={vistoria.id}
                     className="hover:shadow-lg transition-shadow border border-border/70 bg-gradient-to-br from-background to-muted/40"
                   >
-                    <CardContent className="p-6">
+                     <CardContent className="p-6">
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
                             <h3 className="text-lg font-semibold">Vistoria #{vistoria.numero}</h3>
                             <Badge className={getStatusColor(vistoria.status)}>{getStatusLabel(vistoria.status)}</Badge>
+                            <Badge variant={vistoria.tipo_abertura === "manual" ? "secondary" : "default"}>
+                              {vistoria.tipo_abertura === "manual" ? "Manual" : "Digital"}
+                            </Badge>
+                            {vistoria.atendimento_id && (
+                              <Badge variant="outline" className="gap-1">
+                                <FileText className="h-3 w-3" />
+                                Sinistro vinculado
+                              </Badge>
+                            )}
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-muted-foreground">
                             <div>
