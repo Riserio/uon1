@@ -13,44 +13,113 @@ interface SearchableVehicleSelectProps {
   onChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
-  vehicleType?: string;
+  vehicleType?: string; // "carro" | "moto" | "caminhao"
 }
 
-// Helper to categorize brands by vehicle type
+// Helper para categorizar marcas por tipo de veículo
 const getBrandCategory = (brand: string): string[] => {
   const motorcycleBrands = [
-    "ADLY", "APRILIA", "AVELLOZ", "AMAZONAS", "ATALA", "BAJAJ", "BENELLI", "BETA", 
-    "BMW", "BRANDY", "BRAVAX", "BUELL", "BULL", "CAGIVA", "CALOI", "CASAL",
-    "DAELIM", "DAFRA", "DAYUN", "DERBI", "DUCATI", "EMME", "FYM", "GARELLI",
-    "GAS GAS", "HARLEY-DAVIDSON", "HARTFORD", "HONDA", "HUSABERG", "HUSQVARNA",
-    "HYOSUNG", "IROS", "JIALING", "JOHNNYPAG", "KAHENA", "KASINSKI", "KAWASAKI",
-    "KEEWAY", "KTM", "KYMCO", "LAVRALE", "LERIVO", "LIFAN", "MALAGUTI", "MIZA",
-    "MOBILETE", "MOTO GUZZI", "MRX", "MV AGUSTA", "ORCA", "PEUGEOT", "PIAGGIO",
-    "SANYANG", "SHINERAY", "SUNDOWN", "SUZUKI", "TRAXX", "TRIUMPH", "VENTO",
-    "VESPA", "YAMAHA", "YUMBO", "ZONGSHEN", "ZONTES"
+    "ADLY",
+    "APRILIA",
+    "AVELLOZ",
+    "AMAZONAS",
+    "ATALA",
+    "BAJAJ",
+    "BENELLI",
+    "BETA",
+    "BMW",
+    "BRANDY",
+    "BRAVAX",
+    "BUELL",
+    "BULL",
+    "CAGIVA",
+    "CALOI",
+    "CASAL",
+    "DAELIM",
+    "DAFRA",
+    "DAYUN",
+    "DERBI",
+    "DUCATI",
+    "EMME",
+    "FYM",
+    "GARELLI",
+    "GAS GAS",
+    "HARLEY-DAVIDSON",
+    "HARTFORD",
+    "HONDA",
+    "HUSABERG",
+    "HUSQVARNA",
+    "HYOSUNG",
+    "IROS",
+    "JIALING",
+    "JOHNNYPAG",
+    "KAHENA",
+    "KASINSKI",
+    "KAWASAKI",
+    "KEEWAY",
+    "KTM",
+    "KYMCO",
+    "LAVRALE",
+    "LERIVO",
+    "LIFAN",
+    "MALAGUTI",
+    "MIZA",
+    "MOBILETE",
+    "MOTO GUZZI",
+    "MRX",
+    "MV AGUSTA",
+    "ORCA",
+    "PEUGEOT",
+    "PIAGGIO",
+    "SANYANG",
+    "SHINERAY",
+    "SUNDOWN",
+    "SUZUKI",
+    "TRAXX",
+    "TRIUMPH",
+    "VENTO",
+    "VESPA",
+    "YAMAHA",
+    "YUMBO",
+    "ZONGSHEN",
+    "ZONTES",
   ];
-  
+
   const truckBrands = [
-    "AGRALE", "FORD CARGO", "IVECO", "MAN", "MERCEDES-BENZ", "SCANIA", 
-    "VOLKSWAGEN", "VOLVO", "DAF", "FREIGHTLINER", "INTERNATIONAL", "KENWORTH",
-    "MACK", "PETERBILT", "STERLING", "WESTERN STAR"
+    "AGRALE",
+    "CHEVROLET",
+    "FORD CARGO",
+    "IVECO",
+    "MAN",
+    "MERCEDES-BENZ",
+    "SCANIA",
+    "VOLKSWAGEN",
+    "VOLVO",
+    "DAF",
+    "FREIGHTLINER",
+    "INTERNATIONAL",
+    "KENWORTH",
+    "MACK",
+    "PETERBILT",
+    "STERLING",
+    "WESTERN STAR",
   ];
 
   const categories: string[] = [];
-  
+
   if (motorcycleBrands.includes(brand.toUpperCase())) {
     categories.push("moto");
   }
-  
+
   if (truckBrands.includes(brand.toUpperCase())) {
     categories.push("caminhao");
   }
-  
-  // If not in any specific category, consider it a car
+
+  // Se não cair em nenhuma, considera carro
   if (categories.length === 0) {
     categories.push("carro");
   }
-  
+
   return categories;
 };
 
@@ -69,26 +138,21 @@ export function SearchableVehicleSelect({
   const filteredOptions = useMemo(() => {
     let filtered = options;
 
-    // Filter by vehicle type if provided
+    // 🔹 Filtra por tipo de veículo, se informado (carro / moto / caminhão)
     if (vehicleType) {
-      filtered = filtered.filter(option => {
+      filtered = filtered.filter((option) => {
         const categories = getBrandCategory(option);
         return categories.includes(vehicleType);
       });
     }
 
-    // Only filter by search if 3 or more characters
-    if (search.length >= 3) {
+    // 🔹 Sempre permite buscar (sem limite mínimo de caracteres)
+    if (search.trim().length > 0) {
       const searchLower = search.toLowerCase();
-      filtered = filtered.filter(option =>
-        option.toLowerCase().includes(searchLower)
-      );
-    } else if (search.length > 0 && search.length < 3) {
-      // Show message to type more characters
-      return [];
+      filtered = filtered.filter((option) => option.toLowerCase().includes(searchLower));
     }
 
-    return filtered.sort();
+    return [...filtered].sort();
   }, [options, search, vehicleType]);
 
   return (
@@ -101,10 +165,7 @@ export function SearchableVehicleSelect({
             role="combobox"
             aria-expanded={open}
             disabled={disabled}
-            className={cn(
-              "w-full justify-between",
-              !value && "text-muted-foreground"
-            )}
+            className={cn("w-full justify-between", !value && "text-muted-foreground")}
           >
             {value || placeholder}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -115,7 +176,9 @@ export function SearchableVehicleSelect({
             <div className="flex items-center border-b px-3">
               <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
               <CommandInput
-                placeholder={`${vehicleType ? `Digite 3+ letras para buscar...` : 'Selecione o tipo do veículo primeiro'}`}
+                placeholder={
+                  vehicleType ? "Digite para buscar ou role a lista..." : "Selecione o tipo do veículo primeiro"
+                }
                 value={search}
                 onValueChange={setSearch}
                 disabled={!vehicleType}
@@ -129,14 +192,10 @@ export function SearchableVehicleSelect({
                     Selecione primeiro o tipo de veículo (Carro, Moto ou Caminhão)
                   </div>
                 </CommandEmpty>
-              ) : search.length > 0 && search.length < 3 ? (
-                <CommandEmpty>
-                  <div className="py-6 text-center text-sm text-muted-foreground">
-                    Digite pelo menos 3 caracteres para buscar
-                  </div>
-                </CommandEmpty>
               ) : filteredOptions.length === 0 ? (
-                <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
+                <CommandEmpty>
+                  <div className="py-6 text-center text-sm text-muted-foreground">Nenhum resultado encontrado.</div>
+                </CommandEmpty>
               ) : (
                 <CommandGroup>
                   {filteredOptions.map((option) => (
@@ -149,12 +208,7 @@ export function SearchableVehicleSelect({
                         setSearch("");
                       }}
                     >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          value === option ? "opacity-100" : "opacity-0"
-                        )}
-                      />
+                      <Check className={cn("mr-2 h-4 w-4", value === option ? "opacity-100" : "opacity-0")} />
                       {option}
                     </CommandItem>
                   ))}
