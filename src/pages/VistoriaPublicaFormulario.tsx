@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, User, Calendar, FileText, AlertCircle, CheckCircle, MapPin, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import SketchPad from "@/components/SketchPad";
-import { validateCPF, validatePhone } from "@/lib/validators";
+import { validateCPF, validatePhone, formatCPF, formatPhone, formatPlaca } from "@/lib/validators";
 import { useVeiculos } from "@/hooks/useVeiculos";
 import { VehicleTypeSelector } from "@/components/VehicleTypeSelector";
 import { SearchableVehicleSelect } from "@/components/SearchableVehicleSelect";
@@ -502,6 +502,7 @@ export default function VistoriaPublicaFormulario() {
                   <Label className="text-base font-semibold">CPF *</Label>
                   <MaskedInput
                     format="###.###.###-##"
+                    mask="_"
                     value={formData.cliente_cpf}
                     onValueChange={(values) => setFormData({ ...formData, cliente_cpf: values.value })}
                     placeholder="000.000.000-00"
@@ -524,6 +525,7 @@ export default function VistoriaPublicaFormulario() {
                   <Label className="text-base font-semibold">Telefone</Label>
                   <MaskedInput
                     format="(##) #####-####"
+                    mask="_"
                     value={formData.cliente_telefone}
                     onValueChange={(values) => setFormData({ ...formData, cliente_telefone: values.value })}
                     placeholder="(11) 99999-9999"
