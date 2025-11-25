@@ -120,17 +120,28 @@ export default function VistoriaPublicaCaptura() {
   // Salvar fotos no localStorage sempre que houver mudanças
   useEffect(() => {
     const saveFotos = async () => {
-      if (Object.keys(fotos).length > 0 || Object.keys(fotoPreviews).length > 0) {
+      // Só salva se houver dados reais para salvar
+      const hasFotos = Object.keys(fotos).length > 0;
+      const hasPreviews = Object.keys(fotoPreviews).length > 0;
+      
+      if (hasFotos || hasPreviews || cnhData || vehicleData || geolocation) {
         const fotosData: { [key: string]: { name: string; type: string; dataUrl: string }[] } = {};
         
+        // Converte todas as fotos para DataURL
         for (const [key, files] of Object.entries(fotos)) {
-          fotosData[key] = await Promise.all(
-            files.map(async (file) => ({
-              name: file.name,
-              type: file.type,
-              dataUrl: await fileToDataUrl(file)
-            }))
-          );
+          if (files && files.length > 0) {
+            try {
+              fotosData[key] = await Promise.all(
+                files.map(async (file) => ({
+                  name: file.name,
+                  type: file.type,
+                  dataUrl: await fileToDataUrl(file)
+                }))
+              );
+            } catch (error) {
+              console.error(`Erro ao salvar fotos da posição ${key}:`, error);
+            }
+          }
         }
 
         setStoredFotos({
@@ -164,6 +175,13 @@ export default function VistoriaPublicaCaptura() {
       if (!data) {
         toast.error("Link de vistoria inválido ou expirado");
         navigate("/");
+        return;
+      }
+
+      // Se a vistoria já foi concluída, não permite nova captura
+      if (data.status === 'concluida' && !isFotosAdicionais) {
+        toast.info("Esta vistoria já foi concluída");
+        navigate(`/vistoria/${token}`);
         return;
       }
 
@@ -490,6 +508,10 @@ export default function VistoriaPublicaCaptura() {
       toast.success("Fotos adicionais enviadas com sucesso! Você já pode fechar esta tela.");
       setFotos({});
       setFotoPreviews({});
+      setCurrentStep(0);
+      setCnhData(null);
+      setVehicleData(null);
+      setGeolocation(null);
       // Limpar localStorage após envio bem-sucedido
       setStoredFotos(null);
     } catch (error: any) {
@@ -667,7 +689,7 @@ export default function VistoriaPublicaCaptura() {
               )}
 
               {/* Enviar */}
-              <div className="pt-4 border-t">
+              <div className="pt-4 border-t space-y-3">
                 <Button
                   onClick={handleEnviarSomenteFotos}
                   disabled={totalFotos === 0 || enviando}
@@ -676,6 +698,16 @@ export default function VistoriaPublicaCaptura() {
                 >
                   {enviando ? "Enviando fotos..." : "Enviar fotos"}
                 </Button>
+                
+                {/* Barra de progresso durante envio */}
+                {enviando && (
+                  <div className="space-y-2">
+                    <Progress value={66} className="h-2" />
+                    <p className="text-xs text-center text-muted-foreground animate-pulse">
+                      Processando e enviando suas fotos...
+                    </p>
+                  </div>
+                )}
               </div>
 
               {processingOcr && (
@@ -839,7 +871,7 @@ export default function VistoriaPublicaCaptura() {
                             {/* Remove Button */}
                             <button
                               onClick={() => removeFoto(posicaoAtual.id, index)}
-                              className="absolute.top-3 right-3 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-md transition-all opacity-0 group-hover:opacity-100"
+                              className="absolute top-3 right-3 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-md transition-all opacity-0 group-hover:opacity-100"
                             >
                               <X className="h-4 w-4" />
                             </button>
@@ -895,7 +927,7 @@ export default function VistoriaPublicaCaptura() {
                 onClick={nextStep}
                 disabled={fotosPosicaoAtual.length === 0}
                 size="lg"
-                className="w-full sm:flex-1 h-14 text-base sm:text-lg bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] disabled:opacity-50 disabled:cursor-not-allowed font-bold.shadow-lg"
+                className="w-full sm:flex-1 h-14 text-base sm:text-lg bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-lg"
               >
                 {currentStep === POSICOES.length - 1 ? "Preencher Dados" : "Próxima Foto"}
                 <ArrowRight className="h-5 w-5 ml-2" />
