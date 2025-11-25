@@ -43,8 +43,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
   Legend,
   AreaChart,
   Area,
@@ -68,6 +66,7 @@ interface Vistoria {
   custo_terceiros?: number;
   custo_perda_total?: number;
   custo_perda_parcial?: number;
+  atendimento_id?: string | null;
 }
 
 interface StatusConfig {
@@ -93,6 +92,9 @@ export default function Sinistros() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCorretora, setSelectedCorretora] = useState("all");
   const [corretoras, setCorretoras] = useState<any[]>([]);
+
+  // Vistorias filtro
+  const [vistoriaSearchTerm, setVistoriaSearchTerm] = useState("");
 
   // Dashboard states
   const [dashboardStats, setDashboardStats] = useState<any>({});
@@ -319,7 +321,6 @@ export default function Sinistros() {
         setFluxoData(Object.entries(fluxos).map(([name, value]) => ({ name, value })));
       }
 
-      // Timeline de vistorias criadas por mês
       const timelineMap: any = {};
       vistoriasData.forEach((v) => {
         const month = format(new Date(v.created_at), "MMM/yy", { locale: ptBR });
@@ -333,7 +334,7 @@ export default function Sinistros() {
           (Number(v.custo_acordo) || 0) +
           (Number(v.custo_terceiros) || 0);
       });
-      setTimelineData(Object.values(timelineMap).slice(-6)); // Últimos 6 meses
+      setTimelineData(Object.values(timelineMap).slice(-6));
     } catch (error) {
       console.error("Erro ao carregar dashboard:", error);
       toast.error("Erro ao carregar dashboard");
@@ -355,8 +356,8 @@ export default function Sinistros() {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      pendente: "Pendente",
-      aguardando_fotos: "Aguardando Fotos",
+      pendente: "Pendente novas fotos",
+      aguardando_fotos: "Aguardando fotos",
       em_analise: "Em Análise",
       concluida: "Concluída",
       cancelada: "Cancelada",
@@ -375,6 +376,17 @@ export default function Sinistros() {
       claim.observacoes?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       false;
     return matchesStatus && matchesSearch;
+  });
+
+  const filteredVistorias = vistorias.filter((vistoria) => {
+    if (!vistoriaSearchTerm) return true;
+    const term = vistoriaSearchTerm.toLowerCase();
+    return (
+      vistoria.numero.toString().includes(term) ||
+      vistoria.cliente_nome?.toLowerCase().includes(term) ||
+      vistoria.veiculo_placa?.toLowerCase().includes(term) ||
+      getStatusLabel(vistoria.status).toLowerCase().includes(term)
+    );
   });
 
   const getVistoriaPublicLink = (vistoria: Vistoria) => {
@@ -401,6 +413,26 @@ export default function Sinistros() {
     window.location.href = mailto;
   };
 
+  const handleGoToSinistroFromVistoria = (vistoria: Vistoria) => {
+    if (!vistoria.atendimento_id) {
+      toast.error("Esta vistoria ainda não está vinculada a um sinistro.");
+      return;
+    }
+
+    // troca para aba de acompanhamento e tenta filtrar pelo número do sinistro
+    setActiveTab("acompanhamento");
+    setSelectedStatus("all");
+    setSelectedCorretora("all");
+
+    const claim = claims.find((c) => c.id === vistoria.atendimento_id);
+    if (claim) {
+      setSearchTerm(claim.numero.toString());
+    } else {
+      // se não encontrar, limpa busca mas mesmo assim vai para a aba
+      setSearchTerm("");
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -413,9 +445,7 @@ export default function Sinistros() {
             <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
               Sinistros
             </h1>
-            <p className="text-sm text-muted-foreground">
-              Gestão integrada de sinistros, vistorias e acompanhamento
-            </p>
+            <p className="text-sm text-muted-foreground">Gestão integrada de sinistros, vistorias e acompanhamento</p>
           </div>
         </div>
 
@@ -436,97 +466,40 @@ export default function Sinistros() {
         </div>
       </div>
 
-      {/* Stats Cards - Modernizados */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <span className="text-muted-foreground">Total</span>
-              <FileText className="h-5 w-5 text-blue-500" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{vistorias.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Registros totais</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-yellow-500 shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <span className="text-muted-foreground">Pendentes</span>
-              <Clock className="h-5 w-5 text-yellow-500" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {vistorias.filter((v) => v.status === "pendente" || v.status === "aguardando_fotos").length}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Em andamento</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <span className="text-muted-foreground">Concluídos</span>
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{vistorias.filter((v) => v.status === "concluida").length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Finalizados</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-red-500 shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center justify-between">
-              <span className="text-muted-foreground">Cancelados</span>
-              <XCircle className="h-5 w-5 text-red-500" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{vistorias.filter((v) => v.status === "cancelada").length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Cancelados</p>
-          </CardContent>
-        </Card>
+      {/* Tabs Navigation */}
+      <div className="flex gap-2 border-b">
+        <Button
+          variant={activeTab === "acompanhamento" ? "default" : "ghost"}
+          onClick={() => setActiveTab("acompanhamento")}
+          className="gap-2"
+        >
+          <FileText className="h-4 w-4" />
+          Acompanhamento
+        </Button>
+        <Button
+          variant={activeTab === "vistorias" ? "default" : "ghost"}
+          onClick={() => setActiveTab("vistorias")}
+          className="gap-2"
+        >
+          <Camera className="h-4 w-4" />
+          Vistorias
+        </Button>
+        <Button
+          variant={activeTab === "dashboard" ? "default" : "ghost"}
+          onClick={() => setActiveTab("dashboard")}
+          className="gap-2"
+        >
+          <BarChart3 className="h-4 w-4" />
+          Dashboard
+        </Button>
       </div>
 
-      {/* Tabs Navigation */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />
         </div>
       ) : (
         <>
-          <div className="flex gap-2 border-b">
-            <Button
-              variant={activeTab === "acompanhamento" ? "default" : "ghost"}
-              onClick={() => setActiveTab("acompanhamento")}
-              className="gap-2"
-            >
-              <FileText className="h-4 w-4" />
-              Acompanhamento
-            </Button>
-            <Button
-              variant={activeTab === "vistorias" ? "default" : "ghost"}
-              onClick={() => setActiveTab("vistorias")}
-              className="gap-2"
-            >
-              <Camera className="h-4 w-4" />
-              Vistorias
-            </Button>
-            <Button
-              variant={activeTab === "dashboard" ? "default" : "ghost"}
-              onClick={() => setActiveTab("dashboard")}
-              className="gap-2"
-            >
-              <BarChart3 className="h-4 w-4" />
-              Dashboard
-            </Button>
-          </div>
-
           {/* ACOMPANHAMENTO TAB */}
           {activeTab === "acompanhamento" && (
             <div className="space-y-6">
@@ -596,20 +569,96 @@ export default function Sinistros() {
 
           {/* VISTORIAS TAB */}
           {activeTab === "vistorias" && (
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* Header de Vistorias com contagem por status */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center justify-between">
+                      <span className="text-muted-foreground">Total de Vistorias</span>
+                      <FileText className="h-5 w-5 text-blue-500" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{vistorias.length}</div>
+                    <p className="text-xs text-muted-foreground mt-1">Registros totais</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-yellow-500 shadow-sm hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center justify-between">
+                      <span className="text-muted-foreground">Pendentes novas fotos</span>
+                      <Clock className="h-5 w-5 text-yellow-500" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{vistorias.filter((v) => v.status === "pendente").length}</div>
+                    <p className="text-xs text-muted-foreground mt-1">Aguardando envio inicial</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center justify-between">
+                      <span className="text-muted-foreground">Aguardando fotos</span>
+                      <Camera className="h-5 w-5 text-blue-500" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">
+                      {vistorias.filter((v) => v.status === "aguardando_fotos").length}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Cliente em processo de envio</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center justify-between">
+                      <span className="text-muted-foreground">Concluídas</span>
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{vistorias.filter((v) => v.status === "concluida").length}</div>
+                    <p className="text-xs text-muted-foreground mt-1">Vistorias finalizadas</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Filtro / busca de vistorias */}
+              <Card className="border-2">
+                <CardContent className="p-4">
+                  <div className="flex gap-4 flex-wrap items-center">
+                    <div className="flex-1 min-w-[280px] relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar por número, cliente, placa ou status..."
+                        value={vistoriaSearchTerm}
+                        onChange={(e) => setVistoriaSearchTerm(e.target.value)}
+                        className="pl-10 h-11"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Lista de Vistorias */}
               <div className="grid gap-4">
-                {vistorias.map((vistoria) => (
-                  <Card key={vistoria.id} className="hover:shadow-lg transition-shadow">
+                {filteredVistorias.map((vistoria) => (
+                  <Card
+                    key={vistoria.id}
+                    className="hover:shadow-lg transition-shadow border border-border/70 bg-gradient-to-br from-background to-muted/40"
+                  >
                     <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
                             <h3 className="text-lg font-semibold">Vistoria #{vistoria.numero}</h3>
-                            <Badge className={getStatusColor(vistoria.status)}>
-                              {getStatusLabel(vistoria.status)}
-                            </Badge>
+                            <Badge className={getStatusColor(vistoria.status)}>{getStatusLabel(vistoria.status)}</Badge>
                           </div>
-                          <div className="grid grid-cols-3 gap-4 text-sm text-muted-foreground">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-muted-foreground">
                             <div>
                               <span className="font-medium">Cliente:</span> {vistoria.cliente_nome}
                             </div>
@@ -623,12 +672,24 @@ export default function Sinistros() {
                           </div>
                         </div>
 
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-2">
+                          {/* Atalho para o sinistro vinculado */}
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleGoToSinistroFromVistoria(vistoria)}
+                            title="Ir para o sinistro vinculado"
+                            className="rounded-full"
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
+
                           <Button
                             variant="outline"
                             size="icon"
                             onClick={() => navigate(`/vistorias/${vistoria.id}`)}
-                            title="Visualizar"
+                            title="Visualizar vistoria"
+                            className="rounded-full"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -636,7 +697,8 @@ export default function Sinistros() {
                             variant="outline"
                             size="icon"
                             onClick={() => handleOpenPublicLink(vistoria)}
-                            title="Abrir Link"
+                            title="Abrir link da vistoria"
+                            className="rounded-full"
                           >
                             <Link2 className="h-4 w-4" />
                           </Button>
@@ -644,7 +706,8 @@ export default function Sinistros() {
                             variant="outline"
                             size="icon"
                             onClick={() => handleShareWhatsApp(vistoria)}
-                            title="WhatsApp"
+                            title="Enviar link por WhatsApp"
+                            className="rounded-full"
                           >
                             <MessageCircle className="h-4 w-4" />
                           </Button>
@@ -652,7 +715,8 @@ export default function Sinistros() {
                             variant="outline"
                             size="icon"
                             onClick={() => handleShareEmail(vistoria)}
-                            title="Email"
+                            title="Enviar link por e-mail"
+                            className="rounded-full"
                           >
                             <Mail className="h-4 w-4" />
                           </Button>
@@ -661,6 +725,17 @@ export default function Sinistros() {
                     </CardContent>
                   </Card>
                 ))}
+
+                {filteredVistorias.length === 0 && (
+                  <Card>
+                    <CardContent className="p-12 text-center">
+                      <Camera className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">
+                        Nenhuma vistoria encontrada com os filtros / busca aplicados
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </div>
           )}
@@ -688,62 +763,9 @@ export default function Sinistros() {
                 </CardContent>
               </Card>
 
-              {/* Cards de Estatísticas - Expandido */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400 text-base">
-                      <FileText className="h-4 w-4" />
-                      Total
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{dashboardStats.total || 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Vistorias registradas</p>
-                  </CardContent>
-                </Card>
+              {/* Removidos os cards de header duplicados aqui no dashboard */}
 
-                <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100/50 dark:from-yellow-950/30 dark:to-yellow-900/20 border-yellow-200 dark:border-yellow-800">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400 text-base">
-                      <Clock className="h-4 w-4" />
-                      Aguardando
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{dashboardStats.aguardando || 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Aguardando fotos</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-800">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400 text-base">
-                      <Camera className="h-4 w-4" />
-                      Em Análise
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{dashboardStats.analise || 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Sendo analisadas</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400 text-base">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Concluídas
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-3xl font-bold">{dashboardStats.concluidas || 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Finalizadas</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Cards de Custos - Linha separada */}
+              {/* Cards de Custos */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20 border-emerald-200 dark:border-emerald-800">
                   <CardHeader>
@@ -808,7 +830,8 @@ export default function Sinistros() {
                           cy="50%"
                           labelLine={false}
                           label={(entry) => `${entry.name}: ${entry.value}`}
-                          outerRadius={100}
+                          outerRadius={110}
+                          innerRadius={60} // rosca (doughnut)
                           fill="#8884d8"
                           dataKey="value"
                         >
