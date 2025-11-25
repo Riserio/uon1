@@ -44,6 +44,14 @@ export default function VistoriaPublicaLanding() {
         return;
       }
 
+      // Se a vistoria já foi concluída, mostra mensagem
+      if (data.status === 'concluida') {
+        setVistoria(data);
+        setCorretora(data.corretoras || data.atendimentos?.corretoras);
+        setLoading(false);
+        return;
+      }
+
       // Se for pendente_novas_fotos, redireciona direto para captura
       if (data.status === 'pendente_novas_fotos') {
         navigate(`/vistoria/${token}/captura`);
@@ -90,6 +98,28 @@ export default function VistoriaPublicaLanding() {
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Link Inválido</h2>
             <p className="text-gray-600 text-lg">
               Este link de vistoria é inválido ou já expirou. Entre em contato com sua seguradora.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Se a vistoria já foi concluída, mostra mensagem
+  if (vistoria.status === 'concluida') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-white flex items-center justify-center p-6">
+        <Card className="max-w-md border-green-200 shadow-xl">
+          <CardContent className="p-12 text-center">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="h-10 w-10 text-green-600" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Vistoria Concluída</h2>
+            <p className="text-gray-600 text-lg mb-4">
+              Esta vistoria já foi concluída e enviada com sucesso!
+            </p>
+            <p className="text-gray-500 text-sm">
+              Se precisar de algo mais, entre em contato com sua seguradora.
             </p>
           </CardContent>
         </Card>
