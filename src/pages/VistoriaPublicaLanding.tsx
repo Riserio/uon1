@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { 
   Camera, CheckCircle, Shield, Clock, Smartphone, 
-  Zap, Lock, Award, ArrowRight, AlertCircle 
+  Zap, Lock, Award, ArrowRight, AlertCircle, ExternalLink 
 } from 'lucide-react';
 
 export default function VistoriaPublicaLanding() {
@@ -26,11 +26,11 @@ export default function VistoriaPublicaLanding() {
         .from('vistorias')
         .select(`
           *,
-          corretoras(nome, logo_url),
+          corretoras(nome, logo_url, slug),
           atendimentos!vistorias_atendimento_id_fkey(
             corretora_id,
             responsavel_id,
-            corretoras(nome),
+            corretoras(nome, slug),
             profiles!atendimentos_responsavel_id_fkey(nome)
           )
         `)
@@ -107,17 +107,40 @@ export default function VistoriaPublicaLanding() {
 
   // Se a vistoria já foi concluída, mostra mensagem
   if (vistoria.status === 'concluida') {
+    // Monta link de acompanhamento externo usando o slug da corretora
+    const corretoraSlug = vistoria.corretoras?.slug || vistoria.atendimentos?.corretoras?.slug;
+    const acompanhamentoUrl = corretoraSlug 
+      ? `${window.location.origin}/acompanhamento/${corretoraSlug}/${vistoria.numero}`
+      : null;
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-white flex items-center justify-center p-6">
-        <Card className="max-w-md border-green-200 shadow-xl">
+        <Card className="max-w-lg border-green-200 shadow-xl">
           <CardContent className="p-12 text-center">
             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckCircle className="h-10 w-10 text-green-600" />
             </div>
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Vistoria Concluída</h2>
-            <p className="text-gray-600 text-lg mb-4">
+            <p className="text-gray-600 text-lg mb-6">
               Esta vistoria já foi concluída e enviada com sucesso!
             </p>
+            
+            {acompanhamentoUrl && (
+              <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
+                <p className="text-gray-700 font-medium mb-4">
+                  Caso queira consultar seu processo de sinistro, clique no botão abaixo:
+                </p>
+                <Button
+                  onClick={() => window.open(acompanhamentoUrl, '_blank')}
+                  className="w-full gap-2 bg-[hsl(var(--vistoria-primary))] hover:bg-[hsl(var(--vistoria-primary))]/90"
+                  size="lg"
+                >
+                  <ExternalLink className="h-5 w-5" />
+                  Consultar Processo de Sinistro
+                </Button>
+              </div>
+            )}
+
             <p className="text-gray-500 text-sm">
               Se precisar de algo mais, entre em contato com sua seguradora.
             </p>
