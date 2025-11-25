@@ -381,6 +381,7 @@ export default function Sinistros() {
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       pendente: "bg-yellow-500",
+      pendente_novas_fotos: "bg-yellow-500",
       aguardando_fotos: "bg-blue-500",
       em_analise: "bg-purple-500",
       concluida: "bg-green-500",
@@ -392,6 +393,7 @@ export default function Sinistros() {
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
       pendente: "Pendente Novas Fotos",
+      pendente_novas_fotos: "Pendente Novas Fotos",
       aguardando_fotos: "Aguardando Fotos",
       em_analise: "Em Análise",
       concluida: "Concluída",
@@ -768,12 +770,14 @@ export default function Sinistros() {
                 <Card className="border-l-4 border-l-yellow-500 shadow-sm hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      <span className="text-muted-foreground">Pendentes novas fotos</span>
+                      <span className="text-muted-foreground">Pendentes Novas Fotos</span>
                       <Clock className="h-5 w-5 text-yellow-500" />
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold">{vistorias.filter((v) => v.status === "pendente").length}</div>
+                    <div className="text-3xl font-bold">
+                      {vistorias.filter((v) => v.status === "pendente" || v.status === "pendente_novas_fotos").length}
+                    </div>
                     <p className="text-xs text-muted-foreground mt-1">Aguardando envio inicial</p>
                   </CardContent>
                 </Card>
