@@ -9,7 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Upload, X, Save } from "lucide-react";
+import { ArrowLeft, Camera, Upload, X, Save } from "lucide-react";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -92,10 +92,27 @@ export default function VistoriaManual() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [tipoVistoria, setTipoVistoria] = useState<"sinistro" | "reativacao">("sinistro");
-  const [fotos, setFotos] = useState<File[]>([]);
-  const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [corretoras, setCorretoras] = useState<any[]>([]);
+  
+  // Fotos específicas
+  const [fotoCNH, setFotoCNH] = useState<File | null>(null);
+  const [fotoCRLV, setFotoCRLV] = useState<File | null>(null);
+  const [fotoFrontal, setFotoFrontal] = useState<File | null>(null);
+  const [fotoTraseira, setFotoTraseira] = useState<File | null>(null);
+  const [fotoLateralEsq, setFotoLateralEsq] = useState<File | null>(null);
+  const [fotoLateralDir, setFotoLateralDir] = useState<File | null>(null);
+  const [fotosAdicionais, setFotosAdicionais] = useState<File[]>([]);
+  
+  // Previews
+  const [previewCNH, setPreviewCNH] = useState<string>("");
+  const [previewCRLV, setPreviewCRLV] = useState<string>("");
+  const [previewFrontal, setPreviewFrontal] = useState<string>("");
+  const [previewTraseira, setPreviewTraseira] = useState<string>("");
+  const [previewLateralEsq, setPreviewLateralEsq] = useState<string>("");
+  const [previewLateralDir, setPreviewLateralDir] = useState<string>("");
+  const [previewsAdicionais, setPreviewsAdicionais] = useState<string[]>([]);
+  const [selectedPreview, setSelectedPreview] = useState<string>("");
   const [formData, setFormData] = useState({
     // Veículo
     veiculo_placa: "",
@@ -148,34 +165,47 @@ export default function VistoriaManual() {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFotoSelect = (
+    file: File | null,
+    setFoto: (file: File | null) => void,
+    setPreview: (preview: string) => void
+  ) => {
+    if (!file) return;
+    
+    setFoto(file);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const preview = e.target?.result as string;
+      setPreview(preview);
+      setSelectedPreview(preview);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAdicionaisSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (fotos.length + files.length > 4) {
-      toast.error("Máximo de 4 fotos permitidas");
-      return;
-    }
-
-    setFotos([...fotos, ...files]);
-
+    
+    setFotosAdicionais([...fotosAdicionais, ...files]);
+    
     files.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (e) => {
-        setFotoPreviews((prev) => [...prev, e.target?.result as string]);
+        setPreviewsAdicionais((prev) => [...prev, e.target?.result as string]);
       };
       reader.readAsDataURL(file);
     });
   };
 
-  const removeFoto = (index: number) => {
-    setFotos(fotos.filter((_, i) => i !== index));
-    setFotoPreviews(fotoPreviews.filter((_, i) => i !== index));
+  const removeFotoAdicional = (index: number) => {
+    setFotosAdicionais(fotosAdicionais.filter((_, i) => i !== index));
+    setPreviewsAdicionais(previewsAdicionais.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (fotos.length < 4) {
-      toast.error("São necessárias 4 fotos para a vistoria");
+    if (!fotoFrontal || !fotoTraseira || !fotoLateralEsq || !fotoLateralDir) {
+      toast.error("São necessárias as 4 fotos obrigatórias do veículo");
       return;
     }
 
@@ -271,11 +301,19 @@ export default function VistoriaManual() {
 
       if (vistoriaError) throw vistoriaError;
 
-      const posicoes = ["frontal", "traseira", "lateral_esquerda", "lateral_direita"];
-      for (let i = 0; i < fotos.length; i++) {
-        const foto = fotos[i];
-        const fileName = `${vistoria.id}/${posicoes[i]}_${Date.now()}.${foto.name.split(".").pop()}`;
+      // Upload fotos obrigatórias do veículo
+      const fotosVeiculo = [
+        { foto: fotoFrontal, posicao: "frontal" },
+        { foto: fotoTraseira, posicao: "traseira" },
+        { foto: fotoLateralEsq, posicao: "lateral_esquerda" },
+        { foto: fotoLateralDir, posicao: "lateral_direita" },
+      ];
 
+      for (let i = 0; i < fotosVeiculo.length; i++) {
+        const { foto, posicao } = fotosVeiculo[i];
+        if (!foto) continue;
+
+        const fileName = `${vistoria.id}/${posicao}_${Date.now()}.${foto.name.split(".").pop()}`;
         const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, foto);
 
         if (uploadError) throw uploadError;
@@ -286,7 +324,7 @@ export default function VistoriaManual() {
 
         const { error: fotoError } = await supabase.from("vistoria_fotos").insert({
           vistoria_id: vistoria.id,
-          posicao: posicoes[i],
+          posicao,
           arquivo_url: publicUrl,
           arquivo_nome: foto.name,
           arquivo_tamanho: foto.size,
@@ -294,6 +332,51 @@ export default function VistoriaManual() {
         });
 
         if (fotoError) throw fotoError;
+      }
+
+      // Upload CNH
+      if (fotoCNH) {
+        const fileName = `${vistoria.id}/cnh_${Date.now()}.${fotoCNH.name.split(".").pop()}`;
+        const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, fotoCNH);
+        if (!uploadError) {
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("vistorias").getPublicUrl(fileName);
+          await supabase.from("vistorias").update({ cnh_url: publicUrl }).eq("id", vistoria.id);
+        }
+      }
+
+      // Upload CRLV como array
+      if (fotoCRLV) {
+        const fileName = `${vistoria.id}/crlv_${Date.now()}.${fotoCRLV.name.split(".").pop()}`;
+        const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, fotoCRLV);
+        if (!uploadError) {
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("vistorias").getPublicUrl(fileName);
+          await supabase.from("vistorias").update({ crlv_fotos_urls: [publicUrl] }).eq("id", vistoria.id);
+        }
+      }
+
+      // Upload fotos adicionais
+      for (const foto of fotosAdicionais) {
+        const fileName = `${vistoria.id}/adicional_${Date.now()}_${foto.name}`;
+        const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, foto);
+
+        if (!uploadError) {
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("vistorias").getPublicUrl(fileName);
+
+          await supabase.from("vistoria_fotos").insert({
+            vistoria_id: vistoria.id,
+            posicao: "adicional",
+            arquivo_url: publicUrl,
+            arquivo_nome: foto.name,
+            arquivo_tamanho: foto.size,
+            ordem: 100 + fotosAdicionais.indexOf(foto),
+          });
+        }
       }
 
       // Upload de documentos anexos
@@ -645,142 +728,207 @@ export default function VistoriaManual() {
 
                 {/* Perguntas Adicionais */}
                 <div className="space-y-4 pt-4 border-t">
-                  <div>
-                    <Label>Você foi vítima ou causador?</Label>
-                    <RadioGroup
-                      value={formData.vitima_ou_causador}
-                      onValueChange={(value) => setFormData({ ...formData, vitima_ou_causador: value })}
-                    >
-                      <div className="flex gap-4 mt-2">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="vitima" id="vitima" />
-                          <Label htmlFor="vitima">Vítima</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="causador" id="causador" />
-                          <Label htmlFor="causador">Causador</Label>
-                        </div>
+                  <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg p-4 border border-primary/20">
+                    <Label className="text-base font-semibold mb-3 block">Você foi vítima ou causador?</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, vitima_ou_causador: "vitima" })}
+                        className={`p-4 rounded-lg border-2 transition-all ${
+                          formData.vitima_ou_causador === "vitima"
+                            ? "border-primary bg-primary text-primary-foreground shadow-md"
+                            : "border-border bg-card hover:border-primary/50"
+                        }`}
+                      >
+                        <span className="font-medium">Vítima</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, vitima_ou_causador: "causador" })}
+                        className={`p-4 rounded-lg border-2 transition-all ${
+                          formData.vitima_ou_causador === "causador"
+                            ? "border-primary bg-primary text-primary-foreground shadow-md"
+                            : "border-border bg-card hover:border-primary/50"
+                        }`}
+                      >
+                        <span className="font-medium">Causador</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Houve terceiros */}
+                    <div className="bg-muted/50 rounded-lg p-4 border">
+                      <Label className="text-sm font-semibold mb-3 block">Houve terceiros envolvidos?</Label>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, tem_terceiros: true })}
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.tem_terceiros === true
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Sim
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, tem_terceiros: false })}
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.tem_terceiros === false
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Não
+                        </button>
                       </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Houve terceiros envolvidos?</Label>
-                      <RadioGroup
-                        value={formData.tem_terceiros === null ? "" : formData.tem_terceiros ? "sim" : "nao"}
-                        onValueChange={(value) => setFormData({ ...formData, tem_terceiros: value === "sim" })}
-                      >
-                        <div className="flex gap-4 mt-2">
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="sim" id="terceiros-sim" />
-                            <Label htmlFor="terceiros-sim">Sim</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="nao" id="terceiros-nao" />
-                            <Label htmlFor="terceiros-nao">Não</Label>
-                          </div>
-                        </div>
-                      </RadioGroup>
                     </div>
 
-                    <div>
-                      <Label>O local possui câmeras de segurança?</Label>
-                      <RadioGroup
-                        value={formData.local_tem_camera === null ? "" : formData.local_tem_camera ? "sim" : "nao"}
-                        onValueChange={(value) => setFormData({ ...formData, local_tem_camera: value === "sim" })}
-                      >
-                        <div className="flex gap-4 mt-2">
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="sim" id="camera-sim" />
-                            <Label htmlFor="camera-sim">Sim</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="nao" id="camera-nao" />
-                            <Label htmlFor="camera-nao">Não</Label>
-                          </div>
-                        </div>
-                      </RadioGroup>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>A polícia foi ao local?</Label>
-                      <RadioGroup
-                        value={formData.policia_foi_local === null ? "" : formData.policia_foi_local ? "sim" : "nao"}
-                        onValueChange={(value) => setFormData({ ...formData, policia_foi_local: value === "sim" })}
-                      >
-                        <div className="flex gap-4 mt-2">
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="sim" id="policia-sim" />
-                            <Label htmlFor="policia-sim">Sim</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="nao" id="policia-nao" />
-                            <Label htmlFor="policia-nao">Não</Label>
-                          </div>
-                        </div>
-                      </RadioGroup>
+                    {/* Local possui câmeras */}
+                    <div className="bg-muted/50 rounded-lg p-4 border">
+                      <Label className="text-sm font-semibold mb-3 block">O local possui câmeras de segurança?</Label>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, local_tem_camera: true })}
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.local_tem_camera === true
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Sim
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, local_tem_camera: false })}
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.local_tem_camera === false
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Não
+                        </button>
+                      </div>
                     </div>
 
-                    <div>
-                      <Label>Fez Boletim de Ocorrência?</Label>
-                      <RadioGroup
-                        value={formData.fez_bo === null ? "" : formData.fez_bo ? "sim" : "nao"}
-                        onValueChange={(value) => setFormData({ ...formData, fez_bo: value === "sim" })}
-                      >
-                        <div className="flex gap-4 mt-2">
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="sim" id="bo-sim" />
-                            <Label htmlFor="bo-sim">Sim</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="nao" id="bo-nao" />
-                            <Label htmlFor="bo-nao">Não</Label>
-                          </div>
-                        </div>
-                      </RadioGroup>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Foi ao hospital?</Label>
-                      <RadioGroup
-                        value={formData.foi_hospital === null ? "" : formData.foi_hospital ? "sim" : "nao"}
-                        onValueChange={(value) => setFormData({ ...formData, foi_hospital: value === "sim" })}
-                      >
-                        <div className="flex gap-4 mt-2">
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="sim" id="hospital-sim" />
-                            <Label htmlFor="hospital-sim">Sim</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="nao" id="hospital-nao" />
-                            <Label htmlFor="hospital-nao">Não</Label>
-                          </div>
-                        </div>
-                      </RadioGroup>
+                    {/* Polícia foi ao local */}
+                    <div className="bg-muted/50 rounded-lg p-4 border">
+                      <Label className="text-sm font-semibold mb-3 block">A polícia foi ao local?</Label>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, policia_foi_local: true })}
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.policia_foi_local === true
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Sim
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, policia_foi_local: false })}
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.policia_foi_local === false
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Não
+                        </button>
+                      </div>
                     </div>
 
-                    <div>
-                      <Label>O motorista faleceu?</Label>
-                      <RadioGroup
-                        value={formData.motorista_faleceu === null ? "" : formData.motorista_faleceu ? "sim" : "nao"}
-                        onValueChange={(value) => setFormData({ ...formData, motorista_faleceu: value === "sim" })}
-                      >
-                        <div className="flex gap-4 mt-2">
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="sim" id="faleceu-sim" />
-                            <Label htmlFor="faleceu-sim">Sim</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="nao" id="faleceu-nao" />
-                            <Label htmlFor="faleceu-nao">Não</Label>
-                          </div>
-                        </div>
-                      </RadioGroup>
+                    {/* Fez BO */}
+                    <div className="bg-muted/50 rounded-lg p-4 border">
+                      <Label className="text-sm font-semibold mb-3 block">Fez Boletim de Ocorrência?</Label>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, fez_bo: true })}
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.fez_bo === true
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Sim
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, fez_bo: false })}
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.fez_bo === false
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Não
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Foi ao hospital */}
+                    <div className="bg-muted/50 rounded-lg p-4 border">
+                      <Label className="text-sm font-semibold mb-3 block">Foi ao hospital?</Label>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, foi_hospital: true })}
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.foi_hospital === true
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Sim
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, foi_hospital: false })}
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.foi_hospital === false
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Não
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Motorista faleceu */}
+                    <div className="bg-muted/50 rounded-lg p-4 border">
+                      <Label className="text-sm font-semibold mb-3 block">O motorista faleceu?</Label>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, motorista_faleceu: true })}
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.motorista_faleceu === true
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Sim
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, motorista_faleceu: false })}
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.motorista_faleceu === false
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Não
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -874,49 +1022,350 @@ export default function VistoriaManual() {
             </div>
 
             {/* Upload de Fotos */}
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Fotos do Veículo (4 obrigatórias)</h3>
-              <div className="space-y-4">
-                {fotos.length < 4 && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Fotos do Veículo *</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Envie fotos claras de todas as posições do veículo
+                </p>
+              </div>
+
+              {/* Preview Grande */}
+              {selectedPreview && (
+                <div className="relative rounded-lg overflow-hidden bg-muted">
+                  <img
+                    src={selectedPreview}
+                    alt="Preview"
+                    className="w-full h-[400px] object-contain"
+                  />
+                </div>
+              )}
+
+              {/* Grid de Miniaturas - Documentos */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm">Documentos</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* CNH */}
                   <div>
-                    <Label htmlFor="fotos" className="cursor-pointer">
-                      <div className="border-2 border-dashed border-primary/30 rounded-lg p-8 text-center hover:border-primary transition-colors">
-                        <Upload className="h-12 w-12 mx-auto mb-2 text-primary" />
-                        <p className="text-sm text-muted-foreground">Clique para adicionar fotos ({fotos.length}/4)</p>
+                    <Label htmlFor="foto-cnh" className="cursor-pointer">
+                      <div
+                        className={`relative rounded-lg border-2 ${
+                          fotoCNH ? "border-primary" : "border-dashed border-muted-foreground/30"
+                        } overflow-hidden hover:border-primary transition-colors group`}
+                      >
+                        {previewCNH ? (
+                          <>
+                            <img src={previewCNH} alt="CNH" className="w-full h-32 object-cover" onClick={() => setSelectedPreview(previewCNH)} />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-2 right-2 h-6 w-6"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setFotoCNH(null);
+                                setPreviewCNH("");
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground group-hover:text-primary transition-colors">
+                            <Camera className="h-8 w-8 mb-1" />
+                            <span className="text-xs font-medium">CNH</span>
+                          </div>
+                        )}
                       </div>
                     </Label>
                     <Input
-                      id="fotos"
+                      id="foto-cnh"
                       type="file"
                       accept="image/*"
-                      multiple
-                      onChange={handleFileSelect}
                       className="hidden"
+                      onChange={(e) =>
+                        handleFotoSelect(e.target.files?.[0] || null, setFotoCNH, setPreviewCNH)
+                      }
                     />
                   </div>
-                )}
 
-                {fotoPreviews.length > 0 && (
-                  <div className="grid grid-cols-2 gap-4">
-                    {fotoPreviews.map((preview, index) => (
-                      <div key={index} className="relative group">
-                        <img src={preview} alt={`Foto ${index + 1}`} className="w-full h-48 object-cover rounded-lg" />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => removeFoto(index)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                        <div className="absolute bottom-2 left-2 bg-black/60 text-white px-2 py-1 rounded text-xs">
-                          {["Frontal", "Traseira", "Lateral Esq.", "Lateral Dir."][index]}
-                        </div>
+                  {/* CRLV */}
+                  <div>
+                    <Label htmlFor="foto-crlv" className="cursor-pointer">
+                      <div
+                        className={`relative rounded-lg border-2 ${
+                          fotoCRLV ? "border-primary" : "border-dashed border-muted-foreground/30"
+                        } overflow-hidden hover:border-primary transition-colors group`}
+                      >
+                        {previewCRLV ? (
+                          <>
+                            <img src={previewCRLV} alt="CRLV" className="w-full h-32 object-cover" onClick={() => setSelectedPreview(previewCRLV)} />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-2 right-2 h-6 w-6"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setFotoCRLV(null);
+                                setPreviewCRLV("");
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground group-hover:text-primary transition-colors">
+                            <Camera className="h-8 w-8 mb-1" />
+                            <span className="text-xs font-medium">CRLV</span>
+                          </div>
+                        )}
                       </div>
-                    ))}
+                    </Label>
+                    <Input
+                      id="foto-crlv"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) =>
+                        handleFotoSelect(e.target.files?.[0] || null, setFotoCRLV, setPreviewCRLV)
+                      }
+                    />
                   </div>
-                )}
+                </div>
+              </div>
+
+              {/* Grid de Miniaturas - Veículo */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm">Fotos do Veículo (Obrigatórias) *</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Frontal */}
+                  <div>
+                    <Label htmlFor="foto-frontal" className="cursor-pointer">
+                      <div
+                        className={`relative rounded-lg border-2 ${
+                          fotoFrontal ? "border-primary" : "border-dashed border-destructive"
+                        } overflow-hidden hover:border-primary transition-colors group`}
+                      >
+                        {previewFrontal ? (
+                          <>
+                            <img src={previewFrontal} alt="Frontal" className="w-full h-32 object-cover" onClick={() => setSelectedPreview(previewFrontal)} />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-2 right-2 h-6 w-6"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setFotoFrontal(null);
+                                setPreviewFrontal("");
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground group-hover:text-primary transition-colors">
+                            <Camera className="h-8 w-8 mb-1" />
+                            <span className="text-xs font-medium">Frontal</span>
+                          </div>
+                        )}
+                      </div>
+                    </Label>
+                    <Input
+                      id="foto-frontal"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      required
+                      onChange={(e) =>
+                        handleFotoSelect(e.target.files?.[0] || null, setFotoFrontal, setPreviewFrontal)
+                      }
+                    />
+                  </div>
+
+                  {/* Traseira */}
+                  <div>
+                    <Label htmlFor="foto-traseira" className="cursor-pointer">
+                      <div
+                        className={`relative rounded-lg border-2 ${
+                          fotoTraseira ? "border-primary" : "border-dashed border-destructive"
+                        } overflow-hidden hover:border-primary transition-colors group`}
+                      >
+                        {previewTraseira ? (
+                          <>
+                            <img src={previewTraseira} alt="Traseira" className="w-full h-32 object-cover" onClick={() => setSelectedPreview(previewTraseira)} />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-2 right-2 h-6 w-6"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setFotoTraseira(null);
+                                setPreviewTraseira("");
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground group-hover:text-primary transition-colors">
+                            <Camera className="h-8 w-8 mb-1" />
+                            <span className="text-xs font-medium">Traseira</span>
+                          </div>
+                        )}
+                      </div>
+                    </Label>
+                    <Input
+                      id="foto-traseira"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      required
+                      onChange={(e) =>
+                        handleFotoSelect(e.target.files?.[0] || null, setFotoTraseira, setPreviewTraseira)
+                      }
+                    />
+                  </div>
+
+                  {/* Lateral Esquerda */}
+                  <div>
+                    <Label htmlFor="foto-lat-esq" className="cursor-pointer">
+                      <div
+                        className={`relative rounded-lg border-2 ${
+                          fotoLateralEsq ? "border-primary" : "border-dashed border-destructive"
+                        } overflow-hidden hover:border-primary transition-colors group`}
+                      >
+                        {previewLateralEsq ? (
+                          <>
+                            <img src={previewLateralEsq} alt="Lateral Esq" className="w-full h-32 object-cover" onClick={() => setSelectedPreview(previewLateralEsq)} />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-2 right-2 h-6 w-6"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setFotoLateralEsq(null);
+                                setPreviewLateralEsq("");
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground group-hover:text-primary transition-colors">
+                            <Camera className="h-8 w-8 mb-1" />
+                            <span className="text-xs font-medium">Lateral Esq.</span>
+                          </div>
+                        )}
+                      </div>
+                    </Label>
+                    <Input
+                      id="foto-lat-esq"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      required
+                      onChange={(e) =>
+                        handleFotoSelect(e.target.files?.[0] || null, setFotoLateralEsq, setPreviewLateralEsq)
+                      }
+                    />
+                  </div>
+
+                  {/* Lateral Direita */}
+                  <div>
+                    <Label htmlFor="foto-lat-dir" className="cursor-pointer">
+                      <div
+                        className={`relative rounded-lg border-2 ${
+                          fotoLateralDir ? "border-primary" : "border-dashed border-destructive"
+                        } overflow-hidden hover:border-primary transition-colors group`}
+                      >
+                        {previewLateralDir ? (
+                          <>
+                            <img src={previewLateralDir} alt="Lateral Dir" className="w-full h-32 object-cover" onClick={() => setSelectedPreview(previewLateralDir)} />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-2 right-2 h-6 w-6"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setFotoLateralDir(null);
+                                setPreviewLateralDir("");
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground group-hover:text-primary transition-colors">
+                            <Camera className="h-8 w-8 mb-1" />
+                            <span className="text-xs font-medium">Lateral Dir.</span>
+                          </div>
+                        )}
+                      </div>
+                    </Label>
+                    <Input
+                      id="foto-lat-dir"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      required
+                      onChange={(e) =>
+                        handleFotoSelect(e.target.files?.[0] || null, setFotoLateralDir, setPreviewLateralDir)
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Fotos Adicionais */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm">Fotos Adicionais (Opcional)</h4>
+                <div className="space-y-4">
+                  <Label htmlFor="fotos-adicionais" className="cursor-pointer">
+                    <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center hover:border-primary transition-colors">
+                      <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">
+                        Clique para adicionar fotos extras de danos ou detalhes
+                      </p>
+                    </div>
+                  </Label>
+                  <Input
+                    id="fotos-adicionais"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleAdicionaisSelect}
+                  />
+
+                  {previewsAdicionais.length > 0 && (
+                    <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+                      {previewsAdicionais.map((preview, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={preview}
+                            alt={`Adicional ${index + 1}`}
+                            className="w-full h-24 object-cover rounded-lg cursor-pointer"
+                            onClick={() => setSelectedPreview(preview)}
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => removeFotoAdicional(index)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -927,7 +1376,7 @@ export default function VistoriaManual() {
               </Button>
               <Button
                 type="submit"
-                disabled={loading || fotos.length < 4}
+                disabled={loading || !fotoFrontal || !fotoTraseira || !fotoLateralEsq || !fotoLateralDir}
                 className="flex-1 bg-gradient-to-r from-primary to-primary/80"
               >
                 {loading ? (
