@@ -106,16 +106,6 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
       const fileName = `${type}-${Date.now()}.${fileExt}`;
       const filePath = `${type === 'logo' ? 'logos' : 'login-images'}/${fileName}`;
 
-      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
-      if (bucketsError) throw bucketsError;
-      
-      const bucketExists = buckets?.some(b => b.name === 'app-config');
-      
-      if (!bucketExists) {
-        const { error: createError } = await supabase.storage.createBucket('app-config', { public: true });
-        if (createError) throw createError;
-      }
-
       const { error: uploadError } = await supabase.storage
         .from('app-config')
         .upload(filePath, file, {
@@ -123,7 +113,17 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
           upsert: true
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        if (uploadError.message?.includes('not found')) {
+          toast({ 
+            title: "Bucket de storage não configurado", 
+            description: "Entre em contato com o administrador para configurar o storage",
+            variant: "destructive" 
+          });
+          return;
+        }
+        throw uploadError;
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from('app-config')
