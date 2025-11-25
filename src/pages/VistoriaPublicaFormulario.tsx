@@ -12,11 +12,10 @@ import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, User, Calendar, FileText, AlertCircle, CheckCircle, MapPin, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import SketchPad from "@/components/SketchPad";
-import { validateCPF, validatePhone, formatCPF, formatPhone, formatPlaca } from "@/lib/validators";
+import { validateCPF, validatePhone } from "@/lib/validators";
 import { useVeiculos } from "@/hooks/useVeiculos";
 import { VehicleTypeSelector } from "@/components/VehicleTypeSelector";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import marcasModelosData from "@/data/marcas_modelos.json";
+import { SearchableVehicleSelect } from "@/components/SearchableVehicleSelect";
 
 const STEPS = [
   { id: 0, title: "Dados Pessoais", icon: User, description: "Informações do segurado" },
@@ -63,32 +62,8 @@ export default function VistoriaPublicaFormulario() {
     policia_foi_local: false,
   });
 
+  const { marcas, modelos, marcaSelecionada, setMarcaSelecionada } = useVeiculos();
   const [vehicleType, setVehicleType] = useState<string>("");
-  const [marcaSelecionada, setMarcaSelecionada] = useState<string>("");
-  
-  // Mapear marcas por tipo (baseado em conhecimento comum)
-  const marcasPorTipo: { [key: string]: string[] } = {
-    carro: Object.keys(marcasModelosData).filter(marca => 
-      !['ADLY', 'AGRALE', 'APRILIA', 'ATALA', 'BMW', 'Benda', 'Beta', 'Brava', 'CAGIVA', 'CALOI', 'CAN-AM', 'CF MOTO', 'DAFRA', 'DAYUN', 'DUCATI', 'FOX', 'Gas Gas', 'HARLEY-DAVIDSON', 'HAOJUE', 'HONDA', 'HUSABERG', 'HUSQVARNA', 'IROS', 'JIAPENG VOLCANO', 'JONNY', 'KAHENA', 'KASINSKI', 'KAWASAKI', 'KIMCO', 'KTM', 'KYMCO', 'LAMBRETA', 'LAMBRETTA', 'LERIVO', 'MIZA', 'MOBILETE', 'MOTO GUZZI', 'MRX', 'MVK', 'MV AGUSTA', 'Magri', 'Malaguti', 'Magrão', 'ORCA', 'PIAGGIO', 'RIBATRIKE', 'ROYAL ENFIELD', 'SANYANG', 'SHINERAY', 'SUNDOWN', 'SUZUKI', 'TRAXX', 'TRIUMPH', 'TRV', 'VENTO', 'VESPA', 'VOLTZ', 'YAMAHA'].includes(marca)
-    ),
-    moto: ['ADLY', 'AGRALE', 'APRILIA', 'ATALA', 'BMW', 'Benda', 'Beta', 'Brava', 'CAGIVA', 'CALOI', 'CAN-AM', 'CF MOTO', 'DAFRA', 'DAYUN', 'DUCATI', 'FOX', 'Gas Gas', 'HARLEY-DAVIDSON', 'HAOJUE', 'HONDA', 'HUSABERG', 'HUSQVARNA', 'IROS', 'JIAPENG VOLCANO', 'JONNY', 'KAHENA', 'KASINSKI', 'KAWASAKI', 'KIMCO', 'KTM', 'KYMCO', 'LAMBRETA', 'LAMBRETTA', 'LERIVO', 'MIZA', 'MOBILETE', 'MOTO GUZZI', 'MRX', 'MVK', 'MV AGUSTA', 'Magri', 'Malaguti', 'Magrão', 'ORCA', 'PIAGGIO', 'RIBATRIKE', 'ROYAL ENFIELD', 'SANYANG', 'SHINERAY', 'SUNDOWN', 'SUZUKI', 'TRAXX', 'TRIUMPH', 'TRV', 'VENTO', 'VESPA', 'VOLTZ', 'YAMAHA'],
-    caminhao: ['AGRALE', 'DAF', 'FORD', 'IVECO', 'INTERNATIONAL', 'INTERNATIONAL HARV', 'MAN', 'MERCEDES-BENZ', 'SCANIA', 'VOLVO', 'VOLKSWAGEN']
-  };
-  
-  // Filtrar marcas por tipo de veículo
-  const getMarcasPorTipo = () => {
-    if (!vehicleType) return [];
-    return (marcasPorTipo[vehicleType] || []).sort();
-  };
-  
-  // Filtrar modelos por marca selecionada
-  const getModelosPorMarca = () => {
-    if (!marcaSelecionada) return [];
-    return marcasModelosData[marcaSelecionada as keyof typeof marcasModelosData] || [];
-  };
-  
-  const marcasDisponiveis = getMarcasPorTipo();
-  const modelosDisponiveis = getModelosPorMarca();
 
   const [boFile, setBoFile] = useState<File | null>(null);
   const [laudoMedico, setLaudoMedico] = useState<File | null>(null);
@@ -527,7 +502,6 @@ export default function VistoriaPublicaFormulario() {
                   <Label className="text-base font-semibold">CPF *</Label>
                   <MaskedInput
                     format="###.###.###-##"
-                    mask="_"
                     value={formData.cliente_cpf}
                     onValueChange={(values) => setFormData({ ...formData, cliente_cpf: values.value })}
                     placeholder="000.000.000-00"
@@ -550,7 +524,6 @@ export default function VistoriaPublicaFormulario() {
                   <Label className="text-base font-semibold">Telefone</Label>
                   <MaskedInput
                     format="(##) #####-####"
-                    mask="_"
                     value={formData.cliente_telefone}
                     onValueChange={(values) => setFormData({ ...formData, cliente_telefone: values.value })}
                     placeholder="(11) 99999-9999"
@@ -606,55 +579,30 @@ export default function VistoriaPublicaFormulario() {
                 </div>
 
 
-                <VehicleTypeSelector value={vehicleType} onChange={(value) => {
-                  setVehicleType(value);
-                  setFormData({ ...formData, veiculo_marca: "", veiculo_modelo: "" });
-                  setMarcaSelecionada("");
-                }} />
+                <VehicleTypeSelector value={vehicleType} onChange={setVehicleType} />
 
                 <div className="grid sm:grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-base font-semibold">Marca *</Label>
-                    <Select
-                      value={formData.veiculo_marca}
-                      onValueChange={(value) => {
-                        setFormData({ ...formData, veiculo_marca: value, veiculo_modelo: "" });
-                        setMarcaSelecionada(value);
-                      }}
-                      disabled={!vehicleType}
-                    >
-                      <SelectTrigger className="mt-2 h-12">
-                        <SelectValue placeholder={vehicleType ? "Selecione a marca" : "Selecione o tipo primeiro"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {marcasDisponiveis.map((marca) => (
-                          <SelectItem key={marca} value={marca}>
-                            {marca}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <SearchableVehicleSelect
+                    label="Marca *"
+                    value={formData.veiculo_marca}
+                    options={marcas}
+                    vehicleType={vehicleType}
+                    onChange={(value) => {
+                      setFormData({ ...formData, veiculo_marca: value, veiculo_modelo: "" });
+                      setMarcaSelecionada(value);
+                    }}
+                    placeholder="Digite 3+ letras"
+                    disabled={!vehicleType}
+                  />
 
-                  <div>
-                    <Label className="text-base font-semibold">Modelo *</Label>
-                    <Select
-                      value={formData.veiculo_modelo}
-                      onValueChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
-                      disabled={!marcaSelecionada}
-                    >
-                      <SelectTrigger className="mt-2 h-12">
-                        <SelectValue placeholder={marcaSelecionada ? "Selecione o modelo" : "Selecione a marca primeiro"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {modelosDisponiveis.map((modelo) => (
-                          <SelectItem key={modelo} value={modelo}>
-                            {modelo}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <SearchableVehicleSelect
+                    label="Modelo *"
+                    value={formData.veiculo_modelo}
+                    options={modelos}
+                    onChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
+                    placeholder={marcaSelecionada ? "Digite 3+ letras" : "Selecione marca primeiro"}
+                    disabled={!marcaSelecionada}
+                  />
 
                   <div>
                     <Label className="text-base font-semibold">Ano</Label>

@@ -12,7 +12,6 @@ import { toast } from "sonner";
 import { ArrowLeft, Camera, Upload, X, Save } from "lucide-react";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { useAuth } from "@/hooks/useAuth";
-import { formatCPF, formatPhone, formatPlaca, formatChassi, formatCEP } from "@/lib/validators";
 
 const MARCAS = [
   "Audi",
@@ -524,15 +523,20 @@ export default function VistoriaManual() {
                   <Label>Placa *</Label>
                   <MaskedInput
                     required
-                    format="@@@-####"
-                    mask="_"
+                    format="@@@#@##"
+                    mask=""
                     patternChar="@"
                     allowEmptyFormatting={false}
                     value={formData.veiculo_placa}
-                    onValueChange={(values) => setFormData({ ...formData, veiculo_placa: values.value.toUpperCase() })}
-                    placeholder="ABC-1234"
+                    onValueChange={(values) => 
+                      setFormData({ ...formData, veiculo_placa: values.value.toUpperCase() })
+                    }
+                    placeholder="ABC1D23"
                     className="uppercase"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Formato: ABC1D23 ou ABC-1234
+                  </p>
                 </div>
                 <div>
                   <Label>Marca *</Label>
@@ -617,10 +621,9 @@ export default function VistoriaManual() {
                   <Label>Chassi</Label>
                   <Input
                     value={formData.veiculo_chassi}
-                    onChange={(e) => setFormData({ ...formData, veiculo_chassi: formatChassi(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, veiculo_chassi: e.target.value.toUpperCase() })}
                     placeholder="9BWZZZ377VT004251"
                     maxLength={17}
-                    className="uppercase"
                   />
                 </div>
               </div>
