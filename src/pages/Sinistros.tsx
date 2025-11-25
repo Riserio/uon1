@@ -747,24 +747,66 @@ export default function Sinistros() {
                 </CardContent>
               </Card>
 
-              {/* Cards de Estatísticas */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Cards de Estatísticas - Expandido */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                      <FileText className="h-5 w-5" />
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400 text-base">
+                      <FileText className="h-4 w-4" />
                       Total de Vistorias
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-4xl font-bold">{dashboardStats.total || 0}</p>
-                    <p className="text-sm text-muted-foreground mt-2">Registros no período</p>
+                    <p className="text-3xl font-bold">{dashboardStats.total || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Registros no período</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100/50 dark:from-yellow-950/30 dark:to-yellow-900/20 border-yellow-200 dark:border-yellow-800">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400 text-base">
+                      <Clock className="h-4 w-4" />
+                      Aguardando
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">{dashboardStats.aguardando || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Aguardando fotos</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-800">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400 text-base">
+                      <Camera className="h-4 w-4" />
+                      Em Análise
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">{dashboardStats.analise || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Sendo analisadas</p>
                   </CardContent>
                 </Card>
 
                 <Card className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400 text-base">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Concluídas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">{dashboardStats.concluidas || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Finalizadas</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Cards de Custos */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20 border-emerald-200 dark:border-emerald-800">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                    <CardTitle className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                       <DollarSign className="h-5 w-5" />
                       Custo Total
                     </CardTitle>
@@ -775,9 +817,9 @@ export default function Sinistros() {
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-800">
+                <Card className="bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-950/30 dark:to-violet-900/20 border-violet-200 dark:border-violet-800">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                    <CardTitle className="flex items-center gap-2 text-violet-700 dark:text-violet-400">
                       <TrendingUp className="h-5 w-5" />
                       Custo Médio
                     </CardTitle>
@@ -787,13 +829,34 @@ export default function Sinistros() {
                     <p className="text-sm text-muted-foreground mt-2">Por vistoria</p>
                   </CardContent>
                 </Card>
+
+                <Card className="bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20 border-orange-200 dark:border-orange-800">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
+                      <BarChart3 className="h-5 w-5" />
+                      Taxa de Conclusão
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-4xl font-bold">
+                      {dashboardStats.total > 0
+                        ? Math.round((dashboardStats.concluidas / dashboardStats.total) * 100)
+                        : 0}
+                      %
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2">Vistorias concluídas</p>
+                  </CardContent>
+                </Card>
               </div>
 
               {/* Gráficos */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Distribuição por Status</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Distribuição por Status
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -820,13 +883,16 @@ export default function Sinistros() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Tipos de Sinistro</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5" />
+                      Tipos de Sinistro
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={tipoData}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
+                        <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
                         <YAxis />
                         <Tooltip formatter={(value) => (typeof value === "number" ? formatCurrency(value) : value)} />
                         <Legend />
@@ -837,6 +903,29 @@ export default function Sinistros() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Gráfico de Fluxos */}
+              {fluxoData.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5" />
+                      Distribuição por Fluxo
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={fluxoData} layout="horizontal">
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" />
+                        <YAxis dataKey="name" type="category" width={150} />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="#8b5cf6" name="Atendimentos" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
         </>
