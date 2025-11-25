@@ -278,23 +278,13 @@ export function AppSidebar() {
             <SidebarGroupLabel>Ferramentas</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {/* Abertura de Sinistro (sem permissionamento específico ainda) */}
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <NavLink to="/abertura-sinistro" activeClassName="bg-primary text-primary-foreground">
-                      <AlertTriangle className="h-4 w-4" />
-                      {!collapsed && <span>Abertura de Sinistro</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-
-                {/* Vistorias */}
-                {canView("vistorias") && (
+                {/* Sinistros */}
+                {canView("sinistros") && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
-                      <NavLink to="/vistorias" activeClassName="bg-primary text-primary-foreground">
-                        <Camera className="h-4 w-4" />
-                        {!collapsed && <span>Vistorias</span>}
+                      <NavLink to="/sinistros" activeClassName="bg-primary text-primary-foreground">
+                        <AlertTriangle className="h-4 w-4" />
+                        {!collapsed && <span>Sinistros</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

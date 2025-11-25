@@ -27,7 +27,7 @@ import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 import IndividualPerformance from "./pages/IndividualPerformance";
 import DesempenhoCorretoras from "./pages/DesempenhoCorretoras";
-import Vistorias from "./pages/Vistorias";
+import Sinistros from "./pages/Sinistros";
 import VistoriaDigital from "./pages/VistoriaDigital";
 import VistoriaManual from "./pages/VistoriaManual";
 import VistoriaDetalhe from "./pages/VistoriaDetalhe";
@@ -37,11 +37,8 @@ import VistoriaPublicaFormulario from './pages/VistoriaPublicaFormulario';
 import VistoriaPublicaTermos from './pages/VistoriaPublicaTermos';
 import VistoriaPublicaConclusao from './pages/VistoriaPublicaConclusao';
 import AcompanhamentoSinistro from './pages/AcompanhamentoSinistro';
-import AcompanhamentoSinistrosInterno from './pages/AcompanhamentoSinistrosInterno';
 import ConfiguracaoStatusPublico from './pages/ConfiguracaoStatusPublico';
 import Administradora from "./pages/Administradora";
-import AberturaSinistro from './pages/AberturaSinistro';
-import DashboardSinistros from './pages/DashboardSinistros';
 import { PortalAuthProvider } from '@/contexts/PortalAuthContext';
 import PortalLogin from './pages/portal/PortalLogin';
 import PortalDashboard from './pages/portal/PortalDashboard';
@@ -137,14 +134,10 @@ const App = () => (
             <Route path="/vistoria/:token/termos" element={<VistoriaPublicaTermos />} />
             <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
               <Route path="/acompanhamento" element={<AcompanhamentoSinistro />} />
-              <Route path="/sinistros/acompanhamento" element={<ProtectedRoute><AcompanhamentoSinistrosInterno /></ProtectedRoute>} />
               <Route path="/configuracao-status-publico" element={<ProtectedRoute><ConfiguracaoStatusPublico /></ProtectedRoute>} />
-              <Route path="/sinistros/novo" element={<ProtectedRoute><AberturaSinistro /></ProtectedRoute>} />
-              <Route path="/abertura-sinistro" element={<ProtectedRoute><AberturaSinistro /></ProtectedRoute>} />
-              <Route path="/dashboard-sinistros" element={<ProtectedRoute><DashboardSinistros /></ProtectedRoute>} />
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/atendimentos" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-              <Route path="/vistorias" element={<ProtectedRoute><Vistorias /></ProtectedRoute>} />
+              <Route path="/sinistros" element={<ProtectedRoute><Sinistros /></ProtectedRoute>} />
               <Route path="/vistorias/nova/digital" element={<ProtectedRoute><VistoriaDigital /></ProtectedRoute>} />
               <Route path="/vistorias/nova/manual" element={<ProtectedRoute><VistoriaManual /></ProtectedRoute>} />
               <Route path="/vistorias/:id" element={<ProtectedRoute><VistoriaDetalhe /></ProtectedRoute>} />
