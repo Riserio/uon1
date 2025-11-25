@@ -210,7 +210,17 @@ const handler = async (req: Request): Promise<Response> => {
     // Atualizar vistoria com análise completa e dados do veículo
     const updateData: any = {
       status: 'concluida',
-      analise_ia: { analises, resumo: observacoesIA },
+      analise_ia: { 
+        analises, 
+        resumo: observacoesIA,
+        data_analise: new Date().toISOString(),
+        veiculo: {
+          PLACA: placa || 'Não identificado',
+          MARCA: marca || 'Não identificado',
+          MODELO: modelo || 'Não identificado',
+          ANO: ano || 'Não identificado'
+        }
+      },
       danos_detectados: Array.from(new Set(danosDetectados)),
       observacoes_ia: observacoesIA,
       completed_at: new Date().toISOString()
