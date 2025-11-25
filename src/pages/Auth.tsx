@@ -1,4 +1,4 @@
-import LogoUon1 from "@/assets/logo-uon1.png";
+import LogoUon1 from "@/assets/uon1-logo.png";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -332,6 +332,11 @@ export default function Auth() {
           <p className="text-xl opacity-90">
             {showCredentialsStep ? "Tudo começa no 1!" : "Confirme seu acesso seguro"}
           </p>
+          {showCredentialsStep && (
+            <div className="mt-6">
+              <img src={LogoUon1} alt="UON1 Logo" className="w-48 h-auto opacity-90" />
+            </div>
+          )}
         </div>
       </div>
 
@@ -417,6 +422,11 @@ export default function Auth() {
                   placeholder="••••••••"
                   className="h-11"
                 />
+              </div>
+
+              {/* Logo para telas menores - abaixo da senha */}
+              <div className="lg:hidden flex justify-center pt-2">
+                <img src={LogoUon1} alt="UON1 Logo" className="w-32 h-auto opacity-80" />
               </div>
 
               <Button
