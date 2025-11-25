@@ -1,0 +1,169 @@
+import { useState, useMemo } from "react";
+import { Check, ChevronsUpDown, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
+
+interface SearchableVehicleSelectProps {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  vehicleType?: string;
+}
+
+// Helper to categorize brands by vehicle type
+const getBrandCategory = (brand: string): string[] => {
+  const motorcycleBrands = [
+    "ADLY", "APRILIA", "AVELLOZ", "AMAZONAS", "ATALA", "BAJAJ", "BENELLI", "BETA", 
+    "BMW", "BRANDY", "BRAVAX", "BUELL", "BULL", "CAGIVA", "CALOI", "CASAL",
+    "DAELIM", "DAFRA", "DAYUN", "DERBI", "DUCATI", "EMME", "FYM", "GARELLI",
+    "GAS GAS", "HARLEY-DAVIDSON", "HARTFORD", "HONDA", "HUSABERG", "HUSQVARNA",
+    "HYOSUNG", "IROS", "JIALING", "JOHNNYPAG", "KAHENA", "KASINSKI", "KAWASAKI",
+    "KEEWAY", "KTM", "KYMCO", "LAVRALE", "LERIVO", "LIFAN", "MALAGUTI", "MIZA",
+    "MOBILETE", "MOTO GUZZI", "MRX", "MV AGUSTA", "ORCA", "PEUGEOT", "PIAGGIO",
+    "SANYANG", "SHINERAY", "SUNDOWN", "SUZUKI", "TRAXX", "TRIUMPH", "VENTO",
+    "VESPA", "YAMAHA", "YUMBO", "ZONGSHEN", "ZONTES"
+  ];
+  
+  const truckBrands = [
+    "AGRALE", "FORD CARGO", "IVECO", "MAN", "MERCEDES-BENZ", "SCANIA", 
+    "VOLKSWAGEN", "VOLVO", "DAF", "FREIGHTLINER", "INTERNATIONAL", "KENWORTH",
+    "MACK", "PETERBILT", "STERLING", "WESTERN STAR"
+  ];
+
+  const categories: string[] = [];
+  
+  if (motorcycleBrands.includes(brand.toUpperCase())) {
+    categories.push("moto");
+  }
+  
+  if (truckBrands.includes(brand.toUpperCase())) {
+    categories.push("caminhao");
+  }
+  
+  // If not in any specific category, consider it a car
+  if (categories.length === 0) {
+    categories.push("carro");
+  }
+  
+  return categories;
+};
+
+export function SearchableVehicleSelect({
+  label,
+  value,
+  options,
+  onChange,
+  placeholder = "Selecione...",
+  disabled = false,
+  vehicleType,
+}: SearchableVehicleSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filteredOptions = useMemo(() => {
+    let filtered = options;
+
+    // Filter by vehicle type if provided
+    if (vehicleType) {
+      filtered = filtered.filter(option => {
+        const categories = getBrandCategory(option);
+        return categories.includes(vehicleType);
+      });
+    }
+
+    // Only filter by search if 3 or more characters
+    if (search.length >= 3) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(option =>
+        option.toLowerCase().includes(searchLower)
+      );
+    } else if (search.length > 0 && search.length < 3) {
+      // Show message to type more characters
+      return [];
+    }
+
+    return filtered.sort();
+  }, [options, search, vehicleType]);
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            disabled={disabled}
+            className={cn(
+              "w-full justify-between",
+              !value && "text-muted-foreground"
+            )}
+          >
+            {value || placeholder}
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[400px] p-0 z-[9999]" align="start">
+          <Command shouldFilter={false}>
+            <div className="flex items-center border-b px-3">
+              <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+              <CommandInput
+                placeholder={`${vehicleType ? `Digite 3+ letras para buscar...` : 'Selecione o tipo do veículo primeiro'}`}
+                value={search}
+                onValueChange={setSearch}
+                disabled={!vehicleType}
+                className="flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+            <CommandList>
+              {!vehicleType ? (
+                <CommandEmpty>
+                  <div className="py-6 text-center text-sm text-muted-foreground">
+                    Selecione primeiro o tipo de veículo (Carro, Moto ou Caminhão)
+                  </div>
+                </CommandEmpty>
+              ) : search.length > 0 && search.length < 3 ? (
+                <CommandEmpty>
+                  <div className="py-6 text-center text-sm text-muted-foreground">
+                    Digite pelo menos 3 caracteres para buscar
+                  </div>
+                </CommandEmpty>
+              ) : filteredOptions.length === 0 ? (
+                <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
+              ) : (
+                <CommandGroup>
+                  {filteredOptions.map((option) => (
+                    <CommandItem
+                      key={option}
+                      value={option}
+                      onSelect={() => {
+                        onChange(option);
+                        setOpen(false);
+                        setSearch("");
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          value === option ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {option}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
