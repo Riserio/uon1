@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import {
   Camera,
   CheckCircle2,
@@ -64,6 +65,86 @@ export default function VistoriaPublicaCaptura() {
   const [vehicleData, setVehicleData] = useState<any>(null);
   const [processingOcr, setProcessingOcr] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  
+  // LocalStorage para persistência das fotos
+  const [storedFotos, setStoredFotos] = useLocalStorage<{
+    fotosData: { [key: string]: { name: string; type: string; dataUrl: string }[] };
+    previews: { [key: string]: string[] };
+    currentStep: number;
+    cnhData: any;
+    vehicleData: any;
+    geolocation: { latitude: number; longitude: number } | null;
+  } | null>(`vistoria_fotos_${token}`, null);
+
+  // Helper para converter File para DataURL
+  const fileToDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Helper para converter DataURL para File
+  const dataUrlToFile = async (dataUrl: string, fileName: string, fileType: string): Promise<File> => {
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    return new File([blob], fileName, { type: fileType });
+  };
+
+  // Carregar fotos do localStorage ao montar
+  useEffect(() => {
+    const loadStoredData = async () => {
+      if (storedFotos) {
+        // Restaurar previews
+        setFotoPreviews(storedFotos.previews);
+        setCurrentStep(storedFotos.currentStep);
+        setCnhData(storedFotos.cnhData);
+        setVehicleData(storedFotos.vehicleData);
+        setGeolocation(storedFotos.geolocation);
+
+        // Reconstruir Files a partir dos DataURLs
+        const reconstructedFotos: { [key: string]: File[] } = {};
+        for (const [key, filesData] of Object.entries(storedFotos.fotosData)) {
+          reconstructedFotos[key] = await Promise.all(
+            filesData.map(fd => dataUrlToFile(fd.dataUrl, fd.name, fd.type))
+          );
+        }
+        setFotos(reconstructedFotos);
+      }
+    };
+    loadStoredData();
+  }, []);
+
+  // Salvar fotos no localStorage sempre que houver mudanças
+  useEffect(() => {
+    const saveFotos = async () => {
+      if (Object.keys(fotos).length > 0 || Object.keys(fotoPreviews).length > 0) {
+        const fotosData: { [key: string]: { name: string; type: string; dataUrl: string }[] } = {};
+        
+        for (const [key, files] of Object.entries(fotos)) {
+          fotosData[key] = await Promise.all(
+            files.map(async (file) => ({
+              name: file.name,
+              type: file.type,
+              dataUrl: await fileToDataUrl(file)
+            }))
+          );
+        }
+
+        setStoredFotos({
+          fotosData,
+          previews: fotoPreviews,
+          currentStep,
+          cnhData,
+          vehicleData,
+          geolocation,
+        });
+      }
+    };
+    saveFotos();
+  }, [fotos, fotoPreviews, currentStep, cnhData, vehicleData, geolocation]);
 
   useEffect(() => {
     loadVistoria();
@@ -409,6 +490,8 @@ export default function VistoriaPublicaCaptura() {
       toast.success("Fotos adicionais enviadas com sucesso! Você já pode fechar esta tela.");
       setFotos({});
       setFotoPreviews({});
+      // Limpar localStorage após envio bem-sucedido
+      setStoredFotos(null);
     } catch (error: any) {
       console.error("❌ Erro ao enviar fotos adicionais (geral):", error);
       const msg = error?.message || "Erro ao enviar as fotos. Tente novamente.";
