@@ -87,6 +87,7 @@ const getBrandCategory = (brand: string): string[] => {
 
   const truckBrands = [
     "AGRALE",
+    "BEPOBUS",
     "CHEVROLET",
     "FORD CARGO",
     "IVECO",
