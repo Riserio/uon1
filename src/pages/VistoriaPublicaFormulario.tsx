@@ -528,7 +528,7 @@ export default function VistoriaPublicaFormulario() {
         </Card>
 
         {/* Main Form Card */}
-        <Card className="border-none shadow-2xl overflow-visible">
+        <Card className="border-none shadow-2xl">
           <div className="bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 p-8 text-white">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
@@ -541,7 +541,7 @@ export default function VistoriaPublicaFormulario() {
             </div>
           </div>
 
-          <CardContent className="p-8 space-y-6 overflow-visible">
+          <CardContent className="p-8 space-y-6">
             {/* Step 0: Dados Pessoais */}
             {currentStep === 0 && (
               <div className="space-y-6">
@@ -632,7 +632,7 @@ export default function VistoriaPublicaFormulario() {
                 </div>
 
                 {/* Seleção Tipo/Marca/Modelo/Ano - SEM botão FIPE */}
-                <div className="mt-4 space-y-3 relative z-50">
+                <div className="mt-4 space-y-3">
                   <VehicleFipeSelector
                     vehicleType={vehicleType}
                     onVehicleTypeChange={handleVehicleTypeChange}
@@ -642,16 +642,7 @@ export default function VistoriaPublicaFormulario() {
                     onModeloChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
                     ano={formData.veiculo_ano}
                     onAnoChange={(value) => setFormData({ ...formData, veiculo_ano: value })}
-                    valorFipe={formData.veiculo_valor_fipe}
-                    onValorFipeChange={(value) => setFormData({ ...formData, veiculo_valor_fipe: value })}
-                    dataConsultaFipe={formData.veiculo_fipe_data_consulta}
-                    onDataConsultaFipeChange={(value) =>
-                      setFormData({ ...formData, veiculo_fipe_data_consulta: value })
-                    }
-                    codigoFipe={formData.veiculo_fipe_codigo}
-                    onCodigoFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_codigo: value })}
-                    showOnlySelectors={false}
-                    showFipeButton={true}
+                    showFipeButton={false}
                   />
                 </div>
 
@@ -687,6 +678,30 @@ export default function VistoriaPublicaFormulario() {
                       className="mt-1 uppercase"
                     />
                   </div>
+                </div>
+
+                {/* Botão FIPE + Input manual - APÓS cor e chassi */}
+                <div className="space-y-3">
+                  <VehicleFipeSelector
+                    vehicleType={vehicleType}
+                    onVehicleTypeChange={() => {}}
+                    marca={formData.veiculo_marca}
+                    onMarcaChange={() => {}}
+                    modelo={formData.veiculo_modelo}
+                    onModeloChange={() => {}}
+                    ano={formData.veiculo_ano}
+                    onAnoChange={() => {}}
+                    valorFipe={formData.veiculo_valor_fipe}
+                    onValorFipeChange={(value) => setFormData({ ...formData, veiculo_valor_fipe: value })}
+                    dataConsultaFipe={formData.veiculo_fipe_data_consulta}
+                    onDataConsultaFipeChange={(value) =>
+                      setFormData({ ...formData, veiculo_fipe_data_consulta: value })
+                    }
+                    codigoFipe={formData.veiculo_fipe_codigo}
+                    onCodigoFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_codigo: value })}
+                    showOnlySelectors={true}
+                    showFipeButton={true}
+                  />
                 </div>
 
                 <div>
