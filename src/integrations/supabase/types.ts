@@ -1001,6 +1001,179 @@ export type Database = {
         }
         Relationships: []
       }
+      lancamentos_financeiros: {
+        Row: {
+          apolice_numero: string | null
+          aprovado_em: string | null
+          aprovado_por: string | null
+          banco_agencia: string | null
+          banco_codigo: string | null
+          banco_conta: string | null
+          banco_favorecido: string | null
+          categoria: string
+          conciliado: boolean | null
+          conciliado_por: string | null
+          corretora_id: string | null
+          created_at: string | null
+          created_by: string
+          data_competencia: string
+          data_conciliacao: string | null
+          data_lancamento: string
+          data_pagamento: string | null
+          data_vencimento: string | null
+          descricao: string
+          documento_fiscal: string | null
+          documento_url: string | null
+          forma_pagamento: string | null
+          id: string
+          moeda: string
+          motivo_rejeicao: string | null
+          numero_lancamento: string
+          observacoes: string | null
+          rejeitado_em: string | null
+          rejeitado_por: string | null
+          sinistro_id: string | null
+          status: string
+          subcategoria: string | null
+          tipo_lancamento: string
+          updated_at: string | null
+          updated_by: string | null
+          valor_bruto: number
+          valor_desconto: number | null
+          valor_liquido: number
+        }
+        Insert: {
+          apolice_numero?: string | null
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          banco_agencia?: string | null
+          banco_codigo?: string | null
+          banco_conta?: string | null
+          banco_favorecido?: string | null
+          categoria: string
+          conciliado?: boolean | null
+          conciliado_por?: string | null
+          corretora_id?: string | null
+          created_at?: string | null
+          created_by: string
+          data_competencia: string
+          data_conciliacao?: string | null
+          data_lancamento?: string
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          descricao: string
+          documento_fiscal?: string | null
+          documento_url?: string | null
+          forma_pagamento?: string | null
+          id?: string
+          moeda?: string
+          motivo_rejeicao?: string | null
+          numero_lancamento: string
+          observacoes?: string | null
+          rejeitado_em?: string | null
+          rejeitado_por?: string | null
+          sinistro_id?: string | null
+          status?: string
+          subcategoria?: string | null
+          tipo_lancamento: string
+          updated_at?: string | null
+          updated_by?: string | null
+          valor_bruto: number
+          valor_desconto?: number | null
+          valor_liquido: number
+        }
+        Update: {
+          apolice_numero?: string | null
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          banco_agencia?: string | null
+          banco_codigo?: string | null
+          banco_conta?: string | null
+          banco_favorecido?: string | null
+          categoria?: string
+          conciliado?: boolean | null
+          conciliado_por?: string | null
+          corretora_id?: string | null
+          created_at?: string | null
+          created_by?: string
+          data_competencia?: string
+          data_conciliacao?: string | null
+          data_lancamento?: string
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          descricao?: string
+          documento_fiscal?: string | null
+          documento_url?: string | null
+          forma_pagamento?: string | null
+          id?: string
+          moeda?: string
+          motivo_rejeicao?: string | null
+          numero_lancamento?: string
+          observacoes?: string | null
+          rejeitado_em?: string | null
+          rejeitado_por?: string | null
+          sinistro_id?: string | null
+          status?: string
+          subcategoria?: string | null
+          tipo_lancamento?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          valor_bruto?: number
+          valor_desconto?: number | null
+          valor_liquido?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lancamentos_financeiros_aprovado_por_fkey"
+            columns: ["aprovado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lancamentos_financeiros_conciliado_por_fkey"
+            columns: ["conciliado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lancamentos_financeiros_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lancamentos_financeiros_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lancamentos_financeiros_rejeitado_por_fkey"
+            columns: ["rejeitado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lancamentos_financeiros_sinistro_id_fkey"
+            columns: ["sinistro_id"]
+            isOneToOne: false
+            referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lancamentos_financeiros_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lembretes_disparados: {
         Row: {
           created_at: string | null
@@ -2199,6 +2372,7 @@ export type Database = {
         Args: { target_profile_id: string; viewer_id: string }
         Returns: boolean
       }
+      generate_lancamento_numero: { Args: never; Returns: string }
       get_user_corretora_id: { Args: { _user_id: string }; Returns: string }
       get_user_lider_id: { Args: { _user_id: string }; Returns: string }
       get_user_role: {

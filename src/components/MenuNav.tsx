@@ -15,6 +15,7 @@ import {
   Camera,
   FileX,
   TrendingUp,
+  DollarSign,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -231,6 +232,19 @@ export default function MenuNav() {
               </Link>
             </DropdownMenuItem>
           </>
+        )}
+
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Financeiro</DropdownMenuLabel>
+
+        {/* Lançamentos Financeiros */}
+        {canView("lancamentos_financeiros") && (
+          <DropdownMenuItem asChild>
+            <Link to="/lancamentos-financeiros" className="cursor-pointer">
+              <DollarSign className="mr-2 h-4 w-4" />
+              <span>Lançamentos Financeiros</span>
+            </Link>
+          </DropdownMenuItem>
         )}
 
         <DropdownMenuSeparator />
