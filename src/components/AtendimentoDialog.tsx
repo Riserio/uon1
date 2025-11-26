@@ -495,7 +495,13 @@ export function AtendimentoDialog({
       // Atualizar tipo_atendimento na tabela atendimentos
       const { error: atendError } = await supabase
         .from("atendimentos")
-        .update({ tipo_atendimento: vistoriaData.tipo_atendimento })
+        .update({ 
+          tipo_atendimento: vistoriaData.tipo_atendimento,
+          // Sincronizar assunto com dados do sinistro se disponível
+          assunto: vistoriaData.cliente_nome 
+            ? `Sinistro - ${vistoriaData.cliente_nome} - ${vistoriaData.veiculo_placa || 'Placa não informada'}`
+            : formData.assunto || atendimento.assunto
+        })
         .eq("id", atendimento.id);
 
       if (atendError) {
@@ -507,6 +513,9 @@ export function AtendimentoDialog({
 
       // Recarregar os dados para garantir sincronização
       await loadVistoriaCustos(atendimento.id);
+      
+      // Forçar atualização do card do atendimento
+      onSave(atendimento);
     } catch (error: any) {
       console.error("Erro ao salvar:", error);
       toast.error(error?.message || "Erro ao salvar dados");
@@ -694,6 +703,20 @@ export function AtendimentoDialog({
           console.error("Erro ao atualizar atendimento:", updateError);
           toast.error("Erro ao atualizar atendimento");
           return;
+        }
+
+        // Se houver vistoria vinculada, atualizar também
+        if (vistoriaId) {
+          const { error: vistoriaUpdateError } = await supabase
+            .from("vistorias")
+            .update({
+              corretora_id: corretoraId,
+            })
+            .eq("id", vistoriaId);
+
+          if (vistoriaUpdateError) {
+            console.error("Erro ao sincronizar vistoria:", vistoriaUpdateError);
+          }
         }
 
         // Upload de novos anexos
