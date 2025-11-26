@@ -39,7 +39,7 @@ export function usePendingUsers() {
     const { count, error } = await supabase
       .from('profiles')
       .select('*', { count: 'exact', head: true })
-      .eq('status', 'pendente');
+      .or('status.eq.pendente,status.is.null');
 
     if (!error) {
       setPendingCount(count || 0);

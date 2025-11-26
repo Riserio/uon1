@@ -358,7 +358,7 @@ export default function Documentos() {
     return `${(kb / 1024).toFixed(1)} MB`;
   };
 
-  const isAdmin = userRole === "admin";
+  const isAdmin = userRole === "admin" || userRole === "superintendente";
 
   return (
     <div className="flex flex-col gap-6 p-6">

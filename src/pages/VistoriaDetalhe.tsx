@@ -64,7 +64,16 @@ export default function VistoriaDetalhe() {
       setFotos(fotosData || []);
       const {
         data: termosData
-      } = await supabase.from("termos_aceitos").select("*, termos(*)").eq("vistoria_id", id);
+      } = await supabase.from("termos_aceitos").select(`
+        *,
+        termos:termo_id (
+          id,
+          titulo,
+          descricao,
+          arquivo_url,
+          arquivo_nome
+        )
+      `).eq("vistoria_id", id);
       setTermosAceitos(termosData || []);
       if (vistoriaData.corretora_id) {
         const {

@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Plus, Edit, Trash2, FileText, Upload, ExternalLink, Check, ChevronsUpDown } from 'lucide-react';
@@ -278,73 +280,108 @@ export default function Termos() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {termos.map((termo) => (
-            <Card key={termo.id}>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="text-lg">{termo.titulo}</span>
-                  <div className="flex gap-2">
-                    {termo.ativo ? (
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Ativo</span>
-                    ) : (
-                      <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">Inativo</span>
-                    )}
-                    {termo.obrigatorio && (
-                      <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">Obrigatório</span>
-                    )}
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {termo.corretoras?.nome && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Corretora</p>
-                    <p className="text-sm font-semibold">{termo.corretoras.nome}</p>
-                  </div>
+        <div className="space-y-6">
+          {/* Agrupar termos por corretora */}
+          {Object.entries(
+            termos.reduce<Record<string, any[]>>((acc, termo) => {
+              const key = termo.corretora_id || 'geral';
+              if (!acc[key]) acc[key] = [];
+              acc[key].push(termo);
+              return acc;
+            }, {})
+          ).map(([key, termosGrupo]) => (
+            <div key={key} className="space-y-3">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                {key === 'geral' ? (
+                  <>
+                    <FileText className="h-5 w-5" />
+                    Termos Gerais (Todas as corretoras)
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-5 w-5" />
+                    {(termosGrupo as any[])[0]?.corretoras?.nome || 'Corretora'}
+                  </>
                 )}
-                {termo.tipo_sinistro && termo.tipo_sinistro.length > 0 && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Tipos de Sinistro</p>
-                    <p className="text-sm font-semibold">{termo.tipo_sinistro.join(', ')}</p>
-                  </div>
-                )}
-                {termo.descricao && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Descrição</p>
-                    <p className="text-sm">{termo.descricao}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm text-muted-foreground">Arquivo</p>
-                  <a 
-                    href={termo.arquivo_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline flex items-center gap-1"
-                  >
-                    {termo.arquivo_nome}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Ordem de Exibição</p>
-                  <p className="text-sm font-semibold">{termo.ordem}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Criado em</p>
-                  <p className="text-sm">{format(new Date(termo.created_at), 'dd/MM/yyyy HH:mm')}</p>
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <Button size="sm" variant="outline" onClick={() => handleEdit(termo)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleDelete(termo.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                <Badge variant="secondary" className="ml-2">
+                  {(termosGrupo as any[]).length} {(termosGrupo as any[]).length === 1 ? 'termo' : 'termos'}
+                </Badge>
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(termosGrupo as any[]).map((termo: any) => (
+                  <Card key={termo.id} className="hover:shadow-lg transition-shadow">
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <span className="text-base">{termo.titulo}</span>
+                        <div className="flex gap-2 flex-wrap">
+                          {termo.ativo ? (
+                            <Badge variant="default" className="bg-green-600">Ativo</Badge>
+                          ) : (
+                            <Badge variant="secondary">Inativo</Badge>
+                          )}
+                          {termo.obrigatorio && (
+                            <Badge variant="destructive">Obrigatório</Badge>
+                          )}
+                        </div>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {termo.tipo_sinistro && Array.isArray(termo.tipo_sinistro) && termo.tipo_sinistro.length > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground font-medium">Tipos de Sinistro</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {termo.tipo_sinistro.map((tipo: string) => (
+                              <Badge key={tipo} variant="outline" className="text-xs">
+                                {tipo}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {termo.descricao && (
+                        <div>
+                          <p className="text-xs text-muted-foreground font-medium">Descrição</p>
+                          <p className="text-sm line-clamp-2">{termo.descricao}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium">Arquivo</p>
+                        <a 
+                          href={termo.arquivo_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-sm text-primary hover:underline flex items-center gap-1 mt-1"
+                        >
+                          {termo.arquivo_nome}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <p className="text-muted-foreground font-medium">Ordem</p>
+                          <p className="font-semibold">{termo.ordem}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground font-medium">Criado em</p>
+                          <p className="font-semibold">{format(new Date(termo.created_at), 'dd/MM/yy')}</p>
+                        </div>
+                      </div>
+                      <Separator />
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => handleEdit(termo)} className="flex-1">
+                          <Edit className="h-3 w-3 mr-1" />
+                          Editar
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleDelete(termo.id)} className="flex-1">
+                          <Trash2 className="h-3 w-3 mr-1" />
+                          Excluir
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
