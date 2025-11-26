@@ -103,12 +103,7 @@ export default function Configuracoes() {
         await saveConfig({ logo_url: publicUrl });
         setImageUrls((prev) => ({ ...prev, logo: publicUrl }));
       } else {
-        const { error: updateError } = await supabase
-          .from("app_config")
-          .update({ login_image_url: publicUrl })
-          .eq("user_id", user.id);
-
-        if (updateError) throw updateError;
+        await saveConfig({ login_image_url: publicUrl });
         setImageUrls((prev) => ({ ...prev, login: publicUrl }));
       }
 

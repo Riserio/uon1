@@ -107,7 +107,7 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
       const filePath = `${type === 'logo' ? 'logos' : 'login-images'}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('app-config')
+        .from('app-assets')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: true
@@ -126,7 +126,7 @@ export function ConfiguracoesDialog({ open, onOpenChange }: ConfiguracoesDialogP
       }
 
       const { data: { publicUrl } } = supabase.storage
-        .from('app-config')
+        .from('app-assets')
         .getPublicUrl(filePath);
 
       setImageUrls(prev => ({ ...prev, [type]: publicUrl }));
