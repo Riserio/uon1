@@ -19,7 +19,6 @@ import {
   DollarSign,
   User,
   Link2,
-  Copy,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -71,17 +70,10 @@ interface AtendimentoDialogProps {
   responsaveis: string[];
 }
 
-export function AtendimentoDialog({
-  open,
-  onOpenChange,
-  atendimento,
-  onSave,
-  corretoras,
-  responsaveis,
-}: AtendimentoDialogProps) {
+export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, corretoras }: AtendimentoDialogProps) {
   const { user } = useAuth();
   const [vehicleType, setVehicleType] = useState("");
-  
+
   const [formData, setFormData] = useState<Partial<Atendimento>>({
     corretora: atendimento?.corretoraId || "",
     contato: atendimento?.contato || "",
@@ -176,7 +168,7 @@ export function AtendimentoDialog({
             .select("nome")
             .eq("id", atendimento.corretoraId)
             .single();
-          
+
           if (corretoraData) {
             corretoraName = corretoraData.nome;
           }
@@ -185,16 +177,15 @@ export function AtendimentoDialog({
         setCorretoraDisplay(corretoraName);
 
         let contatoName = atendimento.contato || "";
-        
+
         // Buscar nome do contato se houver contato como string (possível ID)
-        // Verificar se é UUID ou nome direto
         if (atendimento.contato && atendimento.contato.length > 30) {
           const { data: contatoData } = await supabase
             .from("contatos")
             .select("nome")
             .eq("id", atendimento.contato)
             .single();
-          
+
           if (contatoData) {
             contatoName = contatoData.nome;
           }
@@ -213,7 +204,7 @@ export function AtendimentoDialog({
               .select("id")
               .eq("nome", atendimento.responsavel)
               .maybeSingle();
-            
+
             if (profileData) {
               responsavelId = profileData.id;
             }
@@ -319,11 +310,7 @@ export function AtendimentoDialog({
     };
 
     const loadProfiles = async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, nome")
-        .eq("ativo", true)
-        .order("nome");
+      const { data } = await supabase.from("profiles").select("id, nome").eq("ativo", true).order("nome");
 
       if (data) {
         setProfiles(data);
@@ -397,12 +384,12 @@ export function AtendimentoDialog({
           cof: data.cof || "",
         };
         setVistoriaData(vistoriaInfo);
-        
+
         // Carregar tipo de veículo se disponível
         if (data.veiculo_tipo) {
           setVehicleType(data.veiculo_tipo);
         }
-        
+
         setCustos({
           custo_oficina: data.custo_oficina || 0,
           custo_reparo: data.custo_reparo || 0,
@@ -484,6 +471,7 @@ export function AtendimentoDialog({
             veiculo_marca: vistoriaData.veiculo_marca || null,
             veiculo_modelo: vistoriaData.veiculo_modelo || null,
             veiculo_ano: vistoriaData.veiculo_ano || null,
+            veiculo_tipo: vehicleType || vistoriaData.veiculo_tipo || null,
           })
           .eq("id", vistoriaId);
 
@@ -505,6 +493,7 @@ export function AtendimentoDialog({
             corretora_id: formData.corretora || null,
             ...cleanedVistoriaData,
             ...custos,
+            veiculo_tipo: vehicleType || vistoriaData.veiculo_tipo || null,
           })
           .select("id")
           .single();
@@ -517,15 +506,16 @@ export function AtendimentoDialog({
       }
 
       // Sincronizar TODOS os campos relevantes de volta para atendimentos
-      const novoAssunto = vistoriaData.cliente_nome && vistoriaData.veiculo_placa
-        ? `Sinistro - ${vistoriaData.cliente_nome} - ${vistoriaData.veiculo_placa}`
-        : vistoriaData.cliente_nome
-        ? `Sinistro - ${vistoriaData.cliente_nome}`
-        : formData.assunto || atendimento.assunto;
+      const novoAssunto =
+        vistoriaData.cliente_nome && vistoriaData.veiculo_placa
+          ? `Sinistro - ${vistoriaData.cliente_nome} - ${vistoriaData.veiculo_placa}`
+          : vistoriaData.cliente_nome
+            ? `Sinistro - ${vistoriaData.cliente_nome}`
+            : formData.assunto || atendimento.assunto;
 
       const { error: atendError } = await supabase
         .from("atendimentos")
-        .update({ 
+        .update({
           tipo_atendimento: vistoriaData.tipo_atendimento,
           assunto: novoAssunto,
         })
@@ -540,7 +530,7 @@ export function AtendimentoDialog({
 
       // Recarregar os dados para garantir sincronização
       await loadVistoriaCustos(atendimento.id);
-      
+
       // Forçar atualização completa do card - criar objeto atualizado
       const atendimentoAtualizado = {
         ...atendimento,
@@ -701,7 +691,7 @@ export function AtendimentoDialog({
       if (atendimento?.id) {
         // Usar o ID da corretora diretamente do formData (já é UUID)
         const corretoraId = formData.corretora || null;
-        
+
         // Buscar ID do contato se houver nome
         let contatoId = null;
         if (formData.contato) {
@@ -710,7 +700,7 @@ export function AtendimentoDialog({
             .select("id")
             .eq("nome", formData.contato)
             .maybeSingle();
-          
+
           if (contatoData) {
             contatoId = contatoData.id;
           }
@@ -749,7 +739,7 @@ export function AtendimentoDialog({
           if (vistoriaUpdateError) {
             console.error("Erro ao sincronizar vistoria:", vistoriaUpdateError);
           }
-          
+
           // Recarregar dados da vistoria para garantir que o card mostre tudo atualizado
           await loadVistoriaCustos(atendimento.id);
         }
@@ -785,7 +775,7 @@ export function AtendimentoDialog({
         }
 
         toast.success("Atendimento atualizado com sucesso");
-        
+
         // Forçar atualização completa do card com updated_at
         const atendimentoAtualizado = {
           ...atendimento,
@@ -960,7 +950,7 @@ export function AtendimentoDialog({
                                             .select("id")
                                             .eq("nome", c)
                                             .single();
-                                          
+
                                           if (data) {
                                             setFormData({ ...formData, corretora: data.id });
                                             setCorretoraDisplay(c);
@@ -1215,6 +1205,66 @@ export function AtendimentoDialog({
                   <h4 className="font-medium">Dados do Veículo</h4>
 
                   <div className="space-y-4">
+                    {/* 🔹 Tipo do veículo + FIPE no topo */}
+                    <div className="relative space-y-2">
+                      <VehicleFipeSelector
+                        vehicleType={vehicleType}
+                        onVehicleTypeChange={(value) => {
+                          setVehicleType(value);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_tipo: value,
+                            veiculo_marca: "",
+                            veiculo_modelo: "",
+                            veiculo_ano: "",
+                          }));
+                        }}
+                        marca={vistoriaData.veiculo_marca}
+                        onMarcaChange={(value) =>
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_marca: value,
+                          }))
+                        }
+                        modelo={vistoriaData.veiculo_modelo}
+                        onModeloChange={(value) =>
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_modelo: value,
+                          }))
+                        }
+                        ano={vistoriaData.veiculo_ano}
+                        onAnoChange={(value) =>
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_ano: value,
+                          }))
+                        }
+                        valorFipe={vistoriaData.veiculo_valor_fipe}
+                        onValorFipeChange={(value) =>
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_valor_fipe: value,
+                          }))
+                        }
+                        dataConsultaFipe={vistoriaData.veiculo_fipe_data_consulta}
+                        onDataConsultaFipeChange={(value) =>
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_fipe_data_consulta: value,
+                          }))
+                        }
+                        codigoFipe={vistoriaData.veiculo_fipe_codigo}
+                        onCodigoFipeChange={(value) =>
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_fipe_codigo: value,
+                          }))
+                        }
+                      />
+                    </div>
+
+                    {/* Placa */}
                     <div className="space-y-2">
                       <Label htmlFor="veiculo_placa">Placa</Label>
                       <Input
@@ -1241,6 +1291,7 @@ export function AtendimentoDialog({
                       )}
                     </div>
 
+                    {/* Cor e Chassi */}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="veiculo_cor">Cor</Label>
@@ -1273,27 +1324,6 @@ export function AtendimentoDialog({
                         />
                       </div>
                     </div>
-
-                    {/* Consulta FIPE */}
-                    <VehicleFipeSelector
-                      vehicleType={vehicleType}
-                      onVehicleTypeChange={(value) => {
-                        setVehicleType(value);
-                        setVistoriaData({ ...vistoriaData, veiculo_tipo: value, veiculo_marca: "", veiculo_modelo: "", veiculo_ano: "" });
-                      }}
-                      marca={vistoriaData.veiculo_marca}
-                      onMarcaChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_marca: value })}
-                      modelo={vistoriaData.veiculo_modelo}
-                      onModeloChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_modelo: value })}
-                      ano={vistoriaData.veiculo_ano}
-                      onAnoChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_ano: value })}
-                      valorFipe={vistoriaData.veiculo_valor_fipe}
-                      onValorFipeChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_valor_fipe: value })}
-                      dataConsultaFipe={vistoriaData.veiculo_fipe_data_consulta}
-                      onDataConsultaFipeChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_fipe_data_consulta: value })}
-                      codigoFipe={vistoriaData.veiculo_fipe_codigo}
-                      onCodigoFipeChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_fipe_codigo: value })}
-                    />
                   </div>
                 </div>
 
@@ -1373,6 +1403,7 @@ export function AtendimentoDialog({
               <TabsContent value="andamentos" className="mt-0 p-4">
                 {atendimento?.id ? (
                   <AndamentosList
+                    key={reloadKey}
                     atendimentoId={atendimento.id}
                     atendimentoNumero={atendimento.numero}
                     atendimentoAssunto={atendimento.assunto}
@@ -1478,26 +1509,6 @@ export function AtendimentoDialog({
                     <Button onClick={handleSalvarCustos}>Salvar Custos</Button>
                   </div>
                 </div>
-              </TabsContent>
-
-              <TabsContent value="andamentos" className="mt-0">
-                {atendimento?.id ? (
-                  <AndamentosList atendimentoId={atendimento.id} />
-                ) : (
-                  <div className="p-4 text-center text-muted-foreground">
-                    Salve o atendimento para adicionar andamentos
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="anexos" className="mt-0">
-                {atendimento?.id ? (
-                  <div className="p-4">
-                    <AnexosUpload atendimentoId={atendimento.id} anexos={anexos} onAnexosChange={setAnexos} />
-                  </div>
-                ) : (
-                  <div className="p-4 text-center text-muted-foreground">Salve o atendimento para adicionar anexos</div>
-                )}
               </TabsContent>
 
               <TabsContent value="historico" className="mt-0">
