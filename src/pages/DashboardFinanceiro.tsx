@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { TrendingUp, TrendingDown, DollarSign, FileText, Clock, CheckCircle, XCircle, BarChart3 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
 
 interface DashboardStats {
   totalReceitas: number;
@@ -17,6 +18,23 @@ interface DashboardStats {
   rejeitados: number;
   receitasMes: number;
   despesasMes: number;
+}
+
+interface ChartData {
+  name: string;
+  receitas: number;
+  despesas: number;
+}
+
+interface CategoryData {
+  name: string;
+  value: number;
+}
+
+interface StatusData {
+  name: string;
+  value: number;
+  color: string;
 }
 
 export default function DashboardFinanceiro() {
@@ -34,6 +52,9 @@ export default function DashboardFinanceiro() {
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState<string>("todos");
   const [loading, setLoading] = useState(true);
+  const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [categoryData, setCategoryData] = useState<CategoryData[]>([]);
+  const [statusData, setStatusData] = useState<StatusData[]>([]);
 
   useEffect(() => {
     fetchCorretoras();
@@ -53,7 +74,7 @@ export default function DashboardFinanceiro() {
     try {
       let query = supabase
         .from("lancamentos_financeiros")
-        .select("tipo_lancamento, valor_liquido, status, data_lancamento");
+        .select("tipo_lancamento, valor_liquido, status, data_lancamento, categoria");
 
       if (selectedCorretora !== "todos") {
         query = query.eq("corretora_id", selectedCorretora);
@@ -63,7 +84,74 @@ export default function DashboardFinanceiro() {
 
       if (error) throw error;
 
+      // Preparar dados para gráfico de evolução mensal (últimos 6 meses)
+      const monthlyData: { [key: string]: { receitas: number; despesas: number } } = {};
       const now = new Date();
+      
+      for (let i = 5; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthKey = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+        monthlyData[monthKey] = { receitas: 0, despesas: 0 };
+      }
+
+      data?.forEach((lancamento) => {
+        const date = new Date(lancamento.data_lancamento);
+        const monthKey = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+        
+        if (monthlyData[monthKey]) {
+          if (lancamento.tipo_lancamento === 'receita') {
+            monthlyData[monthKey].receitas += lancamento.valor_liquido || 0;
+          } else {
+            monthlyData[monthKey].despesas += lancamento.valor_liquido || 0;
+          }
+        }
+      });
+
+      const chartDataArray = Object.entries(monthlyData).map(([name, values]) => ({
+        name,
+        receitas: values.receitas,
+        despesas: values.despesas,
+      }));
+
+      setChartData(chartDataArray);
+
+      // Preparar dados por categoria
+      const categoryMap: { [key: string]: number } = {};
+      data?.forEach((lancamento) => {
+        const cat = lancamento.categoria || 'Sem categoria';
+        categoryMap[cat] = (categoryMap[cat] || 0) + Math.abs(lancamento.valor_liquido || 0);
+      });
+
+      const categoryDataArray = Object.entries(categoryMap)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5);
+
+      setCategoryData(categoryDataArray);
+
+      // Preparar dados por status
+      const statusMap = {
+        pendente: { count: 0, color: '#eab308' },
+        aprovado: { count: 0, color: '#16a34a' },
+        rejeitado: { count: 0, color: '#dc2626' },
+      };
+
+      data?.forEach((lancamento) => {
+        if (lancamento.status && statusMap[lancamento.status as keyof typeof statusMap]) {
+          statusMap[lancamento.status as keyof typeof statusMap].count++;
+        }
+      });
+
+      const statusDataArray = Object.entries(statusMap)
+        .filter(([_, value]) => value.count > 0)
+        .map(([name, value]) => ({
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          value: value.count,
+          color: value.color,
+        }));
+
+      setStatusData(statusDataArray);
+
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
 
@@ -269,6 +357,119 @@ export default function DashboardFinanceiro() {
             <CardContent>
               <div className="text-3xl font-bold text-red-600">{stats.rejeitados}</div>
               <p className="text-xs text-muted-foreground mt-2">Lançamentos recusados</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Gráficos */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Gráfico de Evolução Temporal */}
+          <Card className="border-2 hover:border-primary/40 transition-colors">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Evolução Mensal
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="colorReceitas" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#16a34a" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorDespesas" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#dc2626" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#dc2626" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="name" className="text-xs" />
+                  <YAxis className="text-xs" tickFormatter={(value) => formatCurrency(value)} />
+                  <Tooltip 
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                  />
+                  <Legend />
+                  <Area 
+                    type="monotone" 
+                    dataKey="receitas" 
+                    stroke="#16a34a" 
+                    fillOpacity={1} 
+                    fill="url(#colorReceitas)" 
+                    name="Receitas"
+                    strokeWidth={2}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="despesas" 
+                    stroke="#dc2626" 
+                    fillOpacity={1} 
+                    fill="url(#colorDespesas)" 
+                    name="Despesas"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Gráfico de Categorias */}
+          <Card className="border-2 hover:border-primary/40 transition-colors">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Top 5 Categorias
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={categoryData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" className="text-xs" tickFormatter={(value) => formatCurrency(value)} />
+                  <YAxis dataKey="name" type="category" className="text-xs" width={120} />
+                  <Tooltip 
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                  />
+                  <Bar dataKey="value" fill="hsl(var(--primary))" name="Valor Total" radius={[0, 8, 8, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Gráfico de Status */}
+          <Card className="border-2 hover:border-primary/40 transition-colors lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Distribuição por Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {statusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         </div>
