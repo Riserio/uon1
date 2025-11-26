@@ -7,8 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Palette, Image as ImageIcon, Globe } from "lucide-react";
+import { Palette, Image as ImageIcon, Globe, Code } from "lucide-react";
 import { SubdominioConfigDialog } from "@/components/SubdominioConfigDialog";
 
 interface ConfigColors {
@@ -146,7 +147,7 @@ export default function Configuracoes() {
         </div>
 
         <Tabs defaultValue="colors" className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-3 mb-8">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4 mb-8">
             <TabsTrigger value="colors" className="gap-2">
               <Palette className="h-4 w-4" />
               Cores
@@ -158,6 +159,10 @@ export default function Configuracoes() {
             <TabsTrigger value="subdomain" className="gap-2">
               <Globe className="h-4 w-4" />
               Subdomínio
+            </TabsTrigger>
+            <TabsTrigger value="api" className="gap-2">
+              <Code className="h-4 w-4" />
+              API
             </TabsTrigger>
           </TabsList>
 
@@ -426,6 +431,93 @@ export default function Configuracoes() {
                   <Globe className="h-4 w-4 mr-2" />
                   Configurar Subdomínio
                 </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="api" className="space-y-6">
+            <Card className="border-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Code className="h-5 w-5" />
+                  API de Integração
+                </CardTitle>
+                <CardDescription>
+                  Endpoints disponíveis para integração com sistemas externos
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold mb-2">Base URL</h3>
+                    <code className="block bg-muted p-3 rounded-lg text-sm">
+                      https://mnoczwmqgignmylbvpgp.supabase.co/functions/v1
+                    </code>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h3 className="font-semibold">Endpoints Disponíveis</h3>
+                    
+                    <div className="border rounded-lg p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge>POST</Badge>
+                        <code className="text-sm">/portal-lancamentos</code>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Criar lançamentos financeiros via API
+                      </p>
+                    </div>
+
+                    <div className="border rounded-lg p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">GET</Badge>
+                        <code className="text-sm">/portal-lancamentos</code>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Listar lançamentos financeiros
+                      </p>
+                    </div>
+
+                    <div className="border rounded-lg p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">PUT</Badge>
+                        <code className="text-sm">/portal-lancamentos</code>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Atualizar lançamentos financeiros
+                      </p>
+                    </div>
+
+                    <div className="border rounded-lg p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="destructive">DELETE</Badge>
+                        <code className="text-sm">/portal-lancamentos</code>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Excluir lançamentos financeiros
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <h4 className="font-semibold mb-2 text-blue-900 dark:text-blue-100">Autenticação</h4>
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      Os endpoints requerem autenticação JWT. Inclua o token no header Authorization: Bearer TOKEN
+                    </p>
+                  </div>
+
+                  <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                    <h4 className="font-semibold mb-2 text-amber-900 dark:text-amber-100">Integração com Plataformas Externas</h4>
+                    <p className="text-sm text-amber-800 dark:text-amber-200 mb-2">
+                      Para integrar APIs de outras plataformas, você pode:
+                    </p>
+                    <ul className="text-sm text-amber-800 dark:text-amber-200 list-disc list-inside space-y-1">
+                      <li>Criar edge functions personalizadas que chamam APIs externas</li>
+                      <li>Usar webhooks para receber dados de plataformas externas</li>
+                      <li>Configurar integrações via backend usando os secrets configurados</li>
+                    </ul>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

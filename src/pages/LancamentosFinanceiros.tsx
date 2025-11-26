@@ -29,7 +29,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import FinancialDashboard from "@/components/FinancialDashboard";
+import { useNavigate } from "react-router-dom";
 
 interface Lancamento {
   id: string;
@@ -79,10 +79,10 @@ interface FormData {
 
 export default function LancamentosFinanceiros() {
   const { user, userRole } = useAuth();
+  const navigate = useNavigate();
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
   const [filteredLancamentos, setFilteredLancamentos] = useState<Lancamento[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [dashboardOpen, setDashboardOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [selectedLancamento, setSelectedLancamento] = useState<Lancamento | null>(null);
@@ -419,7 +419,7 @@ export default function LancamentosFinanceiros() {
           <p className="text-muted-foreground">Gestão completa de lançamentos financeiros</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setDashboardOpen(true)}>
+          <Button variant="outline" onClick={() => navigate("/dashboard-financeiro")}>
             <BarChart3 className="h-4 w-4 mr-2" />
             Dashboard
           </Button>
@@ -973,12 +973,6 @@ export default function LancamentosFinanceiros() {
         </DialogContent>
       </Dialog>
 
-      {/* Dashboard Dialog */}
-      <Dialog open={dashboardOpen} onOpenChange={setDashboardOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <FinancialDashboard />
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

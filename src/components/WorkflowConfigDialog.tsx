@@ -13,7 +13,7 @@ interface WorkflowConfigDialogProps {
 export function WorkflowConfigDialog({ open, onOpenChange, onConfigChange }: WorkflowConfigDialogProps) {
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent className="max-w-5xl max-h-[90vh] overflow-hidden">
+      <ResponsiveDialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Configurar Fluxos e Status</DialogTitle>
           <DialogDescription>
@@ -21,13 +21,13 @@ export function WorkflowConfigDialog({ open, onOpenChange, onConfigChange }: Wor
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="fluxos" className="w-full h-full">
+        <Tabs defaultValue="fluxos" className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-4">
             <TabsTrigger value="fluxos">Fluxos</TabsTrigger>
             <TabsTrigger value="status">Status</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="fluxos" className="mt-0 h-[calc(90vh-180px)]">
+          <TabsContent value="fluxos" className="mt-0">
             <FluxosConfigDialog 
               open={open}
               onOpenChange={onOpenChange}
@@ -36,7 +36,7 @@ export function WorkflowConfigDialog({ open, onOpenChange, onConfigChange }: Wor
             />
           </TabsContent>
           
-          <TabsContent value="status" className="mt-0 h-[calc(90vh-180px)]">
+          <TabsContent value="status" className="mt-0">
             <StatusConfigDialog 
               open={open}
               onOpenChange={onOpenChange}
