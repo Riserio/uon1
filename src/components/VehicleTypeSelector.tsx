@@ -11,35 +11,35 @@ export function VehicleTypeSelector({ value, onChange }: VehicleTypeSelectorProp
   return (
     <div className="space-y-3">
       <Label className="text-base font-semibold">Tipo de Veículo</Label>
-      <RadioGroup value={value} onValueChange={onChange} className="grid grid-cols-3 gap-4">
+      <RadioGroup value={value} onValueChange={onChange} className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <div>
           <RadioGroupItem value="carro" id="carro" className="peer sr-only" />
           <Label
             htmlFor="carro"
-            className="flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all"
+            className="flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-3 sm:p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all min-h-[80px]"
           >
-            <Car className="mb-2 h-6 w-6" />
-            <span className="text-sm font-medium">Carro</span>
+            <Car className="mb-1 sm:mb-2 h-5 w-5 sm:h-6 sm:w-6" />
+            <span className="text-xs sm:text-sm font-medium">Carro</span>
           </Label>
         </div>
         <div>
           <RadioGroupItem value="moto" id="moto" className="peer sr-only" />
           <Label
             htmlFor="moto"
-            className="flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all"
+            className="flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-3 sm:p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all min-h-[80px]"
           >
-            <Bike className="mb-2 h-6 w-6" />
-            <span className="text-sm font-medium">Moto</span>
+            <Bike className="mb-1 sm:mb-2 h-5 w-5 sm:h-6 sm:w-6" />
+            <span className="text-xs sm:text-sm font-medium">Moto</span>
           </Label>
         </div>
         <div>
           <RadioGroupItem value="caminhao" id="caminhao" className="peer sr-only" />
           <Label
             htmlFor="caminhao"
-            className="flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all"
+            className="flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-3 sm:p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all min-h-[80px]"
           >
-            <Truck className="mb-2 h-6 w-6" />
-            <span className="text-sm font-medium">Caminhão / Ônibus</span>
+            <Truck className="mb-1 sm:mb-2 h-5 w-5 sm:h-6 sm:w-6" />
+            <span className="text-xs sm:text-sm font-medium text-center">Caminhão / Ônibus</span>
           </Label>
         </div>
       </RadioGroup>
