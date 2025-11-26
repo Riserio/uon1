@@ -89,7 +89,7 @@ export default function LancamentosFinanceiros() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [tipoFilter, setTipoFilter] = useState("todos");
-  const [corretoraFilter, setCorretoraFilter] = useState("todos");
+  const [corretoraFilter, setCorretoraFilter] = useState("");
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [sinistros, setSinistros] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("lista");
@@ -151,7 +151,13 @@ export default function LancamentosFinanceiros() {
 
   const fetchCorretoras = async () => {
     const { data, error } = await supabase.from("corretoras").select("id, nome").order("nome");
-    if (!error && data) setCorretoras(data);
+    if (!error && data) {
+      setCorretoras(data);
+      // Selecionar a primeira corretora automaticamente se nenhuma estiver selecionada
+      if (data.length > 0 && !corretoraFilter) {
+        setCorretoraFilter(data[0].id);
+      }
+    }
   };
 
   const fetchSinistros = async () => {
@@ -186,7 +192,7 @@ export default function LancamentosFinanceiros() {
       filtered = filtered.filter((l) => l.tipo_lancamento === tipoFilter);
     }
 
-    if (corretoraFilter !== "todos") {
+    if (corretoraFilter) {
       filtered = filtered.filter((l) => l.corretora_id === corretoraFilter);
     }
 
@@ -517,10 +523,9 @@ export default function LancamentosFinanceiros() {
 
             <Select value={corretoraFilter} onValueChange={setCorretoraFilter}>
               <SelectTrigger>
-                <SelectValue placeholder="Corretora" />
+                <SelectValue placeholder="Selecione uma corretora" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todas as Corretoras</SelectItem>
                 {corretoras.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.nome}
@@ -535,7 +540,10 @@ export default function LancamentosFinanceiros() {
                 setSearchTerm("");
                 setStatusFilter("todos");
                 setTipoFilter("todos");
-                setCorretoraFilter("todos");
+                // Manter a corretora selecionada ou selecionar a primeira
+                if (corretoras.length > 0 && !corretoraFilter) {
+                  setCorretoraFilter(corretoras[0].id);
+                }
               }}
             >
               <Filter className="h-4 w-4 mr-2" />
