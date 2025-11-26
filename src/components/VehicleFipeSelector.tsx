@@ -127,13 +127,16 @@ export function VehicleFipeSelector({
       return;
     }
 
-    if (marcaCodigo === null || modeloCodigo === null) {
-      toast.error("Dados de marca/modelo não carregados corretamente");
+    // Encontrar códigos atuais no momento da consulta
+    const marcaObj = marcas.find(m => m.name === marca);
+    const modeloObj = modelos.find(m => m.name === modelo);
+    const anoObj = anos.find(a => a.name.includes(ano));
+    
+    if (!marcaObj || !modeloObj) {
+      toast.error("Dados de marca/modelo não carregados. Aguarde o carregamento.");
       return;
     }
-
-    // Encontrar código do ano
-    const anoObj = anos.find(a => a.name.includes(ano));
+    
     if (!anoObj) {
       toast.error("Ano não encontrado");
       return;
@@ -141,7 +144,7 @@ export function VehicleFipeSelector({
 
     setConsultingFipe(true);
     try {
-      const resultado = await consultarValor(vehicleType, marcaCodigo, modeloCodigo, anoObj.code);
+      const resultado = await consultarValor(vehicleType, marcaObj.code, modeloObj.code, anoObj.code);
       
       if (resultado && onValorFipeChange && onDataConsultaFipeChange && onCodigoFipeChange) {
         // Extrair valor numérico do preço (remover R$ e converter)
