@@ -79,7 +79,7 @@ export function AtendimentoCard({
     loadVistoria();
     loadCorretora();
     loadResponsavel();
-  }, [atendimento.id, atendimento.corretoraId, atendimento.responsavel]);
+  }, [atendimento.id, atendimento.corretoraId, atendimento.responsavel, atendimento.updatedAt]);
 
   const loadVistoria = async () => {
     const { data } = await supabase
