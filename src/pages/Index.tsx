@@ -751,15 +751,9 @@ const Index = () => {
                   >
                     <Workflow className="h-4 w-4" />
                   </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setWorkflowConfigOpen(true)}
-                    title="Configurar Fluxos e Status"
-                  >
-                    <Settings2 className="h-4 w-4" />
-                  </Button>
+                  {/* Botão de Configurar Fluxos e Status removido do header
+                      Agora a configuração é acessada apenas pelo FluxoSelector,
+                      respeitando melhor a área da sidebar */}
                 </>
               )}
 
