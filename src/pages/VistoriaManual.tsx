@@ -7,9 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { VehicleTypeSelector } from "@/components/VehicleTypeSelector";
-import { SearchableVehicleSelect } from "@/components/SearchableVehicleSelect";
-import { useVeiculos } from "@/hooks/useVeiculos";
+import { VehicleFipeSelector } from "@/components/VehicleFipeSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, Camera, Upload, X, Save } from "lucide-react";
@@ -117,15 +115,18 @@ export default function VistoriaManual() {
   const [previewsAdicionais, setPreviewsAdicionais] = useState<string[]>([]);
   const [selectedPreview, setSelectedPreview] = useState<string>("");
   const [vehicleType, setVehicleType] = useState("");
-  const { marcas, modelos, marcaSelecionada, setMarcaSelecionada } = useVeiculos();
   const [formData, setFormData] = useState({
     // Veículo
+    veiculo_tipo: "",
     veiculo_placa: "",
     veiculo_marca: "",
     veiculo_modelo: "",
     veiculo_ano: "",
     veiculo_cor: "",
     veiculo_chassi: "",
+    veiculo_valor_fipe: null as number | null,
+    veiculo_fipe_data_consulta: null as Date | null,
+    veiculo_fipe_codigo: null as string | null,
     // Cliente
     cliente_nome: "",
     cliente_email: "",
@@ -290,6 +291,9 @@ export default function VistoriaManual() {
           veiculo_ano: formData.veiculo_ano,
           veiculo_cor: formData.veiculo_cor,
           veiculo_chassi: formData.veiculo_chassi,
+          veiculo_valor_fipe: formData.veiculo_valor_fipe,
+          veiculo_fipe_data_consulta: formData.veiculo_fipe_data_consulta?.toISOString(),
+          veiculo_fipe_codigo: formData.veiculo_fipe_codigo,
           tipo_sinistro: formData.tipo_sinistro,
           relato_incidente: formData.relato_incidente,
           data_incidente: formData.data_incidente,
@@ -546,59 +550,34 @@ export default function VistoriaManual() {
               </div>
               
               <div className="mt-4">
-                <VehicleTypeSelector
-                  value={vehicleType}
-                  onChange={(value) => {
+                <VehicleFipeSelector
+                  vehicleType={vehicleType}
+                  onVehicleTypeChange={(value) => {
                     setVehicleType(value);
-                    setFormData({ ...formData, veiculo_marca: "", veiculo_modelo: "" });
-                    setMarcaSelecionada("");
+                    setFormData({ 
+                      ...formData, 
+                      veiculo_tipo: value,
+                      veiculo_marca: "", 
+                      veiculo_modelo: "",
+                      veiculo_ano: "",
+                    });
                   }}
+                  marca={formData.veiculo_marca}
+                  onMarcaChange={(value) => setFormData({ ...formData, veiculo_marca: value })}
+                  modelo={formData.veiculo_modelo}
+                  onModeloChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
+                  ano={formData.veiculo_ano}
+                  onAnoChange={(value) => setFormData({ ...formData, veiculo_ano: value })}
+                  valorFipe={formData.veiculo_valor_fipe}
+                  onValorFipeChange={(value) => setFormData({ ...formData, veiculo_valor_fipe: value })}
+                  dataConsultaFipe={formData.veiculo_fipe_data_consulta}
+                  onDataConsultaFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_data_consulta: value })}
+                  codigoFipe={formData.veiculo_fipe_codigo}
+                  onCodigoFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_codigo: value })}
                 />
               </div>
               
               <div className="grid grid-cols-2 gap-4 mt-4">
-                <SearchableVehicleSelect
-                  label="Marca *"
-                  value={formData.veiculo_marca || ""}
-                  options={marcas}
-                  onChange={(value) => {
-                    setFormData({ ...formData, veiculo_marca: value, veiculo_modelo: "" });
-                    setMarcaSelecionada(value);
-                  }}
-                  placeholder="Selecione a marca"
-                  vehicleType={vehicleType}
-                />
-                <SearchableVehicleSelect
-                  label="Modelo *"
-                  value={formData.veiculo_modelo || ""}
-                  options={modelos}
-                  onChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
-                  placeholder="Selecione o modelo"
-                  disabled={!formData.veiculo_marca}
-                  vehicleType={vehicleType}
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4 mt-4">
-                <div>
-                  <Label>Ano *</Label>
-                  <Select
-                    required
-                    value={formData.veiculo_ano}
-                    onValueChange={(value) => setFormData({ ...formData, veiculo_ano: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o ano" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getAnosDisponiveis().map((ano) => (
-                        <SelectItem key={ano} value={ano}>
-                          {ano}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div>
                   <Label>Cor *</Label>
                   <Select
