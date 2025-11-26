@@ -514,8 +514,8 @@ export default function VistoriaPublicaFormulario() {
                       idx < currentStep
                         ? "bg-green-500 text-white"
                         : idx === currentStep
-                          ? "bg-[hsl(var(--vistoria-primary))] text-white scale-110"
-                          : "bg-gray-200 text-gray-400"
+                        ? "bg-[hsl(var(--vistoria-primary))] text-white scale-110"
+                        : "bg-gray-200 text-gray-400"
                     }`}
                   >
                     {idx < currentStep ? <CheckCircle className="h-5 w-5" /> : <step.icon className="h-5 w-5" />}
@@ -597,7 +597,7 @@ export default function VistoriaPublicaFormulario() {
               </div>
             )}
 
-            {/* Step 1: Dados do Evento + Veículo (FIPE + fallback + cor/chassi embaixo do ano) */}
+            {/* Step 1: Dados do Evento + Veículo */}
             {currentStep === 1 && (
               <div className="space-y-6">
                 <div className="grid sm:grid-cols-2 gap-6">
@@ -631,7 +631,7 @@ export default function VistoriaPublicaFormulario() {
                   />
                 </div>
 
-                {/* Seleção Tipo/Marca/Modelo/Ano - SEM botão FIPE */}
+                {/* Tipo / Marca / Modelo / Ano (FIPE externa) */}
                 <div className="mt-4 space-y-3">
                   <VehicleFipeSelector
                     vehicleType={vehicleType}
@@ -680,7 +680,7 @@ export default function VistoriaPublicaFormulario() {
                   </div>
                 </div>
 
-                {/* Botão FIPE + Input manual - APÓS cor e chassi */}
+                {/* Consulta FIPE externa + valor manual */}
                 <div className="space-y-3">
                   <VehicleFipeSelector
                     vehicleType={vehicleType}
@@ -695,7 +695,7 @@ export default function VistoriaPublicaFormulario() {
                     onValorFipeChange={(value) => setFormData({ ...formData, veiculo_valor_fipe: value })}
                     dataConsultaFipe={formData.veiculo_fipe_data_consulta}
                     onDataConsultaFipeChange={(value) =>
-                      setFormData({ ...formData, veiculo_fipe_data_consulta: value })
+                      setFormData({ ...formData, veiculo_fipe_data_consulta: value as Date | null })
                     }
                     codigoFipe={formData.veiculo_fipe_codigo}
                     onCodigoFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_codigo: value })}
@@ -784,7 +784,7 @@ export default function VistoriaPublicaFormulario() {
                   <Label className="text-base font-semibold mb-3 block">O local possui câmeras de segurança?</Label>
                   <RadioGroup
                     value={formData.local_tem_camera ? "sim" : "nao"}
-                    onValueChange={(value) => setFormData({ ...formData, local_tem_camera: value === "sim" })}
+                    onValueChange>((value) => setFormData({ ...formData, local_tem_camera: value === "sim" })}
                     className="space-y-3"
                   >
                     <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
@@ -806,7 +806,7 @@ export default function VistoriaPublicaFormulario() {
                   <Label className="text-base font-semibold mb-3 block">A polícia foi ao local?</Label>
                   <RadioGroup
                     value={formData.policia_foi_local ? "sim" : "nao"}
-                    onValueChange={(value) => setFormData({ ...formData, policia_foi_local: value === "sim" })}
+                    onValueChange>((value) => setFormData({ ...formData, policia_foi_local: value === "sim" })}
                     className="space-y-3"
                   >
                     <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
