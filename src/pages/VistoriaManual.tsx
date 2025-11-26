@@ -530,21 +530,21 @@ export default function VistoriaManual() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Placa *</Label>
-                  <MaskedInput
+                  <Input
                     required
-                    format="@@@#@##"
-                    mask=""
-                    patternChar="@"
-                    allowEmptyFormatting={false}
                     value={formData.veiculo_placa}
-                    onValueChange={(values) => 
-                      setFormData({ ...formData, veiculo_placa: values.value.toUpperCase() })
-                    }
+                    onChange={(e) => {
+                      const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                      if (value.length <= 7) {
+                        setFormData({ ...formData, veiculo_placa: value });
+                      }
+                    }}
                     placeholder="ABC1D23"
                     className="uppercase"
+                    maxLength={7}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Formato: ABC1D23 ou ABC-1234
+                    Formato: ABC1D23 ou ABC1234
                   </p>
                 </div>
               </div>

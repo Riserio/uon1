@@ -155,13 +155,10 @@ export function VehicleFipeSelector({
 
   return (
     <div className="space-y-4">
-      <div>
-        <Label>Tipo de Veículo</Label>
-        <VehicleTypeSelector
-          value={vehicleType}
-          onChange={handleVehicleTypeChange}
-        />
-      </div>
+      <VehicleTypeSelector
+        value={vehicleType}
+        onChange={handleVehicleTypeChange}
+      />
 
       <div className="grid grid-cols-2 gap-4">
         <SearchableVehicleSelect
