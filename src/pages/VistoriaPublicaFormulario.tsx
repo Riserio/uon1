@@ -637,11 +637,26 @@ export default function VistoriaPublicaFormulario() {
                     vehicleType={vehicleType}
                     onVehicleTypeChange={handleVehicleTypeChange}
                     marca={formData.veiculo_marca}
-                    onMarcaChange={(value) => setFormData({ ...formData, veiculo_marca: value })}
+                    onMarcaChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_marca: value,
+                      }))
+                    }
                     modelo={formData.veiculo_modelo}
-                    onModeloChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
+                    onModeloChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_modelo: value,
+                      }))
+                    }
                     ano={formData.veiculo_ano}
-                    onAnoChange={(value) => setFormData({ ...formData, veiculo_ano: value })}
+                    onAnoChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_ano: value,
+                      }))
+                    }
                     showFipeButton={false}
                   />
                 </div>
@@ -692,13 +707,26 @@ export default function VistoriaPublicaFormulario() {
                     ano={formData.veiculo_ano}
                     onAnoChange={() => {}}
                     valorFipe={formData.veiculo_valor_fipe}
-                    onValorFipeChange={(value) => setFormData({ ...formData, veiculo_valor_fipe: value })}
+                    onValorFipeChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_valor_fipe: value,
+                      }))
+                    }
                     dataConsultaFipe={formData.veiculo_fipe_data_consulta}
                     onDataConsultaFipeChange={(value) =>
-                      setFormData({ ...formData, veiculo_fipe_data_consulta: value })
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_fipe_data_consulta: value,
+                      }))
                     }
                     codigoFipe={formData.veiculo_fipe_codigo}
-                    onCodigoFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_codigo: value })}
+                    onCodigoFipeChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_fipe_codigo: value,
+                      }))
+                    }
                     showOnlySelectors={true}
                     showFipeButton={true}
                   />
