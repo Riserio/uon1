@@ -13,8 +13,46 @@ import { ArrowRight, ArrowLeft, User, Calendar, FileText, AlertCircle, CheckCirc
 import { Progress } from "@/components/ui/progress";
 import SketchPad from "@/components/SketchPad";
 import { validateCPF, validatePhone } from "@/lib/validators";
-import { SearchableVehicleSelect } from "@/components/SearchableVehicleSelect";
-import { useVeiculos } from "@/hooks/useVeiculos";
+import { VehicleFipeSelector } from "@/components/VehicleFipeSelector";
+
+// Fallback de marcas/modelos (igual na vistoria manual)
+const MARCAS = [
+  "Audi",
+  "BMW",
+  "Chevrolet",
+  "Citroën",
+  "Fiat",
+  "Ford",
+  "Honda",
+  "Hyundai",
+  "Jeep",
+  "Kia",
+  "Mercedes-Benz",
+  "Mitsubishi",
+  "Nissan",
+  "Peugeot",
+  "Renault",
+  "Toyota",
+  "Volkswagen",
+  "Volvo",
+  "Outros",
+];
+
+const MODELOS_POR_MARCA: { [key: string]: string[] } = {
+  Volkswagen: ["Gol", "Fox", "Polo", "Virtus", "T-Cross", "Nivus", "Taos", "Tiguan", "Amarok"],
+  Chevrolet: ["Onix", "Prisma", "Tracker", "Cruze", "S10", "Spin", "Montana"],
+  Fiat: ["Argo", "Cronos", "Mobi", "Pulse", "Fastback", "Toro", "Strada"],
+  Ford: ["Ka", "EcoSport", "Ranger", "Territory", "Maverick"],
+  Toyota: ["Corolla", "Yaris", "Hilux", "SW4", "Etios", "Corolla Cross"],
+  Honda: ["Civic", "City", "HR-V", "CR-V", "Fit"],
+  Hyundai: ["HB20", "Creta", "Tucson", "Santa Fe", "ix35"],
+  Jeep: ["Renegade", "Compass", "Commander"],
+  Renault: ["Kwid", "Sandero", "Logan", "Duster", "Oroch", "Captur"],
+  Nissan: ["Kicks", "Versa", "Frontier", "Sentra"],
+  Peugeot: ["208", "2008", "3008", "5008"],
+  Citroën: ["C3", "C4 Cactus"],
+  Outros: [],
+};
 
 const STEPS = [
   { id: 0, title: "Dados Pessoais", icon: User, description: "Informações do segurado" },
@@ -23,28 +61,6 @@ const STEPS = [
   { id: 3, title: "Documentos", icon: FileText, description: "Anexos necessários" },
   { id: 4, title: "Croqui", icon: MapPin, description: "Desenho do acidente" },
 ];
-
-// helper para mapear o tipo de veículo em código numérico (mantido se você quiser usar depois)
-const getTipoCodigo = (vehicleType: string): number | null => {
-  switch (vehicleType) {
-    case "carro":
-    case "CARRO":
-    case "1":
-      return 1;
-    case "moto":
-    case "MOTO":
-    case "2":
-      return 2;
-    case "caminhao":
-    case "caminhão":
-    case "CAMINHAO":
-    case "CAMINHÃO":
-    case "3":
-      return 3;
-    default:
-      return null;
-  }
-};
 
 export default function VistoriaPublicaFormulario() {
   const { token } = useParams();
@@ -61,18 +77,27 @@ export default function VistoriaPublicaFormulario() {
   const [tempData, setTempData] = useState<any>(null);
 
   const [formData, setFormData] = useState({
+    // Cliente
     cliente_nome: "",
     cliente_cpf: "",
     cliente_email: "",
     cliente_telefone: "",
+    // Evento
     data_evento: "",
     hora_evento: "",
     condutor_veiculo: "",
+    // Veículo
     veiculo_placa: "",
     veiculo_marca: "",
     veiculo_modelo: "",
     veiculo_ano: "",
-    veiculo_tipo: "", // 🔹 novo: tipo de veículo no formData
+    veiculo_tipo: "",
+    veiculo_cor: "",
+    veiculo_chassi: "",
+    veiculo_valor_fipe: null as number | null,
+    veiculo_fipe_data_consulta: null as Date | null,
+    veiculo_fipe_codigo: null as string | null,
+    // Sinistro
     narrar_fatos: "",
     vitima_ou_causador: "",
     tem_terceiros: false,
@@ -84,9 +109,7 @@ export default function VistoriaPublicaFormulario() {
     policia_foi_local: false,
   });
 
-  // novo estado para tipo de veículo e hook para marcas/modelos
   const [vehicleType, setVehicleType] = useState<string>("");
-  const { marcas, modelos, marcaSelecionada, setMarcaSelecionada } = useVeiculos();
 
   const [boFile, setBoFile] = useState<File | null>(null);
   const [laudoMedico, setLaudoMedico] = useState<File | null>(null);
@@ -98,7 +121,7 @@ export default function VistoriaPublicaFormulario() {
     loadVistoria();
     loadTempData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
+  }, []);
 
   const loadTempData = () => {
     const temp = localStorage.getItem("vistoria_temp");
@@ -118,7 +141,7 @@ export default function VistoriaPublicaFormulario() {
         ...prev,
         cliente_nome: data.cnhData.nome || "",
         cliente_cpf: data.cnhData.cpf || "",
-        condutor_veiculo: data.cnhData.nome || "", // Usar nome da CNH como condutor
+        condutor_veiculo: data.cnhData.nome || "",
       }));
     }
 
@@ -204,7 +227,7 @@ export default function VistoriaPublicaFormulario() {
     }));
   };
 
-  // quando trocar o tipo de veículo, resetar marca/modelo e atualizar veiculo_tipo
+  // Mesma lógica da vistoria manual: trocar tipo limpa marca/modelo/ano
   const handleVehicleTypeChange = (value: string) => {
     setVehicleType(value);
     setFormData((prev) => ({
@@ -212,18 +235,9 @@ export default function VistoriaPublicaFormulario() {
       veiculo_tipo: value,
       veiculo_marca: "",
       veiculo_modelo: "",
+      veiculo_ano: "",
     }));
-    setMarcaSelecionada("");
   };
-
-  // sincronizar marca selecionada com formData
-  useEffect(() => {
-    if (!formData.veiculo_marca) {
-      setMarcaSelecionada("");
-    } else if (marcaSelecionada !== formData.veiculo_marca) {
-      setMarcaSelecionada(formData.veiculo_marca);
-    }
-  }, [formData.veiculo_marca, marcaSelecionada, setMarcaSelecionada]);
 
   const handleSubmit = async () => {
     const camposObrigatorios: string[] = [];
@@ -254,6 +268,14 @@ export default function VistoriaPublicaFormulario() {
 
     if (!vehicleType) {
       camposObrigatorios.push("Tipo de veículo (Carro, Moto ou Caminhão)");
+    }
+
+    if (!formData.veiculo_marca) {
+      camposObrigatorios.push("Marca do veículo");
+    }
+
+    if (!formData.veiculo_modelo) {
+      camposObrigatorios.push("Modelo do veículo");
     }
 
     if (formData.cliente_telefone && !validatePhone(formData.cliente_telefone)) {
@@ -305,12 +327,11 @@ export default function VistoriaPublicaFormulario() {
         laudoAlcoolemiaUrl = await uploadFile(laudoAlcoolemia, "alcoolemia");
       }
 
-      // 🔹 Array para enviar pra função analisar-vistoria-ia
+      // Fotos para análise por IA
       const fotosParaAnalise: { id: string; posicao: string; url: string }[] = [];
 
       if (tempData?.fotos) {
         for (const [posicao, files] of Object.entries(tempData.fotos) as [string, File[]][]) {
-          // Mantém sua regra de não salvar CNH/CRLV em vistoria_fotos
           if (posicao === "cnh" || posicao === "crlv") continue;
 
           for (const file of files) {
@@ -360,31 +381,32 @@ export default function VistoriaPublicaFormulario() {
 
       const croquiUrl = croqui ? await uploadDataUrl(croqui, "croqui") : null;
 
-      const { error: updateError } = await supabase
-        .from("vistorias")
-        .update({
-          ...formData,
-          latitude: tempData?.geolocation?.latitude,
-          longitude: tempData?.geolocation?.longitude,
-          cnh_url: cnhUrl,
-          cnh_dados: tempData?.cnhData,
-          crlv_fotos_urls: crlvUrls,
-          bo_url: boUrl,
-          laudo_medico_url: laudoMedicoUrl,
-          atestado_obito_url: atestadoObitoUrl,
-          laudo_alcoolemia_url: laudoAlcoolemiaUrl,
-          croqui_acidente_url: croquiUrl,
-          // se quiser salvar código numérico depois:
-          // tipo_veiculo_codigo: getTipoCodigo(vehicleType),
-        })
-        .eq("id", vistoria.id);
+      const payload: any = {
+        ...formData,
+        latitude: tempData?.geolocation?.latitude,
+        longitude: tempData?.geolocation?.longitude,
+        cnh_url: cnhUrl,
+        cnh_dados: tempData?.cnhData,
+        crlv_fotos_urls: crlvUrls,
+        bo_url: boUrl,
+        laudo_medico_url: laudoMedicoUrl,
+        atestado_obito_url: atestadoObitoUrl,
+        laudo_alcoolemia_url: laudoAlcoolemiaUrl,
+        croqui_acidente_url: croquiUrl,
+      };
+
+      if (formData.veiculo_fipe_data_consulta) {
+        payload.veiculo_fipe_data_consulta = formData.veiculo_fipe_data_consulta.toISOString();
+      }
+
+      const { error: updateError } = await supabase.from("vistorias").update(payload).eq("id", vistoria.id);
 
       if (updateError) {
         console.error("Erro ao atualizar vistoria:", updateError);
         throw new Error(`Falha ao salvar os dados: ${updateError.message}`);
       }
 
-      // 🔹 CHAMADA AUTOMÁTICA DA IA (analisar-vistoria-ia)
+      // Chamada automática da função de IA
       if (fotosParaAnalise.length > 0) {
         supabase.functions
           .invoke("analisar-vistoria-ia", {
@@ -575,7 +597,7 @@ export default function VistoriaPublicaFormulario() {
               </div>
             )}
 
-            {/* Step 1: Dados do Evento */}
+            {/* Step 1: Dados do Evento + Veículo (com FIPE igual à manual) */}
             {currentStep === 1 && (
               <div className="space-y-6">
                 <div className="grid sm:grid-cols-2 gap-6">
@@ -620,86 +642,49 @@ export default function VistoriaPublicaFormulario() {
                   />
                 </div>
 
-                {/* 🔹 Tipo de Veículo - Carro / Moto / Caminhão em linha, responsivo */}
-                <div className="space-y-3">
-                  <Label className="text-base font-semibold">Tipo de Veículo *</Label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleVehicleTypeChange("carro")}
-                      className={`flex items-center justify-center rounded-lg border-2 px-4 py-3 text-sm sm:text-base font-medium transition-all flex-1 ${
-                        vehicleType === "carro"
-                          ? "border-[hsl(var(--vistoria-primary))] bg-[hsl(var(--vistoria-primary))] text-white shadow-md"
-                          : "border-gray-200 bg-white text-gray-800 hover:border-[hsl(var(--vistoria-primary))]/60 hover:bg-[hsl(var(--vistoria-bg))]"
-                      }`}
-                    >
-                      Carro
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleVehicleTypeChange("moto")}
-                      className={`flex items-center justify-center rounded-lg border-2 px-4 py-3 text-sm sm:text-base font-medium transition-all flex-1 ${
-                        vehicleType === "moto"
-                          ? "border-[hsl(var(--vistoria-primary))] bg-[hsl(var(--vistoria-primary))] text-white shadow-md"
-                          : "border-gray-200 bg-white text-gray-800 hover:border-[hsl(var(--vistoria-primary))]/60 hover:bg-[hsl(var(--vistoria-bg))]"
-                      }`}
-                    >
-                      Moto
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleVehicleTypeChange("caminhao")}
-                      className={`flex items-center justify-center rounded-lg border-2 px-4 py-3 text-sm sm:text-base font-medium transition-all flex-1 ${
-                        vehicleType === "caminhao"
-                          ? "border-[hsl(var(--vistoria-primary))] bg-[hsl(var(--vistoria-primary))] text-white shadow-md"
-                          : "border-gray-200 bg-white text-gray-800 hover:border-[hsl(var(--vistoria-primary))]/60 hover:bg-[hsl(var(--vistoria-bg))]"
-                      }`}
-                    >
-                      Caminhão
-                    </button>
+                {/* Cor e Chassi - igual manual */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                  <div>
+                    <Label>Cor *</Label>
+                    <Input
+                      value={formData.veiculo_cor}
+                      onChange={(e) => setFormData({ ...formData, veiculo_cor: e.target.value })}
+                      placeholder="Ex.: Preto, Prata, Branco..."
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label>Chassi</Label>
+                    <Input
+                      value={formData.veiculo_chassi}
+                      onChange={(e) => setFormData({ ...formData, veiculo_chassi: e.target.value.toUpperCase() })}
+                      placeholder="9BWZZZ377VT004251"
+                      maxLength={17}
+                      className="mt-1 uppercase"
+                    />
                   </div>
                 </div>
 
-                <div className="grid sm:grid-cols-3 gap-4">
-                  {/* Marca */}
-                  <SearchableVehicleSelect
-                    label="Marca *"
-                    value={formData.veiculo_marca || ""}
-                    options={marcas}
-                    onChange={(value) => {
-                      setFormData({ ...formData, veiculo_marca: value, veiculo_modelo: "" });
-                      setMarcaSelecionada(value);
-                    }}
-                    placeholder="Selecione a marca"
+                {/* Seleção por FIPE – igual à Vistoria Manual */}
+                <div className="mt-4">
+                  <VehicleFipeSelector
                     vehicleType={vehicleType}
+                    onVehicleTypeChange={(value) => handleVehicleTypeChange(value)}
+                    marca={formData.veiculo_marca}
+                    onMarcaChange={(value) => setFormData({ ...formData, veiculo_marca: value })}
+                    modelo={formData.veiculo_modelo}
+                    onModeloChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
+                    ano={formData.veiculo_ano}
+                    onAnoChange={(value) => setFormData({ ...formData, veiculo_ano: value })}
+                    valorFipe={formData.veiculo_valor_fipe}
+                    onValorFipeChange={(value) => setFormData({ ...formData, veiculo_valor_fipe: value })}
+                    dataConsultaFipe={formData.veiculo_fipe_data_consulta}
+                    onDataConsultaFipeChange={(value) =>
+                      setFormData({ ...formData, veiculo_fipe_data_consulta: value })
+                    }
+                    codigoFipe={formData.veiculo_fipe_codigo}
+                    onCodigoFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_codigo: value })}
                   />
-
-                  {/* Modelo */}
-                  <SearchableVehicleSelect
-                    label="Modelo *"
-                    value={formData.veiculo_modelo || ""}
-                    options={modelos}
-                    onChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
-                    placeholder="Selecione o modelo"
-                    disabled={!formData.veiculo_marca}
-                    vehicleType={vehicleType}
-                  />
-
-                  {/* Ano */}
-                  <div className="space-y-2">
-                    <Label className="text-base font-semibold">Ano</Label>
-                    <Input
-                      type="number"
-                      value={formData.veiculo_ano}
-                      onChange={(e) => setFormData({ ...formData, veiculo_ano: e.target.value })}
-                      placeholder="2020"
-                      className="h-12"
-                      min="1900"
-                      max={new Date().getFullYear() + 1}
-                    />
-                  </div>
                 </div>
 
                 <div>
