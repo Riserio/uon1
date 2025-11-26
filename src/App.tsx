@@ -18,6 +18,7 @@ import Contatos from "./pages/Contatos";
 import Termos from "./pages/Termos";
 import Usuarios from "./pages/Usuarios";
 import Equipes from "./pages/Equipes";
+import LancamentosFinanceiros from "./pages/LancamentosFinanceiros";
 import Agenda from "./pages/Agenda";
 import Comunicados from "./pages/Comunicados";
 import Documentos from "./pages/Documentos";
@@ -152,6 +153,7 @@ const App = () => (
               <Route path="/contatos" element={<ProtectedRoute><Contatos /></ProtectedRoute>} />
               <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
               <Route path="/equipes" element={<ProtectedRoute><Equipes /></ProtectedRoute>} />
+              <Route path="/lancamentos-financeiros" element={<ProtectedRoute><LancamentosFinanceiros /></ProtectedRoute>} />
               
               <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
               <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />

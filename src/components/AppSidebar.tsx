@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Mail,
   TrendingUp,
+  DollarSign,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -285,6 +286,18 @@ export function AppSidebar() {
                       <NavLink to="/sinistros" activeClassName="bg-primary text-primary-foreground">
                         <AlertTriangle className="h-4 w-4" />
                         {!collapsed && <span>Sinistros</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+
+                {/* Lançamentos Financeiros */}
+                {canView("lancamentos_financeiros") && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/lancamentos-financeiros" activeClassName="bg-primary text-primary-foreground">
+                        <DollarSign className="h-4 w-4" />
+                        {!collapsed && <span>Lançamentos Financeiros</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
