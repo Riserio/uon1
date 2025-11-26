@@ -164,46 +164,46 @@ export function VehicleFipeSelector({
   return (
     <div className="space-y-4">
       {!showOnlySelectors && (
-        <VehicleTypeSelector
-          value={vehicleType}
-          onChange={handleVehicleTypeChange}
-        />
-      )}
-
-      {!showOnlySelectors && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <SearchableVehicleSelect
-            label="Marca"
-            options={marcas.map(m => m.name)}
-            value={marca}
-            onChange={handleMarcaChange}
-            placeholder="Selecione a marca"
-            disabled={disabled || loading}
-            vehicleType={vehicleType}
+        <>
+          <VehicleTypeSelector
+            value={vehicleType}
+            onChange={handleVehicleTypeChange}
           />
 
-          <SearchableVehicleSelect
-            label="Modelo"
-            options={modelos.map(m => m.name)}
-            value={modelo}
-            onChange={handleModeloChange}
-            placeholder="Selecione o modelo"
-            disabled={disabled || !marca || loading}
-            vehicleType={vehicleType}
-          />
-        </div>
-      )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SearchableVehicleSelect
+              label="Marca"
+              options={marcas.map(m => m.name)}
+              value={marca}
+              onChange={handleMarcaChange}
+              placeholder="Selecione a marca"
+              disabled={disabled || loading}
+              vehicleType={vehicleType}
+            />
 
-      {!showOnlySelectors && onAnoChange && (
-        <SearchableVehicleSelect
-          label="Ano"
-          options={anos.map(a => a.name)}
-          value={ano || ""}
-          onChange={handleAnoChange}
-          placeholder="Selecione o ano"
-          disabled={disabled || !modelo || loading}
-          vehicleType={vehicleType}
-        />
+            <SearchableVehicleSelect
+              label="Modelo"
+              options={modelos.map(m => m.name)}
+              value={modelo}
+              onChange={handleModeloChange}
+              placeholder="Selecione o modelo"
+              disabled={disabled || !marca || loading}
+              vehicleType={vehicleType}
+            />
+          </div>
+
+          {onAnoChange && (
+            <SearchableVehicleSelect
+              label="Ano"
+              options={anos.map(a => a.name)}
+              value={ano || ""}
+              onChange={handleAnoChange}
+              placeholder="Selecione o ano"
+              disabled={disabled || !modelo || loading}
+              vehicleType={vehicleType}
+            />
+          )}
+        </>
       )}
 
       {showFipeButton && onValorFipeChange && onDataConsultaFipeChange && (
