@@ -5,9 +5,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { TrendingUp, TrendingDown, DollarSign, FileText, Clock, CheckCircle, XCircle, BarChart3 } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, FileText, Clock, CheckCircle, XCircle, BarChart3, ArrowLeft } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
+import { useNavigate } from "react-router-dom";
 
 interface DashboardStats {
   totalReceitas: number;
@@ -39,6 +40,7 @@ interface StatusData {
 }
 
 export default function DashboardFinanceiro() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats>({
     totalReceitas: 0,
     totalDespesas: 0,
@@ -250,7 +252,8 @@ export default function DashboardFinanceiro() {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" onClick={() => window.history.back()}>
+            <Button variant="outline" onClick={() => navigate("/lancamentos-financeiros")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar
             </Button>
           </div>
