@@ -1241,27 +1241,6 @@ export function AtendimentoDialog({
                       )}
                     </div>
 
-                     {/* Consulta FIPE */}
-                    <VehicleFipeSelector
-                      vehicleType={vehicleType}
-                      onVehicleTypeChange={(value) => {
-                        setVehicleType(value);
-                        setVistoriaData({ ...vistoriaData, veiculo_tipo: value, veiculo_marca: "", veiculo_modelo: "", veiculo_ano: "" });
-                      }}
-                      marca={vistoriaData.veiculo_marca}
-                      onMarcaChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_marca: value })}
-                      modelo={vistoriaData.veiculo_modelo}
-                      onModeloChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_modelo: value })}
-                      ano={vistoriaData.veiculo_ano}
-                      onAnoChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_ano: value })}
-                      valorFipe={vistoriaData.veiculo_valor_fipe}
-                      onValorFipeChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_valor_fipe: value })}
-                      dataConsultaFipe={vistoriaData.veiculo_fipe_data_consulta}
-                      onDataConsultaFipeChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_fipe_data_consulta: value })}
-                      codigoFipe={vistoriaData.veiculo_fipe_codigo}
-                      onCodigoFipeChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_fipe_codigo: value })}
-                    />
-
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="veiculo_cor">Cor</Label>
@@ -1294,6 +1273,27 @@ export function AtendimentoDialog({
                         />
                       </div>
                     </div>
+
+                    {/* Consulta FIPE */}
+                    <VehicleFipeSelector
+                      vehicleType={vehicleType}
+                      onVehicleTypeChange={(value) => {
+                        setVehicleType(value);
+                        setVistoriaData({ ...vistoriaData, veiculo_tipo: value, veiculo_marca: "", veiculo_modelo: "", veiculo_ano: "" });
+                      }}
+                      marca={vistoriaData.veiculo_marca}
+                      onMarcaChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_marca: value })}
+                      modelo={vistoriaData.veiculo_modelo}
+                      onModeloChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_modelo: value })}
+                      ano={vistoriaData.veiculo_ano}
+                      onAnoChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_ano: value })}
+                      valorFipe={vistoriaData.veiculo_valor_fipe}
+                      onValorFipeChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_valor_fipe: value })}
+                      dataConsultaFipe={vistoriaData.veiculo_fipe_data_consulta}
+                      onDataConsultaFipeChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_fipe_data_consulta: value })}
+                      codigoFipe={vistoriaData.veiculo_fipe_codigo}
+                      onCodigoFipeChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_fipe_codigo: value })}
+                    />
                   </div>
                 </div>
 
