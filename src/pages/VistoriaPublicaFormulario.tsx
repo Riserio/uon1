@@ -597,7 +597,7 @@ export default function VistoriaPublicaFormulario() {
               </div>
             )}
 
-            {/* Step 1: Dados do Evento + Veículo (com FIPE igual à manual) */}
+            {/* Step 1: Dados do Evento + Veículo (FIPE + fallback + cor/chassi embaixo do ano) */}
             {currentStep === 1 && (
               <div className="space-y-6">
                 <div className="grid sm:grid-cols-2 gap-6">
@@ -642,8 +642,95 @@ export default function VistoriaPublicaFormulario() {
                   />
                 </div>
 
-                {/* Cor e Chassi - igual manual */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                {/* Seleção por FIPE – mesma lógica da vistoria manual */}
+                <div className="mt-4 space-y-3">
+                  <VehicleFipeSelector
+                    vehicleType={vehicleType}
+                    onVehicleTypeChange={handleVehicleTypeChange}
+                    marca={formData.veiculo_marca}
+                    onMarcaChange={(value) => setFormData({ ...formData, veiculo_marca: value })}
+                    modelo={formData.veiculo_modelo}
+                    onModeloChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
+                    ano={formData.veiculo_ano}
+                    onAnoChange={(value) => setFormData({ ...formData, veiculo_ano: value })}
+                    valorFipe={formData.veiculo_valor_fipe}
+                    onValorFipeChange={(value) => setFormData({ ...formData, veiculo_valor_fipe: value })}
+                    dataConsultaFipe={formData.veiculo_fipe_data_consulta}
+                    onDataConsultaFipeChange={(value) =>
+                      setFormData({ ...formData, veiculo_fipe_data_consulta: value })
+                    }
+                    codigoFipe={formData.veiculo_fipe_codigo}
+                    onCodigoFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_codigo: value })}
+                  />
+
+                  {/* Fallback manual com JSON de marcas/modelos (responsivo) */}
+                  <div className="mt-4 space-y-3">
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      Se não encontrar na tabela FIPE, selecione manualmente abaixo:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-sm font-semibold">Marca (fallback)</Label>
+                        <select
+                          className="h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          value={formData.veiculo_marca}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              veiculo_marca: e.target.value,
+                              veiculo_modelo: "",
+                            })
+                          }
+                        >
+                          <option value="">Selecione</option>
+                          {MARCAS.map((marca) => (
+                            <option key={marca} value={marca}>
+                              {marca}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-sm font-semibold">Modelo (fallback)</Label>
+                        <select
+                          className="h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:bg-muted"
+                          value={formData.veiculo_modelo}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              veiculo_modelo: e.target.value,
+                            })
+                          }
+                          disabled={!formData.veiculo_marca}
+                        >
+                          <option value="">Selecione</option>
+                          {(MODELOS_POR_MARCA[formData.veiculo_marca] || []).map((modelo) => (
+                            <option key={modelo} value={modelo}>
+                              {modelo}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-sm font-semibold">Ano</Label>
+                        <Input
+                          type="number"
+                          value={formData.veiculo_ano}
+                          onChange={(e) => setFormData({ ...formData, veiculo_ano: e.target.value })}
+                          placeholder="2020"
+                          className="h-11"
+                          min="1900"
+                          max={new Date().getFullYear() + 1}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cor e Chassi abaixo do Ano/Modelo (grid responsivo) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                   <div>
                     <Label>Cor *</Label>
                     <Input
@@ -663,28 +750,6 @@ export default function VistoriaPublicaFormulario() {
                       className="mt-1 uppercase"
                     />
                   </div>
-                </div>
-
-                {/* Seleção por FIPE – igual à Vistoria Manual */}
-                <div className="mt-4">
-                  <VehicleFipeSelector
-                    vehicleType={vehicleType}
-                    onVehicleTypeChange={(value) => handleVehicleTypeChange(value)}
-                    marca={formData.veiculo_marca}
-                    onMarcaChange={(value) => setFormData({ ...formData, veiculo_marca: value })}
-                    modelo={formData.veiculo_modelo}
-                    onModeloChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
-                    ano={formData.veiculo_ano}
-                    onAnoChange={(value) => setFormData({ ...formData, veiculo_ano: value })}
-                    valorFipe={formData.veiculo_valor_fipe}
-                    onValorFipeChange={(value) => setFormData({ ...formData, veiculo_valor_fipe: value })}
-                    dataConsultaFipe={formData.veiculo_fipe_data_consulta}
-                    onDataConsultaFipeChange={(value) =>
-                      setFormData({ ...formData, veiculo_fipe_data_consulta: value })
-                    }
-                    codigoFipe={formData.veiculo_fipe_codigo}
-                    onCodigoFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_codigo: value })}
-                  />
                 </div>
 
                 <div>
