@@ -419,21 +419,47 @@ export default function LancamentosFinanceiros() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Lançamentos Financeiros</h1>
-          <p className="text-muted-foreground">Gestão completa de lançamentos financeiros</p>
+      <div className="flex flex-col gap-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">Lançamentos Financeiros</h1>
+            <p className="text-muted-foreground">Gestão completa de lançamentos financeiros</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate("/dashboard-financeiro")}>
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Lançamento
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate("/dashboard-financeiro")}>
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Dashboard
-          </Button>
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Lançamento
-          </Button>
-        </div>
+        
+        {/* Corretora Selector */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <Building2 className="h-5 w-5 text-muted-foreground" />
+              <div className="flex-1">
+                <Label>Corretora</Label>
+                <Select value={corretoraFilter} onValueChange={setCorretoraFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma corretora" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {corretoras.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Stats Cards */}
@@ -518,19 +544,6 @@ export default function LancamentosFinanceiros() {
                 <SelectItem value="despesa">Despesas</SelectItem>
                 <SelectItem value="provisao">Provisões</SelectItem>
                 <SelectItem value="ajuste">Ajustes</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={corretoraFilter} onValueChange={setCorretoraFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione uma corretora" />
-              </SelectTrigger>
-              <SelectContent>
-                {corretoras.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nome}
-                  </SelectItem>
-                ))}
               </SelectContent>
             </Select>
 
