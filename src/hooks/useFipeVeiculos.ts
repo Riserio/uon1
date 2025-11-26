@@ -94,7 +94,9 @@ export function useFipeVeiculos() {
       if (error) throw error;
 
       if (data?.success && data?.data) {
-        setMarcas(data.data);
+        // Ordenar marcas alfabeticamente
+        const marcasOrdenadas = [...data.data].sort((a, b) => a.name.localeCompare(b.name));
+        setMarcas(marcasOrdenadas);
       } else {
         throw new Error('Erro ao buscar marcas da FIPE');
       }
@@ -124,7 +126,7 @@ export function useFipeVeiculos() {
       const { data, error } = await supabase.functions.invoke('consultar-fipe', {
         body: {
           tipo: tipoFipe,
-          marcaCodigo,
+          marcaCodigo: marcaCodigo.toString(),
           action: 'modelos',
         },
       });
@@ -132,7 +134,9 @@ export function useFipeVeiculos() {
       if (error) throw error;
 
       if (data?.success && data?.data) {
-        setModelos(data.data);
+        // Ordenar modelos alfabeticamente
+        const modelosOrdenados = [...data.data].sort((a, b) => a.name.localeCompare(b.name));
+        setModelos(modelosOrdenados);
       } else {
         throw new Error('Erro ao buscar modelos da FIPE');
       }
@@ -164,8 +168,8 @@ export function useFipeVeiculos() {
       const { data, error } = await supabase.functions.invoke('consultar-fipe', {
         body: {
           tipo: tipoFipe,
-          marcaCodigo,
-          modeloCodigo,
+          marcaCodigo: marcaCodigo.toString(),
+          modeloCodigo: modeloCodigo.toString(),
           action: 'anos',
         },
       });
@@ -201,8 +205,8 @@ export function useFipeVeiculos() {
       const { data, error } = await supabase.functions.invoke('consultar-fipe', {
         body: {
           tipo: tipoFipe,
-          marcaCodigo,
-          modeloCodigo,
+          marcaCodigo: marcaCodigo.toString(),
+          modeloCodigo: modeloCodigo.toString(),
           anoCodigo,
           action: 'valor',
         },
