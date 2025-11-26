@@ -31,7 +31,6 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { validateCPF, validatePlaca } from "@/lib/validators";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { useAtendimentoRealtime } from "@/hooks/useAtendimentoRealtime";
-import { VehicleFipeSelector } from "@/components/VehicleFipeSelector";
 
 const CORES = [
   "Preto",
@@ -50,6 +49,21 @@ const CORES = [
   "Rosa",
   "Outros",
 ];
+
+const FIPE_BASE_URL = "https://parallelum.com.br/fipe/api/v1";
+
+const getFipeTipo = (vehicleType: string) => {
+  switch (vehicleType) {
+    case "carro":
+      return "carros";
+    case "moto":
+      return "motos";
+    case "caminhao_onibus":
+      return "caminhoes";
+    default:
+      return "carros";
+  }
+};
 
 interface AtendimentoDialogProps {
   open: boolean;
@@ -90,28 +104,26 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
   const { userRole } = useAuth();
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Hook para escutar mudanças em tempo real
+  // Hook realtime
   useAtendimentoRealtime({
     atendimentoId: atendimento?.id || null,
     onUpdate: () => {
       console.log("🔄 Recarregando dados do atendimento...");
       if (atendimento?.id) {
-        // Apenas recarregar custos e histórico, não sobrescrever formData
         loadVistoriaCustos(atendimento.id);
-        // Incrementar reloadKey apenas para forçar re-render das abas de histórico/andamentos
         setReloadKey((prev) => prev + 1);
       }
     },
   });
 
-  // Estados para conclusão manual
+  // Conclusão manual
   const [showConclusaoDialog, setShowConclusaoDialog] = useState(false);
   const [fluxos, setFluxos] = useState<any[]>([]);
   const [statusList, setStatusList] = useState<any[]>([]);
   const [selectedFluxoConclusao, setSelectedFluxoConclusao] = useState<string>("");
   const [selectedStatusConclusao, setSelectedStatusConclusao] = useState<string>("");
 
-  // Estados para custos e dados do sinistro
+  // Dados vistoria / sinistro
   const [vistoriaId, setVistoriaId] = useState<string | null>(null);
   const [vistoriaData, setVistoriaData] = useState({
     tipo_atendimento: "geral" as "sinistro" | "geral",
@@ -134,6 +146,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
     cliente_email: "",
     cof: "",
   });
+
   const [custos, setCustos] = useState({
     custo_oficina: 0,
     custo_reparo: 0,
@@ -145,13 +158,24 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
     valor_indenizacao: 0,
   });
 
+  // Estados FIPE externa
+  const [marcas, setMarcas] = useState<Array<{ codigo: string; nome: string }>>([]);
+  const [modelos, setModelos] = useState<Array<{ codigo: string; nome: string }>>([]);
+  const [anos, setAnos] = useState<Array<{ codigo: string; nome: string }>>([]);
+
+  const [selectedMarcaCode, setSelectedMarcaCode] = useState("");
+  const [selectedModeloCode, setSelectedModeloCode] = useState("");
+  const [selectedAnoCode, setSelectedAnoCode] = useState("");
+
+  const [loadingFipe, setLoadingFipe] = useState(false);
+  const [fipeError, setFipeError] = useState<string | null>(null);
+  const [enableManualFipe, setEnableManualFipe] = useState(false);
+
   useEffect(() => {
     if (atendimento) {
-      // Carregar nomes de corretora e contato baseado nos IDs
       const loadNomes = async () => {
         let corretoraName = atendimento.corretora || "";
 
-        // Buscar nome da corretora se houver corretoraId (UUID)
         if (atendimento.corretoraId) {
           const { data: corretoraData } = await supabase
             .from("corretoras")
@@ -168,7 +192,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
 
         let contatoName = atendimento.contato || "";
 
-        // Buscar nome do contato se houver contato como string (possível ID)
         if (atendimento.contato && atendimento.contato.length > 30) {
           const { data: contatoData } = await supabase
             .from("contatos")
@@ -181,14 +204,11 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
           }
         }
 
-        // Buscar UUID do responsável se for nome
         let responsavelId = user?.id || "";
         if (atendimento.responsavel) {
-          // Se parecer ser UUID (mais de 30 caracteres), usar direto
           if (atendimento.responsavel.length > 30) {
             responsavelId = atendimento.responsavel;
           } else {
-            // Caso contrário, buscar pelo nome
             const { data: profileData } = await supabase
               .from("profiles")
               .select("id")
@@ -218,7 +238,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
       setAnexos([]);
       loadVistoriaCustos(atendimento.id);
 
-      // Carregar tipo_atendimento do atendimento
       const loadTipoAtendimento = async () => {
         const { data } = await supabase
           .from("atendimentos")
@@ -284,34 +303,34 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
         valor_franquia: 0,
         valor_indenizacao: 0,
       });
+      setEnableManualFipe(false);
+      setMarcas([]);
+      setModelos([]);
+      setAnos([]);
+      setSelectedMarcaCode("");
+      setSelectedModeloCode("");
+      setSelectedAnoCode("");
+      setFipeError(null);
     }
     setCorretoraSearch("");
     setFilteredCorretoras([]);
   }, [atendimento, open]);
 
-  // Carregar fluxos e profiles
   useEffect(() => {
     const loadFluxos = async () => {
       const { data } = await supabase.from("fluxos").select("*").eq("ativo", true).order("ordem");
-
-      if (data) {
-        setFluxos(data);
-      }
+      if (data) setFluxos(data);
     };
 
     const loadProfiles = async () => {
       const { data } = await supabase.from("profiles").select("id, nome").eq("ativo", true).order("nome");
-
-      if (data) {
-        setProfiles(data);
-      }
+      if (data) setProfiles(data);
     };
 
     loadFluxos();
     loadProfiles();
   }, []);
 
-  // Carregar status quando fluxo é selecionado
   useEffect(() => {
     const loadStatus = async () => {
       if (!selectedFluxoConclusao) {
@@ -375,7 +394,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
         };
         setVistoriaData(vistoriaInfo);
 
-        // Carregar tipo de veículo se disponível
         if (data.veiculo_tipo) {
           setVehicleType(data.veiculo_tipo);
         }
@@ -390,11 +408,196 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
           valor_franquia: data.valor_franquia || 0,
           valor_indenizacao: data.valor_indenizacao || 0,
         });
+
+        // se já tiver valor FIPE gravado, não permite manual diretamente
+        setEnableManualFipe(!vistoriaInfo.veiculo_valor_fipe);
+      } else {
+        setEnableManualFipe(false);
       }
     } catch (error) {
       console.error("Erro ao carregar vistoria:", error);
     }
   };
+
+  // 🔹 Busca FIPE: marcas
+  useEffect(() => {
+    const fetchMarcas = async () => {
+      if (!vehicleType) {
+        setMarcas([]);
+        setModelos([]);
+        setAnos([]);
+        setSelectedMarcaCode("");
+        setSelectedModeloCode("");
+        setSelectedAnoCode("");
+        return;
+      }
+
+      try {
+        const tipoFipe = getFipeTipo(vehicleType);
+        const res = await fetch(`${FIPE_BASE_URL}/${tipoFipe}/marcas`);
+        if (!res.ok) throw new Error("Erro ao buscar marcas FIPE");
+        const data = await res.json();
+        setMarcas(data || []);
+
+        // tenta pré-selecionar marca com base no nome salvo
+        if (vistoriaData.veiculo_marca) {
+          const found = data.find((m: any) => m.nome === vistoriaData.veiculo_marca);
+          if (found) {
+            setSelectedMarcaCode(found.codigo);
+          }
+        } else {
+          setSelectedMarcaCode("");
+        }
+
+        setModelos([]);
+        setAnos([]);
+        setSelectedModeloCode("");
+        setSelectedAnoCode("");
+      } catch (err) {
+        console.error(err);
+        setMarcas([]);
+      }
+    };
+
+    fetchMarcas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleType]);
+
+  // 🔹 Busca FIPE: modelos (depende da marca)
+  useEffect(() => {
+    const fetchModelos = async () => {
+      if (!vehicleType || !selectedMarcaCode) {
+        setModelos([]);
+        setAnos([]);
+        setSelectedModeloCode("");
+        setSelectedAnoCode("");
+        return;
+      }
+
+      try {
+        const tipoFipe = getFipeTipo(vehicleType);
+        const res = await fetch(`${FIPE_BASE_URL}/${tipoFipe}/marcas/${selectedMarcaCode}/modelos`);
+        if (!res.ok) throw new Error("Erro ao buscar modelos FIPE");
+        const data = await res.json();
+        const modelosList = data?.modelos || [];
+        setModelos(modelosList);
+
+        if (vistoriaData.veiculo_modelo) {
+          const found = modelosList.find((m: any) => m.nome === vistoriaData.veiculo_modelo);
+          if (found) {
+            setSelectedModeloCode(found.codigo);
+          }
+        } else {
+          setSelectedModeloCode("");
+        }
+
+        setAnos([]);
+        setSelectedAnoCode("");
+      } catch (err) {
+        console.error(err);
+        setModelos([]);
+      }
+    };
+
+    fetchModelos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMarcaCode, vehicleType]);
+
+  // 🔹 Busca FIPE: anos (depende do modelo)
+  useEffect(() => {
+    const fetchAnos = async () => {
+      if (!vehicleType || !selectedMarcaCode || !selectedModeloCode) {
+        setAnos([]);
+        setSelectedAnoCode("");
+        return;
+      }
+
+      try {
+        const tipoFipe = getFipeTipo(vehicleType);
+        const res = await fetch(
+          `${FIPE_BASE_URL}/${tipoFipe}/marcas/${selectedMarcaCode}/modelos/${selectedModeloCode}/anos`,
+        );
+        if (!res.ok) throw new Error("Erro ao buscar anos FIPE");
+        const data = await res.json();
+        setAnos(data || []);
+
+        if (vistoriaData.veiculo_ano) {
+          const found = data.find((a: any) => a.nome === vistoriaData.veiculo_ano);
+          if (found) {
+            setSelectedAnoCode(found.codigo);
+          }
+        } else {
+          setSelectedAnoCode("");
+        }
+      } catch (err) {
+        console.error(err);
+        setAnos([]);
+      }
+    };
+
+    fetchAnos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedModeloCode, vehicleType, selectedMarcaCode]);
+
+  // 🔹 Consulta FIPE (valor) automática quando tudo preenchido
+  useEffect(() => {
+    const fetchValorFipe = async () => {
+      if (!vehicleType || !selectedMarcaCode || !selectedModeloCode || !selectedAnoCode) return;
+
+      try {
+        setLoadingFipe(true);
+        setFipeError(null);
+
+        const tipoFipe = getFipeTipo(vehicleType);
+        const res = await fetch(
+          `${FIPE_BASE_URL}/${tipoFipe}/marcas/${selectedMarcaCode}/modelos/${selectedModeloCode}/anos/${selectedAnoCode}`,
+        );
+
+        if (!res.ok) throw new Error("Erro ao consultar valor FIPE");
+
+        const data = await res.json();
+
+        if (!data || !data.Valor) {
+          setVistoriaData((prev) => ({
+            ...prev,
+            veiculo_valor_fipe: null,
+            veiculo_fipe_data_consulta: null,
+            veiculo_fipe_codigo: null,
+          }));
+          setFipeError("Não foi possível obter o valor FIPE automaticamente.");
+          setEnableManualFipe(true);
+        } else {
+          // Valor vem no formato "R$ 153.701,00"
+          const numericValue = Number(String(data.Valor).replace("R$", "").replace(/\./g, "").replace(",", ".").trim());
+
+          setVistoriaData((prev) => ({
+            ...prev,
+            veiculo_valor_fipe: isNaN(numericValue) ? null : numericValue,
+            veiculo_fipe_data_consulta: data.DataConsulta || new Date().toISOString(),
+            veiculo_fipe_codigo: data.CodigoFipe || null,
+            veiculo_ano: data.AnoModelo ? String(data.AnoModelo) : prev.veiculo_ano,
+          }));
+
+          setEnableManualFipe(false);
+        }
+      } catch (err) {
+        console.error(err);
+        setFipeError("Erro ao consultar valor FIPE.");
+        setVistoriaData((prev) => ({
+          ...prev,
+          veiculo_valor_fipe: null,
+          veiculo_fipe_data_consulta: null,
+          veiculo_fipe_codigo: null,
+        }));
+        setEnableManualFipe(true);
+      } finally {
+        setLoadingFipe(false);
+      }
+    };
+
+    fetchValorFipe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleType, selectedMarcaCode, selectedModeloCode, selectedAnoCode]);
 
   useEffect(() => {
     if (corretoraSearch.length >= 3) {
@@ -411,13 +614,11 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
       return;
     }
 
-    // Validar CPF se preenchido
     if (vistoriaData.cliente_cpf && !validateCPF(vistoriaData.cliente_cpf)) {
       toast.error("CPF inválido");
       return;
     }
 
-    // Validar placa se preenchida
     if (vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa)) {
       toast.error("Placa inválida (formato: ABC-1234 ou ABC1D23)");
       return;
@@ -432,10 +633,8 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
         return;
       }
 
-      // Separar dados da vistoria (sem tipo_atendimento)
       const { tipo_atendimento, ...vistoriaDataOnly } = vistoriaData;
 
-      // Converter strings vazias de timestamp para null
       const cleanedVistoriaData = Object.entries(vistoriaDataOnly).reduce((acc, [key, value]) => {
         if (key === "data_incidente" && value === "") {
           acc[key] = null;
@@ -446,7 +645,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
       }, {} as any);
 
       if (vistoriaId) {
-        // Atualizar vistoria existente - garantir sincronização completa de dados
         const { error: vistoriaError } = await supabase
           .from("vistorias")
           .update({
@@ -470,11 +668,10 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
           throw vistoriaError;
         }
       } else {
-        // Criar nova vistoria - usar ID do atendimento como ID da vistoria (unificação)
         const { data: newVistoria, error: vistoriaError } = await supabase
           .from("vistorias")
           .insert({
-            id: atendimento.id, // Usar ID do atendimento como ID da vistoria
+            id: atendimento.id,
             atendimento_id: atendimento.id,
             created_by: user.id,
             tipo_vistoria: "sinistro",
@@ -495,7 +692,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
         if (newVistoria) setVistoriaId(newVistoria.id);
       }
 
-      // Sincronizar TODOS os campos relevantes de volta para atendimentos
       const novoAssunto =
         vistoriaData.cliente_nome && vistoriaData.veiculo_placa
           ? `Sinistro - ${vistoriaData.cliente_nome} - ${vistoriaData.veiculo_placa}`
@@ -518,16 +714,14 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
 
       toast.success("Dados salvos com sucesso");
 
-      // Recarregar os dados para garantir sincronização
       await loadVistoriaCustos(atendimento.id);
 
-      // Forçar atualização completa do card - criar objeto atualizado
       const atendimentoAtualizado = {
         ...atendimento,
         assunto: novoAssunto,
         updatedAt: new Date().toISOString(),
       };
-      onSave(atendimentoAtualizado);
+      onSave(atendimentoAtualizado as Atendimento);
     } catch (error: any) {
       console.error("Erro ao salvar:", error);
       toast.error(error?.message || "Erro ao salvar dados");
@@ -541,7 +735,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
     }
 
     try {
-      // Validar dados obrigatórios
       if (!vistoriaData.veiculo_placa) {
         toast.error("Preencha a placa do veículo");
         return;
@@ -552,16 +745,13 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
         return;
       }
 
-      // Salvar dados primeiro
       await handleSalvarCustos();
 
-      // Gerar token de acesso
       const linkToken = crypto.randomUUID();
       const diasValidade = 7;
       const linkExpiresAt = new Date();
       linkExpiresAt.setDate(linkExpiresAt.getDate() + diasValidade);
 
-      // Atualizar vistoria com link
       const { error } = await supabase
         .from("vistorias")
         .update({
@@ -574,7 +764,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
 
       if (error) throw error;
 
-      // Copiar link para clipboard
       const link = `${window.location.origin}/vistoria/${linkToken}`;
       await navigator.clipboard.writeText(link);
 
@@ -607,7 +796,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
         return;
       }
 
-      // Buscar nomes para histórico
       const { data: fluxoData } = await supabase
         .from("fluxos")
         .select("nome")
@@ -620,7 +808,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
         .eq("id", atendimento.fluxoId)
         .single();
 
-      // Atualizar atendimento
       const { error: updateError } = await supabase
         .from("atendimentos")
         .update({
@@ -632,7 +819,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
 
       if (updateError) throw updateError;
 
-      // Registrar no histórico
       const { data: profileData } = await supabase.from("profiles").select("nome").eq("id", user.id).single();
 
       await supabase.from("atendimentos_historico").insert({
@@ -655,7 +841,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
       setShowConclusaoDialog(false);
       onOpenChange(false);
 
-      // Recarregar dados
       window.location.reload();
     } catch (error) {
       console.error("Erro ao concluir:", error);
@@ -677,12 +862,9 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
 
       const now = new Date().toISOString();
 
-      // Se for edição, atualizar o atendimento existente
       if (atendimento?.id) {
-        // Usar o ID da corretora diretamente do formData (já é UUID)
         const corretoraId = formData.corretora || null;
 
-        // Buscar ID do contato se houver nome
         let contatoId = null;
         if (formData.contato) {
           const { data: contatoData } = await supabase
@@ -717,7 +899,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
           return;
         }
 
-        // SINCRONIZAÇÃO BIDIRECIONAL COMPLETA: atualizar vistoria com TODOS os dados do atendimento
         if (vistoriaId) {
           const { error: vistoriaUpdateError } = await supabase
             .from("vistorias")
@@ -730,11 +911,9 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
             console.error("Erro ao sincronizar vistoria:", vistoriaUpdateError);
           }
 
-          // Recarregar dados da vistoria para garantir que o card mostre tudo atualizado
           await loadVistoriaCustos(atendimento.id);
         }
 
-        // Upload de novos anexos
         if (anexos.length > 0) {
           for (const file of anexos) {
             const fileExt = file.name.split(".").pop();
@@ -766,15 +945,13 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
 
         toast.success("Atendimento atualizado com sucesso");
 
-        // Forçar atualização completa do card com updated_at
         const atendimentoAtualizado = {
           ...atendimento,
           assunto: formData.assunto || atendimento.assunto,
           updatedAt: now,
         };
-        onSave(atendimentoAtualizado);
+        onSave(atendimentoAtualizado as Atendimento);
       } else {
-        // Criar novo atendimento
         const savedAtendimento: Atendimento = {
           id: `atd-${Date.now()}`,
           numero: 0,
@@ -793,7 +970,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
 
         onSave(savedAtendimento);
 
-        // Upload de anexos para novo atendimento
         if (anexos.length > 0) {
           for (const file of anexos) {
             const fileExt = file.name.split(".").pop();
@@ -821,7 +997,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
           }
         }
 
-        // Adicionar primeiro andamento se houver
         if (primeiroAndamento.trim()) {
           await supabase.from("andamentos").insert({
             atendimento_id: savedAtendimento.id,
@@ -1146,7 +1321,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                 value="dados_pessoais"
                 className="mt-0 space-y-6 p-4 overflow-y-auto max-h-[calc(90vh-300px)]"
               >
-                {/* Dados do Sinistro - apenas se tipo_atendimento === 'sinistro' */}
+                {/* Dados do Sinistro */}
                 {vistoriaData.tipo_atendimento === "sinistro" && (
                   <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
                     <h4 className="font-medium">Dados do Sinistro</h4>
@@ -1190,44 +1365,48 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                   <h4 className="font-medium">Dados do Veículo</h4>
 
                   <div className="space-y-4">
-                    {/* 1) Tipo de veículo / Marca / Modelo / Ano - SEM botão FIPE */}
-                    <VehicleFipeSelector
-                      vehicleType={vehicleType}
-                      onVehicleTypeChange={(value) => {
-                        setVehicleType(value);
-                        setVistoriaData((prev) => ({
-                          ...prev,
-                          veiculo_tipo: value,
-                          veiculo_marca: "",
-                          veiculo_modelo: "",
-                          veiculo_ano: "",
-                        }));
-                      }}
-                      marca={vistoriaData.veiculo_marca}
-                      onMarcaChange={(value) =>
-                        setVistoriaData((prev) => ({
-                          ...prev,
-                          veiculo_marca: value,
-                        }))
-                      }
-                      modelo={vistoriaData.veiculo_modelo}
-                      onModeloChange={(value) =>
-                        setVistoriaData((prev) => ({
-                          ...prev,
-                          veiculo_modelo: value,
-                        }))
-                      }
-                      ano={vistoriaData.veiculo_ano}
-                      onAnoChange={(value) =>
-                        setVistoriaData((prev) => ({
-                          ...prev,
-                          veiculo_ano: value,
-                        }))
-                      }
-                      showFipeButton={false}
-                    />
+                    {/* 1) Tipo de Veículo */}
+                    <div className="space-y-2">
+                      <Label htmlFor="veiculo_tipo">Tipo de Veículo</Label>
+                      <Select
+                        value={vehicleType}
+                        onValueChange={(value) => {
+                          setVehicleType(value);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_tipo: value,
+                            veiculo_marca: "",
+                            veiculo_modelo: "",
+                            veiculo_ano: "",
+                          }));
+                          setSelectedMarcaCode("");
+                          setSelectedModeloCode("");
+                          setSelectedAnoCode("");
+                          setMarcas([]);
+                          setModelos([]);
+                          setAnos([]);
+                          setFipeError(null);
+                          setEnableManualFipe(false);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_valor_fipe: null,
+                            veiculo_fipe_data_consulta: null,
+                            veiculo_fipe_codigo: null,
+                          }));
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o tipo de veículo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="carro">Carro</SelectItem>
+                          <SelectItem value="moto">Moto</SelectItem>
+                          <SelectItem value="caminhao_onibus">Caminhão / Ônibus</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                    {/* 2) Placa - Logo após tipo de veículo */}
+                    {/* 2) Placa */}
                     <div className="space-y-2">
                       <Label htmlFor="veiculo_placa">Placa</Label>
                       <Input
@@ -1288,40 +1467,196 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                       </div>
                     </div>
 
-                    {/* 5) Botão consultar FIPE - Após cor e chassi, só aparece se tudo estiver preenchido */}
-                    <VehicleFipeSelector
-                      vehicleType={vehicleType}
-                      onVehicleTypeChange={() => {}}
-                      marca={vistoriaData.veiculo_marca}
-                      onMarcaChange={() => {}}
-                      modelo={vistoriaData.veiculo_modelo}
-                      onModeloChange={() => {}}
-                      ano={vistoriaData.veiculo_ano}
-                      onAnoChange={() => {}}
-                      valorFipe={vistoriaData.veiculo_valor_fipe}
-                      onValorFipeChange={(value) =>
-                        setVistoriaData((prev) => ({
-                          ...prev,
-                          veiculo_valor_fipe: value,
-                        }))
-                      }
-                      dataConsultaFipe={vistoriaData.veiculo_fipe_data_consulta}
-                      onDataConsultaFipeChange={(value) =>
-                        setVistoriaData((prev) => ({
-                          ...prev,
-                          veiculo_fipe_data_consulta: value,
-                        }))
-                      }
-                      codigoFipe={vistoriaData.veiculo_fipe_codigo}
-                      onCodigoFipeChange={(value) =>
-                        setVistoriaData((prev) => ({
-                          ...prev,
-                          veiculo_fipe_codigo: value,
-                        }))
-                      }
-                      showOnlySelectors={true}
-                      showFipeButton={true}
-                    />
+                    {/* 5) Marca */}
+                    <div className="space-y-2">
+                      <Label htmlFor="veiculo_marca">Marca</Label>
+                      <Select
+                        value={selectedMarcaCode}
+                        onValueChange={(value) => {
+                          setSelectedMarcaCode(value);
+                          const marca = marcas.find((m) => m.codigo === value);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_marca: marca ? marca.nome : "",
+                            veiculo_modelo: "",
+                            veiculo_ano: "",
+                          }));
+                          setSelectedModeloCode("");
+                          setSelectedAnoCode("");
+                          setModelos([]);
+                          setAnos([]);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_valor_fipe: null,
+                            veiculo_fipe_data_consulta: null,
+                            veiculo_fipe_codigo: null,
+                          }));
+                          setEnableManualFipe(false);
+                          setFipeError(null);
+                        }}
+                        disabled={!vehicleType || marcas.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={vehicleType ? "Selecione a marca" : "Selecione o tipo primeiro"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {marcas.map((marca) => (
+                            <SelectItem key={marca.codigo} value={marca.codigo}>
+                              {marca.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* 6) Modelo */}
+                    <div className="space-y-2">
+                      <Label htmlFor="veiculo_modelo">Modelo</Label>
+                      <Select
+                        value={selectedModeloCode}
+                        onValueChange={(value) => {
+                          setSelectedModeloCode(value);
+                          const modelo = modelos.find((m) => m.codigo === value);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_modelo: modelo ? modelo.nome : "",
+                            veiculo_ano: "",
+                          }));
+                          setSelectedAnoCode("");
+                          setAnos([]);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_valor_fipe: null,
+                            veiculo_fipe_data_consulta: null,
+                            veiculo_fipe_codigo: null,
+                          }));
+                          setEnableManualFipe(false);
+                          setFipeError(null);
+                        }}
+                        disabled={!selectedMarcaCode || modelos.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={selectedMarcaCode ? "Selecione o modelo" : "Selecione a marca primeiro"}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {modelos.map((modelo) => (
+                            <SelectItem key={modelo.codigo} value={modelo.codigo}>
+                              {modelo.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* 7) Ano */}
+                    <div className="space-y-2">
+                      <Label htmlFor="veiculo_ano">Ano</Label>
+                      <Select
+                        value={selectedAnoCode}
+                        onValueChange={(value) => {
+                          setSelectedAnoCode(value);
+                          const ano = anos.find((a) => a.codigo === value);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_ano: ano ? ano.nome : "",
+                          }));
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_valor_fipe: null,
+                            veiculo_fipe_data_consulta: null,
+                            veiculo_fipe_codigo: null,
+                          }));
+                          setEnableManualFipe(false);
+                          setFipeError(null);
+                        }}
+                        disabled={!selectedModeloCode || anos.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={selectedModeloCode ? "Selecione o ano" : "Selecione o modelo primeiro"}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {anos.map((ano) => (
+                            <SelectItem key={ano.codigo} value={ano.codigo}>
+                              {ano.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* 8) Valor FIPE */}
+                    <div className="space-y-2">
+                      <Label htmlFor="veiculo_valor_fipe">Valor FIPE (R$)</Label>
+
+                      {loadingFipe && (
+                        <p className="text-sm text-muted-foreground">Consultando valor FIPE, aguarde...</p>
+                      )}
+
+                      {fipeError && !loadingFipe && <p className="text-xs text-destructive">{fipeError}</p>}
+
+                      {vistoriaData.veiculo_valor_fipe !== null ? (
+                        <>
+                          <CurrencyInput
+                            id="veiculo_valor_fipe"
+                            value={vistoriaData.veiculo_valor_fipe ?? 0}
+                            onValueChange={() => {}}
+                            disabled
+                          />
+                          {vistoriaData.veiculo_fipe_data_consulta && (
+                            <p className="text-xs text-muted-foreground">
+                              Consultado em:{" "}
+                              {new Date(
+                                vistoriaData.veiculo_fipe_data_consulta as string | number | Date,
+                              ).toLocaleDateString("pt-BR")}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {!enableManualFipe ? (
+                            <>
+                              <p className="text-sm text-muted-foreground">
+                                Informe tipo, marca, modelo e ano para consultar o valor FIPE automaticamente. Se não
+                                retornar, você poderá informar manualmente.
+                              </p>
+                              {!loadingFipe && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setEnableManualFipe(true)}
+                                >
+                                  Inserir valor manualmente
+                                </Button>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <CurrencyInput
+                                id="veiculo_valor_fipe_manual"
+                                value={vistoriaData.veiculo_valor_fipe ?? 0}
+                                onValueChange={(values) =>
+                                  setVistoriaData((prev) => ({
+                                    ...prev,
+                                    veiculo_valor_fipe: values?.floatValue || null,
+                                    veiculo_fipe_data_consulta: new Date().toISOString(),
+                                    veiculo_fipe_codigo: prev.veiculo_fipe_codigo,
+                                  }))
+                                }
+                                placeholder="Informe o valor FIPE manualmente"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Valor informado manualmente para uso neste sinistro.
+                              </p>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
