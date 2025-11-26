@@ -99,9 +99,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
   const { userRole } = useAuth();
   const [reloadKey, setReloadKey] = useState(0);
 
-  // controla se pode digitar FIPE manual
-  const [enableManualFipe, setEnableManualFipe] = useState(false);
-
   // Hook para escutar mudanças em tempo real
   useAtendimentoRealtime({
     atendimentoId: atendimento?.id || null,
@@ -296,7 +293,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
         valor_franquia: 0,
         valor_indenizacao: 0,
       });
-      setEnableManualFipe(false);
     }
     setCorretoraSearch("");
     setFilteredCorretoras([]);
@@ -393,9 +389,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
           setVehicleType(data.veiculo_tipo);
         }
 
-        // habilita manual FIPE só se não tiver valor
-        setEnableManualFipe(!vistoriaInfo.veiculo_valor_fipe);
-
         setCustos({
           custo_oficina: data.custo_oficina || 0,
           custo_reparo: data.custo_reparo || 0,
@@ -406,8 +399,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
           valor_franquia: data.valor_franquia || 0,
           valor_indenizacao: data.valor_indenizacao || 0,
         });
-      } else {
-        setEnableManualFipe(false);
       }
     } catch (error) {
       console.error("Erro ao carregar vistoria:", error);
@@ -1208,7 +1199,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                   <h4 className="font-medium">Dados do Veículo</h4>
 
                   <div className="space-y-4">
-                    {/* 🔹 Tipo do veículo / marca / modelo / ano / botão FIPE */}
+                    {/* 🔹 Tipo do veículo / marca / modelo / ano / FIPE (dentro do selector) */}
                     <div className="relative space-y-2">
                       <VehicleFipeSelector
                         vehicleType={vehicleType}
@@ -1245,16 +1236,10 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                         }
                         valorFipe={vistoriaData.veiculo_valor_fipe}
                         onValorFipeChange={(value) =>
-                          setVistoriaData((prev) => {
-                            // se veio valor da API, desliga manual
-                            if (value !== null && value !== undefined) {
-                              setEnableManualFipe(false);
-                            }
-                            return {
-                              ...prev,
-                              veiculo_valor_fipe: value,
-                            };
-                          })
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_valor_fipe: value,
+                          }))
                         }
                         dataConsultaFipe={vistoriaData.veiculo_fipe_data_consulta}
                         onDataConsultaFipeChange={(value) =>
@@ -1355,40 +1340,9 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                           )}
                         </>
                       ) : (
-                        <>
-                          {!enableManualFipe ? (
-                            <>
-                              <p className="text-sm text-muted-foreground">
-                                Não foi possível obter o valor FIPE automaticamente.
-                              </p>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setEnableManualFipe(true)}
-                              >
-                                Inserir valor manualmente
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <CurrencyInput
-                                id="veiculo_valor_fipe"
-                                value={vistoriaData.veiculo_valor_fipe ?? 0}
-                                onValueChange={(values) =>
-                                  setVistoriaData((prev) => ({
-                                    ...prev,
-                                    veiculo_valor_fipe: values?.floatValue || null,
-                                  }))
-                                }
-                                placeholder="Informe o valor FIPE manualmente"
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Informe o valor FIPE que será usado neste sinistro.
-                              </p>
-                            </>
-                          )}
-                        </>
+                        <p className="text-sm text-muted-foreground">
+                          Não foi possível obter o valor FIPE automaticamente.
+                        </p>
                       )}
                     </div>
                   </div>
