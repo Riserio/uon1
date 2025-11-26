@@ -171,7 +171,7 @@ export function SearchableVehicleSelect({
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <Popover open={open} onOpenChange={setOpen} modal={false}>
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -185,14 +185,9 @@ export function SearchableVehicleSelect({
           </Button>
         </PopoverTrigger>
         <PopoverContent 
-          className="p-0 bg-popover border shadow-lg"
-          style={{ 
-            width: 'var(--radix-popover-trigger-width)',
-            maxWidth: '400px',
-            zIndex: 999999 
-          }}
-          align="start" 
-          sideOffset={4}
+          className="p-0 bg-popover border shadow-md"
+          align="start"
+          style={{ width: 'var(--radix-popover-trigger-width)' }}
         >
           <Command shouldFilter={false}>
             <div className="flex items-center border-b px-3">
