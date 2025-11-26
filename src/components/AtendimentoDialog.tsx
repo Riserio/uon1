@@ -1205,7 +1205,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                   <h4 className="font-medium">Dados do Veículo</h4>
 
                   <div className="space-y-4">
-                    {/* 🔹 Tipo do veículo + FIPE no topo */}
+                    {/* 🔹 Tipo do veículo + FIPE (consulta) no topo */}
                     <div className="relative space-y-2">
                       <VehicleFipeSelector
                         vehicleType={vehicleType}
@@ -1264,7 +1264,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                       />
                     </div>
 
-                    {/* Placa */}
+                    {/* Placa – logo após o tipo de veículo */}
                     <div className="space-y-2">
                       <Label htmlFor="veiculo_placa">Placa</Label>
                       <Input
@@ -1323,6 +1323,44 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                           placeholder="17 caracteres"
                         />
                       </div>
+                    </div>
+
+                    {/* Valor FIPE – último campo dos dados do veículo */}
+                    <div className="space-y-2">
+                      <Label htmlFor="veiculo_valor_fipe">Valor FIPE (R$)</Label>
+                      {vistoriaData.veiculo_valor_fipe !== null ? (
+                        <>
+                          <CurrencyInput
+                            id="veiculo_valor_fipe"
+                            value={vistoriaData.veiculo_valor_fipe ?? 0}
+                            onValueChange={() => {}}
+                            disabled
+                          />
+                          {vistoriaData.veiculo_fipe_data_consulta && (
+                            <p className="text-xs text-muted-foreground">
+                              Consulta em:{" "}
+                              {new Date(vistoriaData.veiculo_fipe_data_consulta as any).toLocaleDateString("pt-BR")}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <CurrencyInput
+                            id="veiculo_valor_fipe"
+                            value={vistoriaData.veiculo_valor_fipe ?? 0}
+                            onValueChange={(values) =>
+                              setVistoriaData((prev) => ({
+                                ...prev,
+                                veiculo_valor_fipe: values?.floatValue || null,
+                              }))
+                            }
+                            placeholder="Informe o valor FIPE manualmente"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Não foi possível obter o valor FIPE automaticamente. Preencha o valor manualmente.
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
