@@ -95,7 +95,7 @@ export default function VistoriaManual() {
   const [tipoVistoria, setTipoVistoria] = useState<"sinistro" | "reativacao">("sinistro");
   const [loading, setLoading] = useState(false);
   const [corretoras, setCorretoras] = useState<any[]>([]);
-  
+
   // Fotos específicas
   const [fotoCNH, setFotoCNH] = useState<File | null>(null);
   const [fotoCRLV, setFotoCRLV] = useState<File | null>(null);
@@ -104,7 +104,7 @@ export default function VistoriaManual() {
   const [fotoLateralEsq, setFotoLateralEsq] = useState<File | null>(null);
   const [fotoLateralDir, setFotoLateralDir] = useState<File | null>(null);
   const [fotosAdicionais, setFotosAdicionais] = useState<File[]>([]);
-  
+
   // Previews
   const [previewCNH, setPreviewCNH] = useState<string>("");
   const [previewCRLV, setPreviewCRLV] = useState<string>("");
@@ -115,6 +115,7 @@ export default function VistoriaManual() {
   const [previewsAdicionais, setPreviewsAdicionais] = useState<string[]>([]);
   const [selectedPreview, setSelectedPreview] = useState<string>("");
   const [vehicleType, setVehicleType] = useState("");
+
   const [formData, setFormData] = useState({
     // Veículo
     veiculo_tipo: "",
@@ -174,10 +175,10 @@ export default function VistoriaManual() {
   const handleFotoSelect = (
     file: File | null,
     setFoto: (file: File | null) => void,
-    setPreview: (preview: string) => void
+    setPreview: (preview: string) => void,
   ) => {
     if (!file) return;
-    
+
     setFoto(file);
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -190,9 +191,9 @@ export default function VistoriaManual() {
 
   const handleAdicionaisSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    
-    setFotosAdicionais([...fotosAdicionais, ...files]);
-    
+
+    setFotosAdicionais((prev) => [...prev, ...files]);
+
     files.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -203,8 +204,8 @@ export default function VistoriaManual() {
   };
 
   const removeFotoAdicional = (index: number) => {
-    setFotosAdicionais(fotosAdicionais.filter((_, i) => i !== index));
-    setPreviewsAdicionais(previewsAdicionais.filter((_, i) => i !== index));
+    setFotosAdicionais((prev) => prev.filter((_, i) => i !== index));
+    setPreviewsAdicionais((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -212,6 +213,11 @@ export default function VistoriaManual() {
 
     if (!fotoFrontal || !fotoTraseira || !fotoLateralEsq || !fotoLateralDir) {
       toast.error("São necessárias as 4 fotos obrigatórias do veículo");
+      return;
+    }
+
+    if (!formData.veiculo_cor) {
+      toast.error("Por favor, selecione a cor do veículo");
       return;
     }
 
@@ -365,7 +371,10 @@ export default function VistoriaManual() {
           const {
             data: { publicUrl },
           } = supabase.storage.from("vistorias").getPublicUrl(fileName);
-          await supabase.from("vistorias").update({ crlv_fotos_urls: [publicUrl] }).eq("id", vistoria.id);
+          await supabase
+            .from("vistorias")
+            .update({ crlv_fotos_urls: [publicUrl] })
+            .eq("id", vistoria.id);
         }
       }
 
@@ -459,7 +468,9 @@ export default function VistoriaManual() {
           user_id: user.id,
           corretora_id: formData.corretora_id || null,
           responsavel_id: user.id,
-          assunto: `Vistoria ${tipoVistoria === "sinistro" ? "Sinistro" : "Reativação"} - ${formData.veiculo_placa || "Placa não informada"}`,
+          assunto: `Vistoria ${tipoVistoria === "sinistro" ? "Sinistro" : "Reativação"} - ${
+            formData.veiculo_placa || "Placa não informada"
+          }`,
           prioridade: "Média",
           observacoes: formData.relato_incidente,
           tags: ["pendente_vistoria"],
@@ -534,28 +545,30 @@ export default function VistoriaManual() {
                     required
                     value={formData.veiculo_placa}
                     onChange={(e) => {
-                      const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                      const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
                       if (value.length <= 7) {
-                        setFormData({ ...formData, veiculo_placa: value });
+                        setFormData((prev) => ({ ...prev, veiculo_placa: value }));
                       }
                     }}
                     placeholder="ABC1D23"
                     className="uppercase"
                     maxLength={7}
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Formato: ABC1D23 ou ABC1234
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Formato: ABC1D23 ou ABC1234</p>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div>
                   <Label>Cor *</Label>
                   <Select
-                    required
-                    value={formData.veiculo_cor}
-                    onValueChange={(value) => setFormData({ ...formData, veiculo_cor: value })}
+                    value={formData.veiculo_cor || undefined}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_cor: value,
+                      }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione a cor" />
@@ -573,38 +586,73 @@ export default function VistoriaManual() {
                   <Label>Chassi</Label>
                   <Input
                     value={formData.veiculo_chassi}
-                    onChange={(e) => setFormData({ ...formData, veiculo_chassi: e.target.value.toUpperCase() })}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_chassi: e.target.value.toUpperCase(),
+                      }))
+                    }
                     placeholder="9BWZZZ377VT004251"
                     maxLength={17}
                   />
                 </div>
               </div>
-              
+
               <div className="mt-4">
                 <VehicleFipeSelector
                   vehicleType={vehicleType}
                   onVehicleTypeChange={(value) => {
                     setVehicleType(value);
-                    setFormData({ 
-                      ...formData, 
+                    setFormData((prev) => ({
+                      ...prev,
                       veiculo_tipo: value,
-                      veiculo_marca: "", 
+                      veiculo_marca: "",
                       veiculo_modelo: "",
                       veiculo_ano: "",
-                    });
+                    }));
                   }}
                   marca={formData.veiculo_marca}
-                  onMarcaChange={(value) => setFormData({ ...formData, veiculo_marca: value })}
+                  onMarcaChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      veiculo_marca: value,
+                    }))
+                  }
                   modelo={formData.veiculo_modelo}
-                  onModeloChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
+                  onModeloChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      veiculo_modelo: value,
+                    }))
+                  }
                   ano={formData.veiculo_ano}
-                  onAnoChange={(value) => setFormData({ ...formData, veiculo_ano: value })}
+                  onAnoChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      veiculo_ano: value,
+                    }))
+                  }
                   valorFipe={formData.veiculo_valor_fipe}
-                  onValorFipeChange={(value) => setFormData({ ...formData, veiculo_valor_fipe: value })}
+                  onValorFipeChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      veiculo_valor_fipe: value,
+                    }))
+                  }
                   dataConsultaFipe={formData.veiculo_fipe_data_consulta}
-                  onDataConsultaFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_data_consulta: value })}
+                  onDataConsultaFipeChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      veiculo_fipe_data_consulta: value,
+                    }))
+                  }
                   codigoFipe={formData.veiculo_fipe_codigo}
-                  onCodigoFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_codigo: value })}
+                  onCodigoFipeChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      veiculo_fipe_codigo: value,
+                    }))
+                  }
                 />
               </div>
             </div>
@@ -618,7 +666,12 @@ export default function VistoriaManual() {
                   <Input
                     required
                     value={formData.cliente_nome}
-                    onChange={(e) => setFormData({ ...formData, cliente_nome: e.target.value })}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        cliente_nome: e.target.value,
+                      }))
+                    }
                     placeholder="Nome completo"
                   />
                 </div>
@@ -628,7 +681,12 @@ export default function VistoriaManual() {
                     format="###.###.###-##"
                     mask="_"
                     value={formData.cliente_cpf}
-                    onValueChange={(values) => setFormData({ ...formData, cliente_cpf: values.value })}
+                    onValueChange={(values) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        cliente_cpf: values.value,
+                      }))
+                    }
                     placeholder="000.000.000-00"
                   />
                 </div>
@@ -637,7 +695,12 @@ export default function VistoriaManual() {
                   <Input
                     type="email"
                     value={formData.cliente_email}
-                    onChange={(e) => setFormData({ ...formData, cliente_email: e.target.value })}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        cliente_email: e.target.value,
+                      }))
+                    }
                     placeholder="email@exemplo.com"
                   />
                 </div>
@@ -647,7 +710,12 @@ export default function VistoriaManual() {
                     format="(##) #####-####"
                     mask="_"
                     value={formData.cliente_telefone}
-                    onValueChange={(values) => setFormData({ ...formData, cliente_telefone: values.value })}
+                    onValueChange={(values) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        cliente_telefone: values.value,
+                      }))
+                    }
                     placeholder="(11) 99999-9999"
                   />
                 </div>
@@ -661,9 +729,13 @@ export default function VistoriaManual() {
                 <div>
                   <Label>Tipo de Sinistro *</Label>
                   <Select
-                    required
-                    value={formData.tipo_sinistro}
-                    onValueChange={(value) => setFormData({ ...formData, tipo_sinistro: value })}
+                    value={formData.tipo_sinistro || undefined}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        tipo_sinistro: value,
+                      }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o tipo" />
@@ -684,7 +756,12 @@ export default function VistoriaManual() {
                       required
                       type="date"
                       value={formData.data_incidente}
-                      onChange={(e) => setFormData({ ...formData, data_incidente: e.target.value })}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          data_incidente: e.target.value,
+                        }))
+                      }
                     />
                   </div>
                   <div>
@@ -692,16 +769,26 @@ export default function VistoriaManual() {
                     <Input
                       type="time"
                       value={formData.hora_evento}
-                      onChange={(e) => setFormData({ ...formData, hora_evento: e.target.value })}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          hora_evento: e.target.value,
+                        }))
+                      }
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <Label>Nome do Condutor do Veículo</Label>
                   <Input
                     value={formData.condutor_veiculo}
-                    onChange={(e) => setFormData({ ...formData, condutor_veiculo: e.target.value })}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        condutor_veiculo: e.target.value,
+                      }))
+                    }
                     placeholder="Nome de quem conduzia o veículo"
                   />
                 </div>
@@ -711,7 +798,12 @@ export default function VistoriaManual() {
                   <Textarea
                     required
                     value={formData.relato_incidente}
-                    onChange={(e) => setFormData({ ...formData, relato_incidente: e.target.value })}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        relato_incidente: e.target.value,
+                      }))
+                    }
                     placeholder="Descreva o que aconteceu..."
                     rows={4}
                   />
@@ -724,7 +816,12 @@ export default function VistoriaManual() {
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         type="button"
-                        onClick={() => setFormData({ ...formData, vitima_ou_causador: "vitima" })}
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            vitima_ou_causador: "vitima",
+                          }))
+                        }
                         className={`p-4 rounded-lg border-2 transition-all ${
                           formData.vitima_ou_causador === "vitima"
                             ? "border-primary bg-primary text-primary-foreground shadow-md"
@@ -735,7 +832,12 @@ export default function VistoriaManual() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setFormData({ ...formData, vitima_ou_causador: "causador" })}
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            vitima_ou_causador: "causador",
+                          }))
+                        }
                         className={`p-4 rounded-lg border-2 transition-all ${
                           formData.vitima_ou_causador === "causador"
                             ? "border-primary bg-primary text-primary-foreground shadow-md"
@@ -754,7 +856,12 @@ export default function VistoriaManual() {
                       <div className="flex gap-3">
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, tem_terceiros: true })}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              tem_terceiros: true,
+                            }))
+                          }
                           className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
                             formData.tem_terceiros === true
                               ? "border-primary bg-primary/10 text-primary"
@@ -765,7 +872,12 @@ export default function VistoriaManual() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, tem_terceiros: false })}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              tem_terceiros: false,
+                            }))
+                          }
                           className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
                             formData.tem_terceiros === false
                               ? "border-primary bg-primary/10 text-primary"
@@ -783,7 +895,12 @@ export default function VistoriaManual() {
                       <div className="flex gap-3">
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, local_tem_camera: true })}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              local_tem_camera: true,
+                            }))
+                          }
                           className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
                             formData.local_tem_camera === true
                               ? "border-primary bg-primary/10 text-primary"
@@ -794,7 +911,12 @@ export default function VistoriaManual() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, local_tem_camera: false })}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              local_tem_camera: false,
+                            }))
+                          }
                           className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
                             formData.local_tem_camera === false
                               ? "border-primary bg-primary/10 text-primary"
@@ -812,7 +934,12 @@ export default function VistoriaManual() {
                       <div className="flex gap-3">
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, policia_foi_local: true })}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              policia_foi_local: true,
+                            }))
+                          }
                           className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
                             formData.policia_foi_local === true
                               ? "border-primary bg-primary/10 text-primary"
@@ -823,7 +950,12 @@ export default function VistoriaManual() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, policia_foi_local: false })}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              policia_foi_local: false,
+                            }))
+                          }
                           className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
                             formData.policia_foi_local === false
                               ? "border-primary bg-primary/10 text-primary"
@@ -841,7 +973,12 @@ export default function VistoriaManual() {
                       <div className="flex gap-3">
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, fez_bo: true })}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              fez_bo: true,
+                            }))
+                          }
                           className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
                             formData.fez_bo === true
                               ? "border-primary bg-primary/10 text-primary"
@@ -852,7 +989,12 @@ export default function VistoriaManual() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, fez_bo: false })}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              fez_bo: false,
+                            }))
+                          }
                           className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
                             formData.fez_bo === false
                               ? "border-primary bg-primary/10 text-primary"
@@ -870,7 +1012,12 @@ export default function VistoriaManual() {
                       <div className="flex gap-3">
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, foi_hospital: true })}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              foi_hospital: true,
+                            }))
+                          }
                           className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
                             formData.foi_hospital === true
                               ? "border-primary bg-primary/10 text-primary"
@@ -881,7 +1028,12 @@ export default function VistoriaManual() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, foi_hospital: false })}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              foi_hospital: false,
+                            }))
+                          }
                           className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
                             formData.foi_hospital === false
                               ? "border-primary bg-primary/10 text-primary"
@@ -899,7 +1051,12 @@ export default function VistoriaManual() {
                       <div className="flex gap-3">
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, motorista_faleceu: true })}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              motorista_faleceu: true,
+                            }))
+                          }
                           className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
                             formData.motorista_faleceu === true
                               ? "border-primary bg-primary/10 text-primary"
@@ -910,7 +1067,12 @@ export default function VistoriaManual() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, motorista_faleceu: false })}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              motorista_faleceu: false,
+                            }))
+                          }
                           className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
                             formData.motorista_faleceu === false
                               ? "border-primary bg-primary/10 text-primary"
@@ -995,15 +1157,20 @@ export default function VistoriaManual() {
               <div>
                 <Label>Corretora</Label>
                 <Select
-                  value={formData.corretora_id}
-                  onValueChange={(value) => setFormData({ ...formData, corretora_id: value })}
+                  value={formData.corretora_id || undefined}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      corretora_id: value,
+                    }))
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione a corretora" />
                   </SelectTrigger>
                   <SelectContent>
                     {corretoras.map((corretora) => (
-                      <SelectItem key={corretora.id} value={corretora.id}>
+                      <SelectItem key={corretora.id} value={String(corretora.id)}>
                         {corretora.nome}
                       </SelectItem>
                     ))}
@@ -1016,19 +1183,13 @@ export default function VistoriaManual() {
             <div className="space-y-6">
               <div>
                 <h3 className="text-lg font-semibold mb-2">Fotos do Veículo *</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Envie fotos claras de todas as posições do veículo
-                </p>
+                <p className="text-sm text-muted-foreground mb-4">Envie fotos claras de todas as posições do veículo</p>
               </div>
 
               {/* Preview Grande */}
               {selectedPreview && (
                 <div className="relative rounded-lg overflow-hidden bg-muted">
-                  <img
-                    src={selectedPreview}
-                    alt="Preview"
-                    className="w-full h-[400px] object-contain"
-                  />
+                  <img src={selectedPreview} alt="Preview" className="w-full h-[400px] object-contain" />
                 </div>
               )}
 
@@ -1046,7 +1207,12 @@ export default function VistoriaManual() {
                       >
                         {previewCNH ? (
                           <>
-                            <img src={previewCNH} alt="CNH" className="w-full h-32 object-cover" onClick={() => setSelectedPreview(previewCNH)} />
+                            <img
+                              src={previewCNH}
+                              alt="CNH"
+                              className="w-full h-32 object-cover"
+                              onClick={() => setSelectedPreview(previewCNH)}
+                            />
                             <Button
                               type="button"
                               variant="destructive"
@@ -1074,9 +1240,7 @@ export default function VistoriaManual() {
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) =>
-                        handleFotoSelect(e.target.files?.[0] || null, setFotoCNH, setPreviewCNH)
-                      }
+                      onChange={(e) => handleFotoSelect(e.target.files?.[0] || null, setFotoCNH, setPreviewCNH)}
                     />
                   </div>
 
@@ -1090,7 +1254,12 @@ export default function VistoriaManual() {
                       >
                         {previewCRLV ? (
                           <>
-                            <img src={previewCRLV} alt="CRLV" className="w-full h-32 object-cover" onClick={() => setSelectedPreview(previewCRLV)} />
+                            <img
+                              src={previewCRLV}
+                              alt="CRLV"
+                              className="w-full h-32 object-cover"
+                              onClick={() => setSelectedPreview(previewCRLV)}
+                            />
                             <Button
                               type="button"
                               variant="destructive"
@@ -1118,9 +1287,7 @@ export default function VistoriaManual() {
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) =>
-                        handleFotoSelect(e.target.files?.[0] || null, setFotoCRLV, setPreviewCRLV)
-                      }
+                      onChange={(e) => handleFotoSelect(e.target.files?.[0] || null, setFotoCRLV, setPreviewCRLV)}
                     />
                   </div>
                 </div>
@@ -1140,7 +1307,12 @@ export default function VistoriaManual() {
                       >
                         {previewFrontal ? (
                           <>
-                            <img src={previewFrontal} alt="Frontal" className="w-full h-32 object-cover" onClick={() => setSelectedPreview(previewFrontal)} />
+                            <img
+                              src={previewFrontal}
+                              alt="Frontal"
+                              className="w-full h-32 object-cover"
+                              onClick={() => setSelectedPreview(previewFrontal)}
+                            />
                             <Button
                               type="button"
                               variant="destructive"
@@ -1169,9 +1341,7 @@ export default function VistoriaManual() {
                       accept="image/*"
                       className="hidden"
                       required
-                      onChange={(e) =>
-                        handleFotoSelect(e.target.files?.[0] || null, setFotoFrontal, setPreviewFrontal)
-                      }
+                      onChange={(e) => handleFotoSelect(e.target.files?.[0] || null, setFotoFrontal, setPreviewFrontal)}
                     />
                   </div>
 
@@ -1185,7 +1355,12 @@ export default function VistoriaManual() {
                       >
                         {previewTraseira ? (
                           <>
-                            <img src={previewTraseira} alt="Traseira" className="w-full h-32 object-cover" onClick={() => setSelectedPreview(previewTraseira)} />
+                            <img
+                              src={previewTraseira}
+                              alt="Traseira"
+                              className="w-full h-32 object-cover"
+                              onClick={() => setSelectedPreview(previewTraseira)}
+                            />
                             <Button
                               type="button"
                               variant="destructive"
@@ -1230,7 +1405,12 @@ export default function VistoriaManual() {
                       >
                         {previewLateralEsq ? (
                           <>
-                            <img src={previewLateralEsq} alt="Lateral Esq" className="w-full h-32 object-cover" onClick={() => setSelectedPreview(previewLateralEsq)} />
+                            <img
+                              src={previewLateralEsq}
+                              alt="Lateral Esq"
+                              className="w-full h-32 object-cover"
+                              onClick={() => setSelectedPreview(previewLateralEsq)}
+                            />
                             <Button
                               type="button"
                               variant="destructive"
@@ -1275,7 +1455,12 @@ export default function VistoriaManual() {
                       >
                         {previewLateralDir ? (
                           <>
-                            <img src={previewLateralDir} alt="Lateral Dir" className="w-full h-32 object-cover" onClick={() => setSelectedPreview(previewLateralDir)} />
+                            <img
+                              src={previewLateralDir}
+                              alt="Lateral Dir"
+                              className="w-full h-32 object-cover"
+                              onClick={() => setSelectedPreview(previewLateralDir)}
+                            />
                             <Button
                               type="button"
                               variant="destructive"
