@@ -1,6 +1,8 @@
 import LogoUon1 from "@/assets/uon1-logo.png";
+import LoginBackgroundDefault from "@/assets/login-background-default.png";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,7 +35,10 @@ export default function Auth() {
   const [loginPhase, setLoginPhase] = useState<LoginPhase>("idle");
 
   const { signIn, signUp, user, loading: authLoading } = useAuth();
+  const { config } = useAppConfig();
   const navigate = useNavigate();
+  
+  const loginBackground = config.login_image_url || LoginBackgroundDefault;
 
   const checkTOTPStatus = async (currentUser?: MinimalUser) => {
     const effectiveUser: MinimalUser | undefined =
@@ -319,11 +324,17 @@ export default function Auth() {
   const showCredentialsStep = step === "CREDENTIALS";
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-[#362c89] via-[#4a3cc1] to-[#221a66]">
-      {/* Decor */}
-      <div className="absolute top-20 left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-      <div className="absolute bottom-20 right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
-      <div className="absolute top-1/2 left-1/4 w-72 h-72 bg-blue-400/20 rounded-full blur-2xl" />
+    <div 
+      className="min-h-screen flex items-center justify-center relative overflow-hidden"
+      style={{
+        backgroundImage: `url(${loginBackground})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
+      {/* Overlay escuro para melhor contraste */}
+      <div className="absolute inset-0 bg-black/40" />
 
       {/* Texto lateral */}
       <div className="hidden lg:block absolute left-24 top-1/2 -translate-y-1/2 text-white z-10">

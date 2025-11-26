@@ -17,6 +17,7 @@ interface AppConfig {
   id?: string;
   user_id?: string;
   logo_url?: string;
+  login_image_url?: string;
   colors: AppColors;
 }
 
@@ -62,6 +63,7 @@ export function useAppConfig() {
           id: data.id,
           user_id: data.user_id,
           logo_url: data.logo_url || undefined,
+          login_image_url: data.login_image_url || undefined,
           colors: { ...defaultColors, ...(data.colors as any) },
         });
         applyColors(data.colors as any);
@@ -122,7 +124,8 @@ export function useAppConfig() {
     try {
       const updateData: any = {
         user_id: user.id,
-        logo_url: newConfig.logo_url,
+        logo_url: newConfig.logo_url !== undefined ? newConfig.logo_url : config.logo_url,
+        login_image_url: newConfig.login_image_url !== undefined ? newConfig.login_image_url : config.login_image_url,
         colors: newConfig.colors || config.colors,
       };
 

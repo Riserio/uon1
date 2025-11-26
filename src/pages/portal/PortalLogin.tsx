@@ -8,11 +8,14 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { usePortalAuth } from "@/contexts/PortalAuthContext";
 import { Loader2, QrCode } from "lucide-react";
+import { useAppConfig } from "@/hooks/useAppConfig";
+import LoginBackgroundDefault from "@/assets/login-background-default.png";
 
 export default function PortalLogin() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { login } = usePortalAuth();
+  const { config } = useAppConfig();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,6 +23,8 @@ export default function PortalLogin() {
   const [needsTotp, setNeedsTotp] = useState(false);
   const [userId, setUserId] = useState("");
   const [qrCodeUri, setQrCodeUri] = useState("");
+  
+  const loginBackground = config.login_image_url || LoginBackgroundDefault;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,8 +64,18 @@ export default function PortalLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/20 p-4">
-      <Card className="w-full max-w-md">
+    <div 
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{
+        backgroundImage: `url(${loginBackground})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
+      {/* Overlay escuro para melhor contraste */}
+      <div className="absolute inset-0 bg-black/40" />
+      <Card className="w-full max-w-md relative z-10">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">Portal PID</CardTitle>
           <CardDescription className="text-center">Painel de Indicadores e Demonstrativos</CardDescription>
