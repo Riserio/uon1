@@ -23,6 +23,8 @@ interface VehicleFipeSelectorProps {
   codigoFipe?: string | null;
   onCodigoFipeChange?: (value: string | null) => void;
   disabled?: boolean;
+  showFipeButton?: boolean; // Nova prop para controlar exibição do botão FIPE
+  showOnlySelectors?: boolean; // Nova prop para mostrar apenas os seletores
 }
 
 export function VehicleFipeSelector({
@@ -41,6 +43,8 @@ export function VehicleFipeSelector({
   codigoFipe,
   onCodigoFipeChange,
   disabled = false,
+  showFipeButton = true,
+  showOnlySelectors = false,
 }: VehicleFipeSelectorProps) {
   const {
     loading,
@@ -159,34 +163,38 @@ export function VehicleFipeSelector({
 
   return (
     <div className="space-y-4">
-      <VehicleTypeSelector
-        value={vehicleType}
-        onChange={handleVehicleTypeChange}
-      />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <SearchableVehicleSelect
-          label="Marca"
-          options={marcas.map(m => m.name)}
-          value={marca}
-          onChange={handleMarcaChange}
-          placeholder="Selecione a marca"
-          disabled={disabled || loading}
-          vehicleType={vehicleType}
+      {!showOnlySelectors && (
+        <VehicleTypeSelector
+          value={vehicleType}
+          onChange={handleVehicleTypeChange}
         />
+      )}
 
-        <SearchableVehicleSelect
-          label="Modelo"
-          options={modelos.map(m => m.name)}
-          value={modelo}
-          onChange={handleModeloChange}
-          placeholder="Selecione o modelo"
-          disabled={disabled || !marca || loading}
-          vehicleType={vehicleType}
-        />
-      </div>
+      {!showOnlySelectors && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <SearchableVehicleSelect
+            label="Marca"
+            options={marcas.map(m => m.name)}
+            value={marca}
+            onChange={handleMarcaChange}
+            placeholder="Selecione a marca"
+            disabled={disabled || loading}
+            vehicleType={vehicleType}
+          />
 
-      {onAnoChange && (
+          <SearchableVehicleSelect
+            label="Modelo"
+            options={modelos.map(m => m.name)}
+            value={modelo}
+            onChange={handleModeloChange}
+            placeholder="Selecione o modelo"
+            disabled={disabled || !marca || loading}
+            vehicleType={vehicleType}
+          />
+        </div>
+      )}
+
+      {!showOnlySelectors && onAnoChange && (
         <SearchableVehicleSelect
           label="Ano"
           options={anos.map(a => a.name)}
@@ -198,7 +206,7 @@ export function VehicleFipeSelector({
         />
       )}
 
-      {onValorFipeChange && onDataConsultaFipeChange && (
+      {showFipeButton && onValorFipeChange && onDataConsultaFipeChange && (
         <>
           <FipeConsultButton
             onConsult={handleConsultarFipe}
@@ -208,7 +216,7 @@ export function VehicleFipeSelector({
             dataConsulta={dataConsultaFipe}
           />
           
-          {/* Campo de entrada manual de valor FIPE - aparece após erro ou sempre visível */}
+          {/* Campo de entrada manual de valor FIPE - aparece após erro ou se já tem valor */}
           {(showManualInput || valorFipe) && (
             <div className="space-y-2">
               <Label>Valor FIPE (Manual)</Label>

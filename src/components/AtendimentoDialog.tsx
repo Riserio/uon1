@@ -1190,66 +1190,44 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                   <h4 className="font-medium">Dados do Veículo</h4>
 
                   <div className="space-y-4">
-                    {/* 1) Tipo de veículo / Marca / Modelo / Ano / Consulta FIPE – FICA NO TOPO */}
-                    <div className="space-y-2">
-                      <VehicleFipeSelector
-                        vehicleType={vehicleType}
-                        onVehicleTypeChange={(value) => {
-                          setVehicleType(value);
-                          setVistoriaData((prev) => ({
-                            ...prev,
-                            veiculo_tipo: value,
-                            veiculo_marca: "",
-                            veiculo_modelo: "",
-                            veiculo_ano: "",
-                          }));
-                        }}
-                        marca={vistoriaData.veiculo_marca}
-                        onMarcaChange={(value) =>
-                          setVistoriaData((prev) => ({
-                            ...prev,
-                            veiculo_marca: value,
-                          }))
-                        }
-                        modelo={vistoriaData.veiculo_modelo}
-                        onModeloChange={(value) =>
-                          setVistoriaData((prev) => ({
-                            ...prev,
-                            veiculo_modelo: value,
-                          }))
-                        }
-                        ano={vistoriaData.veiculo_ano}
-                        onAnoChange={(value) =>
-                          setVistoriaData((prev) => ({
-                            ...prev,
-                            veiculo_ano: value,
-                          }))
-                        }
-                        valorFipe={vistoriaData.veiculo_valor_fipe}
-                        onValorFipeChange={(value) =>
-                          setVistoriaData((prev) => ({
-                            ...prev,
-                            veiculo_valor_fipe: value,
-                          }))
-                        }
-                        dataConsultaFipe={vistoriaData.veiculo_fipe_data_consulta}
-                        onDataConsultaFipeChange={(value) =>
-                          setVistoriaData((prev) => ({
-                            ...prev,
-                            veiculo_fipe_data_consulta: value,
-                          }))
-                        }
-                        codigoFipe={vistoriaData.veiculo_fipe_codigo}
-                        onCodigoFipeChange={(value) =>
-                          setVistoriaData((prev) => ({
-                            ...prev,
-                            veiculo_fipe_codigo: value,
-                          }))
-                        }
-                      />
-                    </div>
+                    {/* 1) Tipo de veículo / Marca / Modelo / Ano - SEM botão FIPE */}
+                    <VehicleFipeSelector
+                      vehicleType={vehicleType}
+                      onVehicleTypeChange={(value) => {
+                        setVehicleType(value);
+                        setVistoriaData((prev) => ({
+                          ...prev,
+                          veiculo_tipo: value,
+                          veiculo_marca: "",
+                          veiculo_modelo: "",
+                          veiculo_ano: "",
+                        }));
+                      }}
+                      marca={vistoriaData.veiculo_marca}
+                      onMarcaChange={(value) =>
+                        setVistoriaData((prev) => ({
+                          ...prev,
+                          veiculo_marca: value,
+                        }))
+                      }
+                      modelo={vistoriaData.veiculo_modelo}
+                      onModeloChange={(value) =>
+                        setVistoriaData((prev) => ({
+                          ...prev,
+                          veiculo_modelo: value,
+                        }))
+                      }
+                      ano={vistoriaData.veiculo_ano}
+                      onAnoChange={(value) =>
+                        setVistoriaData((prev) => ({
+                          ...prev,
+                          veiculo_ano: value,
+                        }))
+                      }
+                      showFipeButton={false}
+                    />
 
-                    {/* 2) Placa */}
+                    {/* 2) Placa - Logo após tipo de veículo */}
                     <div className="space-y-2">
                       <Label htmlFor="veiculo_placa">Placa</Label>
                       <Input
@@ -1310,32 +1288,40 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                       </div>
                     </div>
 
-                    {/* 5) Valor FIPE – somente leitura, sem edição manual */}
-                    <div className="space-y-2">
-                      <Label htmlFor="veiculo_valor_fipe">Valor FIPE (R$)</Label>
-                      {vistoriaData.veiculo_valor_fipe !== null ? (
-                        <>
-                          <CurrencyInput
-                            id="veiculo_valor_fipe"
-                            value={vistoriaData.veiculo_valor_fipe ?? 0}
-                            onValueChange={() => {}}
-                            disabled
-                          />
-                          {vistoriaData.veiculo_fipe_data_consulta && (
-                            <p className="text-xs text-muted-foreground">
-                              Consultado em:{" "}
-                              {new Date(
-                                vistoriaData.veiculo_fipe_data_consulta as string | number | Date,
-                              ).toLocaleDateString("pt-BR")}
-                            </p>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          Não foi possível obter o valor FIPE automaticamente.
-                        </p>
-                      )}
-                    </div>
+                    {/* 5) Botão consultar FIPE - Após cor e chassi, só aparece se tudo estiver preenchido */}
+                    <VehicleFipeSelector
+                      vehicleType={vehicleType}
+                      onVehicleTypeChange={() => {}}
+                      marca={vistoriaData.veiculo_marca}
+                      onMarcaChange={() => {}}
+                      modelo={vistoriaData.veiculo_modelo}
+                      onModeloChange={() => {}}
+                      ano={vistoriaData.veiculo_ano}
+                      onAnoChange={() => {}}
+                      valorFipe={vistoriaData.veiculo_valor_fipe}
+                      onValorFipeChange={(value) =>
+                        setVistoriaData((prev) => ({
+                          ...prev,
+                          veiculo_valor_fipe: value,
+                        }))
+                      }
+                      dataConsultaFipe={vistoriaData.veiculo_fipe_data_consulta}
+                      onDataConsultaFipeChange={(value) =>
+                        setVistoriaData((prev) => ({
+                          ...prev,
+                          veiculo_fipe_data_consulta: value,
+                        }))
+                      }
+                      codigoFipe={vistoriaData.veiculo_fipe_codigo}
+                      onCodigoFipeChange={(value) =>
+                        setVistoriaData((prev) => ({
+                          ...prev,
+                          veiculo_fipe_codigo: value,
+                        }))
+                      }
+                      showOnlySelectors={true}
+                      showFipeButton={true}
+                    />
                   </div>
                 </div>
 
