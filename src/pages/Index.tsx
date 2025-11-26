@@ -6,7 +6,7 @@ import { ListView } from "@/components/ListView";
 import { Toolbar } from "@/components/Toolbar";
 import { AtendimentoDialog } from "@/components/AtendimentoDialog";
 import { AndamentosDialog } from "@/components/AndamentosDialog";
-import { StatusConfigDialog } from "@/components/StatusConfigDialog";
+// import { StatusConfigDialog } from "@/components/StatusConfigDialog"; // não é usado aqui
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -752,14 +752,9 @@ const Index = () => {
                     <Workflow className="h-4 w-4" />
                   </Button>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setWorkflowConfigOpen(true)}
-                    title="Configurar Fluxos e Status"
-                  >
-                    <Settings2 className="h-4 w-4" />
-                  </Button>
+                  {/* Removido botão duplicado de configurar fluxos e status daqui.
+                      A configuração completa agora é acionada pelo FluxoSelector,
+                      respeitando melhor a área da sidebar. */}
                 </>
               )}
 
