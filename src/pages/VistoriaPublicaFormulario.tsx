@@ -13,7 +13,6 @@ import { ArrowRight, ArrowLeft, User, Calendar, FileText, AlertCircle, CheckCirc
 import { Progress } from "@/components/ui/progress";
 import SketchPad from "@/components/SketchPad";
 import { validateCPF, validatePhone } from "@/lib/validators";
-import { VehicleTypeSelector } from "@/components/VehicleTypeSelector";
 import { SearchableVehicleSelect } from "@/components/SearchableVehicleSelect";
 import { useVeiculos } from "@/hooks/useVeiculos";
 
@@ -25,7 +24,7 @@ const STEPS = [
   { id: 4, title: "Croqui", icon: MapPin, description: "Desenho do acidente" },
 ];
 
-// helper para mapear o tipo de veículo em código numérico
+// helper para mapear o tipo de veículo em código numérico (mantido se você quiser usar depois)
 const getTipoCodigo = (vehicleType: string): number | null => {
   switch (vehicleType) {
     case "carro":
@@ -73,6 +72,7 @@ export default function VistoriaPublicaFormulario() {
     veiculo_marca: "",
     veiculo_modelo: "",
     veiculo_ano: "",
+    veiculo_tipo: "", // 🔹 novo: tipo de veículo no formData
     narrar_fatos: "",
     vitima_ou_causador: "",
     tem_terceiros: false,
@@ -163,11 +163,9 @@ export default function VistoriaPublicaFormulario() {
     if (file.type === "image/jpeg") extension = "jpg";
 
     const safeName = `foto_${Date.now()}.${extension}`;
-
     const fileName = `${vistoria.id}/${path}/${safeName}`;
 
     const { error: uploadError } = await supabase.storage.from("vistorias").upload(fileName, file);
-
     if (uploadError) throw uploadError;
 
     const {
@@ -206,11 +204,12 @@ export default function VistoriaPublicaFormulario() {
     }));
   };
 
-  // quando trocar o tipo de veículo, resetar marca/modelo
+  // quando trocar o tipo de veículo, resetar marca/modelo e atualizar veiculo_tipo
   const handleVehicleTypeChange = (value: string) => {
     setVehicleType(value);
     setFormData((prev) => ({
       ...prev,
+      veiculo_tipo: value,
       veiculo_marca: "",
       veiculo_modelo: "",
     }));
@@ -251,6 +250,10 @@ export default function VistoriaPublicaFormulario() {
 
     if (!formData.narrar_fatos?.trim()) {
       camposObrigatorios.push("Descrição dos fatos");
+    }
+
+    if (!vehicleType) {
+      camposObrigatorios.push("Tipo de veículo (Carro, Moto ou Caminhão)");
     }
 
     if (formData.cliente_telefone && !validatePhone(formData.cliente_telefone)) {
@@ -302,7 +305,7 @@ export default function VistoriaPublicaFormulario() {
         laudoAlcoolemiaUrl = await uploadFile(laudoAlcoolemia, "alcoolemia");
       }
 
-      // 🔹 NOVO: array para enviar pra função analisar-vistoria-ia
+      // 🔹 Array para enviar pra função analisar-vistoria-ia
       const fotosParaAnalise: { id: string; posicao: string; url: string }[] = [];
 
       if (tempData?.fotos) {
@@ -371,6 +374,8 @@ export default function VistoriaPublicaFormulario() {
           atestado_obito_url: atestadoObitoUrl,
           laudo_alcoolemia_url: laudoAlcoolemiaUrl,
           croqui_acidente_url: croquiUrl,
+          // se quiser salvar código numérico depois:
+          // tipo_veiculo_codigo: getTipoCodigo(vehicleType),
         })
         .eq("id", vistoria.id);
 
@@ -411,7 +416,6 @@ export default function VistoriaPublicaFormulario() {
       }
 
       console.log("Vistoria salva com sucesso:", verificacao);
-      // Não limpar localStorage aqui, será limpo após termos
       toast.success("Dados salvos com sucesso! Agora aceite os termos.");
       navigate(`/vistoria/${token}/termos`);
     } catch (error: any) {
@@ -616,7 +620,47 @@ export default function VistoriaPublicaFormulario() {
                   />
                 </div>
 
-                <VehicleTypeSelector value={vehicleType} onChange={handleVehicleTypeChange} />
+                {/* 🔹 Tipo de Veículo - Carro / Moto / Caminhão em linha, responsivo */}
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Tipo de Veículo *</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleVehicleTypeChange("carro")}
+                      className={`flex items-center justify-center rounded-lg border-2 px-4 py-3 text-sm sm:text-base font-medium transition-all flex-1 ${
+                        vehicleType === "carro"
+                          ? "border-[hsl(var(--vistoria-primary))] bg-[hsl(var(--vistoria-primary))] text-white shadow-md"
+                          : "border-gray-200 bg-white text-gray-800 hover:border-[hsl(var(--vistoria-primary))]/60 hover:bg-[hsl(var(--vistoria-bg))]"
+                      }`}
+                    >
+                      Carro
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleVehicleTypeChange("moto")}
+                      className={`flex items-center justify-center rounded-lg border-2 px-4 py-3 text-sm sm:text-base font-medium transition-all flex-1 ${
+                        vehicleType === "moto"
+                          ? "border-[hsl(var(--vistoria-primary))] bg-[hsl(var(--vistoria-primary))] text-white shadow-md"
+                          : "border-gray-200 bg-white text-gray-800 hover:border-[hsl(var(--vistoria-primary))]/60 hover:bg-[hsl(var(--vistoria-bg))]"
+                      }`}
+                    >
+                      Moto
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleVehicleTypeChange("caminhao")}
+                      className={`flex items-center justify-center rounded-lg border-2 px-4 py-3 text-sm sm:text-base font-medium transition-all flex-1 ${
+                        vehicleType === "caminhao"
+                          ? "border-[hsl(var(--vistoria-primary))] bg-[hsl(var(--vistoria-primary))] text-white shadow-md"
+                          : "border-gray-200 bg-white text-gray-800 hover:border-[hsl(var(--vistoria-primary))]/60 hover:bg-[hsl(var(--vistoria-bg))]"
+                      }`}
+                    >
+                      Caminhão
+                    </button>
+                  </div>
+                </div>
 
                 <div className="grid sm:grid-cols-3 gap-4">
                   {/* Marca */}
