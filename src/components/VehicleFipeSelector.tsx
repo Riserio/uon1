@@ -60,6 +60,7 @@ export function VehicleFipeSelector({
   } = useFipeVeiculos();
 
   const [consultingFipe, setConsultingFipe] = useState(false);
+  const [showManualInput, setShowManualInput] = useState(false);
 
   // Carregar marcas quando o tipo de veículo mudar
   useEffect(() => {
@@ -145,10 +146,12 @@ export function VehicleFipeSelector({
         onValorFipeChange(valorNumerico);
         onDataConsultaFipeChange(new Date());
         onCodigoFipeChange(resultado.codeFipe);
+        setShowManualInput(false);
       }
     } catch (error) {
       console.error("Erro ao consultar FIPE:", error);
-      toast.error("Erro ao consultar valor FIPE");
+      toast.error("Não foi possível consultar FIPE. Insira o valor manualmente.");
+      setShowManualInput(true);
     } finally {
       setConsultingFipe(false);
     }
@@ -161,14 +164,14 @@ export function VehicleFipeSelector({
         onChange={handleVehicleTypeChange}
       />
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <SearchableVehicleSelect
           label="Marca"
           options={marcas.map(m => m.name)}
           value={marca}
           onChange={handleMarcaChange}
           placeholder="Selecione a marca"
-          disabled={disabled || !vehicleType || loading}
+          disabled={disabled || loading}
           vehicleType={vehicleType}
         />
 
@@ -205,33 +208,35 @@ export function VehicleFipeSelector({
             dataConsulta={dataConsultaFipe}
           />
           
-          {/* Campo de entrada manual de valor FIPE */}
-          <div className="space-y-2">
-            <Label>Ou insira o valor FIPE manualmente</Label>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="Valor FIPE (R$)"
-                  value={valorFipe || ""}
-                  onChange={(e) => {
-                    const value = e.target.value ? parseFloat(e.target.value) : null;
-                    onValorFipeChange(value);
-                    if (value) {
-                      onDataConsultaFipeChange(new Date());
-                    }
-                  }}
-                  disabled={disabled}
-                />
+          {/* Campo de entrada manual de valor FIPE - aparece após erro ou sempre visível */}
+          {(showManualInput || valorFipe) && (
+            <div className="space-y-2">
+              <Label>Valor FIPE (Manual)</Label>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="Valor FIPE (R$)"
+                    value={valorFipe || ""}
+                    onChange={(e) => {
+                      const value = e.target.value ? parseFloat(e.target.value) : null;
+                      onValorFipeChange(value);
+                      if (value) {
+                        onDataConsultaFipeChange(new Date());
+                      }
+                    }}
+                    disabled={disabled}
+                  />
+                </div>
               </div>
+              {valorFipe && dataConsultaFipe && (
+                <p className="text-xs text-muted-foreground">
+                  Inserido em: {new Date(dataConsultaFipe).toLocaleString('pt-BR')}
+                </p>
+              )}
             </div>
-            {valorFipe && dataConsultaFipe && (
-              <p className="text-xs text-muted-foreground">
-                Inserido em: {new Date(dataConsultaFipe).toLocaleString('pt-BR')}
-              </p>
-            )}
-          </div>
+          )}
         </>
       )}
     </div>
