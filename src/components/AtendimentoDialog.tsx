@@ -32,7 +32,6 @@ import { validateCPF, validatePlaca } from "@/lib/validators";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { useAtendimentoRealtime } from "@/hooks/useAtendimentoRealtime";
 import { VehicleFipeSelector } from "@/components/VehicleFipeSelector";
-import marcasModelosData from "@/data/marcas_modelos.json";
 
 const CORES = [
   "Preto",
@@ -99,6 +98,9 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
   const [activeTab, setActiveTab] = useState("geral");
   const { userRole } = useAuth();
   const [reloadKey, setReloadKey] = useState(0);
+
+  // controla se pode digitar FIPE manual
+  const [enableManualFipe, setEnableManualFipe] = useState(false);
 
   // Hook para escutar mudanças em tempo real
   useAtendimentoRealtime({
@@ -294,6 +296,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
         valor_franquia: 0,
         valor_indenizacao: 0,
       });
+      setEnableManualFipe(false);
     }
     setCorretoraSearch("");
     setFilteredCorretoras([]);
@@ -390,6 +393,9 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
           setVehicleType(data.veiculo_tipo);
         }
 
+        // habilita manual FIPE só se não tiver valor
+        setEnableManualFipe(!vistoriaInfo.veiculo_valor_fipe);
+
         setCustos({
           custo_oficina: data.custo_oficina || 0,
           custo_reparo: data.custo_reparo || 0,
@@ -400,6 +406,8 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
           valor_franquia: data.valor_franquia || 0,
           valor_indenizacao: data.valor_indenizacao || 0,
         });
+      } else {
+        setEnableManualFipe(false);
       }
     } catch (error) {
       console.error("Erro ao carregar vistoria:", error);
@@ -936,39 +944,34 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                               <CommandGroup>
                                 {corretoras
                                   .filter((c) => c.toLowerCase().includes(corretoraSearch.toLowerCase()))
-                                  .map((c) => {
-                                    // Buscar o ID da corretora pelo nome
-                                    const corretoraObj = corretoras.find((cor) => cor === c);
-                                    return (
-                                      <CommandItem
-                                        key={c}
-                                        value={c}
-                                        onSelect={async () => {
-                                          // Buscar o ID da corretora
-                                          const { data } = await supabase
-                                            .from("corretoras")
-                                            .select("id")
-                                            .eq("nome", c)
-                                            .single();
+                                  .map((c) => (
+                                    <CommandItem
+                                      key={c}
+                                      value={c}
+                                      onSelect={async () => {
+                                        const { data } = await supabase
+                                          .from("corretoras")
+                                          .select("id")
+                                          .eq("nome", c)
+                                          .single();
 
-                                          if (data) {
-                                            setFormData({ ...formData, corretora: data.id });
-                                            setCorretoraDisplay(c);
-                                          }
-                                          setCorretoraSearchOpen(false);
-                                          setCorretoraSearch("");
-                                        }}
-                                      >
-                                        <Check
-                                          className={cn(
-                                            "mr-2 h-4 w-4",
-                                            corretoraDisplay === c ? "opacity-100" : "opacity-0",
-                                          )}
-                                        />
-                                        {c}
-                                      </CommandItem>
-                                    );
-                                  })}
+                                        if (data) {
+                                          setFormData({ ...formData, corretora: data.id });
+                                          setCorretoraDisplay(c);
+                                        }
+                                        setCorretoraSearchOpen(false);
+                                        setCorretoraSearch("");
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          corretoraDisplay === c ? "opacity-100" : "opacity-0",
+                                        )}
+                                      />
+                                      {c}
+                                    </CommandItem>
+                                  ))}
                               </CommandGroup>
                             )}
                           </Command>
@@ -1205,7 +1208,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                   <h4 className="font-medium">Dados do Veículo</h4>
 
                   <div className="space-y-4">
-                    {/* 🔹 Tipo do veículo + FIPE (consulta) no topo */}
+                    {/* 🔹 Tipo do veículo / marca / modelo / ano / botão FIPE */}
                     <div className="relative space-y-2">
                       <VehicleFipeSelector
                         vehicleType={vehicleType}
@@ -1242,10 +1245,16 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                         }
                         valorFipe={vistoriaData.veiculo_valor_fipe}
                         onValorFipeChange={(value) =>
-                          setVistoriaData((prev) => ({
-                            ...prev,
-                            veiculo_valor_fipe: value,
-                          }))
+                          setVistoriaData((prev) => {
+                            // se veio valor da API, desliga manual
+                            if (value !== null && value !== undefined) {
+                              setEnableManualFipe(false);
+                            }
+                            return {
+                              ...prev,
+                              veiculo_valor_fipe: value,
+                            };
+                          })
                         }
                         dataConsultaFipe={vistoriaData.veiculo_fipe_data_consulta}
                         onDataConsultaFipeChange={(value) =>
@@ -1264,7 +1273,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                       />
                     </div>
 
-                    {/* Placa – logo após o tipo de veículo */}
+                    {/* Placa – logo após o bloco de FIPE (tipo de veículo / seleção) */}
                     <div className="space-y-2">
                       <Label htmlFor="veiculo_placa">Placa</Label>
                       <Input
@@ -1325,7 +1334,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                       </div>
                     </div>
 
-                    {/* Valor FIPE – último campo dos dados do veículo */}
+                    {/* Valor FIPE – último campo de dados do veículo, logo antes dos dados do cliente */}
                     <div className="space-y-2">
                       <Label htmlFor="veiculo_valor_fipe">Valor FIPE (R$)</Label>
                       {vistoriaData.veiculo_valor_fipe !== null ? (
@@ -1339,26 +1348,46 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                           {vistoriaData.veiculo_fipe_data_consulta && (
                             <p className="text-xs text-muted-foreground">
                               Consulta em:{" "}
-                              {new Date(vistoriaData.veiculo_fipe_data_consulta as any).toLocaleDateString("pt-BR")}
+                              {new Date(
+                                vistoriaData.veiculo_fipe_data_consulta as string | number | Date,
+                              ).toLocaleDateString("pt-BR")}
                             </p>
                           )}
                         </>
                       ) : (
                         <>
-                          <CurrencyInput
-                            id="veiculo_valor_fipe"
-                            value={vistoriaData.veiculo_valor_fipe ?? 0}
-                            onValueChange={(values) =>
-                              setVistoriaData((prev) => ({
-                                ...prev,
-                                veiculo_valor_fipe: values?.floatValue || null,
-                              }))
-                            }
-                            placeholder="Informe o valor FIPE manualmente"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Não foi possível obter o valor FIPE automaticamente. Preencha o valor manualmente.
-                          </p>
+                          {!enableManualFipe ? (
+                            <>
+                              <p className="text-sm text-muted-foreground">
+                                Não foi possível obter o valor FIPE automaticamente.
+                              </p>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEnableManualFipe(true)}
+                              >
+                                Inserir valor manualmente
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <CurrencyInput
+                                id="veiculo_valor_fipe"
+                                value={vistoriaData.veiculo_valor_fipe ?? 0}
+                                onValueChange={(values) =>
+                                  setVistoriaData((prev) => ({
+                                    ...prev,
+                                    veiculo_valor_fipe: values?.floatValue || null,
+                                  }))
+                                }
+                                placeholder="Informe o valor FIPE manualmente"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Informe o valor FIPE que será usado neste sinistro.
+                              </p>
+                            </>
+                          )}
                         </>
                       )}
                     </div>
