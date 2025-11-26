@@ -32,7 +32,8 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { validateCPF, validatePlaca } from "@/lib/validators";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { useAtendimentoRealtime } from "@/hooks/useAtendimentoRealtime";
-import { useVeiculos } from "@/hooks/useVeiculos";
+import { VehicleFipeSelector } from "@/components/VehicleFipeSelector";
+import marcasModelosData from "@/data/marcas_modelos.json";
 
 const CORES = [
   "Preto",
@@ -79,7 +80,7 @@ export function AtendimentoDialog({
   responsaveis,
 }: AtendimentoDialogProps) {
   const { user } = useAuth();
-  const { marcas, modelos, marcaSelecionada, setMarcaSelecionada } = useVeiculos();
+  const [vehicleType, setVehicleType] = useState("");
   
   const [formData, setFormData] = useState<Partial<Atendimento>>({
     corretora: atendimento?.corretoraId || "",
@@ -136,11 +137,15 @@ export function AtendimentoDialog({
     data_incidente: "",
     relato_incidente: "",
     veiculo_placa: "",
+    veiculo_tipo: "",
     veiculo_marca: "",
     veiculo_modelo: "",
     veiculo_ano: "",
     veiculo_cor: "",
     veiculo_chassi: "",
+    veiculo_valor_fipe: null as number | null,
+    veiculo_fipe_data_consulta: null as Date | string | null,
+    veiculo_fipe_codigo: null as string | null,
     cliente_nome: "",
     cliente_cpf: "",
     cliente_telefone: "",
@@ -261,7 +266,7 @@ export function AtendimentoDialog({
         dataRetorno: "",
       });
       setCorretoraDisplay("");
-      setMarcaSelecionada("");
+      setVehicleType("");
       setPrimeiroAndamento("");
       setAnexos([]);
       setParecerFinal("");
@@ -273,11 +278,15 @@ export function AtendimentoDialog({
         data_incidente: "",
         relato_incidente: "",
         veiculo_placa: "",
+        veiculo_tipo: "",
         veiculo_marca: "",
         veiculo_modelo: "",
         veiculo_ano: "",
         veiculo_cor: "",
         veiculo_chassi: "",
+        veiculo_valor_fipe: null,
+        veiculo_fipe_data_consulta: null,
+        veiculo_fipe_codigo: null,
         cliente_nome: "",
         cliente_cpf: "",
         cliente_telefone: "",
@@ -372,11 +381,15 @@ export function AtendimentoDialog({
           data_incidente: data.data_incidente || "",
           relato_incidente: data.relato_incidente || "",
           veiculo_placa: data.veiculo_placa || "",
+          veiculo_tipo: data.veiculo_tipo || "",
           veiculo_marca: data.veiculo_marca || "",
           veiculo_modelo: data.veiculo_modelo || "",
           veiculo_ano: data.veiculo_ano || "",
           veiculo_cor: data.veiculo_cor || "",
           veiculo_chassi: data.veiculo_chassi || "",
+          veiculo_valor_fipe: data.veiculo_valor_fipe || null,
+          veiculo_fipe_data_consulta: data.veiculo_fipe_data_consulta || null,
+          veiculo_fipe_codigo: data.veiculo_fipe_codigo || null,
           cliente_nome: data.cliente_nome || "",
           cliente_cpf: data.cliente_cpf || "",
           cliente_telefone: data.cliente_telefone || "",
@@ -385,9 +398,9 @@ export function AtendimentoDialog({
         };
         setVistoriaData(vistoriaInfo);
         
-        // Pré-selecionar marca para carregar modelos
-        if (data.veiculo_marca) {
-          setMarcaSelecionada(data.veiculo_marca);
+        // Carregar tipo de veículo se disponível
+        if (data.veiculo_tipo) {
+          setVehicleType(data.veiculo_tipo);
         }
         
         setCustos({
@@ -1201,7 +1214,7 @@ export function AtendimentoDialog({
                 <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
                   <h4 className="font-medium">Dados do Veículo</h4>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="veiculo_placa">Placa</Label>
                       <Input
@@ -1227,93 +1240,116 @@ export function AtendimentoDialog({
                         <p className="text-xs text-destructive">Placa inválida</p>
                       )}
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="veiculo_marca">Marca</Label>
-                      <Select
-                        value={vistoriaData.veiculo_marca}
-                        onValueChange={(value) => {
-                          setMarcaSelecionada(value);
-                          setVistoriaData({ ...vistoriaData, veiculo_marca: value, veiculo_modelo: "" });
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione a marca" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {marcas.map((marca) => (
-                            <SelectItem key={marca} value={marca}>
-                              {marca}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+
+                    {/* Consulta FIPE */}
+                    <VehicleFipeSelector
+                      vehicleType={vehicleType}
+                      onVehicleTypeChange={(value) => {
+                        setVehicleType(value);
+                        setVistoriaData({ ...vistoriaData, veiculo_tipo: value, veiculo_marca: "", veiculo_modelo: "", veiculo_ano: "" });
+                      }}
+                      marca={vistoriaData.veiculo_marca}
+                      onMarcaChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_marca: value })}
+                      modelo={vistoriaData.veiculo_modelo}
+                      onModeloChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_modelo: value })}
+                      ano={vistoriaData.veiculo_ano}
+                      onAnoChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_ano: value })}
+                      valorFipe={vistoriaData.veiculo_valor_fipe}
+                      onValorFipeChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_valor_fipe: value })}
+                      dataConsultaFipe={vistoriaData.veiculo_fipe_data_consulta}
+                      onDataConsultaFipeChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_fipe_data_consulta: value })}
+                      codigoFipe={vistoriaData.veiculo_fipe_codigo}
+                      onCodigoFipeChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_fipe_codigo: value })}
+                    />
+
+                    {/* Fallback JSON */}
+                    <div className="space-y-3 border-t pt-4">
+                      <p className="text-xs text-muted-foreground">
+                        Se não encontrar na tabela FIPE, selecione manualmente:
+                      </p>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm">Marca (fallback)</Label>
+                          <select
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            value={vistoriaData.veiculo_marca}
+                            onChange={(e) => {
+                              const marca = e.target.value;
+                              setVistoriaData({ ...vistoriaData, veiculo_marca: marca, veiculo_modelo: "" });
+                            }}
+                          >
+                            <option value="">Selecione</option>
+                            {Object.keys(marcasModelosData).sort().map((marca) => (
+                              <option key={marca} value={marca}>
+                                {marca.charAt(0).toUpperCase() + marca.slice(1).toLowerCase()}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm">Modelo (fallback)</Label>
+                          <select
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:bg-muted"
+                            value={vistoriaData.veiculo_modelo}
+                            onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_modelo: e.target.value })}
+                            disabled={!vistoriaData.veiculo_marca}
+                          >
+                            <option value="">Selecione</option>
+                            {vistoriaData.veiculo_marca &&
+                              (marcasModelosData as any)[vistoriaData.veiculo_marca.toLowerCase()]?.map((modelo: string) => (
+                                <option key={modelo} value={modelo}>
+                                  {modelo.charAt(0).toUpperCase() + modelo.slice(1).toLowerCase()}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm">Ano</Label>
+                          <Input
+                            type="number"
+                            value={vistoriaData.veiculo_ano}
+                            onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_ano: e.target.value })}
+                            placeholder="2020"
+                            min="1900"
+                            max={new Date().getFullYear() + 1}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="veiculo_modelo">Modelo</Label>
-                      <Select
-                        value={vistoriaData.veiculo_modelo}
-                        onValueChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_modelo: value })}
-                        disabled={!marcaSelecionada}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={marcaSelecionada ? "Selecione o modelo" : "Selecione a marca primeiro"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {modelos.map((modelo) => (
-                            <SelectItem key={modelo} value={modelo}>
-                              {modelo}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="veiculo_ano">Ano</Label>
-                      <Select
-                        value={vistoriaData.veiculo_ano}
-                        onValueChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_ano: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o ano" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {getAnosDisponiveis().map((ano) => (
-                            <SelectItem key={ano} value={ano}>
-                              {ano}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="veiculo_cor">Cor</Label>
-                      <Select
-                        value={vistoriaData.veiculo_cor}
-                        onValueChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_cor: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione a cor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CORES.map((cor) => (
-                            <SelectItem key={cor} value={cor}>
-                              {cor}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="veiculo_chassi">Chassi</Label>
-                      <Input
-                        id="veiculo_chassi"
-                        value={vistoriaData.veiculo_chassi}
-                        onChange={(e) =>
-                          setVistoriaData({ ...vistoriaData, veiculo_chassi: e.target.value.toUpperCase() })
-                        }
-                        maxLength={17}
-                        placeholder="17 caracteres"
-                      />
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="veiculo_cor">Cor</Label>
+                        <Select
+                          value={vistoriaData.veiculo_cor}
+                          onValueChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_cor: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a cor" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CORES.map((cor) => (
+                              <SelectItem key={cor} value={cor}>
+                                {cor}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="veiculo_chassi">Chassi</Label>
+                        <Input
+                          id="veiculo_chassi"
+                          value={vistoriaData.veiculo_chassi}
+                          onChange={(e) =>
+                            setVistoriaData({ ...vistoriaData, veiculo_chassi: e.target.value.toUpperCase() })
+                          }
+                          maxLength={17}
+                          placeholder="17 caracteres"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
