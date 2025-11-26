@@ -456,12 +456,13 @@ export function AtendimentoDialog({
       }, {} as any);
 
       if (vistoriaId) {
-        // Atualizar vistoria existente
+        // Atualizar vistoria existente com corretora_id sincronizada
         const { error: vistoriaError } = await supabase
           .from("vistorias")
           .update({
             ...cleanedVistoriaData,
             ...custos,
+            corretora_id: formData.corretora || null,
           })
           .eq("id", vistoriaId);
 
@@ -470,7 +471,7 @@ export function AtendimentoDialog({
           throw vistoriaError;
         }
       } else {
-        // Criar nova vistoria
+        // Criar nova vistoria com corretora_id
         const { data: newVistoria, error: vistoriaError } = await supabase
           .from("vistorias")
           .insert({
@@ -479,6 +480,7 @@ export function AtendimentoDialog({
             tipo_vistoria: "sinistro",
             tipo_abertura: "interno",
             status: "rascunho",
+            corretora_id: formData.corretora || null,
             ...cleanedVistoriaData,
             ...custos,
           })
@@ -492,15 +494,18 @@ export function AtendimentoDialog({
         if (newVistoria) setVistoriaId(newVistoria.id);
       }
 
-      // Atualizar tipo_atendimento na tabela atendimentos
+      // Sincronizar TODOS os campos relevantes de volta para atendimentos
+      const novoAssunto = vistoriaData.cliente_nome && vistoriaData.veiculo_placa
+        ? `Sinistro - ${vistoriaData.cliente_nome} - ${vistoriaData.veiculo_placa}`
+        : vistoriaData.cliente_nome
+        ? `Sinistro - ${vistoriaData.cliente_nome}`
+        : formData.assunto || atendimento.assunto;
+
       const { error: atendError } = await supabase
         .from("atendimentos")
         .update({ 
           tipo_atendimento: vistoriaData.tipo_atendimento,
-          // Sincronizar assunto com dados do sinistro se disponível
-          assunto: vistoriaData.cliente_nome 
-            ? `Sinistro - ${vistoriaData.cliente_nome} - ${vistoriaData.veiculo_placa || 'Placa não informada'}`
-            : formData.assunto || atendimento.assunto
+          assunto: novoAssunto,
         })
         .eq("id", atendimento.id);
 
@@ -514,8 +519,13 @@ export function AtendimentoDialog({
       // Recarregar os dados para garantir sincronização
       await loadVistoriaCustos(atendimento.id);
       
-      // Forçar atualização do card do atendimento
-      onSave(atendimento);
+      // Forçar atualização completa do card - criar objeto atualizado
+      const atendimentoAtualizado = {
+        ...atendimento,
+        assunto: novoAssunto,
+        updatedAt: new Date().toISOString(),
+      };
+      onSave(atendimentoAtualizado);
     } catch (error: any) {
       console.error("Erro ao salvar:", error);
       toast.error(error?.message || "Erro ao salvar dados");
@@ -705,7 +715,7 @@ export function AtendimentoDialog({
           return;
         }
 
-        // Se houver vistoria vinculada, atualizar também
+        // SINCRONIZAÇÃO BIDIRECIONAL COMPLETA: atualizar vistoria com TODOS os dados do atendimento
         if (vistoriaId) {
           const { error: vistoriaUpdateError } = await supabase
             .from("vistorias")
@@ -717,6 +727,11 @@ export function AtendimentoDialog({
           if (vistoriaUpdateError) {
             console.error("Erro ao sincronizar vistoria:", vistoriaUpdateError);
           }
+        }
+        
+        // Recarregar dados da vistoria para garantir que o card mostre tudo atualizado
+        if (vistoriaId) {
+          await loadVistoriaCustos(atendimento.id);
         }
 
         // Upload de novos anexos
