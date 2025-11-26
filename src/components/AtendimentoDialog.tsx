@@ -1241,7 +1241,7 @@ export function AtendimentoDialog({
                       )}
                     </div>
 
-                    {/* Consulta FIPE */}
+                     {/* Consulta FIPE */}
                     <VehicleFipeSelector
                       vehicleType={vehicleType}
                       onVehicleTypeChange={(value) => {
@@ -1261,63 +1261,6 @@ export function AtendimentoDialog({
                       codigoFipe={vistoriaData.veiculo_fipe_codigo}
                       onCodigoFipeChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_fipe_codigo: value })}
                     />
-
-                    {/* Fallback JSON */}
-                    <div className="space-y-3 border-t pt-4">
-                      <p className="text-xs text-muted-foreground">
-                        Se não encontrar na tabela FIPE, selecione manualmente:
-                      </p>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-sm">Marca (fallback)</Label>
-                          <select
-                            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            value={vistoriaData.veiculo_marca}
-                            onChange={(e) => {
-                              const marca = e.target.value;
-                              setVistoriaData({ ...vistoriaData, veiculo_marca: marca, veiculo_modelo: "" });
-                            }}
-                          >
-                            <option value="">Selecione</option>
-                            {Object.keys(marcasModelosData).sort().map((marca) => (
-                              <option key={marca} value={marca}>
-                                {marca.charAt(0).toUpperCase() + marca.slice(1).toLowerCase()}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm">Modelo (fallback)</Label>
-                          <select
-                            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:bg-muted"
-                            value={vistoriaData.veiculo_modelo}
-                            onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_modelo: e.target.value })}
-                            disabled={!vistoriaData.veiculo_marca}
-                          >
-                            <option value="">Selecione</option>
-                            {vistoriaData.veiculo_marca &&
-                              (marcasModelosData as any)[vistoriaData.veiculo_marca.toLowerCase()]?.map((modelo: string) => (
-                                <option key={modelo} value={modelo}>
-                                  {modelo.charAt(0).toUpperCase() + modelo.slice(1).toLowerCase()}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm">Ano</Label>
-                          <Input
-                            type="number"
-                            value={vistoriaData.veiculo_ano}
-                            onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_ano: e.target.value })}
-                            placeholder="2020"
-                            min="1900"
-                            max={new Date().getFullYear() + 1}
-                          />
-                        </div>
-                      </div>
-                    </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">

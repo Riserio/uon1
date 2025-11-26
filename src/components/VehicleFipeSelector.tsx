@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { VehicleTypeSelector } from "@/components/VehicleTypeSelector";
 import { SearchableVehicleSelect } from "@/components/SearchableVehicleSelect";
 import { FipeConsultButton } from "@/components/FipeConsultButton";
@@ -195,13 +196,43 @@ export function VehicleFipeSelector({
       )}
 
       {onValorFipeChange && onDataConsultaFipeChange && (
-        <FipeConsultButton
-          onConsult={handleConsultarFipe}
-          disabled={disabled || !vehicleType || !marca || !modelo || !ano}
-          loading={consultingFipe}
-          valorFipe={valorFipe}
-          dataConsulta={dataConsultaFipe}
-        />
+        <>
+          <FipeConsultButton
+            onConsult={handleConsultarFipe}
+            disabled={disabled || !vehicleType || !marca || !modelo || !ano}
+            loading={consultingFipe}
+            valorFipe={valorFipe}
+            dataConsulta={dataConsultaFipe}
+          />
+          
+          {/* Campo de entrada manual de valor FIPE */}
+          <div className="space-y-2">
+            <Label>Ou insira o valor FIPE manualmente</Label>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="Valor FIPE (R$)"
+                  value={valorFipe || ""}
+                  onChange={(e) => {
+                    const value = e.target.value ? parseFloat(e.target.value) : null;
+                    onValorFipeChange(value);
+                    if (value) {
+                      onDataConsultaFipeChange(new Date());
+                    }
+                  }}
+                  disabled={disabled}
+                />
+              </div>
+            </div>
+            {valorFipe && dataConsultaFipe && (
+              <p className="text-xs text-muted-foreground">
+                Inserido em: {new Date(dataConsultaFipe).toLocaleString('pt-BR')}
+              </p>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
