@@ -2220,6 +2220,7 @@ export type Database = {
           veiculo_marca: string | null
           veiculo_modelo: string | null
           veiculo_placa: string | null
+          veiculo_tipo: string | null
           veiculo_valor_fipe: number | null
           vitima_ou_causador: string | null
         }
@@ -2294,6 +2295,7 @@ export type Database = {
           veiculo_marca?: string | null
           veiculo_modelo?: string | null
           veiculo_placa?: string | null
+          veiculo_tipo?: string | null
           veiculo_valor_fipe?: number | null
           vitima_ou_causador?: string | null
         }
@@ -2368,6 +2370,7 @@ export type Database = {
           veiculo_marca?: string | null
           veiculo_modelo?: string | null
           veiculo_placa?: string | null
+          veiculo_tipo?: string | null
           veiculo_valor_fipe?: number | null
           vitima_ou_causador?: string | null
         }
