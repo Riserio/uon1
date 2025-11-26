@@ -60,6 +60,7 @@ export function AtendimentoCard({
     veiculo_ano?: string;
     veiculo_cor?: string;
     veiculo_chassi?: string;
+    veiculo_valor_fipe?: number;
     cliente_nome?: string;
     cliente_cpf?: string;
     cliente_telefone?: string;
@@ -97,6 +98,7 @@ export function AtendimentoCard({
         veiculo_ano,
         veiculo_cor,
         veiculo_chassi,
+        veiculo_valor_fipe,
         cliente_nome, 
         cliente_cpf,
         cliente_telefone,
@@ -242,6 +244,11 @@ export function AtendimentoCard({
                 )}
                 {vistoria.veiculo_cor && <div>Cor: {vistoria.veiculo_cor}</div>}
                 {vistoria.veiculo_chassi && <div className="text-[10px]">Chassi: {vistoria.veiculo_chassi}</div>}
+                {vistoria.veiculo_valor_fipe && (
+                  <div className="text-primary font-semibold">
+                    FIPE: R$ {vistoria.veiculo_valor_fipe.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                )}
               </div>
             )}
 
