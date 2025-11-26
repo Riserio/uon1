@@ -186,6 +186,13 @@ export type Database = {
           tipo_atendimento: string | null
           updated_at: string
           user_id: string
+          veiculo_ano: string | null
+          veiculo_fipe_codigo: string | null
+          veiculo_fipe_data_consulta: string | null
+          veiculo_marca: string | null
+          veiculo_modelo: string | null
+          veiculo_tipo: string | null
+          veiculo_valor_fipe: number | null
         }
         Insert: {
           arquivado?: boolean | null
@@ -209,6 +216,13 @@ export type Database = {
           tipo_atendimento?: string | null
           updated_at?: string
           user_id: string
+          veiculo_ano?: string | null
+          veiculo_fipe_codigo?: string | null
+          veiculo_fipe_data_consulta?: string | null
+          veiculo_marca?: string | null
+          veiculo_modelo?: string | null
+          veiculo_tipo?: string | null
+          veiculo_valor_fipe?: number | null
         }
         Update: {
           arquivado?: boolean | null
@@ -232,6 +246,13 @@ export type Database = {
           tipo_atendimento?: string | null
           updated_at?: string
           user_id?: string
+          veiculo_ano?: string | null
+          veiculo_fipe_codigo?: string | null
+          veiculo_fipe_data_consulta?: string | null
+          veiculo_marca?: string | null
+          veiculo_modelo?: string | null
+          veiculo_tipo?: string | null
+          veiculo_valor_fipe?: number | null
         }
         Relationships: [
           {
@@ -2194,9 +2215,12 @@ export type Database = {
           veiculo_ano: string | null
           veiculo_chassi: string | null
           veiculo_cor: string | null
+          veiculo_fipe_codigo: string | null
+          veiculo_fipe_data_consulta: string | null
           veiculo_marca: string | null
           veiculo_modelo: string | null
           veiculo_placa: string | null
+          veiculo_valor_fipe: number | null
           vitima_ou_causador: string | null
         }
         Insert: {
@@ -2265,9 +2289,12 @@ export type Database = {
           veiculo_ano?: string | null
           veiculo_chassi?: string | null
           veiculo_cor?: string | null
+          veiculo_fipe_codigo?: string | null
+          veiculo_fipe_data_consulta?: string | null
           veiculo_marca?: string | null
           veiculo_modelo?: string | null
           veiculo_placa?: string | null
+          veiculo_valor_fipe?: number | null
           vitima_ou_causador?: string | null
         }
         Update: {
@@ -2336,9 +2363,12 @@ export type Database = {
           veiculo_ano?: string | null
           veiculo_chassi?: string | null
           veiculo_cor?: string | null
+          veiculo_fipe_codigo?: string | null
+          veiculo_fipe_data_consulta?: string | null
           veiculo_marca?: string | null
           veiculo_modelo?: string | null
           veiculo_placa?: string | null
+          veiculo_valor_fipe?: number | null
           vitima_ou_causador?: string | null
         }
         Relationships: [
