@@ -631,6 +631,21 @@ export default function VistoriaPublicaFormulario() {
                   />
                 </div>
 
+                {/* Seleção Tipo/Marca/Modelo/Ano - SEM botão FIPE */}
+                <div className="mt-4 space-y-3">
+                  <VehicleFipeSelector
+                    vehicleType={vehicleType}
+                    onVehicleTypeChange={handleVehicleTypeChange}
+                    marca={formData.veiculo_marca}
+                    onMarcaChange={(value) => setFormData({ ...formData, veiculo_marca: value })}
+                    modelo={formData.veiculo_modelo}
+                    onModeloChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
+                    ano={formData.veiculo_ano}
+                    onAnoChange={(value) => setFormData({ ...formData, veiculo_ano: value })}
+                    showFipeButton={false}
+                  />
+                </div>
+
                 <div>
                   <Label className="text-base font-semibold">Placa do Veículo</Label>
                   <Input
@@ -642,30 +657,8 @@ export default function VistoriaPublicaFormulario() {
                   />
                 </div>
 
-                {/* Seleção por FIPE – mesma lógica da vistoria manual */}
-                <div className="mt-4 space-y-3">
-                  <VehicleFipeSelector
-                    vehicleType={vehicleType}
-                    onVehicleTypeChange={handleVehicleTypeChange}
-                    marca={formData.veiculo_marca}
-                    onMarcaChange={(value) => setFormData({ ...formData, veiculo_marca: value })}
-                    modelo={formData.veiculo_modelo}
-                    onModeloChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
-                    ano={formData.veiculo_ano}
-                    onAnoChange={(value) => setFormData({ ...formData, veiculo_ano: value })}
-                    valorFipe={formData.veiculo_valor_fipe}
-                    onValorFipeChange={(value) => setFormData({ ...formData, veiculo_valor_fipe: value })}
-                    dataConsultaFipe={formData.veiculo_fipe_data_consulta}
-                    onDataConsultaFipeChange={(value) =>
-                      setFormData({ ...formData, veiculo_fipe_data_consulta: value })
-                    }
-                    codigoFipe={formData.veiculo_fipe_codigo}
-                    onCodigoFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_codigo: value })}
-                  />
-                </div>
-
-                {/* Cor e Chassi abaixo do Ano/Modelo (grid responsivo) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                {/* Cor e Chassi */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Cor *</Label>
                     <Input
@@ -685,6 +678,30 @@ export default function VistoriaPublicaFormulario() {
                       className="mt-1 uppercase"
                     />
                   </div>
+                </div>
+
+                {/* Botão FIPE + Input manual - APÓS cor e chassi */}
+                <div className="space-y-3">
+                  <VehicleFipeSelector
+                    vehicleType={vehicleType}
+                    onVehicleTypeChange={() => {}}
+                    marca={formData.veiculo_marca}
+                    onMarcaChange={() => {}}
+                    modelo={formData.veiculo_modelo}
+                    onModeloChange={() => {}}
+                    ano={formData.veiculo_ano}
+                    onAnoChange={() => {}}
+                    valorFipe={formData.veiculo_valor_fipe}
+                    onValorFipeChange={(value) => setFormData({ ...formData, veiculo_valor_fipe: value })}
+                    dataConsultaFipe={formData.veiculo_fipe_data_consulta}
+                    onDataConsultaFipeChange={(value) =>
+                      setFormData({ ...formData, veiculo_fipe_data_consulta: value })
+                    }
+                    codigoFipe={formData.veiculo_fipe_codigo}
+                    onCodigoFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_codigo: value })}
+                    showOnlySelectors={true}
+                    showFipeButton={true}
+                  />
                 </div>
 
                 <div>
