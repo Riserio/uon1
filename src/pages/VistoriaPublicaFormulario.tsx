@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { MaskedInput } from "@/components/ui/masked-input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowRight, ArrowLeft, User, Calendar, FileText, AlertCircle, CheckCircle, MapPin, Clock } from "lucide-react";
@@ -676,18 +677,53 @@ export default function VistoriaPublicaFormulario() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Cor *</Label>
-                    <Input
-                      value={formData.veiculo_cor}
-                      onChange={(e) => setFormData({ ...formData, veiculo_cor: e.target.value })}
-                      placeholder="Ex.: Preto, Prata, Branco..."
-                      className="mt-1"
-                    />
+                    <Select
+                      value={formData.veiculo_cor || undefined}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          veiculo_cor: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Selecione a cor" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[100000] bg-popover">
+                        {[
+                          "Preto",
+                          "Branco",
+                          "Prata",
+                          "Cinza",
+                          "Vermelho",
+                          "Azul",
+                          "Verde",
+                          "Amarelo",
+                          "Laranja",
+                          "Marrom",
+                          "Bege",
+                          "Dourado",
+                          "Roxo",
+                          "Rosa",
+                          "Outros",
+                        ].map((cor) => (
+                          <SelectItem key={cor} value={cor}>
+                            {cor}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label>Chassi</Label>
                     <Input
                       value={formData.veiculo_chassi}
-                      onChange={(e) => setFormData({ ...formData, veiculo_chassi: e.target.value.toUpperCase() })}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          veiculo_chassi: e.target.value.toUpperCase(),
+                        }))
+                      }
                       placeholder="9BWZZZ377VT004251"
                       maxLength={17}
                       className="mt-1 uppercase"
