@@ -177,7 +177,7 @@ function SortableStatusItem({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm font-medium">Cor do Status</Label>
-                <div className="flex items-center gap-2 mt-1.5">
+                <div className="flex gap-2 mt-1.5">
                   <Input
                     type="color"
                     value={status.cor}
@@ -187,9 +187,15 @@ function SortableStatusItem({
                     }}
                     className="h-10 w-20 cursor-pointer"
                   />
-                  <div 
-                    className="flex-1 h-10 rounded-md border"
-                    style={{ backgroundColor: status.cor }}
+                  <Input
+                    type="text"
+                    value={status.cor}
+                    onChange={(e) => {
+                      onUpdate({ ...status, cor: e.target.value });
+                      setEditingId(status.id);
+                    }}
+                    className="flex-1"
+                    placeholder="#3b82f6"
                   />
                 </div>
               </div>
