@@ -202,11 +202,13 @@ export default function Usuarios() {
       .from("profiles")
       .select("*")
       .or("status.eq.pendente,status.is.null")
-      .order("nome");
+      .order("created_at", { ascending: false });
 
     if (pendingError) {
+      console.error("Erro ao carregar usuários pendentes:", pendingError);
       toast.error("Erro ao carregar usuários pendentes");
     } else {
+      console.log("Usuários pendentes carregados:", pending);
       setPendingProfiles(pending || []);
     }
   };

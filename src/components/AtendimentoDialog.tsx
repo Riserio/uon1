@@ -456,13 +456,21 @@ export function AtendimentoDialog({
       }, {} as any);
 
       if (vistoriaId) {
-        // Atualizar vistoria existente com corretora_id sincronizada
+        // Atualizar vistoria existente - garantir sincronização completa de dados
         const { error: vistoriaError } = await supabase
           .from("vistorias")
           .update({
             ...cleanedVistoriaData,
             ...custos,
             corretora_id: formData.corretora || null,
+            cliente_nome: vistoriaData.cliente_nome || null,
+            cliente_cpf: vistoriaData.cliente_cpf || null,
+            cliente_email: vistoriaData.cliente_email || null,
+            cliente_telefone: vistoriaData.cliente_telefone || null,
+            veiculo_placa: vistoriaData.veiculo_placa || null,
+            veiculo_marca: vistoriaData.veiculo_marca || null,
+            veiculo_modelo: vistoriaData.veiculo_modelo || null,
+            veiculo_ano: vistoriaData.veiculo_ano || null,
           })
           .eq("id", vistoriaId);
 
@@ -471,10 +479,11 @@ export function AtendimentoDialog({
           throw vistoriaError;
         }
       } else {
-        // Criar nova vistoria com corretora_id
+        // Criar nova vistoria - usar ID do atendimento como ID da vistoria (unificação)
         const { data: newVistoria, error: vistoriaError } = await supabase
           .from("vistorias")
           .insert({
+            id: atendimento.id, // Usar ID do atendimento como ID da vistoria
             atendimento_id: atendimento.id,
             created_by: user.id,
             tipo_vistoria: "sinistro",
@@ -727,10 +736,8 @@ export function AtendimentoDialog({
           if (vistoriaUpdateError) {
             console.error("Erro ao sincronizar vistoria:", vistoriaUpdateError);
           }
-        }
-        
-        // Recarregar dados da vistoria para garantir que o card mostre tudo atualizado
-        if (vistoriaId) {
+          
+          // Recarregar dados da vistoria para garantir que o card mostre tudo atualizado
           await loadVistoriaCustos(atendimento.id);
         }
 
@@ -765,6 +772,14 @@ export function AtendimentoDialog({
         }
 
         toast.success("Atendimento atualizado com sucesso");
+        
+        // Forçar atualização completa do card com updated_at
+        const atendimentoAtualizado = {
+          ...atendimento,
+          assunto: formData.assunto || atendimento.assunto,
+          updatedAt: now,
+        };
+        onSave(atendimentoAtualizado);
       } else {
         // Criar novo atendimento
         const savedAtendimento: Atendimento = {
