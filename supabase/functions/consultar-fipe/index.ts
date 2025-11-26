@@ -5,7 +5,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const FIPE_API_BASE = 'https://parallelum.com.br/fipe/api/v2';
+const FIPE_API_BASE = 'https://fipe.parallelum.com.br/api/v2';
+
+// Mapeamento de tipos PT -> EN para a API FIPE
+const TIPO_MAPPING: Record<string, string> = {
+  'carros': 'cars',
+  'motos': 'motorcycles',
+  'caminhoes': 'trucks',
+};
 
 interface ConsultaFipeRequest {
   tipo: 'carros' | 'motos' | 'caminhoes';
@@ -26,7 +33,9 @@ serve(async (req) => {
 
     console.log('Consultando FIPE:', { tipo, marcaCodigo, modeloCodigo, anoCodigo, action });
 
-    let url = `${FIPE_API_BASE}/${tipo}`;
+    // Converter tipo PT para EN
+    const tipoEN = TIPO_MAPPING[tipo] || tipo;
+    let url = `${FIPE_API_BASE}/${tipoEN}`;
 
     switch (action) {
       case 'marcas':
