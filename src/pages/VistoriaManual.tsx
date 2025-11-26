@@ -549,34 +549,6 @@ export default function VistoriaManual() {
                 </div>
               </div>
               
-              <div className="mt-4">
-                <VehicleFipeSelector
-                  vehicleType={vehicleType}
-                  onVehicleTypeChange={(value) => {
-                    setVehicleType(value);
-                    setFormData({ 
-                      ...formData, 
-                      veiculo_tipo: value,
-                      veiculo_marca: "", 
-                      veiculo_modelo: "",
-                      veiculo_ano: "",
-                    });
-                  }}
-                  marca={formData.veiculo_marca}
-                  onMarcaChange={(value) => setFormData({ ...formData, veiculo_marca: value })}
-                  modelo={formData.veiculo_modelo}
-                  onModeloChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
-                  ano={formData.veiculo_ano}
-                  onAnoChange={(value) => setFormData({ ...formData, veiculo_ano: value })}
-                  valorFipe={formData.veiculo_valor_fipe}
-                  onValorFipeChange={(value) => setFormData({ ...formData, veiculo_valor_fipe: value })}
-                  dataConsultaFipe={formData.veiculo_fipe_data_consulta}
-                  onDataConsultaFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_data_consulta: value })}
-                  codigoFipe={formData.veiculo_fipe_codigo}
-                  onCodigoFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_codigo: value })}
-                />
-              </div>
-              
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div>
                   <Label>Cor *</Label>
@@ -606,6 +578,34 @@ export default function VistoriaManual() {
                     maxLength={17}
                   />
                 </div>
+              </div>
+              
+              <div className="mt-4">
+                <VehicleFipeSelector
+                  vehicleType={vehicleType}
+                  onVehicleTypeChange={(value) => {
+                    setVehicleType(value);
+                    setFormData({ 
+                      ...formData, 
+                      veiculo_tipo: value,
+                      veiculo_marca: "", 
+                      veiculo_modelo: "",
+                      veiculo_ano: "",
+                    });
+                  }}
+                  marca={formData.veiculo_marca}
+                  onMarcaChange={(value) => setFormData({ ...formData, veiculo_marca: value })}
+                  modelo={formData.veiculo_modelo}
+                  onModeloChange={(value) => setFormData({ ...formData, veiculo_modelo: value })}
+                  ano={formData.veiculo_ano}
+                  onAnoChange={(value) => setFormData({ ...formData, veiculo_ano: value })}
+                  valorFipe={formData.veiculo_valor_fipe}
+                  onValorFipeChange={(value) => setFormData({ ...formData, veiculo_valor_fipe: value })}
+                  dataConsultaFipe={formData.veiculo_fipe_data_consulta}
+                  onDataConsultaFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_data_consulta: value })}
+                  codigoFipe={formData.veiculo_fipe_codigo}
+                  onCodigoFipeChange={(value) => setFormData({ ...formData, veiculo_fipe_codigo: value })}
+                />
               </div>
             </div>
 
