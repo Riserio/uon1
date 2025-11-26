@@ -185,7 +185,12 @@ export function SearchableVehicleSelect({
           </Button>
         </PopoverTrigger>
         <PopoverContent 
-          className="w-[var(--radix-popover-trigger-width)] max-w-[400px] p-0 z-[100000] bg-popover border shadow-lg" 
+          className="p-0 bg-popover border shadow-lg"
+          style={{ 
+            width: 'var(--radix-popover-trigger-width)',
+            maxWidth: '400px',
+            zIndex: 999999 
+          }}
           align="start" 
           sideOffset={4}
         >

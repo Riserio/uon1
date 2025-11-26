@@ -528,7 +528,7 @@ export default function VistoriaPublicaFormulario() {
         </Card>
 
         {/* Main Form Card */}
-        <Card className="border-none shadow-2xl">
+        <Card className="border-none shadow-2xl overflow-visible">
           <div className="bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 p-8 text-white">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
@@ -541,7 +541,7 @@ export default function VistoriaPublicaFormulario() {
             </div>
           </div>
 
-          <CardContent className="p-8 space-y-6">
+          <CardContent className="p-8 space-y-6 overflow-visible">
             {/* Step 0: Dados Pessoais */}
             {currentStep === 0 && (
               <div className="space-y-6">
@@ -632,7 +632,7 @@ export default function VistoriaPublicaFormulario() {
                 </div>
 
                 {/* Seleção Tipo/Marca/Modelo/Ano - SEM botão FIPE */}
-                <div className="mt-4 space-y-3">
+                <div className="mt-4 space-y-3 relative z-50">
                   <VehicleFipeSelector
                     vehicleType={vehicleType}
                     onVehicleTypeChange={handleVehicleTypeChange}
