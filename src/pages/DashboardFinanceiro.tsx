@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { TrendingUp, TrendingDown, DollarSign, FileText, Clock, CheckCircle, XCircle, BarChart3 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
@@ -232,21 +233,26 @@ export default function DashboardFinanceiro() {
             </h1>
             <p className="text-muted-foreground mt-1">Visão geral dos lançamentos e performance</p>
           </div>
-          <div className="w-full md:w-64">
-            <Label>Filtrar por Corretora</Label>
-            <Select value={selectedCorretora} onValueChange={setSelectedCorretora}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todas as Corretoras</SelectItem>
-                {corretoras.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex items-end gap-2">
+            <div className="w-full md:w-64">
+              <Label>Filtrar por Corretora</Label>
+              <Select value={selectedCorretora} onValueChange={setSelectedCorretora}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todas as Corretoras</SelectItem>
+                  {corretoras.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" onClick={() => window.history.back()}>
+              Voltar
+            </Button>
           </div>
         </div>
 
@@ -457,6 +463,7 @@ export default function DashboardFinanceiro() {
                     labelLine={false}
                     label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                     outerRadius={100}
+                    innerRadius={60}
                     fill="#8884d8"
                     dataKey="value"
                   >
