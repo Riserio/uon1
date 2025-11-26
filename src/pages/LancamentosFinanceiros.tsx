@@ -24,10 +24,12 @@ import {
   FileText,
   Calendar,
   Building2,
+  BarChart3,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import FinancialDashboard from "@/components/FinancialDashboard";
 
 interface Lancamento {
   id: string;
@@ -80,12 +82,14 @@ export default function LancamentosFinanceiros() {
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
   const [filteredLancamentos, setFilteredLancamentos] = useState<Lancamento[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [selectedLancamento, setSelectedLancamento] = useState<Lancamento | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [tipoFilter, setTipoFilter] = useState("todos");
+  const [corretoraFilter, setCorretoraFilter] = useState("todos");
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [sinistros, setSinistros] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("lista");
@@ -121,7 +125,7 @@ export default function LancamentosFinanceiros() {
 
   useEffect(() => {
     filterLancamentos();
-  }, [lancamentos, searchTerm, statusFilter, tipoFilter]);
+  }, [lancamentos, searchTerm, statusFilter, tipoFilter, corretoraFilter]);
 
   useEffect(() => {
     // Calcular valor líquido automaticamente
@@ -180,6 +184,10 @@ export default function LancamentosFinanceiros() {
 
     if (tipoFilter !== "todos") {
       filtered = filtered.filter((l) => l.tipo_lancamento === tipoFilter);
+    }
+
+    if (corretoraFilter !== "todos") {
+      filtered = filtered.filter((l) => l.corretora_id === corretoraFilter);
     }
 
     setFilteredLancamentos(filtered);
@@ -412,10 +420,16 @@ export default function LancamentosFinanceiros() {
           <h1 className="text-3xl font-bold">Lançamentos Financeiros</h1>
           <p className="text-muted-foreground">Gestão completa de lançamentos financeiros</p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Lançamento
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setDashboardOpen(true)}>
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Dashboard
+          </Button>
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Lançamento
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -465,7 +479,7 @@ export default function LancamentosFinanceiros() {
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="relative">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -503,10 +517,25 @@ export default function LancamentosFinanceiros() {
               </SelectContent>
             </Select>
 
+            <Select value={corretoraFilter} onValueChange={setCorretoraFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Corretora" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas as Corretoras</SelectItem>
+                {corretoras.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Button variant="outline" onClick={() => {
               setSearchTerm("");
               setStatusFilter("todos");
               setTipoFilter("todos");
+              setCorretoraFilter("todos");
             }}>
               <Filter className="h-4 w-4 mr-2" />
               Limpar Filtros
@@ -959,6 +988,13 @@ export default function LancamentosFinanceiros() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dashboard Dialog */}
+      <Dialog open={dashboardOpen} onOpenChange={setDashboardOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <FinancialDashboard />
         </DialogContent>
       </Dialog>
     </div>
