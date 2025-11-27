@@ -161,23 +161,17 @@ export default function Agenda() {
 
   // 🔧 FUNÇÃO CORRIGIDA: envia Authorization + body.action
   const syncWithGoogle = async () => {
+    if (!user?.id) {
+      toast.error("Usuário não identificado");
+      return;
+    }
+
     setSyncing(true);
     try {
-      const { data: sessionResult, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError || !sessionResult?.session) {
-        toast.error("Você precisa estar autenticado");
-        return;
-      }
-
-      const accessToken = sessionResult.session.access_token;
-
       const { data, error } = await supabase.functions.invoke("google-calendar-sync", {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
         body: {
           action: "sync",
+          user_id: user.id,
         },
       });
 
@@ -192,9 +186,9 @@ export default function Agenda() {
       }
 
       toast.success("Sincronização concluída!");
-      fetchEventos();
+      await fetchEventos();
     } catch (error) {
-      console.error("Erro ao sincronizar:", error);
+      console.error("Erro ao sincronizar com Google Calendar:", error);
       toast.error("Erro ao sincronizar com Google Calendar");
     } finally {
       setSyncing(false);
