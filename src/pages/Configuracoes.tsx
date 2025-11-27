@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Palette, Image as ImageIcon, Globe, Code } from "lucide-react";
+import { Palette, Image as ImageIcon, Globe, Code, Languages } from "lucide-react";
 import { ApiIntegrationsConfig } from "@/components/ApiIntegrationsConfig";
 import { SubdominioConfigDialog } from "@/components/SubdominioConfigDialog";
+import { TranslationsTab } from "@/components/TranslationsTab";
 
 interface ConfigColors {
   primary: string;
@@ -148,22 +149,26 @@ export default function Configuracoes() {
         </div>
 
         <Tabs defaultValue="colors" className="w-full">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4 mb-8">
+          <TabsList className="grid w-full max-w-3xl grid-cols-5 mb-8">
             <TabsTrigger value="colors" className="gap-2">
               <Palette className="h-4 w-4" />
-              Cores
+              <span className="hidden sm:inline">Cores</span>
             </TabsTrigger>
             <TabsTrigger value="images" className="gap-2">
               <ImageIcon className="h-4 w-4" />
-              Imagens
+              <span className="hidden sm:inline">Imagens</span>
             </TabsTrigger>
             <TabsTrigger value="subdomain" className="gap-2">
               <Globe className="h-4 w-4" />
-              Subdomínio
+              <span className="hidden sm:inline">Subdomínio</span>
             </TabsTrigger>
             <TabsTrigger value="api" className="gap-2">
               <Code className="h-4 w-4" />
-              API
+              <span className="hidden sm:inline">API</span>
+            </TabsTrigger>
+            <TabsTrigger value="translations" className="gap-2">
+              <Languages className="h-4 w-4" />
+              <span className="hidden sm:inline">Traduções</span>
             </TabsTrigger>
           </TabsList>
 
@@ -511,6 +516,10 @@ export default function Configuracoes() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="translations" className="space-y-6">
+            <TranslationsTab />
           </TabsContent>
         </Tabs>
       </div>
