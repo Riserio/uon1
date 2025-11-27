@@ -130,7 +130,7 @@ export function AppSidebar() {
     <>
       <Sidebar
         collapsible="icon"
-        className={collapsed ? "border-r sticky top-0 h-screen z-[60] overflow-y-auto" : "border-r sticky top-0 h-screen z-[60] w-56 overflow-y-auto"}
+        className={collapsed ? "border-r sticky top-0 h-screen z-[60]" : "border-r sticky top-0 h-screen z-[60] w-56"}
       >
         <SidebarHeader className="border-b p-4">
           <div className="flex items-center justify-center">

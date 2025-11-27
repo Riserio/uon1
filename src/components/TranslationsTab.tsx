@@ -113,7 +113,7 @@ export function TranslationsTab() {
         .upsert({
           user_id: user.id,
           colors: updatedColors,
-        });
+        }, { onConflict: 'user_id' });
 
       if (error) throw error;
       toast.success("Traduções salvas com sucesso!");

@@ -125,7 +125,7 @@ export function useTranslationsState() {
         .upsert({
           user_id: user.id,
           colors: updatedColors,
-        });
+        }, { onConflict: 'user_id' });
 
       if (error) throw error;
     } catch (error) {
