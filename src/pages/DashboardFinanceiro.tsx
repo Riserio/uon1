@@ -75,15 +75,45 @@ export default function DashboardFinanceiro() {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      let query = supabase
+      // Buscar lançamentos financeiros
+      let queryLancamentos = supabase
         .from("lancamentos_financeiros")
         .select("tipo_lancamento, valor_liquido, status, data_lancamento, categoria");
 
       if (selectedCorretora !== "todos") {
-        query = query.eq("corretora_id", selectedCorretora);
+        queryLancamentos = queryLancamentos.eq("corretora_id", selectedCorretora);
       }
 
-      const { data, error } = await query;
+      const { data: lancamentosData, error: lancamentosError } = await queryLancamentos;
+      
+      if (lancamentosError) throw lancamentosError;
+
+      // Buscar custos de sinistros
+      let querySinistros = supabase
+        .from("vistorias")
+        .select(`
+          custo_oficina,
+          custo_reparo,
+          custo_acordo,
+          custo_terceiros,
+          custo_perda_total,
+          custo_perda_parcial,
+          valor_franquia,
+          valor_indenizacao,
+          created_at,
+          atendimentos!inner(corretora_id)
+        `);
+
+      if (selectedCorretora !== "todos") {
+        querySinistros = querySinistros.eq("atendimentos.corretora_id", selectedCorretora);
+      }
+
+      const { data: sinistrosData, error: sinistrosError } = await querySinistros;
+      
+      if (sinistrosError) throw sinistrosError;
+
+      // Combinar dados de lançamentos e sinistros
+      const data = lancamentosData || [];
 
       if (error) throw error;
 
@@ -166,6 +196,21 @@ export default function DashboardFinanceiro() {
         ?.filter((l) => l.tipo_lancamento === "despesa")
         .reduce((sum, l) => sum + (l.valor_liquido || 0), 0) || 0;
 
+      // Adicionar custos de sinistros às despesas
+      const custosSinistros = sinistrosData?.reduce((sum, s) => {
+        return sum + 
+          (s.custo_oficina || 0) +
+          (s.custo_reparo || 0) +
+          (s.custo_acordo || 0) +
+          (s.custo_terceiros || 0) +
+          (s.custo_perda_total || 0) +
+          (s.custo_perda_parcial || 0) +
+          (s.valor_franquia || 0) +
+          (s.valor_indenizacao || 0);
+      }, 0) || 0;
+
+      const despesasTotais = despesas + custosSinistros;
+
       const receitasMes = data
         ?.filter((l) => {
           const dataLancamento = new Date(l.data_lancamento);
@@ -194,14 +239,14 @@ export default function DashboardFinanceiro() {
 
       setStats({
         totalReceitas: receitas,
-        totalDespesas: despesas,
-        saldo: receitas - despesas,
+        totalDespesas: despesasTotais,
+        saldo: receitas - despesasTotais,
         totalLancamentos: data?.length || 0,
         pendentes,
         aprovados,
         rejeitados,
         receitasMes,
-        despesasMes,
+        despesasMes: despesasMes + custosSinistros,
       });
     } catch (error) {
       toast.error("Erro ao carregar estatísticas");

@@ -14,10 +14,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Activity, FileText, PieChart, ListChecks, ShieldCheck } from "lucide-react";
+import { Users, Activity, FileText, PieChart, ListChecks, ShieldCheck, DollarSign } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function PID() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -92,16 +94,26 @@ export default function PID() {
                   </Select>
                 </div>
 
-                {/* Botão Gerenciar Usuários PID */}
+                {/* Botões de ação */}
                 {selectedCorretora && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setUsuariosDialogOpen(true)}
-                    className="gap-2 whitespace-nowrap w-full sm:w-auto"
-                  >
-                    <Users className="h-4 w-4" />
-                    <span className="text-sm">Gerenciar Usuários PID</span>
-                  </Button>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <Button
+                      variant="outline"
+                      onClick={() => navigate(`/dashboard-financeiro?corretora=${selectedCorretora}`)}
+                      className="gap-2 whitespace-nowrap flex-1 sm:flex-none"
+                    >
+                      <DollarSign className="h-4 w-4" />
+                      <span className="text-sm">Custos de Sinistros</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setUsuariosDialogOpen(true)}
+                      className="gap-2 whitespace-nowrap flex-1 sm:flex-none"
+                    >
+                      <Users className="h-4 w-4" />
+                      <span className="text-sm">Gerenciar Usuários</span>
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardContent>
