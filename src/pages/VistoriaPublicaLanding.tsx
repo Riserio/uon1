@@ -1,13 +1,22 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { 
-  Camera, CheckCircle, Shield, Clock, Smartphone, 
-  Zap, Lock, Award, ArrowRight, AlertCircle, ExternalLink 
-} from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import {
+  Camera,
+  CheckCircle,
+  Shield,
+  Clock,
+  Smartphone,
+  Zap,
+  Lock,
+  Award,
+  ArrowRight,
+  AlertCircle,
+  ExternalLink,
+} from "lucide-react";
 
 export default function VistoriaPublicaLanding() {
   const { token } = useParams();
@@ -23,8 +32,9 @@ export default function VistoriaPublicaLanding() {
   const loadVistoria = async () => {
     try {
       const { data, error } = await supabase
-        .from('vistorias')
-        .select(`
+        .from("vistorias")
+        .select(
+          `
           *,
           corretoras(nome, logo_url, slug),
           atendimentos!vistorias_atendimento_id_fkey(
@@ -33,19 +43,20 @@ export default function VistoriaPublicaLanding() {
             corretoras(nome, slug),
             profiles!atendimentos_responsavel_id_fkey(nome)
           )
-        `)
-        .eq('link_token', token)
-        .gt('link_expires_at', new Date().toISOString())
+        `,
+        )
+        .eq("link_token", token)
+        .gt("link_expires_at", new Date().toISOString())
         .single();
 
       if (error) throw error;
       if (!data) {
-        toast.error('Link de vistoria inválido ou expirado');
+        toast.error("Link de vistoria inválido ou expirado");
         return;
       }
 
       // Se a vistoria já foi concluída, mostra mensagem
-      if (data.status === 'concluida') {
+      if (data.status === "concluida") {
         setVistoria(data);
         setCorretora(data.corretoras || data.atendimentos?.corretoras);
         setLoading(false);
@@ -53,7 +64,7 @@ export default function VistoriaPublicaLanding() {
       }
 
       // Se for pendente_novas_fotos, redireciona direto para captura
-      if (data.status === 'pendente_novas_fotos') {
+      if (data.status === "pendente_novas_fotos") {
         navigate(`/vistoria/${token}/captura`);
         return;
       }
@@ -61,8 +72,8 @@ export default function VistoriaPublicaLanding() {
       setVistoria(data);
       setCorretora(data.corretoras || data.atendimentos?.corretoras);
     } catch (error) {
-      console.error('Erro ao carregar vistoria:', error);
-      toast.error('Erro ao carregar vistoria');
+      console.error("Erro ao carregar vistoria:", error);
+      toast.error("Erro ao carregar vistoria");
     } finally {
       setLoading(false);
     }
@@ -106,10 +117,10 @@ export default function VistoriaPublicaLanding() {
   }
 
   // Se a vistoria já foi concluída, mostra mensagem
-  if (vistoria.status === 'concluida') {
+  if (vistoria.status === "concluida") {
     // Monta link de acompanhamento externo usando o slug da corretora
     const corretoraSlug = vistoria.corretoras?.slug || vistoria.atendimentos?.corretoras?.slug;
-    const acompanhamentoUrl = corretoraSlug 
+    const acompanhamentoUrl = corretoraSlug
       ? `${window.location.origin}/acompanhamento/${corretoraSlug}/${vistoria.numero}`
       : null;
 
@@ -121,17 +132,15 @@ export default function VistoriaPublicaLanding() {
               <CheckCircle className="h-10 w-10 text-green-600" />
             </div>
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Vistoria Concluída</h2>
-            <p className="text-gray-600 text-lg mb-6">
-              Esta vistoria já foi concluída e enviada com sucesso!
-            </p>
-            
+            <p className="text-gray-600 text-lg mb-6">Esta vistoria já foi concluída e enviada com sucesso!</p>
+
             {acompanhamentoUrl && (
               <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
                 <p className="text-gray-700 font-medium mb-4">
                   Caso queira consultar seu processo de sinistro, clique no botão abaixo:
                 </p>
                 <Button
-                  onClick={() => window.open(acompanhamentoUrl, '_blank')}
+                  onClick={() => window.open(acompanhamentoUrl, "_blank")}
                   className="w-full gap-2 bg-[hsl(var(--vistoria-primary))] hover:bg-[hsl(var(--vistoria-primary))]/90"
                   size="lg"
                 >
@@ -141,9 +150,7 @@ export default function VistoriaPublicaLanding() {
               </div>
             )}
 
-            <p className="text-gray-500 text-sm">
-              Se precisar de algo mais, entre em contato com sua seguradora.
-            </p>
+            <p className="text-gray-500 text-sm">Se precisar de algo mais, entre em contato com sua seguradora.</p>
           </CardContent>
         </Card>
       </div>
@@ -153,33 +160,19 @@ export default function VistoriaPublicaLanding() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] via-white to-blue-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 md:py-16">
-        
-        {/* Header com Logo */}
-        {corretora?.logo_url && (
-          <div className="text-center mb-8">
-            <div className="inline-block bg-white rounded-2xl p-6 shadow-md">
-              <img 
-                src={corretora.logo_url} 
-                alt={corretora.nome}
-                className="h-16 md:h-20 object-contain"
-              />
-            </div>
-          </div>
-        )}
-
         {/* Hero Section */}
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-[hsl(var(--vistoria-primary))] to-blue-600 shadow-xl mb-8 animate-pulse">
             <Camera className="h-12 w-12 text-white" strokeWidth={2.5} />
           </div>
-          
+
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-4 leading-tight">
             Vistoria Digital
           </h1>
           <p className="text-xl md:text-2xl text-gray-600 max-w-2xl mx-auto font-light">
             Processo rápido, seguro e inteligente
           </p>
-          
+
           <div className="flex items-center justify-center gap-2 mt-6">
             <Badge className="bg-green-100 text-green-700 hover:bg-green-100 px-4 py-2 text-sm font-semibold">
               <Zap className="h-4 w-4 mr-1" />
@@ -194,18 +187,27 @@ export default function VistoriaPublicaLanding() {
 
         {/* Main Card */}
         <Card className="border-none shadow-2xl overflow-hidden mb-8">
-          
-          {/* Como Funciona */}
+          {/* Como Funciona + Logo da Corretora */}
           <div className="bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 p-8 md:p-12 text-white">
-            <h2 className="text-3xl md:text-4xl font-bold mb-3">Como funciona?</h2>
-            <p className="text-blue-50 text-lg">Siga 3 passos simples para concluir sua vistoria</p>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+              <div>
+                <h2 className="text-3xl md:text-4xl font-bold mb-3">Como funciona?</h2>
+                <p className="text-blue-50 text-lg">Siga 3 passos simples para concluir sua vistoria</p>
+              </div>
+
+              {corretora?.logo_url && (
+                <div className="flex justify-end">
+                  <div className="bg-white/10 backdrop-blur rounded-2xl px-4 py-3 md:px-6 md:py-4 shadow-lg">
+                    <img src={corretora.logo_url} alt={corretora.nome} className="h-10 md:h-14 object-contain" />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <CardContent className="p-8 md:p-12">
-            
             {/* Steps */}
             <div className="grid md:grid-cols-3 gap-8 mb-12">
-              
               {/* Step 1 */}
               <div className="relative">
                 <div className="absolute -top-4 -left-4 w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg">
@@ -257,7 +259,6 @@ export default function VistoriaPublicaLanding() {
 
             {/* Benefits Grid */}
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-              
               <div className="flex items-start gap-4 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white border border-gray-100">
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Clock className="h-6 w-6 text-blue-600" />
@@ -310,15 +311,21 @@ export default function VistoriaPublicaLanding() {
               <ul className="space-y-3 ml-13">
                 <li className="flex items-start gap-3 text-amber-800">
                   <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0 text-amber-600" />
-                  <span>Tenha sua <strong>CNH</strong> e <strong>CRLV</strong> em mãos</span>
+                  <span>
+                    Tenha sua <strong>CNH</strong> e <strong>CRLV</strong> em mãos
+                  </span>
                 </li>
                 <li className="flex items-start gap-3 text-amber-800">
                   <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0 text-amber-600" />
-                  <span>Certifique-se de estar em um <strong>local bem iluminado</strong></span>
+                  <span>
+                    Certifique-se de estar em um <strong>local bem iluminado</strong>
+                  </span>
                 </li>
                 <li className="flex items-start gap-3 text-amber-800">
                   <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0 text-amber-600" />
-                  <span>Fotografe o veículo <strong>completo em cada ângulo</strong></span>
+                  <span>
+                    Fotografe o veículo <strong>completo em cada ângulo</strong>
+                  </span>
                 </li>
               </ul>
             </div>
@@ -362,7 +369,7 @@ export default function VistoriaPublicaLanding() {
 }
 
 // Badge component local (simples)
-function Badge({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function Badge({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${className}`}>
       {children}
