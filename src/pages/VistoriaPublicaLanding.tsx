@@ -50,12 +50,12 @@ export default function VistoriaPublicaLanding() {
         .single();
 
       if (error) throw error;
-
       if (!data) {
         toast.error("Link de vistoria inválido ou expirado");
         return;
       }
 
+      // Se a vistoria já foi concluída, mostra mensagem
       if (data.status === "concluida") {
         setVistoria(data);
         setCorretora(data.corretoras || data.atendimentos?.corretoras);
@@ -63,6 +63,7 @@ export default function VistoriaPublicaLanding() {
         return;
       }
 
+      // Se for pendente_novas_fotos, redireciona direto para captura
       if (data.status === "pendente_novas_fotos") {
         navigate(`/vistoria/${token}/captura`);
         return;
@@ -115,10 +116,9 @@ export default function VistoriaPublicaLanding() {
     );
   }
 
-  // --------------------------
-  // VISTORIA CONCLUÍDA
-  // --------------------------
+  // Se a vistoria já foi concluída, mostra mensagem
   if (vistoria.status === "concluida") {
+    // Monta link de acompanhamento externo usando o slug da corretora
     const corretoraSlug = vistoria.corretoras?.slug || vistoria.atendimentos?.corretoras?.slug;
     const acompanhamentoUrl = corretoraSlug
       ? `${window.location.origin}/acompanhamento/${corretoraSlug}/${vistoria.numero}`
@@ -157,13 +157,19 @@ export default function VistoriaPublicaLanding() {
     );
   }
 
-  // --------------------------
-  // PÁGINA NORMAL
-  // --------------------------
   return (
     <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] via-white to-blue-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 md:py-16">
-        {/* HERO */}
+        {/* Header com Logo */}
+        {corretora?.logo_url && (
+          <div className="text-center mb-8">
+            <div className="inline-block bg-white rounded-2xl p-6 shadow-md">
+              <img src={corretora.logo_url} alt={corretora.nome} className="h-16 md:h-20 object-contain" />
+            </div>
+          </div>
+        )}
+
+        {/* Hero Section */}
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-[hsl(var(--vistoria-primary))] to-blue-600 shadow-xl mb-8 animate-pulse">
             <Camera className="h-12 w-12 text-white" strokeWidth={2.5} />
@@ -172,54 +178,34 @@ export default function VistoriaPublicaLanding() {
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-4 leading-tight">
             Vistoria Digital
           </h1>
-
           <p className="text-xl md:text-2xl text-gray-600 max-w-2xl mx-auto font-light">
             Processo rápido, seguro e inteligente
           </p>
 
           <div className="flex items-center justify-center gap-2 mt-6">
-            <Badge className="bg-green-100 text-green-700 px-4 py-2 text-sm font-semibold">
-              <Zap className="h-4 w-4 mr-1" /> Menos de 5 minutos
+            <Badge className="bg-green-100 text-green-700 hover:bg-green-100 px-4 py-2 text-sm font-semibold">
+              <Zap className="h-4 w-4 mr-1" />
+              Menos de 5 minutos
             </Badge>
-
-            <Badge className="bg-blue-100 text-blue-700 px-4 py-2 text-sm font-semibold">
-              <Lock className="h-4 w-4 mr-1" /> 100% Seguro
+            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 px-4 py-2 text-sm font-semibold">
+              <Lock className="h-4 w-4 mr-1" />
+              100% Seguro
             </Badge>
           </div>
         </div>
 
-        {/* MAIN CARD */}
+        {/* Main Card */}
         <Card className="border-none shadow-2xl overflow-hidden mb-8">
-          {/* ----------------------------- */}
-          {/* COMO FUNCIONA + LOGO CORRETORA */}
-          {/* ----------------------------- */}
+          {/* Como Funciona */}
           <div className="bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 p-8 md:p-12 text-white">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div>
-                <h2 className="text-3xl md:text-4xl font-bold mb-3">Como funciona?</h2>
-                <p className="text-blue-50 text-lg">Siga 3 passos simples para concluir sua vistoria</p>
-              </div>
-
-              {corretora?.logo_url && (
-                <div className="flex justify-end">
-                  <div className="bg-white/10 backdrop-blur rounded-2xl px-4 py-3 md:px-6 md:py-4 shadow-lg flex flex-col items-end gap-1">
-                    <img src={corretora.logo_url} alt={corretora.nome} className="h-10 md:h-14 object-contain" />
-                    <span className="text-xs md:text-sm text-blue-50/90">
-                      Atendimento realizado por <span className="font-semibold">{corretora.nome}</span>
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
+            <h2 className="text-3xl md:text-4xl font-bold mb-3">Como funciona?</h2>
+            <p className="text-blue-50 text-lg">Siga 3 passos simples para concluir sua vistoria</p>
           </div>
 
-          {/* ----------------------------- */}
-          {/* CONTEÚDO */}
-          {/* ----------------------------- */}
           <CardContent className="p-8 md:p-12">
-            {/* PASSO A PASSO */}
+            {/* Steps */}
             <div className="grid md:grid-cols-3 gap-8 mb-12">
-              {/* 1 */}
+              {/* Step 1 */}
               <div className="relative">
                 <div className="absolute -top-4 -left-4 w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg">
                   1
@@ -235,7 +221,7 @@ export default function VistoriaPublicaLanding() {
                 </div>
               </div>
 
-              {/* 2 */}
+              {/* Step 2 */}
               <div className="relative">
                 <div className="absolute -top-4 -left-4 w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg">
                   2
@@ -251,7 +237,7 @@ export default function VistoriaPublicaLanding() {
                 </div>
               </div>
 
-              {/* 3 */}
+              {/* Step 3 */}
               <div className="relative">
                 <div className="absolute -top-4 -left-4 w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg">
                   3
@@ -268,35 +254,50 @@ export default function VistoriaPublicaLanding() {
               </div>
             </div>
 
-            {/* BENEFÍCIOS */}
+            {/* Benefits Grid */}
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-              <Benefit
-                icon={<Clock className="h-6 w-6 text-blue-600" />}
-                title="Rápido"
-                text="Processo em minutos"
-                bg="blue"
-              />
-              <Benefit
-                icon={<Shield className="h-6 w-6 text-green-600" />}
-                title="Seguro"
-                text="Dados criptografados"
-                bg="green"
-              />
-              <Benefit
-                icon={<Smartphone className="h-6 w-6 text-purple-600" />}
-                title="Prático"
-                text="Tudo pelo celular"
-                bg="purple"
-              />
-              <Benefit
-                icon={<Award className="h-6 w-6 text-orange-600" />}
-                title="Confiável"
-                text="Tecnologia IA"
-                bg="orange"
-              />
+              <div className="flex items-start gap-4 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white border border-gray-100">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Clock className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-1">Rápido</h4>
+                  <p className="text-sm text-gray-600">Processo em minutos</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white border border-gray-100">
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Shield className="h-6 w-6 text-green-600" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-1">Seguro</h4>
+                  <p className="text-sm text-gray-600">Dados criptografados</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white border border-gray-100">
+                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Smartphone className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-1">Prático</h4>
+                  <p className="text-sm text-gray-600">Do seu celular</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white border border-gray-100">
+                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Award className="h-6 w-6 text-orange-600" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-1">Confiável</h4>
+                  <p className="text-sm text-gray-600">Tecnologia IA</p>
+                </div>
+              </div>
             </div>
 
-            {/* AVISOS */}
+            {/* Important Info */}
             <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-6 mb-8">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -304,26 +305,33 @@ export default function VistoriaPublicaLanding() {
                 </div>
                 <h3 className="font-bold text-xl text-amber-900">Antes de começar</h3>
               </div>
-
-              <ul className="space-y-3 ml-3">
-                {[
-                  "Tenha sua CNH e CRLV em mãos",
-                  "Esteja em um local bem iluminado",
-                  "Fotografe o veículo completo em cada ângulo",
-                ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3 text-amber-800">
-                    <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0 text-amber-600" />
-                    <span>{item}</span>
-                  </li>
-                ))}
+              <ul className="space-y-3 ml-13">
+                <li className="flex items-start gap-3 text-amber-800">
+                  <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0 text-amber-600" />
+                  <span>
+                    Tenha sua <strong>CNH</strong> e <strong>CRLV</strong> em mãos
+                  </span>
+                </li>
+                <li className="flex items-start gap-3 text-amber-800">
+                  <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0 text-amber-600" />
+                  <span>
+                    Certifique-se de estar em um <strong>local bem iluminado</strong>
+                  </span>
+                </li>
+                <li className="flex items-start gap-3 text-amber-800">
+                  <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0 text-amber-600" />
+                  <span>
+                    Fotografe o veículo <strong>completo em cada ângulo</strong>
+                  </span>
+                </li>
               </ul>
             </div>
 
-            {/* BOTÃO CTA */}
+            {/* CTA Button */}
             <Button
               onClick={handleIniciarVistoria}
               size="lg"
-              className="w-full bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] text-white font-bold py-8 text-xl shadow-xl rounded-2xl"
+              className="w-full bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] text-white font-bold py-8 text-xl shadow-xl hover:shadow-2xl transition-all duration-300 rounded-2xl"
             >
               <Camera className="h-6 w-6 mr-3" />
               Iniciar Vistoria Digital
@@ -332,15 +340,24 @@ export default function VistoriaPublicaLanding() {
           </CardContent>
         </Card>
 
-        {/* RODAPÉ */}
+        {/* Trust Footer */}
         <div className="text-center space-y-4">
           <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
-            <FooterItem icon={<Lock className="h-4 w-4" />} text="Dados Protegidos" />
-            <FooterItem icon={<Shield className="h-4 w-4" />} text="Processo Seguro" />
-            <FooterItem icon={<CheckCircle className="h-4 w-4" />} text="Certificado" />
+            <div className="flex items-center gap-2">
+              <Lock className="h-4 w-4" />
+              <span>Dados Protegidos</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              <span>Processo Seguro</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4" />
+              <span>Certificado</span>
+            </div>
           </div>
           <p className="text-gray-400 text-sm">
-            Suas informações estão protegidas e serão usadas apenas para a vistoria.
+            Suas informações estão protegidas e serão usadas apenas para a vistoria
           </p>
         </div>
       </div>
@@ -348,39 +365,11 @@ export default function VistoriaPublicaLanding() {
   );
 }
 
-// COMPONENTES AUXILIARES
-function Badge({ children, className = "" }) {
+// Badge component local (simples)
+function Badge({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${className}`}>
       {children}
     </span>
-  );
-}
-
-function Benefit({ icon, title, text, bg }) {
-  const colorMap = {
-    blue: "bg-blue-100",
-    green: "bg-green-100",
-    purple: "bg-purple-100",
-    orange: "bg-orange-100",
-  };
-
-  return (
-    <div className="flex items-start gap-4 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white border border-gray-100">
-      <div className={`w-12 h-12 ${colorMap[bg]} rounded-lg flex items-center justify-center`}>{icon}</div>
-      <div>
-        <h4 className="font-bold text-gray-900 mb-1">{title}</h4>
-        <p className="text-sm text-gray-600">{text}</p>
-      </div>
-    </div>
-  );
-}
-
-function FooterItem({ icon, text }) {
-  return (
-    <div className="flex items-center gap-2">
-      {icon}
-      <span>{text}</span>
-    </div>
   );
 }
