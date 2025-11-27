@@ -197,24 +197,12 @@ export default function Auth() {
         password,
       });
 
-      const result = await signUp(validated.email, validated.password, validated.nome);
-      if (result.error) {
-        toast.error(result.error.message || "Erro ao criar conta");
-      } else {
-        // Forçar status pendente para usuários criados via login
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData?.user) {
-          await supabase
-            .from('profiles')
-            .update({ status: 'pendente', ativo: false })
-            .eq('id', userData.user.id);
-        }
-        toast.success("Conta criada! Aguarde aprovação de um administrador para fazer login.");
-        setEmail("");
-        setPassword("");
-        setNome("");
-        setIsSignUp(false);
-      }
+      await signUp(validated.email, validated.password, validated.nome);
+      toast.success("Conta criada! Aguarde aprovação de um administrador para fazer login.");
+      setEmail("");
+      setPassword("");
+      setNome("");
+      setIsSignUp(false);
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
