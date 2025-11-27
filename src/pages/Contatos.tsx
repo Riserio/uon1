@@ -17,6 +17,7 @@ import { Link } from 'react-router-dom';
 import { EnviarEmailSMTPDialog } from '@/components/EnviarEmailSMTPDialog';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
+import { useTranslations } from '@/contexts/TranslationsContext';
 
 interface Contato {
   id: string;
@@ -38,6 +39,7 @@ interface Corretora {
 }
 
 export default function Contatos() {
+  const { t } = useTranslations();
   const [contatos, setContatos] = useState<Contato[]>([]);
   const [corretoras, setCorretoras] = useState<Corretora[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -212,8 +214,8 @@ export default function Contatos() {
             <UsersIcon className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold">Contatos</h1>
-            <p className="text-sm text-muted-foreground">Gerencie seus contatos e informações</p>
+            <h1 className="text-3xl font-bold">{t("titulo_contatos")}</h1>
+            <p className="text-sm text-muted-foreground">{t("desc_contatos")}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -237,13 +239,13 @@ export default function Contatos() {
               <DialogTrigger asChild>
                 <Button onClick={() => openDialog()}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Novo Contato
+                  Novo {t("contato")}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
-                    {editingItem ? 'Editar Contato' : 'Novo Contato'}
+                    {editingItem ? `Editar ${t("contato")}` : `Novo ${t("contato")}`}
                   </DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">

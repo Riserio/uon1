@@ -17,14 +17,25 @@ const labelCategories: Record<string, string[]> = {
     "menu_agenda", "menu_documentos", "menu_mensagens", "menu_pid",
     "menu_emails", "menu_comunicados", "menu_configuracoes"
   ],
-  "Seções": ["secao_navegacao", "secao_cadastros", "secao_ferramentas"],
-  "Entidades": [
+  "Seções do Menu": ["secao_navegacao", "secao_cadastros", "secao_ferramentas"],
+  "Entidades (singular/plural)": [
     "corretora", "corretoras", "sinistro", "sinistros", "vistoria", "vistorias",
     "atendimento", "atendimentos", "associado", "associados", "cliente", "clientes",
     "parceiro", "parceiros", "usuario", "usuarios", "contato", "contatos",
-    "documento", "documentos", "comunicado", "comunicados", "lancamento", "lancamentos"
+    "documento", "documentos", "comunicado", "comunicados", "lancamento", "lancamentos",
+    "termo", "termos", "administradora"
   ],
-  "Outros": [
+  "Títulos de Páginas": [
+    "titulo_corretoras", "desc_corretoras", "lista_corretoras", "nova_corretora", 
+    "editar_corretora", "total_corretoras",
+    "titulo_sinistros", "desc_sinistros",
+    "titulo_atendimentos", "desc_atendimentos",
+    "titulo_contatos", "desc_contatos",
+    "titulo_usuarios", "desc_usuarios",
+    "titulo_documentos", "desc_documentos",
+    "titulo_termos", "desc_termos"
+  ],
+  "Outros Termos": [
     "financeiro", "comite", "oficina", "oficinas", "reparo", "reparos",
     "peca", "pecas", "custo", "custos", "agenda", "equipe", "equipes",
     "painel", "configuracoes", "mensagem", "mensagens"
