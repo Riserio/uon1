@@ -6,13 +6,11 @@ import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronUp, FileText, Calendar, DollarSign, Camera, ClipboardList } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-
 export interface ClaimTimeline {
   date: string;
   title: string;
   description: string;
 }
-
 export interface Claim {
   id: string;
   numero: number;
@@ -31,20 +29,21 @@ export interface Claim {
   valor_franquia?: number | null;
   valor_indenizacao?: number | null;
   timeline: ClaimTimeline[];
-  corretoraInfo?: { nome: string } | null;
+  corretoraInfo?: {
+    nome: string;
+  } | null;
   vistoria_id?: string | null;
   vistoria_numero?: number | null;
   corretora_id?: string | null;
 }
-
 interface ClaimCardProps {
   claim: Claim;
 }
-
-export function ClaimCard({ claim }: ClaimCardProps) {
+export function ClaimCard({
+  claim
+}: ClaimCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const navigate = useNavigate();
-
   const formatCurrency = (value: number | null | undefined) => {
     if (!value) return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', {
@@ -52,72 +51,37 @@ export function ClaimCard({ claim }: ClaimCardProps) {
       currency: 'BRL'
     }).format(value);
   };
-
   const calculateTotal = () => {
-    return (
-      (claim.custo_oficina || 0) +
-      (claim.custo_reparo || 0) +
-      (claim.custo_acordo || 0) +
-      (claim.custo_terceiros || 0) +
-      (claim.custo_perda_total || 0) +
-      (claim.custo_perda_parcial || 0)
-    );
+    return (claim.custo_oficina || 0) + (claim.custo_reparo || 0) + (claim.custo_acordo || 0) + (claim.custo_terceiros || 0) + (claim.custo_perda_total || 0) + (claim.custo_perda_parcial || 0);
   };
-
   const total = calculateTotal();
-
-  return (
-    <Card className="overflow-hidden transition-all hover:shadow-md">
+  return <Card className="overflow-hidden transition-all hover:shadow-md">
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3 flex-wrap">
             <h3 className="text-xl font-bold text-foreground">
               SIN-{new Date(claim.created_at).getFullYear()}-{String(claim.numero).padStart(6, '0')}
             </h3>
-            <Badge 
-              className="text-white border-0"
-              style={{ backgroundColor: claim.statusColor }}
-            >
+            <Badge className="text-white border-0" style={{
+            backgroundColor: claim.statusColor
+          }}>
               {claim.status}
             </Badge>
-            {claim.vistoria_numero && (
-              <Badge variant="outline" className="gap-1">
+            {claim.vistoria_numero && <Badge variant="outline" className="gap-1">
                 <Camera className="h-3 w-3" />
                 Vistoria #{claim.vistoria_numero}
-              </Badge>
-            )}
+              </Badge>}
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/sinistros/${claim.id}/acompanhamento`)}
-              title="Acompanhamento do sinistro"
-              className="gap-1"
-            >
+            <Button variant="outline" size="sm" onClick={() => navigate(`/sinistros/${claim.id}/acompanhamento`)} title="Acompanhamento do sinistro" className="gap-1">
               <ClipboardList className="h-4 w-4" />
-              Acompanhamento
+              Análise do Evento  
             </Button>
-            {claim.vistoria_id && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate(`/vistorias/${claim.vistoria_id}`)}
-                title="Ver vistoria vinculada"
-              >
+            {claim.vistoria_id && <Button variant="ghost" size="icon" onClick={() => navigate(`/vistorias/${claim.vistoria_id}`)} title="Ver vistoria vinculada">
                 <Camera className="h-4 w-4" />
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsExpanded(!isExpanded)}
-            >
-              {isExpanded ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
+              </Button>}
+            <Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)}>
+              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
           </div>
         </div>
@@ -146,7 +110,9 @@ export function ClaimCard({ claim }: ClaimCardProps) {
             <div>
               <p className="text-xs text-muted-foreground">Data</p>
               <p className="font-medium text-foreground">
-                {format(new Date(claim.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                {format(new Date(claim.created_at), 'dd/MM/yyyy', {
+                locale: ptBR
+              })}
               </p>
             </div>
           </div>
@@ -159,31 +125,24 @@ export function ClaimCard({ claim }: ClaimCardProps) {
           </div>
         </div>
 
-        {isExpanded && (
-          <div className="mt-6 border-t border-border pt-6">
+        {isExpanded && <div className="mt-6 border-t border-border pt-6">
             <h4 className="font-semibold text-foreground mb-4">Linha do Tempo</h4>
             <div className="space-y-4">
-              {claim.timeline.map((event, index) => (
-                <div key={index} className="flex gap-4">
+              {claim.timeline.map((event, index) => <div key={index} className="flex gap-4">
                   <div className="flex flex-col items-center">
-                    <div 
-                      className={`w-3 h-3 rounded-full ${
-                        index === claim.timeline.length - 1 ? 'bg-primary' : 'bg-muted'
-                      }`} 
-                    />
-                    {index < claim.timeline.length - 1 && (
-                      <div className="w-0.5 h-12 bg-muted" />
-                    )}
+                    <div className={`w-3 h-3 rounded-full ${index === claim.timeline.length - 1 ? 'bg-primary' : 'bg-muted'}`} />
+                    {index < claim.timeline.length - 1 && <div className="w-0.5 h-12 bg-muted" />}
                   </div>
                   <div className="flex-1 pb-4">
                     <p className="text-sm text-muted-foreground">
-                      {format(new Date(event.date), 'dd/MM/yyyy', { locale: ptBR })}
+                      {format(new Date(event.date), 'dd/MM/yyyy', {
+                  locale: ptBR
+                })}
                     </p>
                     <p className="font-semibold text-foreground">{event.title}</p>
                     <p className="text-sm text-muted-foreground">{event.description}</p>
                   </div>
-                </div>
-              ))}
+                </div>)}
             </div>
 
             <div className="mt-6 border-t border-border pt-6">
@@ -224,15 +183,11 @@ export function ClaimCard({ claim }: ClaimCardProps) {
               </div>
             </div>
 
-            {claim.observacoes && (
-              <div className="mt-6 border-t border-border pt-6">
+            {claim.observacoes && <div className="mt-6 border-t border-border pt-6">
                 <h4 className="font-semibold text-foreground mb-2">Observações</h4>
                 <p className="text-sm text-muted-foreground">{claim.observacoes}</p>
-              </div>
-            )}
-          </div>
-        )}
+              </div>}
+          </div>}
       </CardContent>
-    </Card>
-  );
+    </Card>;
 }
