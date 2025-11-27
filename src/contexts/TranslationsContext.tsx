@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 // Labels padrão do sistema (incluindo menus)
 export const defaultLabels: Record<string, string> = {
-  // Entidades
+  // Entidades (singular e plural)
   corretora: "Corretora",
   corretoras: "Corretoras",
   sinistro: "Sinistro",
@@ -46,6 +46,9 @@ export const defaultLabels: Record<string, string> = {
   configuracoes: "Configurações",
   mensagem: "Mensagem",
   mensagens: "Mensagens",
+  termo: "Termo",
+  termos: "Termos",
+  administradora: "Administradora",
   // Menus
   menu_painel: "Painel",
   menu_atendimentos: "Atendimentos",
@@ -66,6 +69,25 @@ export const defaultLabels: Record<string, string> = {
   secao_navegacao: "Navegação",
   secao_cadastros: "Cadastros",
   secao_ferramentas: "Ferramentas",
+  // Títulos e descrições de páginas
+  titulo_corretoras: "Corretoras",
+  desc_corretoras: "Gerencie suas corretoras e informações",
+  lista_corretoras: "Lista de Corretoras",
+  nova_corretora: "Nova Corretora",
+  editar_corretora: "Editar Corretora",
+  total_corretoras: "Total de Corretoras",
+  titulo_sinistros: "Sinistros",
+  desc_sinistros: "Gerencie seus sinistros",
+  titulo_atendimentos: "Atendimentos",
+  desc_atendimentos: "Gerencie seus atendimentos",
+  titulo_contatos: "Contatos",
+  desc_contatos: "Gerencie seus contatos",
+  titulo_usuarios: "Usuários",
+  desc_usuarios: "Gerencie os usuários do sistema",
+  titulo_documentos: "Documentos",
+  desc_documentos: "Gerencie os documentos",
+  titulo_termos: "Termos de Aceite",
+  desc_termos: "Gerencie os termos de aceite",
 };
 
 interface TranslationsContextType {
