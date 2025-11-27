@@ -16,7 +16,7 @@ import SketchPad from "@/components/SketchPad";
 import { validateCPF, validatePhone } from "@/lib/validators";
 import { VehicleFipeSelector } from "@/components/VehicleFipeSelector";
 
-// Fallback de marcas/modelos (igual na vistoria manual)
+// Fallback de marcas/modelos (igual na vistoria manual) - Mantido, mas VehicleFipeSelector provavelmente usa API
 const MARCAS = [
   "Audi",
   "BMW",
@@ -237,6 +237,10 @@ export default function VistoriaPublicaFormulario() {
       veiculo_marca: "",
       veiculo_modelo: "",
       veiculo_ano: "",
+      // Limpa dados FIPE ao trocar o tipo de veículo
+      veiculo_valor_fipe: null,
+      veiculo_fipe_data_consulta: null,
+      veiculo_fipe_codigo: null,
     }));
   };
 
@@ -277,6 +281,10 @@ export default function VistoriaPublicaFormulario() {
 
     if (!formData.veiculo_modelo) {
       camposObrigatorios.push("Modelo do veículo");
+    }
+
+    if (!formData.veiculo_cor) {
+      camposObrigatorios.push("Cor do veículo");
     }
 
     if (formData.cliente_telefone && !validatePhone(formData.cliente_telefone)) {
@@ -408,7 +416,7 @@ export default function VistoriaPublicaFormulario() {
         ano: payload.veiculo_ano,
         cor: payload.veiculo_cor,
         chassi: payload.veiculo_chassi,
-        valorFipe: payload.veiculo_valor_fipe
+        valorFipe: payload.veiculo_valor_fipe,
       });
 
       const { error: updateError } = await supabase.from("vistorias").update(payload).eq("id", vistoria.id);
@@ -608,8 +616,8 @@ export default function VistoriaPublicaFormulario() {
                 </div>
               </div>
             )}
-
-            {/* Step 1: Dados do Evento + Veículo (FIPE + fallback + cor/chassi embaixo do ano) */}
+            ---
+            {/* Step 1: Dados do Evento + Veículo + Narração (CORRIGIDO) */}
             {currentStep === 1 && (
               <div className="space-y-6">
                 <div className="grid sm:grid-cols-2 gap-6">
@@ -643,35 +651,73 @@ export default function VistoriaPublicaFormulario() {
                   />
                 </div>
 
-                {/* Seleção Tipo/Marca/Modelo/Ano - SEM botão FIPE */}
+                {/* ÚNICO VehicleFipeSelector - CORRIGIDO para carregar dados FIPE */}
                 <div className="mt-4 space-y-3">
                   <VehicleFipeSelector
+                    // Vehicle Type
                     vehicleType={vehicleType}
-                    onVehicleTypeChange={handleVehicleTypeChange}
+                    onVehicleTypeChange={handleVehicleTypeChange} // Mantido para resetar marca/modelo/ano
+                    // Marca
                     marca={formData.veiculo_marca}
                     onMarcaChange={(value) =>
                       setFormData((prev) => ({
                         ...prev,
                         veiculo_marca: value,
+                        veiculo_modelo: "", // Limpar modelo ao trocar marca
+                        veiculo_ano: "", // Limpar ano ao trocar marca
+                        veiculo_valor_fipe: null,
+                        veiculo_fipe_data_consulta: null,
                       }))
                     }
+                    // Modelo
                     modelo={formData.veiculo_modelo}
                     onModeloChange={(value) =>
                       setFormData((prev) => ({
                         ...prev,
                         veiculo_modelo: value,
+                        veiculo_ano: "", // Limpar ano ao trocar modelo
+                        veiculo_valor_fipe: null,
+                        veiculo_fipe_data_consulta: null,
                       }))
                     }
+                    // Ano
                     ano={formData.veiculo_ano}
                     onAnoChange={(value) =>
                       setFormData((prev) => ({
                         ...prev,
                         veiculo_ano: value,
+                        veiculo_valor_fipe: null,
+                        veiculo_fipe_data_consulta: null,
                       }))
                     }
-                    showFipeButton={false}
+                    // FIPE Data (Campos de retorno)
+                    valorFipe={formData.veiculo_valor_fipe}
+                    onValorFipeChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_valor_fipe: value,
+                      }))
+                    }
+                    dataConsultaFipe={formData.veiculo_fipe_data_consulta}
+                    onDataConsultaFipeChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_fipe_data_consulta: value,
+                      }))
+                    }
+                    codigoFipe={formData.veiculo_fipe_codigo}
+                    onCodigoFipeChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_fipe_codigo: value,
+                      }))
+                    }
+                    // Configuração de exibição
+                    showFipeButton={true} // Agora ele exibe e executa a lógica de FIPE
+                    // showOnlySelectors removido para permitir que a lógica completa de FIPE seja inicializada
                   />
                 </div>
+                {/* FIM: ÚNICO VehicleFipeSelector */}
 
                 <div>
                   <Label className="text-base font-semibold">Placa do Veículo</Label>
@@ -742,43 +788,6 @@ export default function VistoriaPublicaFormulario() {
                   </div>
                 </div>
 
-                {/* Botão FIPE + Input manual - APÓS cor e chassi */}
-                <div className="space-y-3">
-                  <VehicleFipeSelector
-                    vehicleType={vehicleType}
-                    onVehicleTypeChange={() => {}}
-                    marca={formData.veiculo_marca}
-                    onMarcaChange={() => {}}
-                    modelo={formData.veiculo_modelo}
-                    onModeloChange={() => {}}
-                    ano={formData.veiculo_ano}
-                    onAnoChange={() => {}}
-                    valorFipe={formData.veiculo_valor_fipe}
-                    onValorFipeChange={(value) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        veiculo_valor_fipe: value,
-                      }))
-                    }
-                    dataConsultaFipe={formData.veiculo_fipe_data_consulta}
-                    onDataConsultaFipeChange={(value) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        veiculo_fipe_data_consulta: value,
-                      }))
-                    }
-                    codigoFipe={formData.veiculo_fipe_codigo}
-                    onCodigoFipeChange={(value) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        veiculo_fipe_codigo: value,
-                      }))
-                    }
-                    showOnlySelectors={true}
-                    showFipeButton={true}
-                  />
-                </div>
-
                 <div>
                   <Label className="text-base font-semibold">Narre os Fatos *</Label>
                   <Textarea
@@ -816,7 +825,7 @@ export default function VistoriaPublicaFormulario() {
                 </div>
               </div>
             )}
-
+            ---
             {/* Step 2: Informações Gerais */}
             {currentStep === 2 && (
               <div className="space-y-6">
@@ -843,12 +852,12 @@ export default function VistoriaPublicaFormulario() {
                 </div>
 
                 {formData.tem_terceiros && (
-                  <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-6">
+                  <div>
                     <Label className="text-base font-semibold">Placa do Terceiro</Label>
                     <Input
                       value={formData.placa_terceiro}
                       onChange={handlePlacaTerceiroChange}
-                      placeholder="ABC-1234"
+                      placeholder="Placa do veículo de terceiros"
                       className="mt-2 h-12 font-mono text-lg uppercase"
                       inputMode="text"
                     />
@@ -856,7 +865,29 @@ export default function VistoriaPublicaFormulario() {
                 )}
 
                 <div>
-                  <Label className="text-base font-semibold mb-3 block">O local possui câmeras de segurança?</Label>
+                  <Label className="text-base font-semibold mb-3 block">A polícia esteve no local?</Label>
+                  <RadioGroup
+                    value={formData.policia_foi_local ? "sim" : "nao"}
+                    onValueChange={(value) => setFormData({ ...formData, policia_foi_local: value === "sim" })}
+                    className="space-y-3"
+                  >
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
+                      <RadioGroupItem value="sim" id="policia-sim" />
+                      <Label htmlFor="policia-sim" className="flex-1 cursor-pointer font-medium">
+                        Sim
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
+                      <RadioGroupItem value="nao" id="policia-nao" />
+                      <Label htmlFor="policia-nao" className="flex-1 cursor-pointer font-medium">
+                        Não
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                <div>
+                  <Label className="text-base font-semibold mb-3 block">Havia câmera de segurança no local?</Label>
                   <RadioGroup
                     value={formData.local_tem_camera ? "sim" : "nao"}
                     onValueChange={(value) => setFormData({ ...formData, local_tem_camera: value === "sim" })}
@@ -878,271 +909,288 @@ export default function VistoriaPublicaFormulario() {
                 </div>
 
                 <div>
-                  <Label className="text-base font-semibold mb-3 block">A polícia foi ao local?</Label>
-                  <RadioGroup
-                    value={formData.policia_foi_local ? "sim" : "nao"}
-                    onValueChange={(value) => setFormData({ ...formData, policia_foi_local: value === "sim" })}
-                    className="space-y-3"
-                  >
-                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
-                      <RadioGroupItem value="sim" id="policia-sim" />
-                      <Label htmlFor="policia-sim" className="flex-1 cursor-pointer font-medium">
-                        Sim
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
-                      <RadioGroupItem value="nao" id="policia-nao" />
-                      <Label htmlFor="policia-nao" className="flex-1 cursor-pointer font-medium">
-                        Não
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Documentos */}
-            {currentStep === 3 && (
-              <div className="space-y-6">
-                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-start gap-3 mb-6">
-                  <FileText className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-blue-800">
-                    Anexe os documentos solicitados conforme aplicável ao seu caso. Estes documentos são importantes
-                    para a análise do sinistro.
-                  </p>
-                </div>
-
-                <div className="bg-white border-2 border-gray-200 rounded-xl p-6 space-y-4">
-                  <Label className="text-base font-semibold mb-3 block">Fez Boletim de Ocorrência?</Label>
+                  <Label className="text-base font-semibold mb-3 block">Foi feito Boletim de Ocorrência (B.O.)?</Label>
                   <RadioGroup
                     value={formData.fez_bo ? "sim" : "nao"}
                     onValueChange={(value) => setFormData({ ...formData, fez_bo: value === "sim" })}
                     className="space-y-3"
                   >
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="sim" id="bo-sim" />
                       <Label htmlFor="bo-sim" className="flex-1 cursor-pointer font-medium">
                         Sim
                       </Label>
                     </div>
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="nao" id="bo-nao" />
                       <Label htmlFor="bo-nao" className="flex-1 cursor-pointer font-medium">
                         Não
                       </Label>
                     </div>
                   </RadioGroup>
-
-                  {formData.fez_bo && (
-                    <div className="mt-4">
-                      <Label className="text-sm font-medium">Anexar BO *</Label>
-                      <Input
-                        type="file"
-                        accept="image/*,application/pdf"
-                        onChange={(e) => setBoFile(e.target.files?.[0] || null)}
-                        className="mt-2"
-                      />
-                      {boFile && (
-                        <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
-                          <CheckCircle className="h-4 w-4" />
-                          {boFile.name}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
 
-                <div className="bg-white border-2 border-gray-200 rounded-xl p-6 space-y-4">
-                  <Label className="text-base font-semibold mb-3 block">Foi ao hospital?</Label>
+                {formData.fez_bo && (
+                  <div>
+                    <Label className="text-base font-semibold">Anexar B.O. *</Label>
+                    <Input
+                      type="file"
+                      accept=".pdf, image/*"
+                      onChange={(e) => setBoFile(e.target.files ? e.target.files[0] : null)}
+                      className="mt-2 h-12"
+                    />
+                    {boFile && (
+                      <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                        <CheckCircle className="h-4 w-4" /> Arquivo selecionado: **{boFile.name}**
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <Label className="text-base font-semibold mb-3 block">Houve atendimento hospitalar?</Label>
                   <RadioGroup
                     value={formData.foi_hospital ? "sim" : "nao"}
                     onValueChange={(value) => setFormData({ ...formData, foi_hospital: value === "sim" })}
                     className="space-y-3"
                   >
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="sim" id="hospital-sim" />
                       <Label htmlFor="hospital-sim" className="flex-1 cursor-pointer font-medium">
                         Sim
                       </Label>
                     </div>
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="nao" id="hospital-nao" />
                       <Label htmlFor="hospital-nao" className="flex-1 cursor-pointer font-medium">
                         Não
                       </Label>
                     </div>
                   </RadioGroup>
-
-                  {formData.foi_hospital && (
-                    <div className="mt-4">
-                      <Label className="text-sm font-medium">Anexar Laudo Médico *</Label>
-                      <Input
-                        type="file"
-                        accept="image/*,application/pdf"
-                        onChange={(e) => setLaudoMedico(e.target.files?.[0] || null)}
-                        className="mt-2"
-                      />
-                      {laudoMedico && (
-                        <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
-                          <CheckCircle className="h-4 w-4" />
-                          {laudoMedico.name}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
 
-                <div className="bg-white border-2 border-gray-200 rounded-xl p-6 space-y-4">
-                  <Label className="text-base font-semibold mb-3 block">O motorista faleceu?</Label>
+                {formData.foi_hospital && (
+                  <div>
+                    <Label className="text-base font-semibold">Anexar Laudo Médico / Declaração *</Label>
+                    <Input
+                      type="file"
+                      accept=".pdf, image/*"
+                      onChange={(e) => setLaudoMedico(e.target.files ? e.target.files[0] : null)}
+                      className="mt-2 h-12"
+                    />
+                    {laudoMedico && (
+                      <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                        <CheckCircle className="h-4 w-4" /> Arquivo selecionado: **{laudoMedico.name}**
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <Label className="text-base font-semibold mb-3 block">O motorista/condutor faleceu?</Label>
                   <RadioGroup
                     value={formData.motorista_faleceu ? "sim" : "nao"}
                     onValueChange={(value) => setFormData({ ...formData, motorista_faleceu: value === "sim" })}
                     className="space-y-3"
                   >
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="sim" id="obito-sim" />
                       <Label htmlFor="obito-sim" className="flex-1 cursor-pointer font-medium">
                         Sim
                       </Label>
                     </div>
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
                       <RadioGroupItem value="nao" id="obito-nao" />
                       <Label htmlFor="obito-nao" className="flex-1 cursor-pointer font-medium">
                         Não
                       </Label>
                     </div>
                   </RadioGroup>
-
-                  {formData.motorista_faleceu && (
-                    <div className="mt-4">
-                      <Label className="text-sm font-medium">Anexar Atestado de Óbito *</Label>
-                      <Input
-                        type="file"
-                        accept="image/*,application/pdf"
-                        onChange={(e) => setAtestadoObito(e.target.files?.[0] || null)}
-                        className="mt-2"
-                      />
-                      {atestadoObito && (
-                        <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
-                          <CheckCircle className="h-4 w-4" />
-                          {atestadoObito.name}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
+
+                {formData.motorista_faleceu && (
+                  <div>
+                    <Label className="text-base font-semibold">Anexar Atestado de Óbito *</Label>
+                    <Input
+                      type="file"
+                      accept=".pdf, image/*"
+                      onChange={(e) => setAtestadoObito(e.target.files ? e.target.files[0] : null)}
+                      className="mt-2 h-12"
+                    />
+                    {atestadoObito && (
+                      <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                        <CheckCircle className="h-4 w-4" /> Arquivo selecionado: **{atestadoObito.name}**
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {formData.hora_evento &&
                   (parseInt(formData.hora_evento.split(":")[0]) >= 20 ||
                     parseInt(formData.hora_evento.split(":")[0]) < 6) && (
-                    <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-6">
-                      <div className="flex items-start gap-3 mb-4">
-                        <Clock className="h-5 w-5 text-amber-600 mt-0.5" />
+                    <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm text-yellow-800 space-y-2">
+                        <p className="font-semibold">Atenção! O evento ocorreu entre 20h e 6h.</p>
+                        <p>Se houver, anexe o **Laudo de Alcoolemia** ou documento similar.</p>
                         <div>
-                          <Label className="text-base font-semibold">Laudo de Alcoolemia</Label>
-                          <p className="text-sm text-amber-700 mt-1">
-                            O acidente ocorreu entre 20h e 6h. É recomendado anexar o laudo de alcoolemia.
-                          </p>
+                          <Label className="text-base font-semibold">Anexar Laudo de Alcoolemia</Label>
+                          <Input
+                            type="file"
+                            accept=".pdf, image/*"
+                            onChange={(e) => setLaudoAlcoolemia(e.target.files ? e.target.files[0] : null)}
+                            className="mt-2 h-12"
+                          />
+                          {laudoAlcoolemia && (
+                            <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                              <CheckCircle className="h-4 w-4" /> Arquivo selecionado: **{laudoAlcoolemia.name}**
+                            </p>
+                          )}
                         </div>
                       </div>
-                      <Input
-                        type="file"
-                        accept="image/*,application/pdf"
-                        onChange={(e) => setLaudoAlcoolemia(e.target.files?.[0] || null)}
-                        className="mt-2"
-                      />
-                      {laudoAlcoolemia && (
-                        <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
-                          <CheckCircle className="h-4 w-4" />
-                          {laudoAlcoolemia.name}
-                        </div>
-                      )}
                     </div>
                   )}
               </div>
             )}
-
-            {/* Step 4: Croqui */}
-            {currentStep === 4 && (
+            ---
+            {/* Step 3: Documentos (Fotos) */}
+            {currentStep === 3 && (
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-bold mb-2">Desenhe o Croqui do Acidente</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Faça um desenho simples mostrando a posição dos veículos e direção do impacto (opcional)
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-blue-800">
+                    As fotos do veículo e dos documentos (CNH e CRLV) já foram capturadas na etapa anterior do
+                    aplicativo. Confira abaixo as informações reconhecidas por OCR.
                   </p>
                 </div>
-                <div className="bg-white rounded-xl border-2 border-gray-200 p-4">
-                  <SketchPad onSave={setCroqui} initialSketch={croqui} />
+
+                {/* Seção CNH/Condutor */}
+                <h3 className="text-xl font-bold text-[hsl(var(--vistoria-primary))] mt-6">Dados do Condutor (CNH)</h3>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">Nome na CNH</Label>
+                    <Input readOnly value={tempData?.cnhData?.nome || "Não detectado"} className="mt-1 bg-gray-100" />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">CPF na CNH</Label>
+                    <Input readOnly value={tempData?.cnhData?.cpf || "Não detectado"} className="mt-1 bg-gray-100" />
+                  </div>
+                </div>
+                {tempData?.fotos?.cnh?.[0] && (
+                  <p className="text-sm text-green-600 flex items-center gap-1">
+                    <CheckCircle className="h-4 w-4" /> CNH Capturada
+                  </p>
+                )}
+
+                {/* Seção Veículo (CRLV) */}
+                <h3 className="text-xl font-bold text-[hsl(var(--vistoria-primary))] mt-6">Dados do Veículo (CRLV)</h3>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">Placa no CRLV</Label>
+                    <Input
+                      readOnly
+                      value={tempData?.vehicleData?.placa || "Não detectado"}
+                      className="mt-1 bg-gray-100"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Chassi no CRLV</Label>
+                    <Input
+                      readOnly
+                      value={tempData?.vehicleData?.chassi || "Não detectado"}
+                      className="mt-1 bg-gray-100"
+                    />
+                  </div>
+                </div>
+                {tempData?.fotos?.crlv?.length > 0 && (
+                  <p className="text-sm text-green-600 flex items-center gap-1">
+                    <CheckCircle className="h-4 w-4" /> CRLV Capturado ({tempData.fotos.crlv.length} fotos)
+                  </p>
+                )}
+
+                {/* Seção Fotos do Veículo */}
+                <h3 className="text-xl font-bold text-[hsl(var(--vistoria-primary))] mt-6">
+                  Fotos do Veículo para Análise
+                </h3>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {Object.entries(tempData?.fotos || {}).map(([key, files]) => {
+                    if (key === "cnh" || key === "crlv") return null;
+                    const fileArray = files as File[];
+                    if (fileArray.length > 0) {
+                      return (
+                        <div key={key} className="border p-3 rounded-lg bg-white">
+                          <p className="text-sm font-medium capitalize flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            **{key.replace("_", " ")}**: {fileArray.length} foto(s)
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })}
                 </div>
               </div>
             )}
+            ---
+            {/* Step 4: Croqui */}
+            {currentStep === 4 && (
+              <div className="space-y-6">
+                <h3 className="text-xl font-bold text-[hsl(var(--vistoria-primary))]">Desenho do Acidente (Croqui)</h3>
+                <p className="text-sm text-muted-foreground">
+                  Desenhe um croqui simples do local do acidente, indicando a posição dos veículos e a direção do
+                  impacto.
+                </p>
 
-            {/* Navigation Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-6 border-t-2">
+                <div className="border border-gray-300 rounded-lg p-2 bg-white shadow-inner">
+                  <SketchPad width={700} height={400} onEnd={(data) => setCroqui(data)} />
+                </div>
+
+                {croqui && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium mb-2">Prévia do Croqui:</p>
+                    <img src={croqui} alt="Croqui do Acidente" className="max-w-full h-auto border rounded-lg" />
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Navigation and Submit */}
+            <div className="flex justify-between pt-6 border-t mt-8">
               <Button
                 variant="outline"
-                onClick={() => {
-                  if (currentStep === 0) {
-                    navigate(`/vistoria/${token}/captura`);
-                  } else {
-                    setCurrentStep(Math.max(0, currentStep - 1));
-                  }
-                }}
-                disabled={uploading}
-                size="lg"
-                className="w-full sm:flex-1 h-14 text-base sm:text-lg border-2"
+                onClick={() => setCurrentStep((prev) => Math.max(0, prev - 1))}
+                disabled={currentStep === 0 || uploading}
+                className="flex items-center gap-2 h-12"
               >
-                <ArrowLeft className="h-5 w-5 mr-2" />
-                Voltar
+                <ArrowLeft className="h-5 w-5" />
+                Anterior
               </Button>
 
               {currentStep < STEPS.length - 1 ? (
                 <Button
-                  onClick={() => {
-                    if (currentStep === 0 && (!formData.cliente_nome?.trim() || !formData.cliente_cpf?.trim())) {
-                      toast.error("Por favor, preencha seu nome e CPF para continuar");
-                      return;
-                    }
-                    if (currentStep === 1 && (!formData.data_evento || !formData.hora_evento)) {
-                      toast.error("Por favor, preencha a data e hora do evento para continuar");
-                      return;
-                    }
-                    setCurrentStep(currentStep + 1);
-                  }}
+                  onClick={() => setCurrentStep((prev) => Math.min(STEPS.length - 1, prev + 1))}
                   disabled={uploading}
-                  size="lg"
-                  className="w-full sm:flex-1 h-14 text-base sm:text-lg bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-lg"
+                  className="flex items-center gap-2 bg-[hsl(var(--vistoria-primary))] hover:bg-[hsl(var(--vistoria-primary))/90] text-white h-12"
                 >
-                  Próximo
-                  <ArrowRight className="h-5 w-5 ml-2" />
+                  Próxima Etapa
+                  <ArrowRight className="h-5 w-5" />
                 </Button>
               ) : (
                 <Button
                   onClick={handleSubmit}
                   disabled={uploading}
-                  size="lg"
-                  className="w-full sm:flex-1 h-14 text-base sm:text-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold shadow-lg"
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white h-12"
                 >
+                  {uploading ? "Enviando..." : "Finalizar Vistoria e Enviar"}
                   {uploading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/20 border-t-white mr-2" />
-                      Enviando...
-                    </>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                   ) : (
-                    <>
-                      Continuar para Termos
-                      <ArrowRight className="h-5 w-5 ml-2" />
-                    </>
+                    <CheckCircle className="h-5 w-5" />
                   )}
                 </Button>
               )}
             </div>
           </CardContent>
         </Card>
-
-        <div className="text-center">
-          <p className="text-sm text-gray-500">Todas as informações são confidenciais e protegidas</p>
-        </div>
       </div>
     </div>
   );
