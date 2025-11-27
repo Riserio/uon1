@@ -1,20 +1,20 @@
-import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { toast } from 'sonner';
-import { 
-  Calendar as CalendarIcon, 
-  Bell, 
-  X, 
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
+import {
+  Calendar as CalendarIcon,
+  Bell,
+  X,
   Plus,
   Clock,
   MapPin,
@@ -22,15 +22,14 @@ import {
   Trash2,
   CheckCircle2,
   CalendarDays,
-  RefreshCw
-} from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import { AlertasDialog } from '@/components/AlertasDialog';
-import { toUTC, toDateTimeLocal, fromDateTimeLocal } from '@/utils/dateUtils';
+  RefreshCw,
+} from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import timeGridPlugin from "@fullcalendar/timegrid";
+import interactionPlugin from "@fullcalendar/interaction";
+import { toUTC, toDateTimeLocal } from "@/utils/dateUtils";
 
 interface Evento {
   id: string;
@@ -54,19 +53,19 @@ interface Lembrete {
 }
 
 const tiposEvento = [
-  { value: 'reuniao', label: 'Reunião', icon: '👥' },
-  { value: 'tarefa', label: 'Tarefa', icon: '✓' },
-  { value: 'compromisso', label: 'Compromisso', icon: '📅' },
-  { value: 'lembrete', label: 'Lembrete', icon: '🔔' },
+  { value: "reuniao", label: "Reunião", icon: "👥" },
+  { value: "tarefa", label: "Tarefa", icon: "✓" },
+  { value: "compromisso", label: "Compromisso", icon: "📅" },
+  { value: "lembrete", label: "Lembrete", icon: "🔔" },
 ];
 
 const coresEvento = [
-  { value: '#3b82f6', label: 'Azul' },
-  { value: '#10b981', label: 'Verde' },
-  { value: '#f59e0b', label: 'Laranja' },
-  { value: '#ef4444', label: 'Vermelho' },
-  { value: '#8b5cf6', label: 'Roxo' },
-  { value: '#ec4899', label: 'Rosa' },
+  { value: "#3b82f6", label: "Azul" },
+  { value: "#10b981", label: "Verde" },
+  { value: "#f59e0b", label: "Laranja" },
+  { value: "#ef4444", label: "Vermelho" },
+  { value: "#8b5cf6", label: "Roxo" },
+  { value: "#ec4899", label: "Rosa" },
 ];
 
 export default function Agenda() {
@@ -78,9 +77,9 @@ export default function Agenda() {
   const [googleConnected, setGoogleConnected] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [formData, setFormData] = useState<Partial<Evento>>({
-    tipo: 'reuniao',
-    cor: '#3b82f6',
-    lembrete_minutos: [15, 30]
+    tipo: "reuniao",
+    cor: "#3b82f6",
+    lembrete_minutos: [15, 30],
   });
   const [lembreteFrequencia, setLembreteFrequencia] = useState(60000);
   const calendarRef = useRef<FullCalendar>(null);
@@ -90,7 +89,7 @@ export default function Agenda() {
       fetchEventos();
       fetchLembretes();
       checkGoogleConnection();
-      
+
       const interval = setInterval(() => {
         verificarLembretes();
       }, lembreteFrequencia);
@@ -100,21 +99,23 @@ export default function Agenda() {
   }, [user, lembreteFrequencia]);
 
   const checkGoogleConnection = async () => {
+    if (!user?.id) return;
+
     const { data, error } = await supabase
-      .from('google_calendar_integrations')
-      .select('id')
-      .eq('user_id', user?.id)
+      .from("google_calendar_integrations")
+      .select("id")
+      .eq("user_id", user.id)
       .single();
-    
+
     setGoogleConnected(!error && !!data);
   };
 
   const connectGoogleCalendar = async () => {
     try {
       const { data: session } = await supabase.auth.getSession();
-      
-      if (!session.session) {
-        toast.error('Você precisa estar autenticado');
+
+      if (!session?.session) {
+        toast.error("Você precisa estar autenticado");
         return;
       }
 
@@ -122,21 +123,21 @@ export default function Agenda() {
       const height = 700;
       const left = window.screen.width / 2 - width / 2;
       const top = window.screen.height / 2 - height / 2;
-      
+
       const popup = window.open(
-        'about:blank',
-        'google_oauth',
-        `width=${width},height=${height},left=${left},top=${top}`
+        "about:blank",
+        "google_oauth",
+        `width=${width},height=${height},left=${left},top=${top}`,
       );
 
-      const { data, error } = await supabase.functions.invoke('google-calendar-auth', {
-        body: { action: 'authorize' }
+      const { data, error } = await supabase.functions.invoke("google-calendar-auth", {
+        body: { action: "authorize" },
       });
 
       if (error) {
         if (popup) popup.close();
-        console.error('Erro ao autorizar:', error);
-        toast.error('Erro ao conectar com Google Calendar');
+        console.error("Erro ao autorizar:", error);
+        toast.error("Erro ao conectar com Google Calendar");
         return;
       }
 
@@ -144,59 +145,75 @@ export default function Agenda() {
         if (popup && !popup.closed) {
           popup.location.href = data.authUrl;
         }
-        
+
         const checkPopup = setInterval(() => {
           if (popup?.closed) {
             clearInterval(checkPopup);
             checkGoogleConnection();
-            toast.success('Google Calendar conectado!');
+            toast.success("Google Calendar conectado!");
           }
         }, 1000);
       }
     } catch (error) {
-      console.error('Erro ao conectar Google Calendar:', error);
-      toast.error('Erro ao conectar com Google Calendar');
+      console.error("Erro ao conectar Google Calendar:", error);
+      toast.error("Erro ao conectar com Google Calendar");
     }
   };
 
   const syncWithGoogle = async () => {
+    if (!googleConnected) {
+      toast.error("Conecte o Google Calendar antes de sincronizar.");
+      return;
+    }
+
     setSyncing(true);
     try {
-      const { data: session } = await supabase.auth.getSession();
-      
-      if (!session.session) {
-        toast.error('Você precisa estar autenticado');
+      const { data: sessionResult, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !sessionResult?.session) {
+        toast.error("Você precisa estar autenticado");
         return;
       }
 
-      const { error } = await supabase.functions.invoke('google-calendar-sync', {
-        headers: {
-          Authorization: `Bearer ${session.session.access_token}`
-        }
+      // Invoca a Edge Function de sync
+      const { data, error } = await supabase.functions.invoke("google-calendar-sync", {
+        body: { action: "sync" },
+        // Não precisa setar Authorization manualmente:
+        // o supabase client já envia o JWT do usuário logado.
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erro ao chamar google-calendar-sync:", error);
+        throw error;
+      }
 
-      toast.success('Sincronização concluída!');
-      fetchEventos();
+      if (data && (data as any).error) {
+        console.error("Erro retornado pela função google-calendar-sync:", (data as any).error);
+        throw new Error((data as any).error);
+      }
+
+      toast.success("Sincronização concluída!");
+      await fetchEventos();
     } catch (error) {
-      console.error('Erro ao sincronizar:', error);
-      toast.error('Erro ao sincronizar com Google Calendar');
+      console.error("Erro ao sincronizar com Google Calendar:", error);
+      toast.error("Erro ao sincronizar com Google Calendar");
     } finally {
       setSyncing(false);
     }
   };
 
   const fetchEventos = async () => {
+    if (!user?.id) return;
+
     const { data, error } = await supabase
-      .from('eventos')
-      .select('*')
-      .eq('user_id', user?.id)
-      .order('data_inicio', { ascending: true });
+      .from("eventos")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("data_inicio", { ascending: true });
 
     if (error) {
-      console.error('Erro ao carregar eventos:', error);
-      toast.error('Erro ao carregar eventos');
+      console.error("Erro ao carregar eventos:", error);
+      toast.error("Erro ao carregar eventos");
       return;
     }
 
@@ -204,18 +221,22 @@ export default function Agenda() {
   };
 
   const fetchLembretes = async () => {
+    if (!user?.id) return;
+
     const { data, error } = await supabase
-      .from('lembretes_disparados')
-      .select(`
+      .from("lembretes_disparados")
+      .select(
+        `
         *,
         evento:eventos(*)
-      `)
-      .eq('user_id', user?.id)
-      .eq('visualizado', false)
-      .order('disparado_em', { ascending: false });
+      `,
+      )
+      .eq("user_id", user.id)
+      .eq("visualizado", false)
+      .order("disparado_em", { ascending: false });
 
     if (error) {
-      console.error('Erro ao carregar lembretes:', error);
+      console.error("Erro ao carregar lembretes:", error);
       return;
     }
 
@@ -223,39 +244,35 @@ export default function Agenda() {
   };
 
   const verificarLembretes = async () => {
+    if (!user?.id) return;
+
     const agora = new Date();
-    
+
     for (const evento of eventos) {
       if (!evento.lembrete_minutos || evento.lembrete_minutos.length === 0) continue;
-      
+
       const dataEvento = new Date(evento.data_inicio);
       const diffMinutos = Math.floor((dataEvento.getTime() - agora.getTime()) / 60000);
-      
-      // Verifica cada tempo de lembrete configurado
+
       for (const minutos of evento.lembrete_minutos) {
-        // Se estamos no momento exato do lembrete (com margem de 1 minuto)
         if (Math.abs(diffMinutos - minutos) <= 1) {
-          // Verifica se já existe um lembrete disparado para este evento e tempo
           const { data: existente } = await supabase
-            .from('lembretes_disparados')
-            .select('id')
-            .eq('evento_id', evento.id)
-            .eq('user_id', user?.id)
-            .gte('disparado_em', new Date(agora.getTime() - 5 * 60000).toISOString());
-          
+            .from("lembretes_disparados")
+            .select("id")
+            .eq("evento_id", evento.id)
+            .eq("user_id", user.id)
+            .gte("disparado_em", new Date(agora.getTime() - 5 * 60000).toISOString());
+
           if (!existente || existente.length === 0) {
-            const { error } = await supabase
-              .from('lembretes_disparados')
-              .insert({
-                evento_id: evento.id,
-                user_id: user?.id,
-                disparado_em: new Date().toISOString()
-              });
+            const { error } = await supabase.from("lembretes_disparados").insert({
+              evento_id: evento.id,
+              user_id: user.id,
+              disparado_em: new Date().toISOString(),
+            });
 
             if (!error) {
-              // Envia notificação push
               toast(`🔔 Lembrete: ${evento.titulo}`, {
-                description: `Evento em ${minutos} minutos às ${new Date(evento.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                description: `Evento em ${minutos} minutos às ${new Date(evento.data_inicio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
               });
             }
           }
@@ -267,10 +284,7 @@ export default function Agenda() {
   };
 
   const marcarLembreteVisualizado = async (lembreteId: string) => {
-    const { error } = await supabase
-      .from('lembretes_disparados')
-      .update({ visualizado: true })
-      .eq('id', lembreteId);
+    const { error } = await supabase.from("lembretes_disparados").update({ visualizado: true }).eq("id", lembreteId);
 
     if (!error) {
       fetchLembretes();
@@ -281,7 +295,7 @@ export default function Agenda() {
     e.preventDefault();
 
     if (!formData.titulo || !formData.data_inicio || !formData.data_fim) {
-      toast.error('Preencha todos os campos obrigatórios');
+      toast.error("Preencha todos os campos obrigatórios");
       return;
     }
 
@@ -290,42 +304,37 @@ export default function Agenda() {
         titulo: formData.titulo,
         descricao: formData.descricao,
         local: formData.local,
-        tipo: formData.tipo || 'reuniao',
-        cor: formData.cor || '#3b82f6',
+        tipo: formData.tipo || "reuniao",
+        cor: formData.cor || "#3b82f6",
         lembrete_minutos: formData.lembrete_minutos || [],
         data_inicio: toUTC(formData.data_inicio),
         data_fim: toUTC(formData.data_fim),
-        user_id: user?.id!
+        user_id: user?.id!,
       };
 
       if (editingEvento) {
-        const { error } = await supabase
-          .from('eventos')
-          .update(eventoData)
-          .eq('id', editingEvento.id);
+        const { error } = await supabase.from("eventos").update(eventoData).eq("id", editingEvento.id);
 
         if (error) throw error;
-        toast.success('Evento atualizado!');
+        toast.success("Evento atualizado!");
       } else {
-        const { error } = await supabase
-          .from('eventos')
-          .insert([eventoData]);
+        const { error } = await supabase.from("eventos").insert([eventoData]);
 
         if (error) throw error;
-        toast.success('Evento criado!');
+        toast.success("Evento criado!");
       }
 
       setDialogOpen(false);
       setEditingEvento(null);
       setFormData({
-        tipo: 'reuniao',
-        cor: '#3b82f6',
-        lembrete_minutos: [15, 30]
+        tipo: "reuniao",
+        cor: "#3b82f6",
+        lembrete_minutos: [15, 30],
       });
       fetchEventos();
     } catch (error) {
-      console.error('Erro ao salvar evento:', error);
-      toast.error('Erro ao salvar evento');
+      console.error("Erro ao salvar evento:", error);
+      toast.error("Erro ao salvar evento");
     }
   };
 
@@ -333,24 +342,21 @@ export default function Agenda() {
     if (!editingEvento) return;
 
     try {
-      const { error } = await supabase
-        .from('eventos')
-        .delete()
-        .eq('id', editingEvento.id);
+      const { error } = await supabase.from("eventos").delete().eq("id", editingEvento.id);
 
       if (error) throw error;
 
-      toast.success('Evento excluído!');
+      toast.success("Evento excluído!");
       setDialogOpen(false);
       setEditingEvento(null);
       fetchEventos();
     } catch (error) {
-      console.error('Erro ao excluir evento:', error);
-      toast.error('Erro ao excluir evento');
+      console.error("Erro ao excluir evento:", error);
+      toast.error("Erro ao excluir evento");
     }
   };
 
-  const calendarEvents = eventos.map(evento => ({
+  const calendarEvents = eventos.map((evento) => ({
     id: evento.id,
     title: evento.titulo,
     start: evento.data_inicio,
@@ -360,22 +366,21 @@ export default function Agenda() {
     extendedProps: {
       descricao: evento.descricao,
       local: evento.local,
-      tipo: evento.tipo
-    }
+      tipo: evento.tipo,
+    },
   }));
 
   const hoje = new Date();
-  const eventosHoje = eventos.filter(e => {
+  const eventosHoje = eventos.filter((e) => {
     const dataEvento = new Date(e.data_inicio);
     return dataEvento.toDateString() === hoje.toDateString();
   }).length;
 
-  const eventosProximos = eventos.filter(e => {
+  const eventosProximos = eventos.filter((e) => {
     const dataEvento = new Date(e.data_inicio);
     return dataEvento > hoje && dataEvento < new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
   }).length;
 
-  // Calcula total de lembretes ativos (futuros)
   const lembretesAtivos = eventos.reduce((total, evento) => {
     if (!evento.lembrete_minutos || evento.lembrete_minutos.length === 0) return total;
     const dataEvento = new Date(evento.data_inicio);
@@ -398,15 +403,15 @@ export default function Agenda() {
             </h1>
             <p className="text-muted-foreground mt-1">Gerencie seus eventos e compromissos</p>
           </div>
-          
+
           <div className="flex items-center gap-2 flex-wrap">
             <Button
               onClick={() => {
                 setEditingEvento(null);
                 setFormData({
-                  tipo: 'reuniao',
-                  cor: '#3b82f6',
-                  lembrete_minutos: [15, 30]
+                  tipo: "reuniao",
+                  cor: "#3b82f6",
+                  lembrete_minutos: [15, 30],
                 });
                 setDialogOpen(true);
               }}
@@ -418,26 +423,16 @@ export default function Agenda() {
             </Button>
 
             {googleConnected ? (
-              <Button
-                variant="outline"
-                onClick={syncWithGoogle}
-                disabled={syncing}
-                className="gap-2"
-              >
-                <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-                Sincronizar
+              <Button variant="outline" onClick={syncWithGoogle} disabled={syncing} className="gap-2">
+                <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+                {syncing ? "Sincronizando..." : "Sincronizar"}
               </Button>
             ) : (
-              <Button
-                variant="outline"
-                onClick={connectGoogleCalendar}
-                className="gap-2"
-              >
+              <Button variant="outline" onClick={connectGoogleCalendar} className="gap-2">
                 <CalendarIcon className="h-4 w-4" />
                 Conectar Google
               </Button>
             )}
-
           </div>
         </div>
 
@@ -500,7 +495,7 @@ export default function Agenda() {
                     <div>
                       <p className="font-medium text-sm">{lembrete.evento.titulo}</p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(lembrete.evento.data_inicio).toLocaleString('pt-BR')}
+                        {new Date(lembrete.evento.data_inicio).toLocaleString("pt-BR")}
                       </p>
                     </div>
                   </div>
@@ -526,15 +521,15 @@ export default function Agenda() {
               initialView="dayGridMonth"
               locale="pt-br"
               headerToolbar={{
-                left: 'prev,next today',
-                center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                left: "prev,next today",
+                center: "title",
+                right: "dayGridMonth,timeGridWeek,timeGridDay",
               }}
               buttonText={{
-                today: 'Hoje',
-                month: 'Mês',
-                week: 'Semana',
-                day: 'Dia'
+                today: "Hoje",
+                month: "Mês",
+                week: "Semana",
+                day: "Dia",
               }}
               events={calendarEvents}
               editable={true}
@@ -543,7 +538,7 @@ export default function Agenda() {
               dayMaxEvents={true}
               weekends={true}
               eventClick={(info) => {
-                const evento = eventos.find(e => e.id === info.event.id);
+                const evento = eventos.find((e) => e.id === info.event.id);
                 if (evento) {
                   setEditingEvento(evento);
                   setFormData(evento);
@@ -553,11 +548,11 @@ export default function Agenda() {
               select={(info) => {
                 setEditingEvento(null);
                 setFormData({
-                  tipo: 'reuniao',
-                  cor: '#3b82f6',
+                  tipo: "reuniao",
+                  cor: "#3b82f6",
                   lembrete_minutos: [15, 30],
                   data_inicio: info.startStr,
-                  data_fim: info.endStr
+                  data_fim: info.endStr,
                 });
                 setDialogOpen(true);
               }}
@@ -575,9 +570,7 @@ export default function Agenda() {
                   <div className="p-2 rounded-lg bg-primary/10">
                     <CalendarIcon className="h-5 w-5 text-primary" />
                   </div>
-                  <DialogTitle className="text-xl">
-                    {editingEvento ? 'Editar Evento' : 'Novo Evento'}
-                  </DialogTitle>
+                  <DialogTitle className="text-xl">{editingEvento ? "Editar Evento" : "Novo Evento"}</DialogTitle>
                 </div>
                 {editingEvento && (
                   <Button
@@ -601,7 +594,7 @@ export default function Agenda() {
                   </Label>
                   <Input
                     id="titulo"
-                    value={formData.titulo || ''}
+                    value={formData.titulo || ""}
                     onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
                     placeholder="Ex: Reunião com cliente"
                     required
@@ -613,7 +606,7 @@ export default function Agenda() {
                   <Label htmlFor="descricao">Descrição</Label>
                   <Textarea
                     id="descricao"
-                    value={formData.descricao || ''}
+                    value={formData.descricao || ""}
                     onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
                     rows={3}
                     placeholder="Adicione detalhes sobre o evento..."
@@ -623,10 +616,7 @@ export default function Agenda() {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="tipo">Tipo</Label>
-                    <Select
-                      value={formData.tipo}
-                      onValueChange={(value) => setFormData({ ...formData, tipo: value })}
-                    >
+                    <Select value={formData.tipo} onValueChange={(value) => setFormData({ ...formData, tipo: value })}>
                       <SelectTrigger className="h-11">
                         <SelectValue />
                       </SelectTrigger>
@@ -648,10 +638,7 @@ export default function Agenda() {
                       <Palette className="h-4 w-4" />
                       Cor
                     </Label>
-                    <Select
-                      value={formData.cor}
-                      onValueChange={(value) => setFormData({ ...formData, cor: value })}
-                    >
+                    <Select value={formData.cor} onValueChange={(value) => setFormData({ ...formData, cor: value })}>
                       <SelectTrigger className="h-11">
                         <SelectValue />
                       </SelectTrigger>
@@ -659,10 +646,7 @@ export default function Agenda() {
                         {coresEvento.map((cor) => (
                           <SelectItem key={cor.value} value={cor.value}>
                             <div className="flex items-center gap-2">
-                              <div
-                                className="w-4 h-4 rounded-full border"
-                                style={{ backgroundColor: cor.value }}
-                              />
+                              <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: cor.value }} />
                               {cor.label}
                             </div>
                           </SelectItem>
@@ -683,11 +667,13 @@ export default function Agenda() {
                     <Input
                       id="data_inicio"
                       type="datetime-local"
-                      value={toDateTimeLocal(formData.data_inicio || '')}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
-                        data_inicio: e.target.value
-                      })}
+                      value={toDateTimeLocal(formData.data_inicio || "")}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          data_inicio: e.target.value,
+                        })
+                      }
                       required
                       className="h-11"
                     />
@@ -701,11 +687,13 @@ export default function Agenda() {
                     <Input
                       id="data_fim"
                       type="datetime-local"
-                      value={toDateTimeLocal(formData.data_fim || '')}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
-                        data_fim: e.target.value
-                      })}
+                      value={toDateTimeLocal(formData.data_fim || "")}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          data_fim: e.target.value,
+                        })
+                      }
                       required
                       className="h-11"
                     />
@@ -719,7 +707,7 @@ export default function Agenda() {
                   </Label>
                   <Input
                     id="local"
-                    value={formData.local || ''}
+                    value={formData.local || ""}
                     onChange={(e) => setFormData({ ...formData, local: e.target.value })}
                     placeholder="Ex: Sala de reuniões, endereço..."
                     className="h-11"
@@ -742,12 +730,12 @@ export default function Agenda() {
                           if (lembretes.includes(minutos)) {
                             setFormData({
                               ...formData,
-                              lembrete_minutos: lembretes.filter(m => m !== minutos)
+                              lembrete_minutos: lembretes.filter((m) => m !== minutos),
                             });
                           } else {
                             setFormData({
                               ...formData,
-                              lembrete_minutos: [...lembretes, minutos]
+                              lembrete_minutos: [...lembretes, minutos],
                             });
                           }
                         }}
@@ -760,21 +748,16 @@ export default function Agenda() {
               </div>
 
               <div className="flex gap-2 justify-end pt-4 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setDialogOpen(false)}
-                >
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancelar
                 </Button>
                 <Button type="submit" size="lg">
-                  {editingEvento ? 'Salvar Alterações' : 'Criar Evento'}
+                  {editingEvento ? "Salvar Alterações" : "Criar Evento"}
                 </Button>
               </div>
             </form>
           </ResponsiveDialogContent>
         </ResponsiveDialog>
-
       </div>
     </div>
   );
