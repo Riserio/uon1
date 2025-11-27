@@ -19,7 +19,6 @@ import GerenciarParceirosDialog from '@/components/GerenciarParceirosDialog';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
 import { useCepLookup } from '@/hooks/useCepLookup';
-import { useTranslations } from '@/contexts/TranslationsContext';
 
 interface Corretora {
   id: string;
@@ -38,7 +37,6 @@ interface Corretora {
 }
 
 export default function Corretoras() {
-  const { t } = useTranslations();
   const [corretoras, setCorretoras] = useState<Corretora[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Corretora | null>(null);
@@ -245,15 +243,15 @@ export default function Corretoras() {
           <Building2 className="h-6 w-6 text-primary" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold">{t("titulo_corretoras")}</h1>
-          <p className="text-sm text-muted-foreground">{t("desc_corretoras")}</p>
+          <h1 className="text-3xl font-bold">Corretoras</h1>
+          <p className="text-sm text-muted-foreground">Gerencie suas corretoras e informações</p>
         </div>
       </div>
 
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-            <CardTitle>{t("lista_corretoras")}</CardTitle>
+            <CardTitle>Lista de Corretoras</CardTitle>
               <div className="flex gap-2">
                 <Link to="/administradora">
                   <Button
@@ -261,7 +259,7 @@ export default function Corretoras() {
                     className="border-primary/50 hover:bg-primary/10"
                   >
                     <Building2 className="h-4 w-4 mr-2" />
-                    {t("administradora")}
+                    Administradora
                   </Button>
                 </Link>
                 <UploadCorretorasDialog onSuccess={fetchCorretoras} />
@@ -284,7 +282,7 @@ export default function Corretoras() {
                   className="bg-primary hover:bg-primary/90"
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  {t("nova_corretora")}
+                  Nova Corretora
                 </Button>
             </div>
           </div>
@@ -307,7 +305,7 @@ export default function Corretoras() {
             {/* Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div className="bg-gradient-to-br from-primary/10 to-primary/5 p-4 rounded-lg border border-border/50">
-                <div className="text-sm text-muted-foreground">{t("total_corretoras")}</div>
+                <div className="text-sm text-muted-foreground">Total de Corretoras</div>
                 <div className="text-2xl font-bold text-primary">{corretoras.length}</div>
               </div>
               <div className="bg-gradient-to-br from-secondary/10 to-secondary/5 p-4 rounded-lg border border-border/50">
@@ -324,7 +322,7 @@ export default function Corretoras() {
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
-                    {editingItem ? t("editar_corretora") : t("nova_corretora")}
+                    {editingItem ? 'Editar Corretora' : 'Nova Corretora'}
                   </DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -445,7 +443,7 @@ export default function Corretoras() {
 
                   {/* Upload de Logo */}
                   <div className="grid gap-2">
-                    <Label>Logo da {t("corretora")}</Label>
+                    <Label>Logo da Corretora</Label>
                     <div className="flex items-center gap-4">
                       {formData.logo_url && (
                         <img 

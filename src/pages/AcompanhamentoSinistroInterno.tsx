@@ -12,9 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CurrencyInput } from "@/components/ui/currency-input";
 import { useAuth } from "@/hooks/useAuth";
-import { formatCurrency } from "@/lib/formatters";
 import {
   Users,
   PieChart,
@@ -298,6 +296,14 @@ export default function AcompanhamentoSinistroInterno() {
     }
   };
 
+  const formatCurrency = (value: number | null | undefined) => {
+    if (!value) return "";
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -356,42 +362,42 @@ export default function AcompanhamentoSinistroInterno() {
       {/* Content */}
       <div className="container mx-auto px-4 py-6">
         <Tabs defaultValue="comite" className="w-full">
-          <TabsList className="flex flex-wrap gap-1 h-auto p-1 mb-6">
-            <TabsTrigger value="comite" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9 mb-6">
+            <TabsTrigger value="comite" className="text-xs">
               <Users className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">Comitê</span>
+              Comitê
             </TabsTrigger>
-            <TabsTrigger value="cota" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger value="cota" className="text-xs">
               <PieChart className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">Cota</span>
+              Cota
             </TabsTrigger>
-            <TabsTrigger value="custos" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger value="custos" className="text-xs">
               <DollarSign className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">Custos</span>
+              Custos
             </TabsTrigger>
-            <TabsTrigger value="pecas" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger value="pecas" className="text-xs">
               <Package className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">Peças</span>
+              Peças
             </TabsTrigger>
-            <TabsTrigger value="reparo" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger value="reparo" className="text-xs">
               <Wrench className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">Reparo</span>
+              Reparo
             </TabsTrigger>
-            <TabsTrigger value="oficina" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger value="oficina" className="text-xs">
               <Building2 className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">Oficina</span>
+              Oficina
             </TabsTrigger>
-            <TabsTrigger value="financeiro" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger value="financeiro" className="text-xs">
               <CreditCard className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">Financeiro</span>
+              Financeiro
             </TabsTrigger>
-            <TabsTrigger value="status" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger value="status" className="text-xs">
               <CheckCircle2 className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">Status</span>
+              Status
             </TabsTrigger>
-            <TabsTrigger value="integracao" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger value="integracao" className="text-xs">
               <RefreshCw className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">Integração</span>
+              Integração
             </TabsTrigger>
           </TabsList>
 
@@ -460,11 +466,13 @@ export default function AcompanhamentoSinistroInterno() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Valor da Cota</Label>
-                    <CurrencyInput
-                      value={data.cota_participacao?.toString() || ""}
-                      onValueChange={(values) => setData({ ...data, cota_participacao: values.floatValue || 0 })}
-                      placeholder="R$ 0,00"
+                    <Label>Valor da Cota (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={data.cota_participacao || ""}
+                      onChange={(e) => setData({ ...data, cota_participacao: parseFloat(e.target.value) || 0 })}
+                      placeholder="0,00"
                     />
                   </div>
                   <div className="space-y-2">
@@ -491,35 +499,39 @@ export default function AcompanhamentoSinistroInterno() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Custo de Peças</Label>
-                    <CurrencyInput
-                      value={data.custo_pecas?.toString() || ""}
-                      onValueChange={(values) => setData({ ...data, custo_pecas: values.floatValue || 0 })}
-                      placeholder="R$ 0,00"
+                    <Label>Custo de Peças (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={data.custo_pecas || ""}
+                      onChange={(e) => setData({ ...data, custo_pecas: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Custo de Mão de Obra</Label>
-                    <CurrencyInput
-                      value={data.custo_mao_obra?.toString() || ""}
-                      onValueChange={(values) => setData({ ...data, custo_mao_obra: values.floatValue || 0 })}
-                      placeholder="R$ 0,00"
+                    <Label>Custo de Mão de Obra (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={data.custo_mao_obra || ""}
+                      onChange={(e) => setData({ ...data, custo_mao_obra: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Custo de Serviços</Label>
-                    <CurrencyInput
-                      value={data.custo_servicos?.toString() || ""}
-                      onValueChange={(values) => setData({ ...data, custo_servicos: values.floatValue || 0 })}
-                      placeholder="R$ 0,00"
+                    <Label>Custo de Serviços (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={data.custo_servicos || ""}
+                      onChange={(e) => setData({ ...data, custo_servicos: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Outros Custos</Label>
-                    <CurrencyInput
-                      value={data.custo_outros?.toString() || ""}
-                      onValueChange={(values) => setData({ ...data, custo_outros: values.floatValue || 0 })}
-                      placeholder="R$ 0,00"
+                    <Label>Outros Custos (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={data.custo_outros || ""}
+                      onChange={(e) => setData({ ...data, custo_outros: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                 </div>
@@ -554,11 +566,12 @@ export default function AcompanhamentoSinistroInterno() {
                   <Label>Peças Aprovadas</Label>
                 </div>
                 <div className="space-y-2">
-                  <Label>Valor Total das Peças</Label>
-                  <CurrencyInput
-                    value={data.pecas_valor_total?.toString() || ""}
-                    onValueChange={(values) => setData({ ...data, pecas_valor_total: values.floatValue || 0 })}
-                    placeholder="R$ 0,00"
+                  <Label>Valor Total das Peças (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={data.pecas_valor_total || ""}
+                    onChange={(e) => setData({ ...data, pecas_valor_total: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -725,19 +738,21 @@ export default function AcompanhamentoSinistroInterno() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Valor Aprovado</Label>
-                    <CurrencyInput
-                      value={data.financeiro_valor_aprovado?.toString() || ""}
-                      onValueChange={(values) => setData({ ...data, financeiro_valor_aprovado: values.floatValue || 0 })}
-                      placeholder="R$ 0,00"
+                    <Label>Valor Aprovado (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={data.financeiro_valor_aprovado || ""}
+                      onChange={(e) => setData({ ...data, financeiro_valor_aprovado: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Valor Pago</Label>
-                    <CurrencyInput
-                      value={data.financeiro_valor_pago?.toString() || ""}
-                      onValueChange={(values) => setData({ ...data, financeiro_valor_pago: values.floatValue || 0 })}
-                      placeholder="R$ 0,00"
+                    <Label>Valor Pago (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={data.financeiro_valor_pago || ""}
+                      onChange={(e) => setData({ ...data, financeiro_valor_pago: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                   <div className="space-y-2">
