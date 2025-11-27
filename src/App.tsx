@@ -38,6 +38,7 @@ import VistoriaPublicaFormulario from './pages/VistoriaPublicaFormulario';
 import VistoriaPublicaTermos from './pages/VistoriaPublicaTermos';
 import VistoriaPublicaConclusao from './pages/VistoriaPublicaConclusao';
 import AcompanhamentoSinistro from './pages/AcompanhamentoSinistro';
+import AcompanhamentoSinistroInterno from './pages/AcompanhamentoSinistroInterno';
 import ConfiguracaoStatusPublico from './pages/ConfiguracaoStatusPublico';
 import Administradora from "./pages/Administradora";
 import { PortalAuthProvider } from '@/contexts/PortalAuthContext';
@@ -141,6 +142,7 @@ const App = () => (
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/atendimentos" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/sinistros" element={<ProtectedRoute><Sinistros /></ProtectedRoute>} />
+              <Route path="/sinistros/:id/acompanhamento" element={<ProtectedRoute><AcompanhamentoSinistroInterno /></ProtectedRoute>} />
               <Route path="/vistorias/nova/digital" element={<ProtectedRoute><VistoriaDigital /></ProtectedRoute>} />
               <Route path="/vistorias/nova/manual" element={<ProtectedRoute><VistoriaManual /></ProtectedRoute>} />
               <Route path="/vistorias/:id" element={<ProtectedRoute><VistoriaDetalhe /></ProtectedRoute>} />

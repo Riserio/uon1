@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.enviar-cilia]
 verify_jwt = true
+
+[functions.enviar-sga-hinova]
+verify_jwt = true

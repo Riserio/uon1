@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Trash2, Edit2, CheckCircle, XCircle, Server, Eye, EyeOff } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Trash2, Edit2, CheckCircle, XCircle, Server, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface ApiIntegration {
@@ -30,6 +31,21 @@ interface Corretora {
   nome: string;
 }
 
+const API_TYPES = {
+  cilia: {
+    label: "CILIA",
+    description: "Sistema de orçamentos e gestão de sinistros",
+    defaultUrl: "https://sistema.cilia.com.br",
+    qaUrl: "https://qa.cilia.com.br",
+  },
+  sga_hinova: {
+    label: "SGA Hinova",
+    description: "Sistema de Gestão de Associados",
+    defaultUrl: "https://api.hinova.com.br/api/sga/v2",
+    qaUrl: "https://api-qa.hinova.com.br/api/sga/v2",
+  },
+};
+
 export function ApiIntegrationsConfig() {
   const { user } = useAuth();
   const [integrations, setIntegrations] = useState<ApiIntegration[]>([]);
@@ -38,12 +54,13 @@ export function ApiIntegrationsConfig() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIntegration, setEditingIntegration] = useState<ApiIntegration | null>(null);
   const [showToken, setShowToken] = useState<Record<string, boolean>>({});
+  const [selectedApiType, setSelectedApiType] = useState<"cilia" | "sga_hinova">("cilia");
   const [formData, setFormData] = useState({
     corretora_id: "",
     tipo: "cilia",
     nome: "",
     ambiente: "producao",
-    base_url: "https://sistema.cilia.com.br",
+    base_url: API_TYPES.cilia.defaultUrl,
     auth_token: "",
     ativo: true,
   });
@@ -77,7 +94,10 @@ export function ApiIntegrationsConfig() {
     }
   };
 
-  const handleOpenDialog = (integration?: ApiIntegration) => {
+  const handleOpenDialog = (integration?: ApiIntegration, tipo?: string) => {
+    const apiType = integration?.tipo || tipo || "cilia";
+    const apiConfig = API_TYPES[apiType as keyof typeof API_TYPES] || API_TYPES.cilia;
+    
     if (integration) {
       setEditingIntegration(integration);
       setFormData({
@@ -93,10 +113,10 @@ export function ApiIntegrationsConfig() {
       setEditingIntegration(null);
       setFormData({
         corretora_id: "",
-        tipo: "cilia",
+        tipo: apiType,
         nome: "",
         ambiente: "producao",
-        base_url: "https://sistema.cilia.com.br",
+        base_url: apiConfig.defaultUrl,
         auth_token: "",
         ativo: true,
       });
@@ -110,6 +130,9 @@ export function ApiIntegrationsConfig() {
       return;
     }
 
+    const apiConfig = API_TYPES[formData.tipo as keyof typeof API_TYPES];
+    const defaultName = `${apiConfig?.label || formData.tipo.toUpperCase()} - ${corretoras.find(c => c.id === formData.corretora_id)?.nome}`;
+
     try {
       if (editingIntegration) {
         const { error } = await supabase
@@ -117,7 +140,7 @@ export function ApiIntegrationsConfig() {
           .update({
             corretora_id: formData.corretora_id,
             tipo: formData.tipo,
-            nome: formData.nome || `CILIA - ${corretoras.find(c => c.id === formData.corretora_id)?.nome}`,
+            nome: formData.nome || defaultName,
             ambiente: formData.ambiente,
             base_url: formData.base_url,
             auth_token: formData.auth_token,
@@ -131,7 +154,7 @@ export function ApiIntegrationsConfig() {
         const { error } = await supabase.from("api_integrations").insert({
           corretora_id: formData.corretora_id,
           tipo: formData.tipo,
-          nome: formData.nome || `CILIA - ${corretoras.find(c => c.id === formData.corretora_id)?.nome}`,
+          nome: formData.nome || defaultName,
           ambiente: formData.ambiente,
           base_url: formData.base_url,
           auth_token: formData.auth_token,
@@ -148,7 +171,7 @@ export function ApiIntegrationsConfig() {
     } catch (error: any) {
       console.error("Erro ao salvar integração:", error);
       if (error.code === "23505") {
-        toast.error("Já existe uma integração CILIA para esta corretora");
+        toast.error("Já existe uma integração deste tipo para esta corretora");
       } else {
         toast.error("Erro ao salvar integração");
       }
@@ -186,27 +209,35 @@ export function ApiIntegrationsConfig() {
   };
 
   const handleAmbienteChange = (ambiente: string) => {
-    const baseUrl = ambiente === "homologacao" 
-      ? "https://qa.cilia.com.br" 
-      : "https://sistema.cilia.com.br";
-    setFormData({ ...formData, ambiente, base_url: baseUrl });
+    const apiConfig = API_TYPES[formData.tipo as keyof typeof API_TYPES];
+    const baseUrl = ambiente === "homologacao" ? apiConfig?.qaUrl : apiConfig?.defaultUrl;
+    setFormData({ ...formData, ambiente, base_url: baseUrl || formData.base_url });
   };
 
-  return (
-    <div className="space-y-6">
+  const handleTipoChange = (tipo: string) => {
+    const apiConfig = API_TYPES[tipo as keyof typeof API_TYPES];
+    const baseUrl = formData.ambiente === "homologacao" ? apiConfig?.qaUrl : apiConfig?.defaultUrl;
+    setFormData({ ...formData, tipo, base_url: baseUrl || "" });
+  };
+
+  const filteredIntegrations = (tipo: string) => integrations.filter(i => i.tipo === tipo);
+
+  const renderIntegrationList = (tipo: string) => {
+    const filtered = filteredIntegrations(tipo);
+    const apiConfig = API_TYPES[tipo as keyof typeof API_TYPES];
+
+    return (
       <Card className="border-2">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Server className="h-5 w-5" />
-                Integrações CILIA
+                {tipo === "cilia" ? <Server className="h-5 w-5" /> : <RefreshCw className="h-5 w-5" />}
+                Integrações {apiConfig?.label}
               </CardTitle>
-              <CardDescription>
-                Configure os tokens de acesso à API CILIA para cada corretora
-              </CardDescription>
+              <CardDescription>{apiConfig?.description}</CardDescription>
             </div>
-            <Button onClick={() => handleOpenDialog()} className="gap-2">
+            <Button onClick={() => handleOpenDialog(undefined, tipo)} className="gap-2">
               <Plus className="h-4 w-4" />
               Nova Integração
             </Button>
@@ -215,13 +246,13 @@ export function ApiIntegrationsConfig() {
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-          ) : integrations.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              Nenhuma integração configurada. Clique em "Nova Integração" para começar.
+              Nenhuma integração {apiConfig?.label} configurada.
             </div>
           ) : (
             <div className="space-y-4">
-              {integrations.map((integration) => (
+              {filtered.map((integration) => (
                 <div
                   key={integration.id}
                   className="flex items-center justify-between p-4 border rounded-lg bg-card"
@@ -294,15 +325,53 @@ export function ApiIntegrationsConfig() {
           )}
         </CardContent>
       </Card>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <Tabs defaultValue="cilia" onValueChange={(v) => setSelectedApiType(v as any)}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="cilia">CILIA</TabsTrigger>
+          <TabsTrigger value="sga_hinova">SGA Hinova</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="cilia">
+          {renderIntegrationList("cilia")}
+        </TabsContent>
+
+        <TabsContent value="sga_hinova">
+          {renderIntegrationList("sga_hinova")}
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editingIntegration ? "Editar Integração CILIA" : "Nova Integração CILIA"}
+              {editingIntegration 
+                ? `Editar Integração ${API_TYPES[formData.tipo as keyof typeof API_TYPES]?.label}` 
+                : `Nova Integração ${API_TYPES[formData.tipo as keyof typeof API_TYPES]?.label}`}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Tipo de API</Label>
+              <Select
+                value={formData.tipo}
+                onValueChange={handleTipoChange}
+                disabled={!!editingIntegration}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cilia">CILIA</SelectItem>
+                  <SelectItem value="sga_hinova">SGA Hinova</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label>Corretora *</Label>
               <Select
@@ -343,7 +412,7 @@ export function ApiIntegrationsConfig() {
               <Input
                 value={formData.base_url}
                 onChange={(e) => setFormData({ ...formData, base_url: e.target.value })}
-                placeholder="https://sistema.cilia.com.br"
+                placeholder={API_TYPES[formData.tipo as keyof typeof API_TYPES]?.defaultUrl}
               />
             </div>
 
@@ -356,7 +425,7 @@ export function ApiIntegrationsConfig() {
                 placeholder="SEU_AUTH_TOKEN"
               />
               <p className="text-xs text-muted-foreground">
-                Token fornecido pela Cilia para autenticação na API
+                Token fornecido pelo sistema para autenticação na API
               </p>
             </div>
 
@@ -365,7 +434,7 @@ export function ApiIntegrationsConfig() {
               <Input
                 value={formData.nome}
                 onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                placeholder="Ex: CILIA - Corretora ABC"
+                placeholder={`Ex: ${API_TYPES[formData.tipo as keyof typeof API_TYPES]?.label} - Corretora ABC`}
               />
             </div>
 
