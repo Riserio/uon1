@@ -743,8 +743,6 @@ export default function Sinistros() {
                   <ClaimCard 
                     key={claim.id} 
                     claim={claim} 
-                    onEdit={() => handleOpenEditClaim(claim)}
-                    onAcompanhamento={() => setAcompanhamentoClaim(claim)}
                   />
                 ))}
                 {filteredClaims.length === 0 && (

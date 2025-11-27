@@ -364,7 +364,6 @@ export default function AcompanhamentoSinistrosInterno() {
                   <ClaimCard 
                     key={claim.id} 
                     claim={claim} 
-                    onEdit={handleEditClick}
                   />
                 ))
               ) : (

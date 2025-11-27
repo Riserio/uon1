@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, FileText, Calendar, DollarSign, Edit2, Camera, ClipboardList } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, Calendar, DollarSign, Camera, ClipboardList } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -39,11 +39,9 @@ export interface Claim {
 
 interface ClaimCardProps {
   claim: Claim;
-  onEdit: (claim: Claim) => void;
-  onAcompanhamento?: (claim: Claim) => void;
 }
 
-export function ClaimCard({ claim, onEdit, onAcompanhamento }: ClaimCardProps) {
+export function ClaimCard({ claim }: ClaimCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const navigate = useNavigate();
 
@@ -90,18 +88,16 @@ export function ClaimCard({ claim, onEdit, onAcompanhamento }: ClaimCardProps) {
             )}
           </div>
           <div className="flex gap-2">
-            {onAcompanhamento && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onAcompanhamento(claim)}
-                title="Acompanhamento do sinistro"
-                className="gap-1"
-              >
-                <ClipboardList className="h-4 w-4" />
-                Acompanhamento
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/sinistros/${claim.id}/acompanhamento`)}
+              title="Acompanhamento do sinistro"
+              className="gap-1"
+            >
+              <ClipboardList className="h-4 w-4" />
+              Acompanhamento
+            </Button>
             {claim.vistoria_id && (
               <Button
                 variant="ghost"
@@ -112,13 +108,6 @@ export function ClaimCard({ claim, onEdit, onAcompanhamento }: ClaimCardProps) {
                 <Camera className="h-4 w-4" />
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onEdit(claim)}
-            >
-              <Edit2 className="h-4 w-4" />
-            </Button>
             <Button
               variant="ghost"
               size="icon"
