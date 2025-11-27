@@ -193,6 +193,17 @@ export default function VistoriaPublicaLanding() {
                 <h2 className="text-3xl md:text-4xl font-bold mb-3">Como funciona?</h2>
                 <p className="text-blue-50 text-lg">Siga 3 passos simples para concluir sua vistoria</p>
               </div>
+
+              {corretora?.logo_url && (
+                <div className="flex justify-end">
+                  <div className="bg-white/10 backdrop-blur rounded-2xl px-4 py-3 md:px-6 md:py-4 shadow-lg flex flex-col items-end gap-1">
+                    <img src={corretora.logo_url} alt={corretora.nome} className="h-10 md:h-14 object-contain" />
+                    <span className="text-xs md:text-sm text-blue-50/90">
+                      Atendimento realizado por <span className="font-semibold">{corretora.nome}</span>
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -325,7 +336,7 @@ export default function VistoriaPublicaLanding() {
             <Button
               onClick={handleIniciarVistoria}
               size="lg"
-              className="w-full bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] text-white font-bold py-8 text-xl shadow-xl hover:shadow-2xl transition-all duration-300 rounded-2xl"
+              className="w-full bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 hover:from-blue-600 hover:to-[hsl(var(--vistoria-primary))] text-white font-bold py-8 text-xl shadow-xl hover:shadow-2xl transition-all duração-300 rounded-2xl"
             >
               <Camera className="h-6 w-6 mr-3" />
               Iniciar Vistoria Digital
