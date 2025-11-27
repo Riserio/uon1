@@ -1142,7 +1142,7 @@ export default function VistoriaPublicaFormulario() {
                 </p>
 
                 <div className="border border-gray-300 rounded-lg p-2 bg-white shadow-inner">
-                  <SketchPad width={700} height={400} onEnd={(data) => setCroqui(data)} />
+                  <SketchPad onSave={(data) => setCroqui(data)} />
                 </div>
 
                 {croqui && (
