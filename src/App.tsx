@@ -42,6 +42,7 @@ import AcompanhamentoSinistroInterno from './pages/AcompanhamentoSinistroInterno
 import ConfiguracaoStatusPublico from './pages/ConfiguracaoStatusPublico';
 import Administradora from "./pages/Administradora";
 import { PortalAuthProvider } from '@/contexts/PortalAuthContext';
+import { TranslationsProvider } from '@/contexts/TranslationsContext';
 import PortalLogin from './pages/portal/PortalLogin';
 import PortalDashboard from './pages/portal/PortalDashboard';
 import PID from './pages/PID';
@@ -120,7 +121,8 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <PortalAuthProvider>
         <AuthProvider>
-          <TooltipProvider>
+          <TranslationsProvider>
+            <TooltipProvider>
             <Toaster />
             <Sonner />
             <Routes>
@@ -172,7 +174,8 @@ const App = () => (
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </TooltipProvider>
+            </TooltipProvider>
+          </TranslationsProvider>
         </AuthProvider>
       </PortalAuthProvider>
     </QueryClientProvider>
