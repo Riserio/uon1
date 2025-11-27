@@ -616,7 +616,7 @@ export default function VistoriaPublicaFormulario() {
                 </div>
               </div>
             )}
-            ---
+
             {/* Step 1: Dados do Evento + Veículo + Narração (CORRIGIDO) */}
             {currentStep === 1 && (
               <div className="space-y-6">
@@ -825,7 +825,7 @@ export default function VistoriaPublicaFormulario() {
                 </div>
               </div>
             )}
-            ---
+
             {/* Step 2: Informações Gerais */}
             {currentStep === 2 && (
               <div className="space-y-6">
@@ -1052,7 +1052,7 @@ export default function VistoriaPublicaFormulario() {
                   )}
               </div>
             )}
-            ---
+
             {/* Step 3: Documentos (Fotos) */}
             {currentStep === 3 && (
               <div className="space-y-6">
@@ -1131,7 +1131,7 @@ export default function VistoriaPublicaFormulario() {
                 </div>
               </div>
             )}
-            ---
+
             {/* Step 4: Croqui */}
             {currentStep === 4 && (
               <div className="space-y-6">
