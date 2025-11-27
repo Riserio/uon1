@@ -118,7 +118,6 @@ export default function VistoriaPublicaLanding() {
 
   // Se a vistoria já foi concluída, mostra mensagem
   if (vistoria.status === "concluida") {
-    // Monta link de acompanhamento externo usando o slug da corretora
     const corretoraSlug = vistoria.corretoras?.slug || vistoria.atendimentos?.corretoras?.slug;
     const acompanhamentoUrl = corretoraSlug
       ? `${window.location.origin}/acompanhamento/${corretoraSlug}/${vistoria.numero}`
@@ -187,7 +186,7 @@ export default function VistoriaPublicaLanding() {
 
         {/* Main Card */}
         <Card className="border-none shadow-2xl overflow-hidden mb-8">
-          {/* Como Funciona + Logo da Corretora */}
+          {/* Como Funciona + Logo da Corretora (dentro da caixa azul, canto direito) */}
           <div className="bg-gradient-to-r from-[hsl(var(--vistoria-primary))] to-blue-600 p-8 md:p-12 text-white">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div>
@@ -196,7 +195,7 @@ export default function VistoriaPublicaLanding() {
               </div>
 
               {corretora?.logo_url && (
-                <div className="flex justify-end">
+                <div className="flex justify-end md:justify-end">
                   <div className="bg-white/10 backdrop-blur rounded-2xl px-4 py-3 md:px-6 md:py-4 shadow-lg">
                     <img src={corretora.logo_url} alt={corretora.nome} className="h-10 md:h-14 object-contain" />
                   </div>
