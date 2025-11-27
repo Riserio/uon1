@@ -85,6 +85,56 @@ export type Database = {
           },
         ]
       }
+      api_integrations: {
+        Row: {
+          ambiente: string
+          ativo: boolean | null
+          auth_token: string
+          base_url: string
+          corretora_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          nome: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          ambiente?: string
+          ativo?: boolean | null
+          auth_token: string
+          base_url: string
+          corretora_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome: string
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          ambiente?: string
+          ativo?: boolean | null
+          auth_token?: string
+          base_url?: string
+          corretora_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_integrations_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_config: {
         Row: {
           colors: Json | null
@@ -1685,6 +1735,161 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sinistro_acompanhamento: {
+        Row: {
+          atendimento_id: string
+          cilia_budget_id: string | null
+          cilia_enviado: boolean | null
+          cilia_enviado_em: string | null
+          cilia_response: Json | null
+          comite_data: string | null
+          comite_decisao: string | null
+          comite_observacoes: string | null
+          comite_participantes: string[] | null
+          comite_status: string | null
+          cota_participacao: number | null
+          cota_percentual: number | null
+          created_at: string
+          created_by: string | null
+          custo_mao_obra: number | null
+          custo_outros: number | null
+          custo_pecas: number | null
+          custo_servicos: number | null
+          desistencia: boolean | null
+          desistencia_data: string | null
+          desistencia_motivo: string | null
+          finalizado: boolean | null
+          finalizado_data: string | null
+          finalizado_observacoes: string | null
+          finalizado_por: string | null
+          financeiro_comprovante_url: string | null
+          financeiro_data_pagamento: string | null
+          financeiro_forma_pagamento: string | null
+          financeiro_status: string | null
+          financeiro_valor_aprovado: number | null
+          financeiro_valor_pago: number | null
+          id: string
+          oficina_cnpj: string | null
+          oficina_contato: string | null
+          oficina_endereco: string | null
+          oficina_nome: string | null
+          oficina_tipo: string | null
+          pecas_aprovadas: boolean | null
+          pecas_descricao: string | null
+          pecas_valor_total: number | null
+          reparo_autorizado: boolean | null
+          reparo_autorizado_por: string | null
+          reparo_data_autorizacao: string | null
+          reparo_observacoes: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          atendimento_id: string
+          cilia_budget_id?: string | null
+          cilia_enviado?: boolean | null
+          cilia_enviado_em?: string | null
+          cilia_response?: Json | null
+          comite_data?: string | null
+          comite_decisao?: string | null
+          comite_observacoes?: string | null
+          comite_participantes?: string[] | null
+          comite_status?: string | null
+          cota_participacao?: number | null
+          cota_percentual?: number | null
+          created_at?: string
+          created_by?: string | null
+          custo_mao_obra?: number | null
+          custo_outros?: number | null
+          custo_pecas?: number | null
+          custo_servicos?: number | null
+          desistencia?: boolean | null
+          desistencia_data?: string | null
+          desistencia_motivo?: string | null
+          finalizado?: boolean | null
+          finalizado_data?: string | null
+          finalizado_observacoes?: string | null
+          finalizado_por?: string | null
+          financeiro_comprovante_url?: string | null
+          financeiro_data_pagamento?: string | null
+          financeiro_forma_pagamento?: string | null
+          financeiro_status?: string | null
+          financeiro_valor_aprovado?: number | null
+          financeiro_valor_pago?: number | null
+          id?: string
+          oficina_cnpj?: string | null
+          oficina_contato?: string | null
+          oficina_endereco?: string | null
+          oficina_nome?: string | null
+          oficina_tipo?: string | null
+          pecas_aprovadas?: boolean | null
+          pecas_descricao?: string | null
+          pecas_valor_total?: number | null
+          reparo_autorizado?: boolean | null
+          reparo_autorizado_por?: string | null
+          reparo_data_autorizacao?: string | null
+          reparo_observacoes?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          atendimento_id?: string
+          cilia_budget_id?: string | null
+          cilia_enviado?: boolean | null
+          cilia_enviado_em?: string | null
+          cilia_response?: Json | null
+          comite_data?: string | null
+          comite_decisao?: string | null
+          comite_observacoes?: string | null
+          comite_participantes?: string[] | null
+          comite_status?: string | null
+          cota_participacao?: number | null
+          cota_percentual?: number | null
+          created_at?: string
+          created_by?: string | null
+          custo_mao_obra?: number | null
+          custo_outros?: number | null
+          custo_pecas?: number | null
+          custo_servicos?: number | null
+          desistencia?: boolean | null
+          desistencia_data?: string | null
+          desistencia_motivo?: string | null
+          finalizado?: boolean | null
+          finalizado_data?: string | null
+          finalizado_observacoes?: string | null
+          finalizado_por?: string | null
+          financeiro_comprovante_url?: string | null
+          financeiro_data_pagamento?: string | null
+          financeiro_forma_pagamento?: string | null
+          financeiro_status?: string | null
+          financeiro_valor_aprovado?: number | null
+          financeiro_valor_pago?: number | null
+          id?: string
+          oficina_cnpj?: string | null
+          oficina_contato?: string | null
+          oficina_endereco?: string | null
+          oficina_nome?: string | null
+          oficina_tipo?: string | null
+          pecas_aprovadas?: boolean | null
+          pecas_descricao?: string | null
+          pecas_valor_total?: number | null
+          reparo_autorizado?: boolean | null
+          reparo_autorizado_por?: string | null
+          reparo_data_autorizacao?: string | null
+          reparo_observacoes?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sinistro_acompanhamento_atendimento_id_fkey"
+            columns: ["atendimento_id"]
+            isOneToOne: true
+            referencedRelation: "atendimentos"
             referencedColumns: ["id"]
           },
         ]

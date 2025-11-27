@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, FileText, Calendar, DollarSign, Edit2, Camera } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, Calendar, DollarSign, Edit2, Camera, ClipboardList } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -34,14 +34,16 @@ export interface Claim {
   corretoraInfo?: { nome: string } | null;
   vistoria_id?: string | null;
   vistoria_numero?: number | null;
+  corretora_id?: string | null;
 }
 
 interface ClaimCardProps {
   claim: Claim;
   onEdit: (claim: Claim) => void;
+  onAcompanhamento?: (claim: Claim) => void;
 }
 
-export function ClaimCard({ claim, onEdit }: ClaimCardProps) {
+export function ClaimCard({ claim, onEdit, onAcompanhamento }: ClaimCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const navigate = useNavigate();
 
@@ -88,6 +90,18 @@ export function ClaimCard({ claim, onEdit }: ClaimCardProps) {
             )}
           </div>
           <div className="flex gap-2">
+            {onAcompanhamento && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onAcompanhamento(claim)}
+                title="Acompanhamento do sinistro"
+                className="gap-1"
+              >
+                <ClipboardList className="h-4 w-4" />
+                Acompanhamento
+              </Button>
+            )}
             {claim.vistoria_id && (
               <Button
                 variant="ghost"
