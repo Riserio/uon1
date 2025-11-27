@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +29,8 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import { toUTC, toDateTimeLocal } from "@/utils/dateUtils";
+import { AlertasDialog } from "@/components/AlertasDialog";
+import { toUTC, toDateTimeLocal, fromDateTimeLocal } from "@/utils/dateUtils";
 
 interface Evento {
   id: string;
@@ -99,12 +100,10 @@ export default function Agenda() {
   }, [user, lembreteFrequencia]);
 
   const checkGoogleConnection = async () => {
-    if (!user?.id) return;
-
     const { data, error } = await supabase
       .from("google_calendar_integrations")
       .select("id")
-      .eq("user_id", user.id)
+      .eq("user_id", user?.id)
       .single();
 
     setGoogleConnected(!error && !!data);
@@ -114,7 +113,7 @@ export default function Agenda() {
     try {
       const { data: session } = await supabase.auth.getSession();
 
-      if (!session?.session) {
+      if (!session.session) {
         toast.error("Você precisa estar autenticado");
         return;
       }
@@ -160,12 +159,8 @@ export default function Agenda() {
     }
   };
 
+  // 🔧 FUNÇÃO CORRIGIDA: envia Authorization + body.action
   const syncWithGoogle = async () => {
-    if (!googleConnected) {
-      toast.error("Conecte o Google Calendar antes de sincronizar.");
-      return;
-    }
-
     setSyncing(true);
     try {
       const { data: sessionResult, error: sessionError } = await supabase.auth.getSession();
@@ -175,11 +170,15 @@ export default function Agenda() {
         return;
       }
 
-      // Invoca a Edge Function de sync
+      const accessToken = sessionResult.session.access_token;
+
       const { data, error } = await supabase.functions.invoke("google-calendar-sync", {
-        body: { action: "sync" },
-        // Não precisa setar Authorization manualmente:
-        // o supabase client já envia o JWT do usuário logado.
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: {
+          action: "sync",
+        },
       });
 
       if (error) {
@@ -193,9 +192,9 @@ export default function Agenda() {
       }
 
       toast.success("Sincronização concluída!");
-      await fetchEventos();
+      fetchEventos();
     } catch (error) {
-      console.error("Erro ao sincronizar com Google Calendar:", error);
+      console.error("Erro ao sincronizar:", error);
       toast.error("Erro ao sincronizar com Google Calendar");
     } finally {
       setSyncing(false);
@@ -203,12 +202,10 @@ export default function Agenda() {
   };
 
   const fetchEventos = async () => {
-    if (!user?.id) return;
-
     const { data, error } = await supabase
       .from("eventos")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", user?.id)
       .order("data_inicio", { ascending: true });
 
     if (error) {
@@ -221,8 +218,6 @@ export default function Agenda() {
   };
 
   const fetchLembretes = async () => {
-    if (!user?.id) return;
-
     const { data, error } = await supabase
       .from("lembretes_disparados")
       .select(
@@ -231,7 +226,7 @@ export default function Agenda() {
         evento:eventos(*)
       `,
       )
-      .eq("user_id", user.id)
+      .eq("user_id", user?.id)
       .eq("visualizado", false)
       .order("disparado_em", { ascending: false });
 
@@ -244,8 +239,6 @@ export default function Agenda() {
   };
 
   const verificarLembretes = async () => {
-    if (!user?.id) return;
-
     const agora = new Date();
 
     for (const evento of eventos) {
@@ -254,23 +247,27 @@ export default function Agenda() {
       const dataEvento = new Date(evento.data_inicio);
       const diffMinutos = Math.floor((dataEvento.getTime() - agora.getTime()) / 60000);
 
+      // Verifica cada tempo de lembrete configurado
       for (const minutos of evento.lembrete_minutos) {
+        // Se estamos no momento exato do lembrete (com margem de 1 minuto)
         if (Math.abs(diffMinutos - minutos) <= 1) {
+          // Verifica se já existe um lembrete disparado para este evento e tempo
           const { data: existente } = await supabase
             .from("lembretes_disparados")
             .select("id")
             .eq("evento_id", evento.id)
-            .eq("user_id", user.id)
+            .eq("user_id", user?.id)
             .gte("disparado_em", new Date(agora.getTime() - 5 * 60000).toISOString());
 
           if (!existente || existente.length === 0) {
             const { error } = await supabase.from("lembretes_disparados").insert({
               evento_id: evento.id,
-              user_id: user.id,
+              user_id: user?.id,
               disparado_em: new Date().toISOString(),
             });
 
             if (!error) {
+              // Envia notificação push
               toast(`🔔 Lembrete: ${evento.titulo}`, {
                 description: `Evento em ${minutos} minutos às ${new Date(evento.data_inicio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
               });
@@ -381,6 +378,7 @@ export default function Agenda() {
     return dataEvento > hoje && dataEvento < new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
   }).length;
 
+  // Calcula total de lembretes ativos (futuros)
   const lembretesAtivos = eventos.reduce((total, evento) => {
     if (!evento.lembrete_minutos || evento.lembrete_minutos.length === 0) return total;
     const dataEvento = new Date(evento.data_inicio);
@@ -425,7 +423,7 @@ export default function Agenda() {
             {googleConnected ? (
               <Button variant="outline" onClick={syncWithGoogle} disabled={syncing} className="gap-2">
                 <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-                {syncing ? "Sincronizando..." : "Sincronizar"}
+                Sincronizar
               </Button>
             ) : (
               <Button variant="outline" onClick={connectGoogleCalendar} className="gap-2">
