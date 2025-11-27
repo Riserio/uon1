@@ -145,43 +145,7 @@ export function ClaimCard({
                 </div>)}
             </div>
 
-            <div className="mt-6 border-t border-border pt-6">
-              <h4 className="font-semibold text-foreground mb-4">Detalhes Financeiros</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Custo Oficina</p>
-                  <p className="font-medium text-foreground">{formatCurrency(claim.custo_oficina)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Custo Reparo</p>
-                  <p className="font-medium text-foreground">{formatCurrency(claim.custo_reparo)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Custo Acordo</p>
-                  <p className="font-medium text-foreground">{formatCurrency(claim.custo_acordo)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Custo Terceiros</p>
-                  <p className="font-medium text-foreground">{formatCurrency(claim.custo_terceiros)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Perda Total</p>
-                  <p className="font-medium text-foreground">{formatCurrency(claim.custo_perda_total)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Perda Parcial</p>
-                  <p className="font-medium text-foreground">{formatCurrency(claim.custo_perda_parcial)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Franquia</p>
-                  <p className="font-medium text-foreground">{formatCurrency(claim.valor_franquia)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Indenização</p>
-                  <p className="font-medium text-foreground">{formatCurrency(claim.valor_indenizacao)}</p>
-                </div>
-              </div>
-            </div>
+            
 
             {claim.observacoes && <div className="mt-6 border-t border-border pt-6">
                 <h4 className="font-semibold text-foreground mb-2">Observações</h4>
