@@ -384,6 +384,7 @@ export default function VistoriaPublicaFormulario() {
 
       const payload: any = {
         ...formData,
+        veiculo_tipo: vehicleType, // Garantir que o tipo está no payload
         latitude: tempData?.geolocation?.latitude,
         longitude: tempData?.geolocation?.longitude,
         cnh_url: cnhUrl,
@@ -399,6 +400,16 @@ export default function VistoriaPublicaFormulario() {
       if (formData.veiculo_fipe_data_consulta) {
         payload.veiculo_fipe_data_consulta = formData.veiculo_fipe_data_consulta.toISOString();
       }
+
+      console.log("📝 Salvando vistoria com dados do veículo:", {
+        tipo: payload.veiculo_tipo,
+        marca: payload.veiculo_marca,
+        modelo: payload.veiculo_modelo,
+        ano: payload.veiculo_ano,
+        cor: payload.veiculo_cor,
+        chassi: payload.veiculo_chassi,
+        valorFipe: payload.veiculo_valor_fipe
+      });
 
       const { error: updateError } = await supabase.from("vistorias").update(payload).eq("id", vistoria.id);
 
