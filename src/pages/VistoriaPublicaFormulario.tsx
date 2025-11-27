@@ -10,25 +10,13 @@ import { MaskedInput } from "@/components/ui/masked-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import {
-  ArrowRight,
-  ArrowLeft,
-  User,
-  Calendar,
-  FileText,
-  AlertCircle,
-  CheckCircle,
-  MapPin,
-  Clock,
-  Search,
-} from "lucide-react";
+import { ArrowRight, ArrowLeft, User, Calendar, FileText, AlertCircle, CheckCircle, MapPin, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import SketchPad from "@/components/SketchPad";
 import { validateCPF, validatePhone } from "@/lib/validators";
 import { VehicleFipeSelector } from "@/components/VehicleFipeSelector";
-import { fipeLookup } from "@/lib/fipe-lookup"; // Assumindo a existência desta função/lib
 
-// Fallback de marcas/modelos - Mantido
+// Fallback de marcas/modelos (igual na vistoria manual) - Mantido, mas VehicleFipeSelector provavelmente usa API
 const MARCAS = [
   "Audi",
   "BMW",
@@ -69,7 +57,7 @@ const MODELOS_POR_MARCA: { [key: string]: string[] } = {
 
 const STEPS = [
   { id: 0, title: "Dados Pessoais", icon: User, description: "Informações do segurado" },
-  { id: 1, title: "Dados do Evento e Veículo", icon: Calendar, description: "Detalhes do veículo e acidente" },
+  { id: 1, title: "Dados do Evento", icon: Calendar, description: "Quando e onde ocorreu" },
   { id: 2, title: "Informações Gerais", icon: AlertCircle, description: "Detalhes do incidente" },
   { id: 3, title: "Documentos", icon: FileText, description: "Anexos necessários" },
   { id: 4, title: "Croqui", icon: MapPin, description: "Desenho do acidente" },
@@ -86,7 +74,6 @@ export default function VistoriaPublicaFormulario() {
   const [vistoria, setVistoria] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [fipeLoading, setFipeLoading] = useState(false); // Novo estado para FIPE
   const [currentStep, setCurrentStep] = useState(0);
   const [tempData, setTempData] = useState<any>(null);
 
@@ -221,13 +208,6 @@ export default function VistoriaPublicaFormulario() {
   const normalizePlate = (value: string) => {
     let v = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (v.length > 7) v = v.slice(0, 7);
-    if (v.length > 3) v = v.slice(0, 3) + v.slice(4); // Remove hifen para guardar no formato correto
-    return v;
-  };
-
-  const displayPlate = (value: string) => {
-    let v = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    if (v.length > 7) v = v.slice(0, 7);
     if (v.length > 3) v = v.slice(0, 3) + "-" + v.slice(3);
     return v;
   };
@@ -248,7 +228,7 @@ export default function VistoriaPublicaFormulario() {
     }));
   };
 
-  // Mesma lógica da vistoria manual: trocar tipo limpa marca/modelo/ano/fipe
+  // Mesma lógica da vistoria manual: trocar tipo limpa marca/modelo/ano
   const handleVehicleTypeChange = (value: string) => {
     setVehicleType(value);
     setFormData((prev) => ({
@@ -264,52 +244,13 @@ export default function VistoriaPublicaFormulario() {
     }));
   };
 
-  // Função de consulta FIPE
-  const handleFipeLookup = async () => {
-    const { veiculo_tipo, veiculo_marca, veiculo_modelo, veiculo_ano } = formData;
-
-    if (!veiculo_tipo || !veiculo_marca || !veiculo_modelo || !veiculo_ano) {
-      toast.error("Por favor, preencha Tipo, Marca, Modelo e Ano do veículo antes de consultar a FIPE.");
-      return;
-    }
-
-    setFipeLoading(true);
-    try {
-      // Nota: A função fipeLookup é uma simulação, você deve ter a implementação real
-      // que chama a API da FIPE ou um serviço intermediário.
-      const result = await fipeLookup(veiculo_tipo, veiculo_marca, veiculo_modelo, veiculo_ano);
-
-      if (result) {
-        setFormData((prev) => ({
-          ...prev,
-          veiculo_valor_fipe: result.valor,
-          veiculo_fipe_data_consulta: new Date(),
-          veiculo_fipe_codigo: result.codigoFipe,
-        }));
-        toast.success(
-          `Valor FIPE encontrado: ${result.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`,
-        );
-      } else {
-        setFormData((prev) => ({
-          ...prev,
-          veiculo_valor_fipe: null,
-          veiculo_fipe_data_consulta: null,
-          veiculo_fipe_codigo: null,
-        }));
-        toast.warning("Valor FIPE não encontrado. Preencha manualmente, se necessário.");
-      }
-    } catch (error) {
-      console.error("Erro na consulta FIPE:", error);
-      toast.error("Erro ao consultar FIPE. Preencha manualmente, se necessário.");
-    } finally {
-      setFipeLoading(false);
-    }
-  };
-
   const handleSubmit = async () => {
     const camposObrigatorios: string[] = [];
 
-    if (!formData.cliente_nome?.trim()) camposObrigatorios.push("Nome completo");
+    if (!formData.cliente_nome?.trim()) {
+      camposObrigatorios.push("Nome completo");
+    }
+
     if (!formData.cliente_cpf?.trim()) {
       camposObrigatorios.push("CPF");
     } else if (!validateCPF(formData.cliente_cpf)) {
@@ -318,13 +259,33 @@ export default function VistoriaPublicaFormulario() {
       return;
     }
 
-    if (!formData.data_evento) camposObrigatorios.push("Data do evento");
-    if (!formData.hora_evento) camposObrigatorios.push("Hora do evento");
-    if (!formData.narrar_fatos?.trim()) camposObrigatorios.push("Descrição dos fatos");
-    if (!vehicleType) camposObrigatorios.push("Tipo de veículo (Carro, Moto ou Caminhão)");
-    if (!formData.veiculo_marca) camposObrigatorios.push("Marca do veículo");
-    if (!formData.veiculo_modelo) camposObrigatorios.push("Modelo do veículo");
-    if (!formData.veiculo_cor) camposObrigatorios.push("Cor do veículo");
+    if (!formData.data_evento) {
+      camposObrigatorios.push("Data do evento");
+    }
+
+    if (!formData.hora_evento) {
+      camposObrigatorios.push("Hora do evento");
+    }
+
+    if (!formData.narrar_fatos?.trim()) {
+      camposObrigatorios.push("Descrição dos fatos");
+    }
+
+    if (!vehicleType) {
+      camposObrigatorios.push("Tipo de veículo (Carro, Moto ou Caminhão)");
+    }
+
+    if (!formData.veiculo_marca) {
+      camposObrigatorios.push("Marca do veículo");
+    }
+
+    if (!formData.veiculo_modelo) {
+      camposObrigatorios.push("Modelo do veículo");
+    }
+
+    if (!formData.veiculo_cor) {
+      camposObrigatorios.push("Cor do veículo");
+    }
 
     if (formData.cliente_telefone && !validatePhone(formData.cliente_telefone)) {
       toast.error("Telefone inválido. Use o formato (00) 00000-0000");
@@ -332,52 +293,59 @@ export default function VistoriaPublicaFormulario() {
       return;
     }
 
-    if (formData.fez_bo && !boFile) camposObrigatorios.push("Boletim de Ocorrência (arquivo)");
-    if (formData.foi_hospital && !laudoMedico) camposObrigatorios.push("Laudo Médico (arquivo)");
-    if (formData.motorista_faleceu && !atestadoObito) camposObrigatorios.push("Atestado de Óbito (arquivo)");
+    if (formData.fez_bo && !boFile) {
+      camposObrigatorios.push("Boletim de Ocorrência (arquivo)");
+    }
 
-    // Adicionar verificação de valor FIPE
-    if (formData.veiculo_valor_fipe === null || formData.veiculo_valor_fipe === 0) {
-      camposObrigatorios.push("Valor FIPE/Mercado do Veículo");
+    if (formData.foi_hospital && !laudoMedico) {
+      camposObrigatorios.push("Laudo Médico (arquivo)");
+    }
+
+    if (formData.motorista_faleceu && !atestadoObito) {
+      camposObrigatorios.push("Atestado de Óbito (arquivo)");
     }
 
     if (camposObrigatorios.length > 0) {
       toast.error(`Por favor, preencha os seguintes campos obrigatórios: ${camposObrigatorios.join(", ")}`, {
         duration: 5000,
       });
-      setCurrentStep(
-        camposObrigatorios.includes("Nome completo") ||
-          camposObrigatorios.includes("CPF") ||
-          camposObrigatorios.includes("Telefone")
-          ? 0
-          : 1,
-      );
+      setCurrentStep(0);
       return;
     }
 
     setUploading(true);
     try {
       let boUrl = null;
-      if (formData.fez_bo && boFile) boUrl = await uploadFile(boFile, "bo");
+      if (formData.fez_bo && boFile) {
+        boUrl = await uploadFile(boFile, "bo");
+      }
 
       let laudoMedicoUrl = null;
-      if (formData.foi_hospital && laudoMedico) laudoMedicoUrl = await uploadFile(laudoMedico, "laudo_medico");
+      if (formData.foi_hospital && laudoMedico) {
+        laudoMedicoUrl = await uploadFile(laudoMedico, "laudo_medico");
+      }
 
       let atestadoObitoUrl = null;
-      if (formData.motorista_faleceu && atestadoObito)
+      if (formData.motorista_faleceu && atestadoObito) {
         atestadoObitoUrl = await uploadFile(atestadoObito, "atestado_obito");
+      }
 
       let laudoAlcoolemiaUrl = null;
       const horaEvento = formData.hora_evento ? parseInt(formData.hora_evento.split(":")[0]) : 0;
-      if ((horaEvento >= 20 || horaEvento < 6) && laudoAlcoolemia)
+      if ((horaEvento >= 20 || horaEvento < 6) && laudoAlcoolemia) {
         laudoAlcoolemiaUrl = await uploadFile(laudoAlcoolemia, "alcoolemia");
+      }
 
+      // Fotos para análise por IA
       const fotosParaAnalise: { id: string; posicao: string; url: string }[] = [];
+
       if (tempData?.fotos) {
         for (const [posicao, files] of Object.entries(tempData.fotos) as [string, File[]][]) {
           if (posicao === "cnh" || posicao === "crlv") continue;
+
           for (const file of files) {
             const url = await uploadFile(file, "veiculo");
+
             const { data: inserted, error: insertError } = await supabase
               .from("vistoria_fotos")
               .insert({
@@ -395,6 +363,7 @@ export default function VistoriaPublicaFormulario() {
               console.error("Erro ao inserir foto na vistoria_fotos:", insertError);
               throw insertError;
             }
+
             if (inserted) {
               fotosParaAnalise.push({
                 id: inserted.id,
@@ -407,7 +376,9 @@ export default function VistoriaPublicaFormulario() {
       }
 
       let cnhUrl = "";
-      if (tempData?.fotos?.cnh?.[0]) cnhUrl = await uploadFile(tempData.fotos.cnh[0], "cnh");
+      if (tempData?.fotos?.cnh?.[0]) {
+        cnhUrl = await uploadFile(tempData.fotos.cnh[0], "cnh");
+      }
 
       const crlvUrls: string[] = [];
       if (tempData?.fotos?.crlv) {
@@ -421,7 +392,7 @@ export default function VistoriaPublicaFormulario() {
 
       const payload: any = {
         ...formData,
-        veiculo_tipo: vehicleType,
+        veiculo_tipo: vehicleType, // Garantir que o tipo está no payload
         latitude: tempData?.geolocation?.latitude,
         longitude: tempData?.geolocation?.longitude,
         cnh_url: cnhUrl,
@@ -432,18 +403,21 @@ export default function VistoriaPublicaFormulario() {
         atestado_obito_url: atestadoObitoUrl,
         laudo_alcoolemia_url: laudoAlcoolemiaUrl,
         croqui_acidente_url: croquiUrl,
-        // Limpar FIPE Data se o valor FIPE for nulo, apenas para garantir
-        ...(formData.veiculo_valor_fipe === null && {
-          veiculo_fipe_data_consulta: null,
-          veiculo_fipe_codigo: null,
-        }),
       };
 
-      if (formData.veiculo_fipe_data_consulta && formData.veiculo_valor_fipe) {
+      if (formData.veiculo_fipe_data_consulta) {
         payload.veiculo_fipe_data_consulta = formData.veiculo_fipe_data_consulta.toISOString();
-      } else {
-        payload.veiculo_fipe_data_consulta = null;
       }
+
+      console.log("📝 Salvando vistoria com dados do veículo:", {
+        tipo: payload.veiculo_tipo,
+        marca: payload.veiculo_marca,
+        modelo: payload.veiculo_modelo,
+        ano: payload.veiculo_ano,
+        cor: payload.veiculo_cor,
+        chassi: payload.veiculo_chassi,
+        valorFipe: payload.veiculo_valor_fipe,
+      });
 
       const { error: updateError } = await supabase.from("vistorias").update(payload).eq("id", vistoria.id);
 
@@ -515,10 +489,6 @@ export default function VistoriaPublicaFormulario() {
   const currentStepInfo = STEPS[currentStep];
   const StepIcon = currentStepInfo.icon;
   const stepProgress = ((currentStep + 1) / STEPS.length) * 100;
-
-  // Variáveis para controle de campos FIPE e botão de consulta
-  const isFipeDataAvailable = !!(formData.veiculo_marca && formData.veiculo_modelo && formData.veiculo_ano);
-  const showFipeButton = isFipeDataAvailable && !formData.veiculo_valor_fipe;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vistoria-bg))] to-white py-6 px-4">
@@ -647,10 +617,9 @@ export default function VistoriaPublicaFormulario() {
               </div>
             )}
             ---
-            {/* Step 1: Dados do Evento + Veículo + Narração (CORRIGIDO LAYOUT) */}
+            {/* Step 1: Dados do Evento + Veículo + Narração (CORRIGIDO) */}
             {currentStep === 1 && (
               <div className="space-y-6">
-                <h3 className="text-xl font-bold text-[hsl(var(--vistoria-primary))]">Detalhes do Evento</h3>
                 <div className="grid sm:grid-cols-2 gap-6">
                   <div>
                     <Label className="text-base font-semibold">Data do Evento *</Label>
@@ -682,53 +651,78 @@ export default function VistoriaPublicaFormulario() {
                   />
                 </div>
 
-                <h3 className="text-xl font-bold text-[hsl(var(--vistoria-primary))] pt-4">Dados do Veículo</h3>
-
-                {/* Seletor de Tipo, Marca, Modelo, Ano (VehicleFipeSelector com showFipeButton=false) */}
+                {/* ÚNICO VehicleFipeSelector - CORRIGIDO para carregar dados FIPE */}
                 <div className="mt-4 space-y-3">
                   <VehicleFipeSelector
+                    // Vehicle Type
                     vehicleType={vehicleType}
-                    onVehicleTypeChange={handleVehicleTypeChange}
+                    onVehicleTypeChange={handleVehicleTypeChange} // Mantido para resetar marca/modelo/ano
+                    // Marca
                     marca={formData.veiculo_marca}
                     onMarcaChange={(value) =>
                       setFormData((prev) => ({
                         ...prev,
                         veiculo_marca: value,
-                        veiculo_modelo: "",
-                        veiculo_ano: "",
-                        veiculo_valor_fipe: null, // Limpa FIPE
-                        veiculo_fipe_data_consulta: null, // Limpa FIPE
+                        veiculo_modelo: "", // Limpar modelo ao trocar marca
+                        veiculo_ano: "", // Limpar ano ao trocar marca
+                        veiculo_valor_fipe: null,
+                        veiculo_fipe_data_consulta: null,
                       }))
                     }
+                    // Modelo
                     modelo={formData.veiculo_modelo}
                     onModeloChange={(value) =>
                       setFormData((prev) => ({
                         ...prev,
                         veiculo_modelo: value,
-                        veiculo_ano: "",
-                        veiculo_valor_fipe: null, // Limpa FIPE
-                        veiculo_fipe_data_consulta: null, // Limpa FIPE
+                        veiculo_ano: "", // Limpar ano ao trocar modelo
+                        veiculo_valor_fipe: null,
+                        veiculo_fipe_data_consulta: null,
                       }))
                     }
+                    // Ano
                     ano={formData.veiculo_ano}
                     onAnoChange={(value) =>
                       setFormData((prev) => ({
                         ...prev,
                         veiculo_ano: value,
-                        veiculo_valor_fipe: null, // Limpa FIPE
-                        veiculo_fipe_data_consulta: null, // Limpa FIPE
+                        veiculo_valor_fipe: null,
+                        veiculo_fipe_data_consulta: null,
                       }))
                     }
-                    showFipeButton={false} // Não exibe o botão interno
-                    // Não passa as props de valor FIPE pois a consulta será feita separadamente
+                    // FIPE Data (Campos de retorno)
+                    valorFipe={formData.veiculo_valor_fipe}
+                    onValorFipeChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_valor_fipe: value,
+                      }))
+                    }
+                    dataConsultaFipe={formData.veiculo_fipe_data_consulta}
+                    onDataConsultaFipeChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_fipe_data_consulta: value,
+                      }))
+                    }
+                    codigoFipe={formData.veiculo_fipe_codigo}
+                    onCodigoFipeChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_fipe_codigo: value,
+                      }))
+                    }
+                    // Configuração de exibição
+                    showFipeButton={true} // Agora ele exibe e executa a lógica de FIPE
+                    // showOnlySelectors removido para permitir que a lógica completa de FIPE seja inicializada
                   />
                 </div>
+                {/* FIM: ÚNICO VehicleFipeSelector */}
 
-                {/* Placa do Veículo (MOVIMENTADO) */}
                 <div>
                   <Label className="text-base font-semibold">Placa do Veículo</Label>
                   <Input
-                    value={displayPlate(formData.veiculo_placa)}
+                    value={formData.veiculo_placa}
                     onChange={handlePlacaChange}
                     placeholder="ABC-1234"
                     className="mt-2 h-12 font-mono text-lg uppercase"
@@ -794,94 +788,6 @@ export default function VistoriaPublicaFormulario() {
                   </div>
                 </div>
 
-                {/* Lógica de Consulta FIPE (MOVIMENTADA PARA DEPOIS DE COR E CHASSI) */}
-                <div className="space-y-4 pt-2">
-                  {/* Exibe o botão de consulta FIPE ou o valor encontrado */}
-                  {formData.veiculo_valor_fipe ? (
-                    <div className="p-3 border-2 border-green-200 bg-green-50 rounded-lg">
-                      <Label className="text-base font-semibold text-green-700 block mb-1">
-                        Valor FIPE Encontrado:
-                      </Label>
-                      <div className="flex justify-between items-center">
-                        <span className="text-2xl font-bold text-green-800">
-                          {formData.veiculo_valor_fipe.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                        </span>
-                        <Button
-                          variant="outline"
-                          onClick={() =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              veiculo_valor_fipe: null,
-                              veiculo_fipe_data_consulta: null,
-                              veiculo_fipe_codigo: null,
-                            }))
-                          }
-                          className="text-red-500 hover:text-red-700 h-8"
-                        >
-                          Limpar Valor
-                        </Button>
-                      </div>
-                      <p className="text-xs text-green-600 mt-1">
-                        Consultada em:{" "}
-                        {formData.veiculo_fipe_data_consulta
-                          ? new Date(formData.veiculo_fipe_data_consulta).toLocaleDateString("pt-BR")
-                          : "N/A"}
-                      </p>
-                    </div>
-                  ) : (
-                    // Se não encontrou valor FIPE, mostra o botão para tentar (se dados estiverem ok)
-                    showFipeButton && (
-                      <Button
-                        onClick={handleFipeLookup}
-                        disabled={fipeLoading || !isFipeDataAvailable}
-                        className="w-full bg-[hsl(var(--vistoria-primary))] hover:bg-[hsl(var(--vistoria-primary))/90] text-white h-12"
-                      >
-                        {fipeLoading ? (
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                        ) : (
-                          <>
-                            <Search className="h-5 w-5 mr-2" /> Consultar Valor FIPE
-                          </>
-                        )}
-                      </Button>
-                    )
-                  )}
-
-                  {/* Input manual de valor FIPE - SÓ EXIBE SE NÃO TIVER VALOR ENCONTRADO */}
-                  {!formData.veiculo_valor_fipe && (
-                    <div className="pt-2">
-                      <Label className="text-base font-semibold">Valor de Mercado do Veículo (R$)</Label>
-                      <MaskedInput
-                        format="R$ #.###.###,##"
-                        maskChar=""
-                        value={
-                          formData.veiculo_valor_fipe !== null
-                            ? String(formData.veiculo_valor_fipe).replace(".", ",")
-                            : ""
-                        }
-                        onValueChange={(values) => {
-                          const rawValue = values.value.replace(/\./g, "").replace(",", ".");
-                          setFormData((prev) => ({
-                            ...prev,
-                            veiculo_valor_fipe: parseFloat(rawValue) || 0,
-                            veiculo_fipe_data_consulta: null, // Limpa data se for manual
-                            veiculo_fipe_codigo: null, // Limpa código se for manual
-                          }));
-                        }}
-                        placeholder="R$ 0,00"
-                        className="mt-2 h-12 text-lg"
-                        inputMode="numeric"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Obrigatório. Informe o valor aproximado caso a consulta FIPE falhe.
-                      </p>
-                    </div>
-                  )}
-                </div>
-                {/* FIM: Lógica de Consulta FIPE */}
-
-                <h3 className="text-xl font-bold text-[hsl(var(--vistoria-primary))] pt-4">Narrativa do Acidente</h3>
-
                 <div>
                   <Label className="text-base font-semibold">Narre os Fatos *</Label>
                   <Textarea
@@ -923,7 +829,6 @@ export default function VistoriaPublicaFormulario() {
             {/* Step 2: Informações Gerais */}
             {currentStep === 2 && (
               <div className="space-y-6">
-                {/* ... (Todo o conteúdo do Step 2 permanece o mesmo) ... */}
                 <div>
                   <Label className="text-base font-semibold mb-3 block">Houve terceiros envolvidos?</Label>
                   <RadioGroup
@@ -950,7 +855,7 @@ export default function VistoriaPublicaFormulario() {
                   <div>
                     <Label className="text-base font-semibold">Placa do Terceiro</Label>
                     <Input
-                      value={displayPlate(formData.placa_terceiro)}
+                      value={formData.placa_terceiro}
                       onChange={handlePlacaTerceiroChange}
                       placeholder="Placa do veículo de terceiros"
                       className="mt-2 h-12 font-mono text-lg uppercase"
@@ -1150,7 +1055,6 @@ export default function VistoriaPublicaFormulario() {
             ---
             {/* Step 3: Documentos (Fotos) */}
             {currentStep === 3 && (
-              /* ... (Todo o conteúdo do Step 3 permanece o mesmo) ... */
               <div className="space-y-6">
                 <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-start gap-3">
                   <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
@@ -1230,7 +1134,6 @@ export default function VistoriaPublicaFormulario() {
             ---
             {/* Step 4: Croqui */}
             {currentStep === 4 && (
-              /* ... (Todo o conteúdo do Step 4 permanece o mesmo) ... */
               <div className="space-y-6">
                 <h3 className="text-xl font-bold text-[hsl(var(--vistoria-primary))]">Desenho do Acidente (Croqui)</h3>
                 <p className="text-sm text-muted-foreground">
