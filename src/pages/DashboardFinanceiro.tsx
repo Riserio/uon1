@@ -115,7 +115,9 @@ export default function DashboardFinanceiro() {
       // Combinar dados de lançamentos e sinistros
       const data = lancamentosData || [];
 
-      if (error) throw error;
+      const { data: lancamentosData, error: lancamentosError } = await queryLancamentos;
+      
+      if (lancamentosError) throw lancamentosError;
 
       // Preparar dados para gráfico de evolução mensal (últimos 6 meses)
       const monthlyData: { [key: string]: { receitas: number; despesas: number } } = {};

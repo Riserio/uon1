@@ -202,11 +202,12 @@ export default function Auth() {
         toast.error(result.error.message || "Erro ao criar conta");
       } else {
         // Forçar status pendente para usuários criados via login
-        if (result.data?.user) {
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData?.user) {
           await supabase
             .from('profiles')
             .update({ status: 'pendente', ativo: false })
-            .eq('id', result.data.user.id);
+            .eq('id', userData.user.id);
         }
         toast.success("Conta criada! Aguarde aprovação de um administrador para fazer login.");
         setEmail("");
