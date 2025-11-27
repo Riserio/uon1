@@ -99,7 +99,7 @@ export default function PID() {
                   <div className="flex gap-2 w-full sm:w-auto">
                     <Button
                       variant="outline"
-                      onClick={() => navigate(`/dashboard-financeiro?corretora=${selectedCorretora}`)}
+                      onClick={() => navigate(`/custos-sinistros?corretora=${selectedCorretora}`)}
                       className="gap-2 whitespace-nowrap flex-1 sm:flex-none"
                     >
                       <DollarSign className="h-4 w-4" />
