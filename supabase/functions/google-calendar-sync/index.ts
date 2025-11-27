@@ -7,8 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
-serve(async (req: Request) => {
-  // Pré-flight CORS
+serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -19,62 +18,38 @@ serve(async (req: Request) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // 🔎 LOG OPCIONAL PARA DEBUG – pode remover depois
-    console.log("Headers recebidos:", Array.from(req.headers.entries()));
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // 🔐 Lê o Authorization (case-insensitive)
-    const authHeader = req.headers.get("Authorization") ?? req.headers.get("authorization");
+    // 🔹 Lê o body enviado pelo front
+    const body = await req.json().catch(() => ({}));
+    const action = body?.action;
+    const userId = body?.user_id as string | undefined;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      console.error("Missing authorization header ou formato inválido:", authHeader);
-      return new Response(
-        JSON.stringify({
-          code: 401,
-          message: "Missing authorization header",
-        }),
-        {
-          status: 401,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        },
-      );
-    }
-
-    // ⚙️ Cria client autenticado com o MESMO header do request
-    // (boa prática do Supabase para Edge Functions)
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      global: {
-        headers: {
-          Authorization: authHeader,
-        },
-      },
-    });
-
-    // 🔑 Pega o usuário a partir do JWT (sem passar token manual)
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      console.error("Erro ao obter usuário:", userError);
-      return new Response(JSON.stringify({ error: "Invalid user" }), {
-        status: 401,
+    if (action !== "sync") {
+      return new Response(JSON.stringify({ error: "Invalid action, expected { action: 'sync' }" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // 🔄 Carrega integração Google Calendar do usuário
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "Missing user_id in request body" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 🔹 NÃO usamos mais Authorization header; usamos user_id direto
+    console.log("Iniciando sync para user_id:", userId);
+
     const { data: integration, error: integrationError } = await supabase
       .from("google_calendar_integrations")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     if (integrationError || !integration) {
-      console.error("Integração Google Calendar não encontrada:", integrationError);
+      console.error("Integração não encontrada:", integrationError);
       return new Response(JSON.stringify({ error: "Google Calendar not connected" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -84,7 +59,7 @@ serve(async (req: Request) => {
     let accessToken = integration.access_token;
     const expiresAt = new Date(integration.token_expires_at);
 
-    // 🔁 Refresh token se expirado
+    // 🔄 Refresh token se expirado
     if (expiresAt <= new Date()) {
       const refreshResponse = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
@@ -98,7 +73,7 @@ serve(async (req: Request) => {
       });
 
       if (!refreshResponse.ok) {
-        console.error("Token refresh falhou:", await refreshResponse.text());
+        console.error("Token refresh failed:", await refreshResponse.text());
         return new Response(JSON.stringify({ error: "Token refresh failed" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -115,11 +90,11 @@ serve(async (req: Request) => {
           access_token: accessToken,
           token_expires_at: newExpiresAt,
         })
-        .eq("user_id", user.id);
+        .eq("user_id", userId);
     }
 
     // =======================
-    // IMPORT: Google -> BP
+    // IMPORT: Google -> eventos
     // =======================
     const now = new Date();
     const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -153,11 +128,11 @@ serve(async (req: Request) => {
             .from("eventos")
             .select("*")
             .eq("google_event_id", googleEvent.id)
-            .eq("user_id", user.id)
+            .eq("user_id", userId)
             .single();
 
           const eventData = {
-            user_id: user.id,
+            user_id: userId,
             titulo: googleEvent.summary || "Sem título",
             descricao: googleEvent.description || null,
             local: googleEvent.location || googleEvent.hangoutLink || null,
@@ -183,9 +158,9 @@ serve(async (req: Request) => {
     }
 
     // =======================
-    // EXPORT: BP -> Google
+    // EXPORT: eventos -> Google
     // =======================
-    const { data: eventos } = await supabase.from("eventos").select("*").eq("user_id", user.id);
+    const { data: eventos } = await supabase.from("eventos").select("*").eq("user_id", userId);
 
     let syncedCount = 0;
     const errors: any[] = [];
@@ -259,7 +234,7 @@ serve(async (req: Request) => {
     await supabase
       .from("google_calendar_integrations")
       .update({ last_sync_at: new Date().toISOString() })
-      .eq("user_id", user.id);
+      .eq("user_id", userId);
 
     return new Response(
       JSON.stringify({
@@ -271,10 +246,7 @@ serve(async (req: Request) => {
         errors: errors.length > 0 ? errors : undefined,
       }),
       {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
   } catch (error) {
@@ -285,10 +257,7 @@ serve(async (req: Request) => {
       }),
       {
         status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
   }
