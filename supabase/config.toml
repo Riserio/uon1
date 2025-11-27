@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.portal-lancamentos]
 verify_jwt = false
+
+[functions.enviar-cilia]
+verify_jwt = true

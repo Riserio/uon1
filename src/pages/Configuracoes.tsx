@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Palette, Image as ImageIcon, Globe, Code } from "lucide-react";
+import { ApiIntegrationsConfig } from "@/components/ApiIntegrationsConfig";
 import { SubdominioConfigDialog } from "@/components/SubdominioConfigDialog";
 
 interface ConfigColors {
@@ -436,6 +437,8 @@ export default function Configuracoes() {
           </TabsContent>
 
           <TabsContent value="api" className="space-y-6">
+            <ApiIntegrationsConfig />
+            
             <Card className="border-2">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -504,18 +507,6 @@ export default function Configuracoes() {
                     <p className="text-sm text-blue-800 dark:text-blue-200">
                       Os endpoints requerem autenticação JWT. Inclua o token no header Authorization: Bearer TOKEN
                     </p>
-                  </div>
-
-                  <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                    <h4 className="font-semibold mb-2 text-amber-900 dark:text-amber-100">Integração com Plataformas Externas</h4>
-                    <p className="text-sm text-amber-800 dark:text-amber-200 mb-2">
-                      Para integrar APIs de outras plataformas, você pode:
-                    </p>
-                    <ul className="text-sm text-amber-800 dark:text-amber-200 list-disc list-inside space-y-1">
-                      <li>Criar edge functions personalizadas que chamam APIs externas</li>
-                      <li>Usar webhooks para receber dados de plataformas externas</li>
-                      <li>Configurar integrações via backend usando os secrets configurados</li>
-                    </ul>
                   </div>
                 </div>
               </CardContent>

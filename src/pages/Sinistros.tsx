@@ -33,6 +33,7 @@ import {
   Handshake,
 } from "lucide-react";
 import { ClaimCard, Claim } from "@/components/ClaimCard";
+import { AcompanhamentoSinistroDialog } from "@/components/AcompanhamentoSinistroDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useFluxoPermissions } from "@/hooks/useFluxoPermissions";
 import { format } from "date-fns";
@@ -122,6 +123,9 @@ export default function Sinistros() {
     custo_perda_parcial: "",
   });
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Acompanhamento dialog
+  const [acompanhamentoClaim, setAcompanhamentoClaim] = useState<Claim | null>(null);
 
   useEffect(() => {
     if (activeTab === "vistorias") {
@@ -258,6 +262,7 @@ export default function Sinistros() {
             valor_indenizacao: vistoria?.valor_indenizacao,
             vistoria_id: vistoria?.id,
             vistoria_numero: vistoria?.numero,
+            corretora_id: atendimento.corretora_id,
             timeline,
             corretoraInfo: atendimento.corretoras,
           } as any;
@@ -735,7 +740,12 @@ export default function Sinistros() {
               {/* Lista de Claims */}
               <div className="space-y-4">
                 {filteredClaims.map((claim) => (
-                  <ClaimCard key={claim.id} claim={claim} onEdit={() => handleOpenEditClaim(claim)} />
+                  <ClaimCard 
+                    key={claim.id} 
+                    claim={claim} 
+                    onEdit={() => handleOpenEditClaim(claim)}
+                    onAcompanhamento={() => setAcompanhamentoClaim(claim)}
+                  />
                 ))}
                 {filteredClaims.length === 0 && (
                   <Card>
@@ -1336,6 +1346,18 @@ export default function Sinistros() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Acompanhamento Dialog */}
+      {acompanhamentoClaim && (
+        <AcompanhamentoSinistroDialog
+          open={!!acompanhamentoClaim}
+          onOpenChange={(open) => !open && setAcompanhamentoClaim(null)}
+          atendimentoId={acompanhamentoClaim.id}
+          sinistroNumero={acompanhamentoClaim.numero}
+          corretoraId={acompanhamentoClaim.corretora_id || undefined}
+          onUpdate={loadAcompanhamento}
+        />
+      )}
     </div>
   );
 }
