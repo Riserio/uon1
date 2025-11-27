@@ -193,14 +193,6 @@ export default function VistoriaPublicaLanding() {
                 <h2 className="text-3xl md:text-4xl font-bold mb-3">Como funciona?</h2>
                 <p className="text-blue-50 text-lg">Siga 3 passos simples para concluir sua vistoria</p>
               </div>
-
-              {corretora?.logo_url && (
-                <div className="flex justify-end md:justify-end">
-                  <div className="bg-white/10 backdrop-blur rounded-2xl px-4 py-3 md:px-6 md:py-4 shadow-lg">
-                    <img src={corretora.logo_url} alt={corretora.nome} className="h-10 md:h-14 object-contain" />
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
