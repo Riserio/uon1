@@ -93,9 +93,9 @@ export function VehicleFipeSelector({
     onMarcaChange(value);
     onModeloChange("");
     if (onAnoChange) onAnoChange("");
-    
+
     // Encontrar código da marca selecionada
-    const marcaObj = marcas.find(m => m.name === value);
+    const marcaObj = marcas.find((m) => m.name === value);
     if (marcaObj && vehicleType) {
       consultarModelos(vehicleType, marcaObj.code, value);
     }
@@ -105,10 +105,10 @@ export function VehicleFipeSelector({
   const handleModeloChange = (value: string) => {
     onModeloChange(value);
     if (onAnoChange) onAnoChange("");
-    
+
     // Carregar anos quando modelo for selecionado
     if (marcaCodigo !== null && vehicleType) {
-      const modeloObj = modelos.find(m => m.name === value);
+      const modeloObj = modelos.find((m) => m.name === value);
       if (modeloObj) {
         consultarAnos(vehicleType, marcaCodigo, modeloObj.code);
       }
@@ -128,15 +128,15 @@ export function VehicleFipeSelector({
     }
 
     // Encontrar códigos atuais no momento da consulta
-    const marcaObj = marcas.find(m => m.name === marca);
-    const modeloObj = modelos.find(m => m.name === modelo);
-    const anoObj = anos.find(a => a.name.includes(ano));
-    
+    const marcaObj = marcas.find((m) => m.name === marca);
+    const modeloObj = modelos.find((m) => m.name === modelo);
+    const anoObj = anos.find((a) => a.name.includes(ano));
+
     if (!marcaObj || !modeloObj) {
       toast.error("Dados de marca/modelo não carregados. Aguarde o carregamento.");
       return;
     }
-    
+
     if (!anoObj) {
       toast.error("Ano não encontrado");
       return;
@@ -145,11 +145,11 @@ export function VehicleFipeSelector({
     setConsultingFipe(true);
     try {
       const resultado = await consultarValor(vehicleType, marcaObj.code, modeloObj.code, anoObj.code);
-      
+
       if (resultado && onValorFipeChange && onDataConsultaFipeChange && onCodigoFipeChange) {
         // Extrair valor numérico do preço (remover R$ e converter)
-        const valorNumerico = parseFloat(resultado.price.replace(/[^\d,]/g, '').replace(',', '.'));
-        
+        const valorNumerico = parseFloat(resultado.price.replace(/[^\d,]/g, "").replace(",", "."));
+
         onValorFipeChange(valorNumerico);
         onDataConsultaFipeChange(new Date());
         onCodigoFipeChange(resultado.codeFipe);
@@ -168,15 +168,12 @@ export function VehicleFipeSelector({
     <div className="space-y-4">
       {!showOnlySelectors && (
         <>
-          <VehicleTypeSelector
-            value={vehicleType}
-            onChange={handleVehicleTypeChange}
-          />
+          <VehicleTypeSelector value={vehicleType} onChange={handleVehicleTypeChange} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <SearchableVehicleSelect
               label="Marca"
-              options={marcas.map(m => m.name)}
+              options={marcas.map((m) => m.name)}
               value={marca}
               onChange={handleMarcaChange}
               placeholder="Selecione a marca"
@@ -186,7 +183,7 @@ export function VehicleFipeSelector({
 
             <SearchableVehicleSelect
               label="Modelo"
-              options={modelos.map(m => m.name)}
+              options={modelos.map((m) => m.name)}
               value={modelo}
               onChange={handleModeloChange}
               placeholder="Selecione o modelo"
@@ -198,7 +195,7 @@ export function VehicleFipeSelector({
           {onAnoChange && (
             <SearchableVehicleSelect
               label="Ano"
-              options={anos.map(a => a.name)}
+              options={anos.map((a) => a.name)}
               value={ano || ""}
               onChange={handleAnoChange}
               placeholder="Selecione o ano"
@@ -218,9 +215,9 @@ export function VehicleFipeSelector({
             valorFipe={valorFipe}
             dataConsulta={dataConsultaFipe}
           />
-          
+
           {/* Campo de entrada manual de valor FIPE - aparece após erro ou se já tem valor */}
-          {(showManualInput || valorFipe) && (
+          {showManualInput && !valorFipe && (
             <div className="space-y-2">
               <Label>Valor FIPE (Manual)</Label>
               <div className="flex gap-2">
@@ -243,7 +240,7 @@ export function VehicleFipeSelector({
               </div>
               {valorFipe && dataConsultaFipe && (
                 <p className="text-xs text-muted-foreground">
-                  Inserido em: {new Date(dataConsultaFipe).toLocaleString('pt-BR')}
+                  Inserido em: {new Date(dataConsultaFipe).toLocaleString("pt-BR")}
                 </p>
               )}
             </div>
