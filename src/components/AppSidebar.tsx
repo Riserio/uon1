@@ -39,6 +39,7 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar";
 import { supabase } from "@/integrations/supabase/client";
+import { useTranslations } from "@/contexts/TranslationsContext";
 
 // ---------------- PERMISSÕES DE MENU POR ROLE ----------------
 
@@ -123,6 +124,7 @@ export function AppSidebar() {
   const unreadMessages = useUnreadMessages();
   const pendingUsers = usePendingUsers();
   const collapsed = state === "collapsed";
+  const { t } = useTranslations();
 
   const { canView } = useMenuPermissionsForRole(userRole);
 
@@ -174,7 +176,7 @@ export function AppSidebar() {
         <SidebarContent>
           {/* NAVIGAÇÃO */}
           <SidebarGroup>
-            <SidebarGroupLabel>Navegação</SidebarGroupLabel>
+            <SidebarGroupLabel>{t("secao_navegacao")}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {/* Dashboard */}
@@ -183,7 +185,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink to="/" end activeClassName="bg-primary text-primary-foreground">
                         <LayoutDashboard className="h-4 w-4" />
-                        {!collapsed && <span>Painel</span>}
+                        {!collapsed && <span>{t("menu_painel")}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -195,7 +197,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink to="/atendimentos" activeClassName="bg-primary text-primary-foreground">
                         <ClipboardList className="h-4 w-4" />
-                        {!collapsed && <span>Atendimentos</span>}
+                        {!collapsed && <span>{t("menu_atendimentos")}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -208,7 +210,7 @@ export function AppSidebar() {
 
           {/* CADASTROS */}
           <SidebarGroup>
-            <SidebarGroupLabel>Cadastros</SidebarGroupLabel>
+            <SidebarGroupLabel>{t("secao_cadastros")}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {/* Corretoras */}
@@ -217,7 +219,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink to="/corretoras" activeClassName="bg-primary text-primary-foreground">
                         <Building2 className="h-4 w-4" />
-                        {!collapsed && <span>Corretoras</span>}
+                        {!collapsed && <span>{t("menu_corretoras")}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -229,7 +231,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink to="/termos" activeClassName="bg-primary text-primary-foreground">
                         <FileText className="h-4 w-4" />
-                        {!collapsed && <span>Termos de Aceite</span>}
+                        {!collapsed && <span>{t("menu_termos")}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -241,7 +243,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink to="/contatos" activeClassName="bg-primary text-primary-foreground">
                         <Users className="h-4 w-4" />
-                        {!collapsed && <span>Contatos</span>}
+                        {!collapsed && <span>{t("menu_contatos")}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -256,7 +258,7 @@ export function AppSidebar() {
                           <div className="flex items-center justify-between w-full">
                             <div className="flex items-center gap-2">
                               <UserCircle className="h-4 w-4" />
-                              {!collapsed && <span>Usuários</span>}
+                              {!collapsed && <span>{t("menu_usuarios")}</span>}
                             </div>
                             {!collapsed && pendingUsers > 0 && (
                               <Badge variant="destructive" className="ml-auto">
@@ -276,7 +278,7 @@ export function AppSidebar() {
 
           {/* FERRAMENTAS */}
           <SidebarGroup>
-            <SidebarGroupLabel>Ferramentas</SidebarGroupLabel>
+            <SidebarGroupLabel>{t("secao_ferramentas")}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {/* Sinistros */}
@@ -285,7 +287,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink to="/sinistros" activeClassName="bg-primary text-primary-foreground">
                         <AlertTriangle className="h-4 w-4" />
-                        {!collapsed && <span>Sinistros</span>}
+                        {!collapsed && <span>{t("menu_sinistros")}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -297,7 +299,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink to="/lancamentos-financeiros" activeClassName="bg-primary text-primary-foreground">
                         <DollarSign className="h-4 w-4" />
-                        {!collapsed && <span>Lançamentos Financeiros</span>}
+                        {!collapsed && <span>{t("menu_lancamentos")}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -309,7 +311,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink to="/agenda" activeClassName="bg-primary text-primary-foreground">
                         <Calendar className="h-4 w-4" />
-                        {!collapsed && <span>Agenda</span>}
+                        {!collapsed && <span>{t("menu_agenda")}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -321,7 +323,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink to="/documentos" activeClassName="bg-primary text-primary-foreground">
                         <FileText className="h-4 w-4" />
-                        {!collapsed && <span>Documentos</span>}
+                        {!collapsed && <span>{t("menu_documentos")}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -335,7 +337,7 @@ export function AppSidebar() {
                         <div className="flex items-center justify-between w-full">
                           <div className="flex items-center gap-2">
                             <MessageCircle className="h-4 w-4" />
-                            {!collapsed && <span>Mensagens</span>}
+                            {!collapsed && <span>{t("menu_mensagens")}</span>}
                           </div>
                           {!collapsed && unreadMessages > 0 && (
                             <Badge variant="destructive" className="ml-auto">
@@ -354,7 +356,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink to="/pid" activeClassName="bg-primary text-primary-foreground">
                         <TrendingUp className="h-4 w-4" />
-                        {!collapsed && <span>PID</span>}
+                        {!collapsed && <span>{t("menu_pid")}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -366,7 +368,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink to="/emails" activeClassName="bg-primary text-primary-foreground">
                         <Mail className="h-4 w-4" />
-                        {!collapsed && <span>E-mails</span>}
+                        {!collapsed && <span>{t("menu_emails")}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -378,7 +380,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink to="/comunicados" activeClassName="bg-primary text-primary-foreground">
                         <Megaphone className="h-4 w-4" />
-                        {!collapsed && <span>Comunicados</span>}
+                        {!collapsed && <span>{t("menu_comunicados")}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -390,7 +392,7 @@ export function AppSidebar() {
                     <Link to="/configuracoes">
                       <SidebarMenuButton>
                         <Settings className="h-4 w-4" />
-                        {!collapsed && <span>Configurações</span>}
+                        {!collapsed && <span>{t("menu_configuracoes")}</span>}
                       </SidebarMenuButton>
                     </Link>
                   </SidebarMenuItem>

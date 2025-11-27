@@ -7,54 +7,33 @@ import { toast } from "sonner";
 import { Languages, Save, RotateCcw, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { defaultLabels, useTranslations } from "@/contexts/TranslationsContext";
 
-// Labels padrão do sistema
-const defaultLabels: Record<string, string> = {
-  corretora: "Corretora",
-  corretoras: "Corretoras",
-  sinistro: "Sinistro",
-  sinistros: "Sinistros",
-  vistoria: "Vistoria",
-  vistorias: "Vistorias",
-  atendimento: "Atendimento",
-  atendimentos: "Atendimentos",
-  associado: "Associado",
-  associados: "Associados",
-  cliente: "Cliente",
-  clientes: "Clientes",
-  parceiro: "Parceiro",
-  parceiros: "Parceiros",
-  usuario: "Usuário",
-  usuarios: "Usuários",
-  contato: "Contato",
-  contatos: "Contatos",
-  documento: "Documento",
-  documentos: "Documentos",
-  comunicado: "Comunicado",
-  comunicados: "Comunicados",
-  lancamento: "Lançamento",
-  lancamentos: "Lançamentos",
-  financeiro: "Financeiro",
-  comite: "Comitê",
-  oficina: "Oficina",
-  oficinas: "Oficinas",
-  reparo: "Reparo",
-  reparos: "Reparos",
-  peca: "Peça",
-  pecas: "Peças",
-  custo: "Custo",
-  custos: "Custos",
-  agenda: "Agenda",
-  equipe: "Equipe",
-  equipes: "Equipes",
-  painel: "Painel",
-  configuracoes: "Configurações",
-  mensagem: "Mensagem",
-  mensagens: "Mensagens",
+// Categorias para organização
+const labelCategories: Record<string, string[]> = {
+  "Menus": [
+    "menu_painel", "menu_atendimentos", "menu_corretoras", "menu_termos",
+    "menu_contatos", "menu_usuarios", "menu_sinistros", "menu_lancamentos",
+    "menu_agenda", "menu_documentos", "menu_mensagens", "menu_pid",
+    "menu_emails", "menu_comunicados", "menu_configuracoes"
+  ],
+  "Seções": ["secao_navegacao", "secao_cadastros", "secao_ferramentas"],
+  "Entidades": [
+    "corretora", "corretoras", "sinistro", "sinistros", "vistoria", "vistorias",
+    "atendimento", "atendimentos", "associado", "associados", "cliente", "clientes",
+    "parceiro", "parceiros", "usuario", "usuarios", "contato", "contatos",
+    "documento", "documentos", "comunicado", "comunicados", "lancamento", "lancamentos"
+  ],
+  "Outros": [
+    "financeiro", "comite", "oficina", "oficinas", "reparo", "reparos",
+    "peca", "pecas", "custo", "custos", "agenda", "equipe", "equipes",
+    "painel", "configuracoes", "mensagem", "mensagens"
+  ]
 };
 
 export function TranslationsTab() {
   const { user } = useAuth();
+  const { reloadTranslations } = useTranslations();
   const [labels, setLabels] = useState<Record<string, string>>(defaultLabels);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -116,6 +95,9 @@ export function TranslationsTab() {
         }, { onConflict: 'user_id' });
 
       if (error) throw error;
+      
+      // Recarrega traduções globalmente
+      await reloadTranslations();
       toast.success("Traduções salvas com sucesso!");
     } catch (error) {
       console.error("Error saving translations:", error);
@@ -130,10 +112,14 @@ export function TranslationsTab() {
     toast.success("Traduções resetadas para o padrão");
   };
 
-  const filteredLabels = Object.entries(labels).filter(([key, value]) => 
-    key.toLowerCase().includes(search.toLowerCase()) || 
-    value.toLowerCase().includes(search.toLowerCase())
-  );
+  const getFilteredLabels = (category: string) => {
+    const keys = labelCategories[category] || [];
+    return keys.filter(key => 
+      key.toLowerCase().includes(search.toLowerCase()) || 
+      labels[key]?.toLowerCase().includes(search.toLowerCase()) ||
+      defaultLabels[key]?.toLowerCase().includes(search.toLowerCase())
+    );
+  };
 
   if (isLoading) {
     return (
@@ -153,7 +139,7 @@ export function TranslationsTab() {
           Personalização de Textos
         </CardTitle>
         <CardDescription>
-          Renomeie os termos do sistema para adaptar à sua nomenclatura. 
+          Renomeie os termos e menus do sistema para adaptar à sua nomenclatura. 
           Por exemplo, troque "Corretora" por "Associação".
         </CardDescription>
       </CardHeader>
@@ -178,23 +164,33 @@ export function TranslationsTab() {
           </Button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredLabels.map(([key, value]) => (
-            <div key={key} className="space-y-2">
-              <Label htmlFor={key} className="text-xs text-muted-foreground capitalize">
-                {key.replace(/_/g, " ")} (padrão: {defaultLabels[key]})
-              </Label>
-              <Input
-                id={key}
-                value={value}
-                onChange={(e) => setLabels(prev => ({ ...prev, [key]: e.target.value }))}
-                placeholder={defaultLabels[key]}
-              />
+        {Object.keys(labelCategories).map(category => {
+          const filteredKeys = getFilteredLabels(category);
+          if (filteredKeys.length === 0) return null;
+          
+          return (
+            <div key={category} className="space-y-4">
+              <h3 className="font-semibold text-sm text-muted-foreground border-b pb-2">{category}</h3>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {filteredKeys.map(key => (
+                  <div key={key} className="space-y-2">
+                    <Label htmlFor={key} className="text-xs text-muted-foreground">
+                      {key.replace(/_/g, " ")} (padrão: {defaultLabels[key]})
+                    </Label>
+                    <Input
+                      id={key}
+                      value={labels[key] || ""}
+                      onChange={(e) => setLabels(prev => ({ ...prev, [key]: e.target.value }))}
+                      placeholder={defaultLabels[key]}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
 
-        {filteredLabels.length === 0 && (
+        {Object.keys(labelCategories).every(cat => getFilteredLabels(cat).length === 0) && (
           <div className="text-center py-8 text-muted-foreground">
             Nenhum termo encontrado para "{search}"
           </div>
