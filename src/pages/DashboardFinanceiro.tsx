@@ -112,13 +112,6 @@ export default function DashboardFinanceiro() {
       
       if (sinistrosError) throw sinistrosError;
 
-      // Combinar dados de lançamentos e sinistros
-      const data = lancamentosData || [];
-
-      const { data: lancamentosData, error: lancamentosError } = await queryLancamentos;
-      
-      if (lancamentosError) throw lancamentosError;
-
       // Preparar dados para gráfico de evolução mensal (últimos 6 meses)
       const monthlyData: { [key: string]: { receitas: number; despesas: number } } = {};
       const now = new Date();
@@ -129,7 +122,7 @@ export default function DashboardFinanceiro() {
         monthlyData[monthKey] = { receitas: 0, despesas: 0 };
       }
 
-      data?.forEach((lancamento) => {
+      lancamentosData?.forEach((lancamento) => {
         const date = new Date(lancamento.data_lancamento);
         const monthKey = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
         
@@ -152,7 +145,7 @@ export default function DashboardFinanceiro() {
 
       // Preparar dados por categoria
       const categoryMap: { [key: string]: number } = {};
-      data?.forEach((lancamento) => {
+      lancamentosData?.forEach((lancamento) => {
         const cat = lancamento.categoria || 'Sem categoria';
         categoryMap[cat] = (categoryMap[cat] || 0) + Math.abs(lancamento.valor_liquido || 0);
       });
@@ -171,7 +164,7 @@ export default function DashboardFinanceiro() {
         rejeitado: { count: 0, color: '#dc2626' },
       };
 
-      data?.forEach((lancamento) => {
+      lancamentosData?.forEach((lancamento) => {
         if (lancamento.status && statusMap[lancamento.status as keyof typeof statusMap]) {
           statusMap[lancamento.status as keyof typeof statusMap].count++;
         }
@@ -190,11 +183,11 @@ export default function DashboardFinanceiro() {
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
 
-      const receitas = data
+      const receitas = lancamentosData
         ?.filter((l) => l.tipo_lancamento === "receita")
         .reduce((sum, l) => sum + (l.valor_liquido || 0), 0) || 0;
 
-      const despesas = data
+      const despesas = lancamentosData
         ?.filter((l) => l.tipo_lancamento === "despesa")
         .reduce((sum, l) => sum + (l.valor_liquido || 0), 0) || 0;
 
@@ -213,7 +206,7 @@ export default function DashboardFinanceiro() {
 
       const despesasTotais = despesas + custosSinistros;
 
-      const receitasMes = data
+      const receitasMes = lancamentosData
         ?.filter((l) => {
           const dataLancamento = new Date(l.data_lancamento);
           return (
@@ -224,7 +217,7 @@ export default function DashboardFinanceiro() {
         })
         .reduce((sum, l) => sum + (l.valor_liquido || 0), 0) || 0;
 
-      const despesasMes = data
+      const despesasMes = lancamentosData
         ?.filter((l) => {
           const dataLancamento = new Date(l.data_lancamento);
           return (
@@ -235,15 +228,15 @@ export default function DashboardFinanceiro() {
         })
         .reduce((sum, l) => sum + (l.valor_liquido || 0), 0) || 0;
 
-      const pendentes = data?.filter((l) => l.status === "pendente").length || 0;
-      const aprovados = data?.filter((l) => l.status === "aprovado").length || 0;
-      const rejeitados = data?.filter((l) => l.status === "rejeitado").length || 0;
+      const pendentes = lancamentosData?.filter((l) => l.status === "pendente").length || 0;
+      const aprovados = lancamentosData?.filter((l) => l.status === "aprovado").length || 0;
+      const rejeitados = lancamentosData?.filter((l) => l.status === "rejeitado").length || 0;
 
       setStats({
         totalReceitas: receitas,
         totalDespesas: despesasTotais,
         saldo: receitas - despesasTotais,
-        totalLancamentos: data?.length || 0,
+        totalLancamentos: lancamentosData?.length || 0,
         pendentes,
         aprovados,
         rejeitados,
