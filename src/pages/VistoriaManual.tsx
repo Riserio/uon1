@@ -128,6 +128,10 @@ export default function VistoriaManual() {
     veiculo_valor_fipe: null as number | null,
     veiculo_fipe_data_consulta: null as Date | null,
     veiculo_fipe_codigo: null as string | null,
+    // Campos adicionais para CILIA
+    quilometragem: "",
+    tipo_pintura: "solida",
+    veiculo_uf: "",
     // Cliente
     cliente_nome: "",
     cliente_email: "",
@@ -300,6 +304,11 @@ export default function VistoriaManual() {
           veiculo_valor_fipe: formData.veiculo_valor_fipe,
           veiculo_fipe_data_consulta: formData.veiculo_fipe_data_consulta?.toISOString(),
           veiculo_fipe_codigo: formData.veiculo_fipe_codigo,
+          // Campos adicionais para CILIA
+          quilometragem: formData.quilometragem ? parseInt(formData.quilometragem) : null,
+          tipo_pintura: formData.tipo_pintura || "solida",
+          veiculo_uf: formData.veiculo_uf || null,
+          // Dados do sinistro
           tipo_sinistro: formData.tipo_sinistro,
           relato_incidente: formData.relato_incidente,
           data_incidente: formData.data_incidente,
@@ -654,6 +663,66 @@ export default function VistoriaManual() {
                     }))
                   }
                 />
+              </div>
+
+              {/* Campos adicionais para integração CILIA */}
+              <div className="grid grid-cols-3 gap-4 mt-4">
+                <div>
+                  <Label>Quilometragem</Label>
+                  <Input
+                    type="number"
+                    value={formData.quilometragem}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        quilometragem: e.target.value,
+                      }))
+                    }
+                    placeholder="Ex: 45000"
+                  />
+                </div>
+                <div>
+                  <Label>Tipo de Pintura</Label>
+                  <Select
+                    value={formData.tipo_pintura}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        tipo_pintura: value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="solida">Sólida</SelectItem>
+                      <SelectItem value="metalica">Metálica</SelectItem>
+                      <SelectItem value="perolizada">Perolizada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>UF do Veículo</Label>
+                  <Select
+                    value={formData.veiculo_uf}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        veiculo_uf: value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"].map((uf) => (
+                        <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 

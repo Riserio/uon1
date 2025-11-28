@@ -98,6 +98,10 @@ export default function VistoriaPublicaFormulario() {
     veiculo_valor_fipe: null as number | null,
     veiculo_fipe_data_consulta: null as Date | null,
     veiculo_fipe_codigo: null as string | null,
+    // Campos adicionais para CILIA
+    quilometragem: "",
+    tipo_pintura: "solida",
+    veiculo_uf: "",
     // Sinistro
     narrar_fatos: "",
     vitima_ou_causador: "",
@@ -785,6 +789,67 @@ export default function VistoriaPublicaFormulario() {
                       maxLength={17}
                       className="mt-1 uppercase"
                     />
+                  </div>
+                </div>
+
+                {/* Campos adicionais para integração CILIA */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <Label>Quilometragem</Label>
+                    <Input
+                      type="number"
+                      value={formData.quilometragem}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          quilometragem: e.target.value,
+                        }))
+                      }
+                      placeholder="Ex: 45000"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label>Tipo de Pintura</Label>
+                    <Select
+                      value={formData.tipo_pintura}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          tipo_pintura: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[100000] bg-popover">
+                        <SelectItem value="solida">Sólida</SelectItem>
+                        <SelectItem value="metalica">Metálica</SelectItem>
+                        <SelectItem value="perolizada">Perolizada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>UF do Veículo</Label>
+                    <Select
+                      value={formData.veiculo_uf}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          veiculo_uf: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[100000] bg-popover max-h-60">
+                        {["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"].map((uf) => (
+                          <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
