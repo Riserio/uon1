@@ -216,104 +216,59 @@ export function ApiIntegrationsConfig() {
 
     try {
       if (integration.tipo === "cilia") {
-        // Testar conexão CILIA - fazer uma requisição simples para validar o token
-        const baseUrl = integration.base_url.replace(/\/$/, "");
-        const testUrl = `${baseUrl}/services/generico-ws/rest/v2/integracao/createBudget`;
-        
-        // Fazer uma requisição de teste (POST vazio para verificar autenticação)
-        const response = await fetch(testUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "authToken": integration.auth_token,
-            "Accept": "application/json",
+        // Testar conexão CILIA via Edge Function (evita CORS)
+        const { data, error } = await supabase.functions.invoke("testar-cilia", {
+          body: {
+            base_url: integration.base_url,
+            auth_token: integration.auth_token,
           },
-          body: JSON.stringify({ Budget: { test: true } }),
         });
 
-        const responseText = await response.text();
-        let responseData;
-        try {
-          responseData = JSON.parse(responseText);
-        } catch {
-          responseData = { raw: responseText };
+        if (error) {
+          console.error("Erro ao testar CILIA:", error);
+          setConnectionStatus(prev => ({ 
+            ...prev, 
+            [integration.id]: { 
+              success: false, 
+              message: `Erro: ${error.message}` 
+            } 
+          }));
+          toast.error("Erro ao testar conexão CILIA");
+          return;
         }
 
-        console.log("Teste CILIA:", { status: response.status, responseData });
+        console.log("Teste CILIA resultado:", data);
 
-        // Verificar resposta
-        if (response.status === 401 || responseData?.code === 2 || responseData?.messageType === "error_invalid_token") {
-          setConnectionStatus(prev => ({ 
-            ...prev, 
-            [integration.id]: { 
-              success: false, 
-              message: "Token inválido ou expirado. Verifique o token de autenticação." 
-            } 
-          }));
-          toast.error("Token CILIA inválido ou expirado");
-        } else if (response.status === 404) {
-          setConnectionStatus(prev => ({ 
-            ...prev, 
-            [integration.id]: { 
-              success: false, 
-              message: "Endpoint não encontrado (404). Verifique a URL base." 
-            } 
-          }));
-          toast.error("Endpoint CILIA não encontrado");
-        } else if (response.ok || responseData?.code === 0 || responseData?.messageType === "success" || !responseData?.code) {
-          // Se não houve erro de autenticação, a conexão está OK
+        if (data?.success) {
           setConnectionStatus(prev => ({ 
             ...prev, 
             [integration.id]: { 
               success: true, 
-              message: "Conexão estabelecida com sucesso!" 
+              message: data.message || "Conexão estabelecida com sucesso!" 
             } 
           }));
           toast.success("Conexão CILIA OK!");
         } else {
-          // Outro erro
-          const errorMsg = responseData?.message || responseData?.error || "Erro desconhecido";
           setConnectionStatus(prev => ({ 
             ...prev, 
             [integration.id]: { 
               success: false, 
-              message: `Erro: ${errorMsg}` 
+              message: data?.message || "Erro ao testar conexão" 
             } 
           }));
-          toast.error(`Erro na conexão: ${errorMsg}`);
+          toast.error(data?.message || "Erro na conexão CILIA");
         }
       } else if (integration.tipo === "sga_hinova") {
-        // Testar conexão SGA Hinova
-        const baseUrl = integration.base_url.replace(/\/$/, "");
-        const testUrl = `${baseUrl}/health`;
-        
-        const response = await fetch(testUrl, {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${integration.auth_token}`,
-            "Accept": "application/json",
-          },
-        });
-
-        if (response.ok) {
-          setConnectionStatus(prev => ({ 
-            ...prev, 
-            [integration.id]: { 
-              success: true, 
-              message: "Conexão estabelecida com sucesso!" 
-            } 
-          }));
-          toast.success("Conexão SGA Hinova OK!");
-        } else {
-          setConnectionStatus(prev => ({ 
-            ...prev, 
-            [integration.id]: { 
-              success: false, 
-              message: `Erro ${response.status}: ${response.statusText}` 
-            } 
-          }));
-          toast.error(`Erro na conexão SGA Hinova: ${response.status}`);
-        }
+        // Para SGA Hinova, também usar edge function quando implementado
+        // Por enquanto, mostrar mensagem
+        setConnectionStatus(prev => ({ 
+          ...prev, 
+          [integration.id]: { 
+            success: false, 
+            message: "Teste de conexão SGA Hinova ainda não implementado" 
+          } 
+        }));
+        toast.info("Teste SGA Hinova em desenvolvimento");
       }
     } catch (error: any) {
       console.error("Erro ao testar conexão:", error);
@@ -321,7 +276,7 @@ export function ApiIntegrationsConfig() {
         ...prev, 
         [integration.id]: { 
           success: false, 
-          message: `Erro de rede: ${error.message || "Verifique a URL e conectividade"}` 
+          message: `Erro: ${error.message || "Verifique a URL e conectividade"}` 
         } 
       }));
       toast.error("Erro ao testar conexão");
