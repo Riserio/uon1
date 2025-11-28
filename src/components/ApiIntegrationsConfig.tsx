@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, Edit2, CheckCircle, XCircle, Server, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Edit2, CheckCircle, XCircle, Server, Eye, EyeOff, RefreshCw, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface ApiIntegration {
@@ -55,6 +55,8 @@ export function ApiIntegrationsConfig() {
   const [editingIntegration, setEditingIntegration] = useState<ApiIntegration | null>(null);
   const [showToken, setShowToken] = useState<Record<string, boolean>>({});
   const [selectedApiType, setSelectedApiType] = useState<"cilia" | "sga_hinova">("cilia");
+  const [testingConnection, setTestingConnection] = useState<Record<string, boolean>>({});
+  const [connectionStatus, setConnectionStatus] = useState<Record<string, { success: boolean; message: string } | null>>({});
   const [formData, setFormData] = useState({
     corretora_id: "",
     tipo: "cilia",
@@ -208,6 +210,126 @@ export function ApiIntegrationsConfig() {
     }
   };
 
+  const handleTestConnection = async (integration: ApiIntegration) => {
+    setTestingConnection(prev => ({ ...prev, [integration.id]: true }));
+    setConnectionStatus(prev => ({ ...prev, [integration.id]: null }));
+
+    try {
+      if (integration.tipo === "cilia") {
+        // Testar conexão CILIA - fazer uma requisição simples para validar o token
+        const baseUrl = integration.base_url.replace(/\/$/, "");
+        const testUrl = `${baseUrl}/services/generico-ws/rest/v2/integracao/createBudget`;
+        
+        // Fazer uma requisição de teste (POST vazio para verificar autenticação)
+        const response = await fetch(testUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "authToken": integration.auth_token,
+            "Accept": "application/json",
+          },
+          body: JSON.stringify({ Budget: { test: true } }),
+        });
+
+        const responseText = await response.text();
+        let responseData;
+        try {
+          responseData = JSON.parse(responseText);
+        } catch {
+          responseData = { raw: responseText };
+        }
+
+        console.log("Teste CILIA:", { status: response.status, responseData });
+
+        // Verificar resposta
+        if (response.status === 401 || responseData?.code === 2 || responseData?.messageType === "error_invalid_token") {
+          setConnectionStatus(prev => ({ 
+            ...prev, 
+            [integration.id]: { 
+              success: false, 
+              message: "Token inválido ou expirado. Verifique o token de autenticação." 
+            } 
+          }));
+          toast.error("Token CILIA inválido ou expirado");
+        } else if (response.status === 404) {
+          setConnectionStatus(prev => ({ 
+            ...prev, 
+            [integration.id]: { 
+              success: false, 
+              message: "Endpoint não encontrado (404). Verifique a URL base." 
+            } 
+          }));
+          toast.error("Endpoint CILIA não encontrado");
+        } else if (response.ok || responseData?.code === 0 || responseData?.messageType === "success" || !responseData?.code) {
+          // Se não houve erro de autenticação, a conexão está OK
+          setConnectionStatus(prev => ({ 
+            ...prev, 
+            [integration.id]: { 
+              success: true, 
+              message: "Conexão estabelecida com sucesso!" 
+            } 
+          }));
+          toast.success("Conexão CILIA OK!");
+        } else {
+          // Outro erro
+          const errorMsg = responseData?.message || responseData?.error || "Erro desconhecido";
+          setConnectionStatus(prev => ({ 
+            ...prev, 
+            [integration.id]: { 
+              success: false, 
+              message: `Erro: ${errorMsg}` 
+            } 
+          }));
+          toast.error(`Erro na conexão: ${errorMsg}`);
+        }
+      } else if (integration.tipo === "sga_hinova") {
+        // Testar conexão SGA Hinova
+        const baseUrl = integration.base_url.replace(/\/$/, "");
+        const testUrl = `${baseUrl}/health`;
+        
+        const response = await fetch(testUrl, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${integration.auth_token}`,
+            "Accept": "application/json",
+          },
+        });
+
+        if (response.ok) {
+          setConnectionStatus(prev => ({ 
+            ...prev, 
+            [integration.id]: { 
+              success: true, 
+              message: "Conexão estabelecida com sucesso!" 
+            } 
+          }));
+          toast.success("Conexão SGA Hinova OK!");
+        } else {
+          setConnectionStatus(prev => ({ 
+            ...prev, 
+            [integration.id]: { 
+              success: false, 
+              message: `Erro ${response.status}: ${response.statusText}` 
+            } 
+          }));
+          toast.error(`Erro na conexão SGA Hinova: ${response.status}`);
+        }
+      }
+    } catch (error: any) {
+      console.error("Erro ao testar conexão:", error);
+      setConnectionStatus(prev => ({ 
+        ...prev, 
+        [integration.id]: { 
+          success: false, 
+          message: `Erro de rede: ${error.message || "Verifique a URL e conectividade"}` 
+        } 
+      }));
+      toast.error("Erro ao testar conexão");
+    } finally {
+      setTestingConnection(prev => ({ ...prev, [integration.id]: false }));
+    }
+  };
+
   const handleAmbienteChange = (ambiente: string) => {
     const apiConfig = API_TYPES[formData.tipo as keyof typeof API_TYPES];
     const baseUrl = ambiente === "homologacao" ? apiConfig?.qaUrl : apiConfig?.defaultUrl;
@@ -255,70 +377,105 @@ export function ApiIntegrationsConfig() {
               {filtered.map((integration) => (
                 <div
                   key={integration.id}
-                  className="flex items-center justify-between p-4 border rounded-lg bg-card"
+                  className="flex flex-col gap-3 p-4 border rounded-lg bg-card"
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        {integration.ativo ? (
+                          <CheckCircle className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold">{integration.nome}</p>
+                          <Badge variant={integration.ambiente === "producao" ? "default" : "secondary"}>
+                            {integration.ambiente === "producao" ? "Produção" : "Homologação"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {integration.corretoras?.nome}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <code className="text-xs bg-muted px-2 py-0.5 rounded">
+                            {showToken[integration.id] 
+                              ? integration.auth_token 
+                              : `${integration.auth_token.slice(0, 10)}...`}
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => setShowToken(prev => ({ 
+                              ...prev, 
+                              [integration.id]: !prev[integration.id] 
+                            }))}
+                          >
+                            {showToken[integration.id] ? (
+                              <EyeOff className="h-3 w-3" />
+                            ) : (
+                              <Eye className="h-3 w-3" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
-                      {integration.ativo ? (
-                        <CheckCircle className="h-5 w-5 text-green-500" />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleTestConnection(integration)}
+                        disabled={testingConnection[integration.id]}
+                        className="gap-1"
+                      >
+                        {testingConnection[integration.id] ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Wifi className="h-3 w-3" />
+                        )}
+                        Testar
+                      </Button>
+                      <Switch
+                        checked={integration.ativo}
+                        onCheckedChange={() => handleToggleStatus(integration.id, integration.ativo)}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenDialog(integration)}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(integration.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                  {connectionStatus[integration.id] && (
+                    <div className={`text-xs px-3 py-2 rounded ${
+                      connectionStatus[integration.id]?.success 
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" 
+                        : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                    }`}>
+                      {connectionStatus[integration.id]?.success ? (
+                        <span className="flex items-center gap-1">
+                          <Wifi className="h-3 w-3" />
+                          {connectionStatus[integration.id]?.message}
+                        </span>
                       ) : (
-                        <XCircle className="h-5 w-5 text-red-500" />
+                        <span className="flex items-center gap-1">
+                          <WifiOff className="h-3 w-3" />
+                          {connectionStatus[integration.id]?.message}
+                        </span>
                       )}
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold">{integration.nome}</p>
-                        <Badge variant={integration.ambiente === "producao" ? "default" : "secondary"}>
-                          {integration.ambiente === "producao" ? "Produção" : "Homologação"}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {integration.corretoras?.nome}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <code className="text-xs bg-muted px-2 py-0.5 rounded">
-                          {showToken[integration.id] 
-                            ? integration.auth_token 
-                            : `${integration.auth_token.slice(0, 10)}...`}
-                        </code>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => setShowToken(prev => ({ 
-                            ...prev, 
-                            [integration.id]: !prev[integration.id] 
-                          }))}
-                        >
-                          {showToken[integration.id] ? (
-                            <EyeOff className="h-3 w-3" />
-                          ) : (
-                            <Eye className="h-3 w-3" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={integration.ativo}
-                      onCheckedChange={() => handleToggleStatus(integration.id, integration.ativo)}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleOpenDialog(integration)}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(integration.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
