@@ -160,7 +160,11 @@ serve(async (req) => {
     };
 
     // Montar URL correta do Cilia (QA ou PROD) a partir de integration.base_url
+    // A URL base deve incluir o caminho completo da API
     const baseUrl = (integration.base_url || "https://sistema.cilia.com.br").replace(/\/$/, "");
+    
+    // Endpoint correto da API CILIA para criação de orçamentos
+    // Documentação CILIA usa: /services/generico-ws/rest/v2/integracao/createBudget
     const ciliaUrl = `${baseUrl}/services/generico-ws/rest/v2/integracao/createBudget`;
 
     console.log("enviar-cilia: Enviando para CILIA", {
