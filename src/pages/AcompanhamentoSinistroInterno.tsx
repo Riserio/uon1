@@ -29,6 +29,8 @@ import {
   Save,
   ArrowLeft,
   RefreshCw,
+  Building,
+  Unlink,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -100,12 +102,50 @@ export default function AcompanhamentoSinistroInterno() {
   const [data, setData] = useState<AcompanhamentoData>({
     atendimento_id: id || "",
   });
+  const [corretoras, setCorretoras] = useState<{ id: string; nome: string }[]>([]);
+  const [savingCorretora, setSavingCorretora] = useState(false);
 
   useEffect(() => {
     if (id) {
       loadData();
     }
+    loadCorretoras();
   }, [id]);
+
+  const loadCorretoras = async () => {
+    const { data } = await supabase
+      .from("corretoras")
+      .select("id, nome")
+      .order("nome");
+    setCorretoras(data || []);
+  };
+
+  const handleChangeCorretora = async (corretoraId: string | null) => {
+    if (!id) return;
+    setSavingCorretora(true);
+    try {
+      const { error } = await supabase
+        .from("atendimentos")
+        .update({ corretora_id: corretoraId })
+        .eq("id", id);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setAtendimento(prev => prev ? {
+        ...prev,
+        corretora_id: corretoraId,
+        corretora: corretoraId ? corretoras.find(c => c.id === corretoraId) || null : null
+      } : null);
+      
+      toast.success(corretoraId ? "Corretora atualizada!" : "Corretora desvinculada!");
+    } catch (error) {
+      console.error("Erro ao atualizar corretora:", error);
+      toast.error("Erro ao atualizar corretora");
+    } finally {
+      setSavingCorretora(false);
+    }
+  };
 
   const loadData = async () => {
     if (!id) return;
@@ -362,8 +402,12 @@ export default function AcompanhamentoSinistroInterno() {
 
       {/* Content */}
       <div className="container mx-auto px-4 py-6">
-        <Tabs defaultValue="comite" className="w-full">
+        <Tabs defaultValue="corretora" className="w-full">
           <TabsList className="flex flex-wrap h-auto gap-1 p-1 mb-6 bg-muted/50">
+            <TabsTrigger value="corretora" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Building className="h-3 w-3 mr-1" />
+              Corretora
+            </TabsTrigger>
             <TabsTrigger value="comite" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Users className="h-3 w-3 mr-1" />
               Comitê
@@ -401,6 +445,63 @@ export default function AcompanhamentoSinistroInterno() {
               Integração
             </TabsTrigger>
           </TabsList>
+
+          {/* Corretora */}
+          <TabsContent value="corretora">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Corretora Vinculada</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Corretora</Label>
+                    <Select
+                      value={atendimento?.corretora_id || "none"}
+                      onValueChange={(value) => handleChangeCorretora(value === "none" ? null : value)}
+                      disabled={savingCorretora}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma corretora" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sem corretora</SelectItem>
+                        {corretoras.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {atendimento?.corretora_id && (
+                    <div className="flex items-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleChangeCorretora(null)}
+                        disabled={savingCorretora}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        {savingCorretora ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <Unlink className="h-4 w-4 mr-2" />
+                        )}
+                        Desvincular
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {atendimento?.corretora && (
+                  <div className="p-4 bg-muted/50 rounded-lg">
+                    <p className="text-sm text-muted-foreground">Corretora atual:</p>
+                    <p className="font-medium">{atendimento.corretora.nome}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Comitê */}
           <TabsContent value="comite">
