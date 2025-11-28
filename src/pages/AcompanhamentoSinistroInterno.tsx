@@ -362,40 +362,40 @@ export default function AcompanhamentoSinistroInterno() {
       {/* Content */}
       <div className="container mx-auto px-4 py-6">
         <Tabs defaultValue="comite" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9 mb-6">
-            <TabsTrigger value="comite" className="text-xs">
+          <TabsList className="flex flex-wrap h-auto gap-1 p-1 mb-6 bg-muted/50">
+            <TabsTrigger value="comite" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Users className="h-3 w-3 mr-1" />
               Comitê
             </TabsTrigger>
-            <TabsTrigger value="cota" className="text-xs">
+            <TabsTrigger value="cota" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <PieChart className="h-3 w-3 mr-1" />
               Cota
             </TabsTrigger>
-            <TabsTrigger value="custos" className="text-xs">
+            <TabsTrigger value="custos" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <DollarSign className="h-3 w-3 mr-1" />
               Custos
             </TabsTrigger>
-            <TabsTrigger value="pecas" className="text-xs">
+            <TabsTrigger value="pecas" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Package className="h-3 w-3 mr-1" />
               Peças
             </TabsTrigger>
-            <TabsTrigger value="reparo" className="text-xs">
+            <TabsTrigger value="reparo" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Wrench className="h-3 w-3 mr-1" />
               Reparo
             </TabsTrigger>
-            <TabsTrigger value="oficina" className="text-xs">
+            <TabsTrigger value="oficina" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Building2 className="h-3 w-3 mr-1" />
               Oficina
             </TabsTrigger>
-            <TabsTrigger value="financeiro" className="text-xs">
+            <TabsTrigger value="financeiro" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <CreditCard className="h-3 w-3 mr-1" />
               Financeiro
             </TabsTrigger>
-            <TabsTrigger value="status" className="text-xs">
+            <TabsTrigger value="status" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <CheckCircle2 className="h-3 w-3 mr-1" />
               Status
             </TabsTrigger>
-            <TabsTrigger value="integracao" className="text-xs">
+            <TabsTrigger value="integracao" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <RefreshCw className="h-3 w-3 mr-1" />
               Integração
             </TabsTrigger>
