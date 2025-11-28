@@ -24,7 +24,7 @@ serve(async (req) => {
     if (!atendimento_id || !integration_id) {
       return new Response(
         JSON.stringify({ success: false, message: "atendimento_id e integration_id são obrigatórios" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -37,35 +37,37 @@ serve(async (req) => {
 
     if (integrationError || !integration) {
       console.error("enviar-cilia: Erro ao buscar integração", integrationError);
-      return new Response(
-        JSON.stringify({ success: false, message: "Integração não encontrada" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ success: false, message: "Integração não encontrada" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    console.log("enviar-cilia: Integração encontrada", { 
-      nome: integration.nome, 
+    console.log("enviar-cilia: Integração encontrada", {
+      nome: integration.nome,
       base_url: integration.base_url,
-      ambiente: integration.ambiente 
+      ambiente: integration.ambiente,
     });
 
     // Buscar dados do atendimento
     const { data: atendimento, error: atendimentoError } = await supabase
       .from("atendimentos")
-      .select(`
+      .select(
+        `
         *,
         corretoras(nome, cnpj, email, telefone),
         contatos(nome, email, telefone, cpf_cnpj:cargo)
-      `)
+      `,
+      )
       .eq("id", atendimento_id)
       .single();
 
     if (atendimentoError || !atendimento) {
       console.error("enviar-cilia: Erro ao buscar atendimento", atendimentoError);
-      return new Response(
-        JSON.stringify({ success: false, message: "Atendimento não encontrado" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ success: false, message: "Atendimento não encontrado" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Buscar vistoria associada
@@ -85,10 +87,10 @@ serve(async (req) => {
     console.log("enviar-cilia: Dados carregados", {
       atendimento: atendimento?.numero,
       vistoria: vistoria?.id,
-      acompanhamento: acompanhamento?.id
+      acompanhamento: acompanhamento?.id,
     });
 
-    // Montar payload para CILIA
+    // Montar payload interno (seu modelo atual)
     const ciliaPayload = {
       numeroSinistro: `SIN-${new Date(atendimento.created_at).getFullYear()}-${String(atendimento.numero).padStart(6, "0")}`,
       dataAbertura: atendimento.created_at,
@@ -126,53 +128,69 @@ serve(async (req) => {
         acionouAssistencia: vistoria?.acionou_assistencia_24h,
       },
       // Dados do acompanhamento (custos, etc)
-      acompanhamento: acompanhamento ? {
-        comiteStatus: acompanhamento.comite_status,
-        comiteDecisao: acompanhamento.comite_decisao,
-        cotaParticipacao: acompanhamento.cota_participacao,
-        cotaPercentual: acompanhamento.cota_percentual,
-        custoPecas: acompanhamento.custo_pecas,
-        custoMaoObra: acompanhamento.custo_mao_obra,
-        custoServicos: acompanhamento.custo_servicos,
-        custoOutros: acompanhamento.custo_outros,
-        reparoAutorizado: acompanhamento.reparo_autorizado,
-        oficinaNome: acompanhamento.oficina_nome,
-        oficinaCnpj: acompanhamento.oficina_cnpj,
-        financeiroStatus: acompanhamento.financeiro_status,
-        financeiroValorAprovado: acompanhamento.financeiro_valor_aprovado,
-        financeiroValorPago: acompanhamento.financeiro_valor_pago,
-        finalizado: acompanhamento.finalizado,
-        finalizadoData: acompanhamento.finalizado_data,
-      } : null,
+      acompanhamento: acompanhamento
+        ? {
+            comiteStatus: acompanhamento.comite_status,
+            comiteDecisao: acompanhamento.comite_decisao,
+            cotaParticipacao: acompanhamento.cota_participacao,
+            cotaPercentual: acompanhamento.cota_percentual,
+            custoPecas: acompanhamento.custo_pecas,
+            custoMaoObra: acompanhamento.custo_mao_obra,
+            custoServicos: acompanhamento.custo_servicos,
+            custoOutros: acompanhamento.custo_outros,
+            reparoAutorizado: acompanhamento.reparo_autorizado,
+            oficinaNome: acompanhamento.oficina_nome,
+            oficinaCnpj: acompanhamento.oficina_cnpj,
+            financeiroStatus: acompanhamento.financeiro_status,
+            financeiroValorAprovado: acompanhamento.financeiro_valor_aprovado,
+            financeiroValorPago: acompanhamento.financeiro_valor_pago,
+            finalizado: acompanhamento.finalizado,
+            finalizadoData: acompanhamento.finalizado_data,
+          }
+        : null,
       // Corretora
-      corretora: atendimento.corretoras ? {
-        nome: atendimento.corretoras.nome,
-        cnpj: atendimento.corretoras.cnpj,
-        email: atendimento.corretoras.email,
-        telefone: atendimento.corretoras.telefone,
-      } : null,
+      corretora: atendimento.corretoras
+        ? {
+            nome: atendimento.corretoras.nome,
+            cnpj: atendimento.corretoras.cnpj,
+            email: atendimento.corretoras.email,
+            telefone: atendimento.corretoras.telefone,
+          }
+        : null,
     };
 
-    console.log("enviar-cilia: Enviando para CILIA", { 
-      url: `${integration.base_url}/api/sinistros`,
-      payload: ciliaPayload 
+    // Montar URL correta do Cilia (QA ou PROD) a partir de integration.base_url
+    const baseUrl = (integration.base_url || "https://sistema.cilia.com.br").replace(/\/$/, "");
+    const ciliaUrl = `${baseUrl}/services/generico-ws/rest/v2/integracao/createBudget`;
+
+    console.log("enviar-cilia: Enviando para CILIA", {
+      url: ciliaUrl,
+      // o Budget real da doc você vai montar depois;
+      // por enquanto mando o ciliaPayload pra teste de rota
+      payloadPreview: ciliaPayload,
     });
 
+    // Envelopar no formato esperado pela doc: { Budget: { ... } }
+    const bodyToSend = {
+      Budget: ciliaPayload, // depois você adapta pro modelo exato da Cilia (T1)
+    };
+
     // Enviar para CILIA
-    const ciliaResponse = await fetch(`${integration.base_url}/api/sinistros`, {
+    const ciliaResponse = await fetch(ciliaUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${integration.auth_token}`,
-        "Accept": "application/json",
+        // Cilia usa header "authToken", não Authorization Bearer
+        authToken: integration.auth_token,
+        Accept: "application/json",
       },
-      body: JSON.stringify(ciliaPayload),
+      body: JSON.stringify(bodyToSend),
     });
 
     const responseText = await ciliaResponse.text();
-    console.log("enviar-cilia: Resposta CILIA", { 
-      status: ciliaResponse.status, 
-      body: responseText 
+    console.log("enviar-cilia: Resposta CILIA", {
+      status: ciliaResponse.status,
+      body: responseText,
     });
 
     let responseData;
@@ -183,20 +201,22 @@ serve(async (req) => {
     }
 
     if (!ciliaResponse.ok) {
-      console.error("enviar-cilia: Erro na resposta CILIA", { 
-        status: ciliaResponse.status, 
-        response: responseData 
+      console.error("enviar-cilia: Erro na resposta CILIA", {
+        status: ciliaResponse.status,
+        response: responseData,
       });
-      
-      const errorMessage = responseData?.message || responseData?.error || `Erro ${ciliaResponse.status}: ${responseText}`;
-      
+
+      const errorMessage =
+        responseData?.message || responseData?.error || `Erro ${ciliaResponse.status}: ${responseText}`;
+
       return new Response(
-        JSON.stringify({ 
-          success: false, 
+        JSON.stringify({
+          success: false,
           message: errorMessage,
-          response: responseData 
+          ciliaStatus: ciliaResponse.status,
+          response: responseData,
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -209,18 +229,17 @@ serve(async (req) => {
         budgetId: responseData?.id || responseData?.budgetId,
         response: responseData,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-
   } catch (error: unknown) {
     console.error("enviar-cilia: Erro não tratado", error);
     const errorMessage = error instanceof Error ? error.message : "Erro interno ao processar requisição";
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        message: errorMessage 
+      JSON.stringify({
+        success: false,
+        message: errorMessage,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
