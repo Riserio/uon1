@@ -2407,11 +2407,13 @@ export type Database = {
           observacoes_ia: string | null
           placa_terceiro: string | null
           policia_foi_local: boolean | null
+          quilometragem: number | null
           relato_incidente: string | null
           relatorio_url: string | null
           status: string
           tem_terceiros: boolean | null
           tipo_abertura: string
+          tipo_pintura: string | null
           tipo_sinistro: string | null
           tipo_vistoria: string
           updated_at: string
@@ -2426,6 +2428,7 @@ export type Database = {
           veiculo_modelo: string | null
           veiculo_placa: string | null
           veiculo_tipo: string | null
+          veiculo_uf: string | null
           veiculo_valor_fipe: number | null
           vitima_ou_causador: string | null
         }
@@ -2482,11 +2485,13 @@ export type Database = {
           observacoes_ia?: string | null
           placa_terceiro?: string | null
           policia_foi_local?: boolean | null
+          quilometragem?: number | null
           relato_incidente?: string | null
           relatorio_url?: string | null
           status?: string
           tem_terceiros?: boolean | null
           tipo_abertura: string
+          tipo_pintura?: string | null
           tipo_sinistro?: string | null
           tipo_vistoria: string
           updated_at?: string
@@ -2501,6 +2506,7 @@ export type Database = {
           veiculo_modelo?: string | null
           veiculo_placa?: string | null
           veiculo_tipo?: string | null
+          veiculo_uf?: string | null
           veiculo_valor_fipe?: number | null
           vitima_ou_causador?: string | null
         }
@@ -2557,11 +2563,13 @@ export type Database = {
           observacoes_ia?: string | null
           placa_terceiro?: string | null
           policia_foi_local?: boolean | null
+          quilometragem?: number | null
           relato_incidente?: string | null
           relatorio_url?: string | null
           status?: string
           tem_terceiros?: boolean | null
           tipo_abertura?: string
+          tipo_pintura?: string | null
           tipo_sinistro?: string | null
           tipo_vistoria?: string
           updated_at?: string
@@ -2576,6 +2584,7 @@ export type Database = {
           veiculo_modelo?: string | null
           veiculo_placa?: string | null
           veiculo_tipo?: string | null
+          veiculo_uf?: string | null
           veiculo_valor_fipe?: number | null
           vitima_ou_causador?: string | null
         }
