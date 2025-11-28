@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -466,13 +467,11 @@ export default function AcompanhamentoSinistroInterno() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Valor da Cota (R$)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={data.cota_participacao || ""}
-                      onChange={(e) => setData({ ...data, cota_participacao: parseFloat(e.target.value) || 0 })}
-                      placeholder="0,00"
+                    <Label>Valor da Cota</Label>
+                    <CurrencyInput
+                      value={data.cota_participacao?.toString() || ""}
+                      onValueChange={(values) => setData({ ...data, cota_participacao: values.floatValue || 0 })}
+                      placeholder="R$ 0,00"
                     />
                   </div>
                   <div className="space-y-2">
@@ -499,39 +498,35 @@ export default function AcompanhamentoSinistroInterno() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Custo de Peças (R$)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={data.custo_pecas || ""}
-                      onChange={(e) => setData({ ...data, custo_pecas: parseFloat(e.target.value) || 0 })}
+                    <Label>Custo de Peças</Label>
+                    <CurrencyInput
+                      value={data.custo_pecas?.toString() || ""}
+                      onValueChange={(values) => setData({ ...data, custo_pecas: values.floatValue || 0 })}
+                      placeholder="R$ 0,00"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Custo de Mão de Obra (R$)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={data.custo_mao_obra || ""}
-                      onChange={(e) => setData({ ...data, custo_mao_obra: parseFloat(e.target.value) || 0 })}
+                    <Label>Custo de Mão de Obra</Label>
+                    <CurrencyInput
+                      value={data.custo_mao_obra?.toString() || ""}
+                      onValueChange={(values) => setData({ ...data, custo_mao_obra: values.floatValue || 0 })}
+                      placeholder="R$ 0,00"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Custo de Serviços (R$)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={data.custo_servicos || ""}
-                      onChange={(e) => setData({ ...data, custo_servicos: parseFloat(e.target.value) || 0 })}
+                    <Label>Custo de Serviços</Label>
+                    <CurrencyInput
+                      value={data.custo_servicos?.toString() || ""}
+                      onValueChange={(values) => setData({ ...data, custo_servicos: values.floatValue || 0 })}
+                      placeholder="R$ 0,00"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Outros Custos (R$)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={data.custo_outros || ""}
-                      onChange={(e) => setData({ ...data, custo_outros: parseFloat(e.target.value) || 0 })}
+                    <Label>Outros Custos</Label>
+                    <CurrencyInput
+                      value={data.custo_outros?.toString() || ""}
+                      onValueChange={(values) => setData({ ...data, custo_outros: values.floatValue || 0 })}
+                      placeholder="R$ 0,00"
                     />
                   </div>
                 </div>
@@ -566,12 +561,11 @@ export default function AcompanhamentoSinistroInterno() {
                   <Label>Peças Aprovadas</Label>
                 </div>
                 <div className="space-y-2">
-                  <Label>Valor Total das Peças (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={data.pecas_valor_total || ""}
-                    onChange={(e) => setData({ ...data, pecas_valor_total: parseFloat(e.target.value) || 0 })}
+                  <Label>Valor Total das Peças</Label>
+                  <CurrencyInput
+                    value={data.pecas_valor_total?.toString() || ""}
+                    onValueChange={(values) => setData({ ...data, pecas_valor_total: values.floatValue || 0 })}
+                    placeholder="R$ 0,00"
                   />
                 </div>
                 <div className="space-y-2">
@@ -738,21 +732,19 @@ export default function AcompanhamentoSinistroInterno() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Valor Aprovado (R$)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={data.financeiro_valor_aprovado || ""}
-                      onChange={(e) => setData({ ...data, financeiro_valor_aprovado: parseFloat(e.target.value) || 0 })}
+                    <Label>Valor Aprovado</Label>
+                    <CurrencyInput
+                      value={data.financeiro_valor_aprovado?.toString() || ""}
+                      onValueChange={(values) => setData({ ...data, financeiro_valor_aprovado: values.floatValue || 0 })}
+                      placeholder="R$ 0,00"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Valor Pago (R$)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={data.financeiro_valor_pago || ""}
-                      onChange={(e) => setData({ ...data, financeiro_valor_pago: parseFloat(e.target.value) || 0 })}
+                    <Label>Valor Pago</Label>
+                    <CurrencyInput
+                      value={data.financeiro_valor_pago?.toString() || ""}
+                      onValueChange={(values) => setData({ ...data, financeiro_valor_pago: values.floatValue || 0 })}
+                      placeholder="R$ 0,00"
                     />
                   </div>
                   <div className="space-y-2">
