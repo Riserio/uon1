@@ -31,6 +31,7 @@ import {
   RefreshCw,
   Building,
   Unlink,
+  AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -90,6 +91,11 @@ interface AtendimentoInfo {
   corretora?: { nome: string } | null;
 }
 
+interface IntegrationStatus {
+  cilia: { configured: boolean; active: boolean; nome?: string } | null;
+  sga: { configured: boolean; active: boolean; nome?: string } | null;
+}
+
 export default function AcompanhamentoSinistroInterno() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -104,6 +110,7 @@ export default function AcompanhamentoSinistroInterno() {
   });
   const [corretoras, setCorretoras] = useState<{ id: string; nome: string }[]>([]);
   const [savingCorretora, setSavingCorretora] = useState(false);
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus>({ cilia: null, sga: null });
 
   useEffect(() => {
     if (id) {
@@ -111,6 +118,29 @@ export default function AcompanhamentoSinistroInterno() {
     }
     loadCorretoras();
   }, [id]);
+
+  useEffect(() => {
+    if (atendimento?.corretora_id) {
+      loadIntegrationStatus(atendimento.corretora_id);
+    } else {
+      setIntegrationStatus({ cilia: null, sga: null });
+    }
+  }, [atendimento?.corretora_id]);
+
+  const loadIntegrationStatus = async (corretoraId: string) => {
+    const { data: integrations } = await supabase
+      .from("api_integrations")
+      .select("tipo, nome, ativo")
+      .eq("corretora_id", corretoraId);
+
+    const ciliaInt = integrations?.find(i => i.tipo === "cilia");
+    const sgaInt = integrations?.find(i => i.tipo === "sga_hinova");
+
+    setIntegrationStatus({
+      cilia: ciliaInt ? { configured: true, active: ciliaInt.ativo, nome: ciliaInt.nome } : null,
+      sga: sgaInt ? { configured: true, active: sgaInt.ativo, nome: sgaInt.nome } : null,
+    });
+  };
 
   const loadCorretoras = async () => {
     const { data } = await supabase
@@ -952,12 +982,44 @@ export default function AcompanhamentoSinistroInterno() {
               {/* CILIA */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Integração CILIA</CardTitle>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    Integração CILIA
+                    {integrationStatus.cilia ? (
+                      integrationStatus.cilia.active ? (
+                        <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30 text-xs">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Configurada
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30 text-xs">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          Inativa
+                        </Badge>
+                      )
+                    ) : (
+                      <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/30 text-xs">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Não configurada
+                      </Badge>
+                    )}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {integrationStatus.cilia && (
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground">Nome da integração:</p>
+                      <p className="font-medium">{integrationStatus.cilia.nome}</p>
+                    </div>
+                  )}
+                  {!integrationStatus.cilia && (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhuma integração CILIA configurada para a corretora deste sinistro.
+                      Configure em Configurações → Integrações API.
+                    </p>
+                  )}
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium">Status:</p>
+                      <p className="font-medium">Status do Envio:</p>
                       {data.cilia_enviado ? (
                         <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
                           <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -969,7 +1031,10 @@ export default function AcompanhamentoSinistroInterno() {
                         </Badge>
                       )}
                     </div>
-                    <Button onClick={handleSendToCilia} disabled={sendingToCilia}>
+                    <Button 
+                      onClick={handleSendToCilia} 
+                      disabled={sendingToCilia || !integrationStatus.cilia?.active}
+                    >
                       {sendingToCilia ? (
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
                       ) : (
@@ -984,18 +1049,57 @@ export default function AcompanhamentoSinistroInterno() {
                       <p className="font-mono">{data.cilia_budget_id}</p>
                     </div>
                   )}
+                  {data.cilia_response && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Resposta CILIA:</p>
+                      <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-32">
+                        {JSON.stringify(data.cilia_response, null, 2)}
+                      </pre>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
               {/* SGA Hinova */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Integração SGA Hinova</CardTitle>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    Integração SGA Hinova
+                    {integrationStatus.sga ? (
+                      integrationStatus.sga.active ? (
+                        <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30 text-xs">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Configurada
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30 text-xs">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          Inativa
+                        </Badge>
+                      )
+                    ) : (
+                      <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/30 text-xs">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Não configurada
+                      </Badge>
+                    )}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {integrationStatus.sga && (
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground">Nome da integração:</p>
+                      <p className="font-medium">{integrationStatus.sga.nome}</p>
+                    </div>
+                  )}
+                  {!integrationStatus.sga && (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhuma integração SGA Hinova configurada para a corretora deste sinistro.
+                      Configure em Configurações → Integrações API.
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">
                     A sincronização com o SGA Hinova só está disponível após a finalização do sinistro.
-                    Todos os dados do acompanhamento serão enviados ao sistema.
                   </p>
                   <div className="flex items-center justify-between">
                     <div>
@@ -1013,8 +1117,8 @@ export default function AcompanhamentoSinistroInterno() {
                     </div>
                     <Button 
                       onClick={handleSendToSga} 
-                      disabled={sendingToSga || !data.finalizado}
-                      variant={data.finalizado ? "default" : "secondary"}
+                      disabled={sendingToSga || !data.finalizado || !integrationStatus.sga?.active}
+                      variant={data.finalizado && integrationStatus.sga?.active ? "default" : "secondary"}
                     >
                       {sendingToSga ? (
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
