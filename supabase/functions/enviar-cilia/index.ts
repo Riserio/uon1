@@ -260,16 +260,35 @@ export default function AcompanhamentoSinistroInterno() {
       console.log("enviar-cilia result:", { result, error });
 
       if (error) {
-        console.error("Erro retornado pela Edge Function enviar-cilia:", error);
+        const anyError = error as any;
+        const context = anyError.context || anyError.details || anyError;
+        const response = context?.response || context?.res;
+        const status = response?.status;
+        const responseBody = response?.body || context?.body;
 
-        const msg = (error as any)?.message?.includes("non-2xx status")
-          ? "A função enviar-cilia retornou um status diferente de 2xx. Verifique os logs da Edge Function no Supabase (provavelmente payload ou credenciais do CILIA)."
-          : (error as any)?.message || "Erro ao enviar para o CILIA";
+        console.error("Detalhes do erro da Edge Function enviar-cilia:", {
+          message: anyError.message,
+          status,
+          responseBody,
+          context,
+        });
+
+        let msg = "Erro ao enviar para o CILIA";
+
+        if (typeof responseBody === "string" && responseBody.trim().length > 0) {
+          msg = `CILIA: ${responseBody}`;
+        } else if (anyError.message?.includes("non-2xx status")) {
+          msg =
+            "A função enviar-cilia retornou um status diferente de 2xx. Verifique os logs da Edge Function no Supabase (possível problema de payload ou credenciais do CILIA).";
+        } else if (anyError.message) {
+          msg = anyError.message;
+        }
 
         toast.error(msg);
         return;
       }
 
+      // A função enviar-cilia foi ajustada para SEMPRE responder 200 com { success: true/false }
       if (result?.success) {
         toast.success("Sinistro enviado ao CILIA com sucesso");
 
