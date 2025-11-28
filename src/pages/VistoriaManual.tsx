@@ -486,11 +486,29 @@ export default function VistoriaManual() {
           tipo_atendimento: "sinistro",
           fluxo_id: primeiroFluxoId,
           status: primeiroStatus,
+          // Dados do veículo sincronizados
+          veiculo_marca: formData.veiculo_marca || null,
+          veiculo_modelo: formData.veiculo_modelo || null,
+          veiculo_ano: formData.veiculo_ano || null,
+          veiculo_tipo: formData.veiculo_tipo || null,
+          veiculo_valor_fipe: formData.veiculo_valor_fipe,
+          veiculo_fipe_codigo: formData.veiculo_fipe_codigo,
+          veiculo_fipe_data_consulta: formData.veiculo_fipe_data_consulta?.toISOString(),
         })
         .select()
         .single();
 
       if (atendimentoError) throw atendimentoError;
+
+      // Vincular vistoria ao atendimento criado
+      const { error: linkError } = await supabase
+        .from("vistorias")
+        .update({ atendimento_id: atendimento.id })
+        .eq("id", vistoria.id);
+
+      if (linkError) {
+        console.error("Erro ao vincular vistoria ao atendimento:", linkError);
+      }
 
       toast.success("Vistoria manual criada com sucesso!");
       navigate(`/sinistros`);
