@@ -441,7 +441,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
 
           {/* ===================== CONTAS A RECEBER ===================== */}
           <section className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify_between">
               <h3 className="text-lg font-semibold">Contas a Receber</h3>
               <span className="text-xs text-muted-foreground">
                 Boletos, recebimentos, inadimplência e crescimento de receita
@@ -784,35 +784,35 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                   )}
                 </CardContent>
               </Card>
-
-              {/* 16. Custo total rateável no período */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-medium">Custo Total Rateável no Período</CardTitle>
-                </CardHeader>
-                <CardContent className="h-[260px]">
-                  {chartData.length ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                        <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                        <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
-                        <Legend />
-                        <Bar
-                          dataKey="custo_total_rateavel"
-                          name="Custo Total Rateável"
-                          fill="#6366f1"
-                          radius={[4, 4, 0, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <EmptyChart />
-                  )}
-                </CardContent>
-              </Card>
             </div>
+
+            {/* 16. Custo total rateável no período - FULL WIDTH */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-medium">Custo Total Rateável no Período</CardTitle>
+              </CardHeader>
+              <CardContent className="h-[260px]">
+                {chartData.length ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                      <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                      <Legend />
+                      <Bar
+                        dataKey="custo_total_rateavel"
+                        name="Custo Total Rateável"
+                        fill="#6366f1"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
+              </CardContent>
+            </Card>
 
             {/* Extra: Custos por tipo de evento (detalhe) - LINHAS */}
             <Card>
