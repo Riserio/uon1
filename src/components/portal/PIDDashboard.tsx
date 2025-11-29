@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatPercent } from "@/lib/formatters";
 import {
   DollarSign, TrendingUp, TrendingDown, Users, Car, AlertTriangle,
   CheckCircle2, XCircle, Activity, Percent, BarChart3
@@ -96,8 +96,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     { name: "Carro Reserva", value: dadosAtual.pagamento_valor_carro_reserva || 0 },
   ].filter(d => d.value > 0) : [];
 
-  const formatPercent = (value: number) => `${value.toFixed(1)}%`;
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -186,7 +184,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 </div>
                 <div className="mt-2">
                   <div className="text-2xl font-bold">
-                    {formatPercent((dadosAtual.sinistralidade_financeira || 0) * 100)}
+                    {formatPercent(dadosAtual.sinistralidade_financeira || 0)}
                   </div>
                   <div className="text-xs text-muted-foreground">Sinistralidade</div>
                 </div>
@@ -200,7 +198,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 </div>
                 <div className="mt-2">
                   <div className="text-2xl font-bold">
-                    {formatPercent((dadosAtual.percentual_inadimplencia || 0) * 100)}
+                    {formatPercent(dadosAtual.percentual_inadimplencia || 0)}
                   </div>
                   <div className="text-xs text-muted-foreground">Inadimplência</div>
                 </div>
@@ -214,7 +212,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 </div>
                 <div className="mt-2">
                   <div className={`text-2xl font-bold ${(dadosAtual.crescimento_liquido || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {formatPercent((dadosAtual.crescimento_liquido || 0) * 100)}
+                    {formatPercent(dadosAtual.crescimento_liquido || 0)}
                   </div>
                   <div className="text-xs text-muted-foreground">Crescimento</div>
                 </div>
@@ -269,8 +267,8 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                       <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                      <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} domain={[0, 'auto']} />
-                      <Tooltip formatter={(value: any) => `${Number(value).toFixed(1)}%`} />
+                      <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} domain={[0, 'auto']} />
+                      <Tooltip formatter={(value: any) => `${Number(value).toFixed(2)}%`} />
                       <Line 
                         type="monotone" 
                         dataKey="sinistralidade" 
