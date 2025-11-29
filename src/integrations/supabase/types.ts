@@ -1522,6 +1522,406 @@ export type Database = {
           },
         ]
       }
+      pid_estudo_base: {
+        Row: {
+          corretora_id: string
+          created_at: string
+          created_by: string | null
+          data_referencia: string
+          id: string
+          protegido_caminhoes: number | null
+          protegido_carretas: number | null
+          protegido_especiais_importados: number | null
+          protegido_geral: number | null
+          protegido_motocicletas: number | null
+          protegido_passeio: number | null
+          protegido_taxi_app: number | null
+          protegido_utilitarios_suvs_vans: number | null
+          qtd_caminhoes: number | null
+          qtd_carretas: number | null
+          qtd_especiais_importados: number | null
+          qtd_motocicletas: number | null
+          qtd_passeio: number | null
+          qtd_taxi_app: number | null
+          qtd_utilitarios_suvs_vans: number | null
+          tm_caminhoes: number | null
+          tm_carretas: number | null
+          tm_especiais_importados: number | null
+          tm_geral: number | null
+          tm_motocicletas: number | null
+          tm_passeio: number | null
+          tm_taxi_app: number | null
+          tm_utilitarios_suvs_vans: number | null
+          total_veiculos_ativos: number | null
+          total_veiculos_geral: number | null
+          updated_at: string
+          updated_by: string | null
+          valor_protegido_caminhoes: number | null
+          valor_protegido_carretas: number | null
+          valor_protegido_especiais_importados: number | null
+          valor_protegido_geral: number | null
+          valor_protegido_motocicletas: number | null
+          valor_protegido_passeio: number | null
+          valor_protegido_taxi_app: number | null
+          valor_protegido_utilitarios_suvs_vans: number | null
+        }
+        Insert: {
+          corretora_id: string
+          created_at?: string
+          created_by?: string | null
+          data_referencia: string
+          id?: string
+          protegido_caminhoes?: number | null
+          protegido_carretas?: number | null
+          protegido_especiais_importados?: number | null
+          protegido_geral?: number | null
+          protegido_motocicletas?: number | null
+          protegido_passeio?: number | null
+          protegido_taxi_app?: number | null
+          protegido_utilitarios_suvs_vans?: number | null
+          qtd_caminhoes?: number | null
+          qtd_carretas?: number | null
+          qtd_especiais_importados?: number | null
+          qtd_motocicletas?: number | null
+          qtd_passeio?: number | null
+          qtd_taxi_app?: number | null
+          qtd_utilitarios_suvs_vans?: number | null
+          tm_caminhoes?: number | null
+          tm_carretas?: number | null
+          tm_especiais_importados?: number | null
+          tm_geral?: number | null
+          tm_motocicletas?: number | null
+          tm_passeio?: number | null
+          tm_taxi_app?: number | null
+          tm_utilitarios_suvs_vans?: number | null
+          total_veiculos_ativos?: number | null
+          total_veiculos_geral?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          valor_protegido_caminhoes?: number | null
+          valor_protegido_carretas?: number | null
+          valor_protegido_especiais_importados?: number | null
+          valor_protegido_geral?: number | null
+          valor_protegido_motocicletas?: number | null
+          valor_protegido_passeio?: number | null
+          valor_protegido_taxi_app?: number | null
+          valor_protegido_utilitarios_suvs_vans?: number | null
+        }
+        Update: {
+          corretora_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_referencia?: string
+          id?: string
+          protegido_caminhoes?: number | null
+          protegido_carretas?: number | null
+          protegido_especiais_importados?: number | null
+          protegido_geral?: number | null
+          protegido_motocicletas?: number | null
+          protegido_passeio?: number | null
+          protegido_taxi_app?: number | null
+          protegido_utilitarios_suvs_vans?: number | null
+          qtd_caminhoes?: number | null
+          qtd_carretas?: number | null
+          qtd_especiais_importados?: number | null
+          qtd_motocicletas?: number | null
+          qtd_passeio?: number | null
+          qtd_taxi_app?: number | null
+          qtd_utilitarios_suvs_vans?: number | null
+          tm_caminhoes?: number | null
+          tm_carretas?: number | null
+          tm_especiais_importados?: number | null
+          tm_geral?: number | null
+          tm_motocicletas?: number | null
+          tm_passeio?: number | null
+          tm_taxi_app?: number | null
+          tm_utilitarios_suvs_vans?: number | null
+          total_veiculos_ativos?: number | null
+          total_veiculos_geral?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          valor_protegido_caminhoes?: number | null
+          valor_protegido_carretas?: number | null
+          valor_protegido_especiais_importados?: number | null
+          valor_protegido_geral?: number | null
+          valor_protegido_motocicletas?: number | null
+          valor_protegido_passeio?: number | null
+          valor_protegido_taxi_app?: number | null
+          valor_protegido_utilitarios_suvs_vans?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pid_estudo_base_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pid_operacional: {
+        Row: {
+          abertura_carro_reserva: number | null
+          abertura_indenizacao_integral_associado: number | null
+          abertura_indenizacao_integral_terceiro: number | null
+          abertura_indenizacao_parcial_associado: number | null
+          abertura_indenizacao_parcial_terceiro: number | null
+          abertura_total_eventos: number | null
+          abertura_vidros: number | null
+          acionamentos_assistencia: number | null
+          ano: number
+          arrecadamento_juros: number | null
+          baixado_pendencia: number | null
+          boletos_abertos: number | null
+          boletos_cancelados: number | null
+          boletos_emitidos: number | null
+          boletos_liquidados: number | null
+          cadastros_realizados: number | null
+          cancelamentos: number | null
+          churn: number | null
+          cme_explit: number | null
+          comprometimento_assistencia: number | null
+          comprometimento_rastreamento: number | null
+          corretora_id: string
+          created_at: string
+          created_by: string | null
+          crescimento_liquido: number | null
+          custo_assistencia: number | null
+          custo_rastreamento: number | null
+          custo_total_eventos: number | null
+          custo_total_rateavel: number | null
+          descontado_banco: number | null
+          faturamento_operacional: number | null
+          id: string
+          inadimplentes: number | null
+          indice_crescimento_bruto: number | null
+          indice_dano_integral: number | null
+          indice_dano_parcial: number | null
+          instalacoes_rastreamento: number | null
+          mes: number
+          pagamento_qtd_carro_reserva: number | null
+          pagamento_qtd_integral_associado: number | null
+          pagamento_qtd_integral_terceiro: number | null
+          pagamento_qtd_parcial_associado: number | null
+          pagamento_qtd_parcial_terceiro: number | null
+          pagamento_qtd_vidros: number | null
+          pagamento_valor_carro_reserva: number | null
+          pagamento_valor_integral_associado: number | null
+          pagamento_valor_integral_terceiro: number | null
+          pagamento_valor_parcial_associado: number | null
+          pagamento_valor_parcial_terceiro: number | null
+          pagamento_valor_vidros: number | null
+          percentual_adesoes: number | null
+          percentual_arrecadacao_juros: number | null
+          percentual_cancelamento_boletos: number | null
+          percentual_cancelamentos: number | null
+          percentual_crescimento_faturamento: number | null
+          percentual_crescimento_recebido: number | null
+          percentual_descontado_banco: number | null
+          percentual_emissao_boleto: number | null
+          percentual_inadimplencia: number | null
+          percentual_inadimplencia_boletos: number | null
+          percentual_inadimplencia_financeira: number | null
+          percentual_rateio: number | null
+          placas_ativas: number | null
+          rateio_periodo: number | null
+          reativacao: number | null
+          recebimento_operacional: number | null
+          saldo_placas: number | null
+          sinistralidade_financeira: number | null
+          sinistralidade_geral: number | null
+          ticket_medio_boleto: number | null
+          ticket_medio_carro_reserva: number | null
+          ticket_medio_integral: number | null
+          ticket_medio_parcial: number | null
+          ticket_medio_vidros: number | null
+          total_associados: number | null
+          total_cotas: number | null
+          total_recebido: number | null
+          updated_at: string
+          updated_by: string | null
+          valor_boletos_abertos: number | null
+          valor_boletos_cancelados: number | null
+          veiculos_rastreados: number | null
+        }
+        Insert: {
+          abertura_carro_reserva?: number | null
+          abertura_indenizacao_integral_associado?: number | null
+          abertura_indenizacao_integral_terceiro?: number | null
+          abertura_indenizacao_parcial_associado?: number | null
+          abertura_indenizacao_parcial_terceiro?: number | null
+          abertura_total_eventos?: number | null
+          abertura_vidros?: number | null
+          acionamentos_assistencia?: number | null
+          ano: number
+          arrecadamento_juros?: number | null
+          baixado_pendencia?: number | null
+          boletos_abertos?: number | null
+          boletos_cancelados?: number | null
+          boletos_emitidos?: number | null
+          boletos_liquidados?: number | null
+          cadastros_realizados?: number | null
+          cancelamentos?: number | null
+          churn?: number | null
+          cme_explit?: number | null
+          comprometimento_assistencia?: number | null
+          comprometimento_rastreamento?: number | null
+          corretora_id: string
+          created_at?: string
+          created_by?: string | null
+          crescimento_liquido?: number | null
+          custo_assistencia?: number | null
+          custo_rastreamento?: number | null
+          custo_total_eventos?: number | null
+          custo_total_rateavel?: number | null
+          descontado_banco?: number | null
+          faturamento_operacional?: number | null
+          id?: string
+          inadimplentes?: number | null
+          indice_crescimento_bruto?: number | null
+          indice_dano_integral?: number | null
+          indice_dano_parcial?: number | null
+          instalacoes_rastreamento?: number | null
+          mes: number
+          pagamento_qtd_carro_reserva?: number | null
+          pagamento_qtd_integral_associado?: number | null
+          pagamento_qtd_integral_terceiro?: number | null
+          pagamento_qtd_parcial_associado?: number | null
+          pagamento_qtd_parcial_terceiro?: number | null
+          pagamento_qtd_vidros?: number | null
+          pagamento_valor_carro_reserva?: number | null
+          pagamento_valor_integral_associado?: number | null
+          pagamento_valor_integral_terceiro?: number | null
+          pagamento_valor_parcial_associado?: number | null
+          pagamento_valor_parcial_terceiro?: number | null
+          pagamento_valor_vidros?: number | null
+          percentual_adesoes?: number | null
+          percentual_arrecadacao_juros?: number | null
+          percentual_cancelamento_boletos?: number | null
+          percentual_cancelamentos?: number | null
+          percentual_crescimento_faturamento?: number | null
+          percentual_crescimento_recebido?: number | null
+          percentual_descontado_banco?: number | null
+          percentual_emissao_boleto?: number | null
+          percentual_inadimplencia?: number | null
+          percentual_inadimplencia_boletos?: number | null
+          percentual_inadimplencia_financeira?: number | null
+          percentual_rateio?: number | null
+          placas_ativas?: number | null
+          rateio_periodo?: number | null
+          reativacao?: number | null
+          recebimento_operacional?: number | null
+          saldo_placas?: number | null
+          sinistralidade_financeira?: number | null
+          sinistralidade_geral?: number | null
+          ticket_medio_boleto?: number | null
+          ticket_medio_carro_reserva?: number | null
+          ticket_medio_integral?: number | null
+          ticket_medio_parcial?: number | null
+          ticket_medio_vidros?: number | null
+          total_associados?: number | null
+          total_cotas?: number | null
+          total_recebido?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          valor_boletos_abertos?: number | null
+          valor_boletos_cancelados?: number | null
+          veiculos_rastreados?: number | null
+        }
+        Update: {
+          abertura_carro_reserva?: number | null
+          abertura_indenizacao_integral_associado?: number | null
+          abertura_indenizacao_integral_terceiro?: number | null
+          abertura_indenizacao_parcial_associado?: number | null
+          abertura_indenizacao_parcial_terceiro?: number | null
+          abertura_total_eventos?: number | null
+          abertura_vidros?: number | null
+          acionamentos_assistencia?: number | null
+          ano?: number
+          arrecadamento_juros?: number | null
+          baixado_pendencia?: number | null
+          boletos_abertos?: number | null
+          boletos_cancelados?: number | null
+          boletos_emitidos?: number | null
+          boletos_liquidados?: number | null
+          cadastros_realizados?: number | null
+          cancelamentos?: number | null
+          churn?: number | null
+          cme_explit?: number | null
+          comprometimento_assistencia?: number | null
+          comprometimento_rastreamento?: number | null
+          corretora_id?: string
+          created_at?: string
+          created_by?: string | null
+          crescimento_liquido?: number | null
+          custo_assistencia?: number | null
+          custo_rastreamento?: number | null
+          custo_total_eventos?: number | null
+          custo_total_rateavel?: number | null
+          descontado_banco?: number | null
+          faturamento_operacional?: number | null
+          id?: string
+          inadimplentes?: number | null
+          indice_crescimento_bruto?: number | null
+          indice_dano_integral?: number | null
+          indice_dano_parcial?: number | null
+          instalacoes_rastreamento?: number | null
+          mes?: number
+          pagamento_qtd_carro_reserva?: number | null
+          pagamento_qtd_integral_associado?: number | null
+          pagamento_qtd_integral_terceiro?: number | null
+          pagamento_qtd_parcial_associado?: number | null
+          pagamento_qtd_parcial_terceiro?: number | null
+          pagamento_qtd_vidros?: number | null
+          pagamento_valor_carro_reserva?: number | null
+          pagamento_valor_integral_associado?: number | null
+          pagamento_valor_integral_terceiro?: number | null
+          pagamento_valor_parcial_associado?: number | null
+          pagamento_valor_parcial_terceiro?: number | null
+          pagamento_valor_vidros?: number | null
+          percentual_adesoes?: number | null
+          percentual_arrecadacao_juros?: number | null
+          percentual_cancelamento_boletos?: number | null
+          percentual_cancelamentos?: number | null
+          percentual_crescimento_faturamento?: number | null
+          percentual_crescimento_recebido?: number | null
+          percentual_descontado_banco?: number | null
+          percentual_emissao_boleto?: number | null
+          percentual_inadimplencia?: number | null
+          percentual_inadimplencia_boletos?: number | null
+          percentual_inadimplencia_financeira?: number | null
+          percentual_rateio?: number | null
+          placas_ativas?: number | null
+          rateio_periodo?: number | null
+          reativacao?: number | null
+          recebimento_operacional?: number | null
+          saldo_placas?: number | null
+          sinistralidade_financeira?: number | null
+          sinistralidade_geral?: number | null
+          ticket_medio_boleto?: number | null
+          ticket_medio_carro_reserva?: number | null
+          ticket_medio_integral?: number | null
+          ticket_medio_parcial?: number | null
+          ticket_medio_vidros?: number | null
+          total_associados?: number | null
+          total_cotas?: number | null
+          total_recebido?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          valor_boletos_abertos?: number | null
+          valor_boletos_cancelados?: number | null
+          veiculos_rastreados?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pid_operacional_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       producao_financeira: {
         Row: {
           competencia: string
