@@ -35,8 +35,6 @@ interface PIDDashboardProps {
   corretoraId?: string;
 }
 
-const COLORS = ["#2563eb", "#16a34a", "#eab308", "#dc2626", "#8b5cf6", "#ec4899", "#0ea5e9"];
-
 const mesesNome = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
@@ -110,20 +108,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     vidros: d.pagamento_valor_vidros || 0,
     carro_reserva: d.pagamento_valor_carro_reserva || 0,
   }));
-
-  const eventosData = dadosAtual
-    ? [
-        { name: "Parcial Assoc.", value: dadosAtual.pagamento_valor_parcial_associado || 0 },
-        { name: "Parcial Terc.", value: dadosAtual.pagamento_valor_parcial_terceiro || 0 },
-        {
-          name: "Integral",
-          value:
-            (dadosAtual.pagamento_valor_integral_associado || 0) + (dadosAtual.pagamento_valor_integral_terceiro || 0),
-        },
-        { name: "Vidros", value: dadosAtual.pagamento_valor_vidros || 0 },
-        { name: "Carro Reserva", value: dadosAtual.pagamento_valor_carro_reserva || 0 },
-      ].filter((d) => d.value > 0)
-    : [];
 
   if (loading) {
     return (
@@ -300,7 +284,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               </CardContent>
             </Card>
 
-            {/* Custo total rateável */}
+            {/* Custo total rateável (KPI atual) */}
             <Card className="border-primary/10">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -441,7 +425,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
 
           {/* ===================== CONTAS A RECEBER ===================== */}
           <section className="space-y-3">
-            <div className="flex items-center justify_between">
+            <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Contas a Receber</h3>
               <span className="text-xs text-muted-foreground">
                 Boletos, recebimentos, inadimplência e crescimento de receita
@@ -786,7 +770,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               </Card>
             </div>
 
-            {/* 16. Custo total rateável no período - FULL WIDTH */}
+            {/* 16. Custo total rateável no período - FULL WIDTH EM ÁREA (LINHAS PREENCHIDAS) */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base font-medium">Custo Total Rateável no Período</CardTitle>
@@ -794,19 +778,27 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               <CardContent className="h-[260px]">
                 {chartData.length ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="colorCustoRateavel" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                       <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                       <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
                       <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                       <Legend />
-                      <Bar
+                      <Area
+                        type="monotone"
                         dataKey="custo_total_rateavel"
                         name="Custo Total Rateável"
-                        fill="#6366f1"
-                        radius={[4, 4, 0, 0]}
+                        stroke="#6366f1"
+                        fill="url(#colorCustoRateavel)"
+                        strokeWidth={2}
                       />
-                    </BarChart>
+                    </AreaChart>
                   </ResponsiveContainer>
                 ) : (
                   <EmptyChart />
