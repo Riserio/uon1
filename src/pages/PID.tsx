@@ -9,12 +9,17 @@ import PortalIndicadores from "@/components/portal/PortalIndicadores";
 import PortalLancamentos from "@/components/portal/PortalLancamentos";
 import PortalSinistros from "@/components/portal/PortalSinistros";
 import PortalComite from "@/components/portal/PortalComite";
+import PIDOperacional from "@/components/portal/PIDOperacional";
+import PIDEstudoBase from "@/components/portal/PIDEstudoBase";
 import { GerenciarUsuariosCorretoraDialog } from "@/components/GerenciarUsuariosCorretoraDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Activity, FileText, PieChart, ListChecks, ShieldCheck, DollarSign } from "lucide-react";
+import { 
+  Users, Activity, FileText, PieChart, ListChecks, ShieldCheck, DollarSign,
+  BarChart3, Car
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export default function PID() {
@@ -121,16 +126,38 @@ export default function PID() {
         </div>
 
         {/* Abas */}
-        <Tabs defaultValue="kpi" className="space-y-6">
+        <Tabs defaultValue="operacional" className="space-y-6">
           {/* Responsivo: scroll horizontal no mobile, grid em telas maiores */}
           <div className="w-full overflow-x-auto">
             <TabsList
               className="
-                inline-flex md:grid md:w-full md:grid-cols-3 lg:grid-cols-6
+                inline-flex md:grid md:w-full md:grid-cols-4 lg:grid-cols-8
                 rounded-xl bg-muted/30 p-1.5 shadow-sm
                 min-w-max md:min-w-0
               "
             >
+              <TabsTrigger
+                value="operacional"
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[11px] sm:text-sm font-medium text-muted-foreground transition-all
+                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                           data-[state=active]:shadow-sm hover:text-foreground"
+              >
+                <BarChart3 className="h-4 w-4" />
+                <span>Operacional</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="estudo-base"
+                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
+                           text-[11px] sm:text-sm font-medium text-muted-foreground transition-all
+                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                           data-[state=active]:shadow-sm hover:text-foreground"
+              >
+                <Car className="h-4 w-4" />
+                <span>Estudo Base</span>
+              </TabsTrigger>
+
               <TabsTrigger
                 value="kpi"
                 className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
@@ -198,6 +225,14 @@ export default function PID() {
               </TabsTrigger>
             </TabsList>
           </div>
+
+          <TabsContent value="operacional" className="space-y-4">
+            <PIDOperacional corretoraId={selectedCorretora} />
+          </TabsContent>
+
+          <TabsContent value="estudo-base" className="space-y-4">
+            <PIDEstudoBase corretoraId={selectedCorretora} />
+          </TabsContent>
 
           <TabsContent value="kpi" className="space-y-4">
             <PortalKPI corretoraId={selectedCorretora} />
