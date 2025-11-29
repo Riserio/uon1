@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import { useAuth } from "@/hooks/useAuth";
+import { NumericFormat } from "react-number-format";
 import {
   Save, TrendingUp, TrendingDown, Users, FileText, Car, Shield, Phone, MapPin,
   DollarSign, Percent, AlertTriangle, CheckCircle2, BarChart3, PieChart, Activity
@@ -837,6 +838,26 @@ function InputField({
     return parseFloat(cleaned) || 0;
   };
 
+  if (type === "currency") {
+    return (
+      <div className={`space-y-1 ${className}`}>
+        <Label className="text-xs text-muted-foreground">{label}</Label>
+        <NumericFormat
+          value={value}
+          onValueChange={(values) => onChange(values.floatValue || 0)}
+          disabled={disabled}
+          thousandSeparator="."
+          decimalSeparator=","
+          prefix="R$ "
+          decimalScale={2}
+          allowNegative={false}
+          customInput={Input}
+          className="h-9 text-sm text-right"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={`space-y-1 ${className}`}>
       <Label className="text-xs text-muted-foreground">{label}</Label>
@@ -845,7 +866,7 @@ function InputField({
         value={formatValue(value)}
         onChange={(e) => onChange(parseValue(e.target.value))}
         disabled={disabled}
-        className={`h-9 text-sm ${type === "currency" ? "text-right" : ""}`}
+        className={`h-9 text-sm`}
       />
     </div>
   );
