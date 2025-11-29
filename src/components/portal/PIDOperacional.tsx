@@ -438,27 +438,27 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
       {/* Tabs de seções */}
       <Tabs defaultValue="base" className="space-y-4">
         <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/30 p-1">
-          <TabsTrigger value="base" className="gap-2 text-xs sm:text-sm">
+          <TabsTrigger value="base" className="gap-2 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <Users className="h-4 w-4" />
             Base
           </TabsTrigger>
-          <TabsTrigger value="financeiro" className="gap-2 text-xs sm:text-sm">
+          <TabsTrigger value="financeiro" className="gap-2 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <DollarSign className="h-4 w-4" />
             Financeiro
           </TabsTrigger>
-          <TabsTrigger value="eventos" className="gap-2 text-xs sm:text-sm">
+          <TabsTrigger value="eventos" className="gap-2 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <Shield className="h-4 w-4" />
             Eventos
           </TabsTrigger>
-          <TabsTrigger value="assistencia" className="gap-2 text-xs sm:text-sm">
+          <TabsTrigger value="assistencia" className="gap-2 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <Phone className="h-4 w-4" />
             Assistência
           </TabsTrigger>
-          <TabsTrigger value="rastreamento" className="gap-2 text-xs sm:text-sm">
+          <TabsTrigger value="rastreamento" className="gap-2 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <MapPin className="h-4 w-4" />
             Rastreamento
           </TabsTrigger>
-          <TabsTrigger value="graficos" className="gap-2 text-xs sm:text-sm">
+          <TabsTrigger value="graficos" className="gap-2 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <BarChart3 className="h-4 w-4" />
             Gráficos
           </TabsTrigger>
