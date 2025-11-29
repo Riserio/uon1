@@ -7,13 +7,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { FileText, TrendingUp, AlertCircle, DollarSign } from 'lucide-react';
+import { formatCurrency } from '@/lib/formatters';
+import { FileText, TrendingUp, AlertCircle, DollarSign, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface PortalSinistrosProps {
   corretoraId?: string;
 }
 
 export default function PortalSinistros({ corretoraId }: PortalSinistrosProps) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [sinistros, setSinistros] = useState<any[]>([]);
   const [stats, setStats] = useState({
@@ -84,6 +87,25 @@ export default function PortalSinistros({ corretoraId }: PortalSinistrosProps) {
 
   return (
     <div className="space-y-6">
+      {/* Header com botão de Custos */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-xl font-bold">Sinistros</h2>
+          <p className="text-sm text-muted-foreground">Gestão e acompanhamento de sinistros</p>
+        </div>
+        {corretoraId && (
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/custos-sinistros?corretora=${corretoraId}`)}
+            className="gap-2"
+          >
+            <DollarSign className="h-4 w-4" />
+            Custos de Sinistros
+            <ExternalLink className="h-3 w-3" />
+          </Button>
+        )}
+      </div>
+
       {/* Cards de Estatísticas */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -126,7 +148,7 @@ export default function PortalSinistros({ corretoraId }: PortalSinistrosProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              R$ {stats.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              {formatCurrency(stats.valorTotal)}
             </div>
             <p className="text-xs text-muted-foreground">Indenizações e reparos</p>
           </CardContent>
@@ -191,7 +213,7 @@ export default function PortalSinistros({ corretoraId }: PortalSinistrosProps) {
                         {new Date(sinistro.created_at).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell className="text-right">
-                        R$ {(sinistro.valor_indenizacao || sinistro.custo_reparo || sinistro.custo_perda_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        {formatCurrency(sinistro.valor_indenizacao || sinistro.custo_reparo || sinistro.custo_perda_total || 0)}
                       </TableCell>
                       <TableCell>{getStatusBadge(sinistro.status)}</TableCell>
                     </TableRow>

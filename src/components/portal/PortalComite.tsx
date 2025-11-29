@@ -5,11 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/formatters';
 import { MessageSquare, ThumbsUp, ThumbsDown, DollarSign, TrendingUp, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -148,7 +149,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              R$ {sinistros.reduce((sum, s) => sum + getValorEstimado(s), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              {formatCurrency(sinistros.reduce((sum, s) => sum + getValorEstimado(s), 0))}
             </div>
             <p className="text-xs text-muted-foreground">Valor estimado total</p>
           </CardContent>
@@ -161,9 +162,9 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              R$ {sinistros.length > 0 
-                ? (sinistros.reduce((sum, s) => sum + getValorEstimado(s), 0) / sinistros.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-                : '0,00'}
+              {sinistros.length > 0 
+                ? formatCurrency(sinistros.reduce((sum, s) => sum + getValorEstimado(s), 0) / sinistros.length)
+                : 'R$ 0,00'}
             </div>
             <p className="text-xs text-muted-foreground">Valor médio por sinistro</p>
           </CardContent>
@@ -226,9 +227,9 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                     <TableCell>
                       {new Date(sinistro.created_at).toLocaleDateString('pt-BR')}
                     </TableCell>
-                    <TableCell className="text-right">
-                      R$ {getValorEstimado(sinistro).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(getValorEstimado(sinistro))}
+                        </TableCell>
                     <TableCell>{getStatusBadge(sinistro.status)}</TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -319,13 +320,11 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
               {deliberacao.decisao === 'aprovado' && (
                 <div className="space-y-2">
                   <Label htmlFor="valor_aprovado">Valor Aprovado *</Label>
-                  <Input
+                  <CurrencyInput
                     id="valor_aprovado"
-                    type="number"
-                    step="0.01"
                     value={deliberacao.valor_aprovado}
-                    onChange={(e) => setDeliberacao({ ...deliberacao, valor_aprovado: e.target.value })}
-                    placeholder="0.00"
+                    onValueChange={(values) => setDeliberacao({ ...deliberacao, valor_aprovado: values.value || '' })}
+                    placeholder="R$ 0,00"
                   />
                 </div>
               )}

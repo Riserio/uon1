@@ -3,32 +3,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import PortalKPI from "@/components/portal/PortalKPI";
-import PortalExtrato from "@/components/portal/PortalExtrato";
-import PortalIndicadores from "@/components/portal/PortalIndicadores";
-import PortalLancamentos from "@/components/portal/PortalLancamentos";
-import PortalSinistros from "@/components/portal/PortalSinistros";
-import PortalComite from "@/components/portal/PortalComite";
+import PIDDashboard from "@/components/portal/PIDDashboard";
 import PIDOperacional from "@/components/portal/PIDOperacional";
 import PIDEstudoBase from "@/components/portal/PIDEstudoBase";
+import PIDHistorico from "@/components/portal/PIDHistorico";
+import PortalSinistros from "@/components/portal/PortalSinistros";
+import PortalComite from "@/components/portal/PortalComite";
 import { GerenciarUsuariosCorretoraDialog } from "@/components/GerenciarUsuariosCorretoraDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
-  Users, Activity, FileText, PieChart, ListChecks, ShieldCheck, DollarSign,
-  BarChart3, Car
+  Users, BarChart3, Car, ShieldCheck, MessageSquare, Calendar, Activity
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 export default function PID() {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [usuariosDialogOpen, setUsuariosDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   const selectedCorretoraData = corretoras.find((c) => c.id === selectedCorretora);
 
@@ -40,7 +38,11 @@ export default function PID() {
         if (error) throw error;
 
         setCorretoras(data || []);
-        if (data && data.length > 0) {
+        
+        const corretoraParam = searchParams.get("corretora");
+        if (corretoraParam && data?.some(c => c.id === corretoraParam)) {
+          setSelectedCorretora(corretoraParam);
+        } else if (data && data.length > 0) {
           setSelectedCorretora(data[0].id);
         }
       } catch (error) {
@@ -52,7 +54,16 @@ export default function PID() {
     }
 
     fetchCorretoras();
-  }, []);
+  }, [searchParams]);
+
+  const tabs = [
+    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+    { id: "operacional", label: "Operacional", icon: Activity },
+    { id: "estudo-base", label: "Estudo de Base", icon: Car },
+    { id: "historico", label: "Histórico", icon: Calendar },
+    { id: "sinistros", label: "Sinistros", icon: ShieldCheck },
+    { id: "comite", label: "Comitê", icon: MessageSquare },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -99,26 +110,15 @@ export default function PID() {
                   </Select>
                 </div>
 
-                {/* Botões de ação */}
                 {selectedCorretora && (
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    <Button
-                      variant="outline"
-                      onClick={() => navigate(`/custos-sinistros?corretora=${selectedCorretora}`)}
-                      className="gap-2 whitespace-nowrap flex-1 sm:flex-none"
-                    >
-                      <DollarSign className="h-4 w-4" />
-                      <span className="text-sm">Custos de Sinistros</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setUsuariosDialogOpen(true)}
-                      className="gap-2 whitespace-nowrap flex-1 sm:flex-none"
-                    >
-                      <Users className="h-4 w-4" />
-                      <span className="text-sm">Gerenciar Usuários</span>
-                    </Button>
-                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setUsuariosDialogOpen(true)}
+                    className="gap-2 whitespace-nowrap"
+                  >
+                    <Users className="h-4 w-4" />
+                    <span className="text-sm">Gerenciar Usuários</span>
+                  </Button>
                 )}
               </div>
             </CardContent>
@@ -126,135 +126,50 @@ export default function PID() {
         </div>
 
         {/* Abas */}
-        <Tabs defaultValue="operacional" className="space-y-6">
-          {/* Responsivo: scroll horizontal no mobile, grid em telas maiores */}
-          <div className="w-full overflow-x-auto">
-            <TabsList
-              className="
-                inline-flex md:grid md:w-full md:grid-cols-4 lg:grid-cols-8
-                rounded-xl bg-muted/30 p-1.5 shadow-sm
-                min-w-max md:min-w-0
-              "
-            >
-              <TabsTrigger
-                value="operacional"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[11px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <BarChart3 className="h-4 w-4" />
-                <span>Operacional</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="estudo-base"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[11px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <Car className="h-4 w-4" />
-                <span>Estudo Base</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="kpi"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[11px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <Activity className="h-4 w-4" />
-                <span>KPI</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="extrato"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[11px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <FileText className="h-4 w-4" />
-                <span>Extrato</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="indicadores"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <PieChart className="h-4 w-4" />
-                <span>Indicadores</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="lancamentos"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <ListChecks className="h-4 w-4" />
-                <span>Lançamentos</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="sinistros"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <ShieldCheck className="h-4 w-4" />
-                <span>Sinistros</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="comite"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <Users className="h-4 w-4" />
-                <span>Comitê</span>
-              </TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <div className="w-full overflow-x-auto pb-2">
+            <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/40 rounded-xl min-w-max md:min-w-0">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <TabsTrigger
+                    key={tab.id}
+                    value={tab.id}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+                               text-muted-foreground transition-all
+                               data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                               data-[state=active]:shadow-md hover:text-foreground hover:bg-muted/60
+                               whitespace-nowrap"
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </TabsTrigger>
+                );
+              })}
             </TabsList>
           </div>
 
-          <TabsContent value="operacional" className="space-y-4">
+          <TabsContent value="dashboard" className="space-y-4 mt-0">
+            <PIDDashboard corretoraId={selectedCorretora} />
+          </TabsContent>
+
+          <TabsContent value="operacional" className="space-y-4 mt-0">
             <PIDOperacional corretoraId={selectedCorretora} />
           </TabsContent>
 
-          <TabsContent value="estudo-base" className="space-y-4">
+          <TabsContent value="estudo-base" className="space-y-4 mt-0">
             <PIDEstudoBase corretoraId={selectedCorretora} />
           </TabsContent>
 
-          <TabsContent value="kpi" className="space-y-4">
-            <PortalKPI corretoraId={selectedCorretora} />
+          <TabsContent value="historico" className="space-y-4 mt-0">
+            <PIDHistorico corretoraId={selectedCorretora} />
           </TabsContent>
 
-          <TabsContent value="extrato" className="space-y-4">
-            <PortalExtrato corretoraId={selectedCorretora} />
-          </TabsContent>
-
-          <TabsContent value="indicadores" className="space-y-4">
-            <PortalIndicadores corretoraId={selectedCorretora} />
-          </TabsContent>
-
-          <TabsContent value="lancamentos" className="space-y-4">
-            <PortalLancamentos corretoraId={selectedCorretora} />
-          </TabsContent>
-
-          <TabsContent value="sinistros" className="space-y-4">
+          <TabsContent value="sinistros" className="space-y-4 mt-0">
             <PortalSinistros corretoraId={selectedCorretora} />
           </TabsContent>
 
-          <TabsContent value="comite" className="space-y-4">
+          <TabsContent value="comite" className="space-y-4 mt-0">
             <PortalComite corretoraId={selectedCorretora} />
           </TabsContent>
         </Tabs>
