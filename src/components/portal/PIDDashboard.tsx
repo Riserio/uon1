@@ -24,9 +24,6 @@ import {
   Bar,
   LineChart,
   Line,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -105,6 +102,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     custo_total_eventos: d.custo_total_eventos || 0,
     custo_total_rateavel: d.custo_total_rateavel || 0,
     rateio_periodo: d.rateio_periodo || 0,
+
+    // Para o gráfico de linhas “Custos por Tipo de Evento (Detalhe)”
+    parcial_assoc: d.pagamento_valor_parcial_associado || 0,
+    parcial_terc: d.pagamento_valor_parcial_terceiro || 0,
+    integral: (d.pagamento_valor_integral_associado || 0) + (d.pagamento_valor_integral_terceiro || 0),
+    vidros: d.pagamento_valor_vidros || 0,
+    carro_reserva: d.pagamento_valor_carro_reserva || 0,
   }));
 
   const eventosData = dadosAtual
@@ -310,7 +314,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             </Card>
           </div>
 
-          {/* ===================== MOVIMENTAÇÃO DE BASE ===================== */}
+          {/* ===================== MOVIMENTACAO DE BASE ===================== */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Movimentação de Base</h3>
@@ -810,32 +814,61 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               </Card>
             </div>
 
-            {/* Extra: Custos por tipo de evento (detalhe) */}
+            {/* Extra: Custos por tipo de evento (detalhe) - LINHAS */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base font-medium">Custos por Tipo de Evento (Detalhe)</CardTitle>
               </CardHeader>
               <CardContent className="h-[260px]">
-                {eventosData.length > 0 ? (
+                {chartData.length ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={eventosData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={85}
-                        paddingAngle={3}
-                      >
-                        {eventosData.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                      <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
                       <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                       <Legend />
-                    </PieChart>
+                      <Line
+                        type="monotone"
+                        dataKey="parcial_assoc"
+                        name="Parcial Associado"
+                        stroke="#2563eb"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="parcial_terc"
+                        name="Parcial Terceiro"
+                        stroke="#16a34a"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="integral"
+                        name="Integral"
+                        stroke="#eab308"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="vidros"
+                        name="Vidros"
+                        stroke="#ec4899"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="carro_reserva"
+                        name="Carro Reserva"
+                        stroke="#8b5cf6"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                    </LineChart>
                   </ResponsiveContainer>
                 ) : (
                   <EmptyChart text="Sem dados de eventos" />
