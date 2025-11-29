@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatPercent, calcPercent } from "@/lib/formatters";
 import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import { useAuth } from "@/hooks/useAuth";
 import { NumericFormat } from "react-number-format";
@@ -227,11 +227,115 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     { value: "12", label: "Dezembro" },
   ];
 
+  // Calcular porcentagens automaticamente
+  const calculatedData = useMemo(() => {
+    if (!data) return null;
+
+    const placas = data.placas_ativas || 1;
+    const boletosEmitidos = data.boletos_emitidos || 1;
+    const faturamento = data.faturamento_operacional || 1;
+    const totalRecebido = data.total_recebido || 1;
+
+    // Cálculos automáticos de porcentagens
+    const percentual_inadimplencia = calcPercent(data.inadimplentes, placas);
+    const percentual_cancelamentos = calcPercent(data.cancelamentos, placas);
+    const percentual_adesoes = calcPercent(data.cadastros_realizados, placas);
+    const crescimento_liquido = calcPercent(data.cadastros_realizados - data.cancelamentos, placas);
+    const churn = calcPercent(data.cancelamentos, placas);
+    const saldo_placas = data.cadastros_realizados - data.cancelamentos + data.reativacao;
+    const indice_crescimento_bruto = calcPercent(data.cadastros_realizados, placas);
+
+    // Indicadores Financeiros
+    const percentual_emissao_boleto = calcPercent(data.boletos_liquidados, boletosEmitidos);
+    const percentual_inadimplencia_boletos = calcPercent(data.boletos_abertos, boletosEmitidos);
+    const percentual_cancelamento_boletos = calcPercent(data.boletos_cancelados, boletosEmitidos);
+    const ticket_medio_boleto = data.boletos_liquidados > 0 ? totalRecebido / data.boletos_liquidados : 0;
+    const percentual_inadimplencia_financeira = calcPercent(data.valor_boletos_abertos, faturamento);
+    const percentual_arrecadacao_juros = calcPercent(data.arrecadamento_juros, totalRecebido);
+    const percentual_descontado_banco = calcPercent(data.descontado_banco, totalRecebido);
+
+    // Eventos - Total automático
+    const abertura_total_eventos = 
+      data.abertura_indenizacao_parcial_associado + 
+      data.abertura_indenizacao_parcial_terceiro + 
+      data.abertura_indenizacao_integral_associado + 
+      data.abertura_indenizacao_integral_terceiro + 
+      data.abertura_vidros + 
+      data.abertura_carro_reserva;
+
+    // Custo total eventos
+    const custo_total_eventos = 
+      data.pagamento_valor_parcial_associado + 
+      data.pagamento_valor_parcial_terceiro + 
+      data.pagamento_valor_integral_associado + 
+      data.pagamento_valor_integral_terceiro + 
+      data.pagamento_valor_vidros + 
+      data.pagamento_valor_carro_reserva;
+
+    // Tickets médios
+    const qtd_parcial = data.pagamento_qtd_parcial_associado + data.pagamento_qtd_parcial_terceiro;
+    const qtd_integral = data.pagamento_qtd_integral_associado + data.pagamento_qtd_integral_terceiro;
+    const valor_parcial = data.pagamento_valor_parcial_associado + data.pagamento_valor_parcial_terceiro;
+    const valor_integral = data.pagamento_valor_integral_associado + data.pagamento_valor_integral_terceiro;
+
+    const ticket_medio_parcial = qtd_parcial > 0 ? valor_parcial / qtd_parcial : 0;
+    const ticket_medio_integral = qtd_integral > 0 ? valor_integral / qtd_integral : 0;
+    const ticket_medio_vidros = data.pagamento_qtd_vidros > 0 ? data.pagamento_valor_vidros / data.pagamento_qtd_vidros : 0;
+    const ticket_medio_carro_reserva = data.pagamento_qtd_carro_reserva > 0 ? data.pagamento_valor_carro_reserva / data.pagamento_qtd_carro_reserva : 0;
+
+    // Índices
+    const indice_dano_parcial = calcPercent(qtd_parcial, placas);
+    const indice_dano_integral = calcPercent(qtd_integral, placas);
+    const sinistralidade_financeira = calcPercent(custo_total_eventos, totalRecebido);
+    const sinistralidade_geral = calcPercent(abertura_total_eventos, placas);
+
+    // Assistência
+    const comprometimento_assistencia = calcPercent(data.custo_assistencia, totalRecebido);
+
+    // Rastreamento
+    const comprometimento_rastreamento = calcPercent(data.custo_rastreamento, totalRecebido);
+
+    // Rateio
+    const custo_total_rateavel = custo_total_eventos + data.custo_assistencia + data.custo_rastreamento;
+    const percentual_rateio = ticket_medio_boleto > 0 ? calcPercent(custo_total_rateavel / placas, ticket_medio_boleto) : 0;
+
+    return {
+      ...data,
+      percentual_inadimplencia,
+      percentual_cancelamentos,
+      percentual_adesoes,
+      crescimento_liquido,
+      churn,
+      saldo_placas,
+      indice_crescimento_bruto,
+      percentual_emissao_boleto,
+      percentual_inadimplencia_boletos,
+      percentual_cancelamento_boletos,
+      ticket_medio_boleto,
+      percentual_inadimplencia_financeira,
+      percentual_arrecadacao_juros,
+      percentual_descontado_banco,
+      abertura_total_eventos,
+      custo_total_eventos,
+      ticket_medio_parcial,
+      ticket_medio_integral,
+      ticket_medio_vidros,
+      ticket_medio_carro_reserva,
+      indice_dano_parcial,
+      indice_dano_integral,
+      sinistralidade_financeira,
+      sinistralidade_geral,
+      comprometimento_assistencia,
+      comprometimento_rastreamento,
+      custo_total_rateavel,
+      percentual_rateio,
+    };
+  }, [data]);
+
   const fetchData = async () => {
     if (!corretoraId) return;
     setLoading(true);
     try {
-      // Buscar dados do período selecionado
       const { data: result, error } = await supabase
         .from("pid_operacional")
         .select("*")
@@ -281,22 +385,22 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
   }, [corretoraId, ano, mes]);
 
   const handleSave = async () => {
-    if (!data || !corretoraId || !user) return;
+    if (!calculatedData || !corretoraId || !user) return;
     setSaving(true);
     try {
       const saveData = {
-        ...data,
+        ...calculatedData,
         corretora_id: corretoraId,
         ano: parseInt(ano),
         mes: parseInt(mes),
         updated_by: user.id,
       };
 
-      if (data.id) {
+      if (calculatedData.id) {
         const { error } = await supabase
           .from("pid_operacional")
           .update(saveData)
-          .eq("id", data.id);
+          .eq("id", calculatedData.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -320,8 +424,6 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     setData({ ...data, [field]: value });
   };
 
-  const formatPercent = (value: number) => `${(value * 100).toFixed(2)}%`;
-
   // Prepare chart data
   const historicoChartData = historico.map(h => ({
     periodo: `${h.mes.toString().padStart(2, '0')}/${h.ano}`,
@@ -331,13 +433,13 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     placas: h.placas_ativas,
   }));
 
-  const eventosChartData = data ? [
-    { name: "Parcial Assoc.", value: data.pagamento_valor_parcial_associado },
-    { name: "Parcial Terc.", value: data.pagamento_valor_parcial_terceiro },
-    { name: "Integral Assoc.", value: data.pagamento_valor_integral_associado },
-    { name: "Integral Terc.", value: data.pagamento_valor_integral_terceiro },
-    { name: "Vidros", value: data.pagamento_valor_vidros },
-    { name: "Carro Reserva", value: data.pagamento_valor_carro_reserva },
+  const eventosChartData = calculatedData ? [
+    { name: "Parcial Assoc.", value: calculatedData.pagamento_valor_parcial_associado },
+    { name: "Parcial Terc.", value: calculatedData.pagamento_valor_parcial_terceiro },
+    { name: "Integral Assoc.", value: calculatedData.pagamento_valor_integral_associado },
+    { name: "Integral Terc.", value: calculatedData.pagamento_valor_integral_terceiro },
+    { name: "Vidros", value: calculatedData.pagamento_valor_vidros },
+    { name: "Carro Reserva", value: calculatedData.pagamento_valor_carro_reserva },
   ] : [];
 
   if (loading) {
@@ -348,7 +450,7 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     );
   }
 
-  if (!data) return null;
+  if (!calculatedData) return null;
 
   return (
     <div className="space-y-6">
@@ -395,41 +497,41 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
         <MetricCard
           title="Placas Ativas"
-          value={data.placas_ativas}
+          value={calculatedData.placas_ativas}
           icon={<Car className="h-4 w-4" />}
-          trend={data.crescimento_liquido}
+          trend={calculatedData.crescimento_liquido}
         />
         <MetricCard
           title="Faturamento"
-          value={formatCurrency(data.faturamento_operacional)}
+          value={formatCurrency(calculatedData.faturamento_operacional)}
           icon={<DollarSign className="h-4 w-4" />}
-          trend={data.percentual_crescimento_faturamento}
+          trend={calculatedData.percentual_crescimento_faturamento}
           isCurrency
         />
         <MetricCard
           title="Recebido"
-          value={formatCurrency(data.total_recebido)}
+          value={formatCurrency(calculatedData.total_recebido)}
           icon={<CheckCircle2 className="h-4 w-4" />}
-          trend={data.percentual_crescimento_recebido}
+          trend={calculatedData.percentual_crescimento_recebido}
           isCurrency
         />
         <MetricCard
           title="Sinistralidade"
-          value={formatPercent(data.sinistralidade_financeira)}
+          value={formatPercent(calculatedData.sinistralidade_financeira)}
           icon={<AlertTriangle className="h-4 w-4" />}
           isPercent
           invertTrend
         />
         <MetricCard
           title="Inadimplência"
-          value={formatPercent(data.percentual_inadimplencia)}
+          value={formatPercent(calculatedData.percentual_inadimplencia)}
           icon={<TrendingDown className="h-4 w-4" />}
           isPercent
           invertTrend
         />
         <MetricCard
           title="Crescimento"
-          value={formatPercent(data.crescimento_liquido)}
+          value={formatPercent(calculatedData.crescimento_liquido)}
           icon={<TrendingUp className="h-4 w-4" />}
           isPercent
         />
@@ -473,20 +575,25 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <InputField label="Placas Ativas" value={data.placas_ativas} onChange={(v) => updateField("placas_ativas", v)} disabled={!canEdit} type="number" />
-                <InputField label="Total de Cotas" value={data.total_cotas} onChange={(v) => updateField("total_cotas", v)} disabled={!canEdit} type="decimal" />
-                <InputField label="Total de Associados" value={data.total_associados} onChange={(v) => updateField("total_associados", v)} disabled={!canEdit} type="number" />
-                <InputField label="Cadastros Realizados" value={data.cadastros_realizados} onChange={(v) => updateField("cadastros_realizados", v)} disabled={!canEdit} type="number" />
-                <InputField label="Índice Crescimento Bruto (%)" value={data.indice_crescimento_bruto * 100} onChange={(v) => updateField("indice_crescimento_bruto", v / 100)} disabled={!canEdit} type="percent" />
-                <InputField label="Cancelamentos" value={data.cancelamentos} onChange={(v) => updateField("cancelamentos", v)} disabled={!canEdit} type="number" />
-                <InputField label="Inadimplentes" value={data.inadimplentes} onChange={(v) => updateField("inadimplentes", v)} disabled={!canEdit} type="number" />
-                <InputField label="Reativação" value={data.reativacao} onChange={(v) => updateField("reativacao", v)} disabled={!canEdit} type="number" />
-                <InputField label="Churn (%)" value={data.churn * 100} onChange={(v) => updateField("churn", v / 100)} disabled={!canEdit} type="percent" />
-                <InputField label="Saldo de Placas" value={data.saldo_placas} onChange={(v) => updateField("saldo_placas", v)} disabled={!canEdit} type="number" />
-                <InputField label="% Inadimplência" value={data.percentual_inadimplencia * 100} onChange={(v) => updateField("percentual_inadimplencia", v / 100)} disabled={!canEdit} type="percent" />
-                <InputField label="% Cancelamentos" value={data.percentual_cancelamentos * 100} onChange={(v) => updateField("percentual_cancelamentos", v / 100)} disabled={!canEdit} type="percent" />
-                <InputField label="% Adesões" value={data.percentual_adesoes * 100} onChange={(v) => updateField("percentual_adesoes", v / 100)} disabled={!canEdit} type="percent" />
-                <InputField label="Crescimento Líquido (%)" value={data.crescimento_liquido * 100} onChange={(v) => updateField("crescimento_liquido", v / 100)} disabled={!canEdit} type="percent" />
+                <InputField label="Placas Ativas" value={data?.placas_ativas || 0} onChange={(v) => updateField("placas_ativas", v)} disabled={!canEdit} type="number" />
+                <InputField label="Total de Cotas" value={data?.total_cotas || 0} onChange={(v) => updateField("total_cotas", v)} disabled={!canEdit} type="decimal" />
+                <InputField label="Total de Associados" value={data?.total_associados || 0} onChange={(v) => updateField("total_associados", v)} disabled={!canEdit} type="number" />
+                <InputField label="Cadastros Realizados" value={data?.cadastros_realizados || 0} onChange={(v) => updateField("cadastros_realizados", v)} disabled={!canEdit} type="number" />
+                <PercentDisplayField label="Índice Crescimento Bruto" value={calculatedData.indice_crescimento_bruto} />
+                <InputField label="Cancelamentos" value={data?.cancelamentos || 0} onChange={(v) => updateField("cancelamentos", v)} disabled={!canEdit} type="number" />
+                <InputField label="Inadimplentes" value={data?.inadimplentes || 0} onChange={(v) => updateField("inadimplentes", v)} disabled={!canEdit} type="number" />
+                <InputField label="Reativação" value={data?.reativacao || 0} onChange={(v) => updateField("reativacao", v)} disabled={!canEdit} type="number" />
+                <PercentDisplayField label="Churn" value={calculatedData.churn} />
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Saldo de Placas</Label>
+                  <div className="h-10 flex items-center px-3 border rounded-md bg-muted/50 text-sm font-medium">
+                    {calculatedData.saldo_placas}
+                  </div>
+                </div>
+                <PercentDisplayField label="% Inadimplência" value={calculatedData.percentual_inadimplencia} />
+                <PercentDisplayField label="% Cancelamentos" value={calculatedData.percentual_cancelamentos} />
+                <PercentDisplayField label="% Adesões" value={calculatedData.percentual_adesoes} />
+                <PercentDisplayField label="Crescimento Líquido" value={calculatedData.crescimento_liquido} />
               </div>
             </CardContent>
           </Card>
@@ -501,25 +608,30 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <InputField label="Boletos Emitidos" value={data.boletos_emitidos} onChange={(v) => updateField("boletos_emitidos", v)} disabled={!canEdit} type="number" />
-                <InputField label="Boletos Liquidados" value={data.boletos_liquidados} onChange={(v) => updateField("boletos_liquidados", v)} disabled={!canEdit} type="number" />
-                <InputField label="Boletos em Aberto" value={data.boletos_abertos} onChange={(v) => updateField("boletos_abertos", v)} disabled={!canEdit} type="number" />
-                <InputField label="Boletos Cancelados" value={data.boletos_cancelados} onChange={(v) => updateField("boletos_cancelados", v)} disabled={!canEdit} type="number" />
-                <InputField label="Faturamento Operacional" value={data.faturamento_operacional} onChange={(v) => updateField("faturamento_operacional", v)} disabled={!canEdit} type="currency" />
-                <InputField label="Total Recebido" value={data.total_recebido} onChange={(v) => updateField("total_recebido", v)} disabled={!canEdit} type="currency" />
-                <InputField label="Baixado com Pendência" value={data.baixado_pendencia} onChange={(v) => updateField("baixado_pendencia", v)} disabled={!canEdit} type="currency" />
-                <InputField label="Valor Boletos em Aberto" value={data.valor_boletos_abertos} onChange={(v) => updateField("valor_boletos_abertos", v)} disabled={!canEdit} type="currency" />
-                <InputField label="Valor Boletos Cancelados" value={data.valor_boletos_cancelados} onChange={(v) => updateField("valor_boletos_cancelados", v)} disabled={!canEdit} type="currency" />
-                <InputField label="Recebimento Operacional" value={data.recebimento_operacional} onChange={(v) => updateField("recebimento_operacional", v)} disabled={!canEdit} type="currency" />
-                <InputField label="Arrecadamento Juros" value={data.arrecadamento_juros} onChange={(v) => updateField("arrecadamento_juros", v)} disabled={!canEdit} type="currency" />
-                <InputField label="Descontado Banco" value={data.descontado_banco} onChange={(v) => updateField("descontado_banco", v)} disabled={!canEdit} type="currency" />
-                <InputField label="% Emissão Boleto" value={data.percentual_emissao_boleto * 100} onChange={(v) => updateField("percentual_emissao_boleto", v / 100)} disabled={!canEdit} type="percent" />
-                <InputField label="% Inadimplência Boletos" value={data.percentual_inadimplencia_boletos * 100} onChange={(v) => updateField("percentual_inadimplencia_boletos", v / 100)} disabled={!canEdit} type="percent" />
-                <InputField label="% Cancelamento Boletos" value={data.percentual_cancelamento_boletos * 100} onChange={(v) => updateField("percentual_cancelamento_boletos", v / 100)} disabled={!canEdit} type="percent" />
-                <InputField label="Ticket Médio Boleto" value={data.ticket_medio_boleto} onChange={(v) => updateField("ticket_medio_boleto", v)} disabled={!canEdit} type="currency" />
-                <InputField label="% Inadimplência Financeira" value={data.percentual_inadimplencia_financeira * 100} onChange={(v) => updateField("percentual_inadimplencia_financeira", v / 100)} disabled={!canEdit} type="percent" />
-                <InputField label="% Crescimento Faturamento" value={data.percentual_crescimento_faturamento * 100} onChange={(v) => updateField("percentual_crescimento_faturamento", v / 100)} disabled={!canEdit} type="percent" />
-                <InputField label="% Crescimento Recebido" value={data.percentual_crescimento_recebido * 100} onChange={(v) => updateField("percentual_crescimento_recebido", v / 100)} disabled={!canEdit} type="percent" />
+                <InputField label="Boletos Emitidos" value={data?.boletos_emitidos || 0} onChange={(v) => updateField("boletos_emitidos", v)} disabled={!canEdit} type="number" />
+                <InputField label="Boletos Liquidados" value={data?.boletos_liquidados || 0} onChange={(v) => updateField("boletos_liquidados", v)} disabled={!canEdit} type="number" />
+                <InputField label="Boletos em Aberto" value={data?.boletos_abertos || 0} onChange={(v) => updateField("boletos_abertos", v)} disabled={!canEdit} type="number" />
+                <InputField label="Boletos Cancelados" value={data?.boletos_cancelados || 0} onChange={(v) => updateField("boletos_cancelados", v)} disabled={!canEdit} type="number" />
+                <InputField label="Faturamento Operacional" value={data?.faturamento_operacional || 0} onChange={(v) => updateField("faturamento_operacional", v)} disabled={!canEdit} type="currency" />
+                <InputField label="Total Recebido" value={data?.total_recebido || 0} onChange={(v) => updateField("total_recebido", v)} disabled={!canEdit} type="currency" />
+                <InputField label="Baixado com Pendência" value={data?.baixado_pendencia || 0} onChange={(v) => updateField("baixado_pendencia", v)} disabled={!canEdit} type="currency" />
+                <InputField label="Valor Boletos em Aberto" value={data?.valor_boletos_abertos || 0} onChange={(v) => updateField("valor_boletos_abertos", v)} disabled={!canEdit} type="currency" />
+                <InputField label="Valor Boletos Cancelados" value={data?.valor_boletos_cancelados || 0} onChange={(v) => updateField("valor_boletos_cancelados", v)} disabled={!canEdit} type="currency" />
+                <InputField label="Recebimento Operacional" value={data?.recebimento_operacional || 0} onChange={(v) => updateField("recebimento_operacional", v)} disabled={!canEdit} type="currency" />
+                <InputField label="Arrecadamento Juros" value={data?.arrecadamento_juros || 0} onChange={(v) => updateField("arrecadamento_juros", v)} disabled={!canEdit} type="currency" />
+                <InputField label="Descontado Banco" value={data?.descontado_banco || 0} onChange={(v) => updateField("descontado_banco", v)} disabled={!canEdit} type="currency" />
+                <PercentDisplayField label="% Emissão Boleto" value={calculatedData.percentual_emissao_boleto} />
+                <PercentDisplayField label="% Inadimplência Boletos" value={calculatedData.percentual_inadimplencia_boletos} />
+                <PercentDisplayField label="% Cancelamento Boletos" value={calculatedData.percentual_cancelamento_boletos} />
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Ticket Médio Boleto</Label>
+                  <div className="h-10 flex items-center px-3 border rounded-md bg-muted/50 text-sm font-medium">
+                    {formatCurrency(calculatedData.ticket_medio_boleto)}
+                  </div>
+                </div>
+                <PercentDisplayField label="% Inadimplência Financeira" value={calculatedData.percentual_inadimplencia_financeira} />
+                <PercentDisplayField label="% Arrecadação Juros" value={calculatedData.percentual_arrecadacao_juros} />
+                <PercentDisplayField label="% Descontado Banco" value={calculatedData.percentual_descontado_banco} />
               </div>
             </CardContent>
           </Card>
@@ -534,13 +646,18 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <InputField label="Indenização Parcial Associado" value={data.abertura_indenizacao_parcial_associado} onChange={(v) => updateField("abertura_indenizacao_parcial_associado", v)} disabled={!canEdit} type="number" />
-                  <InputField label="Indenização Parcial Terceiro" value={data.abertura_indenizacao_parcial_terceiro} onChange={(v) => updateField("abertura_indenizacao_parcial_terceiro", v)} disabled={!canEdit} type="number" />
-                  <InputField label="Indenização Integral Associado" value={data.abertura_indenizacao_integral_associado} onChange={(v) => updateField("abertura_indenizacao_integral_associado", v)} disabled={!canEdit} type="number" />
-                  <InputField label="Indenização Integral Terceiro" value={data.abertura_indenizacao_integral_terceiro} onChange={(v) => updateField("abertura_indenizacao_integral_terceiro", v)} disabled={!canEdit} type="number" />
-                  <InputField label="Vidros" value={data.abertura_vidros} onChange={(v) => updateField("abertura_vidros", v)} disabled={!canEdit} type="number" />
-                  <InputField label="Carro Reserva" value={data.abertura_carro_reserva} onChange={(v) => updateField("abertura_carro_reserva", v)} disabled={!canEdit} type="number" />
-                  <InputField label="Total de Eventos" value={data.abertura_total_eventos} onChange={(v) => updateField("abertura_total_eventos", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Indenização Parcial Associado" value={data?.abertura_indenizacao_parcial_associado || 0} onChange={(v) => updateField("abertura_indenizacao_parcial_associado", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Indenização Parcial Terceiro" value={data?.abertura_indenizacao_parcial_terceiro || 0} onChange={(v) => updateField("abertura_indenizacao_parcial_terceiro", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Indenização Integral Associado" value={data?.abertura_indenizacao_integral_associado || 0} onChange={(v) => updateField("abertura_indenizacao_integral_associado", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Indenização Integral Terceiro" value={data?.abertura_indenizacao_integral_terceiro || 0} onChange={(v) => updateField("abertura_indenizacao_integral_terceiro", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Vidros" value={data?.abertura_vidros || 0} onChange={(v) => updateField("abertura_vidros", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Carro Reserva" value={data?.abertura_carro_reserva || 0} onChange={(v) => updateField("abertura_carro_reserva", v)} disabled={!canEdit} type="number" />
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label className="text-sm font-medium">Total de Eventos (automático)</Label>
+                    <div className="h-10 flex items-center px-3 border rounded-md bg-muted/50 text-sm font-medium">
+                      {calculatedData.abertura_total_eventos}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -551,12 +668,12 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <InputField label="Parcial Associado" value={data.pagamento_qtd_parcial_associado} onChange={(v) => updateField("pagamento_qtd_parcial_associado", v)} disabled={!canEdit} type="number" />
-                  <InputField label="Parcial Terceiro" value={data.pagamento_qtd_parcial_terceiro} onChange={(v) => updateField("pagamento_qtd_parcial_terceiro", v)} disabled={!canEdit} type="number" />
-                  <InputField label="Integral Associado" value={data.pagamento_qtd_integral_associado} onChange={(v) => updateField("pagamento_qtd_integral_associado", v)} disabled={!canEdit} type="number" />
-                  <InputField label="Integral Terceiro" value={data.pagamento_qtd_integral_terceiro} onChange={(v) => updateField("pagamento_qtd_integral_terceiro", v)} disabled={!canEdit} type="number" />
-                  <InputField label="Vidros" value={data.pagamento_qtd_vidros} onChange={(v) => updateField("pagamento_qtd_vidros", v)} disabled={!canEdit} type="number" />
-                  <InputField label="Carro Reserva" value={data.pagamento_qtd_carro_reserva} onChange={(v) => updateField("pagamento_qtd_carro_reserva", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Parcial Associado" value={data?.pagamento_qtd_parcial_associado || 0} onChange={(v) => updateField("pagamento_qtd_parcial_associado", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Parcial Terceiro" value={data?.pagamento_qtd_parcial_terceiro || 0} onChange={(v) => updateField("pagamento_qtd_parcial_terceiro", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Integral Associado" value={data?.pagamento_qtd_integral_associado || 0} onChange={(v) => updateField("pagamento_qtd_integral_associado", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Integral Terceiro" value={data?.pagamento_qtd_integral_terceiro || 0} onChange={(v) => updateField("pagamento_qtd_integral_terceiro", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Vidros" value={data?.pagamento_qtd_vidros || 0} onChange={(v) => updateField("pagamento_qtd_vidros", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Carro Reserva" value={data?.pagamento_qtd_carro_reserva || 0} onChange={(v) => updateField("pagamento_qtd_carro_reserva", v)} disabled={!canEdit} type="number" />
                 </div>
               </CardContent>
             </Card>
@@ -569,31 +686,56 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <InputField label="Parcial Associado" value={data.pagamento_valor_parcial_associado} onChange={(v) => updateField("pagamento_valor_parcial_associado", v)} disabled={!canEdit} type="currency" />
-                  <InputField label="Parcial Terceiro" value={data.pagamento_valor_parcial_terceiro} onChange={(v) => updateField("pagamento_valor_parcial_terceiro", v)} disabled={!canEdit} type="currency" />
-                  <InputField label="Integral Associado" value={data.pagamento_valor_integral_associado} onChange={(v) => updateField("pagamento_valor_integral_associado", v)} disabled={!canEdit} type="currency" />
-                  <InputField label="Integral Terceiro" value={data.pagamento_valor_integral_terceiro} onChange={(v) => updateField("pagamento_valor_integral_terceiro", v)} disabled={!canEdit} type="currency" />
-                  <InputField label="Vidros" value={data.pagamento_valor_vidros} onChange={(v) => updateField("pagamento_valor_vidros", v)} disabled={!canEdit} type="currency" />
-                  <InputField label="Carro Reserva" value={data.pagamento_valor_carro_reserva} onChange={(v) => updateField("pagamento_valor_carro_reserva", v)} disabled={!canEdit} type="currency" />
-                  <InputField label="Custo Total Eventos" value={data.custo_total_eventos} onChange={(v) => updateField("custo_total_eventos", v)} disabled={!canEdit} type="currency" className="sm:col-span-2" />
+                  <InputField label="Parcial Associado" value={data?.pagamento_valor_parcial_associado || 0} onChange={(v) => updateField("pagamento_valor_parcial_associado", v)} disabled={!canEdit} type="currency" />
+                  <InputField label="Parcial Terceiro" value={data?.pagamento_valor_parcial_terceiro || 0} onChange={(v) => updateField("pagamento_valor_parcial_terceiro", v)} disabled={!canEdit} type="currency" />
+                  <InputField label="Integral Associado" value={data?.pagamento_valor_integral_associado || 0} onChange={(v) => updateField("pagamento_valor_integral_associado", v)} disabled={!canEdit} type="currency" />
+                  <InputField label="Integral Terceiro" value={data?.pagamento_valor_integral_terceiro || 0} onChange={(v) => updateField("pagamento_valor_integral_terceiro", v)} disabled={!canEdit} type="currency" />
+                  <InputField label="Vidros" value={data?.pagamento_valor_vidros || 0} onChange={(v) => updateField("pagamento_valor_vidros", v)} disabled={!canEdit} type="currency" />
+                  <InputField label="Carro Reserva" value={data?.pagamento_valor_carro_reserva || 0} onChange={(v) => updateField("pagamento_valor_carro_reserva", v)} disabled={!canEdit} type="currency" />
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label className="text-sm font-medium">Custo Total Eventos (automático)</Label>
+                    <div className="h-10 flex items-center px-3 border rounded-md bg-muted/50 text-sm font-medium">
+                      {formatCurrency(calculatedData.custo_total_eventos)}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Tickets Médios e Índices</CardTitle>
+                <CardTitle className="text-lg">Tickets Médios e Índices (automáticos)</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <InputField label="TM Parcial" value={data.ticket_medio_parcial} onChange={(v) => updateField("ticket_medio_parcial", v)} disabled={!canEdit} type="currency" />
-                  <InputField label="TM Integral" value={data.ticket_medio_integral} onChange={(v) => updateField("ticket_medio_integral", v)} disabled={!canEdit} type="currency" />
-                  <InputField label="TM Vidros" value={data.ticket_medio_vidros} onChange={(v) => updateField("ticket_medio_vidros", v)} disabled={!canEdit} type="currency" />
-                  <InputField label="TM Carro Reserva" value={data.ticket_medio_carro_reserva} onChange={(v) => updateField("ticket_medio_carro_reserva", v)} disabled={!canEdit} type="currency" />
-                  <InputField label="Índice Dano Parcial (%)" value={data.indice_dano_parcial * 100} onChange={(v) => updateField("indice_dano_parcial", v / 100)} disabled={!canEdit} type="percent" />
-                  <InputField label="Índice Dano Integral (%)" value={data.indice_dano_integral * 100} onChange={(v) => updateField("indice_dano_integral", v / 100)} disabled={!canEdit} type="percent" />
-                  <InputField label="Sinistralidade Financeira (%)" value={data.sinistralidade_financeira * 100} onChange={(v) => updateField("sinistralidade_financeira", v / 100)} disabled={!canEdit} type="percent" />
-                  <InputField label="Sinistralidade Geral (%)" value={data.sinistralidade_geral * 100} onChange={(v) => updateField("sinistralidade_geral", v / 100)} disabled={!canEdit} type="percent" />
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">TM Parcial</Label>
+                    <div className="h-10 flex items-center px-3 border rounded-md bg-muted/50 text-sm font-medium">
+                      {formatCurrency(calculatedData.ticket_medio_parcial)}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">TM Integral</Label>
+                    <div className="h-10 flex items-center px-3 border rounded-md bg-muted/50 text-sm font-medium">
+                      {formatCurrency(calculatedData.ticket_medio_integral)}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">TM Vidros</Label>
+                    <div className="h-10 flex items-center px-3 border rounded-md bg-muted/50 text-sm font-medium">
+                      {formatCurrency(calculatedData.ticket_medio_vidros)}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">TM Carro Reserva</Label>
+                    <div className="h-10 flex items-center px-3 border rounded-md bg-muted/50 text-sm font-medium">
+                      {formatCurrency(calculatedData.ticket_medio_carro_reserva)}
+                    </div>
+                  </div>
+                  <PercentDisplayField label="Índice Dano Parcial" value={calculatedData.indice_dano_parcial} />
+                  <PercentDisplayField label="Índice Dano Integral" value={calculatedData.indice_dano_integral} />
+                  <PercentDisplayField label="Sinistralidade Financeira" value={calculatedData.sinistralidade_financeira} />
+                  <PercentDisplayField label="Sinistralidade Geral" value={calculatedData.sinistralidade_geral} />
                 </div>
               </CardContent>
             </Card>
@@ -608,9 +750,9 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <InputField label="Acionamentos" value={data.acionamentos_assistencia} onChange={(v) => updateField("acionamentos_assistencia", v)} disabled={!canEdit} type="number" />
-                <InputField label="Custo Total" value={data.custo_assistencia} onChange={(v) => updateField("custo_assistencia", v)} disabled={!canEdit} type="currency" />
-                <InputField label="% Comprometimento" value={data.comprometimento_assistencia * 100} onChange={(v) => updateField("comprometimento_assistencia", v / 100)} disabled={!canEdit} type="percent" />
+                <InputField label="Acionamentos" value={data?.acionamentos_assistencia || 0} onChange={(v) => updateField("acionamentos_assistencia", v)} disabled={!canEdit} type="number" />
+                <InputField label="Custo Total" value={data?.custo_assistencia || 0} onChange={(v) => updateField("custo_assistencia", v)} disabled={!canEdit} type="currency" />
+                <PercentDisplayField label="% Comprometimento (automático)" value={calculatedData.comprometimento_assistencia} />
               </div>
             </CardContent>
           </Card>
@@ -625,24 +767,29 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <InputField label="Veículos Rastreados" value={data.veiculos_rastreados} onChange={(v) => updateField("veiculos_rastreados", v)} disabled={!canEdit} type="number" />
-                  <InputField label="Instalações Realizadas" value={data.instalacoes_rastreamento} onChange={(v) => updateField("instalacoes_rastreamento", v)} disabled={!canEdit} type="number" />
-                  <InputField label="Custo Total" value={data.custo_rastreamento} onChange={(v) => updateField("custo_rastreamento", v)} disabled={!canEdit} type="currency" />
-                  <InputField label="% Comprometimento" value={data.comprometimento_rastreamento * 100} onChange={(v) => updateField("comprometimento_rastreamento", v / 100)} disabled={!canEdit} type="percent" />
+                  <InputField label="Veículos Rastreados" value={data?.veiculos_rastreados || 0} onChange={(v) => updateField("veiculos_rastreados", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Instalações Realizadas" value={data?.instalacoes_rastreamento || 0} onChange={(v) => updateField("instalacoes_rastreamento", v)} disabled={!canEdit} type="number" />
+                  <InputField label="Custo Total" value={data?.custo_rastreamento || 0} onChange={(v) => updateField("custo_rastreamento", v)} disabled={!canEdit} type="currency" />
+                  <PercentDisplayField label="% Comprometimento (automático)" value={calculatedData.comprometimento_rastreamento} />
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Rateio</CardTitle>
+                <CardTitle className="text-lg">Rateio (automático)</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <InputField label="Custo Total Rateável" value={data.custo_total_rateavel} onChange={(v) => updateField("custo_total_rateavel", v)} disabled={!canEdit} type="currency" />
-                  <InputField label="Rateio do Período" value={data.rateio_periodo} onChange={(v) => updateField("rateio_periodo", v)} disabled={!canEdit} type="currency" />
-                  <InputField label="% Rateio (Base TM)" value={data.percentual_rateio * 100} onChange={(v) => updateField("percentual_rateio", v / 100)} disabled={!canEdit} type="percent" />
-                  <InputField label="CME Explit (%)" value={data.cme_explit * 100} onChange={(v) => updateField("cme_explit", v / 100)} disabled={!canEdit} type="percent" />
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Custo Total Rateável</Label>
+                    <div className="h-10 flex items-center px-3 border rounded-md bg-muted/50 text-sm font-medium">
+                      {formatCurrency(calculatedData.custo_total_rateavel)}
+                    </div>
+                  </div>
+                  <InputField label="Rateio do Período" value={data?.rateio_periodo || 0} onChange={(v) => updateField("rateio_periodo", v)} disabled={!canEdit} type="currency" />
+                  <PercentDisplayField label="% Rateio (Base TM)" value={calculatedData.percentual_rateio} />
+                  <InputField label="CME Explit" value={(data?.cme_explit || 0) * 100} onChange={(v) => updateField("cme_explit", v / 100)} disabled={!canEdit} type="percent" />
                 </div>
               </CardContent>
             </Card>
@@ -717,156 +864,146 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
               </CardContent>
             </Card>
           </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Evolução Sinistralidade (%)</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                {historicoChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={historicoChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="periodo" tick={{ fontSize: 11 }} />
-                      <YAxis tickFormatter={(v) => `${v.toFixed(1)}%`} tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={(value: any) => `${Number(value).toFixed(2)}%`} />
-                      <Line type="monotone" dataKey="sinistralidade" name="Sinistralidade" stroke="#dc2626" strokeWidth={2} dot={{ r: 4 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados históricos</div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Evolução Base de Placas</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                {historicoChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={historicoChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="periodo" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip />
-                      <Bar dataKey="placas" name="Placas Ativas" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados históricos</div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-// Componente de Card de Métrica
-function MetricCard({ 
-  title, 
-  value, 
-  icon, 
-  trend, 
-  isCurrency, 
-  isPercent, 
-  invertTrend 
-}: { 
-  title: string; 
-  value: string | number; 
-  icon: React.ReactNode; 
-  trend?: number; 
-  isCurrency?: boolean; 
+// Componente para exibir porcentagens calculadas automaticamente
+function PercentDisplayField({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm font-medium">{label}</Label>
+      <div className="h-10 flex items-center px-3 border rounded-md bg-muted/50 text-sm font-medium">
+        {formatPercent(value)}
+      </div>
+    </div>
+  );
+}
+
+// Componente MetricCard
+function MetricCard({
+  title,
+  value,
+  icon,
+  trend,
+  isCurrency,
+  isPercent,
+  invertTrend,
+}: {
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  trend?: number;
+  isCurrency?: boolean;
   isPercent?: boolean;
   invertTrend?: boolean;
 }) {
-  const trendValue = trend ? trend * 100 : 0;
-  const isPositive = invertTrend ? trendValue < 0 : trendValue > 0;
-  
+  const trendColor = trend !== undefined 
+    ? (invertTrend ? (trend < 0 ? "text-green-600" : "text-red-600") : (trend >= 0 ? "text-green-600" : "text-red-600"))
+    : "";
+
   return (
-    <Card className="border-muted/40">
+    <Card>
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">{title}</span>
           <span className="text-muted-foreground">{icon}</span>
+          {trend !== undefined && (
+            <span className={`text-xs ${trendColor}`}>
+              {trend >= 0 ? "+" : ""}{formatPercent(trend)}
+            </span>
+          )}
         </div>
-        <div className="mt-2 text-xl font-bold">{value}</div>
-        {trend !== undefined && trend !== 0 && (
-          <div className={`mt-1 text-xs flex items-center gap-1 ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-            {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-            {Math.abs(trendValue).toFixed(2)}%
-          </div>
-        )}
+        <div className="mt-2">
+          <div className="text-xl font-bold">{value}</div>
+          <div className="text-xs text-muted-foreground">{title}</div>
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-// Componente de Campo de Input
-function InputField({ 
-  label, 
-  value, 
-  onChange, 
-  disabled, 
-  type = "text",
-  className = ""
-}: { 
-  label: string; 
-  value: number; 
-  onChange: (value: number) => void; 
-  disabled?: boolean; 
-  type?: "number" | "decimal" | "currency" | "percent" | "text";
+// Componente InputField
+function InputField({
+  label,
+  value,
+  onChange,
+  disabled,
+  type,
+  className,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  disabled: boolean;
+  type: "number" | "currency" | "percent" | "decimal";
   className?: string;
 }) {
-  const formatValue = (val: number) => {
-    if (type === "currency") {
-      return val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-    if (type === "percent" || type === "decimal") {
-      return val.toFixed(2);
-    }
-    return val.toString();
-  };
-
-  const parseValue = (val: string) => {
-    const cleaned = val.replace(/[^\d,.-]/g, '').replace(',', '.');
-    return parseFloat(cleaned) || 0;
-  };
-
   if (type === "currency") {
     return (
-      <div className={`space-y-1 ${className}`}>
-        <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className={`space-y-2 ${className || ""}`}>
+        <Label className="text-sm font-medium">{label}</Label>
         <NumericFormat
           value={value}
           onValueChange={(values) => onChange(values.floatValue || 0)}
-          disabled={disabled}
           thousandSeparator="."
           decimalSeparator=","
           prefix="R$ "
           decimalScale={2}
           allowNegative={false}
-          customInput={Input}
-          className="h-9 text-sm text-right"
+          disabled={disabled}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+      </div>
+    );
+  }
+
+  if (type === "percent") {
+    return (
+      <div className={`space-y-2 ${className || ""}`}>
+        <Label className="text-sm font-medium">{label}</Label>
+        <NumericFormat
+          value={value}
+          onValueChange={(values) => onChange(values.floatValue || 0)}
+          thousandSeparator="."
+          decimalSeparator=","
+          suffix="%"
+          decimalScale={2}
+          allowNegative={true}
+          disabled={disabled}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+      </div>
+    );
+  }
+
+  if (type === "decimal") {
+    return (
+      <div className={`space-y-2 ${className || ""}`}>
+        <Label className="text-sm font-medium">{label}</Label>
+        <NumericFormat
+          value={value}
+          onValueChange={(values) => onChange(values.floatValue || 0)}
+          thousandSeparator="."
+          decimalSeparator=","
+          decimalScale={2}
+          allowNegative={false}
+          disabled={disabled}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
     );
   }
 
   return (
-    <div className={`space-y-1 ${className}`}>
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+    <div className={`space-y-2 ${className || ""}`}>
+      <Label className="text-sm font-medium">{label}</Label>
       <Input
-        type="text"
-        value={formatValue(value)}
-        onChange={(e) => onChange(parseValue(e.target.value))}
+        type="number"
+        value={value}
+        onChange={(e) => onChange(parseInt(e.target.value) || 0)}
         disabled={disabled}
-        className={`h-9 text-sm`}
       />
     </div>
   );

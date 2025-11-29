@@ -8,15 +8,71 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CurrencyInput } from '@/components/ui/currency-input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/formatters';
-import { MessageSquare, ThumbsUp, ThumbsDown, DollarSign, TrendingUp, AlertCircle } from 'lucide-react';
+import { formatCurrency, formatPercent } from '@/lib/formatters';
+import { MessageSquare, ThumbsUp, ThumbsDown, DollarSign, TrendingUp, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 interface PortalComiteProps {
   corretoraId?: string;
 }
+
+// Perguntas de avaliação de sinistros baseadas no mercado de seguros
+const PERGUNTAS_AVALIACAO = [
+  {
+    id: 'cobertura_vigente',
+    pergunta: 'A cobertura estava vigente na data do sinistro?',
+    categoria: 'Cobertura',
+  },
+  {
+    id: 'pagamentos_em_dia',
+    pergunta: 'O associado está com os pagamentos em dia?',
+    categoria: 'Adimplência',
+  },
+  {
+    id: 'carencia_cumprida',
+    pergunta: 'O período de carência foi cumprido?',
+    categoria: 'Carência',
+  },
+  {
+    id: 'documentacao_completa',
+    pergunta: 'A documentação está completa e correta?',
+    categoria: 'Documentação',
+  },
+  {
+    id: 'bo_apresentado',
+    pergunta: 'O Boletim de Ocorrência foi apresentado (quando aplicável)?',
+    categoria: 'Documentação',
+  },
+  {
+    id: 'vistoria_realizada',
+    pergunta: 'A vistoria foi realizada e aprovada?',
+    categoria: 'Vistoria',
+  },
+  {
+    id: 'danos_cobertos',
+    pergunta: 'Os danos estão cobertos pelo plano contratado?',
+    categoria: 'Cobertura',
+  },
+  {
+    id: 'sem_fraude_indicios',
+    pergunta: 'Não há indícios de fraude ou má-fé?',
+    categoria: 'Análise',
+  },
+  {
+    id: 'valores_compativeis',
+    pergunta: 'Os valores solicitados são compatíveis com os danos?',
+    categoria: 'Análise',
+  },
+  {
+    id: 'terceiros_identificados',
+    pergunta: 'Os terceiros envolvidos foram identificados (quando aplicável)?',
+    categoria: 'Terceiros',
+  },
+];
 
 export default function PortalComite({ corretoraId }: PortalComiteProps) {
   const { user } = useAuth();
@@ -25,6 +81,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [selectedSinistro, setSelectedSinistro] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [respostas, setRespostas] = useState<Record<string, boolean | null>>({});
   const [deliberacao, setDeliberacao] = useState({
     decisao: '',
     valor_aprovado: '',
@@ -74,6 +131,12 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
   const handleOpenDeliberacao = (sinistro: any) => {
     setSelectedSinistro(sinistro);
+    // Resetar respostas
+    const respostasIniciais: Record<string, boolean | null> = {};
+    PERGUNTAS_AVALIACAO.forEach(p => {
+      respostasIniciais[p.id] = null;
+    });
+    setRespostas(respostasIniciais);
     setDeliberacao({
       decisao: '',
       valor_aprovado: sinistro.valor_indenizacao?.toString() || sinistro.custo_reparo?.toString() || '',
@@ -82,19 +145,48 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     setDialogOpen(true);
   };
 
+  const handleRespostaChange = (perguntaId: string, valor: boolean) => {
+    setRespostas(prev => ({
+      ...prev,
+      [perguntaId]: valor,
+    }));
+  };
+
+  const calcularPontuacaoAvaliacao = () => {
+    const respondidas = Object.values(respostas).filter(r => r !== null);
+    const positivas = Object.values(respostas).filter(r => r === true).length;
+    if (respondidas.length === 0) return 0;
+    return positivas / PERGUNTAS_AVALIACAO.length;
+  };
+
   const handleSalvarDeliberacao = async () => {
     if (!selectedSinistro || !deliberacao.decisao) {
       toast.error('Selecione uma decisão');
       return;
     }
 
+    // Verificar se todas as perguntas foram respondidas
+    const todasRespondidas = PERGUNTAS_AVALIACAO.every(p => respostas[p.id] !== null);
+    if (!todasRespondidas) {
+      toast.error('Responda todas as perguntas de avaliação');
+      return;
+    }
+
     try {
+      const pontuacao = calcularPontuacaoAvaliacao();
+      
       const observacoesComite = {
         data: new Date().toISOString(),
         usuario: user?.email,
         decisao: deliberacao.decisao,
         valor_aprovado: parseFloat(deliberacao.valor_aprovado) || 0,
         justificativa: deliberacao.justificativa,
+        avaliacao: {
+          respostas: respostas,
+          pontuacao: pontuacao,
+          perguntas_positivas: Object.values(respostas).filter(r => r === true).length,
+          total_perguntas: PERGUNTAS_AVALIACAO.length,
+        },
       };
 
       const atualizacao: any = {
@@ -127,6 +219,14 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
   const getValorEstimado = (sinistro: any) => {
     return sinistro.valor_indenizacao || sinistro.custo_reparo || sinistro.custo_perda_total || 0;
   };
+
+  const sinistrosFiltrados = sinistros.filter(s => {
+    if (filtroStatus === 'todos') return true;
+    return s.status === filtroStatus;
+  });
+
+  const pontuacaoAtual = calcularPontuacaoAvaliacao();
+  const respondidas = Object.values(respostas).filter(r => r !== null).length;
 
   return (
     <div className="space-y-6">
@@ -190,7 +290,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         <CardContent>
           {loading ? (
             <div className="text-center py-12">Carregando...</div>
-          ) : sinistros.length === 0 ? (
+          ) : sinistrosFiltrados.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               Nenhum sinistro para deliberação
             </div>
@@ -209,7 +309,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sinistros.map((sinistro) => (
+                {sinistrosFiltrados.map((sinistro) => (
                   <TableRow key={sinistro.id}>
                     <TableCell className="font-medium">#{sinistro.numero}</TableCell>
                     <TableCell>{sinistro.tipo_sinistro || 'N/A'}</TableCell>
@@ -227,9 +327,9 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                     <TableCell>
                       {new Date(sinistro.created_at).toLocaleDateString('pt-BR')}
                     </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(getValorEstimado(sinistro))}
-                        </TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(getValorEstimado(sinistro))}
+                    </TableCell>
                     <TableCell>{getStatusBadge(sinistro.status)}</TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -249,13 +349,14 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
       {/* Dialog de Deliberação */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Deliberação do Comitê - Sinistro #{selectedSinistro?.numero}</DialogTitle>
           </DialogHeader>
 
           {selectedSinistro && (
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* Informações do Sinistro */}
               <Card className="bg-muted/50">
                 <CardContent className="pt-6 space-y-2">
                   <div className="grid grid-cols-2 gap-4">
@@ -285,59 +386,119 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                 </CardContent>
               </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor="decisao">Decisão do Comitê *</Label>
-                <Select
-                  value={deliberacao.decisao}
-                  onValueChange={(value) => setDeliberacao({ ...deliberacao, decisao: value })}
-                >
-                  <SelectTrigger id="decisao">
-                    <SelectValue placeholder="Selecione a decisão" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="aprovado">
-                      <div className="flex items-center">
-                        <ThumbsUp className="mr-2 h-4 w-4" />
-                        Aprovar Indenização
+              {/* Perguntas de Avaliação */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Avaliação do Sinistro</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">
+                      {respondidas}/{PERGUNTAS_AVALIACAO.length} respondidas
+                    </span>
+                    <Badge variant={pontuacaoAtual >= 0.7 ? 'default' : pontuacaoAtual >= 0.4 ? 'secondary' : 'destructive'}>
+                      {formatPercent(pontuacaoAtual)}
+                    </Badge>
+                  </div>
+                </div>
+                
+                <div className="space-y-3 border rounded-lg p-4">
+                  {PERGUNTAS_AVALIACAO.map((pergunta, index) => (
+                    <div key={pergunta.id} className="space-y-2">
+                      {index > 0 && PERGUNTAS_AVALIACAO[index - 1].categoria !== pergunta.categoria && (
+                        <Separator className="my-3" />
+                      )}
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <Badge variant="outline" className="mb-1 text-[10px]">
+                            {pergunta.categoria}
+                          </Badge>
+                          <p className="text-sm">{pergunta.pergunta}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={respostas[pergunta.id] === true ? 'default' : 'outline'}
+                            className={`gap-1 ${respostas[pergunta.id] === true ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                            onClick={() => handleRespostaChange(pergunta.id, true)}
+                          >
+                            <CheckCircle className="h-3 w-3" />
+                            Sim
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={respostas[pergunta.id] === false ? 'default' : 'outline'}
+                            className={`gap-1 ${respostas[pergunta.id] === false ? 'bg-red-600 hover:bg-red-700' : ''}`}
+                            onClick={() => handleRespostaChange(pergunta.id, false)}
+                          >
+                            <XCircle className="h-3 w-3" />
+                            Não
+                          </Button>
+                        </div>
                       </div>
-                    </SelectItem>
-                    <SelectItem value="negado">
-                      <div className="flex items-center">
-                        <ThumbsDown className="mr-2 h-4 w-4" />
-                        Negar Indenização
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="mais_informacoes">
-                      <div className="flex items-center">
-                        <AlertCircle className="mr-2 h-4 w-4" />
-                        Solicitar Mais Informações
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {deliberacao.decisao === 'aprovado' && (
+              <Separator />
+
+              {/* Decisão */}
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="valor_aprovado">Valor Aprovado *</Label>
-                  <CurrencyInput
-                    id="valor_aprovado"
-                    value={deliberacao.valor_aprovado}
-                    onValueChange={(values) => setDeliberacao({ ...deliberacao, valor_aprovado: values.value || '' })}
-                    placeholder="R$ 0,00"
+                  <Label htmlFor="decisao">Decisão do Comitê *</Label>
+                  <Select
+                    value={deliberacao.decisao}
+                    onValueChange={(value) => setDeliberacao({ ...deliberacao, decisao: value })}
+                  >
+                    <SelectTrigger id="decisao">
+                      <SelectValue placeholder="Selecione a decisão" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="aprovado">
+                        <div className="flex items-center">
+                          <ThumbsUp className="mr-2 h-4 w-4 text-green-600" />
+                          Aprovar Indenização
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="negado">
+                        <div className="flex items-center">
+                          <ThumbsDown className="mr-2 h-4 w-4 text-red-600" />
+                          Negar Indenização
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="mais_informacoes">
+                        <div className="flex items-center">
+                          <AlertCircle className="mr-2 h-4 w-4 text-amber-600" />
+                          Solicitar Mais Informações
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {deliberacao.decisao === 'aprovado' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="valor_aprovado">Valor Aprovado *</Label>
+                    <CurrencyInput
+                      id="valor_aprovado"
+                      value={deliberacao.valor_aprovado}
+                      onValueChange={(values) => setDeliberacao({ ...deliberacao, valor_aprovado: values.value || '' })}
+                      placeholder="R$ 0,00"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="justificativa">Justificativa / Observações *</Label>
+                  <Textarea
+                    id="justificativa"
+                    value={deliberacao.justificativa}
+                    onChange={(e) => setDeliberacao({ ...deliberacao, justificativa: e.target.value })}
+                    placeholder="Descreva a justificativa da decisão do comitê..."
+                    rows={4}
                   />
                 </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="justificativa">Justificativa / Observações *</Label>
-                <Textarea
-                  id="justificativa"
-                  value={deliberacao.justificativa}
-                  onChange={(e) => setDeliberacao({ ...deliberacao, justificativa: e.target.value })}
-                  placeholder="Descreva a justificativa da decisão do comitê..."
-                  rows={4}
-                />
               </div>
 
               <div className="flex gap-2 justify-end">
@@ -349,7 +510,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                 </Button>
                 <Button
                   onClick={handleSalvarDeliberacao}
-                  disabled={!deliberacao.decisao || !deliberacao.justificativa}
+                  disabled={!deliberacao.decisao || !deliberacao.justificativa || respondidas < PERGUNTAS_AVALIACAO.length}
                 >
                   Salvar Deliberação
                 </Button>
