@@ -14,9 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { 
-  Users, BarChart3, Car, ShieldCheck, MessageSquare, Calendar, Activity
-} from "lucide-react";
+import { Users, BarChart3, Car, ShieldCheck, MessageSquare, Calendar, Activity } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
 export default function PID() {
@@ -38,9 +36,9 @@ export default function PID() {
         if (error) throw error;
 
         setCorretoras(data || []);
-        
+
         const corretoraParam = searchParams.get("corretora");
-        if (corretoraParam && data?.some(c => c.id === corretoraParam)) {
+        if (corretoraParam && data?.some((c) => c.id === corretoraParam)) {
           setSelectedCorretora(corretoraParam);
         } else if (data && data.length > 0) {
           setSelectedCorretora(data[0].id);
