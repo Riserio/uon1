@@ -17,6 +17,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { MessageSquare, DollarSign, TrendingUp, FileDown, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { PERGUNTAS_COMITE, PerguntaComite, PARECERES_COMITE } from "@/constants/perguntasComite";
+import { PARECERES_ASSOCIACAO } from "@/pages/ComiteDeliberacao";
 import { exportDeliberacaoPDF } from "@/utils/pdfDeliberacao";
 
 interface PortalComiteProps {
@@ -36,10 +37,26 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     valor_aprovado: "",
     justificativa: "",
   });
+  const [parecerAnalista, setParecerAnalista] = useState({
+    parecer: "",
+    justificativa: ""
+  });
+  const [parecerAssociacao, setParecerAssociacao] = useState({
+    parecer: "",
+    justificativa: ""
+  });
   const [saving, setSaving] = useState(false);
 
-  // Status badge com cores baseado nos pareceres
-  const getStatusBadge = (status: string) => {
+  // Status badge com cores baseado no parecer da associação
+  const getStatusBadge = (status: string, parecerAssociacao?: string) => {
+    // Priorizar parecer da associação
+    if (parecerAssociacao) {
+      const parecerAssocConfig = PARECERES_ASSOCIACAO.find(p => p.value === parecerAssociacao);
+      if (parecerAssocConfig) {
+        return <Badge className={`${parecerAssocConfig.cor} ${parecerAssocConfig.textCor}`}>{parecerAssocConfig.label}</Badge>;
+      }
+    }
+
     const statusLower = status?.toLowerCase() || "";
 
     // Verificar se é um dos pareceres do comitê
@@ -86,7 +103,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     try {
       const { data, error } = await supabase
         .from("vistorias")
-        .select("*")
+        .select("*, sinistro_acompanhamento!sinistro_acompanhamento_atendimento_id_fkey(parecer_associacao, parecer_analista, comite_status, financeiro_valor_aprovado)")
         .eq("corretora_id", corretoraId)
         .in("status", ["em_analise", "aprovada", "reprovada", "concluida"])
         .order("created_at", { ascending: false });
@@ -107,7 +124,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     // Carregar respostas existentes do acompanhamento
     const { data: acompData, error } = await supabase
       .from("sinistro_acompanhamento")
-      .select("entrevista_respostas, comite_status, comite_decisao, financeiro_valor_aprovado, comite_observacoes")
+      .select("entrevista_respostas, comite_status, comite_decisao, financeiro_valor_aprovado, comite_observacoes, parecer_analista, parecer_analista_justificativa, parecer_associacao, parecer_associacao_justificativa")
       .eq("atendimento_id", sinistro.atendimento_id)
       .maybeSingle();
 
@@ -137,6 +154,16 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
       decisao: acompData?.comite_status || "",
       valor_aprovado: acompData?.financeiro_valor_aprovado?.toString() || sinistro.valor_indenizacao?.toString() || "",
       justificativa: acompData?.comite_observacoes || "",
+    });
+
+    setParecerAnalista({
+      parecer: acompData?.parecer_analista || acompData?.comite_status || "",
+      justificativa: acompData?.parecer_analista_justificativa || ""
+    });
+
+    setParecerAssociacao({
+      parecer: acompData?.parecer_associacao || "",
+      justificativa: acompData?.parecer_associacao_justificativa || ""
     });
 
     setDialogOpen(true);
@@ -235,9 +262,18 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         // mantemos as respostas no payload também, para garantir consistência
         entrevista_respostas: respostas,
         entrevista_data: new Date().toISOString(),
-        comite_status: deliberacao.decisao || null,
-        comite_decisao: deliberacao.justificativa || null,
-        comite_observacoes: deliberacao.justificativa || null,
+        // Parecer do Analista
+        parecer_analista: parecerAnalista.parecer || null,
+        parecer_analista_justificativa: parecerAnalista.justificativa || null,
+        parecer_analista_data: parecerAnalista.parecer ? new Date().toISOString() : null,
+        // Parecer da Associação
+        parecer_associacao: parecerAssociacao.parecer || null,
+        parecer_associacao_justificativa: parecerAssociacao.justificativa || null,
+        parecer_associacao_data: parecerAssociacao.parecer ? new Date().toISOString() : null,
+        // Campos legados para compatibilidade
+        comite_status: parecerAnalista.parecer || null,
+        comite_decisao: parecerAssociacao.justificativa || null,
+        comite_observacoes: parecerAssociacao.justificativa || null,
         comite_data: new Date().toISOString(),
         financeiro_valor_aprovado: parseFloat(deliberacao.valor_aprovado) || null,
       };
@@ -260,11 +296,11 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
       }
 
       // Atualizar status da vistoria se necessário
-      if (deliberacao.decisao) {
+      if (parecerAssociacao.parecer) {
         let novoStatus = selectedSinistro.status;
-        if (deliberacao.decisao === "Aprovado") {
+        if (parecerAssociacao.parecer === "aprovado") {
           novoStatus = "aprovada";
-        } else if (deliberacao.decisao === "Negado") {
+        } else if (parecerAssociacao.parecer === "negado") {
           novoStatus = "reprovada";
         }
 
@@ -495,7 +531,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                     </TableCell>
                     <TableCell>{new Date(sinistro.created_at).toLocaleDateString("pt-BR")}</TableCell>
                     <TableCell className="text-right">{formatCurrency(getValorEstimado(sinistro))}</TableCell>
-                    <TableCell>{getStatusBadge(sinistro.status)}</TableCell>
+                    <TableCell>{getStatusBadge(sinistro.status, sinistro.sinistro_acompanhamento?.[0]?.parecer_associacao)}</TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" onClick={() => handleOpenDeliberacao(sinistro)}>
                         Deliberar
@@ -576,48 +612,91 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                   <ScrollArea className="flex-1">
                     <Card className="flex-1 p-4 bg-white">
                       <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label>Parecer do Analista *</Label>
-                          <Select
-                            value={deliberacao.decisao}
-                            onValueChange={(value) => setDeliberacao({ ...deliberacao, decisao: value })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione a decisão" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {PARECERES_COMITE.map((parecer) => (
-                                <SelectItem key={parecer.value} value={parecer.value}>
-                                  <span className={`${parecer.cor.replace('bg-', 'text-').replace('-600', '-600').replace('-500', '-600').replace('-400', '-500')} font-medium text-xs`}>
-                                    {parecer.label}
-                                  </span>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {deliberacao.decisao?.includes("APROVACAO") && (
+                        {/* Parecer do Analista */}
+                        <div className="p-3 border rounded-lg space-y-3">
+                          <h4 className="font-medium text-sm">Parecer do Analista</h4>
                           <div className="space-y-2">
-                            <Label>Valor Aprovado *</Label>
-                            <CurrencyInput
-                              value={deliberacao.valor_aprovado}
-                              onValueChange={(values) =>
-                                setDeliberacao({ ...deliberacao, valor_aprovado: values.value || "" })
-                              }
-                              placeholder="R$ 0,00"
+                            <Label className="text-xs">Parecer *</Label>
+                            <Select
+                              value={parecerAnalista.parecer}
+                              onValueChange={(value) => setParecerAnalista({ ...parecerAnalista, parecer: value })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o parecer" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PARECERES_COMITE.map((parecer) => (
+                                  <SelectItem key={parecer.value} value={parecer.value}>
+                                    <div className="flex items-center gap-2">
+                                      <div className={`w-2 h-2 rounded-full ${parecer.cor}`} />
+                                      <span className="text-xs">{parecer.label}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Justificativa do Analista</Label>
+                            <Textarea
+                              value={parecerAnalista.justificativa}
+                              onChange={(e) => setParecerAnalista({ ...parecerAnalista, justificativa: e.target.value })}
+                              placeholder="Descreva sua análise..."
+                              rows={3}
+                              className="text-xs"
                             />
                           </div>
-                        )}
+                        </div>
 
-                        <div className="space-y-2">
-                          <Label>Justificativa / Observações *</Label>
-                          <Textarea
-                            value={deliberacao.justificativa}
-                            onChange={(e) => setDeliberacao({ ...deliberacao, justificativa: e.target.value })}
-                            placeholder="Descreva a justificativa da decisão..."
-                            rows={6}
-                          />
+                        {/* Parecer da Associação */}
+                        <div className="p-3 border-2 border-primary/30 rounded-lg space-y-3 bg-primary/5">
+                          <h4 className="font-medium text-sm text-primary">Parecer da Associação</h4>
+                          <p className="text-xs text-muted-foreground">Decisão final exibida na tela de sinistros</p>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Decisão *</Label>
+                            <Select
+                              value={parecerAssociacao.parecer}
+                              onValueChange={(value) => setParecerAssociacao({ ...parecerAssociacao, parecer: value })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione a decisão" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PARECERES_ASSOCIACAO.map((parecer) => (
+                                  <SelectItem key={parecer.value} value={parecer.value}>
+                                    <div className="flex items-center gap-2">
+                                      <div className={`w-3 h-3 rounded-full ${parecer.cor}`} />
+                                      <span className="font-medium">{parecer.label}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {parecerAssociacao.parecer === "aprovado" && (
+                            <div className="space-y-2">
+                              <Label className="text-xs">Valor Aprovado *</Label>
+                              <CurrencyInput
+                                value={deliberacao.valor_aprovado}
+                                onValueChange={(values) =>
+                                  setDeliberacao({ ...deliberacao, valor_aprovado: values.value || "" })
+                                }
+                                placeholder="R$ 0,00"
+                              />
+                            </div>
+                          )}
+
+                          <div className="space-y-2">
+                            <Label className="text-xs">Justificativa da Associação *</Label>
+                            <Textarea
+                              value={parecerAssociacao.justificativa}
+                              onChange={(e) => setParecerAssociacao({ ...parecerAssociacao, justificativa: e.target.value })}
+                              placeholder="Descreva a decisão da associação..."
+                              rows={4}
+                              className="text-xs"
+                            />
+                          </div>
                         </div>
 
                         <Separator />
@@ -628,7 +707,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                           </Button>
                           <Button
                             onClick={handleSalvarDeliberacao}
-                            disabled={saving || !deliberacao.justificativa}
+                            disabled={saving || !parecerAssociacao.justificativa}
                             className="flex-1 gap-2"
                           >
                             <Save className="h-4 w-4" />

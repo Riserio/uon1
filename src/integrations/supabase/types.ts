@@ -2181,6 +2181,12 @@ export type Database = {
           oficina_endereco: string | null
           oficina_nome: string | null
           oficina_tipo: string | null
+          parecer_analista: string | null
+          parecer_analista_data: string | null
+          parecer_analista_justificativa: string | null
+          parecer_associacao: string | null
+          parecer_associacao_data: string | null
+          parecer_associacao_justificativa: string | null
           pecas_aprovadas: boolean | null
           pecas_descricao: string | null
           pecas_valor_total: number | null
@@ -2232,6 +2238,12 @@ export type Database = {
           oficina_endereco?: string | null
           oficina_nome?: string | null
           oficina_tipo?: string | null
+          parecer_analista?: string | null
+          parecer_analista_data?: string | null
+          parecer_analista_justificativa?: string | null
+          parecer_associacao?: string | null
+          parecer_associacao_data?: string | null
+          parecer_associacao_justificativa?: string | null
           pecas_aprovadas?: boolean | null
           pecas_descricao?: string | null
           pecas_valor_total?: number | null
@@ -2283,6 +2295,12 @@ export type Database = {
           oficina_endereco?: string | null
           oficina_nome?: string | null
           oficina_tipo?: string | null
+          parecer_analista?: string | null
+          parecer_analista_data?: string | null
+          parecer_analista_justificativa?: string | null
+          parecer_associacao?: string | null
+          parecer_associacao_data?: string | null
+          parecer_associacao_justificativa?: string | null
           pecas_aprovadas?: boolean | null
           pecas_descricao?: string | null
           pecas_valor_total?: number | null

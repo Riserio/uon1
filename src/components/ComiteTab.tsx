@@ -14,8 +14,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
 import { PERGUNTAS_COMITE, PARECERES_COMITE, PerguntaComite, getCategoriasPerguntas, ORDEM_CATEGORIAS } from '@/constants/perguntasComite';
-import { Save, FileDown, AlertTriangle, FileText, Gavel, CheckCircle2, XCircle } from 'lucide-react';
+import { Save, FileDown, AlertTriangle, FileText, Gavel, CheckCircle2, XCircle, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { PARECERES_ASSOCIACAO } from '@/pages/ComiteDeliberacao';
 import { exportDeliberacaoPDF } from '@/utils/pdfDeliberacao';
 import { formatCurrency } from '@/lib/formatters';
 
@@ -638,75 +639,74 @@ export function ComiteTab({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-xs">Parecer do Analista</Label>
-                <Select
-                  value={deliberacao.decisao}
-                  onValueChange={(v) => setDeliberacao(prev => ({ ...prev, decisao: v }))}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Selecione o parecer..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PARECERES_COMITE.map((parecer) => (
-                      <SelectItem key={parecer.value} value={parecer.value} className="text-xs">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${parecer.cor}`}></div>
-                          <span>{parecer.label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs">Valor Aprovado</Label>
-                <Input
-                  type="number"
-                  value={deliberacao.valor_aprovado}
-                  onChange={(e) => setDeliberacao(prev => ({ ...prev, valor_aprovado: e.target.value }))}
-                  placeholder="0,00"
-                  className="h-8 text-xs"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs">Justificativa / Observações</Label>
-                <Textarea
-                  value={deliberacao.justificativa}
-                  onChange={(e) => setDeliberacao(prev => ({ ...prev, justificativa: e.target.value }))}
-                  placeholder="Justifique a decisão do comitê..."
-                  rows={4}
-                  className="text-xs"
-                />
-              </div>
-
-              {podeDeliberar() && (
-                <Button
-                  onClick={handleDeliberar}
-                  disabled={saving || !deliberacao.decisao}
-                  className="w-full gap-2"
-                  size="sm"
-                >
-                  <Gavel className="h-4 w-4" />
-                  {saving ? 'Salvando...' : 'Deliberar'}
-                </Button>
-              )}
-
-              {!podeDeliberar() && acompanhamentoData?.comite_status && (
-                <div className="p-3 rounded-lg bg-muted text-center">
-                  <CheckCircle2 className="h-5 w-5 mx-auto mb-2 text-green-500" />
-                  <p className="text-xs font-medium">Deliberação Concluída</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {acompanhamentoData.comite_status}
-                  </p>
+              {/* Status da Associação (decisão final) */}
+              {acompanhamentoData?.parecer_associacao && (
+                <div className="p-3 rounded-lg border bg-muted/50">
+                  <Label className="text-xs text-muted-foreground">Status da Associação</Label>
+                  {(() => {
+                    const parecerAssoc = PARECERES_ASSOCIACAO.find(p => p.value === acompanhamentoData.parecer_associacao);
+                    return parecerAssoc ? (
+                      <Badge className={`${parecerAssoc.cor} ${parecerAssoc.textCor} mt-1`}>
+                        {parecerAssoc.label}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="mt-1">{acompanhamentoData.parecer_associacao}</Badge>
+                    );
+                  })()}
                   {acompanhamentoData.financeiro_valor_aprovado && (
-                    <p className="text-xs font-medium mt-1">
-                      {formatCurrency(acompanhamentoData.financeiro_valor_aprovado)}
+                    <p className="text-xs font-medium mt-2">
+                      Valor: {formatCurrency(acompanhamentoData.financeiro_valor_aprovado)}
                     </p>
                   )}
                 </div>
+              )}
+
+              {/* Parecer do Analista (resumo) */}
+              {acompanhamentoData?.parecer_analista && (
+                <div className="p-3 rounded-lg border">
+                  <Label className="text-xs text-muted-foreground">Parecer do Analista</Label>
+                  {(() => {
+                    const parecerAnal = PARECERES_COMITE.find(p => p.value === acompanhamentoData.parecer_analista);
+                    return parecerAnal ? (
+                      <Badge className={`${parecerAnal.cor} ${parecerAnal.textCor} mt-1`}>
+                        {parecerAnal.label}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="mt-1">{acompanhamentoData.parecer_analista}</Badge>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Botão para abrir página de deliberação */}
+              {podeDeliberar() && (
+                <Button
+                  onClick={() => navigate(`/sinistros/${atendimentoId}/deliberacao`)}
+                  className="w-full gap-2"
+                  size="sm"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Abrir Deliberação
+                </Button>
+              )}
+
+              {!podeDeliberar() && acompanhamentoData?.parecer_associacao && (
+                <div className="p-3 rounded-lg bg-muted text-center">
+                  <CheckCircle2 className="h-5 w-5 mx-auto mb-2 text-green-500" />
+                  <p className="text-xs font-medium">Deliberação Concluída</p>
+                </div>
+              )}
+
+              {!acompanhamentoData?.parecer_associacao && !podeDeliberar() && (
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/sinistros/${atendimentoId}/deliberacao`)}
+                  className="w-full gap-2"
+                  size="sm"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Ver Deliberação
+                </Button>
               )}
             </CardContent>
           </Card>
