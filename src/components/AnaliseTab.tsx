@@ -295,7 +295,7 @@ export function AnaliseTab({ atendimentoId, tipoSinistro, vistoriaData, onUpdate
             className="gap-2"
           >
             <ExternalLink className="h-4 w-4" />
-            Ir para Comitê PID
+            Ir para Comitê BI
           </Button>
           <Button onClick={handleSave} disabled={saving} className="gap-2">
             <Save className="h-4 w-4" />

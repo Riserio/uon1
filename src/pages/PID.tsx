@@ -72,7 +72,7 @@ export default function PID() {
         <div className="space-y-4">
           <div>
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              PID - Painel de Indicadores e Demonstrativos
+              BI - Indicadores
             </h1>
             <p className="text-muted-foreground mt-2 text-sm sm:text-base lg:text-lg">
               Gestão completa de dados financeiros e sinistros das corretoras

@@ -307,12 +307,12 @@ export default function MenuNav() {
           </DropdownMenuItem>
         )}
 
-        {/* PID - Painel de Indicadores */}
+        {/* BI - Indicadores */}
         {canView("pid") && (
           <DropdownMenuItem asChild>
             <Link to="/pid" className="cursor-pointer">
               <TrendingUp className="mr-2 h-4 w-4" />
-              <span>PID</span>
+              <span>BI - Indicadores</span>
             </Link>
           </DropdownMenuItem>
         )}

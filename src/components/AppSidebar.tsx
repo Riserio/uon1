@@ -348,13 +348,13 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 )}
 
-                {/* PID - Painel de Indicadores */}
+                {/* BI - Indicadores */}
                 {canView("pid") && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink to="/pid" activeClassName="bg-primary text-primary-foreground">
                         <TrendingUp className="h-4 w-4" />
-                        {!collapsed && <span>PID</span>}
+                        {!collapsed && <span>BI - Indicadores</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

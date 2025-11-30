@@ -132,7 +132,7 @@ export function GerenciarUsuariosCorretoraDialog({
           <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-lg bg-muted/50">
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-2 border-b">
-                <h3 className="font-semibold text-lg">Criar Novo Usuário PID</h3>
+                <h3 className="font-semibold text-lg">Criar Novo Usuário BI</h3>
                 <Badge variant="secondary" className="text-base px-3 py-1">
                   Corretora: {corretoraNome}
                 </Badge>
@@ -141,7 +141,7 @@ export function GerenciarUsuariosCorretoraDialog({
               <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <p className="text-sm text-blue-800 dark:text-blue-200">
                   <strong>Atenção:</strong> O usuário será criado e automaticamente vinculado à corretora <strong>{corretoraNome}</strong>. 
-                  Ele poderá fazer login no portal PID usando o email e senha cadastrados.
+                  Ele poderá fazer login no portal BI usando o email e senha cadastrados.
                 </p>
               </div>
             </div>

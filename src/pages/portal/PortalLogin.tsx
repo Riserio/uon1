@@ -77,8 +77,8 @@ export default function PortalLogin() {
       <div className="absolute inset-0 bg-black/40" />
       <Card className="w-full max-w-md relative z-10">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Portal PID</CardTitle>
-          <CardDescription className="text-center">Painel de Indicadores e Demonstrativos</CardDescription>
+          <CardTitle className="text-2xl font-bold text-center">Portal BI</CardTitle>
+          <CardDescription className="text-center">Business Intelligence - Indicadores</CardDescription>
         </CardHeader>
         <CardContent>
           {!needsTotp ? (
