@@ -37,7 +37,6 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     justificativa: "",
   });
   const [saving, setSaving] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
 
   // Status badge com cores
   const getStatusBadge = (status: string) => {
@@ -129,8 +128,65 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
       justificativa: acompData?.comite_observacoes || "",
     });
 
-    setHasChanges(false); // abriu o modal com dados carregados, ainda sem alterações
     setDialogOpen(true);
+  };
+
+  /**
+   * Auto-save das respostas da entrevista sempre que o usuário altera algo.
+   */
+  const salvarRespostasAutomaticamente = async (novasRespostas: Record<string, string>) => {
+    if (!selectedSinistro) return;
+
+    try {
+      const {
+        data: { user: currentUser },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !currentUser) {
+        console.error("Usuário não autenticado para auto-save:", userError);
+        return;
+      }
+
+      const { data: existing, error: existingError } = await supabase
+        .from("sinistro_acompanhamento")
+        .select("id")
+        .eq("atendimento_id", selectedSinistro.atendimento_id)
+        .maybeSingle();
+
+      if (existingError) {
+        console.error("Erro ao buscar acompanhamento para auto-save:", existingError);
+        return;
+      }
+
+      const payload = {
+        entrevista_respostas: novasRespostas,
+        entrevista_data: new Date().toISOString(),
+      };
+
+      if (existing) {
+        const { error } = await supabase
+          .from("sinistro_acompanhamento")
+          .update(payload)
+          .eq("atendimento_id", selectedSinistro.atendimento_id);
+
+        if (error) {
+          console.error("Erro ao auto-salvar respostas (update):", error);
+        }
+      } else {
+        const { error } = await supabase.from("sinistro_acompanhamento").insert({
+          ...payload,
+          atendimento_id: selectedSinistro.atendimento_id,
+          created_by: currentUser.id,
+        });
+
+        if (error) {
+          console.error("Erro ao auto-salvar respostas (insert):", error);
+        }
+      }
+    } catch (err) {
+      console.error("Erro inesperado ao auto-salvar respostas:", err);
+    }
   };
 
   const handleRespostaChange = (perguntaId: string, valor: string) => {
@@ -139,7 +195,10 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         ...prev,
         [perguntaId]: valor,
       };
-      setHasChanges(true);
+
+      // Auto-save das respostas da entrevista
+      void salvarRespostasAutomaticamente(novasRespostas);
+
       return novasRespostas;
     });
   };
@@ -162,6 +221,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         .maybeSingle();
 
       const acompanhamentoData = {
+        // mantemos as respostas no payload também, para garantir consistência
         entrevista_respostas: respostas,
         entrevista_data: new Date().toISOString(),
         comite_status: deliberacao.decisao || null,
@@ -209,7 +269,6 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
       }
 
       toast.success("Deliberação salva com sucesso");
-      setHasChanges(false);
       setDialogOpen(false);
       fetchSinistrosParaComite();
     } catch (error: any) {
@@ -510,10 +569,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                           <Label>Parecer do Analista *</Label>
                           <Select
                             value={deliberacao.decisao}
-                            onValueChange={(value) => {
-                              setDeliberacao((prev) => ({ ...prev, decisao: value }));
-                              setHasChanges(true);
-                            }}
+                            onValueChange={(value) => setDeliberacao({ ...deliberacao, decisao: value })}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione a decisão" />
@@ -543,13 +599,9 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                             <Label>Valor Aprovado *</Label>
                             <CurrencyInput
                               value={deliberacao.valor_aprovado}
-                              onValueChange={(values) => {
-                                setDeliberacao((prev) => ({
-                                  ...prev,
-                                  valor_aprovado: values.value || "",
-                                }));
-                                setHasChanges(true);
-                              }}
+                              onValueChange={(values) =>
+                                setDeliberacao({ ...deliberacao, valor_aprovado: values.value || "" })
+                              }
                               placeholder="R$ 0,00"
                             />
                           </div>
@@ -559,13 +611,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                           <Label>Justificativa / Observações *</Label>
                           <Textarea
                             value={deliberacao.justificativa}
-                            onChange={(e) => {
-                              setDeliberacao((prev) => ({
-                                ...prev,
-                                justificativa: e.target.value,
-                              }));
-                              setHasChanges(true);
-                            }}
+                            onChange={(e) => setDeliberacao({ ...deliberacao, justificativa: e.target.value })}
                             placeholder="Descreva a justificativa da decisão..."
                             rows={6}
                           />
@@ -579,7 +625,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                           </Button>
                           <Button
                             onClick={handleSalvarDeliberacao}
-                            disabled={saving || !deliberacao.justificativa || !hasChanges}
+                            disabled={saving || !deliberacao.justificativa}
                             className="flex-1 gap-2"
                           >
                             <Save className="h-4 w-4" />
