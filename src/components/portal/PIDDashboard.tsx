@@ -15,11 +15,7 @@ import {
   BarChart3,
   CreditCard,
   PieChart as PieIcon,
-  Users,
-  TrendingUp,
-  TrendingDown,
   Truck,
-  Wrench,
   MapPin,
 } from "lucide-react";
 import {
@@ -51,6 +47,31 @@ const COLORS = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#8b5cf6", "#0ea5e9"
 const EmptyChart = () => (
   <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Sem dados disponíveis</div>
 );
+
+// Tooltip customizado para mostrar Total de Eventos (soma de todas as séries do mês)
+const EventosStackedTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload || !payload.length) return null;
+
+  const total = payload.reduce((acc: number, item: any) => acc + (item.value || 0), 0);
+
+  return (
+    <div className="rounded-md border bg-background px-3 py-2 shadow-sm text-xs">
+      <div className="font-semibold mb-1">{label}</div>
+
+      {payload.map((item: any) => (
+        <div key={item.dataKey} className="flex items-center justify-between gap-2" style={{ color: item.color }}>
+          <span>{item.name} :</span>
+          <span>{item.value}</span>
+        </div>
+      ))}
+
+      <div className="mt-1 border-t pt-1 flex items-center justify-between font-semibold">
+        <span>Total de Eventos :</span>
+        <span>{total}</span>
+      </div>
+    </div>
+  );
+};
 
 export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [loading, setLoading] = useState(true);
@@ -213,10 +234,9 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     });
   }, [dadosAno]);
 
-  // SOMAS TOTAIS PARA EVENTOS PAGOS NO PERÍODO
+  // Somatórios do período para eventos pagos (quantidade e valor)
   const totalEventosPagosPeriodo = useMemo(() => {
-    if (!chartData.length) return 0;
-    return chartData.reduce((acc, d: any) => {
+    return chartData.reduce((acc, d) => {
       return (
         acc +
         (d.pagamento_qtd_parcial_associado || 0) +
@@ -230,9 +250,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   }, [chartData]);
 
   const totalValorEventosPagosPeriodo = useMemo(() => {
-    if (!chartData.length) return 0;
-    // usando custo_total_eventos como total consolidado por mês
-    return chartData.reduce((acc, d: any) => acc + (d.custo_total_eventos || 0), 0);
+    return chartData.reduce((acc, d) => acc + (d.custo_total_eventos || 0), 0);
   }, [chartData]);
 
   // Dados para gráfico de rosca de permanência
@@ -765,7 +783,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* Gráfico Combinado - Boletos (Quantidade) */}
+              {/* Boletos (Quantidade) */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Boletos no Período (Quantidade)</CardTitle>
@@ -791,7 +809,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 </CardContent>
               </Card>
 
-              {/* Gráfico Combinado - Valores Financeiros */}
+              {/* Valores Financeiros */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Valores Financeiros (R$)</CardTitle>
@@ -1114,7 +1132,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             </div>
 
             <div className="grid gap-6">
-              {/* Gráfico Combinado - Abertura de Eventos */}
+              {/* Abertura de Eventos - usa tooltip com Total de Eventos */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Abertura de Eventos no Período</CardTitle>
@@ -1126,7 +1144,8 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
                         <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip />
+                        {/* Tooltip com Total de Eventos */}
+                        <Tooltip content={<EventosStackedTooltip />} />
                         <Legend wrapperStyle={{ fontSize: 10 }} />
                         <Bar dataKey="abertura_parcial_associado" name="Parcial Associado" fill="#2563eb" stackId="a" />
                         <Bar dataKey="abertura_parcial_terceiro" name="Parcial Terceiro" fill="#0ea5e9" stackId="a" />
@@ -1148,7 +1167,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               </Card>
 
               <div className="grid gap-6 lg:grid-cols-2">
-                {/* Quantidade Eventos Pagos */}
+                {/* Quantidade Eventos Pagos - com somatório no header + tooltip com total */}
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base font-medium">Quantidade Eventos Pagos no Período</CardTitle>
@@ -1164,7 +1183,8 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                           <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
                           <YAxis tick={{ fontSize: 10 }} />
-                          <Tooltip />
+                          {/* Tooltip customizado com Total de Eventos */}
+                          <Tooltip content={<EventosStackedTooltip />} />
                           <Legend wrapperStyle={{ fontSize: 9 }} />
                           <Bar dataKey="pagamento_qtd_parcial_associado" name="Parcial Assoc." fill="#2563eb" />
                           <Bar dataKey="pagamento_qtd_parcial_terceiro" name="Parcial Terc." fill="#0ea5e9" />
@@ -1180,12 +1200,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                   </CardContent>
                 </Card>
 
-                {/* Valor Eventos Pagos */}
+                {/* Valor Eventos Pagos - com somatório no header */}
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base font-medium">Valor de Eventos Pagos no Período (R$)</CardTitle>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Total pago em eventos no período:{" "}
+                      Soma total de eventos pagos no período:{" "}
                       <span className="font-semibold">{formatCurrency(totalValorEventosPagosPeriodo)}</span>
                     </p>
                   </CardHeader>
@@ -1903,7 +1923,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
+                <Activity className="h-5 w-5" />
                 Análise de Permanência
               </h3>
             </div>
