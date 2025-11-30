@@ -52,8 +52,8 @@ export default function PIDHistorico({ corretoraId }: PIDHistoricoProps) {
         .eq("corretora_id", corretoraId)
         .gte("ano", parseInt(anoInicio))
         .lte("ano", parseInt(anoFim))
-        .order("ano", { ascending: true })
-        .order("mes", { ascending: true });
+        .order("ano", { ascending: false })
+        .order("mes", { ascending: false });
 
       if (error) throw error;
       setDados((data || []) as unknown as HistoricoData[]);
