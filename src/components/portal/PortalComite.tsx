@@ -110,20 +110,21 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
       if (error) throw error;
 
-      // Buscar acompanhamentos separadamente
+      // Buscar acompanhamentos separadamente (usar atendimento_id ou id da vistoria)
       if (vistorias && vistorias.length > 0) {
-        const atendimentoIds = vistorias.map(v => v.atendimento_id).filter(Boolean);
+        // Coletar todos os IDs possíveis (atendimento_id ou id da vistoria)
+        const allIds = vistorias.map(v => v.atendimento_id || v.id).filter(Boolean);
         
-        if (atendimentoIds.length > 0) {
+        if (allIds.length > 0) {
           const { data: acompanhamentos } = await supabase
             .from("sinistro_acompanhamento")
             .select("atendimento_id, parecer_associacao, parecer_analista, comite_status, financeiro_valor_aprovado")
-            .in("atendimento_id", atendimentoIds);
+            .in("atendimento_id", allIds);
 
-          // Merge data
+          // Merge data - usar atendimento_id ou id da vistoria para matching
           const sinistrosComAcomp = vistorias.map(v => ({
             ...v,
-            acompanhamento: acompanhamentos?.find(a => a.atendimento_id === v.atendimento_id)
+            acompanhamento: acompanhamentos?.find(a => a.atendimento_id === (v.atendimento_id || v.id))
           }));
           
           setSinistros(sinistrosComAcomp);
@@ -144,11 +145,14 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
   const handleOpenDeliberacao = async (sinistro: any) => {
     setSelectedSinistro(sinistro);
 
+    // Usar atendimento_id ou id da vistoria como fallback
+    const recordId = sinistro.atendimento_id || sinistro.id;
+
     // Carregar respostas existentes do acompanhamento
     const { data: acompData, error } = await supabase
       .from("sinistro_acompanhamento")
       .select("entrevista_respostas, comite_status, comite_decisao, financeiro_valor_aprovado, comite_observacoes, parecer_analista, parecer_analista_justificativa, parecer_associacao, parecer_associacao_justificativa")
-      .eq("atendimento_id", sinistro.atendimento_id)
+      .eq("atendimento_id", recordId)
       .maybeSingle();
 
     if (error) {
@@ -195,33 +199,43 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
   /**
    * Auto-save das respostas da entrevista sempre que o usuário altera algo.
    */
-  const salvarRespostasAutomaticamente = async (novasRespostas: Record<string, string>) => {
+  const [savingRespostas, setSavingRespostas] = useState(false);
+
+  const salvarRespostas = async () => {
     if (!selectedSinistro) return;
 
+    const recordId = selectedSinistro.atendimento_id || selectedSinistro.id;
+    if (!recordId) {
+      toast.error("Erro: ID do sinistro não encontrado");
+      return;
+    }
+
     try {
+      setSavingRespostas(true);
       const {
         data: { user: currentUser },
         error: userError,
       } = await supabase.auth.getUser();
 
       if (userError || !currentUser) {
-        console.error("Usuário não autenticado para auto-save:", userError);
+        toast.error("Usuário não autenticado");
         return;
       }
 
       const { data: existing, error: existingError } = await supabase
         .from("sinistro_acompanhamento")
         .select("id")
-        .eq("atendimento_id", selectedSinistro.atendimento_id)
+        .eq("atendimento_id", recordId)
         .maybeSingle();
 
       if (existingError) {
-        console.error("Erro ao buscar acompanhamento para auto-save:", existingError);
+        console.error("Erro ao buscar acompanhamento:", existingError);
+        toast.error("Erro ao salvar respostas");
         return;
       }
 
       const payload = {
-        entrevista_respostas: novasRespostas,
+        entrevista_respostas: respostas,
         entrevista_data: new Date().toISOString(),
       };
 
@@ -229,43 +243,53 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         const { error } = await supabase
           .from("sinistro_acompanhamento")
           .update(payload)
-          .eq("atendimento_id", selectedSinistro.atendimento_id);
+          .eq("atendimento_id", recordId);
 
         if (error) {
-          console.error("Erro ao auto-salvar respostas (update):", error);
+          console.error("Erro ao salvar respostas (update):", error);
+          toast.error("Erro ao salvar respostas");
+          return;
         }
       } else {
         const { error } = await supabase.from("sinistro_acompanhamento").insert({
           ...payload,
-          atendimento_id: selectedSinistro.atendimento_id,
+          atendimento_id: recordId,
           created_by: currentUser.id,
         });
 
         if (error) {
-          console.error("Erro ao auto-salvar respostas (insert):", error);
+          console.error("Erro ao salvar respostas (insert):", error);
+          toast.error("Erro ao salvar respostas");
+          return;
         }
       }
+      
+      toast.success("Respostas salvas com sucesso");
     } catch (err) {
-      console.error("Erro inesperado ao auto-salvar respostas:", err);
+      console.error("Erro inesperado ao salvar respostas:", err);
+      toast.error("Erro ao salvar respostas");
+    } finally {
+      setSavingRespostas(false);
     }
   };
 
   const handleRespostaChange = (perguntaId: string, valor: string) => {
-    setRespostas((prev) => {
-      const novasRespostas = {
-        ...prev,
-        [perguntaId]: valor,
-      };
-
-      // Auto-save das respostas da entrevista
-      void salvarRespostasAutomaticamente(novasRespostas);
-
-      return novasRespostas;
-    });
+    setRespostas((prev) => ({
+      ...prev,
+      [perguntaId]: valor,
+    }));
   };
 
   const handleSalvarDeliberacao = async () => {
     if (!selectedSinistro) return;
+
+    // Usar atendimento_id ou id da vistoria como fallback
+    const recordId = selectedSinistro.atendimento_id || selectedSinistro.id;
+    
+    if (!recordId) {
+      toast.error("Erro: ID do sinistro não encontrado");
+      return;
+    }
 
     try {
       setSaving(true);
@@ -278,7 +302,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
       const { data: existing } = await supabase
         .from("sinistro_acompanhamento")
         .select("id")
-        .eq("atendimento_id", selectedSinistro.atendimento_id)
+        .eq("atendimento_id", recordId)
         .maybeSingle();
 
       const acompanhamentoData = {
@@ -305,13 +329,13 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         const { error } = await supabase
           .from("sinistro_acompanhamento")
           .update(acompanhamentoData)
-          .eq("atendimento_id", selectedSinistro.atendimento_id);
+          .eq("atendimento_id", recordId);
 
         if (error) throw error;
       } else {
         const { error } = await supabase.from("sinistro_acompanhamento").insert({
           ...acompanhamentoData,
-          atendimento_id: selectedSinistro.atendimento_id,
+          atendimento_id: recordId,
           created_by: currentUser?.id,
         });
 
@@ -654,9 +678,21 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                 <div className="col-span-2 overflow-hidden flex flex-col">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold">Questionário de Avaliação</h3>
-                    <Badge variant="outline" className="text-xs">
-                      {perguntasRespondidas}/{totalPerguntas} respondidas
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {perguntasRespondidas}/{totalPerguntas} respondidas
+                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={salvarRespostas}
+                        disabled={savingRespostas}
+                        className="gap-1 h-7"
+                      >
+                        <Save className="h-3 w-3" />
+                        {savingRespostas ? "Salvando..." : "Salvar Respostas"}
+                      </Button>
+                    </div>
                   </div>
                   <ScrollArea className="flex-1 pr-4">
                     <Card className="p-4 bg-white border rounded-md shadow-sm">
