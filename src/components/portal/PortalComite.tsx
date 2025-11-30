@@ -500,7 +500,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
       {/* Dialog de Deliberação */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden flex flex-col bg-white">
+        <DialogContent className="max-w-5xl max-h-[95vh] flex flex-col bg-white">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>Deliberação - Sinistro #{selectedSinistro?.numero}</span>
@@ -559,80 +559,82 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                   </ScrollArea>
                 </div>
 
-                {/* Decisão - 1 coluna */}
+                {/* Decisão - 1 coluna, com scroll próprio */}
                 <div className="overflow-hidden flex flex-col">
                   <h3 className="text-sm font-semibold mb-2">Decisão do Comitê</h3>
-                  <Card className="flex-1 p-4 bg-white">
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Parecer do Analista *</Label>
-                        <Select
-                          value={deliberacao.decisao}
-                          onValueChange={(value) => setDeliberacao({ ...deliberacao, decisao: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione a decisão" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Aprovado">
-                              <span className="text-green-600 font-medium">Aprovado</span>
-                            </SelectItem>
-                            <SelectItem value="Negado">
-                              <span className="text-red-600 font-medium">Negado</span>
-                            </SelectItem>
-                            <SelectItem value="Sindicância">
-                              <span className="text-purple-600 font-medium">Sindicância</span>
-                            </SelectItem>
-                            <SelectItem value="Necessário Análise Jurídica">
-                              <span className="text-orange-600 font-medium">Necessário Análise Jurídica</span>
-                            </SelectItem>
-                            <SelectItem value="Perícia Técnica">
-                              <span className="text-blue-600 font-medium">Perícia Técnica</span>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {deliberacao.decisao === "Aprovado" && (
+                  <ScrollArea className="flex-1">
+                    <Card className="flex-1 p-4 bg-white">
+                      <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label>Valor Aprovado *</Label>
-                          <CurrencyInput
-                            value={deliberacao.valor_aprovado}
-                            onValueChange={(values) =>
-                              setDeliberacao({ ...deliberacao, valor_aprovado: values.value || "" })
-                            }
-                            placeholder="R$ 0,00"
+                          <Label>Parecer do Analista *</Label>
+                          <Select
+                            value={deliberacao.decisao}
+                            onValueChange={(value) => setDeliberacao({ ...deliberacao, decisao: value })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione a decisão" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Aprovado">
+                                <span className="text-green-600 font-medium">Aprovado</span>
+                              </SelectItem>
+                              <SelectItem value="Negado">
+                                <span className="text-red-600 font-medium">Negado</span>
+                              </SelectItem>
+                              <SelectItem value="Sindicância">
+                                <span className="text-purple-600 font-medium">Sindicância</span>
+                              </SelectItem>
+                              <SelectItem value="Necessário Análise Jurídica">
+                                <span className="text-orange-600 font-medium">Necessário Análise Jurídica</span>
+                              </SelectItem>
+                              <SelectItem value="Perícia Técnica">
+                                <span className="text-blue-600 font-medium">Perícia Técnica</span>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {deliberacao.decisao === "Aprovado" && (
+                          <div className="space-y-2">
+                            <Label>Valor Aprovado *</Label>
+                            <CurrencyInput
+                              value={deliberacao.valor_aprovado}
+                              onValueChange={(values) =>
+                                setDeliberacao({ ...deliberacao, valor_aprovado: values.value || "" })
+                              }
+                              placeholder="R$ 0,00"
+                            />
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <Label>Justificativa / Observações *</Label>
+                          <Textarea
+                            value={deliberacao.justificativa}
+                            onChange={(e) => setDeliberacao({ ...deliberacao, justificativa: e.target.value })}
+                            placeholder="Descreva a justificativa da decisão..."
+                            rows={6}
                           />
                         </div>
-                      )}
 
-                      <div className="space-y-2">
-                        <Label>Justificativa / Observações *</Label>
-                        <Textarea
-                          value={deliberacao.justificativa}
-                          onChange={(e) => setDeliberacao({ ...deliberacao, justificativa: e.target.value })}
-                          placeholder="Descreva a justificativa da decisão..."
-                          rows={6}
-                        />
+                        <Separator />
+
+                        <div className="flex gap-2 pb-1">
+                          <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
+                            Cancelar
+                          </Button>
+                          <Button
+                            onClick={handleSalvarDeliberacao}
+                            disabled={saving || !deliberacao.justificativa}
+                            className="flex-1 gap-2"
+                          >
+                            <Save className="h-4 w-4" />
+                            {saving ? "Salvando..." : "Salvar"}
+                          </Button>
+                        </div>
                       </div>
-
-                      <Separator />
-
-                      <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
-                          Cancelar
-                        </Button>
-                        <Button
-                          onClick={handleSalvarDeliberacao}
-                          disabled={saving || !deliberacao.justificativa}
-                          className="flex-1 gap-2"
-                        >
-                          <Save className="h-4 w-4" />
-                          {saving ? "Salvando..." : "Salvar"}
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
+                    </Card>
+                  </ScrollArea>
                 </div>
               </div>
             </div>
