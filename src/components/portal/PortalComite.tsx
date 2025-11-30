@@ -500,7 +500,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
       {/* Dialog de Deliberação */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden flex flex-col bg-white">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>Deliberação - Sinistro #{selectedSinistro?.numero}</span>
@@ -544,7 +544,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
               {/* Perguntas e Decisão lado a lado */}
               <div className="flex-1 overflow-hidden grid grid-cols-3 gap-4">
-                {/* Perguntas - COLUNA ÚNICA, ORDEM 1–62 */}
+                {/* Perguntas - COLUNA ÚNICA, ORDEM 1–62, dentro de box branco */}
                 <div className="col-span-2 overflow-hidden flex flex-col">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold">Questionário de Avaliação</h3>
@@ -553,14 +553,16 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                     </Badge>
                   </div>
                   <ScrollArea className="flex-1 pr-4">
-                    <div className="space-y-3">{perguntasOrdenadasGlobal.map(renderPergunta)}</div>
+                    <Card className="p-4 bg-white border rounded-md shadow-sm">
+                      <div className="space-y-3">{perguntasOrdenadasGlobal.map(renderPergunta)}</div>
+                    </Card>
                   </ScrollArea>
                 </div>
 
                 {/* Decisão - 1 coluna */}
                 <div className="overflow-hidden flex flex-col">
                   <h3 className="text-sm font-semibold mb-2">Decisão do Comitê</h3>
-                  <Card className="flex-1 p-4">
+                  <Card className="flex-1 p-4 bg-white">
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <Label>Parecer do Analista *</Label>
