@@ -235,6 +235,7 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     const boletosEmitidos = data.boletos_emitidos || 1;
     const faturamento = data.faturamento_operacional || 1;
     const totalRecebido = data.total_recebido || 1;
+    const totalAssociados = data.total_associados || 1;
 
     // Cálculos automáticos de porcentagens
     const percentual_inadimplencia = calcPercent(data.inadimplentes, placas);
@@ -244,6 +245,12 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     const churn = calcPercent(data.cancelamentos, placas);
     const saldo_placas = data.cadastros_realizados - data.cancelamentos + data.reativacao;
     const indice_crescimento_bruto = calcPercent(data.cadastros_realizados, placas);
+    
+    // Novos cálculos
+    const indice_veiculos_por_associado = totalAssociados > 0 ? placas / totalAssociados : 0;
+    const indice_novos_cadastros = calcPercent(data.cadastros_realizados, placas);
+    const permanencia = (data.cadastros_realizados + data.reativacao) - (data.cancelamentos + data.inadimplentes);
+    const indice_permanencia = calcPercent(permanencia, data.cadastros_realizados + data.reativacao);
 
     // Indicadores Financeiros
     const percentual_emissao_boleto = calcPercent(data.boletos_liquidados, boletosEmitidos);
@@ -271,6 +278,15 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
       data.pagamento_valor_integral_terceiro + 
       data.pagamento_valor_vidros + 
       data.pagamento_valor_carro_reserva;
+
+    // Total pagamentos quantidade
+    const pagamento_total_qtd = 
+      data.pagamento_qtd_parcial_associado + 
+      data.pagamento_qtd_parcial_terceiro + 
+      data.pagamento_qtd_integral_associado + 
+      data.pagamento_qtd_integral_terceiro + 
+      data.pagamento_qtd_vidros + 
+      data.pagamento_qtd_carro_reserva;
 
     // Tickets médios
     const qtd_parcial = data.pagamento_qtd_parcial_associado + data.pagamento_qtd_parcial_terceiro;
@@ -308,6 +324,10 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
       churn,
       saldo_placas,
       indice_crescimento_bruto,
+      indice_veiculos_por_associado,
+      indice_novos_cadastros,
+      permanencia,
+      indice_permanencia,
       percentual_emissao_boleto,
       percentual_inadimplencia_boletos,
       percentual_cancelamento_boletos,
@@ -317,6 +337,7 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
       percentual_descontado_banco,
       abertura_total_eventos,
       custo_total_eventos,
+      pagamento_total_qtd,
       ticket_medio_parcial,
       ticket_medio_integral,
       ticket_medio_vidros,
@@ -797,73 +818,552 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
         </TabsContent>
 
         {/* Tab: Gráficos */}
-        <TabsContent value="graficos" className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Evolução Faturamento x Recebido</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                {historicoChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={historicoChartData}>
-                      <defs>
-                        <linearGradient id="colorFat" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="colorRec" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="periodo" tick={{ fontSize: 11 }} />
-                      <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
-                      <Legend />
-                      <Area type="monotone" dataKey="faturamento" name="Faturamento" stroke="#2563eb" fill="url(#colorFat)" />
-                      <Area type="monotone" dataKey="recebido" name="Recebido" stroke="#16a34a" fill="url(#colorRec)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados históricos</div>
-                )}
-              </CardContent>
-            </Card>
+        <TabsContent value="graficos" className="space-y-6">
+          {/* MOVIMENTAÇÃO DE BASE */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Movimentação de Base
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Row 1 */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Placas Ativas x Cotas</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[{ name: 'Período', placas: calculatedData.placas_ativas, cotas: calculatedData.total_cotas }]}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="placas" name="Placas Ativas" fill="#2563eb" />
+                        <Bar dataKey="cotas" name="Total Cotas" fill="#16a34a" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Associados x Índice Veículos/Associado</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[{ name: 'Período', associados: calculatedData.total_associados, indice: calculatedData.indice_veiculos_por_associado }]}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="associados" name="Total Associados" fill="#8b5cf6" />
+                        <Bar yAxisId="right" dataKey="indice" name="Índice Veíc./Assoc." fill="#ec4899" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+              {/* Row 2 */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Cadastros x Índice Novos Cadastros</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[{ name: 'Período', cadastros: calculatedData.cadastros_realizados, indice: calculatedData.indice_novos_cadastros * 100 }]}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v.toFixed(2)}%`} />
+                        <Tooltip formatter={(value: any, name: string) => name === 'Índice Novos Cad.' ? `${Number(value).toFixed(2)}%` : value} />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="cadastros" name="Cadastros" fill="#2563eb" />
+                        <Line yAxisId="right" type="monotone" dataKey="indice" name="Índice Novos Cad." stroke="#dc2626" strokeWidth={2} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Crescimento Bruto x Líquido</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[{ name: 'Período', bruto: calculatedData.indice_crescimento_bruto * 100, liquido: calculatedData.crescimento_liquido * 100 }]}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v.toFixed(2)}%`} />
+                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2)}%`} />
+                        <Legend />
+                        <Bar dataKey="bruto" name="Índice Cresc. Bruto" fill="#16a34a" />
+                        <Bar dataKey="liquido" name="Crescimento Líquido" fill="#eab308" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+              {/* Row 3 */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Cancelamentos x Inadimplentes</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[{ name: 'Período', cancelamentos: calculatedData.cancelamentos, inadimplentes: calculatedData.inadimplentes }]}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="cancelamentos" name="Cancelamentos" fill="#dc2626" />
+                        <Bar dataKey="inadimplentes" name="Inadimplentes" fill="#f97316" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Reativações x Churn</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[{ name: 'Período', reativacao: calculatedData.reativacao, churn: calculatedData.churn * 100 }]}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v.toFixed(2)}%`} />
+                        <Tooltip formatter={(value: any, name: string) => name === 'Churn %' ? `${Number(value).toFixed(2)}%` : value} />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="reativacao" name="Reativações" fill="#16a34a" />
+                        <Bar yAxisId="right" dataKey="churn" name="Churn %" fill="#dc2626" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+              {/* Row 4 - Permanência */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Permanência x Índice de Permanência</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[{ name: 'Período', permanencia: calculatedData.permanencia, indice: calculatedData.indice_permanencia * 100 }]}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v.toFixed(2)}%`} />
+                        <Tooltip formatter={(value: any, name: string) => name === 'Índice Permanência' ? `${Number(value).toFixed(2)}%` : value} />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="permanencia" name="Permanência" fill="#8b5cf6" />
+                        <Bar yAxisId="right" dataKey="indice" name="Índice Permanência" fill="#06b6d4" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                {/* Gráfico de Rosca - Permanência */}
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Distribuição de Permanência (Rosca)</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsPieChart>
+                        <Pie
+                          data={[
+                            { name: 'Entradas', value: calculatedData.cadastros_realizados + calculatedData.reativacao },
+                            { name: 'Perdas', value: calculatedData.cancelamentos + calculatedData.inadimplentes }
+                          ]}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={40}
+                          outerRadius={70}
+                          paddingAngle={2}
+                        >
+                          <Cell fill="#16a34a" />
+                          <Cell fill="#dc2626" />
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </RechartsPieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Distribuição de Eventos por Tipo</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                {eventosChartData.some(e => e.value > 0) ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsPieChart>
-                      <Pie
-                        data={eventosChartData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={90}
-                        paddingAngle={2}
+          {/* CONTAS A PAGAR / INDICADORES FINANCEIROS */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Indicadores Financeiros
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Boletos Quantidade */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Boletos - Quantidade</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[220px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[{ name: 'Período', emitidos: calculatedData.boletos_emitidos, liquidados: calculatedData.boletos_liquidados, abertos: calculatedData.boletos_abertos, cancelados: calculatedData.boletos_cancelados }]}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Legend wrapperStyle={{ fontSize: '10px' }} />
+                        <Bar dataKey="emitidos" name="Emitidos" fill="#2563eb" />
+                        <Bar dataKey="liquidados" name="Liquidados" fill="#16a34a" />
+                        <Bar dataKey="abertos" name="Em Aberto" fill="#eab308" />
+                        <Bar dataKey="cancelados" name="Cancelados" fill="#dc2626" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                {/* Valores Financeiros */}
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Valores Financeiros (R$)</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[220px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart 
+                        data={[{ 
+                          name: 'Período', 
+                          faturamento: calculatedData.faturamento_operacional,
+                          recebido: calculatedData.total_recebido,
+                          pendencia: calculatedData.baixado_pendencia,
+                          abertos: calculatedData.valor_boletos_abertos,
+                          cancelados: calculatedData.valor_boletos_cancelados,
+                          operacional: calculatedData.recebimento_operacional,
+                          juros: calculatedData.arrecadamento_juros,
+                          banco: calculatedData.descontado_banco
+                        }]}
+                        layout="vertical"
                       >
-                        {eventosChartData.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
-                      <Legend />
-                    </RechartsPieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados de eventos</div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis type="number" tick={{ fontSize: 9 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={60} />
+                        <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                        <Legend wrapperStyle={{ fontSize: '9px' }} />
+                        <Bar dataKey="faturamento" name="Faturamento" fill="#2563eb" />
+                        <Bar dataKey="recebido" name="Recebido" fill="#16a34a" />
+                        <Bar dataKey="operacional" name="Rec. Operac." fill="#8b5cf6" />
+                        <Bar dataKey="abertos" name="Bol. Abertos" fill="#eab308" />
+                        <Bar dataKey="cancelados" name="Cancelados" fill="#dc2626" />
+                        <Bar dataKey="banco" name="Desc. Banco" fill="#f97316" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+              {/* Índices Financeiros */}
+              <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">% Inadimpl. Boletos</div>
+                  <div className="text-lg font-bold">{formatPercent(calculatedData.percentual_inadimplencia_boletos)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">% Cancel. Boletos</div>
+                  <div className="text-lg font-bold">{formatPercent(calculatedData.percentual_cancelamento_boletos)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">% Inadimpl. Financeira</div>
+                  <div className="text-lg font-bold">{formatPercent(calculatedData.percentual_inadimplencia_financeira)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">Ticket Médio Boleto</div>
+                  <div className="text-lg font-bold">{formatCurrency(calculatedData.ticket_medio_boleto)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">% Arrecad. Juros</div>
+                  <div className="text-lg font-bold">{formatPercent(calculatedData.percentual_arrecadacao_juros)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">% Descontado Banco</div>
+                  <div className="text-lg font-bold">{formatPercent(calculatedData.percentual_descontado_banco)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">% Cresc. Faturamento</div>
+                  <div className="text-lg font-bold">{formatPercent(calculatedData.percentual_crescimento_faturamento)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">% Cresc. Recebido</div>
+                  <div className="text-lg font-bold">{formatPercent(calculatedData.percentual_crescimento_recebido)}</div>
+                </Card>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* EVENTOS */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Eventos / Sinistros
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 lg:grid-cols-3">
+                {/* Abertura de Eventos */}
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Abertura de Eventos</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart 
+                        data={[{ 
+                          name: 'Abertura',
+                          parcialAssoc: calculatedData.abertura_indenizacao_parcial_associado,
+                          parcialTerc: calculatedData.abertura_indenizacao_parcial_terceiro,
+                          integralAssoc: calculatedData.abertura_indenizacao_integral_associado,
+                          integralTerc: calculatedData.abertura_indenizacao_integral_terceiro,
+                          vidros: calculatedData.abertura_vidros,
+                          carroReserva: calculatedData.abertura_carro_reserva,
+                          total: calculatedData.abertura_total_eventos
+                        }]}
+                        layout="vertical"
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis type="number" tick={{ fontSize: 9 }} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={50} />
+                        <Tooltip />
+                        <Legend wrapperStyle={{ fontSize: '8px' }} />
+                        <Bar dataKey="parcialAssoc" name="Parcial Assoc." fill="#2563eb" stackId="a" />
+                        <Bar dataKey="parcialTerc" name="Parcial Terc." fill="#16a34a" stackId="a" />
+                        <Bar dataKey="integralAssoc" name="Integral Assoc." fill="#8b5cf6" stackId="a" />
+                        <Bar dataKey="integralTerc" name="Integral Terc." fill="#ec4899" stackId="a" />
+                        <Bar dataKey="vidros" name="Vidros" fill="#eab308" stackId="a" />
+                        <Bar dataKey="carroReserva" name="Carro Reserva" fill="#f97316" stackId="a" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                {/* Qtd Eventos Pagos */}
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Qtd Eventos Pagos</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart 
+                        data={[{ 
+                          name: 'Pagamentos',
+                          parcialAssoc: calculatedData.pagamento_qtd_parcial_associado,
+                          parcialTerc: calculatedData.pagamento_qtd_parcial_terceiro,
+                          integralAssoc: calculatedData.pagamento_qtd_integral_associado,
+                          integralTerc: calculatedData.pagamento_qtd_integral_terceiro,
+                          vidros: calculatedData.pagamento_qtd_vidros,
+                          carroReserva: calculatedData.pagamento_qtd_carro_reserva
+                        }]}
+                        layout="vertical"
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis type="number" tick={{ fontSize: 9 }} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={70} />
+                        <Tooltip />
+                        <Legend wrapperStyle={{ fontSize: '8px' }} />
+                        <Bar dataKey="parcialAssoc" name="Parcial Assoc." fill="#2563eb" stackId="a" />
+                        <Bar dataKey="parcialTerc" name="Parcial Terc." fill="#16a34a" stackId="a" />
+                        <Bar dataKey="integralAssoc" name="Integral Assoc." fill="#8b5cf6" stackId="a" />
+                        <Bar dataKey="integralTerc" name="Integral Terc." fill="#ec4899" stackId="a" />
+                        <Bar dataKey="vidros" name="Vidros" fill="#eab308" stackId="a" />
+                        <Bar dataKey="carroReserva" name="Carro Reserva" fill="#f97316" stackId="a" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                {/* Valor Eventos Pagos */}
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Valor Eventos Pagos (R$)</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsPieChart>
+                        <Pie
+                          data={[
+                            { name: 'Parcial Assoc.', value: calculatedData.pagamento_valor_parcial_associado },
+                            { name: 'Parcial Terc.', value: calculatedData.pagamento_valor_parcial_terceiro },
+                            { name: 'Integral Assoc.', value: calculatedData.pagamento_valor_integral_associado },
+                            { name: 'Integral Terc.', value: calculatedData.pagamento_valor_integral_terceiro },
+                            { name: 'Vidros', value: calculatedData.pagamento_valor_vidros },
+                            { name: 'Carro Reserva', value: calculatedData.pagamento_valor_carro_reserva }
+                          ].filter(d => d.value > 0)}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={35}
+                          outerRadius={65}
+                          paddingAngle={2}
+                        >
+                          {COLORS.map((color, index) => (
+                            <Cell key={`cell-${index}`} fill={color} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                        <Legend wrapperStyle={{ fontSize: '9px' }} />
+                      </RechartsPieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+              {/* Índices de Eventos */}
+              <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">% Sinistral. Financeira</div>
+                  <div className="text-lg font-bold">{formatPercent(calculatedData.sinistralidade_financeira)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">% Sinistral. Geral</div>
+                  <div className="text-lg font-bold">{formatPercent(calculatedData.sinistralidade_geral)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">% Índice Dano Parcial</div>
+                  <div className="text-lg font-bold">{formatPercent(calculatedData.indice_dano_parcial)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">% Índice Dano Integral</div>
+                  <div className="text-lg font-bold">{formatPercent(calculatedData.indice_dano_integral)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">TM Indeniz. Parcial</div>
+                  <div className="text-lg font-bold">{formatCurrency(calculatedData.ticket_medio_parcial)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">TM Indeniz. Integral</div>
+                  <div className="text-lg font-bold">{formatCurrency(calculatedData.ticket_medio_integral)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">TM Vidros</div>
+                  <div className="text-lg font-bold">{formatCurrency(calculatedData.ticket_medio_vidros)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-3">
+                  <div className="text-xs text-muted-foreground">TM Carro Reserva</div>
+                  <div className="text-lg font-bold">{formatCurrency(calculatedData.ticket_medio_carro_reserva)}</div>
+                </Card>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ASSISTÊNCIA */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Phone className="h-5 w-5" />
+                Assistência 24 Horas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 lg:grid-cols-3">
+                <Card className="bg-muted/30 p-4">
+                  <div className="text-sm text-muted-foreground">Total Acionamentos</div>
+                  <div className="text-2xl font-bold">{calculatedData.acionamentos_assistencia}</div>
+                </Card>
+                <Card className="bg-muted/30 p-4">
+                  <div className="text-sm text-muted-foreground">Custo Total</div>
+                  <div className="text-2xl font-bold">{formatCurrency(calculatedData.custo_assistencia)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-4">
+                  <div className="text-sm text-muted-foreground">% Comprometimento</div>
+                  <div className="text-2xl font-bold">{formatPercent(calculatedData.comprometimento_assistencia)}</div>
+                </Card>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* RASTREAMENTO */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Rastreamento
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 lg:grid-cols-4">
+                <Card className="bg-muted/30 p-4">
+                  <div className="text-sm text-muted-foreground">Veículos Rastreados</div>
+                  <div className="text-2xl font-bold">{calculatedData.veiculos_rastreados}</div>
+                </Card>
+                <Card className="bg-muted/30 p-4">
+                  <div className="text-sm text-muted-foreground">Instalações Feitas</div>
+                  <div className="text-2xl font-bold">{calculatedData.instalacoes_rastreamento}</div>
+                </Card>
+                <Card className="bg-muted/30 p-4">
+                  <div className="text-sm text-muted-foreground">Custo Total</div>
+                  <div className="text-2xl font-bold">{formatCurrency(calculatedData.custo_rastreamento)}</div>
+                </Card>
+                <Card className="bg-muted/30 p-4">
+                  <div className="text-sm text-muted-foreground">% Comprometimento</div>
+                  <div className="text-2xl font-bold">{formatPercent(calculatedData.comprometimento_rastreamento)}</div>
+                </Card>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* RATEIO */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                Rateio
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card className="bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Custo Rateável x Cotas</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[{ name: 'Período', custo: calculatedData.custo_total_rateavel, cotas: calculatedData.total_cotas }]}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} />
+                        <Tooltip formatter={(value: any, name: string) => name === 'Custo Rateável' ? formatCurrency(Number(value)) : value} />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="custo" name="Custo Rateável" fill="#dc2626" />
+                        <Bar yAxisId="right" dataKey="cotas" name="Total Cotas" fill="#16a34a" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                <div className="grid gap-4 grid-cols-2">
+                  <Card className="bg-muted/30 p-4">
+                    <div className="text-sm text-muted-foreground">Rateio no Período</div>
+                    <div className="text-2xl font-bold">{formatCurrency(calculatedData.rateio_periodo)}</div>
+                  </Card>
+                  <Card className="bg-muted/30 p-4">
+                    <div className="text-sm text-muted-foreground">% Rateio (Base TM)</div>
+                    <div className="text-2xl font-bold">{formatPercent(calculatedData.percentual_rateio)}</div>
+                  </Card>
+                  <Card className="bg-muted/30 p-4 col-span-2">
+                    <div className="text-sm text-muted-foreground">CME - Contribuição Mensal de Estabilização</div>
+                    <div className="text-2xl font-bold">{formatPercent(calculatedData.cme_explit)}</div>
+                  </Card>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
