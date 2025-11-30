@@ -35,7 +35,7 @@ export const PARECERES_ANALISTA = [
 export const NIVEIS_ALERTA_PESO = [
   { 
     value: 'passivel_negativa',
-    label: 'EVENTO REQUER ATENÇÃO PASSIVEL DE NEGATIVA/ANALISE JURIDICA',
+    label: 'Evento requer atenção - Passível de negativa/análise jurídica',
     labelCurto: 'Passível de Negativa',
     cor: 'bg-red-600',
     textCor: 'text-white',
@@ -43,7 +43,7 @@ export const NIVEIS_ALERTA_PESO = [
   },
   { 
     value: 'atencao_juridica',
-    label: 'EVENTO REQUER ATENÇÃO - ALGUMAS RESPOSTAS PODEM INDICAR A NECESSIDADE DE UMA ANALISE JURIDICA, SINDICANCIA OU PERICIA PARA ESTE EVENTO',
+    label: 'Evento requer atenção - Algumas respostas podem indicar a necessidade de uma análise jurídica, sindicância ou perícia para este evento',
     labelCurto: 'Atenção Jurídica/Sindicância',
     cor: 'bg-orange-500',
     textCor: 'text-white',
@@ -51,7 +51,7 @@ export const NIVEIS_ALERTA_PESO = [
   },
   { 
     value: 'atencao_andamento',
-    label: 'EVENTO REQUER ATENÇÃO - ALGUMAS RESPOSTAS PODEM INDICAR MUDANÇAS NO ANDAMENTO DO EVENTO',
+    label: 'Evento requer atenção - Algumas respostas podem indicar mudanças no andamento do evento',
     labelCurto: 'Atenção no Andamento',
     cor: 'bg-yellow-400',
     textCor: 'text-black',
@@ -59,7 +59,7 @@ export const NIVEIS_ALERTA_PESO = [
   },
   { 
     value: 'ressarcimento',
-    label: 'EVENTO PASSIVEL DE RESARCIMENTO',
+    label: 'Evento passível de ressarcimento',
     labelCurto: 'Passível de Ressarcimento',
     cor: 'bg-lime-500',
     textCor: 'text-white',
@@ -67,7 +67,7 @@ export const NIVEIS_ALERTA_PESO = [
   },
   { 
     value: 'aprovacao',
-    label: 'EVENTO PASSIVO DE APROVAÇAO - NENHUMA DAS RESPOSTAS INFORMADAS INDICAM INDICIOS ATENÇAO',
+    label: 'Evento passivo de aprovação - Nenhuma das respostas informadas indicam indícios de atenção',
     labelCurto: 'Passivo de Aprovação',
     cor: 'bg-green-600',
     textCor: 'text-white',
@@ -78,32 +78,32 @@ export const NIVEIS_ALERTA_PESO = [
 // Pareceres do Comitê com cores
 export const PARECERES_COMITE = [
   { 
-    value: 'EVENTO REQUER ATENÇÃO PASSIVEL DE NEGATIVA/ANALISE JURIDICA',
-    label: 'Evento Requer Atenção - Passível de Negativa/Análise Jurídica',
+    value: 'passivel_negativa',
+    label: 'Evento requer atenção - Passível de negativa/análise jurídica',
     cor: 'bg-red-600',
     textCor: 'text-white'
   },
   { 
-    value: 'EVENTO REQUER ATENÇÃO - ALGUMAS RESPOSTAS PODEM INDICAR A NECESSIDADE DE UMA ANALISE JURIDICA, SINDICANCIA OU PERICIA PARA ESTE EVENTO',
-    label: 'Evento Requer Atenção - Análise Jurídica/Sindicância/Perícia',
+    value: 'atencao_juridica',
+    label: 'Evento requer atenção - Análise jurídica/sindicância/perícia',
     cor: 'bg-orange-500',
     textCor: 'text-white'
   },
   { 
-    value: 'EVENTO REQUER ATENÇÃO - ALGUMAS RESPOSTAS PODEM INDICAR MUDANÇAS NO ANDAMENTO DO EVENTO',
-    label: 'Evento Requer Atenção - Mudanças no Andamento',
+    value: 'atencao_andamento',
+    label: 'Evento requer atenção - Mudanças no andamento',
     cor: 'bg-yellow-400',
     textCor: 'text-black'
   },
   { 
-    value: 'EVENTO PASSIVEL DE RESARCIMENTO',
-    label: 'Evento Passível de Ressarcimento',
+    value: 'ressarcimento',
+    label: 'Evento passível de ressarcimento',
     cor: 'bg-lime-500',
     textCor: 'text-white'
   },
   { 
-    value: 'EVENTO PASSIVO DE APROVACAO - NENHUMA DAS RESPOSTAS INFORMADAS INDICAM INDICIOS ATENCAO',
-    label: 'Evento Passivo de Aprovação',
+    value: 'aprovacao',
+    label: 'Evento passivo de aprovação',
     cor: 'bg-green-600',
     textCor: 'text-white'
   }
