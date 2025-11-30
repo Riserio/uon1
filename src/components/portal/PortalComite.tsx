@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { MessageSquare, DollarSign, TrendingUp, FileDown, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { PERGUNTAS_COMITE, CATEGORIAS_PERGUNTAS, ORDEM_CATEGORIAS, PerguntaComite } from "@/constants/perguntasComite";
+import { PERGUNTAS_COMITE, PerguntaComite } from "@/constants/perguntasComite";
 import { exportDeliberacaoPDF } from "@/utils/pdfDeliberacao";
 
 interface PortalComiteProps {
@@ -319,14 +319,12 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     return s.status === filtroStatus;
   });
 
-  // Ordena perguntas por número extraído do ID (ex.: "Q01", "1", "10")
-  const ordenarPerguntasNumericamente = (perguntas: PerguntaComite[]) => {
-    return [...perguntas].sort((a, b) => {
-      const numA = parseInt(String(a.id).replace(/\D/g, ""), 10) || 0;
-      const numB = parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
-      return numA - numB;
-    });
-  };
+  // Ordena TODAS as perguntas globalmente pela parte numérica do ID (1 → 2 → ... → 62)
+  const perguntasOrdenadasGlobal: PerguntaComite[] = [...PERGUNTAS_COMITE].sort((a, b) => {
+    const numA = parseInt(String(a.id).replace(/\D/g, ""), 10) || 0;
+    const numB = parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
+    return numA - numB;
+  });
 
   const renderPergunta = (pergunta: PerguntaComite) => {
     const valor = respostas[pergunta.id] || "";
@@ -546,7 +544,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
               {/* Perguntas e Decisão lado a lado */}
               <div className="flex-1 overflow-hidden grid grid-cols-3 gap-4">
-                {/* Perguntas - COLUNA ÚNICA, CATEGORIAS EM ORDEM E PERGUNTAS EM ORDEM NUMÉRICA */}
+                {/* Perguntas - COLUNA ÚNICA, ORDEM 1–62 */}
                 <div className="col-span-2 overflow-hidden flex flex-col">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold">Questionário de Avaliação</h3>
@@ -555,21 +553,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                     </Badge>
                   </div>
                   <ScrollArea className="flex-1 pr-4">
-                    <div className="space-y-4">
-                      {ORDEM_CATEGORIAS.map((categoria) => {
-                        const perguntas = CATEGORIAS_PERGUNTAS[categoria];
-                        if (!perguntas || perguntas.length === 0) return null;
-
-                        const perguntasOrdenadas = ordenarPerguntasNumericamente(perguntas);
-
-                        return (
-                          <Card key={categoria} className="p-3">
-                            <h4 className="text-xs font-semibold mb-2 text-primary">{categoria}</h4>
-                            <div className="space-y-3">{perguntasOrdenadas.map(renderPergunta)}</div>
-                          </Card>
-                        );
-                      })}
-                    </div>
+                    <div className="space-y-3">{perguntasOrdenadasGlobal.map(renderPergunta)}</div>
                   </ScrollArea>
                 </div>
 
