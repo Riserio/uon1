@@ -94,11 +94,15 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     setSelectedSinistro(sinistro);
 
     // Carregar respostas existentes do acompanhamento
-    const { data: acompData } = await supabase
+    const { data: acompData, error } = await supabase
       .from("sinistro_acompanhamento")
       .select("entrevista_respostas, comite_status, comite_decisao, financeiro_valor_aprovado, comite_observacoes")
       .eq("atendimento_id", sinistro.atendimento_id)
       .maybeSingle();
+
+    if (error) {
+      console.error("Erro ao carregar acompanhamento:", error);
+    }
 
     if (acompData?.entrevista_respostas) {
       setRespostas(acompData.entrevista_respostas as Record<string, string>);
@@ -128,13 +132,22 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
   };
 
   /**
-   * Salva automaticamente as respostas da entrevista no banco
-   * sempre que o usuário responder/alterar qualquer pergunta.
+   * Auto-save das respostas da entrevista sempre que o usuário altera algo.
    */
   const salvarRespostasAutomaticamente = async (novasRespostas: Record<string, string>) => {
     if (!selectedSinistro) return;
 
     try {
+      const {
+        data: { user: currentUser },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !currentUser) {
+        console.error("Usuário não autenticado para auto-save:", userError);
+        return;
+      }
+
       const { data: existing, error: existingError } = await supabase
         .from("sinistro_acompanhamento")
         .select("id")
@@ -159,23 +172,20 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
         if (error) {
           console.error("Erro ao auto-salvar respostas (update):", error);
-          toast.error("Erro ao salvar respostas da entrevista");
         }
       } else {
         const { error } = await supabase.from("sinistro_acompanhamento").insert({
           ...payload,
           atendimento_id: selectedSinistro.atendimento_id,
-          created_by: user?.id || null,
+          created_by: currentUser.id,
         });
 
         if (error) {
           console.error("Erro ao auto-salvar respostas (insert):", error);
-          toast.error("Erro ao salvar respostas da entrevista");
         }
       }
     } catch (err) {
       console.error("Erro inesperado ao auto-salvar respostas:", err);
-      toast.error("Erro ao salvar respostas da entrevista");
     }
   };
 
@@ -199,6 +209,10 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     try {
       setSaving(true);
 
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+
       // Verificar se já existe registro de acompanhamento
       const { data: existing } = await supabase
         .from("sinistro_acompanhamento")
@@ -207,8 +221,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         .maybeSingle();
 
       const acompanhamentoData = {
-        // mantemos as respostas no payload também, para garantir consistência,
-        // mas elas já foram salvas automaticamente a cada alteração
+        // mantemos as respostas no payload também, para garantir consistência
         entrevista_respostas: respostas,
         entrevista_data: new Date().toISOString(),
         comite_status: deliberacao.decisao || null,
@@ -229,7 +242,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         const { error } = await supabase.from("sinistro_acompanhamento").insert({
           ...acompanhamentoData,
           atendimento_id: selectedSinistro.atendimento_id,
-          created_by: user?.id,
+          created_by: currentUser?.id,
         });
 
         if (error) throw error;
@@ -305,6 +318,15 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     if (filtroStatus === "todos") return true;
     return s.status === filtroStatus;
   });
+
+  // Ordena perguntas por número extraído do ID (ex.: "Q01", "1", "10")
+  const ordenarPerguntasNumericamente = (perguntas: PerguntaComite[]) => {
+    return [...perguntas].sort((a, b) => {
+      const numA = parseInt(String(a.id).replace(/\D/g, ""), 10) || 0;
+      const numB = parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
+      return numA - numB;
+    });
+  };
 
   const renderPergunta = (pergunta: PerguntaComite) => {
     const valor = respostas[pergunta.id] || "";
@@ -524,7 +546,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
               {/* Perguntas e Decisão lado a lado */}
               <div className="flex-1 overflow-hidden grid grid-cols-3 gap-4">
-                {/* Perguntas - AGORA EM COLUNA ÚNICA (uma categoria abaixo da outra) */}
+                {/* Perguntas - COLUNA ÚNICA, CATEGORIAS EM ORDEM E PERGUNTAS EM ORDEM NUMÉRICA */}
                 <div className="col-span-2 overflow-hidden flex flex-col">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold">Questionário de Avaliação</h3>
@@ -538,10 +560,12 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                         const perguntas = CATEGORIAS_PERGUNTAS[categoria];
                         if (!perguntas || perguntas.length === 0) return null;
 
+                        const perguntasOrdenadas = ordenarPerguntasNumericamente(perguntas);
+
                         return (
                           <Card key={categoria} className="p-3">
                             <h4 className="text-xs font-semibold mb-2 text-primary">{categoria}</h4>
-                            <div className="space-y-3">{perguntas.map(renderPergunta)}</div>
+                            <div className="space-y-3">{perguntasOrdenadas.map(renderPergunta)}</div>
                           </Card>
                         );
                       })}
