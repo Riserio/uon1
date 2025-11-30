@@ -37,7 +37,7 @@ const TIPOS_CAMPO = [
 ];
 
 const NIVEIS_ALERTA = [
-  { value: '', label: 'Sem alerta' },
+  { value: 'none', label: 'Sem alerta' },
   { value: 'aprovacao', label: '🟢 Aprovação' },
   { value: 'atencao', label: '🟡 Requer atenção' },
   { value: 'passivel_ressarcimento', label: '🟠 Passível de ressarcimento' },
@@ -211,7 +211,7 @@ export function SinistroConfiguracoesDialog({ open, onOpenChange }: SinistroConf
           peso_positivo: novaPergunta.peso_positivo ? novaPergunta.peso_positivo.split(',').map(s => s.trim()) : null,
           peso_negativo: novaPergunta.peso_negativo ? novaPergunta.peso_negativo.split(',').map(s => s.trim()) : null,
           obrigatoria: novaPergunta.obrigatoria,
-          nivel_alerta: novaPergunta.nivel_alerta || null,
+          nivel_alerta: novaPergunta.nivel_alerta && novaPergunta.nivel_alerta !== 'none' ? novaPergunta.nivel_alerta : null,
           ordem: maxOrdem + 1
         });
 
