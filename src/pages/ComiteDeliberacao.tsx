@@ -277,9 +277,6 @@ export default function ComiteDeliberacao() {
         <Label className="text-xs font-medium flex items-center gap-2">
           {pergunta.pergunta}
           {pergunta.obrigatoria && <span className="text-destructive">*</span>}
-          {pergunta.peso && pergunta.peso > 0 && (
-            <Badge variant="outline" className="text-xs">Peso: {pergunta.peso}</Badge>
-          )}
         </Label>
 
         {pergunta.tipo === 'select' && pergunta.opcoes && (
@@ -344,9 +341,6 @@ export default function ComiteDeliberacao() {
         <Label className="text-xs font-medium flex items-center gap-2">
           {pergunta.pergunta}
           {pergunta.obrigatoria && <span className="text-destructive">*</span>}
-          {pergunta.peso > 0 && (
-            <Badge variant="outline" className="text-xs">Peso: {pergunta.peso}</Badge>
-          )}
         </Label>
 
         {pergunta.tipo_campo === 'select' && pergunta.opcoes && (
