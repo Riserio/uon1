@@ -48,6 +48,7 @@ import PID from './pages/PID';
 import Portal from './pages/Portal';
 import DashboardFinanceiro from "@/pages/DashboardFinanceiro";
 import CustosSinistros from "@/pages/CustosSinistros";
+import SinistroConfiguracoes from "@/pages/SinistroConfiguracoes";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -142,6 +143,7 @@ const App = () => (
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/atendimentos" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/sinistros" element={<ProtectedRoute><Sinistros /></ProtectedRoute>} />
+              <Route path="/sinistros/configuracoes" element={<ProtectedRoute><SinistroConfiguracoes /></ProtectedRoute>} />
               <Route path="/sinistros/:id/acompanhamento" element={<ProtectedRoute><AcompanhamentoSinistroInterno /></ProtectedRoute>} />
               <Route path="/vistorias/nova/digital" element={<ProtectedRoute><VistoriaDigital /></ProtectedRoute>} />
               <Route path="/vistorias/nova/manual" element={<ProtectedRoute><VistoriaManual /></ProtectedRoute>} />

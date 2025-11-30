@@ -11,7 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
-import { PERGUNTAS_COMITE, CATEGORIAS_PERGUNTAS, ORDEM_CATEGORIAS, PerguntaComite } from '@/constants/perguntasComite';
+import { PERGUNTAS_COMITE, CATEGORIAS_PERGUNTAS, ORDEM_CATEGORIAS, PerguntaComite, PARECERES_COMITE } from '@/constants/perguntasComite';
 import { Save, ExternalLink, AlertTriangle, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -267,6 +267,7 @@ export function ComiteTab({
   // Renderizar pergunta da constante
   const renderPerguntaConstante = (pergunta: PerguntaComite) => {
     const valor = respostas[pergunta.id] || '';
+    const isParecer = pergunta.id === 'parecer_analista';
 
     return (
       <div key={pergunta.id} className="space-y-2">
@@ -281,14 +282,36 @@ export function ComiteTab({
             onValueChange={(v) => handleRespostaChange(pergunta.id, v)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Selecione..." />
+              <SelectValue placeholder="Selecione...">
+                {isParecer && valor ? (
+                  (() => {
+                    const parecerConfig = PARECERES_COMITE.find(p => p.value === valor);
+                    return parecerConfig ? (
+                      <span className={`${parecerConfig.cor.replace('bg-', 'text-')} font-medium`}>
+                        {parecerConfig.label}
+                      </span>
+                    ) : valor;
+                  })()
+                ) : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {pergunta.opcoes.map((opcao) => (
-                <SelectItem key={opcao} value={opcao}>
-                  {opcao}
-                </SelectItem>
-              ))}
+              {isParecer ? (
+                PARECERES_COMITE.map((parecer) => (
+                  <SelectItem key={parecer.value} value={parecer.value}>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${parecer.cor}`}></div>
+                      <span className="text-sm">{parecer.label}</span>
+                    </div>
+                  </SelectItem>
+                ))
+              ) : (
+                pergunta.opcoes.map((opcao) => (
+                  <SelectItem key={opcao} value={opcao}>
+                    {opcao}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         )}
@@ -331,19 +354,18 @@ export function ComiteTab({
     : { total: 0, maxPossivel: 0, percentual: 0, alertas: [] };
 
   // Determinar parecer
-  const parecer = respostas['parecer_analista'] || Object.values(respostas).find(v => 
-    ['Aprovado', 'Negado', 'Sindicância', 'Necessário Análise Jurídica', 'Perícia Técnica'].includes(v)
-  );
+  const parecer = respostas['parecer_analista'];
 
-  const getParecerColor = () => {
-    if (!parecer) return 'bg-muted';
-    if (parecer === 'Aprovado') return 'bg-green-500';
-    if (parecer === 'Negado') return 'bg-red-500';
-    if (parecer === 'Sindicância') return 'bg-purple-500';
-    if (parecer.includes('Jurídica') || parecer.includes('Juridica')) return 'bg-orange-500';
-    if (parecer.includes('técnica') || parecer.includes('Técnica')) return 'bg-blue-500';
-    return 'bg-muted';
+  const getParecerInfo = () => {
+    if (!parecer) return { cor: 'bg-muted', textCor: 'text-foreground', label: 'Pendente' };
+    const parecerConfig = PARECERES_COMITE.find(p => p.value === parecer);
+    if (parecerConfig) {
+      return { cor: parecerConfig.cor, textCor: parecerConfig.textCor, label: parecerConfig.label };
+    }
+    return { cor: 'bg-muted', textCor: 'text-foreground', label: parecer };
   };
+
+  const parecerInfo = getParecerInfo();
 
   if (loading || loadingPerguntas) {
     return (
@@ -372,8 +394,8 @@ export function ComiteTab({
           )}
 
           {parecer && (
-            <Badge className={`${getParecerColor()} text-white`}>
-              {parecer}
+            <Badge className={`${parecerInfo.cor} ${parecerInfo.textCor}`}>
+              {parecerInfo.label}
             </Badge>
           )}
         </div>
