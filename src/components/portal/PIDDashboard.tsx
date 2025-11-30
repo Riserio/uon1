@@ -967,10 +967,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
                         <Tooltip
                           content={
-                            <DefaultTooltipContent
-                              formatter={(value: number) => formatCurrency(Number(value))}
-                              showTotal
-                            />
+                            <DefaultTooltipContent formatter={(value: number) => formatCurrency(Number(value))} />
                           }
                         />
                         <Legend wrapperStyle={{ fontSize: 10 }} />
