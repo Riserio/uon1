@@ -939,7 +939,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
                         <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip content={<DefaultTooltipContent showTotal />} />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend wrapperStyle={{ fontSize: 10 }} />
                         <Bar dataKey="boletos_emitidos" name="Emitidos" fill="#2563eb" radius={[2, 2, 0, 0]} />
                         <Bar dataKey="boletos_liquidados" name="Liquidados" fill="#16a34a" radius={[2, 2, 0, 0]} />
