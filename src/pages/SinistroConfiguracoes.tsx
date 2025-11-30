@@ -14,9 +14,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Save, Trash2, Pencil, GripVertical, Settings, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Trash2, Pencil, GripVertical, Settings, HelpCircle, Clock } from 'lucide-react';
 import { NIVEIS_ALERTA_PESO } from '@/constants/perguntasComite';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { VistoriaPrazoConfig } from '@/components/VistoriaPrazoConfig';
 
 // Tags disponíveis para auto-preenchimento
 const AUTO_FILL_TAGS = [
@@ -44,7 +45,7 @@ const AUTO_FILL_TAGS = [
   { tag: 'condutor_cpf', descricao: 'CPF do condutor' },
   { tag: 'condutor_cnh', descricao: 'CNH do condutor' },
   { tag: 'condutor_telefone', descricao: 'Telefone do condutor' },
-  { tag: 'corretora_nome', descricao: 'Nome da corretora' },
+  { tag: 'associacao_nome', descricao: 'Nome da associação' },
   { tag: 'numero_sinistro', descricao: 'Número do sinistro' },
 ];
 
@@ -409,6 +410,8 @@ export default function SinistroConfiguracoes() {
     );
   }
 
+  const [activeMainTab, setActiveMainTab] = useState('perguntas');
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
@@ -420,15 +423,33 @@ export default function SinistroConfiguracoes() {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Settings className="h-6 w-6" />
-              Configuração de Perguntas do Comitê
+              Configurações de Sinistro
             </h1>
             <p className="text-muted-foreground">
-              Configure as perguntas e categorias para deliberação de sinistros
+              Configure perguntas do comitê e prazos de vistoria
             </p>
           </div>
         </div>
       </div>
 
+      {/* Abas principais */}
+      <Tabs value={activeMainTab} onValueChange={setActiveMainTab}>
+        <TabsList>
+          <TabsTrigger value="perguntas" className="gap-2">
+            <Settings className="h-4 w-4" />
+            Perguntas do Comitê
+          </TabsTrigger>
+          <TabsTrigger value="prazos" className="gap-2">
+            <Clock className="h-4 w-4" />
+            Prazos de Vistoria
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="prazos" className="mt-6">
+          <VistoriaPrazoConfig />
+        </TabsContent>
+
+        <TabsContent value="perguntas" className="mt-6 space-y-6">
       {/* Filtro por tipo */}
       <Card>
         <CardContent className="pt-6">
@@ -838,6 +859,8 @@ export default function SinistroConfiguracoes() {
           </Tabs>
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

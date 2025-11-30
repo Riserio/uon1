@@ -17,6 +17,7 @@ import {
   AlertCircle,
   ExternalLink,
 } from "lucide-react";
+import { VistoriaPrazoCountdown } from "@/components/VistoriaPrazoCountdown";
 
 export default function VistoriaPublicaLanding() {
   const { token } = useParams();
@@ -108,7 +109,7 @@ export default function VistoriaPublicaLanding() {
             </div>
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Link Inválido</h2>
             <p className="text-gray-600 text-lg">
-              Este link de vistoria é inválido ou já expirou. Entre em contato com sua seguradora.
+              Este link de vistoria é inválido ou já expirou. Entre em contato com sua associação.
             </p>
           </CardContent>
         </Card>
@@ -150,7 +151,7 @@ export default function VistoriaPublicaLanding() {
               </div>
             )}
 
-            <p className="text-gray-500 text-sm">Se precisar de algo mais, entre em contato com sua seguradora.</p>
+            <p className="text-gray-500 text-sm">Se precisar de algo mais, entre em contato com sua associação.</p>
           </CardContent>
         </Card>
       </div>
@@ -193,6 +194,9 @@ export default function VistoriaPublicaLanding() {
             </Badge>
           </div>
         </div>
+
+        {/* Countdown Timer */}
+        <VistoriaPrazoCountdown prazoValidade={vistoria?.prazo_validade} />
 
         {/* Main Card */}
         <Card className="border-none shadow-2xl overflow-hidden mb-8">

@@ -211,13 +211,13 @@ export function AppSidebar() {
             <SidebarGroupLabel>Cadastros</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {/* Corretoras */}
+                {/* Associações */}
                 {canView("corretoras") && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink to="/corretoras" activeClassName="bg-primary text-primary-foreground">
                         <Building2 className="h-4 w-4" />
-                        {!collapsed && <span>Corretoras</span>}
+                        {!collapsed && <span>Associações</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

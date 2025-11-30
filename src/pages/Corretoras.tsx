@@ -82,29 +82,29 @@ export default function Corretoras() {
       .from('corretoras')
       .select('*')
       .order('nome')
-      .limit(999999); // Remove limit - fetch all corretoras
+      .limit(999999);
     
     if (error) {
-      toast.error('Erro ao carregar corretoras');
+      toast.error('Erro ao carregar associações');
     } else {
       setCorretoras(data || []);
     }
   };
 
   const handleDeleteAll = async () => {
-    if (!confirm('Tem certeza que deseja deletar TODAS as corretoras? Esta ação não pode ser desfeita.')) {
+    if (!confirm('Tem certeza que deseja deletar TODAS as associações? Esta ação não pode ser desfeita.')) {
       return;
     }
 
     const { error } = await supabase
       .from('corretoras')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+      .neq('id', '00000000-0000-0000-0000-000000000000');
     
     if (error) {
-      toast.error('Erro ao excluir todas as corretoras');
+      toast.error('Erro ao excluir todas as associações');
     } else {
-      toast.success('Todas as corretoras foram excluídas!');
+      toast.success('Todas as associações foram excluídas!');
       fetchCorretoras();
     }
   };
@@ -122,9 +122,9 @@ export default function Corretoras() {
         .eq('id', editingItem.id);
       
       if (error) {
-        toast.error('Erro ao atualizar corretora');
+        toast.error('Erro ao atualizar associação');
       } else {
-        toast.success('Corretora atualizada!');
+        toast.success('Associação atualizada!');
         setDialogOpen(false);
         fetchCorretoras();
       }
@@ -134,9 +134,9 @@ export default function Corretoras() {
         .insert([{ ...formData, nome: formData.nome! }]);
       
       if (error) {
-        toast.error('Erro ao criar corretora');
+        toast.error('Erro ao criar associação');
       } else {
-        toast.success('Corretora criada!');
+        toast.success('Associação criada!');
         setDialogOpen(false);
         fetchCorretoras();
       }
@@ -168,9 +168,9 @@ export default function Corretoras() {
       .eq('id', id);
     
     if (error) {
-      toast.error('Erro ao excluir corretora');
+      toast.error('Erro ao excluir associação');
     } else {
-      toast.success('Corretora excluída!');
+      toast.success('Associação excluída!');
       fetchCorretoras();
     }
   };
@@ -243,15 +243,15 @@ export default function Corretoras() {
           <Building2 className="h-6 w-6 text-primary" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold">Corretoras</h1>
-          <p className="text-sm text-muted-foreground">Gerencie suas corretoras e informações</p>
+          <h1 className="text-3xl font-bold">Associações</h1>
+          <p className="text-sm text-muted-foreground">Gerencie suas associações e informações</p>
         </div>
       </div>
 
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-            <CardTitle>Lista de Corretoras</CardTitle>
+            <CardTitle>Lista de Associações</CardTitle>
               <div className="flex gap-2">
                 <Link to="/administradora">
                   <Button
@@ -282,7 +282,7 @@ export default function Corretoras() {
                   className="bg-primary hover:bg-primary/90"
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Nova Corretora
+                  Nova Associação
                 </Button>
             </div>
           </div>
@@ -305,7 +305,7 @@ export default function Corretoras() {
             {/* Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div className="bg-gradient-to-br from-primary/10 to-primary/5 p-4 rounded-lg border border-border/50">
-                <div className="text-sm text-muted-foreground">Total de Corretoras</div>
+                <div className="text-sm text-muted-foreground">Total de Associações</div>
                 <div className="text-2xl font-bold text-primary">{corretoras.length}</div>
               </div>
               <div className="bg-gradient-to-br from-secondary/10 to-secondary/5 p-4 rounded-lg border border-border/50">
@@ -322,7 +322,7 @@ export default function Corretoras() {
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
-                    {editingItem ? 'Editar Corretora' : 'Nova Corretora'}
+                    {editingItem ? 'Editar Associação' : 'Nova Associação'}
                   </DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -443,7 +443,7 @@ export default function Corretoras() {
 
                   {/* Upload de Logo */}
                   <div className="grid gap-2">
-                    <Label>Logo da Corretora</Label>
+                    <Label>Logo da Associação</Label>
                     <div className="flex items-center gap-4">
                       {formData.logo_url && (
                         <img 
