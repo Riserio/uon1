@@ -156,11 +156,13 @@ export function AnaliseTab({ atendimentoId, tipoSinistro, vistoriaData, onUpdate
               <SelectValue placeholder="Selecione..." />
             </SelectTrigger>
             <SelectContent>
-              {(pergunta.opcoes as string[]).map((opcao) => (
-                <SelectItem key={opcao} value={opcao}>
-                  {opcao}
-                </SelectItem>
-              ))}
+              {(pergunta.opcoes as string[])
+                .filter((opcao) => opcao && opcao.trim() !== '')
+                .map((opcao) => (
+                  <SelectItem key={opcao} value={opcao}>
+                    {opcao}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         )}
