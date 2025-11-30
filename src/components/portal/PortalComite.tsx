@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { MessageSquare, DollarSign, TrendingUp, FileDown, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { PERGUNTAS_COMITE, PerguntaComite } from "@/constants/perguntasComite";
+import { PERGUNTAS_COMITE, PerguntaComite, PARECERES_COMITE } from "@/constants/perguntasComite";
 import { exportDeliberacaoPDF } from "@/utils/pdfDeliberacao";
 
 interface PortalComiteProps {
@@ -38,10 +38,21 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
   });
   const [saving, setSaving] = useState(false);
 
-  // Status badge com cores
+  // Status badge com cores baseado nos pareceres
   const getStatusBadge = (status: string) => {
     const statusLower = status?.toLowerCase() || "";
 
+    // Verificar se é um dos pareceres do comitê
+    const parecerConfig = PARECERES_COMITE.find(p => 
+      p.value.toLowerCase() === statusLower || 
+      status === p.value
+    );
+    
+    if (parecerConfig) {
+      return <Badge className={`${parecerConfig.cor} ${parecerConfig.textCor}`}>{parecerConfig.label}</Badge>;
+    }
+
+    // Fallback para status antigos
     if (statusLower === "aprovada" || statusLower === "aprovado") {
       return <Badge className="bg-green-500 hover:bg-green-600 text-white">Aprovada</Badge>;
     }
@@ -575,26 +586,18 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                               <SelectValue placeholder="Selecione a decisão" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Aprovado">
-                                <span className="text-green-600 font-medium">Aprovado</span>
-                              </SelectItem>
-                              <SelectItem value="Negado">
-                                <span className="text-red-600 font-medium">Negado</span>
-                              </SelectItem>
-                              <SelectItem value="Sindicância">
-                                <span className="text-purple-600 font-medium">Sindicância</span>
-                              </SelectItem>
-                              <SelectItem value="Necessário Análise Jurídica">
-                                <span className="text-orange-600 font-medium">Necessário Análise Jurídica</span>
-                              </SelectItem>
-                              <SelectItem value="Perícia Técnica">
-                                <span className="text-blue-600 font-medium">Perícia Técnica</span>
-                              </SelectItem>
+                              {PARECERES_COMITE.map((parecer) => (
+                                <SelectItem key={parecer.value} value={parecer.value}>
+                                  <span className={`${parecer.cor.replace('bg-', 'text-').replace('-600', '-600').replace('-500', '-600').replace('-400', '-500')} font-medium text-xs`}>
+                                    {parecer.label}
+                                  </span>
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
 
-                        {deliberacao.decisao === "Aprovado" && (
+                        {deliberacao.decisao?.includes("APROVACAO") && (
                           <div className="space-y-2">
                             <Label>Valor Aprovado *</Label>
                             <CurrencyInput

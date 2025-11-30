@@ -12,7 +12,6 @@ import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, Clock, TrendingUp, FileText, Camera, BarChart3, Plus, DollarSign, Building2, Eye, Link2, MessageCircle, Mail, Search, Filter, XCircle, Activity, Wrench, Users, Handshake, Settings } from "lucide-react";
 import { ClaimCard, Claim } from "@/components/ClaimCard";
 import { AcompanhamentoSinistroDialog } from "@/components/AcompanhamentoSinistroDialog";
-import { SinistroConfiguracoesDialog } from "@/components/SinistroConfiguracoesDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useFluxoPermissions } from "@/hooks/useFluxoPermissions";
 import { format } from "date-fns";
@@ -91,8 +90,6 @@ export default function Sinistros() {
   // Acompanhamento dialog
   const [acompanhamentoClaim, setAcompanhamentoClaim] = useState<Claim | null>(null);
   
-  // Configurações dialog
-  const [configuracoesOpen, setConfiguracoesOpen] = useState(false);
   useEffect(() => {
     if (activeTab === "vistorias") {
       loadVistorias();
@@ -528,17 +525,11 @@ export default function Sinistros() {
           <BarChart3 className="h-4 w-4" />
           Dashboard
         </Button>
-        <Button variant="ghost" onClick={() => setConfiguracoesOpen(true)} className="gap-2 ml-auto">
+        <Button variant="ghost" onClick={() => navigate('/sinistros/configuracoes')} className="gap-2 ml-auto">
           <Settings className="h-4 w-4" />
           Configurações
         </Button>
       </div>
-      
-      {/* Dialog de Configurações */}
-      <SinistroConfiguracoesDialog 
-        open={configuracoesOpen} 
-        onOpenChange={setConfiguracoesOpen} 
-      />
 
       {loading ? <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary" />

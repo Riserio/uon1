@@ -9,12 +9,46 @@ export interface PerguntaComite {
   autoPreenchivel?: string; // Campo que pode ser preenchido automaticamente de outra fonte
 }
 
+// Pareceres do Comitê com cores
+export const PARECERES_COMITE = [
+  { 
+    value: 'EVENTO REQUER ATENÇÃO PASSIVEL DE NEGATIVA/ANALISE JURIDICA',
+    label: 'Evento Requer Atenção - Passível de Negativa/Análise Jurídica',
+    cor: 'bg-red-600',
+    textCor: 'text-white'
+  },
+  { 
+    value: 'EVENTO REQUER ATENÇÃO - ALGUMAS RESPOSTAS PODEM INDICAR A NECESSIDADE DE UMA ANALISE JURIDICA, SINDICANCIA OU PERICIA PARA ESTE EVENTO',
+    label: 'Evento Requer Atenção - Análise Jurídica/Sindicância/Perícia',
+    cor: 'bg-orange-500',
+    textCor: 'text-white'
+  },
+  { 
+    value: 'EVENTO REQUER ATENÇÃO - ALGUMAS RESPOSTAS PODEM INDICAR MUDANÇAS NO ANDAMENTO DO EVENTO',
+    label: 'Evento Requer Atenção - Mudanças no Andamento',
+    cor: 'bg-yellow-400',
+    textCor: 'text-black'
+  },
+  { 
+    value: 'EVENTO PASSIVEL DE RESARCIMENTO',
+    label: 'Evento Passível de Ressarcimento',
+    cor: 'bg-lime-500',
+    textCor: 'text-white'
+  },
+  { 
+    value: 'EVENTO PASSIVO DE APROVACAO - NENHUMA DAS RESPOSTAS INFORMADAS INDICAM INDICIOS ATENCAO',
+    label: 'Evento Passivo de Aprovação',
+    cor: 'bg-green-600',
+    textCor: 'text-white'
+  }
+];
+
 export const PERGUNTAS_COMITE: PerguntaComite[] = [
   {
     id: 'parecer_analista',
     pergunta: '1. Parecer do Analista (Esta é uma informação baseada na opinião do analista, fica sob responsabilidade da associação a definição do evento).',
     tipo: 'select',
-    opcoes: ['Aprovado', 'Negado', 'Sindicância', 'Necessário Análise Jurídica', 'Perícia Técnica'],
+    opcoes: PARECERES_COMITE.map(p => p.value),
     obrigatoria: true,
     categoria: 'Parecer'
   },
