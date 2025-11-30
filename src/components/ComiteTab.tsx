@@ -8,17 +8,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
+
+
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
-import { PERGUNTAS_COMITE, CATEGORIAS_PERGUNTAS, ORDEM_CATEGORIAS, PerguntaComite, PARECERES_COMITE } from '@/constants/perguntasComite';
-import { Save, ExternalLink, AlertTriangle, FileText } from 'lucide-react';
+import { PERGUNTAS_COMITE, PARECERES_COMITE, PerguntaComite, getCategoriasPerguntas, ORDEM_CATEGORIAS } from '@/constants/perguntasComite';
+import { Save, FileDown, AlertTriangle, FileText, Gavel, CheckCircle2, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { exportDeliberacaoPDF } from '@/utils/pdfDeliberacao';
+import { formatCurrency } from '@/lib/formatters';
 
 interface ComiteTabProps {
   atendimentoId: string;
   tipoSinistro?: string;
   vistoriaData?: {
+    id?: string;
     cliente_nome?: string;
     veiculo_placa?: string;
     veiculo_marca?: string;
@@ -26,10 +31,13 @@ interface ComiteTabProps {
     veiculo_ano?: string;
     tipo_sinistro?: string;
     data_incidente?: string;
+    veiculo_valor_fipe?: number;
   };
   onUpdate?: () => void;
   showNavigationButton?: boolean;
   autoSave?: boolean;
+  fluxoNome?: string; // Nome do fluxo atual
+  statusAtual?: string; // Status atual do atendimento
 }
 
 export function ComiteTab({ 
@@ -38,18 +46,38 @@ export function ComiteTab({
   vistoriaData, 
   onUpdate,
   showNavigationButton = true,
-  autoSave = false
+  autoSave = true,
+  fluxoNome,
+  statusAtual
 }: ComiteTabProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [respostas, setRespostas] = useState<Record<string, string>>({});
+  const [deliberacao, setDeliberacao] = useState({
+    decisao: '',
+    valor_aprovado: '',
+    justificativa: ''
+  });
+  const [acompanhamentoData, setAcompanhamentoData] = useState<any>(null);
   
   const tipoFinal = tipoSinistro || vistoriaData?.tipo_sinistro || '';
   const { categorias: categoriasDb, perguntas: perguntasDb, loading: loadingPerguntas } = useSinistroPerguntas(tipoFinal);
   
   // Usar perguntas do banco se existirem, senão usar constante
   const usarPerguntasDb = perguntasDb.length > 0;
+
+  // Verificar se pode deliberar: fluxo deve ser "Comitê" e não pode estar já deliberado
+  const podeDeliberar = () => {
+    if (!fluxoNome) return true; // Se não tiver fluxo, permitir
+    const fluxoLower = fluxoNome.toLowerCase();
+    const isFluxoComite = fluxoLower.includes('comit') || fluxoLower.includes('comite');
+    const jaDeliberado = acompanhamentoData?.comite_status && 
+      (acompanhamentoData.comite_status.toLowerCase().includes('aprovado') ||
+       acompanhamentoData.comite_status.toLowerCase().includes('negado') ||
+       acompanhamentoData.comite_status.toLowerCase().includes('aprovacao'));
+    return isFluxoComite && !jaDeliberado;
+  };
 
   useEffect(() => {
     loadRespostas();
@@ -61,6 +89,11 @@ export function ComiteTab({
       setRespostas(prev => {
         const novas = { ...prev };
         
+        // Preencher valor FIPE automaticamente
+        if (vistoriaData.veiculo_valor_fipe && !novas['tabela_fipe']) {
+          novas['tabela_fipe'] = String(vistoriaData.veiculo_valor_fipe);
+        }
+        
         // Para perguntas do banco
         if (usarPerguntasDb) {
           perguntasDb.forEach(pergunta => {
@@ -71,26 +104,6 @@ export function ComiteTab({
               }
             }
           });
-        } else {
-          // Para perguntas da constante
-          if (vistoriaData.cliente_nome && !novas.nome_associado) {
-            novas.nome_associado = vistoriaData.cliente_nome;
-          }
-          if (vistoriaData.veiculo_placa && !novas.placa) {
-            novas.placa = vistoriaData.veiculo_placa;
-          }
-          if (vistoriaData.veiculo_marca && vistoriaData.veiculo_modelo && !novas.marca_modelo) {
-            novas.marca_modelo = `${vistoriaData.veiculo_marca} ${vistoriaData.veiculo_modelo}`;
-          }
-          if (vistoriaData.veiculo_ano && !novas.ano_fabricacao) {
-            novas.ano_fabricacao = vistoriaData.veiculo_ano;
-          }
-          if (vistoriaData.tipo_sinistro && !novas.tipo_evento) {
-            novas.tipo_evento = vistoriaData.tipo_sinistro;
-          }
-          if (vistoriaData.data_incidente && !novas.data_evento) {
-            novas.data_evento = vistoriaData.data_incidente.split('T')[0];
-          }
         }
 
         return novas;
@@ -103,14 +116,22 @@ export function ComiteTab({
       setLoading(true);
       const { data, error } = await supabase
         .from('sinistro_acompanhamento')
-        .select('entrevista_respostas')
+        .select('*')
         .eq('atendimento_id', atendimentoId)
         .maybeSingle();
 
       if (error) throw error;
 
-      if (data?.entrevista_respostas) {
-        setRespostas(data.entrevista_respostas as Record<string, string>);
+      if (data) {
+        setAcompanhamentoData(data);
+        if (data.entrevista_respostas) {
+          setRespostas(data.entrevista_respostas as Record<string, string>);
+        }
+        setDeliberacao({
+          decisao: data.comite_status || '',
+          valor_aprovado: data.financeiro_valor_aprovado?.toString() || '',
+          justificativa: data.comite_observacoes || ''
+        });
       }
     } catch (error) {
       console.error('Erro ao carregar respostas:', error);
@@ -168,6 +189,86 @@ export function ComiteTab({
     }
   };
 
+  const handleDeliberar = async () => {
+    try {
+      setSaving(true);
+
+      const { data: existing } = await supabase
+        .from('sinistro_acompanhamento')
+        .select('id')
+        .eq('atendimento_id', atendimentoId)
+        .maybeSingle();
+
+      const acompanhamentoPayload = {
+        entrevista_respostas: respostas,
+        entrevista_data: new Date().toISOString(),
+        comite_status: deliberacao.decisao || null,
+        comite_decisao: deliberacao.justificativa || null,
+        comite_observacoes: deliberacao.justificativa || null,
+        comite_data: new Date().toISOString(),
+        financeiro_valor_aprovado: parseFloat(deliberacao.valor_aprovado) || null,
+      };
+
+      if (existing) {
+        const { error } = await supabase
+          .from('sinistro_acompanhamento')
+          .update(acompanhamentoPayload)
+          .eq('atendimento_id', atendimentoId);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('sinistro_acompanhamento')
+          .insert({
+            ...acompanhamentoPayload,
+            atendimento_id: atendimentoId,
+          });
+
+        if (error) throw error;
+      }
+
+      toast.success('Deliberação salva com sucesso');
+      loadRespostas();
+      onUpdate?.();
+    } catch (error) {
+      console.error('Erro ao deliberar:', error);
+      toast.error('Erro ao salvar deliberação');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    if (!vistoriaData) return;
+
+    try {
+      const comiteData = {
+        parecer_analista: respostas.parecer_analista,
+        decisao: deliberacao.decisao,
+        valor_aprovado: parseFloat(deliberacao.valor_aprovado) || undefined,
+        justificativa: deliberacao.justificativa,
+        data_deliberacao: new Date().toISOString(),
+      };
+
+      // Buscar fotos se houver
+      const { data: vistoriaFotos } = await supabase
+        .from('vistoria_fotos')
+        .select('foto_url, tipo_foto')
+        .eq('vistoria_id', vistoriaData.id || atendimentoId);
+
+      const fotos = (vistoriaFotos || []).map((f: any) => ({
+        url: f.foto_url || '',
+        tipo: f.tipo_foto || 'Foto',
+      }));
+
+      await exportDeliberacaoPDF({ ...vistoriaData, numero: 0 } as any, respostas, comiteData, fotos);
+      toast.success('PDF gerado com sucesso');
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      toast.error('Erro ao gerar PDF');
+    }
+  };
+
   const handleRespostaChange = (perguntaId: string, valor: string) => {
     setRespostas(prev => {
       const novas = {
@@ -188,8 +289,8 @@ export function ComiteTab({
     const valor = respostas[pergunta.id] || '';
 
     return (
-      <div key={pergunta.id} className="space-y-2">
-        <Label className="text-sm font-medium flex items-center gap-2">
+      <div key={pergunta.id} className="space-y-1.5">
+        <Label className="text-xs font-medium flex items-center gap-2">
           {pergunta.pergunta}
           {pergunta.obrigatoria && <span className="text-destructive">*</span>}
           {pergunta.peso > 0 && (
@@ -204,14 +305,14 @@ export function ComiteTab({
             value={valor}
             onValueChange={(v) => handleRespostaChange(pergunta.id, v)}
           >
-            <SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="Selecione..." />
             </SelectTrigger>
             <SelectContent>
               {(pergunta.opcoes as string[])
                 .filter((opcao) => opcao && opcao.trim() !== '')
                 .map((opcao) => (
-                  <SelectItem key={opcao} value={opcao}>
+                  <SelectItem key={opcao} value={opcao} className="text-xs">
                     {opcao}
                   </SelectItem>
                 ))}
@@ -224,6 +325,7 @@ export function ComiteTab({
             value={valor}
             onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
             placeholder="Digite..."
+            className="h-8 text-xs"
           />
         )}
 
@@ -232,7 +334,8 @@ export function ComiteTab({
             value={valor}
             onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
             placeholder="Digite..."
-            rows={3}
+            rows={2}
+            className="text-xs"
           />
         )}
 
@@ -241,6 +344,7 @@ export function ComiteTab({
             type="date"
             value={valor}
             onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
+            className="h-8 text-xs"
           />
         )}
 
@@ -250,6 +354,7 @@ export function ComiteTab({
             value={valor}
             onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
             placeholder="0,00"
+            className="h-8 text-xs"
           />
         )}
 
@@ -258,22 +363,28 @@ export function ComiteTab({
             value={valor}
             onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
             placeholder="Cole o link do Google Maps..."
+            className="h-8 text-xs"
           />
         )}
       </div>
     );
   };
 
-  // Renderizar pergunta da constante
+  // Renderizar pergunta da constante (igual ao PortalComite)
   const renderPerguntaConstante = (pergunta: PerguntaComite) => {
     const valor = respostas[pergunta.id] || '';
     const isParecer = pergunta.id === 'parecer_analista';
 
     return (
-      <div key={pergunta.id} className="space-y-2">
-        <Label className="text-sm font-medium">
+      <div key={pergunta.id} className="space-y-1.5">
+        <Label className="text-xs font-medium">
           {pergunta.pergunta}
           {pergunta.obrigatoria && <span className="text-destructive ml-1">*</span>}
+          {pergunta.peso && pergunta.peso > 0 && (
+            <Badge variant="outline" className="text-xs ml-2">
+              Peso: {pergunta.peso}
+            </Badge>
+          )}
         </Label>
 
         {pergunta.tipo === 'select' && pergunta.opcoes && (
@@ -281,13 +392,13 @@ export function ComiteTab({
             value={valor}
             onValueChange={(v) => handleRespostaChange(pergunta.id, v)}
           >
-            <SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="Selecione...">
                 {isParecer && valor ? (
                   (() => {
                     const parecerConfig = PARECERES_COMITE.find(p => p.value === valor);
                     return parecerConfig ? (
-                      <span className={`${parecerConfig.cor.replace('bg-', 'text-')} font-medium`}>
+                      <span className="font-medium text-xs">
                         {parecerConfig.label}
                       </span>
                     ) : valor;
@@ -298,16 +409,16 @@ export function ComiteTab({
             <SelectContent>
               {isParecer ? (
                 PARECERES_COMITE.map((parecer) => (
-                  <SelectItem key={parecer.value} value={parecer.value}>
+                  <SelectItem key={parecer.value} value={parecer.value} className="text-xs">
                     <div className="flex items-center gap-2">
                       <div className={`w-3 h-3 rounded-full ${parecer.cor}`}></div>
-                      <span className="text-sm">{parecer.label}</span>
+                      <span className="text-xs">{parecer.label}</span>
                     </div>
                   </SelectItem>
                 ))
               ) : (
                 pergunta.opcoes.map((opcao) => (
-                  <SelectItem key={opcao} value={opcao}>
+                  <SelectItem key={opcao} value={opcao} className="text-xs">
                     {opcao}
                   </SelectItem>
                 ))
@@ -321,6 +432,7 @@ export function ComiteTab({
             value={valor}
             onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
             placeholder="Digite..."
+            className="h-8 text-xs"
           />
         )}
 
@@ -329,7 +441,8 @@ export function ComiteTab({
             value={valor}
             onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
             placeholder="Digite..."
-            rows={3}
+            rows={2}
+            className="text-xs"
           />
         )}
 
@@ -338,6 +451,26 @@ export function ComiteTab({
             type="date"
             value={valor}
             onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
+            className="h-8 text-xs"
+          />
+        )}
+
+        {pergunta.tipo === 'valor' && (
+          <Input
+            type="number"
+            value={valor}
+            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
+            placeholder="0,00"
+            className="h-8 text-xs"
+          />
+        )}
+
+        {pergunta.tipo === 'mapa' && (
+          <Input
+            value={valor}
+            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
+            placeholder="Cole o link do Google Maps..."
+            className="h-8 text-xs"
           />
         )}
       </div>
@@ -345,7 +478,11 @@ export function ComiteTab({
   };
 
   // Calcular estatísticas
-  const totalPerguntas = usarPerguntasDb ? perguntasDb.length : PERGUNTAS_COMITE.length;
+  const perguntasFiltradas = tipoFinal ? PERGUNTAS_COMITE.filter(p => 
+    !p.tiposSinistro || p.tiposSinistro.includes(tipoFinal)
+  ) : PERGUNTAS_COMITE;
+  
+  const totalPerguntas = usarPerguntasDb ? perguntasDb.length : perguntasFiltradas.length;
   const perguntasRespondidas = Object.keys(respostas).filter(k => respostas[k]).length;
   const percentualPreenchido = totalPerguntas > 0 ? Math.round((perguntasRespondidas / totalPerguntas) * 100) : 0;
   
@@ -367,6 +504,9 @@ export function ComiteTab({
 
   const parecerInfo = getParecerInfo();
 
+  // Agrupar perguntas por categoria (filtradas por tipo de sinistro)
+  const categoriasPerguntasConstante = getCategoriasPerguntas(tipoFinal);
+
   if (loading || loadingPerguntas) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -380,40 +520,38 @@ export function ComiteTab({
       {/* Header com progresso e pesos */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-4">
-          <Badge variant="outline">
+          <Badge variant="outline" className="text-xs">
             {perguntasRespondidas}/{totalPerguntas} respondidas ({percentualPreenchido}%)
           </Badge>
           
           {usarPerguntasDb && maxPossivel > 0 && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Pontuação:</span>
-              <Badge variant={percentualPeso >= 70 ? 'default' : percentualPeso >= 40 ? 'secondary' : 'destructive'}>
+              <span className="text-xs text-muted-foreground">Pontuação:</span>
+              <Badge variant={percentualPeso >= 70 ? 'default' : percentualPeso >= 40 ? 'secondary' : 'destructive'} className="text-xs">
                 {pesoTotal}/{maxPossivel} ({percentualPeso.toFixed(0)}%)
               </Badge>
             </div>
           )}
 
           {parecer && (
-            <Badge className={`${parecerInfo.cor} ${parecerInfo.textCor}`}>
+            <Badge className={`${parecerInfo.cor} ${parecerInfo.textCor} text-xs`}>
               {parecerInfo.label}
             </Badge>
           )}
         </div>
 
         <div className="flex gap-2">
-          {showNavigationButton && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate('/pid?tab=comite')}
-              className="gap-2"
-            >
-              <ExternalLink className="h-4 w-4" />
-              Ir para Comitê PID
-            </Button>
-          )}
-          <Button onClick={handleSave} disabled={saving} className="gap-2">
-            <Save className="h-4 w-4" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPDF}
+            className="gap-2 text-xs"
+          >
+            <FileDown className="h-3 w-3" />
+            PDF
+          </Button>
+          <Button onClick={handleSave} disabled={saving} size="sm" className="gap-2 text-xs">
+            <Save className="h-3 w-3" />
             {saving ? 'Salvando...' : 'Salvar'}
           </Button>
         </div>
@@ -423,11 +561,11 @@ export function ComiteTab({
       {alertas.length > 0 && (
         <Card className="border-destructive bg-destructive/10">
           <CardContent className="py-3">
-            <div className="flex items-center gap-2 text-destructive font-medium mb-2">
+            <div className="flex items-center gap-2 text-destructive font-medium mb-2 text-sm">
               <AlertTriangle className="h-4 w-4" />
               Alertas Identificados
             </div>
-            <ul className="text-sm space-y-1">
+            <ul className="text-xs space-y-1">
               {alertas.map((alerta, i) => (
                 <li key={i}>{alerta}</li>
               ))}
@@ -439,52 +577,184 @@ export function ComiteTab({
       {/* Barra de progresso */}
       <Progress value={percentualPreenchido} className="h-2" />
 
-      {/* Perguntas */}
-      <ScrollArea className="h-[500px] pr-4">
-        <div className="space-y-6">
-          {usarPerguntasDb ? (
-            // Perguntas do banco agrupadas por categoria
-            categoriasDb.map((categoria) => {
-              const perguntasCategoria = categoria.perguntas || [];
-              if (perguntasCategoria.length === 0) return null;
+      {/* Grid de duas colunas: Perguntas + Deliberação */}
+      <div className="grid lg:grid-cols-3 gap-4">
+        {/* Coluna de Perguntas (2/3) */}
+        <div className="lg:col-span-2">
+          <ScrollArea className="h-[600px] pr-4">
+            <div className="space-y-4">
+              {usarPerguntasDb ? (
+                // Perguntas do banco agrupadas por categoria
+                categoriasDb.map((categoria) => {
+                  const perguntasCategoria = categoria.perguntas || [];
+                  if (perguntasCategoria.length === 0) return null;
 
-              return (
-                <Card key={categoria.id}>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      {categoria.nome}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {perguntasCategoria.map(renderPerguntaDb)}
-                  </CardContent>
-                </Card>
-              );
-            })
-          ) : (
-            // Perguntas da constante agrupadas por categoria
-            ORDEM_CATEGORIAS.map((categoria) => {
-              const perguntas = CATEGORIAS_PERGUNTAS[categoria];
-              if (!perguntas || perguntas.length === 0) return null;
+                  return (
+                    <Card key={categoria.id}>
+                      <CardHeader className="pb-2 py-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          {categoria.nome}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3 pt-0">
+                        {perguntasCategoria.map(renderPerguntaDb)}
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              ) : (
+                // Perguntas da constante agrupadas por categoria
+                ORDEM_CATEGORIAS.map((categoria) => {
+                  const perguntas = categoriasPerguntasConstante[categoria];
+                  if (!perguntas || perguntas.length === 0) return null;
 
-              return (
-                <Card key={categoria}>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      {categoria}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {perguntas.map(renderPerguntaConstante)}
-                  </CardContent>
-                </Card>
-              );
-            })
+                  return (
+                    <Card key={categoria}>
+                      <CardHeader className="pb-2 py-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          {categoria}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3 pt-0">
+                        {perguntas.map(renderPerguntaConstante)}
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+
+        {/* Coluna de Deliberação (1/3) */}
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-2 py-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Gavel className="h-4 w-4" />
+                Deliberação do Comitê
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-xs">Parecer do Analista</Label>
+                <Select
+                  value={deliberacao.decisao}
+                  onValueChange={(v) => setDeliberacao(prev => ({ ...prev, decisao: v }))}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Selecione o parecer..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PARECERES_COMITE.map((parecer) => (
+                      <SelectItem key={parecer.value} value={parecer.value} className="text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${parecer.cor}`}></div>
+                          <span>{parecer.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Valor Aprovado</Label>
+                <Input
+                  type="number"
+                  value={deliberacao.valor_aprovado}
+                  onChange={(e) => setDeliberacao(prev => ({ ...prev, valor_aprovado: e.target.value }))}
+                  placeholder="0,00"
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Justificativa / Observações</Label>
+                <Textarea
+                  value={deliberacao.justificativa}
+                  onChange={(e) => setDeliberacao(prev => ({ ...prev, justificativa: e.target.value }))}
+                  placeholder="Justifique a decisão do comitê..."
+                  rows={4}
+                  className="text-xs"
+                />
+              </div>
+
+              {podeDeliberar() && (
+                <Button
+                  onClick={handleDeliberar}
+                  disabled={saving || !deliberacao.decisao}
+                  className="w-full gap-2"
+                  size="sm"
+                >
+                  <Gavel className="h-4 w-4" />
+                  {saving ? 'Salvando...' : 'Deliberar'}
+                </Button>
+              )}
+
+              {!podeDeliberar() && acompanhamentoData?.comite_status && (
+                <div className="p-3 rounded-lg bg-muted text-center">
+                  <CheckCircle2 className="h-5 w-5 mx-auto mb-2 text-green-500" />
+                  <p className="text-xs font-medium">Deliberação Concluída</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {acompanhamentoData.comite_status}
+                  </p>
+                  {acompanhamentoData.financeiro_valor_aprovado && (
+                    <p className="text-xs font-medium mt-1">
+                      {formatCurrency(acompanhamentoData.financeiro_valor_aprovado)}
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Card de Resumo do Evento */}
+          {vistoriaData && (
+            <Card>
+              <CardHeader className="pb-2 py-3">
+                <CardTitle className="text-sm">Resumo do Evento</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-xs">
+                {vistoriaData.cliente_nome && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Cliente:</span>
+                    <span className="font-medium">{vistoriaData.cliente_nome}</span>
+                  </div>
+                )}
+                {vistoriaData.veiculo_placa && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Placa:</span>
+                    <span className="font-medium">{vistoriaData.veiculo_placa}</span>
+                  </div>
+                )}
+                {(vistoriaData.veiculo_marca || vistoriaData.veiculo_modelo) && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Veículo:</span>
+                    <span className="font-medium">
+                      {vistoriaData.veiculo_marca} {vistoriaData.veiculo_modelo}
+                    </span>
+                  </div>
+                )}
+                {vistoriaData.tipo_sinistro && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Tipo:</span>
+                    <span className="font-medium">{vistoriaData.tipo_sinistro}</span>
+                  </div>
+                )}
+                {vistoriaData.veiculo_valor_fipe && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">FIPE:</span>
+                    <span className="font-medium">{formatCurrency(vistoriaData.veiculo_valor_fipe)}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }

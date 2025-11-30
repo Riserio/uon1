@@ -60,7 +60,8 @@ export default function SinistroConfiguracoes() {
     ordem: 0,
     peso: 0,
     nivel_alerta: 'none',
-    auto_preenchivel: ''
+    auto_preenchivel: '',
+    tipos_sinistro: [] as string[]
   });
 
   const tiposSinistro = [
@@ -252,7 +253,8 @@ export default function SinistroConfiguracoes() {
         ordem: 0,
         peso: 0,
         nivel_alerta: 'none',
-        auto_preenchivel: ''
+        auto_preenchivel: '',
+        tipos_sinistro: []
       });
       loadData();
     } catch (error) {
@@ -275,7 +277,8 @@ export default function SinistroConfiguracoes() {
       ordem: pergunta.ordem,
       peso: pergunta.peso,
       nivel_alerta: pergunta.nivel_alerta || 'none',
-      auto_preenchivel: pergunta.auto_preenchivel || ''
+      auto_preenchivel: pergunta.auto_preenchivel || '',
+      tipos_sinistro: []
     });
   };
 
@@ -290,7 +293,8 @@ export default function SinistroConfiguracoes() {
       ordem: 0,
       peso: 0,
       nivel_alerta: 'none',
-      auto_preenchivel: ''
+      auto_preenchivel: '',
+      tipos_sinistro: []
     });
   };
 
