@@ -80,6 +80,7 @@ export default function SinistroConfiguracoes() {
   const [tipoSinistro, setTipoSinistro] = useState('Colisão');
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [perguntas, setPerguntas] = useState<Pergunta[]>([]);
+  const [activeMainTab, setActiveMainTab] = useState('perguntas');
   
   // Estado para edição
   const [editandoCategoria, setEditandoCategoria] = useState<string | null>(null);
@@ -410,7 +411,6 @@ export default function SinistroConfiguracoes() {
     );
   }
 
-  const [activeMainTab, setActiveMainTab] = useState('perguntas');
 
   return (
     <div className="container mx-auto py-6 space-y-6">
