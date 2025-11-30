@@ -14,8 +14,39 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Save, Trash2, Pencil, GripVertical, Settings } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Trash2, Pencil, GripVertical, Settings, HelpCircle } from 'lucide-react';
 import { NIVEIS_ALERTA_PESO } from '@/constants/perguntasComite';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
+// Tags disponíveis para auto-preenchimento
+const AUTO_FILL_TAGS = [
+  { tag: 'cliente_nome', descricao: 'Nome do cliente/associado' },
+  { tag: 'cliente_cpf', descricao: 'CPF do cliente' },
+  { tag: 'cliente_telefone', descricao: 'Telefone do cliente' },
+  { tag: 'cliente_email', descricao: 'E-mail do cliente' },
+  { tag: 'cliente_endereco', descricao: 'Endereço do cliente' },
+  { tag: 'veiculo_placa', descricao: 'Placa do veículo' },
+  { tag: 'veiculo_marca', descricao: 'Marca do veículo' },
+  { tag: 'veiculo_modelo', descricao: 'Modelo do veículo' },
+  { tag: 'veiculo_ano', descricao: 'Ano do veículo' },
+  { tag: 'veiculo_cor', descricao: 'Cor do veículo' },
+  { tag: 'veiculo_chassi', descricao: 'Chassi do veículo' },
+  { tag: 'veiculo_valor_fipe', descricao: 'Valor FIPE do veículo' },
+  { tag: 'veiculo_tipo', descricao: 'Tipo do veículo' },
+  { tag: 'veiculo_quilometragem', descricao: 'Quilometragem do veículo' },
+  { tag: 'veiculo_uf', descricao: 'UF do veículo' },
+  { tag: 'sinistro_data', descricao: 'Data do sinistro' },
+  { tag: 'sinistro_hora', descricao: 'Hora do sinistro' },
+  { tag: 'sinistro_local', descricao: 'Local do sinistro' },
+  { tag: 'sinistro_tipo', descricao: 'Tipo do sinistro' },
+  { tag: 'sinistro_descricao', descricao: 'Descrição do sinistro' },
+  { tag: 'condutor_nome', descricao: 'Nome do condutor' },
+  { tag: 'condutor_cpf', descricao: 'CPF do condutor' },
+  { tag: 'condutor_cnh', descricao: 'CNH do condutor' },
+  { tag: 'condutor_telefone', descricao: 'Telefone do condutor' },
+  { tag: 'corretora_nome', descricao: 'Nome da corretora' },
+  { tag: 'numero_sinistro', descricao: 'Número do sinistro' },
+];
 
 interface Categoria {
   id: string;
@@ -676,7 +707,29 @@ export default function SinistroConfiguracoes() {
               </div>
 
               <div>
-                <Label>Auto-preenchível (campo fonte)</Label>
+                <div className="flex items-center gap-2 mb-1">
+                  <Label>Auto-preenchível (campo fonte)</Label>
+                  <TooltipProvider>
+                    <Tooltip delayDuration={0}>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-sm p-0">
+                        <div className="p-3 space-y-2">
+                          <p className="font-semibold text-sm border-b pb-2">Tags disponíveis para auto-preenchimento:</p>
+                          <div className="max-h-64 overflow-y-auto space-y-1">
+                            {AUTO_FILL_TAGS.map(item => (
+                              <div key={item.tag} className="text-xs">
+                                <code className="bg-muted px-1 py-0.5 rounded text-primary font-mono">{item.tag}</code>
+                                <span className="text-muted-foreground ml-1">- {item.descricao}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <Input
                   value={novaPergunta.auto_preenchivel}
                   onChange={(e) => setNovaPergunta(prev => ({ ...prev, auto_preenchivel: e.target.value }))}
