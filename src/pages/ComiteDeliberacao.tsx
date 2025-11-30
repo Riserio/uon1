@@ -44,11 +44,103 @@ export default function ComiteDeliberacao() {
   const { perguntas: perguntasDb, loading: loadingPerguntas } = useSinistroPerguntas(tipoFinal);
   const usarPerguntasDb = perguntasDb.length > 0;
 
+  // Função para mapear tags auto_preenchivel para valores da vistoria
+  const getAutoFillValue = (tag: string, vistoria: any, atendimento: any): string => {
+    if (!vistoria && !atendimento) return '';
+    
+    const mappings: Record<string, () => string> = {
+      // Dados do cliente
+      cliente_nome: () => vistoria?.cliente_nome || atendimento?.contato?.nome || '',
+      cliente_cpf: () => vistoria?.cliente_cpf || '',
+      cliente_telefone: () => vistoria?.cliente_telefone || atendimento?.contato?.telefone || '',
+      cliente_email: () => vistoria?.cliente_email || atendimento?.contato?.email || '',
+      cliente_endereco: () => vistoria?.endereco || '',
+      
+      // Dados do veículo
+      veiculo_placa: () => vistoria?.veiculo_placa || '',
+      veiculo_marca: () => vistoria?.veiculo_marca || atendimento?.veiculo_marca || '',
+      veiculo_modelo: () => vistoria?.veiculo_modelo || atendimento?.veiculo_modelo || '',
+      veiculo_ano: () => vistoria?.veiculo_ano || atendimento?.veiculo_ano || '',
+      veiculo_cor: () => vistoria?.veiculo_cor || '',
+      veiculo_chassi: () => vistoria?.veiculo_chassi || '',
+      veiculo_valor_fipe: () => vistoria?.veiculo_valor_fipe ? formatCurrency(vistoria.veiculo_valor_fipe) : (atendimento?.veiculo_valor_fipe ? formatCurrency(atendimento.veiculo_valor_fipe) : ''),
+      veiculo_tipo: () => vistoria?.veiculo_tipo || atendimento?.veiculo_tipo || '',
+      veiculo_quilometragem: () => vistoria?.quilometragem?.toString() || '',
+      veiculo_uf: () => vistoria?.veiculo_uf || '',
+      
+      // Dados do sinistro
+      sinistro_data: () => {
+        const data = vistoria?.data_incidente || vistoria?.data_evento;
+        return data ? new Date(data).toLocaleDateString('pt-BR') : '';
+      },
+      sinistro_hora: () => vistoria?.hora_evento || '',
+      sinistro_local: () => vistoria?.endereco || '',
+      sinistro_tipo: () => vistoria?.tipo_sinistro || atendimento?.tipo_atendimento || '',
+      sinistro_descricao: () => vistoria?.relato_incidente || vistoria?.narrar_fatos || '',
+      
+      // Dados do condutor
+      condutor_nome: () => vistoria?.condutor_veiculo || vistoria?.cliente_nome || '',
+      condutor_cpf: () => vistoria?.cnh_dados?.cpf || vistoria?.cliente_cpf || '',
+      condutor_cnh: () => vistoria?.cnh_dados?.numero || '',
+      condutor_telefone: () => vistoria?.cliente_telefone || '',
+      
+      // Dados da associação
+      associacao_nome: () => atendimento?.corretora?.nome || '',
+      numero_sinistro: () => vistoria?.numero ? `SIN-${new Date().getFullYear()}-${String(vistoria.numero).padStart(6, '0')}` : '',
+      
+      // Perguntas da vistoria (boolean para sim/não)
+      fez_bo: () => vistoria?.fez_bo === true ? 'Sim' : vistoria?.fez_bo === false ? 'Não' : '',
+      foi_hospital: () => vistoria?.foi_hospital === true ? 'Sim' : vistoria?.foi_hospital === false ? 'Não' : '',
+      policia_foi_local: () => vistoria?.policia_foi_local === true ? 'Sim' : vistoria?.policia_foi_local === false ? 'Não' : '',
+      motorista_faleceu: () => vistoria?.motorista_faleceu === true ? 'Sim' : vistoria?.motorista_faleceu === false ? 'Não' : '',
+      tem_terceiros: () => vistoria?.tem_terceiros === true ? 'Sim' : vistoria?.tem_terceiros === false ? 'Não' : '',
+      local_tem_camera: () => vistoria?.local_tem_camera === true ? 'Sim' : vistoria?.local_tem_camera === false ? 'Não' : '',
+      estava_chovendo: () => vistoria?.estava_chovendo === true ? 'Sim' : vistoria?.estava_chovendo === false ? 'Não' : '',
+      acionou_assistencia_24h: () => vistoria?.acionou_assistencia_24h === true ? 'Sim' : vistoria?.acionou_assistencia_24h === false ? 'Não' : '',
+      houve_remocao_veiculo: () => vistoria?.houve_remocao_veiculo === true ? 'Sim' : vistoria?.houve_remocao_veiculo === false ? 'Não' : '',
+      vitima_ou_causador: () => vistoria?.vitima_ou_causador || '',
+      placa_terceiro: () => vistoria?.placa_terceiro || '',
+    };
+    
+    const getValue = mappings[tag];
+    return getValue ? getValue() : '';
+  };
+
+  // Auto-preencher respostas baseado nos dados da vistoria
+  const autoFillRespostas = (perguntas: SinistroPergunta[], vistoria: any, atendimento: any, existingRespostas: Record<string, string>) => {
+    const novasRespostas = { ...existingRespostas };
+    let hasNewValues = false;
+    
+    perguntas.forEach(pergunta => {
+      if (pergunta.auto_preenchivel && !novasRespostas[pergunta.id]) {
+        const valor = getAutoFillValue(pergunta.auto_preenchivel, vistoria, atendimento);
+        if (valor) {
+          novasRespostas[pergunta.id] = valor;
+          hasNewValues = true;
+        }
+      }
+    });
+    
+    return { novasRespostas, hasNewValues };
+  };
+
   useEffect(() => {
     if (atendimentoId) {
       loadData();
     }
   }, [atendimentoId]);
+
+  // Auto-preencher quando perguntas e vistoria forem carregados
+  useEffect(() => {
+    if (!loadingPerguntas && perguntasDb.length > 0 && (vistoriaData || atendimentoData) && !loading) {
+      const { novasRespostas, hasNewValues } = autoFillRespostas(perguntasDb, vistoriaData, atendimentoData, respostas);
+      if (hasNewValues) {
+        setRespostas(novasRespostas);
+        // Salvar automaticamente as respostas auto-preenchidas
+        saveRespostas(novasRespostas);
+      }
+    }
+  }, [loadingPerguntas, perguntasDb, vistoriaData, atendimentoData, loading]);
 
   const loadData = async () => {
     try {

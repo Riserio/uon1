@@ -142,6 +142,126 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     }
   };
 
+  // Função para mapear tags auto_preenchivel para valores da vistoria
+  const getAutoFillValue = (tag: string, vistoria: any): string => {
+    if (!vistoria) return '';
+    
+    const mappings: Record<string, () => string> = {
+      // Dados do cliente
+      cliente_nome: () => vistoria?.cliente_nome || '',
+      cliente_cpf: () => vistoria?.cliente_cpf || '',
+      cliente_telefone: () => vistoria?.cliente_telefone || '',
+      cliente_email: () => vistoria?.cliente_email || '',
+      cliente_endereco: () => vistoria?.endereco || '',
+      
+      // Dados do veículo
+      veiculo_placa: () => vistoria?.veiculo_placa || '',
+      veiculo_marca: () => vistoria?.veiculo_marca || '',
+      veiculo_modelo: () => vistoria?.veiculo_modelo || '',
+      veiculo_ano: () => vistoria?.veiculo_ano || '',
+      veiculo_cor: () => vistoria?.veiculo_cor || '',
+      veiculo_chassi: () => vistoria?.veiculo_chassi || '',
+      veiculo_valor_fipe: () => vistoria?.veiculo_valor_fipe ? formatCurrency(vistoria.veiculo_valor_fipe) : '',
+      veiculo_tipo: () => vistoria?.veiculo_tipo || '',
+      veiculo_quilometragem: () => vistoria?.quilometragem?.toString() || '',
+      veiculo_uf: () => vistoria?.veiculo_uf || '',
+      
+      // Dados do sinistro
+      sinistro_data: () => {
+        const data = vistoria?.data_incidente || vistoria?.data_evento;
+        return data ? new Date(data).toLocaleDateString('pt-BR') : '';
+      },
+      sinistro_hora: () => vistoria?.hora_evento || '',
+      sinistro_local: () => vistoria?.endereco || '',
+      sinistro_tipo: () => vistoria?.tipo_sinistro || '',
+      sinistro_descricao: () => vistoria?.relato_incidente || vistoria?.narrar_fatos || '',
+      
+      // Dados do condutor
+      condutor_nome: () => vistoria?.condutor_veiculo || vistoria?.cliente_nome || '',
+      condutor_cpf: () => vistoria?.cnh_dados?.cpf || vistoria?.cliente_cpf || '',
+      condutor_cnh: () => vistoria?.cnh_dados?.numero || '',
+      condutor_telefone: () => vistoria?.cliente_telefone || '',
+      
+      // Dados da associação
+      numero_sinistro: () => vistoria?.numero ? `SIN-${new Date().getFullYear()}-${String(vistoria.numero).padStart(6, '0')}` : '',
+      
+      // Perguntas da vistoria (boolean para sim/não)
+      fez_bo: () => vistoria?.fez_bo === true ? 'Sim' : vistoria?.fez_bo === false ? 'Não' : '',
+      foi_hospital: () => vistoria?.foi_hospital === true ? 'Sim' : vistoria?.foi_hospital === false ? 'Não' : '',
+      policia_foi_local: () => vistoria?.policia_foi_local === true ? 'Sim' : vistoria?.policia_foi_local === false ? 'Não' : '',
+      motorista_faleceu: () => vistoria?.motorista_faleceu === true ? 'Sim' : vistoria?.motorista_faleceu === false ? 'Não' : '',
+      tem_terceiros: () => vistoria?.tem_terceiros === true ? 'Sim' : vistoria?.tem_terceiros === false ? 'Não' : '',
+      local_tem_camera: () => vistoria?.local_tem_camera === true ? 'Sim' : vistoria?.local_tem_camera === false ? 'Não' : '',
+      estava_chovendo: () => vistoria?.estava_chovendo === true ? 'Sim' : vistoria?.estava_chovendo === false ? 'Não' : '',
+      acionou_assistencia_24h: () => vistoria?.acionou_assistencia_24h === true ? 'Sim' : vistoria?.acionou_assistencia_24h === false ? 'Não' : '',
+      houve_remocao_veiculo: () => vistoria?.houve_remocao_veiculo === true ? 'Sim' : vistoria?.houve_remocao_veiculo === false ? 'Não' : '',
+      vitima_ou_causador: () => vistoria?.vitima_ou_causador || '',
+      placa_terceiro: () => vistoria?.placa_terceiro || '',
+    };
+    
+    const getValue = mappings[tag];
+    return getValue ? getValue() : '';
+  };
+
+  // Auto-preencher respostas baseado nos dados da vistoria e nas perguntas configuradas
+  const autoFillFromVistoria = async (vistoria: any, existingRespostas: Record<string, string>) => {
+    // Buscar perguntas configuradas com auto_preenchivel
+    const { data: perguntasDb } = await supabase
+      .from('sinistro_perguntas')
+      .select('id, auto_preenchivel')
+      .not('auto_preenchivel', 'is', null)
+      .neq('auto_preenchivel', '');
+
+    const novasRespostas = { ...existingRespostas };
+    
+    // Preencher das perguntas configuradas
+    perguntasDb?.forEach(pergunta => {
+      if (pergunta.auto_preenchivel && !novasRespostas[pergunta.id]) {
+        const valor = getAutoFillValue(pergunta.auto_preenchivel, vistoria);
+        if (valor) {
+          novasRespostas[pergunta.id] = valor;
+        }
+      }
+    });
+
+    // Preencher campos básicos mapeados pelo ID legado
+    if (vistoria.cliente_nome && !novasRespostas.nome_associado) {
+      novasRespostas.nome_associado = vistoria.cliente_nome;
+    }
+    if (vistoria.veiculo_placa && !novasRespostas.placa) {
+      novasRespostas.placa = vistoria.veiculo_placa;
+    }
+    if (vistoria.veiculo_marca && vistoria.veiculo_modelo && !novasRespostas.marca_modelo) {
+      novasRespostas.marca_modelo = `${vistoria.veiculo_marca} ${vistoria.veiculo_modelo}`;
+    }
+    if (vistoria.veiculo_ano && !novasRespostas.ano_fabricacao) {
+      novasRespostas.ano_fabricacao = vistoria.veiculo_ano;
+    }
+    if (vistoria.tipo_sinistro && !novasRespostas.tipo_evento) {
+      novasRespostas.tipo_evento = vistoria.tipo_sinistro;
+    }
+    if (vistoria.data_incidente && !novasRespostas.data_evento) {
+      novasRespostas.data_evento = new Date(vistoria.data_incidente).toLocaleDateString('pt-BR');
+    }
+    if (vistoria.endereco && !novasRespostas.local_evento) {
+      novasRespostas.local_evento = vistoria.endereco;
+    }
+    if (vistoria.relato_incidente && !novasRespostas.descricao_evento) {
+      novasRespostas.descricao_evento = vistoria.relato_incidente;
+    }
+    if (vistoria.narrar_fatos && !novasRespostas.descricao_evento) {
+      novasRespostas.descricao_evento = vistoria.narrar_fatos;
+    }
+    if (vistoria.veiculo_valor_fipe && !novasRespostas.valor_fipe) {
+      novasRespostas.valor_fipe = formatCurrency(vistoria.veiculo_valor_fipe);
+    }
+    if (vistoria.condutor_veiculo && !novasRespostas.condutor_nome) {
+      novasRespostas.condutor_nome = vistoria.condutor_veiculo;
+    }
+    
+    return novasRespostas;
+  };
+
   const handleOpenDeliberacao = async (sinistro: any) => {
     setSelectedSinistro(sinistro);
 
@@ -159,23 +279,15 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
       console.error("Erro ao carregar acompanhamento:", error);
     }
 
+    let respostasFinais: Record<string, string> = {};
+    
     if (acompData?.entrevista_respostas) {
-      setRespostas(acompData.entrevista_respostas as Record<string, string>);
-    } else {
-      // Pré-preencher com dados do sinistro
-      const respostasIniciais: Record<string, string> = {};
-      if (sinistro.cliente_nome) respostasIniciais.nome_associado = sinistro.cliente_nome;
-      if (sinistro.veiculo_placa) respostasIniciais.placa = sinistro.veiculo_placa;
-      if (sinistro.veiculo_marca && sinistro.veiculo_modelo) {
-        respostasIniciais.marca_modelo = `${sinistro.veiculo_marca} ${sinistro.veiculo_modelo}`;
-      }
-      if (sinistro.veiculo_ano) respostasIniciais.ano_fabricacao = sinistro.veiculo_ano;
-      if (sinistro.tipo_sinistro) respostasIniciais.tipo_evento = sinistro.tipo_sinistro;
-      if (sinistro.data_incidente) {
-        respostasIniciais.data_evento = sinistro.data_incidente.split("T")[0];
-      }
-      setRespostas(respostasIniciais);
+      respostasFinais = acompData.entrevista_respostas as Record<string, string>;
     }
+    
+    // Auto-preencher com dados da vistoria
+    respostasFinais = await autoFillFromVistoria(sinistro, respostasFinais);
+    setRespostas(respostasFinais);
 
     setDeliberacao({
       decisao: acompData?.comite_status || "",
