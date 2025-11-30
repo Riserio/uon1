@@ -3,15 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import PortalKPI from "@/components/portal/PortalKPI";
-import PortalExtrato from "@/components/portal/PortalExtrato";
-import PortalIndicadores from "@/components/portal/PortalIndicadores";
-import PortalLancamentos from "@/components/portal/PortalLancamentos";
+import PIDDashboard from "@/components/portal/PIDDashboard";
+import PIDOperacional from "@/components/portal/PIDOperacional";
+import PIDEstudoBase from "@/components/portal/PIDEstudoBase";
+import PIDHistorico from "@/components/portal/PIDHistorico";
 import PortalSinistros from "@/components/portal/PortalSinistros";
 import PortalComite from "@/components/portal/PortalComite";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Building2, Activity, FileText, PieChart, ListChecks, ShieldCheck, Users } from "lucide-react";
+import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 
 /**
@@ -108,6 +108,15 @@ export default function Portal() {
     return null;
   }
 
+  const tabs = [
+    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+    { id: "operacional", label: "Operacional", icon: Activity },
+    { id: "estudo-base", label: "Estudo de Base", icon: Car },
+    { id: "historico", label: "Histórico", icon: Calendar },
+    { id: "sinistros", label: "Sinistros", icon: ShieldCheck },
+    { id: "comite", label: "Comitê", icon: MessageSquare },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       {/* Header */}
@@ -159,105 +168,51 @@ export default function Portal() {
         </Card>
 
         {/* Tabs Section */}
-        <Tabs defaultValue="kpi" className="space-y-6">
+        <Tabs defaultValue="dashboard" className="space-y-6">
           {/* Wrapper para scroll horizontal em telas pequenas */}
-          <div className="w-full overflow-x-auto">
-            <TabsList
-              className="
-                inline-flex md:grid md:w-full md:grid-cols-3 lg:grid-cols-6
-                rounded-xl bg-muted/30 p-1.5 shadow-sm
-                min-w-max md:min-w-0
-              "
-            >
-              <TabsTrigger
-                value="kpi"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[11px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <Activity className="h-4 w-4" />
-                <span>KPI</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="extrato"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[11px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <FileText className="h-4 w-4" />
-                <span>Extrato</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="indicadores"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <PieChart className="h-4 w-4" />
-                <span>Indicadores</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="lancamentos"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <ListChecks className="h-4 w-4" />
-                <span>Lançamentos</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="sinistros"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <ShieldCheck className="h-4 w-4" />
-                <span>Sinistros</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="comite"
-                className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 
-                           text-[10px] sm:text-sm font-medium text-muted-foreground transition-all
-                           data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                           data-[state=active]:shadow-sm hover:text-foreground"
-              >
-                <Users className="h-4 w-4" />
-                <span>Comitê</span>
-              </TabsTrigger>
+          <div className="w-full overflow-x-auto pb-2">
+            <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/40 rounded-xl min-w-max md:min-w-0">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <TabsTrigger
+                    key={tab.id}
+                    value={tab.id}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+                               text-muted-foreground transition-all
+                               data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                               data-[state=active]:shadow-md hover:text-foreground hover:bg-muted/60
+                               whitespace-nowrap"
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </TabsTrigger>
+                );
+              })}
             </TabsList>
           </div>
 
-          <TabsContent value="kpi" className="space-y-4">
-            <PortalKPI corretoraId={corretora.id} />
+          <TabsContent value="dashboard" className="space-y-4 mt-0">
+            <PIDDashboard corretoraId={corretora.id} />
           </TabsContent>
 
-          <TabsContent value="extrato" className="space-y-4">
-            <PortalExtrato corretoraId={corretora.id} />
+          <TabsContent value="operacional" className="space-y-4 mt-0">
+            <PIDOperacional corretoraId={corretora.id} />
           </TabsContent>
 
-          <TabsContent value="indicadores" className="space-y-4">
-            <PortalIndicadores corretoraId={corretora.id} />
+          <TabsContent value="estudo-base" className="space-y-4 mt-0">
+            <PIDEstudoBase corretoraId={corretora.id} />
           </TabsContent>
 
-          <TabsContent value="lancamentos" className="space-y-4">
-            <PortalLancamentos corretoraId={corretora.id} />
+          <TabsContent value="historico" className="space-y-4 mt-0">
+            <PIDHistorico corretoraId={corretora.id} />
           </TabsContent>
 
-          <TabsContent value="sinistros" className="space-y-4">
+          <TabsContent value="sinistros" className="space-y-4 mt-0">
             <PortalSinistros corretoraId={corretora.id} />
           </TabsContent>
 
-          <TabsContent value="comite" className="space-y-4">
+          <TabsContent value="comite" className="space-y-4 mt-0">
             <PortalComite corretoraId={corretora.id} />
           </TabsContent>
         </Tabs>
