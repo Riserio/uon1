@@ -70,7 +70,7 @@ export function SinistroConfiguracoesDialog({ open, onOpenChange }: SinistroConf
     peso_positivo: '',
     peso_negativo: '',
     obrigatoria: false,
-    nivel_alerta: ''
+    nivel_alerta: 'none'
   });
 
   useEffect(() => {
@@ -227,7 +227,7 @@ export function SinistroConfiguracoesDialog({ open, onOpenChange }: SinistroConf
         peso_positivo: '',
         peso_negativo: '',
         obrigatoria: false,
-        nivel_alerta: ''
+        nivel_alerta: 'none'
       });
       loadData();
     } catch (error) {
