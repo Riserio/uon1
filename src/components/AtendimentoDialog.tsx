@@ -77,7 +77,7 @@ interface AtendimentoDialogProps {
 }
 
 export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, corretoras }: AtendimentoDialogProps) {
-  const { user, userRole } = useAuth();
+  const { user } = useAuth();
   const [vehicleType, setVehicleType] = useState("");
 
   const [formData, setFormData] = useState<Partial<Atendimento>>({
@@ -103,16 +103,29 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
   const [corretoraDisplay, setCorretoraDisplay] = useState<string>(atendimento?.corretora || "");
   const [profiles, setProfiles] = useState<Array<{ id: string; nome: string }>>([]);
   const [activeTab, setActiveTab] = useState("geral");
+  const { userRole } = useAuth();
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Conclusão manual / fluxo
+  // Hook realtime
+  useAtendimentoRealtime({
+    atendimentoId: atendimento?.id || null,
+    onUpdate: () => {
+      console.log("🔄 Recarregando dados do atendimento...");
+      if (atendimento?.id) {
+        loadVistoriaCustos(atendimento.id);
+        setReloadKey((prev) => prev + 1);
+      }
+    },
+  });
+
+  // Conclusão manual
   const [showConclusaoDialog, setShowConclusaoDialog] = useState(false);
   const [fluxos, setFluxos] = useState<any[]>([]);
   const [statusList, setStatusList] = useState<any[]>([]);
   const [selectedFluxoConclusao, setSelectedFluxoConclusao] = useState<string>("");
   const [selectedStatusConclusao, setSelectedStatusConclusao] = useState<string>("");
 
-  // Dados de vistoria / sinistro
+  // Dados vistoria / sinistro
   const [vistoriaId, setVistoriaId] = useState<string | null>(null);
   const [vistoriaData, setVistoriaData] = useState({
     tipo_atendimento: "geral" as "sinistro" | "geral",
@@ -147,7 +160,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
     valor_indenizacao: 0,
   });
 
-  // FIPE externa
+  // Estados FIPE externa
   const [marcas, setMarcas] = useState<Array<{ codigo: string; nome: string }>>([]);
   const [modelos, setModelos] = useState<Array<{ codigo: string; nome: string }>>([]);
   const [anos, setAnos] = useState<Array<{ codigo: string; nome: string }>>([]);
@@ -159,17 +172,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
   const [loadingFipe, setLoadingFipe] = useState(false);
   const [fipeError, setFipeError] = useState<string | null>(null);
   const [enableManualFipe, setEnableManualFipe] = useState(false);
-
-  // Hook realtime para atualizar custos/vistoria
-  useAtendimentoRealtime({
-    atendimentoId: atendimento?.id || null,
-    onUpdate: () => {
-      if (atendimento?.id) {
-        loadVistoriaCustos(atendimento.id);
-        setReloadKey((prev) => prev + 1);
-      }
-    },
-  });
 
   useEffect(() => {
     if (atendimento) {
@@ -314,7 +316,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
     }
     setCorretoraSearch("");
     setFilteredCorretoras([]);
-  }, [atendimento, open, user]);
+  }, [atendimento, open]);
 
   useEffect(() => {
     const loadFluxos = async () => {
@@ -409,6 +411,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
           valor_indenizacao: data.valor_indenizacao || 0,
         });
 
+        // se já tiver valor FIPE gravado, não permite manual diretamente
         setEnableManualFipe(!vistoriaInfo.veiculo_valor_fipe);
       } else {
         setEnableManualFipe(false);
@@ -418,7 +421,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
     }
   };
 
-  // FIPE – marcas
+  // 🔹 Busca FIPE: marcas
   useEffect(() => {
     const fetchMarcas = async () => {
       if (!vehicleType) {
@@ -438,6 +441,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
         const data = await res.json();
         setMarcas(data || []);
 
+        // tenta pré-selecionar marca com base no nome salvo
         if (vistoriaData.veiculo_marca) {
           const found = data.find((m: any) => m.nome === vistoriaData.veiculo_marca);
           if (found) {
@@ -461,7 +465,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleType]);
 
-  // FIPE – modelos
+  // 🔹 Busca FIPE: modelos (depende da marca)
   useEffect(() => {
     const fetchModelos = async () => {
       if (!vehicleType || !selectedMarcaCode) {
@@ -501,7 +505,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMarcaCode, vehicleType]);
 
-  // FIPE – anos
+  // 🔹 Busca FIPE: anos (depende do modelo)
   useEffect(() => {
     const fetchAnos = async () => {
       if (!vehicleType || !selectedMarcaCode || !selectedModeloCode) {
@@ -537,7 +541,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedModeloCode, vehicleType, selectedMarcaCode]);
 
-  // FIPE – valor
+  // 🔹 Consulta FIPE (valor) automática quando tudo preenchido
   useEffect(() => {
     const fetchValorFipe = async () => {
       if (!vehicleType || !selectedMarcaCode || !selectedModeloCode || !selectedAnoCode) return;
@@ -565,6 +569,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
           setFipeError("Não foi possível obter o valor FIPE automaticamente.");
           setEnableManualFipe(true);
         } else {
+          // Valor vem no formato "R$ 153.701,00"
           const numericValue = Number(String(data.Valor).replace("R$", "").replace(/\./g, "").replace(",", ".").trim());
 
           setVistoriaData((prev) => ({
@@ -1048,7 +1053,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
               </TabsTrigger>
               <TabsTrigger value="entrevista" className="gap-2">
                 <ClipboardList className="h-4 w-4" />
-                Análise
+                Entrevista
               </TabsTrigger>
               <TabsTrigger value="andamentos" className="gap-2">
                 <MessageSquare className="h-4 w-4" />
@@ -1069,13 +1074,11 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
             </TabsList>
 
             <div className="flex-1 overflow-y-auto">
-              {/* ABA GERAL */}
               <TabsContent value="geral" className="mt-0 px-1">
-                <form onSubmit={handleSubmit} className="space-y-4 pb-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Corretora */}
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Corretora</Label>
+                      <Label htmlFor="corretora">Corretora *</Label>
                       <Popover open={corretoraSearchOpen} onOpenChange={setCorretoraSearchOpen}>
                         <PopoverTrigger asChild>
                           <Button
@@ -1084,91 +1087,147 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                             aria-expanded={corretoraSearchOpen}
                             className="w-full justify-between"
                           >
-                            {corretoraDisplay || "Selecione uma corretora"}
+                            {corretoraDisplay || "Selecione uma corretora..."}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                        <PopoverContent className="w-[400px] p-0">
                           <Command>
                             <CommandInput
-                              placeholder="Digite o nome da corretora..."
+                              placeholder="Digite pelo menos 3 caracteres..."
                               value={corretoraSearch}
                               onValueChange={setCorretoraSearch}
                             />
-                            <CommandEmpty>Nenhuma corretora encontrada.</CommandEmpty>
-                            <CommandGroup>
-                              {filteredCorretoras.map((corretoraNome) => (
-                                <CommandItem
-                                  key={corretoraNome}
-                                  onSelect={() => {
-                                    const selected = corretoras.find((c) => c === corretoraNome);
-                                    setFormData({
-                                      ...formData,
-                                      corretora: selected || "",
-                                    });
-                                    setCorretoraDisplay(corretoraNome);
-                                    setCorretoraSearchOpen(false);
-                                  }}
-                                >
-                                  {corretoraNome}
-                                  {corretoraNome === corretoraDisplay && (
-                                    <Check className="ml-auto h-4 w-4 opacity-100" />
-                                  )}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
+                            <CommandEmpty>
+                              {corretoraSearch.length < 3
+                                ? "Digite pelo menos 3 caracteres para buscar"
+                                : "Nenhuma corretora encontrada"}
+                            </CommandEmpty>
+                            {corretoraSearch.length >= 3 && corretoras && (
+                              <CommandGroup>
+                                {corretoras
+                                  .filter((c) => c.toLowerCase().includes(corretoraSearch.toLowerCase()))
+                                  .map((c) => (
+                                    <CommandItem
+                                      key={c}
+                                      value={c}
+                                      onSelect={async () => {
+                                        const { data } = await supabase
+                                          .from("corretoras")
+                                          .select("id")
+                                          .eq("nome", c)
+                                          .single();
+
+                                        if (data) {
+                                          setFormData({ ...formData, corretora: data.id });
+                                          setCorretoraDisplay(c);
+                                        }
+                                        setCorretoraSearchOpen(false);
+                                        setCorretoraSearch("");
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          corretoraDisplay === c ? "opacity-100" : "opacity-0",
+                                        )}
+                                      />
+                                      {c}
+                                    </CommandItem>
+                                  ))}
+                              </CommandGroup>
+                            )}
                           </Command>
                         </PopoverContent>
                       </Popover>
                     </div>
 
-                    {/* Contato */}
                     <div className="space-y-2">
-                      <Label>Contato</Label>
+                      <Label htmlFor="contato">Contato</Label>
                       <Input
-                        value={formData.contato || ""}
+                        id="contato"
+                        value={formData.contato}
                         onChange={(e) => setFormData({ ...formData, contato: e.target.value })}
-                        placeholder="Nome do contato / associado"
                       />
                     </div>
                   </div>
 
-                  {/* Assunto */}
                   <div className="space-y-2">
-                    <Label>Assunto</Label>
+                    <Label htmlFor="assunto">Assunto *</Label>
                     <Input
-                      value={formData.assunto || ""}
+                      id="assunto"
+                      value={formData.assunto}
                       onChange={(e) => setFormData({ ...formData, assunto: e.target.value })}
-                      placeholder="Ex: Sinistro colisão frontal - veículo XYZ"
+                      required
                     />
                   </div>
 
-                  {/* Prioridade, Responsável, Data Retorno */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Prioridade */}
+                  {/* Tipo de Atendimento e Tipo de Sinistro */}
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Prioridade</Label>
+                      <Label htmlFor="tipo_atendimento">Tipo de Atendimento *</Label>
                       <Select
-                        value={formData.prioridade as PriorityType}
+                        value={vistoriaData.tipo_atendimento}
+                        onValueChange={(value: "sinistro" | "geral") =>
+                          setVistoriaData({ ...vistoriaData, tipo_atendimento: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sinistro">Sinistro</SelectItem>
+                          <SelectItem value="geral">Geral</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {vistoriaData.tipo_atendimento === "sinistro" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="tipo_sinistro">Tipo de Sinistro *</Label>
+                        <Select
+                          value={vistoriaData.tipo_sinistro}
+                          onValueChange={(value) => setVistoriaData({ ...vistoriaData, tipo_sinistro: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o tipo de sinistro" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Colisão">Colisão</SelectItem>
+                            <SelectItem value="Roubo/Furto">Roubo/Furto</SelectItem>
+                            <SelectItem value="Incêndio">Incêndio</SelectItem>
+                            <SelectItem value="Danos a Terceiros">Danos a Terceiros</SelectItem>
+                            <SelectItem value="Fenômenos Naturais">Fenômenos Naturais</SelectItem>
+                            <SelectItem value="Vidros">Vidros</SelectItem>
+                            <SelectItem value="Outros">Outros</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="prioridade">Prioridade</Label>
+                      <Select
+                        value={formData.prioridade}
                         onValueChange={(value) => setFormData({ ...formData, prioridade: value as PriorityType })}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecione a prioridade" />
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Baixa">Baixa</SelectItem>
                           <SelectItem value="Média">Média</SelectItem>
                           <SelectItem value="Alta">Alta</SelectItem>
-                          <SelectItem value="Crítica">Crítica</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
-                    {/* Responsável */}
                     <div className="space-y-2">
-                      <Label>Responsável</Label>
+                      <Label htmlFor="responsavel">Responsável</Label>
                       <Select
-                        value={formData.responsavel || ""}
+                        value={formData.responsavel}
                         onValueChange={(value) => setFormData({ ...formData, responsavel: value })}
                       >
                         <SelectTrigger>
@@ -1183,35 +1242,19 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                         </SelectContent>
                       </Select>
                     </div>
-
-                    {/* Data de retorno */}
-                    <div className="space-y-2">
-                      <Label>Data de retorno</Label>
-                      <Input
-                        type="date"
-                        value={formData.dataRetorno || ""}
-                        onChange={(e) => setFormData({ ...formData, dataRetorno: e.target.value })}
-                      />
-                    </div>
                   </div>
 
-                  {/* Tags */}
                   <div className="space-y-2">
                     <Label>Tags</Label>
                     <div className="flex gap-2">
                       <Input
                         value={tagInput}
                         onChange={(e) => setTagInput(e.target.value)}
-                        placeholder="Ex: colisão, guincho, aumento prêmio..."
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            addTag();
-                          }
-                        }}
+                        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
+                        placeholder="Adicionar tag..."
                       />
-                      <Button type="button" variant="outline" onClick={addTag}>
-                        Adicionar
+                      <Button type="button" onClick={addTag} variant="outline">
+                        +
                       </Button>
                     </div>
                     {formData.tags && formData.tags.length > 0 && (
@@ -1219,14 +1262,10 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                         {formData.tags.map((tag) => (
                           <span
                             key={tag}
-                            className="inline-flex items-center rounded-full bg-muted px-3 py-1 text-xs font-medium"
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-secondary rounded-md text-sm"
                           >
                             {tag}
-                            <button
-                              type="button"
-                              className="ml-2 text-muted-foreground hover:text-destructive"
-                              onClick={() => removeTag(tag)}
-                            >
+                            <button type="button" onClick={() => removeTag(tag)} className="hover:text-destructive">
                               ×
                             </button>
                           </span>
@@ -1235,245 +1274,177 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                     )}
                   </div>
 
-                  {/* Observações */}
-                  <div className="space-y-2">
-                    <Label>Observações</Label>
-                    <Textarea
-                      value={formData.observacoes || ""}
-                      onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
-                      placeholder="Informações adicionais sobre o atendimento"
-                      rows={4}
-                    />
-                  </div>
-
-                  {/* Primeiro Andamento (novo atendimento) */}
                   {!atendimento && (
                     <div className="space-y-2">
-                      <Label>Primeiro andamento</Label>
+                      <Label htmlFor="primeiroAndamento">Primeiro Andamento</Label>
                       <Textarea
+                        id="primeiroAndamento"
                         value={primeiroAndamento}
                         onChange={(e) => setPrimeiroAndamento(e.target.value)}
-                        placeholder="Descreva o primeiro andamento desse atendimento"
+                        placeholder="Descreva o primeiro andamento deste atendimento..."
                         rows={3}
                       />
                     </div>
                   )}
 
-                  <div className="flex justify-end gap-2 pt-4 border-t">
-                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                      Cancelar
-                    </Button>
-                    <Button type="submit">Salvar</Button>
+                  <div className="space-y-2">
+                    <Label htmlFor="observacoes">Observações</Label>
+                    <Textarea
+                      id="observacoes"
+                      value={formData.observacoes}
+                      onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                      rows={4}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="dataRetorno">Data de Retorno (Follow-up)</Label>
+                    <Input
+                      id="dataRetorno"
+                      type="datetime-local"
+                      value={formData.dataRetorno || ""}
+                      onChange={(e) => setFormData({ ...formData, dataRetorno: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="flex justify-between items-center pt-4 border-t">
+                    {atendimento && (
+                      <Button type="button" variant="default" onClick={() => setShowConclusaoDialog(true)}>
+                        Concluir Manualmente
+                      </Button>
+                    )}
+                    <div className="flex gap-2 ml-auto">
+                      <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                        Cancelar
+                      </Button>
+                      <Button type="submit">Salvar</Button>
+                    </div>
                   </div>
                 </form>
               </TabsContent>
 
-              {/* ABA DADOS PESSOAIS / SINISTRO */}
               <TabsContent
                 value="dados_pessoais"
                 className="mt-0 space-y-6 p-4 overflow-y-auto max-h-[calc(90vh-300px)]"
               >
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Dados do Sinistro */}
+                {vistoriaData.tipo_atendimento === "sinistro" && (
+                  <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                    <h4 className="font-medium">Dados do Sinistro</h4>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="data_incidente">Data do Incidente</Label>
+                        <Input
+                          id="data_incidente"
+                          type="date"
+                          value={vistoriaData.data_incidente}
+                          onChange={(e) => setVistoriaData({ ...vistoriaData, data_incidente: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="cof">COF</Label>
+                        <Input
+                          id="cof"
+                          value={vistoriaData.cof}
+                          onChange={(e) => setVistoriaData({ ...vistoriaData, cof: e.target.value })}
+                          placeholder="Código de Ocorrência"
+                        />
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
-                      <Label>Tipo de Atendimento</Label>
+                      <Label htmlFor="relato_incidente">Relato do Incidente</Label>
+                      <Textarea
+                        id="relato_incidente"
+                        value={vistoriaData.relato_incidente}
+                        onChange={(e) => setVistoriaData({ ...vistoriaData, relato_incidente: e.target.value })}
+                        rows={4}
+                        placeholder="Descreva o que aconteceu..."
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Dados do Veículo */}
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                  <h4 className="font-medium">Dados do Veículo</h4>
+
+                  <div className="space-y-4">
+                    {/* 1) Tipo de Veículo */}
+                    <div className="space-y-2">
+                      <Label htmlFor="veiculo_tipo">Tipo de Veículo</Label>
                       <Select
-                        value={vistoriaData.tipo_atendimento}
-                        onValueChange={(value) =>
-                          setVistoriaData((prev) => ({ ...prev, tipo_atendimento: value as "sinistro" | "geral" }))
-                        }
+                        value={vehicleType}
+                        onValueChange={(value) => {
+                          setVehicleType(value);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_tipo: value,
+                            veiculo_marca: "",
+                            veiculo_modelo: "",
+                            veiculo_ano: "",
+                          }));
+                          setSelectedMarcaCode("");
+                          setSelectedModeloCode("");
+                          setSelectedAnoCode("");
+                          setMarcas([]);
+                          setModelos([]);
+                          setAnos([]);
+                          setFipeError(null);
+                          setEnableManualFipe(false);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_valor_fipe: null,
+                            veiculo_fipe_data_consulta: null,
+                            veiculo_fipe_codigo: null,
+                          }));
+                        }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
+                          <SelectValue placeholder="Selecione o tipo de veículo" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="geral">Geral</SelectItem>
-                          <SelectItem value="sinistro">Sinistro</SelectItem>
+                          <SelectItem value="carro">Carro</SelectItem>
+                          <SelectItem value="moto">Moto</SelectItem>
+                          <SelectItem value="caminhao_onibus">Caminhão / Ônibus</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
+                    {/* 2) Placa */}
                     <div className="space-y-2">
-                      <Label>Tipo de Sinistro</Label>
+                      <Label htmlFor="veiculo_placa">Placa</Label>
                       <Input
-                        value={vistoriaData.tipo_sinistro || ""}
-                        onChange={(e) => setVistoriaData({ ...vistoriaData, tipo_sinistro: e.target.value })}
-                        placeholder="Ex: colisão frontal, roubo/furto..."
+                        id="veiculo_placa"
+                        value={vistoriaData.veiculo_placa}
+                        onChange={(e) => {
+                          const value = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "");
+                          const formatted =
+                            value.length > 3 && !value.includes("-")
+                              ? value.slice(0, 3) + "-" + value.slice(3, 7)
+                              : value;
+                          setVistoriaData({ ...vistoriaData, veiculo_placa: formatted });
+                        }}
+                        placeholder="ABC-1234"
+                        maxLength={8}
+                        className={
+                          vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa)
+                            ? "border-destructive"
+                            : ""
+                        }
                       />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Data do Incidente</Label>
-                      <Input
-                        type="date"
-                        value={vistoriaData.data_incidente || ""}
-                        onChange={(e) => setVistoriaData({ ...vistoriaData, data_incidente: e.target.value })}
-                      />
+                      {vistoriaData.veiculo_placa && !validatePlaca(vistoriaData.veiculo_placa) && (
+                        <p className="text-xs text-destructive">Placa inválida</p>
+                      )}
                     </div>
 
-                    <div className="space-y-2">
-                      <Label>Placa do Veículo</Label>
-                      <Input
-                        value={vistoriaData.veiculo_placa || ""}
-                        onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_placa: e.target.value })}
-                        placeholder="ABC1234 ou ABC1D23"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Relato do Incidente</Label>
-                    <Textarea
-                      value={vistoriaData.relato_incidente || ""}
-                      onChange={(e) => setVistoriaData({ ...vistoriaData, relato_incidente: e.target.value })}
-                      rows={3}
-                    />
-                  </div>
-
-                  {/* Dados do Cliente */}
-                  <div className="border rounded-lg p-4 space-y-4">
-                    <h3 className="font-semibold text-sm text-muted-foreground">Dados do Cliente</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* 3) Cor e 4) Chassi */}
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Nome</Label>
-                        <Input
-                          value={vistoriaData.cliente_nome || ""}
-                          onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_nome: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>CPF</Label>
-                        <MaskedInput
-                          mask="cpf"
-                          value={vistoriaData.cliente_cpf || ""}
-                          onChange={(value) => setVistoriaData({ ...vistoriaData, cliente_cpf: value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Telefone</Label>
-                        <MaskedInput
-                          mask="phone"
-                          value={vistoriaData.cliente_telefone || ""}
-                          onChange={(value) => setVistoriaData({ ...vistoriaData, cliente_telefone: value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Email</Label>
-                        <Input
-                          value={vistoriaData.cliente_email || ""}
-                          onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_email: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Dados do Veículo */}
-                  <div className="border rounded-lg p-4 space-y-4">
-                    <h3 className="font-semibold text-sm text-muted-foreground">Dados do Veículo</h3>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label>Tipo de Veículo</Label>
+                        <Label htmlFor="veiculo_cor">Cor</Label>
                         <Select
-                          value={vehicleType || vistoriaData.veiculo_tipo || ""}
-                          onValueChange={(value) => {
-                            setVehicleType(value);
-                            setVistoriaData((prev) => ({ ...prev, veiculo_tipo: value }));
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="carro">Carro</SelectItem>
-                            <SelectItem value="moto">Moto</SelectItem>
-                            <SelectItem value="caminhao_onibus">Caminhão/Ônibus</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Marca (FIPE)</Label>
-                        <Select
-                          value={selectedMarcaCode}
-                          onValueChange={(value) => {
-                            setSelectedMarcaCode(value);
-                            const marcaNome = marcas.find((m) => m.codigo === value)?.nome || "";
-                            setVistoriaData((prev) => ({ ...prev, veiculo_marca: marcaNome }));
-                          }}
-                          disabled={!vehicleType}
-                        >
-                          <SelectTrigger>
-                            <SelectValue
-                              placeholder={vehicleType ? "Selecione a marca" : "Selecione o tipo primeiro"}
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {marcas.map((marca) => (
-                              <SelectItem key={marca.codigo} value={marca.codigo}>
-                                {marca.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Modelo (FIPE)</Label>
-                        <Select
-                          value={selectedModeloCode}
-                          onValueChange={(value) => {
-                            setSelectedModeloCode(value);
-                            const modeloNome = modelos.find((m) => m.codigo === value)?.nome || "";
-                            setVistoriaData((prev) => ({ ...prev, veiculo_modelo: modeloNome }));
-                          }}
-                          disabled={!selectedMarcaCode}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={selectedMarcaCode ? "Selecione o modelo" : "Selecione a marca"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {modelos.map((modelo) => (
-                              <SelectItem key={modelo.codigo} value={modelo.codigo}>
-                                {modelo.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label>Ano (FIPE)</Label>
-                        <Select
-                          value={selectedAnoCode}
-                          onValueChange={(value) => {
-                            setSelectedAnoCode(value);
-                            const anoNome = anos.find((a) => a.codigo === value)?.nome || "";
-                            setVistoriaData((prev) => ({ ...prev, veiculo_ano: anoNome }));
-                          }}
-                          disabled={!selectedModeloCode}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={selectedModeloCode ? "Selecione o ano" : "Selecione o modelo"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {anos.map((ano) => (
-                              <SelectItem key={ano.codigo} value={ano.codigo}>
-                                {ano.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Cor</Label>
-                        <Select
-                          value={vistoriaData.veiculo_cor || ""}
+                          value={vistoriaData.veiculo_cor}
                           onValueChange={(value) => setVistoriaData({ ...vistoriaData, veiculo_cor: value })}
                         >
                           <SelectTrigger>
@@ -1488,78 +1459,290 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                           </SelectContent>
                         </Select>
                       </div>
-
                       <div className="space-y-2">
-                        <Label>Chassi</Label>
+                        <Label htmlFor="veiculo_chassi">Chassi</Label>
                         <Input
-                          value={vistoriaData.veiculo_chassi || ""}
-                          onChange={(e) => setVistoriaData({ ...vistoriaData, veiculo_chassi: e.target.value })}
-                          placeholder="Número do chassi"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Valor FIPE */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label>Valor FIPE</Label>
-                        {loadingFipe && (
-                          <span className="text-xs text-muted-foreground">Consultando FIPE automaticamente...</span>
-                        )}
-                      </div>
-                      <div className="flex gap-2 items-center">
-                        <CurrencyInput
-                          value={vistoriaData.veiculo_valor_fipe || 0}
-                          onValueChange={(value) =>
-                            setVistoriaData((prev) => ({
-                              ...prev,
-                              veiculo_valor_fipe: value,
-                            }))
+                          id="veiculo_chassi"
+                          value={vistoriaData.veiculo_chassi}
+                          onChange={(e) =>
+                            setVistoriaData({ ...vistoriaData, veiculo_chassi: e.target.value.toUpperCase() })
                           }
-                          disabled={!enableManualFipe}
+                          maxLength={17}
+                          placeholder="17 caracteres"
                         />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => setEnableManualFipe((prev) => !prev)}
-                        >
-                          <Lock className={cn("h-4 w-4", enableManualFipe && "text-amber-500")} />
-                        </Button>
                       </div>
-                      {fipeError && <p className="text-xs text-amber-600 mt-1">{fipeError}</p>}
                     </div>
-                  </div>
 
-                  <div className="flex justify-between items-center">
-                    <Button type="button" variant="outline" onClick={handleSalvarCustos}>
-                      Salvar Dados
-                    </Button>
+                    {/* 5) Marca */}
+                    <div className="space-y-2">
+                      <Label htmlFor="veiculo_marca">Marca</Label>
+                      <Select
+                        value={selectedMarcaCode}
+                        onValueChange={(value) => {
+                          setSelectedMarcaCode(value);
+                          const marca = marcas.find((m) => m.codigo === value);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_marca: marca ? marca.nome : "",
+                            veiculo_modelo: "",
+                            veiculo_ano: "",
+                          }));
+                          setSelectedModeloCode("");
+                          setSelectedAnoCode("");
+                          setModelos([]);
+                          setAnos([]);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_valor_fipe: null,
+                            veiculo_fipe_data_consulta: null,
+                            veiculo_fipe_codigo: null,
+                          }));
+                          setEnableManualFipe(false);
+                          setFipeError(null);
+                        }}
+                        disabled={!vehicleType || marcas.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={vehicleType ? "Selecione a marca" : "Selecione o tipo primeiro"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {marcas.map((marca) => (
+                            <SelectItem key={marca.codigo} value={marca.codigo}>
+                              {marca.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                    <div className="flex gap-2">
-                      {vistoriaId && (
-                        <Button type="button" variant="outline" onClick={handleGerarLinkVistoria}>
-                          <Link2 className="mr-2 h-4 w-4" />
-                          Gerar/Atualizar Link de Vistoria
-                        </Button>
+                    {/* 6) Modelo */}
+                    <div className="space-y-2">
+                      <Label htmlFor="veiculo_modelo">Modelo</Label>
+                      <Select
+                        value={selectedModeloCode}
+                        onValueChange={(value) => {
+                          setSelectedModeloCode(value);
+                          const modelo = modelos.find((m) => m.codigo === value);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_modelo: modelo ? modelo.nome : "",
+                            veiculo_ano: "",
+                          }));
+                          setSelectedAnoCode("");
+                          setAnos([]);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_valor_fipe: null,
+                            veiculo_fipe_data_consulta: null,
+                            veiculo_fipe_codigo: null,
+                          }));
+                          setEnableManualFipe(false);
+                          setFipeError(null);
+                        }}
+                        disabled={!selectedMarcaCode || modelos.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={selectedMarcaCode ? "Selecione o modelo" : "Selecione a marca primeiro"}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {modelos.map((modelo) => (
+                            <SelectItem key={modelo.codigo} value={modelo.codigo}>
+                              {modelo.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* 7) Ano */}
+                    <div className="space-y-2">
+                      <Label htmlFor="veiculo_ano">Ano</Label>
+                      <Select
+                        value={selectedAnoCode}
+                        onValueChange={(value) => {
+                          setSelectedAnoCode(value);
+                          const ano = anos.find((a) => a.codigo === value);
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_ano: ano ? ano.nome : "",
+                          }));
+                          setVistoriaData((prev) => ({
+                            ...prev,
+                            veiculo_valor_fipe: null,
+                            veiculo_fipe_data_consulta: null,
+                            veiculo_fipe_codigo: null,
+                          }));
+                          setEnableManualFipe(false);
+                          setFipeError(null);
+                        }}
+                        disabled={!selectedModeloCode || anos.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={selectedModeloCode ? "Selecione o ano" : "Selecione o modelo primeiro"}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {anos.map((ano) => (
+                            <SelectItem key={ano.codigo} value={ano.codigo}>
+                              {ano.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* 8) Valor FIPE */}
+                    <div className="space-y-2">
+                      <Label htmlFor="veiculo_valor_fipe">Valor FIPE (R$)</Label>
+
+                      {loadingFipe && (
+                        <p className="text-sm text-muted-foreground">Consultando valor FIPE, aguarde...</p>
+                      )}
+
+                      {fipeError && !loadingFipe && <p className="text-xs text-destructive">{fipeError}</p>}
+
+                      {vistoriaData.veiculo_valor_fipe !== null ? (
+                        <>
+                          <CurrencyInput
+                            id="veiculo_valor_fipe"
+                            value={vistoriaData.veiculo_valor_fipe ?? 0}
+                            onValueChange={() => {}}
+                            disabled
+                          />
+                          {vistoriaData.veiculo_fipe_data_consulta && (
+                            <p className="text-xs text-muted-foreground">
+                              Consultado em:{" "}
+                              {new Date(
+                                vistoriaData.veiculo_fipe_data_consulta as string | number | Date,
+                              ).toLocaleDateString("pt-BR")}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {!enableManualFipe ? (
+                            <>
+                              <p className="text-sm text-muted-foreground">
+                                Informe tipo, marca, modelo e ano para consultar o valor FIPE automaticamente. Se não
+                                retornar, você poderá informar manualmente.
+                              </p>
+                              {!loadingFipe && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setEnableManualFipe(true)}
+                                >
+                                  Inserir valor manualmente
+                                </Button>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <CurrencyInput
+                                id="veiculo_valor_fipe_manual"
+                                value={vistoriaData.veiculo_valor_fipe ?? 0}
+                                onValueChange={(values) =>
+                                  setVistoriaData((prev) => ({
+                                    ...prev,
+                                    veiculo_valor_fipe: values?.floatValue || null,
+                                    veiculo_fipe_data_consulta: new Date().toISOString(),
+                                    veiculo_fipe_codigo: prev.veiculo_fipe_codigo,
+                                  }))
+                                }
+                                placeholder="Informe o valor FIPE manualmente"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Valor informado manualmente para uso neste sinistro.
+                              </p>
+                            </>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
                 </div>
-              </TabsContent>
 
-              {/* ABA ANÁLISE (EntrevistaTab) */}
-              <TabsContent value="entrevista" className="mt-0 p-4">
-                {atendimento?.id ? (
-                  <EntrevistaTab atendimentoId={atendimento.id} vistoriaData={vistoriaData} />
-                ) : (
-                  <div className="p-4 text-center text-muted-foreground">
-                    Salve o atendimento para acessar a Análise
+                {/* Dados do Cliente */}
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                  <h4 className="font-medium">Dados do Cliente</h4>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="cliente_nome">Nome Completo</Label>
+                      <Input
+                        id="cliente_nome"
+                        value={vistoriaData.cliente_nome}
+                        onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_nome: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cliente_cpf">CPF</Label>
+                      <MaskedInput
+                        id="cliente_cpf"
+                        format="###.###.###-##"
+                        mask="_"
+                        value={vistoriaData.cliente_cpf}
+                        onValueChange={(values) => setVistoriaData({ ...vistoriaData, cliente_cpf: values.value })}
+                        placeholder="000.000.000-00"
+                        className={
+                          vistoriaData.cliente_cpf && !validateCPF(vistoriaData.cliente_cpf) ? "border-destructive" : ""
+                        }
+                      />
+                      {vistoriaData.cliente_cpf && !validateCPF(vistoriaData.cliente_cpf) && (
+                        <p className="text-xs text-destructive">CPF inválido</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cliente_telefone">Telefone</Label>
+                      <MaskedInput
+                        id="cliente_telefone"
+                        format="(##) #####-####"
+                        mask="_"
+                        value={vistoriaData.cliente_telefone}
+                        onValueChange={(values) => setVistoriaData({ ...vistoriaData, cliente_telefone: values.value })}
+                        placeholder="(00) 00000-0000"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cliente_email">Email</Label>
+                      <Input
+                        id="cliente_email"
+                        type="email"
+                        value={vistoriaData.cliente_email}
+                        onChange={(e) => setVistoriaData({ ...vistoriaData, cliente_email: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botões de Ação */}
+                {vistoriaData.tipo_atendimento === "sinistro" && (
+                  <div className="flex gap-2 justify-end pt-4 border-t">
+                    <Button
+                      type="button"
+                      onClick={handleGerarLinkVistoria}
+                      variant="outline"
+                      className="gap-2"
+                      disabled={!vistoriaData.veiculo_placa || !validatePlaca(vistoriaData.veiculo_placa)}
+                    >
+                      <Link2 className="h-4 w-4" />
+                      Gerar Link de Vistoria
+                    </Button>
+                    <Button type="button" onClick={handleSalvarCustos}>
+                      Salvar Dados
+                    </Button>
                   </div>
                 )}
               </TabsContent>
 
-              {/* ABA ANDAMENTOS */}
+              <TabsContent value="entrevista" className="mt-0 p-4">
+                {atendimento?.id && <EntrevistaTab atendimentoId={atendimento.id} vistoriaData={vistoriaData} />}
+              </TabsContent>
+
               <TabsContent value="andamentos" className="mt-0 p-4">
                 {atendimento?.id ? (
                   <AndamentosList
@@ -1575,7 +1758,6 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                 )}
               </TabsContent>
 
-              {/* ABA ANEXOS */}
               <TabsContent value="anexos" className="mt-0 p-4">
                 {atendimento?.id ? (
                   <AnexosUpload atendimentoId={atendimento.id} anexos={anexos} onAnexosChange={setAnexos} />
@@ -1588,83 +1770,90 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                 )}
               </TabsContent>
 
-              {/* ABA CUSTOS */}
               <TabsContent value="custos" className="mt-0 p-4">
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Custo Oficina</Label>
-                      <CurrencyInput
-                        value={custos.custo_oficina}
-                        onValueChange={(value) => setCustos((prev) => ({ ...prev, custo_oficina: value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Custo Reparo</Label>
-                      <CurrencyInput
-                        value={custos.custo_reparo}
-                        onValueChange={(value) => setCustos((prev) => ({ ...prev, custo_reparo: value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Custo Acordo</Label>
-                      <CurrencyInput
-                        value={custos.custo_acordo}
-                        onValueChange={(value) => setCustos((prev) => ({ ...prev, custo_acordo: value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Custo Terceiros</Label>
-                      <CurrencyInput
-                        value={custos.custo_terceiros}
-                        onValueChange={(value) => setCustos((prev) => ({ ...prev, custo_terceiros: value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Custo Perda Total</Label>
-                      <CurrencyInput
-                        value={custos.custo_perda_total}
-                        onValueChange={(value) => setCustos((prev) => ({ ...prev, custo_perda_total: value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Custo Perda Parcial</Label>
-                      <CurrencyInput
-                        value={custos.custo_perda_parcial}
-                        onValueChange={(value) => setCustos((prev) => ({ ...prev, custo_perda_parcial: value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Valor Franquia</Label>
-                      <CurrencyInput
-                        value={custos.valor_franquia}
-                        onValueChange={(value) => setCustos((prev) => ({ ...prev, valor_franquia: value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Valor Indenização</Label>
-                      <CurrencyInput
-                        value={custos.valor_indenizacao}
-                        onValueChange={(value) => setCustos((prev) => ({ ...prev, valor_indenizacao: value }))}
-                      />
+                  <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                    <h4 className="font-medium">Custos e Valores</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="custo_oficina_tab">Custo Oficina</Label>
+                        <CurrencyInput
+                          id="custo_oficina_tab"
+                          value={custos.custo_oficina}
+                          onValueChange={(values) => setCustos({ ...custos, custo_oficina: values?.floatValue || 0 })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="custo_reparo_tab">Custo Reparo</Label>
+                        <CurrencyInput
+                          id="custo_reparo_tab"
+                          value={custos.custo_reparo}
+                          onValueChange={(values) => setCustos({ ...custos, custo_reparo: values?.floatValue || 0 })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="custo_acordo_tab">Custo Acordo</Label>
+                        <CurrencyInput
+                          id="custo_acordo_tab"
+                          value={custos.custo_acordo}
+                          onValueChange={(values) => setCustos({ ...custos, custo_acordo: values?.floatValue || 0 })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="custo_terceiros_tab">Custo Terceiros</Label>
+                        <CurrencyInput
+                          id="custo_terceiros_tab"
+                          value={custos.custo_terceiros}
+                          onValueChange={(values) => setCustos({ ...custos, custo_terceiros: values?.floatValue || 0 })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="custo_perda_total_tab">Perda Total</Label>
+                        <CurrencyInput
+                          id="custo_perda_total_tab"
+                          value={custos.custo_perda_total}
+                          onValueChange={(values) =>
+                            setCustos({ ...custos, custo_perda_total: values?.floatValue || 0 })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="custo_perda_parcial_tab">Perda Parcial</Label>
+                        <CurrencyInput
+                          id="custo_perda_parcial_tab"
+                          value={custos.custo_perda_parcial}
+                          onValueChange={(values) =>
+                            setCustos({ ...custos, custo_perda_parcial: values?.floatValue || 0 })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="valor_franquia_tab">Valor Franquia</Label>
+                        <CurrencyInput
+                          id="valor_franquia_tab"
+                          value={custos.valor_franquia}
+                          onValueChange={(values) => setCustos({ ...custos, valor_franquia: values?.floatValue || 0 })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="valor_indenizacao_tab">Valor Indenização</Label>
+                        <CurrencyInput
+                          id="valor_indenizacao_tab"
+                          value={custos.valor_indenizacao}
+                          onValueChange={(values) =>
+                            setCustos({ ...custos, valor_indenizacao: values?.floatValue || 0 })
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex justify-between items-center">
-                    <Button type="button" variant="outline" onClick={handleSalvarCustos}>
-                      Salvar Custos
-                    </Button>
-
-                    {userRole === "admin" && (
-                      <Button type="button" variant="destructive" onClick={() => setShowConclusaoDialog(true)}>
-                        Concluir Manualmente
-                      </Button>
-                    )}
+                  <div className="flex justify-end pt-4 border-t">
+                    <Button onClick={handleSalvarCustos}>Salvar Custos</Button>
                   </div>
                 </div>
               </TabsContent>
 
-              {/* ABA HISTÓRICO */}
               <TabsContent value="historico" className="mt-0">
                 {atendimento?.id ? (
                   <HistoricoList
@@ -1681,7 +1870,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG CONCLUSÃO MANUAL */}
+      {/* Dialog de Conclusão Manual */}
       <Dialog open={showConclusaoDialog} onOpenChange={setShowConclusaoDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>

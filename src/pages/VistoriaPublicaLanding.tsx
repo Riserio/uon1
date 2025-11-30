@@ -27,7 +27,6 @@ export default function VistoriaPublicaLanding() {
 
   useEffect(() => {
     loadVistoria();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const loadVistoria = async () => {
@@ -156,40 +155,6 @@ export default function VistoriaPublicaLanding() {
         </Card>
       </div>
     );
-  }
-
-  // 🔹 Cálculo de prazo da vistoria
-  const expiresAt = vistoria.link_expires_at ? new Date(vistoria.link_expires_at) : null;
-  let prazoMensagem = "";
-  let prazoDetalhe = "";
-
-  if (expiresAt) {
-    const agora = new Date();
-    const diffMs = expiresAt.getTime() - agora.getTime();
-    const diffDias = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-    const dataFormatada = expiresAt.toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-    if (diffDias <= 0) {
-      prazoMensagem = "Seu prazo para realizar a vistoria termina hoje.";
-      prazoDetalhe = `O link é válido até ${dataFormatada}.`;
-    } else if (diffDias === 1) {
-      prazoMensagem = "Você ainda tem 1 dia para concluir a vistoria.";
-      prazoDetalhe = `O link é válido até ${dataFormatada}.`;
-    } else {
-      prazoMensagem = `Você ainda tem ${diffDias} dias para concluir a vistoria.`;
-      prazoDetalhe = `O link é válido até ${dataFormatada}.`;
-    }
-
-    if (vistoria.dias_validade) {
-      prazoDetalhe += ` (prazo total configurado: ${vistoria.dias_validade} dias)`;
-    }
   }
 
   return (
@@ -331,20 +296,6 @@ export default function VistoriaPublicaLanding() {
                 </div>
               </div>
             </div>
-
-            {/* Prazo da Vistoria */}
-            {expiresAt && (
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-6 mb-8">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Clock className="h-6 w-6 text-white" />
-                  </div>
-                  <h3 className="font-bold text-xl text-blue-900">Prazo para realizar sua vistoria</h3>
-                </div>
-                <p className="text-blue-900 font-medium mb-1">{prazoMensagem}</p>
-                {prazoDetalhe && <p className="text-sm text-blue-800">{prazoDetalhe}</p>}
-              </div>
-            )}
 
             {/* Important Info */}
             <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-6 mb-8">
