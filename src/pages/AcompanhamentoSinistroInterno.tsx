@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ComiteTab } from "@/components/ComiteTab";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
@@ -540,7 +541,8 @@ export default function AcompanhamentoSinistroInterno() {
                 <CardTitle className="text-lg">Comitê de Sinistros</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Decisão rápida */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4 border-b">
                   <div className="space-y-2">
                     <Label>Status do Comitê</Label>
                     <Select
@@ -553,8 +555,9 @@ export default function AcompanhamentoSinistroInterno() {
                       <SelectContent>
                         <SelectItem value="pendente">Pendente</SelectItem>
                         <SelectItem value="em_discussao">Em Discussão</SelectItem>
-                        <SelectItem value="aprovado">Aprovado</SelectItem>
-                        <SelectItem value="rejeitado">Rejeitado</SelectItem>
+                        <SelectItem value="Aprovado">Aprovado</SelectItem>
+                        <SelectItem value="Negado">Negado</SelectItem>
+                        <SelectItem value="Sindicância">Sindicância</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -566,24 +569,28 @@ export default function AcompanhamentoSinistroInterno() {
                       onChange={(e) => setData({ ...data, comite_data: e.target.value })}
                     />
                   </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Observações do Comitê</Label>
+                    <Textarea
+                      value={data.comite_observacoes || ""}
+                      onChange={(e) => setData({ ...data, comite_observacoes: e.target.value })}
+                      placeholder="Observações adicionais..."
+                      rows={2}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Decisão</Label>
-                  <Textarea
-                    value={data.comite_decisao || ""}
-                    onChange={(e) => setData({ ...data, comite_decisao: e.target.value })}
-                    placeholder="Descreva a decisão do comitê..."
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Observações</Label>
-                  <Textarea
-                    value={data.comite_observacoes || ""}
-                    onChange={(e) => setData({ ...data, comite_observacoes: e.target.value })}
-                    placeholder="Observações adicionais..."
-                    rows={2}
-                  />
+
+                {/* Perguntas do Comitê */}
+                <div className="pt-4">
+                  <h4 className="font-medium mb-4">Questionário do Comitê</h4>
+                  {id && (
+                    <ComiteTab 
+                      atendimentoId={id}
+                      showNavigationButton={false}
+                      autoSave={true}
+                      onUpdate={loadData}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -32,8 +32,7 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { validateCPF, validatePlaca } from "@/lib/validators";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { useAtendimentoRealtime } from "@/hooks/useAtendimentoRealtime";
-import { EntrevistaTab } from "@/components/EntrevistaTab";
-import { AnaliseTab } from "@/components/AnaliseTab";
+import { ComiteTab } from "@/components/ComiteTab";
 
 const CORES = [
   "Preto",
@@ -1052,9 +1051,9 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                 <User className="h-4 w-4" />
                 Dados Pessoais
               </TabsTrigger>
-              <TabsTrigger value="entrevista" className="gap-2">
+              <TabsTrigger value="comite" className="gap-2">
                 <ClipboardList className="h-4 w-4" />
-                Análise
+                Comitê
               </TabsTrigger>
               <TabsTrigger value="andamentos" className="gap-2">
                 <MessageSquare className="h-4 w-4" />
@@ -1740,9 +1739,9 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                 )}
               </TabsContent>
 
-              <TabsContent value="entrevista" className="mt-0 p-4">
+              <TabsContent value="comite" className="mt-0 p-4">
                 {atendimento?.id && (
-                  <AnaliseTab 
+                  <ComiteTab 
                     atendimentoId={atendimento.id} 
                     tipoSinistro={vistoriaData.tipo_sinistro}
                     vistoriaData={vistoriaData} 
