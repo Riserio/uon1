@@ -13,18 +13,10 @@ import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
-import { PERGUNTAS_COMITE, PARECERES_COMITE, PerguntaComite, ORDEM_CATEGORIAS } from '@/constants/perguntasComite';
+import { PERGUNTAS_COMITE, PARECERES_COMITE, PARECERES_ASSOCIACAO, PerguntaComite, ORDEM_CATEGORIAS } from '@/constants/perguntasComite';
 import { Save, FileDown, ArrowLeft, Gavel, CheckCircle2, XCircle, HelpCircle, AlertTriangle } from 'lucide-react';
 import { exportDeliberacaoPDF } from '@/utils/pdfDeliberacao';
 import { formatCurrency } from '@/lib/formatters';
-
-// Status para exibição na tela de sinistros (Parecer da Associação)
-export const PARECERES_ASSOCIACAO = [
-  { value: 'em_analise', label: 'Em Análise', cor: 'bg-orange-500', textCor: 'text-white' },
-  { value: 'aprovado', label: 'Aprovado', cor: 'bg-green-500', textCor: 'text-white' },
-  { value: 'negado', label: 'Negado', cor: 'bg-red-500', textCor: 'text-white' },
-  { value: 'mais_informacoes', label: 'Quero Mais Informações', cor: 'bg-blue-500', textCor: 'text-white' },
-];
 
 export default function ComiteDeliberacao() {
   const { atendimentoId } = useParams<{ atendimentoId: string }>();
