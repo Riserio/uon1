@@ -2162,6 +2162,9 @@ export type Database = {
           desistencia: boolean | null
           desistencia_data: string | null
           desistencia_motivo: string | null
+          entrevista_data: string | null
+          entrevista_preenchida_por: string | null
+          entrevista_respostas: Json | null
           finalizado: boolean | null
           finalizado_data: string | null
           finalizado_observacoes: string | null
@@ -2210,6 +2213,9 @@ export type Database = {
           desistencia?: boolean | null
           desistencia_data?: string | null
           desistencia_motivo?: string | null
+          entrevista_data?: string | null
+          entrevista_preenchida_por?: string | null
+          entrevista_respostas?: Json | null
           finalizado?: boolean | null
           finalizado_data?: string | null
           finalizado_observacoes?: string | null
@@ -2258,6 +2264,9 @@ export type Database = {
           desistencia?: boolean | null
           desistencia_data?: string | null
           desistencia_motivo?: string | null
+          entrevista_data?: string | null
+          entrevista_preenchida_por?: string | null
+          entrevista_respostas?: Json | null
           finalizado?: boolean | null
           finalizado_data?: string | null
           finalizado_observacoes?: string | null
@@ -2290,6 +2299,13 @@ export type Database = {
             columns: ["atendimento_id"]
             isOneToOne: true
             referencedRelation: "atendimentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sinistro_acompanhamento_entrevista_preenchida_por_fkey"
+            columns: ["entrevista_preenchida_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
