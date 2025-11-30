@@ -1246,13 +1246,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           <Legend wrapperStyle={{ fontSize: 9 }} />
                           <Line
                             type="monotone"
-                            dataKey="custo_total_eventos"
-                            name="Total Eventos"
-                            stroke="#dc2626"
-                            strokeWidth={2.5}
-                          />
-                          <Line
-                            type="monotone"
                             dataKey="pagamento_valor_parcial_associado"
                             name="Parcial Assoc."
                             stroke="#2563eb"
