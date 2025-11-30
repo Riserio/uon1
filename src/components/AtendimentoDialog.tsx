@@ -19,6 +19,7 @@ import {
   DollarSign,
   User,
   Link2,
+  ClipboardList,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -31,6 +32,7 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { validateCPF, validatePlaca } from "@/lib/validators";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { useAtendimentoRealtime } from "@/hooks/useAtendimentoRealtime";
+import { EntrevistaTab } from "@/components/EntrevistaTab";
 
 const CORES = [
   "Preto",
@@ -1036,7 +1038,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-            <TabsList className="grid w-full grid-cols-6 mb-4 flex-shrink-0">
+            <TabsList className="grid w-full grid-cols-7 mb-4 flex-shrink-0">
               <TabsTrigger value="geral" className="gap-2">
                 <FileText className="h-4 w-4" />
                 Geral
@@ -1048,6 +1050,10 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
               >
                 <User className="h-4 w-4" />
                 Dados Pessoais
+              </TabsTrigger>
+              <TabsTrigger value="entrevista" className="gap-2">
+                <ClipboardList className="h-4 w-4" />
+                Entrevista
               </TabsTrigger>
               <TabsTrigger value="andamentos" className="gap-2">
                 <MessageSquare className="h-4 w-4" />
@@ -1731,6 +1737,10 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                     </Button>
                   </div>
                 )}
+              </TabsContent>
+
+              <TabsContent value="entrevista" className="mt-0 p-4">
+                {atendimento?.id && <EntrevistaTab atendimentoId={atendimento.id} vistoriaData={vistoriaData} />}
               </TabsContent>
 
               <TabsContent value="andamentos" className="mt-0 p-4">
