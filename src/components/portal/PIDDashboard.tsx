@@ -31,9 +31,10 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  PieChart,
-  Pie,
-  Cell,
+  // PieChart,
+  // Pie,
+  // Cell,
+  ComposedChart,
 } from "recharts";
 
 interface PIDDashboardProps {
@@ -49,59 +50,136 @@ const EmptyChart = () => (
 );
 
 /**
+ * Tooltip base para todos os gráficos, seguindo o padrão visual
+ * do tooltip de "Abertura de Eventos no Período".
+ */
+const DefaultTooltipContent = ({
+  active,
+  payload,
+  label,
+  formatter,
+  showTotal = false,
+}: {
+  active?: boolean;
+  payload?: any[];
+  label?: string;
+  formatter?: (value: number) => string;
+  showTotal?: boolean;
+}) => {
+  if (!active || !payload || !payload.length) return null;
+
+  const total = payload.reduce((acc, item) => acc + (item.value || 0), 0);
+
+  return (
+    <div className="rounded-md border bg-background px-3 py-2 shadow-sm text-xs">
+      {label && <div className="font-semibold mb-1">{label}</div>}
+
+      {payload.map((item: any) => {
+        const value = item.value || 0;
+        const color = item.color || item.stroke || item.fill || "#6b7280";
+
+        return (
+          <div key={item.dataKey} className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+              <span>{item.name || item.dataKey}</span>
+            </span>
+            <span>{formatter ? formatter(value) : value.toLocaleString("pt-BR")}</span>
+          </div>
+        );
+      })}
+
+      {showTotal && (
+        <div className="mt-1 border-t pt-1 flex items-center justify-between font-semibold">
+          <span>Total :</span>
+          <span>{formatter ? formatter(total) : total.toLocaleString("pt-BR")}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
  * Tooltip para gráficos EMPILHADOS de QUANTIDADE de eventos
  * (Abertura de Eventos e Quantidade Eventos Pagos)
  * Mostra cada linha + TOTAL de eventos no rodapé.
  */
-const EventosStackedTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload || !payload.length) return null;
-
-  const total = payload.reduce((acc: number, item: any) => acc + (item.value || 0), 0);
-
-  return (
-    <div className="rounded-md border bg-background px-3 py-2 shadow-sm text-xs">
-      <div className="font-semibold mb-1">{label}</div>
-
-      {payload.map((item: any) => (
-        <div key={item.dataKey} className="flex items-center justify-between gap-2" style={{ color: item.color }}>
-          <span>{item.name} :</span>
-          <span>{(item.value || 0).toLocaleString("pt-BR")}</span>
-        </div>
-      ))}
-
-      <div className="mt-1 border-t pt-1 flex items-center justify-between font-semibold">
-        <span>Total :</span>
-        <span>{total.toLocaleString("pt-BR")}</span>
-      </div>
-    </div>
-  );
-};
+const EventosStackedTooltip = (props: any) => (
+  <DefaultTooltipContent {...props} formatter={(value: number) => (value || 0).toLocaleString("pt-BR")} showTotal />
+);
 
 /**
  * Tooltip para gráfico de VALOR de eventos pagos
  * (Valor de Eventos Pagos no Período (R$))
  * Mostra cada linha em R$ + TOTAL em R$ no rodapé.
  */
-const ValorEventosTooltip = ({ active, payload, label }: any) => {
+const ValorEventosTooltip = (props: any) => (
+  <DefaultTooltipContent {...props} formatter={(value: number) => formatCurrency(value || 0)} showTotal />
+);
+
+/**
+ * Tooltip específico para Permanência - Entrada vs Perdas
+ * Mostra Entrada, Perdas, Saldo e % Variação do Saldo.
+ */
+const PermanenciaTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload || !payload.length) return null;
 
-  const total = payload.reduce((acc: number, item: any) => acc + (item.value || 0), 0);
+  const entradaItem = payload.find((p: any) => p.dataKey === "entrada");
+  const perdasItem = payload.find((p: any) => p.dataKey === "perdas");
+  const variacaoItem = payload.find((p: any) => p.dataKey === "variacao_permanencia");
+
+  const entrada = entradaItem?.value || 0;
+  const perdas = perdasItem?.value || 0;
+  const saldo = entrada - perdas;
+  const variacao = variacaoItem?.value || 0;
 
   return (
     <div className="rounded-md border bg-background px-3 py-2 shadow-sm text-xs">
       <div className="font-semibold mb-1">{label}</div>
 
-      {payload.map((item: any) => (
-        <div key={item.dataKey} className="flex items-center justify-between gap-2" style={{ color: item.color }}>
-          <span>{item.name} :</span>
-          <span>{formatCurrency(item.value || 0)}</span>
+      {entradaItem && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ backgroundColor: entradaItem.color || entradaItem.fill || "#16a34a" }}
+            />
+            <span>Entrada</span>
+          </span>
+          <span>{entrada.toLocaleString("pt-BR")}</span>
         </div>
-      ))}
+      )}
 
-      <div className="mt-1 border-t pt-1 flex items-center justify-between font-semibold">
-        <span>Total :</span>
-        <span>{formatCurrency(total)}</span>
+      {perdasItem && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ backgroundColor: perdasItem.color || perdasItem.fill || "#dc2626" }}
+            />
+            <span>Perdas</span>
+          </span>
+          <span>{perdas.toLocaleString("pt-BR")}</span>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-2 font-semibold mt-1 border-t pt-1">
+        <span>Saldo (Entrada - Perdas)</span>
+        <span>{saldo.toLocaleString("pt-BR")}</span>
       </div>
+
+      {variacaoItem && (
+        <div className="flex items-center justify-between gap-2 mt-1">
+          <span className="flex items-center gap-1">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ backgroundColor: variacaoItem.color || variacaoItem.stroke || "#2563eb" }}
+            />
+            <span>% Var. Saldo vs mês anterior</span>
+          </span>
+          <span>{formatPercent(variacao || 0)}</span>
+        </div>
+      )}
     </div>
   );
 };
@@ -267,16 +345,38 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     });
   }, [dadosAno]);
 
-  // Dados para gráfico de rosca de permanência
-  const permanenciaDonutData = useMemo(() => {
-    if (!dadosAtual) return [];
-    const totalEntrada = (dadosAtual.cadastros_realizados || 0) + (dadosAtual.reativacao || 0);
-    const totalPerdas = (dadosAtual.cancelamentos || 0) + (dadosAtual.inadimplentes || 0);
-    return [
-      { name: "Entrada (Cadastros + Reativações)", value: totalEntrada, color: "#16a34a" },
-      { name: "Perdas (Cancelamentos + Inadimplentes)", value: totalPerdas, color: "#dc2626" },
-    ];
-  }, [dadosAtual]);
+  // Série de Permanência mês a mês: Entrada, Perdas, Saldo e % variação do saldo
+  const permanenciaSeries = useMemo(() => {
+    if (!dadosAno || !dadosAno.length) return [];
+
+    return dadosAno.map((d, index) => {
+      const entrada = (d.cadastros_realizados || 0) + (d.reativacao || 0);
+      const perdas = (d.cancelamentos || 0) + (d.inadimplentes || 0);
+      const saldo = entrada - perdas;
+
+      let variacao = 0;
+      if (index > 0) {
+        const prev = dadosAno[index - 1];
+        const prevEntrada = (prev.cadastros_realizados || 0) + (prev.reativacao || 0);
+        const prevPerdas = (prev.cancelamentos || 0) + (prev.inadimplentes || 0);
+        const prevSaldo = prevEntrada - prevPerdas;
+
+        if (prevSaldo !== 0) {
+          variacao = calcPercent(saldo - prevSaldo, prevSaldo);
+        } else {
+          variacao = 0;
+        }
+      }
+
+      return {
+        mes: mesesNome[d.mes - 1],
+        entrada,
+        perdas,
+        saldo,
+        variacao_permanencia: variacao, // em %
+      };
+    });
+  }, [dadosAno]);
 
   if (loading) {
     return (
@@ -428,7 +528,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
                         <Line
                           type="monotone"
@@ -457,7 +557,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
                         <Line
                           type="monotone"
@@ -487,7 +587,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
                         <Bar dataKey="total_associados" name="Total Associados" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                       </BarChart>
@@ -509,7 +609,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => v.toFixed(2)} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => Number(value).toFixed(2)} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => Number(value).toFixed(2).replace(".", ",")}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -539,7 +645,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
                         <Bar dataKey="cadastros_realizados" name="Cadastros" fill="#16a34a" radius={[4, 4, 0, 0]} />
                       </BarChart>
@@ -561,7 +667,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -591,7 +703,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -620,7 +738,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
                         <Bar
                           dataKey="crescimento_liquido"
@@ -648,7 +766,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
                         <Bar dataKey="cancelamentos" name="Cancelamentos" fill="#dc2626" radius={[4, 4, 0, 0]} />
                       </BarChart>
@@ -670,7 +788,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
                         <Bar dataKey="inadimplentes" name="Inadimplentes" fill="#f97316" radius={[4, 4, 0, 0]} />
                       </BarChart>
@@ -693,7 +811,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
                         <Bar dataKey="reativacao" name="Reativações" fill="#14b8a6" radius={[4, 4, 0, 0]} />
                       </BarChart>
@@ -715,7 +833,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -745,7 +869,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
                         <Bar dataKey="permanencia" name="Permanência" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                       </BarChart>
@@ -767,7 +891,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -809,7 +939,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
                         <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent showTotal />} />
                         <Legend wrapperStyle={{ fontSize: 10 }} />
                         <Bar dataKey="boletos_emitidos" name="Emitidos" fill="#2563eb" radius={[2, 2, 0, 0]} />
                         <Bar dataKey="boletos_liquidados" name="Liquidados" fill="#16a34a" radius={[2, 2, 0, 0]} />
@@ -835,7 +965,14 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
                         <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
-                        <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => formatCurrency(Number(value))}
+                              showTotal
+                            />
+                          }
+                        />
                         <Legend wrapperStyle={{ fontSize: 10 }} />
                         <Line
                           type="monotone"
@@ -913,7 +1050,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -942,7 +1085,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -971,7 +1120,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -1000,7 +1155,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 10 }} />
-                        <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent formatter={(value: number) => formatCurrency(Number(value))} />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -1029,7 +1188,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -1058,7 +1223,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -1087,7 +1258,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -1116,7 +1293,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -1192,7 +1375,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                           <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
                           <YAxis tick={{ fontSize: 10 }} />
-                          {/* Tooltip com TOTAL de eventos */}
                           <Tooltip content={<EventosStackedTooltip />} />
                           <Legend wrapperStyle={{ fontSize: 9 }} />
                           <Bar
@@ -1241,7 +1423,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                           <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
                           <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
-                          {/* Tooltip com TOTAL em R$ */}
                           <Tooltip content={<ValorEventosTooltip />} />
                           <Legend wrapperStyle={{ fontSize: 9 }} />
                           <Line
@@ -1308,7 +1489,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                           <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                           <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                          <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                          <Tooltip
+                            content={
+                              <DefaultTooltipContent
+                                formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                              />
+                            }
+                          />
                           <Legend />
                           <Line
                             type="monotone"
@@ -1337,7 +1524,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                           <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                           <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                          <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                          <Tooltip
+                            content={
+                              <DefaultTooltipContent
+                                formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                              />
+                            }
+                          />
                           <Legend />
                           <Line
                             type="monotone"
@@ -1366,7 +1559,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                           <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                           <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                          <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                          <Tooltip
+                            content={
+                              <DefaultTooltipContent
+                                formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                              />
+                            }
+                          />
                           <Legend />
                           <Line
                             type="monotone"
@@ -1395,7 +1594,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                           <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                           <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                          <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                          <Tooltip
+                            content={
+                              <DefaultTooltipContent
+                                formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                              />
+                            }
+                          />
                           <Legend />
                           <Line
                             type="monotone"
@@ -1424,7 +1629,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                           <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                           <YAxis tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                          <Tooltip
+                            content={
+                              <DefaultTooltipContent formatter={(value: number) => formatCurrency(Number(value))} />
+                            }
+                          />
                           <Legend />
                           <Line
                             type="monotone"
@@ -1453,7 +1662,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                           <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                           <YAxis tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                          <Tooltip
+                            content={
+                              <DefaultTooltipContent formatter={(value: number) => formatCurrency(Number(value))} />
+                            }
+                          />
                           <Legend />
                           <Line
                             type="monotone"
@@ -1482,7 +1695,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                           <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                           <YAxis tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                          <Tooltip
+                            content={
+                              <DefaultTooltipContent formatter={(value: number) => formatCurrency(Number(value))} />
+                            }
+                          />
                           <Legend />
                           <Line
                             type="monotone"
@@ -1511,7 +1728,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                           <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                           <YAxis tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                          <Tooltip
+                            content={
+                              <DefaultTooltipContent formatter={(value: number) => formatCurrency(Number(value))} />
+                            }
+                          />
                           <Legend />
                           <Line
                             type="monotone"
@@ -1553,7 +1774,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
                         <Bar
                           dataKey="acionamentos_assistencia"
@@ -1586,7 +1807,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent formatter={(value: number) => formatCurrency(Number(value))} />
+                          }
+                        />
                         <Legend />
                         <Area
                           type="monotone"
@@ -1615,7 +1840,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -1656,7 +1887,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
                         <Line
                           type="monotone"
@@ -1685,7 +1916,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
                         <Bar
                           dataKey="instalacoes_rastreamento"
@@ -1718,7 +1949,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent formatter={(value: number) => formatCurrency(Number(value))} />
+                          }
+                        />
                         <Legend />
                         <Area
                           type="monotone"
@@ -1747,7 +1982,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -1794,7 +2035,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent formatter={(value: number) => formatCurrency(Number(value))} />
+                          }
+                        />
                         <Legend />
                         <Area
                           type="monotone"
@@ -1823,7 +2068,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
                         <Line
                           type="monotone"
@@ -1852,7 +2097,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 10 }} />
-                        <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent formatter={(value: number) => formatCurrency(Number(value))} />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -1881,7 +2130,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => `${v.toFixed(2)}%`} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(value: any) => `${Number(value).toFixed(2).replace(".", ",")}%`} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent
+                              formatter={(value: number) => `${value.toFixed(2).replace(".", ",")}%`}
+                            />
+                          }
+                        />
                         <Legend />
                         <Line
                           type="monotone"
@@ -1918,7 +2173,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 10 }} />
-                        <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                        <Tooltip
+                          content={
+                            <DefaultTooltipContent formatter={(value: number) => formatCurrency(Number(value))} />
+                          }
+                        />
                         <Legend />
                         <Area
                           type="monotone"
@@ -1938,7 +2197,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             </div>
           </section>
 
-          {/* ===================== GRÁFICO EXTRA - PERMANÊNCIA ROSCA ===================== */}
+          {/* ===================== GRÁFICO EXTRA - PERMANÊNCIA MÊS A MÊS ===================== */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -1949,32 +2208,47 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base font-medium">
-                  Permanência - Entrada vs Perdas (Mês Atual: {dadosAtual ? mesesNome[dadosAtual.mes - 1] : ""})
-                </CardTitle>
+                <CardTitle className="text-base font-medium">Permanência - Entrada vs Perdas (Mês a Mês)</CardTitle>
               </CardHeader>
               <CardContent className="h-[350px]">
-                {permanenciaDonutData.length && permanenciaDonutData.some((d) => d.value > 0) ? (
+                {permanenciaSeries.length ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={permanenciaDonutData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={120}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(2)}%)`}
-                        labelLine={false}
-                      >
-                        {permanenciaDonutData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: any) => value.toLocaleString("pt-BR")} />
-                      <Legend />
-                    </PieChart>
+                    <ComposedChart data={permanenciaSeries}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                      <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                      <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        tickFormatter={(v) => `${v.toFixed(2)}%`}
+                        tick={{ fontSize: 11 }}
+                      />
+                      <Tooltip content={<PermanenciaTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: 10 }} />
+                      <Bar
+                        yAxisId="left"
+                        dataKey="entrada"
+                        name="Entrada (Cadastros + Reativ.)"
+                        fill="#16a34a"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Bar
+                        yAxisId="left"
+                        dataKey="perdas"
+                        name="Perdas (Cancelamentos + Inadimpl.)"
+                        fill="#dc2626"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="variacao_permanencia"
+                        name="% Var. Saldo"
+                        stroke="#2563eb"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 ) : (
                   <EmptyChart />
