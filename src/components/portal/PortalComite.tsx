@@ -133,12 +133,21 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
   /**
    * Auto-save das respostas da entrevista sempre que o usuário altera algo.
-   * Usa diretamente o `user` do useAuth e faz update/insert baseado no atendimento_id.
    */
   const salvarRespostasAutomaticamente = async (novasRespostas: Record<string, string>) => {
     if (!selectedSinistro) return;
 
     try {
+      const {
+        data: { user: currentUser },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !currentUser) {
+        console.error("Usuário não autenticado para auto-save:", userError);
+        return;
+      }
+
       const { data: existing, error: existingError } = await supabase
         .from("sinistro_acompanhamento")
         .select("id")
@@ -168,7 +177,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         const { error } = await supabase.from("sinistro_acompanhamento").insert({
           ...payload,
           atendimento_id: selectedSinistro.atendimento_id,
-          created_by: user?.id ?? null,
+          created_by: currentUser.id,
         });
 
         if (error) {
@@ -187,8 +196,8 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         [perguntaId]: valor,
       };
 
-      // Auto-save das respostas da entrevista (sem depender do botão salvar)
-      salvarRespostasAutomaticamente(novasRespostas);
+      // Auto-save das respostas da entrevista
+      void salvarRespostasAutomaticamente(novasRespostas);
 
       return novasRespostas;
     });
@@ -200,6 +209,10 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     try {
       setSaving(true);
 
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+
       // Verificar se já existe registro de acompanhamento
       const { data: existing } = await supabase
         .from("sinistro_acompanhamento")
@@ -208,7 +221,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         .maybeSingle();
 
       const acompanhamentoData = {
-        // mantém as respostas no payload também, para garantir consistência
+        // mantemos as respostas no payload também, para garantir consistência
         entrevista_respostas: respostas,
         entrevista_data: new Date().toISOString(),
         comite_status: deliberacao.decisao || null,
@@ -229,7 +242,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         const { error } = await supabase.from("sinistro_acompanhamento").insert({
           ...acompanhamentoData,
           atendimento_id: selectedSinistro.atendimento_id,
-          created_by: user?.id ?? null,
+          created_by: currentUser?.id,
         });
 
         if (error) throw error;
@@ -489,7 +502,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-5xl max-h-[95vh] flex flex-col bg-white">
           <DialogHeader>
-            <DialogTitle className="flex items-center justify_between">
+            <DialogTitle className="flex items-center justify-between">
               <span>Deliberação - Sinistro #{selectedSinistro?.numero}</span>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={handleExportPDF} className="gap-2">
@@ -531,9 +544,9 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
               {/* Perguntas e Decisão lado a lado */}
               <div className="flex-1 overflow-hidden grid grid-cols-3 gap-4">
-                {/* Perguntas - coluna única dentro de card branco, com scroll */}
-                <div className="col-span-2 overflow-hidden flex flex_col">
-                  <div className="flex items-center justify_between mb-2">
+                {/* Perguntas - COLUNA ÚNICA, ORDEM 1–62, dentro de box branco */}
+                <div className="col-span-2 overflow-hidden flex flex-col">
+                  <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold">Questionário de Avaliação</h3>
                     <Badge variant="outline" className="text-xs">
                       {perguntasRespondidas}/{totalPerguntas} respondidas
@@ -546,11 +559,11 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                   </ScrollArea>
                 </div>
 
-                {/* Decisão - 1 coluna com scroll próprio */}
+                {/* Decisão - 1 coluna, com scroll próprio */}
                 <div className="overflow-hidden flex flex-col">
                   <h3 className="text-sm font-semibold mb-2">Decisão do Comitê</h3>
                   <ScrollArea className="flex-1">
-                    <Card className="flex-1 p-4 bg_white">
+                    <Card className="flex-1 p-4 bg-white">
                       <div className="space-y-4">
                         <div className="space-y-2">
                           <Label>Parecer do Analista *</Label>
