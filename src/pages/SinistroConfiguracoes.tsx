@@ -11,9 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft, Plus, Save, Trash2, Pencil, GripVertical, Settings } from 'lucide-react';
+import { NIVEIS_ALERTA_PESO } from '@/constants/perguntasComite';
 
 interface Categoria {
   id: string;
@@ -33,6 +35,8 @@ interface Pergunta {
   ordem: number;
   peso: number;
   nivel_alerta: string;
+  peso_positivo: string[] | null;
+  peso_negativo: string[] | null;
   auto_preenchivel: string | null;
   ativo: boolean;
 }
@@ -50,7 +54,7 @@ export default function SinistroConfiguracoes() {
   const [editandoPergunta, setEditandoPergunta] = useState<string | null>(null);
   
   // Form states
-  const [novaCategoria, setNovaCategoria] = useState({ nome: '', ordem: 0 });
+  const [novaCategoria, setNovaCategoria] = useState({ nome: '', ordem: 0, tipos_sinistro: [] as string[] });
   const [novaPergunta, setNovaPergunta] = useState({
     categoria_id: '',
     pergunta: '',
@@ -58,10 +62,10 @@ export default function SinistroConfiguracoes() {
     opcoes: '',
     obrigatoria: false,
     ordem: 0,
-    peso: 0,
     nivel_alerta: 'none',
+    peso_positivo: '' as string,
+    peso_negativo: '' as string,
     auto_preenchivel: '',
-    tipos_sinistro: [] as string[]
   });
 
   const tiposSinistro = [
@@ -103,7 +107,11 @@ export default function SinistroConfiguracoes() {
           .order('ordem');
 
         if (pergsError) throw pergsError;
-        setPerguntas(pergs || []);
+        setPerguntas((pergs || []).map(p => ({
+          ...p,
+          peso_positivo: p.peso_positivo as string[] | null,
+          peso_negativo: p.peso_negativo as string[] | null,
+        })));
       } else {
         setPerguntas([]);
       }
@@ -118,6 +126,11 @@ export default function SinistroConfiguracoes() {
   const handleAddCategoria = async () => {
     if (!novaCategoria.nome.trim()) {
       toast.error('Nome da categoria é obrigatório');
+      return;
+    }
+
+    if (!editandoCategoria && novaCategoria.tipos_sinistro.length === 0) {
+      toast.error('Selecione pelo menos um tipo de sinistro');
       return;
     }
 
@@ -137,20 +150,24 @@ export default function SinistroConfiguracoes() {
         toast.success('Categoria atualizada');
         setEditandoCategoria(null);
       } else {
-        const { error } = await supabase
-          .from('sinistro_pergunta_categorias')
-          .insert({
-            tipo_sinistro: tipoSinistro,
+        // Criar categoria para cada tipo de sinistro selecionado
+        const insertPromises = novaCategoria.tipos_sinistro.map(tipo => 
+          supabase.from('sinistro_pergunta_categorias').insert({
+            tipo_sinistro: tipo,
             nome: novaCategoria.nome,
             ordem: novaCategoria.ordem || categorias.length + 1,
             ativo: true
-          });
+          })
+        );
 
-        if (error) throw error;
-        toast.success('Categoria adicionada');
+        const results = await Promise.all(insertPromises);
+        const hasError = results.find(r => r.error);
+        if (hasError?.error) throw hasError.error;
+        
+        toast.success(`Categoria adicionada para ${novaCategoria.tipos_sinistro.length} tipo(s) de sinistro`);
       }
 
-      setNovaCategoria({ nome: '', ordem: 0 });
+      setNovaCategoria({ nome: '', ordem: 0, tipos_sinistro: [] });
       loadData();
     } catch (error) {
       console.error('Erro ao salvar categoria:', error);
@@ -162,7 +179,7 @@ export default function SinistroConfiguracoes() {
 
   const handleEditCategoria = (cat: Categoria) => {
     setEditandoCategoria(cat.id);
-    setNovaCategoria({ nome: cat.nome, ordem: cat.ordem });
+    setNovaCategoria({ nome: cat.nome, ordem: cat.ordem, tipos_sinistro: [cat.tipo_sinistro] });
   };
 
   const handleDeleteCategoria = async (id: string) => {
@@ -212,6 +229,14 @@ export default function SinistroConfiguracoes() {
         ? novaPergunta.opcoes.split('\n').filter(o => o.trim())
         : null;
 
+      const pesoPositivo = novaPergunta.peso_positivo
+        ? novaPergunta.peso_positivo.split('\n').filter(o => o.trim())
+        : null;
+
+      const pesoNegativo = novaPergunta.peso_negativo
+        ? novaPergunta.peso_negativo.split('\n').filter(o => o.trim())
+        : null;
+
       const payload = {
         categoria_id: novaPergunta.categoria_id,
         pergunta: novaPergunta.pergunta,
@@ -220,8 +245,9 @@ export default function SinistroConfiguracoes() {
         opcoes,
         obrigatoria: novaPergunta.obrigatoria,
         ordem: novaPergunta.ordem || perguntas.length + 1,
-        peso: novaPergunta.peso,
         nivel_alerta: novaPergunta.nivel_alerta || 'none',
+        peso_positivo: pesoPositivo,
+        peso_negativo: pesoNegativo,
         auto_preenchivel: novaPergunta.auto_preenchivel || null,
         ativo: true
       };
@@ -251,10 +277,10 @@ export default function SinistroConfiguracoes() {
         opcoes: '',
         obrigatoria: false,
         ordem: 0,
-        peso: 0,
         nivel_alerta: 'none',
+        peso_positivo: '',
+        peso_negativo: '',
         auto_preenchivel: '',
-        tipos_sinistro: []
       });
       loadData();
     } catch (error) {
@@ -275,10 +301,10 @@ export default function SinistroConfiguracoes() {
       opcoes: opcoesArray.join('\n'),
       obrigatoria: pergunta.obrigatoria,
       ordem: pergunta.ordem,
-      peso: pergunta.peso,
       nivel_alerta: pergunta.nivel_alerta || 'none',
+      peso_positivo: pergunta.peso_positivo?.join('\n') || '',
+      peso_negativo: pergunta.peso_negativo?.join('\n') || '',
       auto_preenchivel: pergunta.auto_preenchivel || '',
-      tipos_sinistro: []
     });
   };
 
@@ -291,10 +317,10 @@ export default function SinistroConfiguracoes() {
       opcoes: '',
       obrigatoria: false,
       ordem: 0,
-      peso: 0,
       nivel_alerta: 'none',
+      peso_positivo: '',
+      peso_negativo: '',
       auto_preenchivel: '',
-      tipos_sinistro: []
     });
   };
 
@@ -337,16 +363,11 @@ export default function SinistroConfiguracoes() {
   };
 
   const getAlertaBadge = (nivel: string) => {
-    switch (nivel) {
-      case 'alto':
-        return <Badge className="bg-red-500 text-white">Alto</Badge>;
-      case 'medio':
-        return <Badge className="bg-yellow-500 text-white">Médio</Badge>;
-      case 'baixo':
-        return <Badge className="bg-green-500 text-white">Baixo</Badge>;
-      default:
-        return <Badge variant="outline">Nenhum</Badge>;
+    const nivelConfig = NIVEIS_ALERTA_PESO.find(n => n.value === nivel);
+    if (nivelConfig) {
+      return <Badge className={`${nivelConfig.cor} ${nivelConfig.textCor} text-[10px]`}>{nivelConfig.labelCurto}</Badge>;
     }
+    return <Badge variant="outline">Nenhum</Badge>;
   };
 
   if (loading) {
@@ -423,6 +444,37 @@ export default function SinistroConfiguracoes() {
                   />
                 </div>
               </div>
+
+              {!editandoCategoria && (
+                <div>
+                  <Label className="mb-2 block">Tipos de Sinistro</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {tiposSinistro.map(tipo => (
+                      <div key={tipo} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`tipo-cat-${tipo}`}
+                          checked={novaCategoria.tipos_sinistro.includes(tipo)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setNovaCategoria(prev => ({
+                                ...prev,
+                                tipos_sinistro: [...prev.tipos_sinistro, tipo]
+                              }));
+                            } else {
+                              setNovaCategoria(prev => ({
+                                ...prev,
+                                tipos_sinistro: prev.tipos_sinistro.filter(t => t !== tipo)
+                              }));
+                            }
+                          }}
+                        />
+                        <label htmlFor={`tipo-cat-${tipo}`} className="text-sm">{tipo}</label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <Button onClick={handleAddCategoria} disabled={saving} className="gap-2">
                   {editandoCategoria ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -431,7 +483,7 @@ export default function SinistroConfiguracoes() {
                 {editandoCategoria && (
                   <Button variant="outline" onClick={() => {
                     setEditandoCategoria(null);
-                    setNovaCategoria({ nome: '', ordem: 0 });
+                    setNovaCategoria({ nome: '', ordem: 0, tipos_sinistro: [] });
                   }}>
                     Cancelar
                   </Button>
@@ -545,51 +597,71 @@ export default function SinistroConfiguracoes() {
                 </div>
 
                 <div>
-                  <Label>Nível de Alerta</Label>
+                  <Label>Peso da Resposta Negativa</Label>
                   <Select
                     value={novaPergunta.nivel_alerta}
                     onValueChange={(v) => setNovaPergunta(prev => ({ ...prev, nivel_alerta: v }))}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nenhum</SelectItem>
-                      <SelectItem value="baixo">Baixo</SelectItem>
-                      <SelectItem value="medio">Médio</SelectItem>
-                      <SelectItem value="alto">Alto</SelectItem>
+                      {NIVEIS_ALERTA_PESO.map(nivel => (
+                        <SelectItem key={nivel.value} value={nivel.value}>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${nivel.cor}`} />
+                            <span className="text-xs">{nivel.labelCurto}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
               {novaPergunta.tipo_campo === 'select' && (
-                <div>
-                  <Label>Opções (uma por linha)</Label>
-                  <Textarea
-                    value={novaPergunta.opcoes}
-                    onChange={(e) => setNovaPergunta(prev => ({ ...prev, opcoes: e.target.value }))}
-                    placeholder="Opção 1&#10;Opção 2&#10;Opção 3"
-                    rows={4}
-                  />
-                </div>
+                <>
+                  <div>
+                    <Label>Opções (uma por linha)</Label>
+                    <Textarea
+                      value={novaPergunta.opcoes}
+                      onChange={(e) => setNovaPergunta(prev => ({ ...prev, opcoes: e.target.value }))}
+                      placeholder="Opção 1&#10;Opção 2&#10;Opção 3"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Respostas Positivas (uma por linha)</Label>
+                      <Textarea
+                        value={novaPergunta.peso_positivo}
+                        onChange={(e) => setNovaPergunta(prev => ({ ...prev, peso_positivo: e.target.value }))}
+                        placeholder="SIM&#10;NÃO SE APLICA"
+                        rows={2}
+                      />
+                    </div>
+                    <div>
+                      <Label>Respostas Negativas (uma por linha)</Label>
+                      <Textarea
+                        value={novaPergunta.peso_negativo}
+                        onChange={(e) => setNovaPergunta(prev => ({ ...prev, peso_negativo: e.target.value }))}
+                        placeholder="NÃO"
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                </>
               )}
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Ordem</Label>
                   <Input
                     type="number"
                     value={novaPergunta.ordem}
                     onChange={(e) => setNovaPergunta(prev => ({ ...prev, ordem: parseInt(e.target.value) || 0 }))}
-                  />
-                </div>
-                <div>
-                  <Label>Peso</Label>
-                  <Input
-                    type="number"
-                    value={novaPergunta.peso}
-                    onChange={(e) => setNovaPergunta(prev => ({ ...prev, peso: parseInt(e.target.value) || 0 }))}
                   />
                 </div>
                 <div className="flex items-end">
@@ -652,7 +724,6 @@ export default function SinistroConfiguracoes() {
                         <TableHead className="w-12">#</TableHead>
                         <TableHead>Pergunta</TableHead>
                         <TableHead>Tipo</TableHead>
-                        <TableHead>Alerta</TableHead>
                         <TableHead>Obrigatória</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
@@ -666,7 +737,6 @@ export default function SinistroConfiguracoes() {
                           <TableCell>
                             <Badge variant="outline">{perg.tipo_campo}</Badge>
                           </TableCell>
-                          <TableCell>{getAlertaBadge(perg.nivel_alerta)}</TableCell>
                           <TableCell>
                             {perg.obrigatoria ? (
                               <Badge>Sim</Badge>
@@ -702,7 +772,7 @@ export default function SinistroConfiguracoes() {
                       ))}
                       {getCategoriaPerguntas(cat.id).length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                             Nenhuma pergunta cadastrada nesta categoria
                           </TableCell>
                         </TableRow>
