@@ -269,14 +269,25 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
 
   // Dados para gráfico de rosca de permanência
   const permanenciaDonutData = useMemo(() => {
-    if (!dadosAtual) return [];
-    const totalEntrada = (dadosAtual.cadastros_realizados || 0) + (dadosAtual.reativacao || 0);
-    const totalPerdas = (dadosAtual.cancelamentos || 0) + (dadosAtual.inadimplentes || 0);
+    if (!dadosAno.length) return [];
+
+    const totalEntrada = dadosAno.reduce((acc, d) => acc + (d.cadastros_realizados || 0) + (d.reativacao || 0), 0);
+
+    const totalPerdas = dadosAno.reduce((acc, d) => acc + (d.cancelamentos || 0) + (d.inadimplentes || 0), 0);
+
     return [
-      { name: "Entrada (Cadastros + Reativações)", value: totalEntrada, color: "#16a34a" },
-      { name: "Perdas (Cancelamentos + Inadimplentes)", value: totalPerdas, color: "#dc2626" },
+      {
+        name: "Entrada (Cadastros + Reativações)",
+        value: totalEntrada,
+        color: "#16a34a",
+      },
+      {
+        name: "Perdas (Cancelamentos + Inadimplentes)",
+        value: totalPerdas,
+        color: "#dc2626",
+      },
     ];
-  }, [dadosAtual]);
+  }, [dadosAno]);
 
   if (loading) {
     return (
@@ -1957,7 +1968,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base font-medium">
-                  Permanência - Entrada vs Perdas (Mês Atual: {dadosAtual ? mesesNome[dadosAtual.mes - 1] : ""})
+                  Permanência - Entrada vs Perdas (Acumulado {ano})
                 </CardTitle>
               </CardHeader>
               <CardContent className="h-[350px]">
