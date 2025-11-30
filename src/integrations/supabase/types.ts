@@ -2310,6 +2310,101 @@ export type Database = {
           },
         ]
       }
+      sinistro_pergunta_categorias: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          ordem: number
+          tipo_sinistro: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          ordem?: number
+          tipo_sinistro: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          ordem?: number
+          tipo_sinistro?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sinistro_perguntas: {
+        Row: {
+          ativo: boolean
+          auto_preenchivel: string | null
+          categoria_id: string | null
+          created_at: string
+          id: string
+          nivel_alerta: string | null
+          obrigatoria: boolean
+          opcoes: Json | null
+          ordem: number
+          pergunta: string
+          peso: number
+          peso_negativo: string[] | null
+          peso_positivo: string[] | null
+          tipo_campo: string
+          tipo_sinistro: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          auto_preenchivel?: string | null
+          categoria_id?: string | null
+          created_at?: string
+          id?: string
+          nivel_alerta?: string | null
+          obrigatoria?: boolean
+          opcoes?: Json | null
+          ordem?: number
+          pergunta: string
+          peso?: number
+          peso_negativo?: string[] | null
+          peso_positivo?: string[] | null
+          tipo_campo?: string
+          tipo_sinistro: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          auto_preenchivel?: string | null
+          categoria_id?: string | null
+          created_at?: string
+          id?: string
+          nivel_alerta?: string | null
+          obrigatoria?: boolean
+          opcoes?: Json | null
+          ordem?: number
+          pergunta?: string
+          peso?: number
+          peso_negativo?: string[] | null
+          peso_positivo?: string[] | null
+          tipo_campo?: string
+          tipo_sinistro?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sinistro_perguntas_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "sinistro_pergunta_categorias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       status_config: {
         Row: {
           ativo: boolean
@@ -2706,6 +2801,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      vistoria_config_corretora: {
+        Row: {
+          corretora_id: string
+          created_at: string
+          id: string
+          prazo_expiracao_link_horas: number
+          prazo_realizacao_dias: number
+          updated_at: string
+        }
+        Insert: {
+          corretora_id: string
+          created_at?: string
+          id?: string
+          prazo_expiracao_link_horas?: number
+          prazo_realizacao_dias?: number
+          updated_at?: string
+        }
+        Update: {
+          corretora_id?: string
+          created_at?: string
+          id?: string
+          prazo_expiracao_link_horas?: number
+          prazo_realizacao_dias?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vistoria_config_corretora_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: true
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vistoria_fotos: {
         Row: {

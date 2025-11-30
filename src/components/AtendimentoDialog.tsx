@@ -33,6 +33,7 @@ import { validateCPF, validatePlaca } from "@/lib/validators";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { useAtendimentoRealtime } from "@/hooks/useAtendimentoRealtime";
 import { EntrevistaTab } from "@/components/EntrevistaTab";
+import { AnaliseTab } from "@/components/AnaliseTab";
 
 const CORES = [
   "Preto",
@@ -1053,7 +1054,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
               </TabsTrigger>
               <TabsTrigger value="entrevista" className="gap-2">
                 <ClipboardList className="h-4 w-4" />
-                Entrevista
+                Análise
               </TabsTrigger>
               <TabsTrigger value="andamentos" className="gap-2">
                 <MessageSquare className="h-4 w-4" />
@@ -1740,7 +1741,13 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
               </TabsContent>
 
               <TabsContent value="entrevista" className="mt-0 p-4">
-                {atendimento?.id && <EntrevistaTab atendimentoId={atendimento.id} vistoriaData={vistoriaData} />}
+                {atendimento?.id && (
+                  <AnaliseTab 
+                    atendimentoId={atendimento.id} 
+                    tipoSinistro={vistoriaData.tipo_sinistro}
+                    vistoriaData={vistoriaData} 
+                  />
+                )}
               </TabsContent>
 
               <TabsContent value="andamentos" className="mt-0 p-4">
