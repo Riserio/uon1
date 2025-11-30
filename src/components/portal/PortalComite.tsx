@@ -1,23 +1,23 @@
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CurrencyInput } from '@/components/ui/currency-input';
-import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/formatters';
-import { MessageSquare, DollarSign, TrendingUp, FileDown, Save } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
-import { PERGUNTAS_COMITE, CATEGORIAS_PERGUNTAS, ORDEM_CATEGORIAS, PerguntaComite } from '@/constants/perguntasComite';
-import { exportDeliberacaoPDF } from '@/utils/pdfDeliberacao';
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { formatCurrency } from "@/lib/formatters";
+import { MessageSquare, DollarSign, TrendingUp, FileDown, Save } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { PERGUNTAS_COMITE, CATEGORIAS_PERGUNTAS, ORDEM_CATEGORIAS, PerguntaComite } from "@/constants/perguntasComite";
+import { exportDeliberacaoPDF } from "@/utils/pdfDeliberacao";
 
 interface PortalComiteProps {
   corretoraId?: string;
@@ -27,39 +27,39 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [sinistros, setSinistros] = useState<any[]>([]);
-  const [filtroStatus, setFiltroStatus] = useState('todos');
+  const [filtroStatus, setFiltroStatus] = useState("todos");
   const [selectedSinistro, setSelectedSinistro] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [respostas, setRespostas] = useState<Record<string, string>>({});
   const [deliberacao, setDeliberacao] = useState({
-    decisao: '',
-    valor_aprovado: '',
-    justificativa: '',
+    decisao: "",
+    valor_aprovado: "",
+    justificativa: "",
   });
   const [saving, setSaving] = useState(false);
 
   // Status badge com cores
   const getStatusBadge = (status: string) => {
-    const statusLower = status?.toLowerCase() || '';
-    
-    if (statusLower === 'aprovada' || statusLower === 'aprovado') {
+    const statusLower = status?.toLowerCase() || "";
+
+    if (statusLower === "aprovada" || statusLower === "aprovado") {
       return <Badge className="bg-green-500 hover:bg-green-600 text-white">Aprovada</Badge>;
     }
-    if (statusLower === 'em_analise' || statusLower === 'em análise') {
+    if (statusLower === "em_analise" || statusLower === "em análise") {
       return <Badge className="bg-orange-500 hover:bg-orange-600 text-white">Em Análise</Badge>;
     }
-    if (statusLower === 'negado' || statusLower === 'negada' || statusLower === 'reprovada') {
+    if (statusLower === "negado" || statusLower === "negada" || statusLower === "reprovada") {
       return <Badge className="bg-red-500 hover:bg-red-600 text-white">Negada</Badge>;
     }
-    if (statusLower === 'sindicancia' || statusLower === 'sindicância') {
+    if (statusLower === "sindicancia" || statusLower === "sindicância") {
       return <Badge className="bg-purple-500 hover:bg-purple-600 text-white">Sindicância</Badge>;
     }
-    if (statusLower === 'pericia' || statusLower === 'perícia técnica') {
+    if (statusLower === "pericia" || statusLower === "perícia técnica") {
       return <Badge className="bg-blue-500 hover:bg-blue-600 text-white">Perícia Técnica</Badge>;
     }
-    
+
     // Cor automática para outros status
-    return <Badge variant="secondary">{status || 'Pendente'}</Badge>;
+    return <Badge variant="secondary">{status || "Pendente"}</Badge>;
   };
 
   useEffect(() => {
@@ -70,21 +70,21 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
   const fetchSinistrosParaComite = async () => {
     if (!corretoraId) return;
-    
+
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('vistorias')
-        .select('*')
-        .eq('corretora_id', corretoraId)
-        .in('status', ['em_analise', 'aprovada', 'reprovada', 'concluida'])
-        .order('created_at', { ascending: false });
+        .from("vistorias")
+        .select("*")
+        .eq("corretora_id", corretoraId)
+        .in("status", ["em_analise", "aprovada", "reprovada", "concluida"])
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
       setSinistros(data || []);
     } catch (error: any) {
-      console.error('Error fetching sinistros:', error);
-      toast.error('Erro ao carregar sinistros');
+      console.error("Error fetching sinistros:", error);
+      toast.error("Erro ao carregar sinistros");
     } finally {
       setLoading(false);
     }
@@ -92,12 +92,12 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
   const handleOpenDeliberacao = async (sinistro: any) => {
     setSelectedSinistro(sinistro);
-    
+
     // Carregar respostas existentes do acompanhamento
     const { data: acompData } = await supabase
-      .from('sinistro_acompanhamento')
-      .select('entrevista_respostas, comite_status, comite_decisao, financeiro_valor_aprovado, comite_observacoes')
-      .eq('atendimento_id', sinistro.atendimento_id)
+      .from("sinistro_acompanhamento")
+      .select("entrevista_respostas, comite_status, comite_decisao, financeiro_valor_aprovado, comite_observacoes")
+      .eq("atendimento_id", sinistro.atendimento_id)
       .maybeSingle();
 
     if (acompData?.entrevista_respostas) {
@@ -113,25 +113,84 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
       if (sinistro.veiculo_ano) respostasIniciais.ano_fabricacao = sinistro.veiculo_ano;
       if (sinistro.tipo_sinistro) respostasIniciais.tipo_evento = sinistro.tipo_sinistro;
       if (sinistro.data_incidente) {
-        respostasIniciais.data_evento = sinistro.data_incidente.split('T')[0];
+        respostasIniciais.data_evento = sinistro.data_incidente.split("T")[0];
       }
       setRespostas(respostasIniciais);
     }
 
     setDeliberacao({
-      decisao: acompData?.comite_status || '',
-      valor_aprovado: acompData?.financeiro_valor_aprovado?.toString() || sinistro.valor_indenizacao?.toString() || '',
-      justificativa: acompData?.comite_observacoes || '',
+      decisao: acompData?.comite_status || "",
+      valor_aprovado: acompData?.financeiro_valor_aprovado?.toString() || sinistro.valor_indenizacao?.toString() || "",
+      justificativa: acompData?.comite_observacoes || "",
     });
-    
+
     setDialogOpen(true);
   };
 
+  /**
+   * Salva automaticamente as respostas da entrevista no banco
+   * sempre que o usuário responder/alterar qualquer pergunta.
+   */
+  const salvarRespostasAutomaticamente = async (novasRespostas: Record<string, string>) => {
+    if (!selectedSinistro) return;
+
+    try {
+      const { data: existing, error: existingError } = await supabase
+        .from("sinistro_acompanhamento")
+        .select("id")
+        .eq("atendimento_id", selectedSinistro.atendimento_id)
+        .maybeSingle();
+
+      if (existingError) {
+        console.error("Erro ao buscar acompanhamento para auto-save:", existingError);
+        return;
+      }
+
+      const payload = {
+        entrevista_respostas: novasRespostas,
+        entrevista_data: new Date().toISOString(),
+      };
+
+      if (existing) {
+        const { error } = await supabase
+          .from("sinistro_acompanhamento")
+          .update(payload)
+          .eq("atendimento_id", selectedSinistro.atendimento_id);
+
+        if (error) {
+          console.error("Erro ao auto-salvar respostas (update):", error);
+          toast.error("Erro ao salvar respostas da entrevista");
+        }
+      } else {
+        const { error } = await supabase.from("sinistro_acompanhamento").insert({
+          ...payload,
+          atendimento_id: selectedSinistro.atendimento_id,
+          created_by: user?.id || null,
+        });
+
+        if (error) {
+          console.error("Erro ao auto-salvar respostas (insert):", error);
+          toast.error("Erro ao salvar respostas da entrevista");
+        }
+      }
+    } catch (err) {
+      console.error("Erro inesperado ao auto-salvar respostas:", err);
+      toast.error("Erro ao salvar respostas da entrevista");
+    }
+  };
+
   const handleRespostaChange = (perguntaId: string, valor: string) => {
-    setRespostas(prev => ({
-      ...prev,
-      [perguntaId]: valor,
-    }));
+    setRespostas((prev) => {
+      const novasRespostas = {
+        ...prev,
+        [perguntaId]: valor,
+      };
+
+      // Auto-save das respostas da entrevista
+      void salvarRespostasAutomaticamente(novasRespostas);
+
+      return novasRespostas;
+    });
   };
 
   const handleSalvarDeliberacao = async () => {
@@ -142,12 +201,14 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
       // Verificar se já existe registro de acompanhamento
       const { data: existing } = await supabase
-        .from('sinistro_acompanhamento')
-        .select('id')
-        .eq('atendimento_id', selectedSinistro.atendimento_id)
+        .from("sinistro_acompanhamento")
+        .select("id")
+        .eq("atendimento_id", selectedSinistro.atendimento_id)
         .maybeSingle();
 
       const acompanhamentoData = {
+        // mantemos as respostas no payload também, para garantir consistência,
+        // mas elas já foram salvas automaticamente a cada alteração
         entrevista_respostas: respostas,
         entrevista_data: new Date().toISOString(),
         comite_status: deliberacao.decisao || null,
@@ -159,19 +220,17 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
       if (existing) {
         const { error } = await supabase
-          .from('sinistro_acompanhamento')
+          .from("sinistro_acompanhamento")
           .update(acompanhamentoData)
-          .eq('atendimento_id', selectedSinistro.atendimento_id);
+          .eq("atendimento_id", selectedSinistro.atendimento_id);
 
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from('sinistro_acompanhamento')
-          .insert({
-            ...acompanhamentoData,
-            atendimento_id: selectedSinistro.atendimento_id,
-            created_by: user?.id,
-          });
+        const { error } = await supabase.from("sinistro_acompanhamento").insert({
+          ...acompanhamentoData,
+          atendimento_id: selectedSinistro.atendimento_id,
+          created_by: user?.id,
+        });
 
         if (error) throw error;
       }
@@ -179,29 +238,29 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
       // Atualizar status da vistoria se necessário
       if (deliberacao.decisao) {
         let novoStatus = selectedSinistro.status;
-        if (deliberacao.decisao === 'Aprovado') {
-          novoStatus = 'aprovada';
-        } else if (deliberacao.decisao === 'Negado') {
-          novoStatus = 'reprovada';
+        if (deliberacao.decisao === "Aprovado") {
+          novoStatus = "aprovada";
+        } else if (deliberacao.decisao === "Negado") {
+          novoStatus = "reprovada";
         }
 
         if (novoStatus !== selectedSinistro.status) {
           await supabase
-            .from('vistorias')
+            .from("vistorias")
             .update({
               status: novoStatus,
               valor_indenizacao: parseFloat(deliberacao.valor_aprovado) || null,
             })
-            .eq('id', selectedSinistro.id);
+            .eq("id", selectedSinistro.id);
         }
       }
 
-      toast.success('Deliberação salva com sucesso');
+      toast.success("Deliberação salva com sucesso");
       setDialogOpen(false);
       fetchSinistrosParaComite();
     } catch (error: any) {
-      console.error('Error saving deliberacao:', error);
-      toast.error('Erro ao salvar deliberação');
+      console.error("Error saving deliberacao:", error);
+      toast.error("Erro ao salvar deliberação");
     } finally {
       setSaving(false);
     }
@@ -221,20 +280,20 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
       // Buscar fotos se houver
       const { data: vistoriaFotos } = await supabase
-        .from('vistoria_fotos')
-        .select('foto_url, tipo_foto')
-        .eq('vistoria_id', selectedSinistro.id);
+        .from("vistoria_fotos")
+        .select("foto_url, tipo_foto")
+        .eq("vistoria_id", selectedSinistro.id);
 
       const fotos = (vistoriaFotos || []).map((f: any) => ({
-        url: f.foto_url || '',
-        tipo: f.tipo_foto || 'Foto'
+        url: f.foto_url || "",
+        tipo: f.tipo_foto || "Foto",
       }));
 
       await exportDeliberacaoPDF(selectedSinistro, respostas, comiteData, fotos);
-      toast.success('PDF gerado com sucesso');
+      toast.success("PDF gerado com sucesso");
     } catch (error) {
-      console.error('Error exporting PDF:', error);
-      toast.error('Erro ao gerar PDF');
+      console.error("Error exporting PDF:", error);
+      toast.error("Erro ao gerar PDF");
     }
   };
 
@@ -242,13 +301,13 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     return sinistro.valor_indenizacao || sinistro.custo_reparo || sinistro.custo_perda_total || 0;
   };
 
-  const sinistrosFiltrados = sinistros.filter(s => {
-    if (filtroStatus === 'todos') return true;
+  const sinistrosFiltrados = sinistros.filter((s) => {
+    if (filtroStatus === "todos") return true;
     return s.status === filtroStatus;
   });
 
   const renderPergunta = (pergunta: PerguntaComite) => {
-    const valor = respostas[pergunta.id] || '';
+    const valor = respostas[pergunta.id] || "";
 
     return (
       <div key={pergunta.id} className="space-y-1.5">
@@ -257,11 +316,8 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
           {pergunta.obrigatoria && <span className="text-destructive ml-1">*</span>}
         </Label>
 
-        {pergunta.tipo === 'select' && pergunta.opcoes && (
-          <Select
-            value={valor}
-            onValueChange={(v) => handleRespostaChange(pergunta.id, v)}
-          >
+        {pergunta.tipo === "select" && pergunta.opcoes && (
+          <Select value={valor} onValueChange={(v) => handleRespostaChange(pergunta.id, v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="Selecione..." />
             </SelectTrigger>
@@ -275,7 +331,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
           </Select>
         )}
 
-        {pergunta.tipo === 'text' && (
+        {pergunta.tipo === "text" && (
           <Input
             value={valor}
             onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
@@ -284,7 +340,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
           />
         )}
 
-        {pergunta.tipo === 'textarea' && (
+        {pergunta.tipo === "textarea" && (
           <Textarea
             value={valor}
             onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
@@ -294,7 +350,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
           />
         )}
 
-        {pergunta.tipo === 'date' && (
+        {pergunta.tipo === "date" && (
           <Input
             type="date"
             value={valor}
@@ -306,7 +362,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     );
   };
 
-  const perguntasRespondidas = Object.keys(respostas).filter(k => respostas[k]).length;
+  const perguntasRespondidas = Object.keys(respostas).filter((k) => respostas[k]).length;
   const totalPerguntas = PERGUNTAS_COMITE.length;
 
   return (
@@ -343,9 +399,9 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {sinistros.length > 0 
+              {sinistros.length > 0
                 ? formatCurrency(sinistros.reduce((sum, s) => sum + getValorEstimado(s), 0) / sinistros.length)
-                : 'R$ 0,00'}
+                : "R$ 0,00"}
             </div>
             <p className="text-xs text-muted-foreground">Valor médio por sinistro</p>
           </CardContent>
@@ -373,9 +429,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
           {loading ? (
             <div className="text-center py-12">Carregando...</div>
           ) : sinistrosFiltrados.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              Nenhum sinistro para deliberação
-            </div>
+            <div className="text-center py-12 text-muted-foreground">Nenhum sinistro para deliberação</div>
           ) : (
             <Table>
               <TableHeader>
@@ -394,8 +448,8 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                 {sinistrosFiltrados.map((sinistro) => (
                   <TableRow key={sinistro.id}>
                     <TableCell className="font-medium">#{sinistro.numero}</TableCell>
-                    <TableCell>{sinistro.tipo_sinistro || 'N/A'}</TableCell>
-                    <TableCell>{sinistro.cliente_nome || 'N/A'}</TableCell>
+                    <TableCell>{sinistro.tipo_sinistro || "N/A"}</TableCell>
+                    <TableCell>{sinistro.cliente_nome || "N/A"}</TableCell>
                     <TableCell>
                       {sinistro.veiculo_placa ? (
                         <div>
@@ -404,20 +458,15 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                             {sinistro.veiculo_marca} {sinistro.veiculo_modelo}
                           </div>
                         </div>
-                      ) : 'N/A'}
+                      ) : (
+                        "N/A"
+                      )}
                     </TableCell>
-                    <TableCell>
-                      {new Date(sinistro.created_at).toLocaleDateString('pt-BR')}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(getValorEstimado(sinistro))}
-                    </TableCell>
+                    <TableCell>{new Date(sinistro.created_at).toLocaleDateString("pt-BR")}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(getValorEstimado(sinistro))}</TableCell>
                     <TableCell>{getStatusBadge(sinistro.status)}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        onClick={() => handleOpenDeliberacao(sinistro)}
-                      >
+                      <Button size="sm" onClick={() => handleOpenDeliberacao(sinistro)}>
                         Deliberar
                       </Button>
                     </TableCell>
@@ -452,16 +501,17 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                   <div className="grid grid-cols-4 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground text-xs">Cliente</p>
-                      <p className="font-medium">{selectedSinistro.cliente_nome || 'N/A'}</p>
+                      <p className="font-medium">{selectedSinistro.cliente_nome || "N/A"}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Tipo</p>
-                      <p className="font-medium">{selectedSinistro.tipo_sinistro || 'N/A'}</p>
+                      <p className="font-medium">{selectedSinistro.tipo_sinistro || "N/A"}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Veículo</p>
                       <p className="font-medium">
-                        {selectedSinistro.veiculo_marca} {selectedSinistro.veiculo_modelo} - {selectedSinistro.veiculo_placa}
+                        {selectedSinistro.veiculo_marca} {selectedSinistro.veiculo_modelo} -{" "}
+                        {selectedSinistro.veiculo_placa}
                       </p>
                     </div>
                     <div>
@@ -474,7 +524,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
               {/* Perguntas e Decisão lado a lado */}
               <div className="flex-1 overflow-hidden grid grid-cols-3 gap-4">
-                {/* Perguntas - 2 colunas */}
+                {/* Perguntas - AGORA EM COLUNA ÚNICA (uma categoria abaixo da outra) */}
                 <div className="col-span-2 overflow-hidden flex flex-col">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold">Questionário de Avaliação</h3>
@@ -483,7 +533,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                     </Badge>
                   </div>
                   <ScrollArea className="flex-1 pr-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-4">
                       {ORDEM_CATEGORIAS.map((categoria) => {
                         const perguntas = CATEGORIAS_PERGUNTAS[categoria];
                         if (!perguntas || perguntas.length === 0) return null;
@@ -491,9 +541,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                         return (
                           <Card key={categoria} className="p-3">
                             <h4 className="text-xs font-semibold mb-2 text-primary">{categoria}</h4>
-                            <div className="space-y-3">
-                              {perguntas.map(renderPergunta)}
-                            </div>
+                            <div className="space-y-3">{perguntas.map(renderPergunta)}</div>
                           </Card>
                         );
                       })}
@@ -535,12 +583,14 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                         </Select>
                       </div>
 
-                      {deliberacao.decisao === 'Aprovado' && (
+                      {deliberacao.decisao === "Aprovado" && (
                         <div className="space-y-2">
                           <Label>Valor Aprovado *</Label>
                           <CurrencyInput
                             value={deliberacao.valor_aprovado}
-                            onValueChange={(values) => setDeliberacao({ ...deliberacao, valor_aprovado: values.value || '' })}
+                            onValueChange={(values) =>
+                              setDeliberacao({ ...deliberacao, valor_aprovado: values.value || "" })
+                            }
                             placeholder="R$ 0,00"
                           />
                         </div>
@@ -559,11 +609,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                       <Separator />
 
                       <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => setDialogOpen(false)}
-                          className="flex-1"
-                        >
+                        <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
                           Cancelar
                         </Button>
                         <Button
@@ -572,7 +618,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                           className="flex-1 gap-2"
                         >
                           <Save className="h-4 w-4" />
-                          {saving ? 'Salvando...' : 'Salvar'}
+                          {saving ? "Salvando..." : "Salvar"}
                         </Button>
                       </div>
                     </div>
