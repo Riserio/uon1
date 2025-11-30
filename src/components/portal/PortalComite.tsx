@@ -5,74 +5,23 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CurrencyInput } from '@/components/ui/currency-input';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { formatCurrency, formatPercent } from '@/lib/formatters';
-import { MessageSquare, ThumbsUp, ThumbsDown, DollarSign, TrendingUp, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { formatCurrency } from '@/lib/formatters';
+import { MessageSquare, DollarSign, TrendingUp, FileDown, Save } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { PERGUNTAS_COMITE, CATEGORIAS_PERGUNTAS, ORDEM_CATEGORIAS, PerguntaComite } from '@/constants/perguntasComite';
+import { exportDeliberacaoPDF } from '@/utils/pdfDeliberacao';
 
 interface PortalComiteProps {
   corretoraId?: string;
 }
-
-// Perguntas de avaliação de sinistros baseadas no mercado de seguros
-const PERGUNTAS_AVALIACAO = [
-  {
-    id: 'cobertura_vigente',
-    pergunta: 'A cobertura estava vigente na data do sinistro?',
-    categoria: 'Cobertura',
-  },
-  {
-    id: 'pagamentos_em_dia',
-    pergunta: 'O associado está com os pagamentos em dia?',
-    categoria: 'Adimplência',
-  },
-  {
-    id: 'carencia_cumprida',
-    pergunta: 'O período de carência foi cumprido?',
-    categoria: 'Carência',
-  },
-  {
-    id: 'documentacao_completa',
-    pergunta: 'A documentação está completa e correta?',
-    categoria: 'Documentação',
-  },
-  {
-    id: 'bo_apresentado',
-    pergunta: 'O Boletim de Ocorrência foi apresentado (quando aplicável)?',
-    categoria: 'Documentação',
-  },
-  {
-    id: 'vistoria_realizada',
-    pergunta: 'A vistoria foi realizada e aprovada?',
-    categoria: 'Vistoria',
-  },
-  {
-    id: 'danos_cobertos',
-    pergunta: 'Os danos estão cobertos pelo plano contratado?',
-    categoria: 'Cobertura',
-  },
-  {
-    id: 'sem_fraude_indicios',
-    pergunta: 'Não há indícios de fraude ou má-fé?',
-    categoria: 'Análise',
-  },
-  {
-    id: 'valores_compativeis',
-    pergunta: 'Os valores solicitados são compatíveis com os danos?',
-    categoria: 'Análise',
-  },
-  {
-    id: 'terceiros_identificados',
-    pergunta: 'Os terceiros envolvidos foram identificados (quando aplicável)?',
-    categoria: 'Terceiros',
-  },
-];
 
 export default function PortalComite({ corretoraId }: PortalComiteProps) {
   const { user } = useAuth();
@@ -81,24 +30,36 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [selectedSinistro, setSelectedSinistro] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [respostas, setRespostas] = useState<Record<string, boolean | null>>({});
+  const [respostas, setRespostas] = useState<Record<string, string>>({});
   const [deliberacao, setDeliberacao] = useState({
     decisao: '',
     valor_aprovado: '',
     justificativa: '',
   });
+  const [saving, setSaving] = useState(false);
 
+  // Status badge com cores
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: any; label: string }> = {
-      'rascunho': { variant: 'secondary', label: 'Rascunho' },
-      'aguardando_fotos': { variant: 'outline', label: 'Aguardando' },
-      'em_analise': { variant: 'default', label: 'Em Análise' },
-      'aprovada': { variant: 'default', label: 'Aprovada' },
-      'reprovada': { variant: 'destructive', label: 'Reprovada' },
-      'concluida': { variant: 'default', label: 'Concluída' },
-    };
-    const config = variants[status] || { variant: 'secondary', label: status };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    const statusLower = status?.toLowerCase() || '';
+    
+    if (statusLower === 'aprovada' || statusLower === 'aprovado') {
+      return <Badge className="bg-green-500 hover:bg-green-600 text-white">Aprovada</Badge>;
+    }
+    if (statusLower === 'em_analise' || statusLower === 'em análise') {
+      return <Badge className="bg-orange-500 hover:bg-orange-600 text-white">Em Análise</Badge>;
+    }
+    if (statusLower === 'negado' || statusLower === 'negada' || statusLower === 'reprovada') {
+      return <Badge className="bg-red-500 hover:bg-red-600 text-white">Negada</Badge>;
+    }
+    if (statusLower === 'sindicancia' || statusLower === 'sindicância') {
+      return <Badge className="bg-purple-500 hover:bg-purple-600 text-white">Sindicância</Badge>;
+    }
+    if (statusLower === 'pericia' || statusLower === 'perícia técnica') {
+      return <Badge className="bg-blue-500 hover:bg-blue-600 text-white">Perícia Técnica</Badge>;
+    }
+    
+    // Cor automática para outros status
+    return <Badge variant="secondary">{status || 'Pendente'}</Badge>;
   };
 
   useEffect(() => {
@@ -116,7 +77,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         .from('vistorias')
         .select('*')
         .eq('corretora_id', corretoraId)
-        .in('status', ['em_analise', 'aprovada'])
+        .in('status', ['em_analise', 'aprovada', 'reprovada', 'concluida'])
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -129,90 +90,151 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     }
   };
 
-  const handleOpenDeliberacao = (sinistro: any) => {
+  const handleOpenDeliberacao = async (sinistro: any) => {
     setSelectedSinistro(sinistro);
-    // Resetar respostas
-    const respostasIniciais: Record<string, boolean | null> = {};
-    PERGUNTAS_AVALIACAO.forEach(p => {
-      respostasIniciais[p.id] = null;
-    });
-    setRespostas(respostasIniciais);
+    
+    // Carregar respostas existentes do acompanhamento
+    const { data: acompData } = await supabase
+      .from('sinistro_acompanhamento')
+      .select('entrevista_respostas, comite_status, comite_decisao, financeiro_valor_aprovado, comite_observacoes')
+      .eq('atendimento_id', sinistro.atendimento_id)
+      .maybeSingle();
+
+    if (acompData?.entrevista_respostas) {
+      setRespostas(acompData.entrevista_respostas as Record<string, string>);
+    } else {
+      // Pré-preencher com dados do sinistro
+      const respostasIniciais: Record<string, string> = {};
+      if (sinistro.cliente_nome) respostasIniciais.nome_associado = sinistro.cliente_nome;
+      if (sinistro.veiculo_placa) respostasIniciais.placa = sinistro.veiculo_placa;
+      if (sinistro.veiculo_marca && sinistro.veiculo_modelo) {
+        respostasIniciais.marca_modelo = `${sinistro.veiculo_marca} ${sinistro.veiculo_modelo}`;
+      }
+      if (sinistro.veiculo_ano) respostasIniciais.ano_fabricacao = sinistro.veiculo_ano;
+      if (sinistro.tipo_sinistro) respostasIniciais.tipo_evento = sinistro.tipo_sinistro;
+      if (sinistro.data_incidente) {
+        respostasIniciais.data_evento = sinistro.data_incidente.split('T')[0];
+      }
+      setRespostas(respostasIniciais);
+    }
+
     setDeliberacao({
-      decisao: '',
-      valor_aprovado: sinistro.valor_indenizacao?.toString() || sinistro.custo_reparo?.toString() || '',
-      justificativa: '',
+      decisao: acompData?.comite_status || '',
+      valor_aprovado: acompData?.financeiro_valor_aprovado?.toString() || sinistro.valor_indenizacao?.toString() || '',
+      justificativa: acompData?.comite_observacoes || '',
     });
+    
     setDialogOpen(true);
   };
 
-  const handleRespostaChange = (perguntaId: string, valor: boolean) => {
+  const handleRespostaChange = (perguntaId: string, valor: string) => {
     setRespostas(prev => ({
       ...prev,
       [perguntaId]: valor,
     }));
   };
 
-  const calcularPontuacaoAvaliacao = () => {
-    const respondidas = Object.values(respostas).filter(r => r !== null);
-    const positivas = Object.values(respostas).filter(r => r === true).length;
-    if (respondidas.length === 0) return 0;
-    return positivas / PERGUNTAS_AVALIACAO.length;
-  };
-
   const handleSalvarDeliberacao = async () => {
-    if (!selectedSinistro || !deliberacao.decisao) {
-      toast.error('Selecione uma decisão');
-      return;
-    }
-
-    // Verificar se todas as perguntas foram respondidas
-    const todasRespondidas = PERGUNTAS_AVALIACAO.every(p => respostas[p.id] !== null);
-    if (!todasRespondidas) {
-      toast.error('Responda todas as perguntas de avaliação');
-      return;
-    }
+    if (!selectedSinistro) return;
 
     try {
-      const pontuacao = calcularPontuacaoAvaliacao();
-      
-      const observacoesComite = {
-        data: new Date().toISOString(),
-        usuario: user?.email,
-        decisao: deliberacao.decisao,
-        valor_aprovado: parseFloat(deliberacao.valor_aprovado) || 0,
-        justificativa: deliberacao.justificativa,
-        avaliacao: {
-          respostas: respostas,
-          pontuacao: pontuacao,
-          perguntas_positivas: Object.values(respostas).filter(r => r === true).length,
-          total_perguntas: PERGUNTAS_AVALIACAO.length,
-        },
+      setSaving(true);
+
+      // Verificar se já existe registro de acompanhamento
+      const { data: existing } = await supabase
+        .from('sinistro_acompanhamento')
+        .select('id')
+        .eq('atendimento_id', selectedSinistro.atendimento_id)
+        .maybeSingle();
+
+      const acompanhamentoData = {
+        entrevista_respostas: respostas,
+        entrevista_data: new Date().toISOString(),
+        comite_status: deliberacao.decisao || null,
+        comite_decisao: deliberacao.justificativa || null,
+        comite_observacoes: deliberacao.justificativa || null,
+        comite_data: new Date().toISOString(),
+        financeiro_valor_aprovado: parseFloat(deliberacao.valor_aprovado) || null,
       };
 
-      const atualizacao: any = {
-        observacoes_ia: JSON.stringify(observacoesComite),
-      };
+      if (existing) {
+        const { error } = await supabase
+          .from('sinistro_acompanhamento')
+          .update(acompanhamentoData)
+          .eq('atendimento_id', selectedSinistro.atendimento_id);
 
-      if (deliberacao.decisao === 'aprovado') {
-        atualizacao.valor_indenizacao = parseFloat(deliberacao.valor_aprovado) || 0;
-        atualizacao.status = 'aprovada';
-      } else if (deliberacao.decisao === 'negado') {
-        atualizacao.status = 'reprovada';
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('sinistro_acompanhamento')
+          .insert({
+            ...acompanhamentoData,
+            atendimento_id: selectedSinistro.atendimento_id,
+            created_by: user?.id,
+          });
+
+        if (error) throw error;
       }
 
-      const { error } = await supabase
-        .from('vistorias')
-        .update(atualizacao)
-        .eq('id', selectedSinistro.id);
+      // Atualizar status da vistoria se necessário
+      if (deliberacao.decisao) {
+        let novoStatus = selectedSinistro.status;
+        if (deliberacao.decisao === 'Aprovado') {
+          novoStatus = 'aprovada';
+        } else if (deliberacao.decisao === 'Negado') {
+          novoStatus = 'reprovada';
+        }
 
-      if (error) throw error;
+        if (novoStatus !== selectedSinistro.status) {
+          await supabase
+            .from('vistorias')
+            .update({
+              status: novoStatus,
+              valor_indenizacao: parseFloat(deliberacao.valor_aprovado) || null,
+            })
+            .eq('id', selectedSinistro.id);
+        }
+      }
 
-      toast.success('Deliberação registrada com sucesso');
+      toast.success('Deliberação salva com sucesso');
       setDialogOpen(false);
       fetchSinistrosParaComite();
     } catch (error: any) {
       console.error('Error saving deliberacao:', error);
       toast.error('Erro ao salvar deliberação');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    if (!selectedSinistro) return;
+
+    try {
+      const comiteData = {
+        parecer_analista: respostas.parecer_analista,
+        decisao: deliberacao.decisao,
+        valor_aprovado: parseFloat(deliberacao.valor_aprovado) || undefined,
+        justificativa: deliberacao.justificativa,
+        data_deliberacao: new Date().toISOString(),
+      };
+
+      // Buscar fotos se houver
+      const { data: vistoriaFotos } = await supabase
+        .from('vistoria_fotos')
+        .select('foto_url, tipo_foto')
+        .eq('vistoria_id', selectedSinistro.id);
+
+      const fotos = (vistoriaFotos || []).map((f: any) => ({
+        url: f.foto_url || '',
+        tipo: f.tipo_foto || 'Foto'
+      }));
+
+      await exportDeliberacaoPDF(selectedSinistro, respostas, comiteData, fotos);
+      toast.success('PDF gerado com sucesso');
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      toast.error('Erro ao gerar PDF');
     }
   };
 
@@ -225,8 +247,67 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     return s.status === filtroStatus;
   });
 
-  const pontuacaoAtual = calcularPontuacaoAvaliacao();
-  const respondidas = Object.values(respostas).filter(r => r !== null).length;
+  const renderPergunta = (pergunta: PerguntaComite) => {
+    const valor = respostas[pergunta.id] || '';
+
+    return (
+      <div key={pergunta.id} className="space-y-1.5">
+        <Label className="text-xs font-medium">
+          {pergunta.pergunta}
+          {pergunta.obrigatoria && <span className="text-destructive ml-1">*</span>}
+        </Label>
+
+        {pergunta.tipo === 'select' && pergunta.opcoes && (
+          <Select
+            value={valor}
+            onValueChange={(v) => handleRespostaChange(pergunta.id, v)}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Selecione..." />
+            </SelectTrigger>
+            <SelectContent>
+              {pergunta.opcoes.map((opcao) => (
+                <SelectItem key={opcao} value={opcao} className="text-xs">
+                  {opcao}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {pergunta.tipo === 'text' && (
+          <Input
+            value={valor}
+            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
+            placeholder="Digite..."
+            className="h-8 text-xs"
+          />
+        )}
+
+        {pergunta.tipo === 'textarea' && (
+          <Textarea
+            value={valor}
+            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
+            placeholder="Digite..."
+            rows={2}
+            className="text-xs"
+          />
+        )}
+
+        {pergunta.tipo === 'date' && (
+          <Input
+            type="date"
+            value={valor}
+            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
+            className="h-8 text-xs"
+          />
+        )}
+      </div>
+    );
+  };
+
+  const perguntasRespondidas = Object.keys(respostas).filter(k => respostas[k]).length;
+  const totalPerguntas = PERGUNTAS_COMITE.length;
 
   return (
     <div className="space-y-6">
@@ -238,7 +319,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{sinistros.length}</div>
-            <p className="text-xs text-muted-foreground">Processos aguardando deliberação</p>
+            <p className="text-xs text-muted-foreground">Processos para deliberação</p>
           </CardContent>
         </Card>
 
@@ -283,6 +364,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="em_analise">Em Análise</SelectItem>
                 <SelectItem value="aprovada">Aprovados</SelectItem>
+                <SelectItem value="reprovada">Negados</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -349,171 +431,153 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
       {/* Dialog de Deliberação */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>Deliberação do Comitê - Sinistro #{selectedSinistro?.numero}</DialogTitle>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Deliberação - Sinistro #{selectedSinistro?.numero}</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleExportPDF} className="gap-2">
+                  <FileDown className="h-4 w-4" />
+                  Exportar PDF
+                </Button>
+              </div>
+            </DialogTitle>
           </DialogHeader>
 
           {selectedSinistro && (
-            <div className="space-y-6">
+            <div className="flex-1 overflow-hidden flex flex-col gap-4">
               {/* Informações do Sinistro */}
-              <Card className="bg-muted/50">
-                <CardContent className="pt-6 space-y-2">
-                  <div className="grid grid-cols-2 gap-4">
+              <Card className="bg-muted/50 flex-shrink-0">
+                <CardContent className="pt-4 pb-3">
+                  <div className="grid grid-cols-4 gap-4 text-sm">
                     <div>
-                      <p className="text-sm text-muted-foreground">Cliente</p>
-                      <p className="font-medium">{selectedSinistro.cliente_nome}</p>
+                      <p className="text-muted-foreground text-xs">Cliente</p>
+                      <p className="font-medium">{selectedSinistro.cliente_nome || 'N/A'}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Tipo</p>
-                      <p className="font-medium">{selectedSinistro.tipo_sinistro}</p>
+                      <p className="text-muted-foreground text-xs">Tipo</p>
+                      <p className="font-medium">{selectedSinistro.tipo_sinistro || 'N/A'}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Veículo</p>
+                      <p className="text-muted-foreground text-xs">Veículo</p>
                       <p className="font-medium">
                         {selectedSinistro.veiculo_marca} {selectedSinistro.veiculo_modelo} - {selectedSinistro.veiculo_placa}
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Data do Incidente</p>
-                      <p className="font-medium">
-                        {selectedSinistro.data_incidente 
-                          ? new Date(selectedSinistro.data_incidente).toLocaleDateString('pt-BR')
-                          : 'N/A'}
-                      </p>
+                      <p className="text-muted-foreground text-xs">Status</p>
+                      {getStatusBadge(selectedSinistro.status)}
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Perguntas de Avaliação */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Avaliação do Sinistro</h3>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      {respondidas}/{PERGUNTAS_AVALIACAO.length} respondidas
-                    </span>
-                    <Badge variant={pontuacaoAtual >= 0.7 ? 'default' : pontuacaoAtual >= 0.4 ? 'secondary' : 'destructive'}>
-                      {formatPercent(pontuacaoAtual)}
+              {/* Perguntas e Decisão lado a lado */}
+              <div className="flex-1 overflow-hidden grid grid-cols-3 gap-4">
+                {/* Perguntas - 2 colunas */}
+                <div className="col-span-2 overflow-hidden flex flex-col">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold">Questionário de Avaliação</h3>
+                    <Badge variant="outline" className="text-xs">
+                      {perguntasRespondidas}/{totalPerguntas} respondidas
                     </Badge>
                   </div>
+                  <ScrollArea className="flex-1 pr-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      {ORDEM_CATEGORIAS.map((categoria) => {
+                        const perguntas = CATEGORIAS_PERGUNTAS[categoria];
+                        if (!perguntas || perguntas.length === 0) return null;
+
+                        return (
+                          <Card key={categoria} className="p-3">
+                            <h4 className="text-xs font-semibold mb-2 text-primary">{categoria}</h4>
+                            <div className="space-y-3">
+                              {perguntas.map(renderPergunta)}
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
                 </div>
-                
-                <div className="space-y-3 border rounded-lg p-4">
-                  {PERGUNTAS_AVALIACAO.map((pergunta, index) => (
-                    <div key={pergunta.id} className="space-y-2">
-                      {index > 0 && PERGUNTAS_AVALIACAO[index - 1].categoria !== pergunta.categoria && (
-                        <Separator className="my-3" />
+
+                {/* Decisão - 1 coluna */}
+                <div className="overflow-hidden flex flex-col">
+                  <h3 className="text-sm font-semibold mb-2">Decisão do Comitê</h3>
+                  <Card className="flex-1 p-4">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Parecer do Analista *</Label>
+                        <Select
+                          value={deliberacao.decisao}
+                          onValueChange={(value) => setDeliberacao({ ...deliberacao, decisao: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a decisão" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Aprovado">
+                              <span className="text-green-600 font-medium">Aprovado</span>
+                            </SelectItem>
+                            <SelectItem value="Negado">
+                              <span className="text-red-600 font-medium">Negado</span>
+                            </SelectItem>
+                            <SelectItem value="Sindicância">
+                              <span className="text-purple-600 font-medium">Sindicância</span>
+                            </SelectItem>
+                            <SelectItem value="Necessário Análise Jurídica">
+                              <span className="text-orange-600 font-medium">Necessário Análise Jurídica</span>
+                            </SelectItem>
+                            <SelectItem value="Perícia Técnica">
+                              <span className="text-blue-600 font-medium">Perícia Técnica</span>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {deliberacao.decisao === 'Aprovado' && (
+                        <div className="space-y-2">
+                          <Label>Valor Aprovado *</Label>
+                          <CurrencyInput
+                            value={deliberacao.valor_aprovado}
+                            onValueChange={(values) => setDeliberacao({ ...deliberacao, valor_aprovado: values.value || '' })}
+                            placeholder="R$ 0,00"
+                          />
+                        </div>
                       )}
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <Badge variant="outline" className="mb-1 text-[10px]">
-                            {pergunta.categoria}
-                          </Badge>
-                          <p className="text-sm">{pergunta.pergunta}</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant={respostas[pergunta.id] === true ? 'default' : 'outline'}
-                            className={`gap-1 ${respostas[pergunta.id] === true ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                            onClick={() => handleRespostaChange(pergunta.id, true)}
-                          >
-                            <CheckCircle className="h-3 w-3" />
-                            Sim
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant={respostas[pergunta.id] === false ? 'default' : 'outline'}
-                            className={`gap-1 ${respostas[pergunta.id] === false ? 'bg-red-600 hover:bg-red-700' : ''}`}
-                            onClick={() => handleRespostaChange(pergunta.id, false)}
-                          >
-                            <XCircle className="h-3 w-3" />
-                            Não
-                          </Button>
-                        </div>
+
+                      <div className="space-y-2">
+                        <Label>Justificativa / Observações *</Label>
+                        <Textarea
+                          value={deliberacao.justificativa}
+                          onChange={(e) => setDeliberacao({ ...deliberacao, justificativa: e.target.value })}
+                          placeholder="Descreva a justificativa da decisão..."
+                          rows={6}
+                        />
+                      </div>
+
+                      <Separator />
+
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setDialogOpen(false)}
+                          className="flex-1"
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          onClick={handleSalvarDeliberacao}
+                          disabled={saving || !deliberacao.justificativa}
+                          className="flex-1 gap-2"
+                        >
+                          <Save className="h-4 w-4" />
+                          {saving ? 'Salvando...' : 'Salvar'}
+                        </Button>
                       </div>
                     </div>
-                  ))}
+                  </Card>
                 </div>
-              </div>
-
-              <Separator />
-
-              {/* Decisão */}
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="decisao">Decisão do Comitê *</Label>
-                  <Select
-                    value={deliberacao.decisao}
-                    onValueChange={(value) => setDeliberacao({ ...deliberacao, decisao: value })}
-                  >
-                    <SelectTrigger id="decisao">
-                      <SelectValue placeholder="Selecione a decisão" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="aprovado">
-                        <div className="flex items-center">
-                          <ThumbsUp className="mr-2 h-4 w-4 text-green-600" />
-                          Aprovar Indenização
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="negado">
-                        <div className="flex items-center">
-                          <ThumbsDown className="mr-2 h-4 w-4 text-red-600" />
-                          Negar Indenização
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="mais_informacoes">
-                        <div className="flex items-center">
-                          <AlertCircle className="mr-2 h-4 w-4 text-amber-600" />
-                          Solicitar Mais Informações
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {deliberacao.decisao === 'aprovado' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="valor_aprovado">Valor Aprovado *</Label>
-                    <CurrencyInput
-                      id="valor_aprovado"
-                      value={deliberacao.valor_aprovado}
-                      onValueChange={(values) => setDeliberacao({ ...deliberacao, valor_aprovado: values.value || '' })}
-                      placeholder="R$ 0,00"
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="justificativa">Justificativa / Observações *</Label>
-                  <Textarea
-                    id="justificativa"
-                    value={deliberacao.justificativa}
-                    onChange={(e) => setDeliberacao({ ...deliberacao, justificativa: e.target.value })}
-                    placeholder="Descreva a justificativa da decisão do comitê..."
-                    rows={4}
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2 justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => setDialogOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleSalvarDeliberacao}
-                  disabled={!deliberacao.decisao || !deliberacao.justificativa || respondidas < PERGUNTAS_AVALIACAO.length}
-                >
-                  Salvar Deliberação
-                </Button>
               </div>
             </div>
           )}
