@@ -13,7 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Trash2, Save, GripVertical, Settings, FileQuestion, Clock, Building2 } from 'lucide-react';
+import { Plus, Trash2, Save, GripVertical, Settings, FileQuestion, Clock, Building2, Pencil, X } from 'lucide-react';
 import { SinistroPergunta, SinistroPerguntaCategoria } from '@/hooks/useSinistroPerguntas';
 
 interface SinistroConfiguracoesDialogProps {
@@ -60,7 +60,8 @@ export function SinistroConfiguracoesDialog({ open, onOpenChange }: SinistroConf
     prazo_expiracao_link_horas: 48
   });
 
-  // Nova pergunta
+  // Nova pergunta / Edição
+  const [editandoPergunta, setEditandoPergunta] = useState<SinistroPergunta | null>(null);
   const [novaPergunta, setNovaPergunta] = useState({
     categoria_id: '',
     pergunta: '',
@@ -183,6 +184,92 @@ export function SinistroConfiguracoesDialog({ open, onOpenChange }: SinistroConf
       loadData();
     } catch (error) {
       toast.error('Erro ao adicionar categoria');
+    }
+  };
+
+  const handleEditPergunta = (pergunta: SinistroPergunta) => {
+    setEditandoPergunta(pergunta);
+    setNovaPergunta({
+      categoria_id: pergunta.categoria_id,
+      pergunta: pergunta.pergunta,
+      tipo_campo: pergunta.tipo_campo,
+      opcoes: pergunta.opcoes?.join('\n') || '',
+      peso: pergunta.peso,
+      peso_positivo: pergunta.peso_positivo?.join(', ') || '',
+      peso_negativo: pergunta.peso_negativo?.join(', ') || '',
+      obrigatoria: pergunta.obrigatoria,
+      nivel_alerta: pergunta.nivel_alerta || 'none'
+    });
+  };
+
+  const handleCancelarEdicao = () => {
+    setEditandoPergunta(null);
+    setNovaPergunta({
+      categoria_id: '',
+      pergunta: '',
+      tipo_campo: 'select',
+      opcoes: '',
+      peso: 0,
+      peso_positivo: '',
+      peso_negativo: '',
+      obrigatoria: false,
+      nivel_alerta: 'none'
+    });
+  };
+
+  const handleSavePergunta = async () => {
+    if (!novaPergunta.categoria_id || !novaPergunta.pergunta) {
+      toast.error('Preencha categoria e pergunta');
+      return;
+    }
+
+    try {
+      const opcoesArray = novaPergunta.tipo_campo === 'select' && novaPergunta.opcoes
+        ? novaPergunta.opcoes.split('\n').map(o => o.trim()).filter(Boolean)
+        : null;
+
+      const perguntaData = {
+        categoria_id: novaPergunta.categoria_id,
+        pergunta: novaPergunta.pergunta,
+        tipo_campo: novaPergunta.tipo_campo,
+        opcoes: opcoesArray,
+        peso: novaPergunta.peso,
+        peso_positivo: novaPergunta.peso_positivo ? novaPergunta.peso_positivo.split(',').map(s => s.trim()) : null,
+        peso_negativo: novaPergunta.peso_negativo ? novaPergunta.peso_negativo.split(',').map(s => s.trim()) : null,
+        obrigatoria: novaPergunta.obrigatoria,
+        nivel_alerta: novaPergunta.nivel_alerta && novaPergunta.nivel_alerta !== 'none' ? novaPergunta.nivel_alerta : null,
+      };
+
+      if (editandoPergunta) {
+        // Atualizar pergunta existente
+        const { error } = await supabase
+          .from('sinistro_perguntas')
+          .update(perguntaData)
+          .eq('id', editandoPergunta.id);
+
+        if (error) throw error;
+        toast.success('Pergunta atualizada');
+      } else {
+        // Criar nova pergunta
+        const maxOrdem = perguntas.filter(p => p.categoria_id === novaPergunta.categoria_id).length;
+        
+        const { error } = await supabase
+          .from('sinistro_perguntas')
+          .insert({
+            ...perguntaData,
+            tipo_sinistro: tipoSinistro,
+            ordem: maxOrdem + 1
+          });
+
+        if (error) throw error;
+        toast.success('Pergunta adicionada');
+      }
+
+      handleCancelarEdicao();
+      loadData();
+    } catch (error) {
+      console.error('Erro:', error);
+      toast.error(editandoPergunta ? 'Erro ao atualizar pergunta' : 'Erro ao adicionar pergunta');
     }
   };
 
@@ -326,7 +413,7 @@ export function SinistroConfiguracoesDialog({ open, onOpenChange }: SinistroConf
                           .map(pergunta => (
                             <div 
                               key={pergunta.id} 
-                              className={`flex items-center gap-2 px-3 py-2 border-b text-sm ${!pergunta.ativo ? 'opacity-50' : ''}`}
+                              className={`flex items-center gap-2 px-3 py-2 border-b text-sm ${!pergunta.ativo ? 'opacity-50' : ''} ${editandoPergunta?.id === pergunta.id ? 'bg-primary/10' : ''}`}
                             >
                               <GripVertical className="h-4 w-4 text-muted-foreground" />
                               <div className="flex-1 truncate">{pergunta.pergunta}</div>
@@ -335,6 +422,14 @@ export function SinistroConfiguracoesDialog({ open, onOpenChange }: SinistroConf
                                   Peso: {pergunta.peso}
                                 </Badge>
                               )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => handleEditPergunta(pergunta)}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
                               <Switch
                                 checked={pergunta.ativo}
                                 onCheckedChange={() => handleTogglePergunta(pergunta)}
@@ -342,7 +437,7 @@ export function SinistroConfiguracoesDialog({ open, onOpenChange }: SinistroConf
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6"
+                                className="h-6 w-6 text-destructive hover:text-destructive"
                                 onClick={() => handleDeletePergunta(pergunta.id)}
                               >
                                 <Trash2 className="h-3 w-3" />
@@ -355,10 +450,19 @@ export function SinistroConfiguracoesDialog({ open, onOpenChange }: SinistroConf
                 </CardContent>
               </Card>
 
-              {/* Formulário nova pergunta */}
+              {/* Formulário nova pergunta / edição */}
               <Card>
                 <CardHeader className="py-3">
-                  <CardTitle className="text-sm">Nova Pergunta</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm">
+                      {editandoPergunta ? 'Editar Pergunta' : 'Nova Pergunta'}
+                    </CardTitle>
+                    {editandoPergunta && (
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCancelarEdicao}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div>
@@ -471,10 +575,26 @@ export function SinistroConfiguracoesDialog({ open, onOpenChange }: SinistroConf
                     <Label className="text-xs">Obrigatória</Label>
                   </div>
 
-                  <Button onClick={handleAddPergunta} className="w-full">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Adicionar Pergunta
-                  </Button>
+                  <div className="flex gap-2">
+                    {editandoPergunta && (
+                      <Button variant="outline" onClick={handleCancelarEdicao} className="flex-1">
+                        Cancelar
+                      </Button>
+                    )}
+                    <Button onClick={handleSavePergunta} className="flex-1">
+                      {editandoPergunta ? (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Salvar Alterações
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Adicionar Pergunta
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </div>
