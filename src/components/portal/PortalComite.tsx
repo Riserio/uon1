@@ -672,16 +672,21 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                         </div>
 
                         {/* Parecer da Associação */}
-                        <div className="p-3 border-2 border-primary/30 rounded-lg space-y-3 bg-primary/5">
+                        <div className={`p-3 border-2 rounded-lg space-y-3 ${parecerAnalista.parecer ? 'border-primary/30 bg-primary/5' : 'border-muted bg-muted/30 opacity-60'}`}>
                           <h4 className="font-medium text-sm text-primary">Parecer da Associação</h4>
-                          <p className="text-xs text-muted-foreground">Decisão final exibida na tela de sinistros</p>
+                          <p className="text-xs text-muted-foreground">
+                            {parecerAnalista.parecer 
+                              ? "Decisão final exibida na tela de sinistros" 
+                              : "Aguardando parecer do analista para liberar"}
+                          </p>
                           <div className="space-y-2">
                             <Label className="text-xs">Decisão *</Label>
                             <Select
                               value={parecerAssociacao.parecer}
                               onValueChange={(value) => setParecerAssociacao({ ...parecerAssociacao, parecer: value })}
+                              disabled={!parecerAnalista.parecer}
                             >
-                              <SelectTrigger>
+                              <SelectTrigger disabled={!parecerAnalista.parecer}>
                                 <SelectValue placeholder="Selecione a decisão" />
                               </SelectTrigger>
                               <SelectContent>
@@ -706,18 +711,20 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                                   setDeliberacao({ ...deliberacao, valor_aprovado: values.value || "" })
                                 }
                                 placeholder="R$ 0,00"
+                                disabled={!parecerAnalista.parecer}
                               />
                             </div>
                           )}
 
                           <div className="space-y-2">
-                            <Label className="text-xs">Justificativa da Associação *</Label>
+                            <Label className="text-xs">Justificativa da Associação</Label>
                             <Textarea
                               value={parecerAssociacao.justificativa}
                               onChange={(e) => setParecerAssociacao({ ...parecerAssociacao, justificativa: e.target.value })}
                               placeholder="Descreva a decisão da associação..."
                               rows={4}
                               className="text-xs"
+                              disabled={!parecerAnalista.parecer}
                             />
                           </div>
                         </div>
@@ -730,7 +737,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                           </Button>
                           <Button
                             onClick={handleSalvarDeliberacao}
-                            disabled={saving || !parecerAssociacao.justificativa}
+                            disabled={saving}
                             className="flex-1 gap-2"
                           >
                             <Save className="h-4 w-4" />
