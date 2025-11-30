@@ -73,7 +73,7 @@ export function ClaimCard({
               </Badge>}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate(`/sinistros/${claim.id}/acompanhamento`)} title="Acompanhamento do sinistro" className="gap-1">
+            <Button variant="outline" size="sm" onClick={() => navigate(`/sinistros/${claim.id}/deliberacao`)} title="Deliberação do comitê" className="gap-1">
               <ClipboardList className="h-4 w-4" />
               Análise do Evento  
             </Button>
