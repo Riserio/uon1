@@ -225,10 +225,10 @@ export default function PortalIndicadores({ corretoraId }: { corretoraId?: strin
         </CardContent>
       </Card>
 
-      {/* Barras - Produção por Seguradora */}
+      {/* Barras - Produção por Associação */}
       <Card className="xl:col-span-2">
         <CardHeader>
-          <CardTitle className="text-lg font-semibold">Produção por Seguradora</CardTitle>
+          <CardTitle className="text-lg font-semibold">Produção por Associação</CardTitle>
         </CardHeader>
         <CardContent className="pt-2">
           <ResponsiveContainer width="100%" height={320}>

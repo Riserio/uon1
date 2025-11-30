@@ -134,13 +134,13 @@ export function GerenciarUsuariosCorretoraDialog({
               <div className="flex items-center justify-between pb-2 border-b">
                 <h3 className="font-semibold text-lg">Criar Novo Usuário BI</h3>
                 <Badge variant="secondary" className="text-base px-3 py-1">
-                  Corretora: {corretoraNome}
+                  Associação: {corretoraNome}
                 </Badge>
               </div>
               
               <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <p className="text-sm text-blue-800 dark:text-blue-200">
-                  <strong>Atenção:</strong> O usuário será criado e automaticamente vinculado à corretora <strong>{corretoraNome}</strong>. 
+                  <strong>Atenção:</strong> O usuário será criado e automaticamente vinculado à associação <strong>{corretoraNome}</strong>. 
                   Ele poderá fazer login no portal BI usando o email e senha cadastrados.
                 </p>
               </div>
@@ -180,7 +180,7 @@ export function GerenciarUsuariosCorretoraDialog({
             <h3 className="font-semibold">Usuários Cadastrados</h3>
             {usuarios.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">
-                Nenhum usuário cadastrado para esta corretora
+                Nenhum usuário cadastrado para esta associação
               </p>
             ) : (
               <Table>

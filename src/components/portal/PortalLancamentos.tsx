@@ -258,7 +258,7 @@ export default function PortalLancamentos({ corretoraId }: { corretoraId?: strin
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="seguradora">Seguradora</Label>
+                  <Label htmlFor="seguradora">Associação</Label>
                   <Input
                     id="seguradora"
                     value={formData.seguradora}

@@ -119,7 +119,7 @@ export default function PortalExtrato({ corretoraId }: { corretoraId?: string })
         />
 
         <Input
-          placeholder="Seguradora"
+          placeholder="Associação"
           value={filters.seguradora}
           onChange={(e) => setFilters({ ...filters, seguradora: e.target.value })}
           className="w-40"
@@ -152,7 +152,7 @@ export default function PortalExtrato({ corretoraId }: { corretoraId?: string })
                   <TableHead>Data</TableHead>
                   <TableHead>Produto</TableHead>
                   <TableHead>Segurado</TableHead>
-                  <TableHead>Seguradora</TableHead>
+                  <TableHead>Associação</TableHead>
                   <TableHead className="text-right">Prêmio</TableHead>
                   <TableHead className="text-right">%</TableHead>
                   <TableHead className="text-right">Comissão</TableHead>
