@@ -17,6 +17,7 @@ import {
   PieChart as PieIcon,
   Truck,
   MapPin,
+  TrendingUp,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -47,64 +48,6 @@ const COLORS = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#8b5cf6", "#0ea5e9"
 const EmptyChart = () => (
   <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Sem dados disponíveis</div>
 );
-
-/**
- * Tooltip para gráficos EMPILHADOS de QUANTIDADE de eventos
- * (Abertura de Eventos e Quantidade Eventos Pagos)
- * Mostra cada linha + TOTAL de eventos no rodapé.
- */
-const EventosStackedTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload || !payload.length) return null;
-
-  const total = payload.reduce((acc: number, item: any) => acc + (item.value || 0), 0);
-
-  return (
-    <div className="rounded-md border bg-background px-3 py-2 shadow-sm text-xs">
-      <div className="font-semibold mb-1">{label}</div>
-
-      {payload.map((item: any) => (
-        <div key={item.dataKey} className="flex items-center justify-between gap-2" style={{ color: item.color }}>
-          <span>{item.name} :</span>
-          <span>{(item.value || 0).toLocaleString("pt-BR")}</span>
-        </div>
-      ))}
-
-      <div className="mt-1 border-t pt-1 flex items-center justify-between font-semibold">
-        <span>Total :</span>
-        <span>{total.toLocaleString("pt-BR")}</span>
-      </div>
-    </div>
-  );
-};
-
-/**
- * Tooltip para gráfico de VALOR de eventos pagos
- * (Valor de Eventos Pagos no Período (R$))
- * Mostra cada linha em R$ + TOTAL em R$ no rodapé.
- */
-const ValorEventosTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload || !payload.length) return null;
-
-  const total = payload.reduce((acc: number, item: any) => acc + (item.value || 0), 0);
-
-  return (
-    <div className="rounded-md border bg-background px-3 py-2 shadow-sm text-xs">
-      <div className="font-semibold mb-1">{label}</div>
-
-      {payload.map((item: any) => (
-        <div key={item.dataKey} className="flex items-center justify-between gap-2" style={{ color: item.color }}>
-          <span>{item.name} :</span>
-          <span>{formatCurrency(item.value || 0)}</span>
-        </div>
-      ))}
-
-      <div className="mt-1 border-t pt-1 flex items-center justify-between font-semibold">
-        <span>Total :</span>
-        <span>{formatCurrency(total)}</span>
-      </div>
-    </div>
-  );
-};
 
 export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [loading, setLoading] = useState(true);
@@ -148,7 +91,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [corretoraId, ano]);
 
-  // Dados calculados automaticamente
+  // Dados calculados automaticamente (mês a mês)
   const chartData = useMemo(() => {
     return dadosAno.map((d) => {
       // Cálculos automáticos de percentuais
@@ -184,6 +127,10 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         churn: (d.churn || 0) * 100,
         permanencia: permanencia,
         indice_permanencia: indicePermanencia,
+
+        // Totais para análise de permanência (Entrada x Perdas)
+        total_entrada: totalEntrada,
+        total_perdas: totalPerdas,
 
         // Contas a Pagar - Boletos (quantidade)
         boletos_emitidos: d.boletos_emitidos || 0,
@@ -267,16 +214,32 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     });
   }, [dadosAno]);
 
-  // Dados para gráfico de rosca de permanência
-  const permanenciaDonutData = useMemo(() => {
-    if (!dadosAtual) return [];
-    const totalEntrada = (dadosAtual.cadastros_realizados || 0) + (dadosAtual.reativacao || 0);
-    const totalPerdas = (dadosAtual.cancelamentos || 0) + (dadosAtual.inadimplentes || 0);
-    return [
-      { name: "Entrada (Cadastros + Reativações)", value: totalEntrada, color: "#16a34a" },
-      { name: "Perdas (Cancelamentos + Inadimplentes)", value: totalPerdas, color: "#dc2626" },
-    ];
-  }, [dadosAtual]);
+  // Totais de eventos pagos (quantidade e valores) no período (ano selecionado)
+  const totalEventosPagosQtd = useMemo(() => {
+    if (!chartData.length) return 0;
+    return chartData.reduce((acc, d) => {
+      const q1 = d.pagamento_qtd_parcial_associado || 0;
+      const q2 = d.pagamento_qtd_parcial_terceiro || 0;
+      const q3 = d.pagamento_qtd_integral_associado || 0;
+      const q4 = d.pagamento_qtd_integral_terceiro || 0;
+      const q5 = d.pagamento_qtd_vidros || 0;
+      const q6 = d.pagamento_qtd_carro_reserva || 0;
+      return acc + q1 + q2 + q3 + q4 + q5 + q6;
+    }, 0);
+  }, [chartData]);
+
+  const totalEventosPagosValor = useMemo(() => {
+    if (!chartData.length) return 0;
+    return chartData.reduce((acc, d) => {
+      const v1 = d.pagamento_valor_parcial_associado || 0;
+      const v2 = d.pagamento_valor_parcial_terceiro || 0;
+      const v3 = d.pagamento_valor_integral_associado || 0;
+      const v4 = d.pagamento_valor_integral_terceiro || 0;
+      const v5 = d.pagamento_valor_vidros || 0;
+      const v6 = d.pagamento_valor_carro_reserva || 0;
+      return acc + v1 + v2 + v3 + v4 + v5 + v6;
+    }, 0);
+  }, [chartData]);
 
   if (loading) {
     return (
@@ -797,33 +760,37 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* Gráfico Combinado - Boletos (Quantidade) */}
+              {/* Boletos (Quantidade) */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Boletos no Período (Quantidade)</CardTitle>
                 </CardHeader>
                 <CardContent className="h-[300px]">
                   {chartData.length ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                        <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip />
-                        <Legend wrapperStyle={{ fontSize: 10 }} />
-                        <Bar dataKey="boletos_emitidos" name="Emitidos" fill="#2563eb" radius={[2, 2, 0, 0]} />
-                        <Bar dataKey="boletos_liquidados" name="Liquidados" fill="#16a34a" radius={[2, 2, 0, 0]} />
-                        <Bar dataKey="boletos_abertos" name="Em Aberto" fill="#f59e0b" radius={[2, 2, 0, 0]} />
-                        <Bar dataKey="boletos_cancelados" name="Cancelados" fill="#dc2626" radius={[2, 2, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <>
+                      <div className="h-[230px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                            <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
+                            <YAxis tick={{ fontSize: 10 }} />
+                            <Tooltip />
+                            <Legend wrapperStyle={{ fontSize: 10 }} />
+                            <Bar dataKey="boletos_emitidos" name="Emitidos" fill="#2563eb" radius={[2, 2, 0, 0]} />
+                            <Bar dataKey="boletos_liquidados" name="Liquidados" fill="#16a34a" radius={[2, 2, 0, 0]} />
+                            <Bar dataKey="boletos_abertos" name="Em Aberto" fill="#f59e0b" radius={[2, 2, 0, 0]} />
+                            <Bar dataKey="boletos_cancelados" name="Cancelados" fill="#dc2626" radius={[2, 2, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </>
                   ) : (
                     <EmptyChart />
                   )}
                 </CardContent>
               </Card>
 
-              {/* Gráfico Combinado - Valores Financeiros */}
+              {/* Valores Financeiros */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Valores Financeiros (R$)</CardTitle>
@@ -901,7 +868,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 </CardContent>
               </Card>
 
-              {/* Índices lado a lado */}
+              {/* Índices */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Inadimplência de Boletos (%)</CardTitle>
@@ -1146,7 +1113,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             </div>
 
             <div className="grid gap-6">
-              {/* Gráfico Combinado - Abertura de Eventos */}
+              {/* Abertura de Eventos */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Abertura de Eventos no Período</CardTitle>
@@ -1158,7 +1125,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
                         <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip content={<EventosStackedTooltip />} />
+                        <Tooltip />
                         <Legend wrapperStyle={{ fontSize: 10 }} />
                         <Bar dataKey="abertura_parcial_associado" name="Parcial Associado" fill="#2563eb" stackId="a" />
                         <Bar dataKey="abertura_parcial_terceiro" name="Parcial Terceiro" fill="#0ea5e9" stackId="a" />
@@ -1185,44 +1152,33 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base font-medium">Quantidade Eventos Pagos no Período</CardTitle>
                   </CardHeader>
-                  <CardContent className="h-[300px]">
+                  <CardContent className="h-[320px]">
                     {chartData.length ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                          <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
-                          <YAxis tick={{ fontSize: 10 }} />
-                          {/* Tooltip com TOTAL de eventos */}
-                          <Tooltip content={<EventosStackedTooltip />} />
-                          <Legend wrapperStyle={{ fontSize: 9 }} />
-                          <Bar
-                            dataKey="pagamento_qtd_parcial_associado"
-                            name="Parcial Assoc."
-                            fill="#2563eb"
-                            stackId="b"
-                          />
-                          <Bar
-                            dataKey="pagamento_qtd_parcial_terceiro"
-                            name="Parcial Terc."
-                            fill="#0ea5e9"
-                            stackId="b"
-                          />
-                          <Bar
-                            dataKey="pagamento_qtd_integral_associado"
-                            name="Integral Assoc."
-                            fill="#8b5cf6"
-                            stackId="b"
-                          />
-                          <Bar
-                            dataKey="pagamento_qtd_integral_terceiro"
-                            name="Integral Terc."
-                            fill="#a855f7"
-                            stackId="b"
-                          />
-                          <Bar dataKey="pagamento_qtd_vidros" name="Vidros" fill="#f59e0b" stackId="b" />
-                          <Bar dataKey="pagamento_qtd_carro_reserva" name="Carro Reserva" fill="#14b8a6" stackId="b" />
-                        </BarChart>
-                      </ResponsiveContainer>
+                      <>
+                        <div className="h-[240px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartData}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                              <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
+                              <YAxis tick={{ fontSize: 10 }} />
+                              <Tooltip />
+                              <Legend wrapperStyle={{ fontSize: 9 }} />
+                              <Bar dataKey="pagamento_qtd_parcial_associado" name="Parcial Assoc." fill="#2563eb" />
+                              <Bar dataKey="pagamento_qtd_parcial_terceiro" name="Parcial Terc." fill="#0ea5e9" />
+                              <Bar dataKey="pagamento_qtd_integral_associado" name="Integral Assoc." fill="#8b5cf6" />
+                              <Bar dataKey="pagamento_qtd_integral_terceiro" name="Integral Terc." fill="#a855f7" />
+                              <Bar dataKey="pagamento_qtd_vidros" name="Vidros" fill="#f59e0b" />
+                              <Bar dataKey="pagamento_qtd_carro_reserva" name="Carro Reserva" fill="#14b8a6" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="mt-3 text-xs text-muted-foreground">
+                          Total de Eventos Pagos no Período:{" "}
+                          <span className="font-semibold text-foreground">
+                            {totalEventosPagosQtd.toLocaleString("pt-BR")}
+                          </span>
+                        </div>
+                      </>
                     ) : (
                       <EmptyChart />
                     )}
@@ -1234,60 +1190,84 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base font-medium">Valor de Eventos Pagos no Período (R$)</CardTitle>
                   </CardHeader>
-                  <CardContent className="h-[300px]">
+                  <CardContent className="h-[320px]">
                     {chartData.length ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={chartData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                          <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
-                          <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
-                          {/* Tooltip com TOTAL em R$ */}
-                          <Tooltip content={<ValorEventosTooltip />} />
-                          <Legend wrapperStyle={{ fontSize: 9 }} />
-                          <Line
-                            type="monotone"
-                            dataKey="pagamento_valor_parcial_associado"
-                            name="Parcial Assoc."
-                            stroke="#2563eb"
-                            strokeWidth={1.5}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="pagamento_valor_parcial_terceiro"
-                            name="Parcial Terc."
-                            stroke="#0ea5e9"
-                            strokeWidth={1.5}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="pagamento_valor_integral_associado"
-                            name="Integral Assoc."
-                            stroke="#8b5cf6"
-                            strokeWidth={1.5}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="pagamento_valor_integral_terceiro"
-                            name="Integral Terc."
-                            stroke="#a855f7"
-                            strokeWidth={1.5}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="pagamento_valor_vidros"
-                            name="Vidros"
-                            stroke="#f59e0b"
-                            strokeWidth={1.5}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="pagamento_valor_carro_reserva"
-                            name="Carro Reserva"
-                            stroke="#14b8a6"
-                            strokeWidth={1.5}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
+                      <>
+                        <div className="h-[240px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                              <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
+                              <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
+                              <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                              <Legend wrapperStyle={{ fontSize: 9 }} />
+                              <Line
+                                type="monotone"
+                                dataKey="custo_total_eventos"
+                                name="Total Eventos"
+                                stroke="#dc2626"
+                                strokeWidth={2.5}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="pagamento_valor_parcial_associado"
+                                name="Parcial Assoc."
+                                stroke="#2563eb"
+                                strokeWidth={1.5}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="pagamento_valor_parcial_terceiro"
+                                name="Parcial Terc."
+                                stroke="#0ea5e9"
+                                strokeWidth={1.5}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="pagamento_valor_integral_associado"
+                                name="Integral Assoc."
+                                stroke="#8b5cf6"
+                                strokeWidth={1.5}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="pagamento_valor_integral_terceiro"
+                                name="Integral Terc."
+                                stroke="#a855f7"
+                                strokeWidth={1.5}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="pagamento_valor_vidros"
+                                name="Vidros"
+                                stroke="#f59e0b"
+                                strokeWidth={1.5}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="pagamento_valor_carro_reserva"
+                                name="Carro Reserva"
+                                stroke="#14b8a6"
+                                strokeWidth={1.5}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="mt-3 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                          <span>
+                            Total de Eventos Pagos no Período:{" "}
+                            <span className="font-semibold text-foreground">
+                              {totalEventosPagosQtd.toLocaleString("pt-BR")}
+                            </span>
+                          </span>
+                          <span>
+                            Valor Total Pago em Eventos:{" "}
+                            <span className="font-semibold text-foreground">
+                              {formatCurrency(totalEventosPagosValor)}
+                            </span>
+                          </span>
+                        </div>
+                      </>
                     ) : (
                       <EmptyChart />
                     )}
@@ -1295,7 +1275,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 </Card>
               </div>
 
-              {/* Índices de Eventos lado a lado */}
+              {/* Índices de Eventos */}
               <div className="grid gap-6 lg:grid-cols-2">
                 <Card>
                   <CardHeader className="pb-2">
@@ -1938,11 +1918,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             </div>
           </section>
 
-          {/* ===================== GRÁFICO EXTRA - PERMANÊNCIA ROSCA ===================== */}
+          {/* ===================== ANÁLISE DE PERMANÊNCIA (LINHAS) ===================== */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Activity className="h-5 w-5" />
+                <TrendingUp className="h-5 w-5" />
                 Análise de Permanência
               </h3>
             </div>
@@ -1950,31 +1930,35 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base font-medium">
-                  Permanência - Entrada vs Perdas (Mês Atual: {dadosAtual ? mesesNome[dadosAtual.mes - 1] : ""})
+                  Permanência - Entrada vs Perdas (Mês a Mês - {ano})
                 </CardTitle>
               </CardHeader>
-              <CardContent className="h-[350px]">
-                {permanenciaDonutData.length && permanenciaDonutData.some((d) => d.value > 0) ? (
+              <CardContent className="h-[320px]">
+                {chartData.length ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={permanenciaDonutData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={120}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(2)}%)`}
-                        labelLine={false}
-                      >
-                        {permanenciaDonutData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: any) => value.toLocaleString("pt-BR")} />
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                      <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip />
                       <Legend />
-                    </PieChart>
+                      <Line
+                        type="monotone"
+                        dataKey="total_entrada"
+                        name="Entrada (Cadastros + Reativações)"
+                        stroke="#16a34a"
+                        strokeWidth={2.5}
+                        dot={{ r: 3 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="total_perdas"
+                        name="Perdas (Cancelamentos + Inadimplentes)"
+                        stroke="#dc2626"
+                        strokeWidth={2.5}
+                        dot={{ r: 3 }}
+                      />
+                    </LineChart>
                   </ResponsiveContainer>
                 ) : (
                   <EmptyChart />
