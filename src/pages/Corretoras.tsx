@@ -535,7 +535,7 @@ export default function Corretoras() {
                           setSelectedCorretoraForHistory({ id: item.id, nome: item.nome });
                           setParceiroDialogOpen(true);
                         }}
-                        title="Gerenciar Parceiros PID"
+                        title="Gerenciar Parceiros BI"
                       >
                         <Users className="h-4 w-4" />
                       </Button>

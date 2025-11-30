@@ -47,7 +47,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "analytics", label: "Analytics", icon: "📊" },
   { id: "performance", label: "Performance", icon: "🎯" },
   { id: "termos_aceite", label: "Termos de Aceite", icon: "📄" },
-  { id: "pid", label: "PID", icon: "📈" },
+  { id: "pid", label: "BI - Indicadores", icon: "📈" },
   { id: "lancamentos_financeiros", label: "Lançamentos Financeiros", icon: "💰" },
   { id: "sinistros", label: "Sinistros", icon: "🚨" },
 ];

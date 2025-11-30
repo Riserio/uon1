@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
-import { PERGUNTAS_COMITE, PARECERES_COMITE, PARECERES_ASSOCIACAO, PerguntaComite, ORDEM_CATEGORIAS } from '@/constants/perguntasComite';
+import { PERGUNTAS_COMITE, PARECERES_COMITE, PARECERES_ASSOCIACAO, PARECERES_ANALISTA, PerguntaComite, ORDEM_CATEGORIAS } from '@/constants/perguntasComite';
 import { Save, FileDown, ArrowLeft, Gavel, CheckCircle2, XCircle, HelpCircle, AlertTriangle } from 'lucide-react';
 import { exportDeliberacaoPDF } from '@/utils/pdfDeliberacao';
 import { formatCurrency } from '@/lib/formatters';
@@ -426,7 +426,7 @@ export default function ComiteDeliberacao() {
     : { total: 0, maxPossivel: 0, percentual: 0, alertas: [] };
 
   const getParecerAnalistaInfo = () => {
-    const config = PARECERES_COMITE.find(p => p.value === parecerAnalista.parecer);
+    const config = PARECERES_ANALISTA.find(p => p.value === parecerAnalista.parecer);
     return config || { cor: 'bg-muted', textCor: 'text-foreground', label: 'Pendente' };
   };
 
@@ -603,7 +603,7 @@ export default function ComiteDeliberacao() {
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {PARECERES_COMITE.map((parecer) => (
+                    {PARECERES_ANALISTA.map((parecer) => (
                       <SelectItem key={parecer.value} value={parecer.value}>
                         <div className="flex items-center gap-2">
                           <div className={`w-3 h-3 rounded-full ${parecer.cor}`} />
