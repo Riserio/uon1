@@ -2,11 +2,16 @@
 export interface PerguntaComite {
   id: string;
   pergunta: string;
-  tipo: 'select' | 'text' | 'date' | 'textarea';
+  tipo: 'select' | 'text' | 'date' | 'textarea' | 'valor' | 'mapa';
   opcoes?: string[];
   obrigatoria: boolean;
   categoria: string;
-  autoPreenchivel?: string; // Campo que pode ser preenchido automaticamente de outra fonte
+  autoPreenchivel?: string;
+  peso?: number;
+  pesoPositivo?: string[];
+  pesoNegativo?: string[];
+  nivelAlerta?: 'passivel_negativa' | 'atencao_juridica' | 'atencao_andamento' | 'ressarcimento' | 'aprovacao' | null;
+  tiposSinistro?: string[]; // Tipos de sinistro que usam esta pergunta
 }
 
 // Pareceres do Comitê com cores
@@ -43,510 +48,975 @@ export const PARECERES_COMITE = [
   }
 ];
 
+export const TIPOS_SINISTRO_PERGUNTAS = [
+  'Colisão',
+  'Danos da Natureza',
+  'Incêndio',
+  'Roubo',
+  'Furto',
+  'Vidros',
+  'Perda Total',
+  'Terceiro'
+];
+
+// Perguntas organizadas conforme planilha - COLISÃO, DANOS DA NATUREZA, INCÊNDIO
 export const PERGUNTAS_COMITE: PerguntaComite[] = [
+  // === ANÁLISE PRÉVIA ===
   {
     id: 'parecer_analista',
-    pergunta: '1. Parecer do Analista (Esta é uma informação baseada na opinião do analista, fica sob responsabilidade da associação a definição do evento).',
+    pergunta: 'Parecer do Analista',
     tipo: 'select',
     opcoes: PARECERES_COMITE.map(p => p.value),
     obrigatoria: true,
-    categoria: 'Parecer'
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
   },
   {
     id: 'relato_analista',
-    pergunta: '2. Relato do Analista',
+    pergunta: 'Relato do Analista',
     tipo: 'textarea',
     obrigatoria: true,
-    categoria: 'Parecer'
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'nexo_causal',
-    pergunta: '3. Evento possui nexo causal?',
+    id: 'situacao_associado_ativo',
+    pergunta: 'Situação do Associado Ativo',
     tipo: 'select',
-    opcoes: ['Sim! Sem indícios de Fraude', 'Não! Há indícios de fraude.', 'Necessário sindicância.', 'Perícia técnica', 'Outro'],
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
     obrigatoria: true,
-    categoria: 'Análise'
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 10,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'passivo_ressarcimento',
-    pergunta: '4. Passivo de Ressarcimento/Ação de ressarcimento?',
-    tipo: 'select',
-    opcoes: ['Sim', 'Não'],
-    obrigatoria: true,
-    categoria: 'Análise'
-  },
-  {
-    id: 'tipo_acionamento',
-    pergunta: '5. Tipo de acionamento',
-    tipo: 'select',
-    opcoes: ['Associado', 'Terceiro', 'Associado e Terceiro'],
-    obrigatoria: true,
-    categoria: 'Acionamento'
-  },
-  {
-    id: 'nome_acionante',
-    pergunta: '6. Nome do Acionante',
-    tipo: 'select',
-    opcoes: ['Próprio associado', 'Outro'],
-    obrigatoria: true,
-    categoria: 'Acionamento'
-  },
-  {
-    id: 'nome_associado',
-    pergunta: '7. Nome do Associado',
+    id: 'situacao_atual_veiculo',
+    pergunta: 'Se não, qual a situação atual do veículo',
     tipo: 'text',
-    obrigatoria: true,
-    categoria: 'Dados do Associado',
-    autoPreenchivel: 'cliente_nome'
+    obrigatoria: false,
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'nome_condutor',
-    pergunta: '8. Nome do condutor',
-    tipo: 'select',
-    opcoes: ['Próprio Associado', 'Outro'],
+    id: 'data_cadastro_associado',
+    pergunta: 'Data de Cadastro do Associado',
+    tipo: 'date',
     obrigatoria: true,
-    categoria: 'Condutor'
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'assinatura_termos_condizem',
+    pergunta: 'Assinatura dos Termos de Adesão, Vistoria e Acionamento condizem com assinatura da documentação do associado',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 10,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'possui_boletos_vencidos',
+    pergunta: 'Possui Boletos Vencidos',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 5,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'atencao_andamento',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'possui_coberturas_contratadas',
+    pergunta: 'Possui Coberturas Contratadas',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 10,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'financiamento',
+    pergunta: 'Financiamento',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'possui_acionamento_terceiros',
+    pergunta: 'Possui Acionamento de Terceiros',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'placa_confere_cadastrada',
+    pergunta: 'Placa de Documentação confere com Placa Cadastrada',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 10,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'datas_respeitam_prereq',
+    pergunta: 'Data de Evento, Data de Comunicação de Evento e Data de Acionamento respeitam pré-requisito de tempo',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 10,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'possui_evento_anterior',
+    pergunta: 'Associado Possui Evento Anterior',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 5,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'atencao_andamento',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'leilao_aluguel_chassi_remarcado',
+    pergunta: 'Leilão / Aluguel / Chassi Remarcado / Benefício Tributário',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 10,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'enviado_fotos_evento',
+    pergunta: 'Enviado Fotos do Evento',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 5,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'atencao_andamento',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'estado_pneus',
+    pergunta: 'Estado dos Pneus',
+    tipo: 'select',
+    opcoes: ['BONS', 'REGULAR', 'RUIM'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 3,
+    pesoPositivo: ['BONS'],
+    pesoNegativo: ['RUIM'],
+    nivelAlerta: 'atencao_andamento',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total']
+  },
+  {
+    id: 'houve_acionamento_assistencia',
+    pergunta: 'Houve Acionamento Assistência 24 Horas',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'possui_protecao_outra_associacao',
+    pergunta: 'Possui Proteção em Outra Associação',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 5,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'atencao_juridica',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'houve_comunicacao_policial',
+    pergunta: 'Houve Comunicação Policial',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 5,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'atencao_andamento',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'monta',
+    pergunta: 'Monta',
+    tipo: 'select',
+    opcoes: ['PEQUENA/NÃO REGISTRADO', 'MEDIA', 'GRANDE'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total']
+  },
+  {
+    id: 'enviou_crocri',
+    pergunta: 'Enviou Croqui',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 5,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'atencao_andamento',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
   },
   {
     id: 'condutor_habilitado',
-    pergunta: '9. Condutor Habilitado?',
+    pergunta: 'Condutor Habilitado',
     tipo: 'select',
-    opcoes: ['Sim', 'Não'],
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
     obrigatoria: true,
-    categoria: 'Condutor'
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 10,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'associado_habilitado',
-    pergunta: '10. Associado Habilitado?',
+    id: 'habilitacao_valida',
+    pergunta: 'Habilitação Válida',
     tipo: 'select',
-    opcoes: ['Sim', 'Não'],
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
     obrigatoria: true,
-    categoria: 'Associado'
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 10,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'relacao_associado_condutor',
-    pergunta: '11. Qual a relação do associado e do condutor?',
-    tipo: 'text',
+    id: 'existe_parentesco_envolvidos',
+    pergunta: 'Existe Parentesco entre os Envolvidos (Associado e Terceiro)',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 5,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'atencao_juridica',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'veiculo_rebaixado',
+    pergunta: 'Veículo Rebaixado',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 5,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'atencao_andamento',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total']
+  },
+  {
+    id: 'laudo_inmetro',
+    pergunta: 'Caso Positivo, Existe Laudo INMETRO',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
     obrigatoria: false,
-    categoria: 'Condutor'
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total']
   },
+
+  // === ANÁLISE FINANCEIRA ===
   {
-    id: 'placa',
-    pergunta: '12. Placa',
-    tipo: 'text',
+    id: 'tabela_fipe',
+    pergunta: 'Tabela FIPE',
+    tipo: 'valor',
     obrigatoria: true,
-    categoria: 'Veículo',
-    autoPreenchivel: 'veiculo_placa'
-  },
-  {
-    id: 'protocolo_evento',
-    pergunta: '13. Protocolo do Evento',
-    tipo: 'text',
-    obrigatoria: true,
-    categoria: 'Evento'
-  },
-  {
-    id: 'tipo_evento',
-    pergunta: '14. Tipo do Evento',
-    tipo: 'select',
-    opcoes: ['Colisão', 'Vidros', 'Furto', 'Roubo', 'Danos da Natureza', 'Incêndio', 'Perda total'],
-    obrigatoria: true,
-    categoria: 'Evento',
-    autoPreenchivel: 'tipo_sinistro'
-  },
-  {
-    id: 'data_evento',
-    pergunta: '15. Data do Evento',
-    tipo: 'date',
-    obrigatoria: true,
-    categoria: 'Evento',
-    autoPreenchivel: 'data_incidente'
-  },
-  {
-    id: 'envolvimento',
-    pergunta: '16. Envolvimento',
-    tipo: 'select',
-    opcoes: ['Causador', 'Vítima'],
-    obrigatoria: true,
-    categoria: 'Evento'
-  },
-  {
-    id: 'numero_bo',
-    pergunta: '17. Número do Boletim de Ocorrência',
-    tipo: 'text',
-    obrigatoria: true,
-    categoria: 'Boletim de Ocorrência'
-  },
-  {
-    id: 'data_hora_bo',
-    pergunta: '18. Data e hora do Boletim de ocorrência',
-    tipo: 'text',
-    obrigatoria: true,
-    categoria: 'Boletim de Ocorrência'
-  },
-  {
-    id: 'data_primeiro_contato',
-    pergunta: '19. Data do primeiro contato do associado',
-    tipo: 'date',
-    obrigatoria: true,
-    categoria: 'Contato'
-  },
-  {
-    id: 'datas_coerentes',
-    pergunta: '20. Datas e horários informados pelo associado estão coerentes? (DATA/HORA EVENTO; DATA/HORA BO; DATA/HORA PRIMEIRO CONTATO)',
-    tipo: 'select',
-    opcoes: ['Sim', 'Não'],
-    obrigatoria: false,
-    categoria: 'Análise'
-  },
-  {
-    id: 'divergencia_datas',
-    pergunta: '21. Qual divergência encontrada acima?',
-    tipo: 'textarea',
-    obrigatoria: false,
-    categoria: 'Análise'
-  },
-  {
-    id: 'dias_apos_fato',
-    pergunta: '22. Boletim foi registrado quantos dias após o fato?',
-    tipo: 'text',
-    obrigatoria: true,
-    categoria: 'Boletim de Ocorrência'
-  },
-  {
-    id: 'bo_presencial',
-    pergunta: '23. BO Presencial?',
-    tipo: 'select',
-    opcoes: ['Sim', 'Não'],
-    obrigatoria: true,
-    categoria: 'Boletim de Ocorrência'
-  },
-  {
-    id: 'relato_bo',
-    pergunta: '24. Relato do Boletim de ocorrência',
-    tipo: 'textarea',
-    obrigatoria: true,
-    categoria: 'Boletim de Ocorrência'
-  },
-  {
-    id: 'houve_vitimas',
-    pergunta: '25. Houve vítimas?',
-    tipo: 'select',
-    opcoes: ['Sim', 'Não'],
-    obrigatoria: true,
-    categoria: 'Evento'
-  },
-  {
-    id: 'fotos_veiculo_associado',
-    pergunta: '26. Fotos do veículo associado incluídas?',
-    tipo: 'select',
-    opcoes: ['Sim', 'Não'],
-    obrigatoria: true,
-    categoria: 'Documentação'
-  },
-  {
-    id: 'total_veiculos_ativos',
-    pergunta: '27. Total de veículos ATIVOS do associado na base',
-    tipo: 'text',
-    obrigatoria: true,
-    categoria: 'Associado'
-  },
-  {
-    id: 'evento_anterior',
-    pergunta: '28. Associado possui evento anterior registrado na associação?',
-    tipo: 'select',
-    opcoes: ['Sim', 'Não'],
-    obrigatoria: true,
-    categoria: 'Histórico'
-  },
-  {
-    id: 'evento_anterior_recuperado',
-    pergunta: '29. Caso de evento anterior o veículo foi recuperado?',
-    tipo: 'select',
-    opcoes: ['Sim', 'Não! Houve negativa.', 'Não! Houve desistência por parte do associado.', 'Não! Houve acordo com associado.'],
-    obrigatoria: true,
-    categoria: 'Histórico'
-  },
-  {
-    id: 'fotos_veiculo_terceiro',
-    pergunta: '30. Fotos do veículo terceiro incluídas?',
-    tipo: 'select',
-    opcoes: ['Sim', 'Não'],
-    obrigatoria: true,
-    categoria: 'Terceiro'
-  },
-  {
-    id: 'local_evento',
-    pergunta: '31. Local do Evento',
-    tipo: 'text',
-    obrigatoria: true,
-    categoria: 'Evento'
-  },
-  {
-    id: 'sinalizacao_local',
-    pergunta: '32. Possui sinalização no local do acidente?',
-    tipo: 'select',
-    opcoes: ['Sim', 'Não'],
-    obrigatoria: true,
-    categoria: 'Evento'
-  },
-  {
-    id: 'observacao_local',
-    pergunta: 'Observação sobre o local do evento',
-    tipo: 'textarea',
-    obrigatoria: true,
-    categoria: 'Evento'
-  },
-  {
-    id: 'status_veiculo_data_evento',
-    pergunta: '33. Status do veículo na data do evento',
-    tipo: 'select',
-    opcoes: ['Ativo', 'Inadimplente'],
-    obrigatoria: true,
-    categoria: 'Veículo'
-  },
-  {
-    id: 'data_cadastro',
-    pergunta: '34. Data de cadastro',
-    tipo: 'date',
-    obrigatoria: true,
-    categoria: 'Associado'
-  },
-  {
-    id: 'regional',
-    pergunta: '35. Regional',
-    tipo: 'text',
-    obrigatoria: true,
-    categoria: 'Associado'
-  },
-  {
-    id: 'boletos_aberto',
-    pergunta: '36. Boletos em aberto',
-    tipo: 'select',
-    opcoes: ['Sim', 'Não'],
-    obrigatoria: true,
-    categoria: 'Financeiro'
-  },
-  {
-    id: 'historico_financeiro',
-    pergunta: '37. Histórico financeiro do associado',
-    tipo: 'select',
-    opcoes: ['Associado paga os boletos em dia.', 'Associado sempre paga os boletos em atraso.', 'Não se aplica (terceiro)'],
-    obrigatoria: true,
-    categoria: 'Financeiro'
-  },
-  {
-    id: 'consulta_sbl',
-    pergunta: '38. Consulta veículos em Outras associações (SBL) - SGA: MENU 7.14.',
-    tipo: 'select',
-    opcoes: ['Ativo em outra base', 'Outro status diferente de ativo.', 'Não consta.'],
-    obrigatoria: true,
-    categoria: 'Consultas'
-  },
-  {
-    id: 'sbl_caso_ativo',
-    pergunta: 'Caso ativo informar o que foi encontrado.',
-    tipo: 'textarea',
-    obrigatoria: false,
-    categoria: 'Consultas'
-  },
-  {
-    id: 'ultimo_vencimento_pagamento',
-    pergunta: '39. Informar último vencimento de boleto última data de pagamento. Exemplo: Vencido em 00/00/0000 - pago em 00/00/0000.',
-    tipo: 'text',
-    obrigatoria: true,
-    categoria: 'Financeiro'
-  },
-  {
-    id: 'marca_modelo',
-    pergunta: '40. Marca/Modelo do veículo',
-    tipo: 'text',
-    obrigatoria: true,
-    categoria: 'Veículo',
-    autoPreenchivel: 'veiculo_marca_modelo'
-  },
-  {
-    id: 'ano_fabricacao',
-    pergunta: '41. Ano de Fabricação',
-    tipo: 'text',
-    obrigatoria: true,
-    categoria: 'Veículo',
-    autoPreenchivel: 'veiculo_ano'
+    categoria: 'ANÁLISE FINANCEIRA',
+    autoPreenchivel: 'veiculo_valor_fipe',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
   },
   {
     id: 'cota_participacao',
-    pergunta: '42. Cota de participação',
+    pergunta: 'Cota de Participação',
     tipo: 'text',
     obrigatoria: true,
-    categoria: 'Financeiro'
+    categoria: 'ANÁLISE FINANCEIRA',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'passivo_negativa',
-    pergunta: '43. Passivo de Negativa',
+    id: 'valores_aberto_boletos',
+    pergunta: 'Valores em Aberto (Boletos)',
+    tipo: 'valor',
+    obrigatoria: true,
+    categoria: 'ANÁLISE FINANCEIRA',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'depreciacao_percentual',
+    pergunta: '% Depreciação',
+    tipo: 'valor',
+    obrigatoria: false,
+    categoria: 'ANÁLISE FINANCEIRA',
+    tiposSinistro: ['Roubo', 'Furto']
+  },
+  {
+    id: 'ipva_valor',
+    pergunta: 'IPVA',
+    tipo: 'valor',
+    obrigatoria: false,
+    categoria: 'ANÁLISE FINANCEIRA',
+    tiposSinistro: ['Roubo', 'Furto']
+  },
+  {
+    id: 'multas_valor',
+    pergunta: 'Multas',
+    tipo: 'valor',
+    obrigatoria: false,
+    categoria: 'ANÁLISE FINANCEIRA',
+    tiposSinistro: ['Roubo', 'Furto']
+  },
+  {
+    id: 'financiamento_valor',
+    pergunta: 'Financiamento',
+    tipo: 'valor',
+    obrigatoria: false,
+    categoria: 'ANÁLISE FINANCEIRA',
+    tiposSinistro: ['Roubo', 'Furto']
+  },
+  {
+    id: 'total_indenizar',
+    pergunta: 'Total a Indenizar',
+    tipo: 'valor',
+    obrigatoria: false,
+    categoria: 'ANÁLISE FINANCEIRA',
+    tiposSinistro: ['Roubo', 'Furto']
+  },
+
+  // === ANÁLISE DOCUMENTAL ===
+  {
+    id: 'termo_acionamento',
+    pergunta: 'Termo de Acionamento – Devidamente preenchido e assinado',
     tipo: 'select',
-    opcoes: ['Sim', 'Não', 'A definir'],
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
     obrigatoria: true,
-    categoria: 'Análise'
+    categoria: 'ANÁLISE DOCUMENTAL',
+    peso: 5,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'motivo_negativa',
-    pergunta: '44. Caso passivo de negativa explicar o motivo.',
-    tipo: 'textarea',
-    obrigatoria: true,
-    categoria: 'Análise'
-  },
-  {
-    id: 'cnh_vencida',
-    pergunta: '45. CNH Vencida',
+    id: 'termo_subrogacao',
+    pergunta: 'Termo de Sub-rogação – Devidamente preenchido e assinado',
     tipo: 'select',
-    opcoes: ['Sim', 'Não'],
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
     obrigatoria: true,
-    categoria: 'Documentação'
+    categoria: 'ANÁLISE DOCUMENTAL',
+    peso: 5,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'data_vencimento_cnh',
-    pergunta: '46. Data de vencimento da CNH',
-    tipo: 'date',
-    obrigatoria: true,
-    categoria: 'Documentação'
-  },
-  {
-    id: 'possui_tacografo',
-    pergunta: '47. Possui Tacógrafo?',
+    id: 'termo_indenizacao_integral',
+    pergunta: 'Termo de Cientificação de Indenização Integral',
     tipo: 'select',
-    opcoes: ['Sim', 'Não'],
-    obrigatoria: true,
-    categoria: 'Veículo'
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: false,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    tiposSinistro: ['Roubo', 'Furto', 'Perda Total']
   },
   {
-    id: 'possui_rastreador',
-    pergunta: '48. Possui rastreador?',
+    id: 'bo_obrigatorio',
+    pergunta: 'Boletim de Ocorrência Policial Militar, Civil, Rodoviário, Bombeiros, etc. – Obrigatoriamente realizado na data do evento',
     tipo: 'select',
-    opcoes: ['Sim', 'Não'],
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
     obrigatoria: true,
-    categoria: 'Veículo'
+    categoria: 'ANÁLISE DOCUMENTAL',
+    peso: 10,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'localizacao_rastreador_bo',
-    pergunta: '49. Caso possua rastreador a localização bate com o que consta no boletim de ocorrência?',
-    tipo: 'textarea',
-    obrigatoria: true,
-    categoria: 'Veículo'
-  },
-  {
-    id: 'contato_assistencia',
-    pergunta: '50. Contato com a assistência?',
+    id: 'pericias_laudos',
+    pergunta: 'Perícias e laudos confeccionados por órgãos competentes. Caso o condutor tenha sido encaminhado para atendimento médico/hospitalar, providenciar ficha clínica',
     tipo: 'select',
-    opcoes: ['Sim', 'Não'],
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
     obrigatoria: true,
-    categoria: 'Assistência'
+    categoria: 'ANÁLISE DOCUMENTAL',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'data_contato_assistencia',
-    pergunta: '51. Data do contato com assistência',
-    tipo: 'date',
-    obrigatoria: true,
-    categoria: 'Assistência'
-  },
-  {
-    id: 'atendimento_terceiro',
-    pergunta: '52. Atendimento a Terceiro?',
+    id: 'laudo_necroscopico',
+    pergunta: 'Em caso de morte do condutor do veículo protegido, providenciar laudo necroscópico',
     tipo: 'select',
-    opcoes: ['Sim', 'Não'],
-    obrigatoria: true,
-    categoria: 'Terceiro'
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: false,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total']
   },
   {
-    id: 'dados_terceiro',
-    pergunta: '53. Nome do terceiro / Contato do terceiro / Placa do terceiro / Marca/Modelo',
+    id: 'laudo_alcoometria',
+    pergunta: 'Laudo de Alcoometria',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    peso: 5,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'atencao_juridica',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total']
+  },
+  {
+    id: 'contrato_social_pj',
+    pergunta: 'Cópia autenticada do Contrato Social ou Estatuto (na hipótese do proprietário ser pessoa jurídica)',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: false,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'crlv_em_dia',
+    pergunta: 'CRLV (Documento do Veículo) – Em dia com os pagamentos',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    peso: 5,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'atencao_andamento',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'cnh_condutor',
+    pergunta: 'CNH do Condutor',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    peso: 5,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'cnh_associado',
+    pergunta: 'CNH do Associado',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    peso: 5,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'comprovante_endereco',
+    pergunta: 'Comprovante de Endereço',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'fotos_local_avaria',
+    pergunta: 'Fotos do local do evento e fotos do veículo mostrando claramente a avaria, contendo identificação (chassi e placa)',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    peso: 5,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'procuracao_transferencia',
+    pergunta: 'Procuração de Plenos Poderes para Transferência do Veículo (confeccionada em cartório)',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: false,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    tiposSinistro: ['Roubo', 'Furto', 'Perda Total']
+  },
+  {
+    id: 'certidao_negativa_debitos',
+    pergunta: 'Certidão Negativa - IPVA, DPVAT e Multas (quitados) – Na falta desta documentação todos os débitos serão descontados',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: false,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    tiposSinistro: ['Roubo', 'Furto', 'Perda Total']
+  },
+  {
+    id: 'manual_chaves',
+    pergunta: 'Manual e Chaves do Veículo (incluir chaves reservas) – Na ausência, sua reposição poderá ser cobrada',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: false,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    tiposSinistro: ['Roubo', 'Furto', 'Perda Total']
+  },
+  {
+    id: 'nota_fiscal_0km',
+    pergunta: 'Nota Fiscal de Compra do Veículo – Em caso de cobertura de 0KM',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: false,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    tiposSinistro: ['Roubo', 'Furto', 'Perda Total']
+  },
+  {
+    id: 'carta_saldo_devedor',
+    pergunta: 'Carta de Saldo Devedor (para veículos financiados)',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: false,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    tiposSinistro: ['Roubo', 'Furto', 'Perda Total']
+  },
+  {
+    id: 'termo_acionamento_vidros',
+    pergunta: 'Termo de Acionamento de Vidros – Devidamente preenchido e assinado',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    tiposSinistro: ['Vidros']
+  },
+  {
+    id: 'fotos_vidro_quebrado',
+    pergunta: 'Fotos do vidro quebrado mostrando claramente a avaria, contendo identificação do veículo (chassi e placa)',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE DOCUMENTAL',
+    tiposSinistro: ['Vidros']
+  },
+
+  // === CHECKLIST PERGUNTAS DE CAUSALIDADE ===
+  {
+    id: 'estado_conservacao_veiculo',
+    pergunta: 'Qual estado de conservação do veículo nas fotos',
+    tipo: 'select',
+    opcoes: ['BOM', 'RUIM', 'IRREGULAR', 'DETERIORADO'],
+    obrigatoria: true,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    peso: 5,
+    pesoPositivo: ['BOM'],
+    pesoNegativo: ['RUIM', 'DETERIORADO'],
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'qtd_passageiros',
+    pergunta: 'Quantos passageiros estavam no veículo no momento do evento',
+    tipo: 'text',
+    obrigatoria: true,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'veiculo_manutencao_recente',
+    pergunta: 'Veículo passou por manutenção recentemente',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total']
+  },
+  {
+    id: 'indicio_embriaguez',
+    pergunta: 'Houve indícios de embriaguez ou efeito de entorpecentes',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    peso: 10,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'houve_infracao_transito',
+    pergunta: 'Houve infração de trânsito',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    peso: 5,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'atencao_andamento',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'dano_causado_carga',
+    pergunta: 'Dano foi causado por carga transportada',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Vidros', 'Perda Total']
+  },
+  {
+    id: 'evento_testemunhas',
+    pergunta: 'Evento possui testemunhas',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'contato_testemunha',
+    pergunta: 'Entrou em contato com alguma testemunha',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: false,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'relato_testemunhas',
+    pergunta: 'Relato da(s) testemunha(s)',
     tipo: 'textarea',
     obrigatoria: false,
-    categoria: 'Terceiro'
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'analise_vistoria_previa',
-    pergunta: '54. Análise da vistoria Prévia',
+    id: 'local_possui_cameras',
+    pergunta: 'Local possui câmeras (verificar Google Maps)',
     tipo: 'select',
-    opcoes: ['Sim', 'Não'],
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
     obrigatoria: true,
-    categoria: 'Vistoria'
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'avaria_pre_existente',
-    pergunta: '55. Veículo possui avaria pré existente?',
+    id: 'associado_informou_cameras',
+    pergunta: 'Associado informou que no local existia câmeras',
     tipo: 'select',
-    opcoes: ['Sim', 'Não', 'Não se aplica'],
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
     obrigatoria: true,
-    categoria: 'Vistoria'
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'irregularidade_constatada',
-    pergunta: '56. Constatado irregularidade?',
+    id: 'fotos_frenagem_pista',
+    pergunta: 'Fotos enviadas pelo associado apresentam frenagem na pista',
     tipo: 'select',
-    opcoes: ['Sim', 'Não'],
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
     obrigatoria: true,
-    categoria: 'Vistoria'
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'veiculo_multas',
-    pergunta: '57. Veículo possui multas?',
+    id: 'possivel_vandalismo',
+    pergunta: 'Existe possível causa de vandalismo',
     tipo: 'select',
-    opcoes: ['Sim', 'Não'],
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
     obrigatoria: true,
-    categoria: 'Veículo'
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Vidros', 'Perda Total']
   },
   {
-    id: 'multas_relacao_evento',
-    pergunta: '58. Caso possua multas alguma multa pode ter relação com o evento. Ex: Excesso de velocidade.',
-    tipo: 'textarea',
-    obrigatoria: true,
-    categoria: 'Veículo'
-  },
-  {
-    id: 'comunicacao_venda',
-    pergunta: '59. Veículo possui comunicação de venda?',
+    id: 'frenagem_condiz_croqui',
+    pergunta: 'Frenagem condiz com croqui enviado pelo associado',
     tipo: 'select',
-    opcoes: ['Sim', 'Não'],
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    peso: 5,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'atencao_juridica',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'estava_chovendo',
+    pergunta: 'Estava chovendo no momento da colisão',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'quebra_regras_regulamento',
+    pergunta: 'Houve quebra de regras apresentadas no regulamento',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    peso: 10,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'local_evento_maps',
+    pergunta: 'Local do Evento (Google Maps)',
+    tipo: 'mapa',
     obrigatoria: false,
-    categoria: 'Veículo'
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'monta_bo',
-    pergunta: '60. Monta registrada no B.O',
+    id: 'dinamica_condiz_local',
+    pergunta: 'Dinâmica informada pelo associado condiz com o local do evento',
     tipo: 'select',
-    opcoes: ['Pequena Monta', 'Média Monta', 'Grande Monta', 'Não se aplica', 'Outro'],
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
     obrigatoria: true,
-    categoria: 'Análise'
+    categoria: 'CHECKLIST CAUSALIDADE',
+    peso: 10,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'contato_ligacao_associado',
-    pergunta: '61. Foi feito contato por ligação com o associado?',
+    id: 'detalhe_colisao_associado',
+    pergunta: 'Detalhe da colisão veículo associado',
     tipo: 'select',
-    opcoes: ['Sim', 'Não'],
+    opcoes: ['FRONTAL DIREITA', 'FRONTAL ESQUERDA', 'LATERAL DIREITA', 'LATERAL ESQUERDA', 'TRASEIRA DIREITA', 'TRASEIRA ESQUERDA', 'DIAGONAL FRONTAL DIREITA', 'DIAGONAL FRONTAL ESQUERDA', 'DIAGONAL TRASEIRA DIREITA', 'DIAGONAL TRASEIRA ESQUERDA'],
     obrigatoria: true,
-    categoria: 'Entrevista'
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'sentimento_entrevista',
-    pergunta: '62. Qual seu sentimento ao fazer a entrevista com associado?',
+    id: 'detalhe_colisao_terceiro',
+    pergunta: 'Detalhe da colisão veículo terceiro',
     tipo: 'select',
-    opcoes: [
-      'Foi claro e objetivo, não mostrou dúvidas sobre o ocorrido.',
-      'Associado foi claro porém demonstrou alguma dúvida sobre o ocorrido.',
-      'Associado demonstrou insegurança ao responder sobre o ocorrido.',
-      'Associado estava ligeiramente nervoso ao responder sobre o ocorrido.',
-      'Associado estava extremamente nervoso e inseguro sobre o ocorrido.',
-      'Não foi feito contato com associado'
-    ],
-    obrigatoria: true,
-    categoria: 'Entrevista'
+    opcoes: ['FRONTAL DIREITA', 'FRONTAL ESQUERDA', 'LATERAL DIREITA', 'LATERAL ESQUERDA', 'TRASEIRA DIREITA', 'TRASEIRA ESQUERDA', 'DIAGONAL FRONTAL DIREITA', 'DIAGONAL FRONTAL ESQUERDA', 'DIAGONAL TRASEIRA DIREITA', 'DIAGONAL TRASEIRA ESQUERDA'],
+    obrigatoria: false,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    tiposSinistro: ['Colisão', 'Perda Total', 'Terceiro']
   },
   {
-    id: 'localizacao_googlemaps',
-    pergunta: '63. Incluir localização do evento no Google Maps',
+    id: 'congruencia_colisao',
+    pergunta: 'Congruência da colisão dos veículos (objeto) confere - (Congruência: altura, profundidade e gravidade do dano)',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    peso: 10,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'relatos_conferem',
+    pergunta: 'Relatos conferem',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'CHECKLIST CAUSALIDADE',
+    peso: 10,
+    pesoPositivo: ['SIM'],
+    pesoNegativo: ['NÃO'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+
+  // === RELATO ANALISTA CONCLUSÃO ===
+  {
+    id: 'divergencia_informacoes',
+    pergunta: 'Existe divergência de informações (pré-abertura, abertura, B.O e croqui)',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'RELATO ANALISTA CONCLUSÃO',
+    peso: 10,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'descricao_divergencia',
+    pergunta: 'Caso sim, descreva abaixo',
+    tipo: 'textarea',
+    obrigatoria: false,
+    categoria: 'RELATO ANALISTA CONCLUSÃO',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'danos_registrados_vistoria_previa',
+    pergunta: 'Danos apresentados no evento foram registrados na vistoria prévia',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'RELATO ANALISTA CONCLUSÃO',
+    peso: 10,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'qual_dano_registrado',
+    pergunta: 'Caso sim, qual dano',
     tipo: 'text',
     obrigatoria: false,
-    categoria: 'Evento'
+    categoria: 'RELATO ANALISTA CONCLUSÃO',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'notificacao_avaria_preexistente',
+    pergunta: 'Houve notificação de avaria preexistente',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'RELATO ANALISTA CONCLUSÃO',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'necessidade_sindicancia',
+    pergunta: 'Necessidade de Sindicância',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO'],
+    obrigatoria: true,
+    categoria: 'RELATO ANALISTA CONCLUSÃO',
+    peso: 10,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'atencao_juridica',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'situacao_evento',
+    pergunta: 'Situação do Evento',
+    tipo: 'text',
+    obrigatoria: true,
+    categoria: 'RELATO ANALISTA CONCLUSÃO',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+  {
+    id: 'observacao_evento',
+    pergunta: 'Observação sobre o Evento',
+    tipo: 'textarea',
+    obrigatoria: false,
+    categoria: 'RELATO ANALISTA CONCLUSÃO',
+    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
+  },
+
+  // === PERGUNTAS ESPECÍFICAS ROUBO/FURTO ===
+  {
+    id: 'ipva_atraso',
+    pergunta: 'IPVA em Atraso',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 5,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'atencao_andamento',
+    tiposSinistro: ['Roubo', 'Furto']
+  },
+  {
+    id: 'multas_veiculo',
+    pergunta: 'Multas',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Roubo', 'Furto']
+  },
+  {
+    id: 'checktdo',
+    pergunta: 'CheckTDO',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Roubo', 'Furto']
+  },
+  {
+    id: 'veiculo_impedimento',
+    pergunta: 'Veículo com Impedimento',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    peso: 10,
+    pesoPositivo: ['NÃO'],
+    pesoNegativo: ['SIM'],
+    nivelAlerta: 'passivel_negativa',
+    tiposSinistro: ['Roubo', 'Furto']
+  },
+  {
+    id: 'qual_impedimento',
+    pergunta: 'Caso positivo, qual impedimento',
+    tipo: 'text',
+    obrigatoria: false,
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Roubo', 'Furto']
+  },
+  {
+    id: 'consulta_patio',
+    pergunta: 'Consulta Pátio',
+    tipo: 'select',
+    opcoes: ['SIM', 'NÃO', 'NÃO SE APLICA'],
+    obrigatoria: true,
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Roubo', 'Furto']
+  },
+  {
+    id: 'patios_pesquisados',
+    pergunta: 'Pátios Pesquisados',
+    tipo: 'text',
+    obrigatoria: false,
+    categoria: 'ANÁLISE PRÉVIA',
+    tiposSinistro: ['Roubo', 'Furto']
   }
 ];
 
@@ -559,24 +1029,31 @@ export const CATEGORIAS_PERGUNTAS = PERGUNTAS_COMITE.reduce((acc, pergunta) => {
   return acc;
 }, {} as Record<string, PerguntaComite[]>);
 
-// Ordem das categorias para exibição
+// Ordem das categorias
 export const ORDEM_CATEGORIAS = [
-  'Parecer',
-  'Análise',
-  'Acionamento',
-  'Dados do Associado',
-  'Condutor',
-  'Associado',
-  'Veículo',
-  'Evento',
-  'Boletim de Ocorrência',
-  'Contato',
-  'Histórico',
-  'Terceiro',
-  'Financeiro',
-  'Consultas',
-  'Documentação',
-  'Assistência',
-  'Vistoria',
-  'Entrevista'
+  'ANÁLISE PRÉVIA',
+  'ANÁLISE FINANCEIRA',
+  'ANÁLISE DOCUMENTAL',
+  'CHECKLIST CAUSALIDADE',
+  'RELATO ANALISTA CONCLUSÃO'
 ];
+
+// Filtrar perguntas por tipo de sinistro
+export const filtrarPerguntasPorTipo = (tipoSinistro: string): PerguntaComite[] => {
+  return PERGUNTAS_COMITE.filter(p => 
+    !p.tiposSinistro || p.tiposSinistro.includes(tipoSinistro)
+  );
+};
+
+// Agrupar perguntas filtradas por categoria
+export const getCategoriasPerguntas = (tipoSinistro?: string) => {
+  const perguntas = tipoSinistro ? filtrarPerguntasPorTipo(tipoSinistro) : PERGUNTAS_COMITE;
+  
+  return perguntas.reduce((acc, pergunta) => {
+    if (!acc[pergunta.categoria]) {
+      acc[pergunta.categoria] = [];
+    }
+    acc[pergunta.categoria].push(pergunta);
+    return acc;
+  }, {} as Record<string, PerguntaComite[]>);
+};
