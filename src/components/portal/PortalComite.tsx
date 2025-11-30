@@ -100,15 +100,39 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Buscar vistorias
+      const { data: vistorias, error } = await supabase
         .from("vistorias")
-        .select("*, sinistro_acompanhamento!sinistro_acompanhamento_atendimento_id_fkey(parecer_associacao, parecer_analista, comite_status, financeiro_valor_aprovado)")
+        .select("*")
         .eq("corretora_id", corretoraId)
         .in("status", ["em_analise", "aprovada", "reprovada", "concluida"])
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setSinistros(data || []);
+
+      // Buscar acompanhamentos separadamente
+      if (vistorias && vistorias.length > 0) {
+        const atendimentoIds = vistorias.map(v => v.atendimento_id).filter(Boolean);
+        
+        if (atendimentoIds.length > 0) {
+          const { data: acompanhamentos } = await supabase
+            .from("sinistro_acompanhamento")
+            .select("atendimento_id, parecer_associacao, parecer_analista, comite_status, financeiro_valor_aprovado")
+            .in("atendimento_id", atendimentoIds);
+
+          // Merge data
+          const sinistrosComAcomp = vistorias.map(v => ({
+            ...v,
+            acompanhamento: acompanhamentos?.find(a => a.atendimento_id === v.atendimento_id)
+          }));
+          
+          setSinistros(sinistrosComAcomp);
+        } else {
+          setSinistros(vistorias || []);
+        }
+      } else {
+        setSinistros([]);
+      }
     } catch (error: any) {
       console.error("Error fetching sinistros:", error);
       toast.error("Erro ao carregar sinistros");
@@ -530,7 +554,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                     </TableCell>
                     <TableCell>{new Date(sinistro.created_at).toLocaleDateString("pt-BR")}</TableCell>
                     <TableCell className="text-right">{formatCurrency(getValorEstimado(sinistro))}</TableCell>
-                    <TableCell>{getStatusBadge(sinistro.status, sinistro.sinistro_acompanhamento?.[0]?.parecer_associacao)}</TableCell>
+                    <TableCell>{getStatusBadge(sinistro.status, sinistro.acompanhamento?.parecer_associacao)}</TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" onClick={() => handleOpenDeliberacao(sinistro)}>
                         Deliberar
