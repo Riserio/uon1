@@ -2917,6 +2917,44 @@ export type Database = {
           },
         ]
       }
+      vistoria_prazo_config: {
+        Row: {
+          ativo: boolean
+          corretora_id: string
+          created_at: string
+          id: string
+          prazo_dias: number
+          prazo_horas: number
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          corretora_id: string
+          created_at?: string
+          id?: string
+          prazo_dias?: number
+          prazo_horas?: number
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          corretora_id?: string
+          created_at?: string
+          id?: string
+          prazo_dias?: number
+          prazo_horas?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vistoria_prazo_config_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: true
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vistorias: {
         Row: {
           acionou_assistencia_24h: boolean | null
@@ -2971,6 +3009,8 @@ export type Database = {
           observacoes_ia: string | null
           placa_terceiro: string | null
           policia_foi_local: boolean | null
+          prazo_manual: boolean | null
+          prazo_validade: string | null
           quilometragem: number | null
           relato_incidente: string | null
           relatorio_url: string | null
@@ -3049,6 +3089,8 @@ export type Database = {
           observacoes_ia?: string | null
           placa_terceiro?: string | null
           policia_foi_local?: boolean | null
+          prazo_manual?: boolean | null
+          prazo_validade?: string | null
           quilometragem?: number | null
           relato_incidente?: string | null
           relatorio_url?: string | null
@@ -3127,6 +3169,8 @@ export type Database = {
           observacoes_ia?: string | null
           placa_terceiro?: string | null
           policia_foi_local?: boolean | null
+          prazo_manual?: boolean | null
+          prazo_validade?: string | null
           quilometragem?: number | null
           relato_incidente?: string | null
           relatorio_url?: string | null

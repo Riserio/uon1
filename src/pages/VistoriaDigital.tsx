@@ -31,10 +31,36 @@ export default function VistoriaDigital() {
   // NOVOS ESTADOS
   const [validadeAtivada, setValidadeAtivada] = useState(false); // por padrão desativado
   const [diasValidade, setDiasValidade] = useState(2);
+  const [prazoConfig, setPrazoConfig] = useState<{ prazo_dias: number; prazo_horas: number } | null>(null);
 
   useEffect(() => {
     loadCorretoras();
   }, []);
+
+  // Carregar configuração de prazo quando associação é selecionada
+  useEffect(() => {
+    const loadPrazoConfig = async () => {
+      if (!selectedCorretora) {
+        setPrazoConfig(null);
+        return;
+      }
+      
+      const { data } = await supabase
+        .from('vistoria_prazo_config')
+        .select('prazo_dias, prazo_horas')
+        .eq('corretora_id', selectedCorretora)
+        .eq('ativo', true)
+        .maybeSingle();
+      
+      if (data) {
+        setPrazoConfig(data);
+      } else {
+        setPrazoConfig(null);
+      }
+    };
+    
+    loadPrazoConfig();
+  }, [selectedCorretora]);
 
   const loadCorretoras = async () => {
     const { data } = await supabase.from("corretoras").select("id, nome").order("nome");
@@ -44,6 +70,26 @@ export default function VistoriaDigital() {
     }
   };
 
+  // Função para calcular prazo_validade baseado na configuração
+  const calcularPrazoValidade = () => {
+    if (validadeAtivada) {
+      // Prazo manual ativado - usar dias de validade configurado manualmente
+      const prazo = new Date();
+      prazo.setDate(prazo.getDate() + diasValidade);
+      return { prazoValidade: prazo.toISOString(), prazoManual: true };
+    }
+    
+    if (prazoConfig) {
+      // Usar prazo configurado para a associação
+      const prazo = new Date();
+      prazo.setDate(prazo.getDate() + prazoConfig.prazo_dias);
+      prazo.setHours(prazo.getHours() + prazoConfig.prazo_horas);
+      return { prazoValidade: prazo.toISOString(), prazoManual: false };
+    }
+    
+    return { prazoValidade: null, prazoManual: false };
+  };
+
   const createVistoria = async () => {
     setCreating(true);
     try {
@@ -51,6 +97,9 @@ export default function VistoriaDigital() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
+
+      // Calcular prazo de validade
+      const { prazoValidade, prazoManual } = calcularPrazoValidade();
 
       const { data: vistoria, error: vistoriaError} = await supabase
         .from("vistorias")
@@ -65,6 +114,8 @@ export default function VistoriaDigital() {
           horario_inicio: horarioInicio,
           horario_fim: horarioFim,
           dias_validade: validadeAtivada ? diasValidade : null,
+          prazo_validade: prazoValidade,
+          prazo_manual: prazoManual,
         })
         .select()
         .single();
@@ -213,22 +264,28 @@ export default function VistoriaDigital() {
                 </div>
               )}
 
-              {/* Corretora e CPF */}
+              {/* Associação e CPF */}
               <div className="space-y-4">
                 <div>
-                  <Label>Corretora</Label>
+                  <Label>Associação</Label>
                   <select
                     value={selectedCorretora}
                     onChange={(e) => setSelectedCorretora(e.target.value)}
                     className="w-full border rounded-md p-2"
                   >
-                    <option value="">Selecione a corretora</option>
+                    <option value="">Selecione a associação</option>
                     {corretoras.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.nome}
                       </option>
                     ))}
                   </select>
+                  {prazoConfig && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      ✓ Prazo automático: {prazoConfig.prazo_dias} dia{prazoConfig.prazo_dias !== 1 ? 's' : ''} 
+                      {prazoConfig.prazo_horas > 0 && ` e ${prazoConfig.prazo_horas} hora${prazoConfig.prazo_horas !== 1 ? 's' : ''}`}
+                    </p>
+                  )}
                 </div>
 
                 <div>
