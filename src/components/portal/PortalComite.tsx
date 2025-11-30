@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { MessageSquare, DollarSign, TrendingUp, FileDown, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { PERGUNTAS_COMITE, PerguntaComite, PARECERES_COMITE, PARECERES_ASSOCIACAO } from "@/constants/perguntasComite";
+import { PERGUNTAS_COMITE, PerguntaComite, PARECERES_COMITE, PARECERES_ASSOCIACAO, PARECERES_ANALISTA, NIVEIS_ALERTA_PESO } from "@/constants/perguntasComite";
 import { exportDeliberacaoPDF } from "@/utils/pdfDeliberacao";
 
 interface PortalComiteProps {
@@ -396,6 +396,42 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     return numA - numB;
   });
 
+  // Calcula o peso/nível de alerta final baseado nas respostas negativas
+  const calcularPesoFinal = (): { nivel: typeof NIVEIS_ALERTA_PESO[0] | null; alertas: string[] } => {
+    const alertas: string[] = [];
+    let menorPrioridade = Infinity;
+    let nivelFinal: typeof NIVEIS_ALERTA_PESO[0] | null = null;
+
+    PERGUNTAS_COMITE.forEach((pergunta) => {
+      const resposta = respostas[pergunta.id];
+      if (!resposta || !pergunta.nivelAlerta) return;
+
+      // Verifica se a resposta é negativa
+      const isNegativa = pergunta.pesoNegativo?.includes(resposta);
+      
+      if (isNegativa && pergunta.nivelAlerta) {
+        const nivelConfig = NIVEIS_ALERTA_PESO.find(n => n.value === pergunta.nivelAlerta);
+        if (nivelConfig) {
+          alertas.push(`${pergunta.pergunta}: ${resposta}`);
+          // Menor prioridade = mais crítico
+          if (nivelConfig.prioridade < menorPrioridade) {
+            menorPrioridade = nivelConfig.prioridade;
+            nivelFinal = nivelConfig;
+          }
+        }
+      }
+    });
+
+    // Se não houver alertas, retorna aprovação
+    if (!nivelFinal) {
+      nivelFinal = NIVEIS_ALERTA_PESO.find(n => n.value === 'aprovacao') || null;
+    }
+
+    return { nivel: nivelFinal, alertas };
+  };
+
+  const pesoCalculado = calcularPesoFinal();
+
   const renderPergunta = (pergunta: PerguntaComite) => {
     const valor = respostas[pergunta.id] || "";
 
@@ -629,12 +665,33 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                   </ScrollArea>
                 </div>
 
-                {/* Decisão - 1 coluna, com scroll próprio */}
-                <div className="overflow-hidden flex flex-col">
+                {/* Decisão - 1 coluna, com scroll próprio e cards alinhados na parte de baixo */}
+                <div className="overflow-hidden flex flex-col justify-end">
                   <h3 className="text-sm font-semibold mb-2">Decisão do Comitê</h3>
                   <ScrollArea className="flex-1">
                     <Card className="flex-1 p-4 bg-white">
                       <div className="space-y-4">
+                        {/* Peso Calculado baseado nas respostas */}
+                        {pesoCalculado.nivel && (
+                          <div className={`p-3 border-2 rounded-lg space-y-2 ${pesoCalculado.nivel.cor} ${pesoCalculado.nivel.textCor}`}>
+                            <h4 className="font-medium text-sm">Resultado da Análise</h4>
+                            <p className="text-xs font-bold">{pesoCalculado.nivel.label}</p>
+                            {pesoCalculado.alertas.length > 0 && (
+                              <div className="text-xs mt-2 p-2 bg-black/10 rounded">
+                                <p className="font-medium mb-1">Pontos de atenção ({pesoCalculado.alertas.length}):</p>
+                                <ul className="list-disc list-inside space-y-0.5">
+                                  {pesoCalculado.alertas.slice(0, 5).map((alerta, i) => (
+                                    <li key={i} className="truncate">{alerta}</li>
+                                  ))}
+                                  {pesoCalculado.alertas.length > 5 && (
+                                    <li>...e mais {pesoCalculado.alertas.length - 5} item(s)</li>
+                                  )}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Parecer do Analista */}
                         <div className="p-3 border rounded-lg space-y-3">
                           <h4 className="font-medium text-sm">Parecer do Analista</h4>
@@ -648,7 +705,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                                 <SelectValue placeholder="Selecione o parecer" />
                               </SelectTrigger>
                               <SelectContent>
-                                {PARECERES_COMITE.map((parecer) => (
+                                {PARECERES_ANALISTA.map((parecer) => (
                                   <SelectItem key={parecer.value} value={parecer.value}>
                                     <div className="flex items-center gap-2">
                                       <div className={`w-2 h-2 rounded-full ${parecer.cor}`} />

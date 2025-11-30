@@ -22,6 +22,59 @@ export const PARECERES_ASSOCIACAO = [
   { value: 'mais_informacoes', label: 'Quero Mais Informações', cor: 'bg-blue-500', textCor: 'text-white' },
 ];
 
+// Pareceres do Analista (opções de decisão do analista)
+export const PARECERES_ANALISTA = [
+  { value: 'aprovado', label: 'Aprovado', cor: 'bg-green-500', textCor: 'text-white' },
+  { value: 'negado', label: 'Negado', cor: 'bg-red-500', textCor: 'text-white' },
+  { value: 'sindicancia', label: 'Sindicância', cor: 'bg-purple-500', textCor: 'text-white' },
+  { value: 'analise_juridica', label: 'Necessário Análise Jurídica', cor: 'bg-orange-500', textCor: 'text-white' },
+  { value: 'pericia_tecnica', label: 'Perícia Técnica', cor: 'bg-blue-500', textCor: 'text-white' },
+];
+
+// Níveis de alerta/peso das respostas (usado para configurar o peso de cada resposta)
+export const NIVEIS_ALERTA_PESO = [
+  { 
+    value: 'passivel_negativa',
+    label: 'EVENTO REQUER ATENÇÃO PASSIVEL DE NEGATIVA/ANALISE JURIDICA',
+    labelCurto: 'Passível de Negativa',
+    cor: 'bg-red-600',
+    textCor: 'text-white',
+    prioridade: 1
+  },
+  { 
+    value: 'atencao_juridica',
+    label: 'EVENTO REQUER ATENÇÃO - ALGUMAS RESPOSTAS PODEM INDICAR A NECESSIDADE DE UMA ANALISE JURIDICA, SINDICANCIA OU PERICIA PARA ESTE EVENTO',
+    labelCurto: 'Atenção Jurídica/Sindicância',
+    cor: 'bg-orange-500',
+    textCor: 'text-white',
+    prioridade: 2
+  },
+  { 
+    value: 'atencao_andamento',
+    label: 'EVENTO REQUER ATENÇÃO - ALGUMAS RESPOSTAS PODEM INDICAR MUDANÇAS NO ANDAMENTO DO EVENTO',
+    labelCurto: 'Atenção no Andamento',
+    cor: 'bg-yellow-400',
+    textCor: 'text-black',
+    prioridade: 3
+  },
+  { 
+    value: 'ressarcimento',
+    label: 'EVENTO PASSIVEL DE RESARCIMENTO',
+    labelCurto: 'Passível de Ressarcimento',
+    cor: 'bg-lime-500',
+    textCor: 'text-white',
+    prioridade: 4
+  },
+  { 
+    value: 'aprovacao',
+    label: 'EVENTO PASSIVO DE APROVAÇAO - NENHUMA DAS RESPOSTAS INFORMADAS INDICAM INDICIOS ATENÇAO',
+    labelCurto: 'Passivo de Aprovação',
+    cor: 'bg-green-600',
+    textCor: 'text-white',
+    prioridade: 5
+  }
+];
+
 // Pareceres do Comitê com cores
 export const PARECERES_COMITE = [
   { 
