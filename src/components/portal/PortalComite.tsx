@@ -16,8 +16,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { MessageSquare, DollarSign, TrendingUp, FileDown, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { PERGUNTAS_COMITE, PerguntaComite, PARECERES_COMITE } from "@/constants/perguntasComite";
-import { PARECERES_ASSOCIACAO } from "@/pages/ComiteDeliberacao";
+import { PERGUNTAS_COMITE, PerguntaComite, PARECERES_COMITE, PARECERES_ASSOCIACAO } from "@/constants/perguntasComite";
 import { exportDeliberacaoPDF } from "@/utils/pdfDeliberacao";
 
 interface PortalComiteProps {

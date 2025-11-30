@@ -14,6 +14,14 @@ export interface PerguntaComite {
   tiposSinistro?: string[]; // Tipos de sinistro que usam esta pergunta
 }
 
+// Pareceres da Associação (decisão final exibida na tela de sinistros)
+export const PARECERES_ASSOCIACAO = [
+  { value: 'em_analise', label: 'Em Análise', cor: 'bg-orange-500', textCor: 'text-white' },
+  { value: 'aprovado', label: 'Aprovado', cor: 'bg-green-500', textCor: 'text-white' },
+  { value: 'negado', label: 'Negado', cor: 'bg-red-500', textCor: 'text-white' },
+  { value: 'mais_informacoes', label: 'Quero Mais Informações', cor: 'bg-blue-500', textCor: 'text-white' },
+];
+
 // Pareceres do Comitê com cores
 export const PARECERES_COMITE = [
   { 
