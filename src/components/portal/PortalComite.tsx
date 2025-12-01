@@ -495,11 +495,15 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
   const tipoSinistroSelecionado = selectedSinistro?.tipo_sinistro || '';
   const { perguntas: perguntasDb, categorias: categoriasDb, loading: loadingPerguntas } = useSinistroPerguntas(tipoSinistroSelecionado);
 
-  // Calcular peso das respostas
-  const { total: pesoTotal, maxPossivel, percentual: percentualPeso, alertas } = calcularPesoRespostas(respostas, perguntasDb);
+  // Calcular peso das respostas usando APENAS perguntas do banco
+  const perguntaIds = new Set(perguntasDb.map(p => p.id));
+  const respostasFiltradas = Object.fromEntries(
+    Object.entries(respostas).filter(([k]) => perguntaIds.has(k))
+  );
+  const { total: pesoTotal, maxPossivel, percentual: percentualPeso, alertas } = calcularPesoRespostas(respostasFiltradas, perguntasDb);
 
   const totalPerguntas = perguntasDb.length;
-  const perguntasRespondidas = Object.keys(respostas).filter((k) => respostas[k]).length;
+  const perguntasRespondidas = Object.keys(respostasFiltradas).filter((k) => respostasFiltradas[k]).length;
 
   const renderPerguntaDb = (pergunta: SinistroPergunta) => {
     const valor = respostas[pergunta.id] || '';

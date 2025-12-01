@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Workflow } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -64,9 +63,8 @@ export function FluxoSelector({ selectedFluxoId, onFluxoSelect, onConfigureFluxo
   }
 
   return (
-    <div className="w-full py-4">
-      <ScrollArea className="w-full whitespace-nowrap">
-        <div className="flex items-center gap-3 px-1">
+    <div className="w-full py-4 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <div className="flex items-center gap-3 px-1 min-w-max">
         {fluxos.map((fluxo, index) => {
           const isActive = selectedFluxoId === fluxo.id;
           const isPassed = fluxos.findIndex(f => f.id === selectedFluxoId) > index;
@@ -145,9 +143,7 @@ export function FluxoSelector({ selectedFluxoId, onFluxoSelect, onConfigureFluxo
             </div>
           );
         })}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      </div>
     </div>
   );
 }

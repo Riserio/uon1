@@ -424,11 +424,17 @@ export default function ComiteDeliberacao() {
     );
   };
 
+  // Filtrar respostas para considerar APENAS perguntas cadastradas no banco
+  const perguntaIds = new Set(perguntasDb.map(p => p.id));
+  const respostasFiltradas = Object.fromEntries(
+    Object.entries(respostas).filter(([k]) => perguntaIds.has(k))
+  );
+
   const totalPerguntas = perguntasDb.length;
-  const perguntasRespondidas = Object.keys(respostas).filter(k => respostas[k]).length;
+  const perguntasRespondidas = Object.keys(respostasFiltradas).filter(k => respostasFiltradas[k]).length;
   const percentualPreenchido = totalPerguntas > 0 ? Math.round((perguntasRespondidas / totalPerguntas) * 100) : 0;
 
-  const { total: pesoTotal, maxPossivel, percentual: percentualPeso, alertas } = calcularPesoRespostas(respostas, perguntasDb);
+  const { total: pesoTotal, maxPossivel, percentual: percentualPeso, alertas } = calcularPesoRespostas(respostasFiltradas, perguntasDb);
 
   const getParecerAnalistaInfo = () => {
     const config = PARECERES_ANALISTA.find(p => p.value === parecerAnalista.parecer);
