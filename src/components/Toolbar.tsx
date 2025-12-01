@@ -115,7 +115,7 @@ export function Toolbar({
                   >
                     <Building2 className="h-4 w-4 mr-1 shrink-0" />
                     <span className="truncate">
-                      {filterCorretora === "all" ? "Buscar corretoras" : filterCorretora}
+                      {filterCorretora === "all" ? "Buscar associações" : filterCorretora}
                     </span>
                     <ChevronsUpDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -142,7 +142,7 @@ export function Toolbar({
                         <Check
                           className={cn("mr-2 h-4 w-4", filterCorretora === "all" ? "opacity-100" : "opacity-0")}
                         />
-                        Todas as corretoras
+                        Todas as associações
                       </CommandItem>
                     </CommandGroup>
                     {filteredCorretoras.length > 0 && (

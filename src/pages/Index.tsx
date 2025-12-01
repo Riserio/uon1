@@ -26,6 +26,7 @@ import { FluxoSelector } from "@/components/FluxoSelector";
 import { WorkflowConfigDialog } from "@/components/WorkflowConfigDialog";
 import { FluxoVisualizationDialog } from "@/components/FluxoVisualizationDialog";
 import { AcompanhamentoLinkDialog } from "@/components/AcompanhamentoLinkDialog";
+import { NovoAtendimentoDialog } from "@/components/NovoAtendimentoDialog";
 
 const Index = () => {
   const isMobile = useIsMobile();
@@ -47,6 +48,7 @@ const Index = () => {
   const [workflowConfigOpen, setWorkflowConfigOpen] = useState(false);
   const [fluxoVisualizationOpen, setFluxoVisualizationOpen] = useState(false);
   const [acompanhamentoLinkOpen, setAcompanhamentoLinkOpen] = useState(false);
+  const [novoAtendimentoDialogOpen, setNovoAtendimentoDialogOpen] = useState(false);
   const [selectedFluxoId, setSelectedFluxoId] = useState<string | null>(null);
   const [statusPrazo, setStatusPrazo] = useState<Record<string, number>>({});
   const [userRole, setUserRole] = useState<string>("");
@@ -615,8 +617,7 @@ const Index = () => {
   };
 
   const handleNewAtendimento = () => {
-    setEditingAtendimento(null);
-    setDialogOpen(true);
+    setNovoAtendimentoDialogOpen(true);
   };
 
   const handleExportJSON = () => {
@@ -865,6 +866,8 @@ const Index = () => {
       <FluxoVisualizationDialog open={fluxoVisualizationOpen} onOpenChange={setFluxoVisualizationOpen} />
 
       <AcompanhamentoLinkDialog open={acompanhamentoLinkOpen} onOpenChange={setAcompanhamentoLinkOpen} />
+
+      <NovoAtendimentoDialog open={novoAtendimentoDialogOpen} onOpenChange={setNovoAtendimentoDialogOpen} />
     </div>
   );
 };
