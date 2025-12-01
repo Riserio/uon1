@@ -1386,18 +1386,11 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                     />
                   </div>
 
-                  <div className="flex justify-between items-center pt-4 border-t">
-                    {atendimento && (
-                      <Button type="button" variant="default" onClick={() => setShowConclusaoDialog(true)}>
-                        Concluir Manualmente
-                      </Button>
-                    )}
-                    <div className="flex gap-2 ml-auto">
-                      <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                        Cancelar
-                      </Button>
-                      <Button type="submit">Salvar</Button>
-                    </div>
+                  <div className="flex justify-end items-center pt-4 border-t gap-2">
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit">Salvar</Button>
                   </div>
                 </form>
               </TabsContent>
@@ -1799,8 +1792,8 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                 </div>
 
                 {/* Botões de Ação */}
-                {vistoriaData.tipo_atendimento === "sinistro" && (
-                  <div className="flex gap-2 justify-end pt-4 border-t">
+                <div className="flex gap-2 justify-end pt-4 border-t">
+                  {vistoriaData.tipo_atendimento === "sinistro" && (
                     <Button
                       type="button"
                       onClick={handleGerarLinkVistoria}
@@ -1811,11 +1804,11 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                       <Link2 className="h-4 w-4" />
                       Gerar Link de Vistoria
                     </Button>
-                    <Button type="button" onClick={handleSalvarCustos}>
-                      Salvar Dados
-                    </Button>
-                  </div>
-                )}
+                  )}
+                  <Button type="button" onClick={handleSalvarCustos}>
+                    Salvar Dados
+                  </Button>
+                </div>
               </TabsContent>
 
               <TabsContent value="comite" className="mt-0 p-4">
