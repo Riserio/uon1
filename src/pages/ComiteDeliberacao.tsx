@@ -41,7 +41,7 @@ export default function ComiteDeliberacao() {
   });
 
   const tipoFinal = vistoriaData?.tipo_sinistro || atendimentoData?.tipo_atendimento || '';
-  const { perguntas: perguntasDb, loading: loadingPerguntas } = useSinistroPerguntas(tipoFinal);
+  const { perguntas: perguntasDb, categorias, loading: loadingPerguntas } = useSinistroPerguntas(tipoFinal);
   const usarPerguntasDb = perguntasDb.length > 0;
 
   // Função para mapear tags auto_preenchivel para valores da vistoria
@@ -644,7 +644,19 @@ export default function ComiteDeliberacao() {
               <ScrollArea className="h-[600px] pr-4">
                 <div className="space-y-6">
                   {usarPerguntasDb ? (
-                    perguntasDb.map(renderPerguntaDb)
+                    // Usar perguntas do banco organizadas por categoria
+                    categorias.length > 0 ? (
+                      categorias.map(categoria => (
+                        <div key={categoria.id} className="space-y-4">
+                          <h3 className="font-semibold text-sm border-b pb-2">{categoria.nome}</h3>
+                          <div className="space-y-4">
+                            {(categoria.perguntas || []).map(renderPerguntaDb)}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      perguntasDb.map(renderPerguntaDb)
+                    )
                   ) : (
                     categoriasOrdenadas.map(categoria => (
                       <div key={categoria} className="space-y-4">
@@ -663,6 +675,51 @@ export default function ComiteDeliberacao() {
 
         {/* Pareceres */}
         <div className="space-y-6">
+          {/* Resultado da Análise */}
+          {usarPerguntasDb && (
+            <Card className={`border-2 ${
+              percentualPeso <= 30 ? 'bg-green-600 border-green-600' :
+              percentualPeso <= 50 ? 'bg-lime-500 border-lime-500' :
+              percentualPeso <= 70 ? 'bg-yellow-400 border-yellow-400' :
+              percentualPeso <= 85 ? 'bg-orange-500 border-orange-500' :
+              'bg-red-600 border-red-600'
+            }`}>
+              <CardContent className="pt-4 pb-4">
+                <h3 className={`font-bold text-lg mb-2 ${
+                  percentualPeso <= 70 && percentualPeso > 50 ? 'text-black' : 'text-white'
+                }`}>Resultado da Análise</h3>
+                <p className={`text-sm font-semibold ${
+                  percentualPeso <= 70 && percentualPeso > 50 ? 'text-black' : 'text-white'
+                }`}>
+                  {percentualPeso <= 30 ? 'Evento passivo de aprovação - Nenhuma das respostas informadas indicam indícios de atenção' :
+                   percentualPeso <= 50 ? 'Evento passível de ressarcimento' :
+                   percentualPeso <= 70 ? 'Evento requer atenção - Mudanças no andamento' :
+                   percentualPeso <= 85 ? 'Evento requer atenção - Análise jurídica/sindicância/perícia' :
+                   'Evento requer atenção - Passível de negativa/análise jurídica'}
+                </p>
+                {alertas.length > 0 && (
+                  <div className={`mt-3 p-2 rounded ${
+                    percentualPeso <= 70 && percentualPeso > 50 ? 'bg-black/10' : 'bg-white/20'
+                  }`}>
+                    <p className={`text-xs font-medium mb-1 ${
+                      percentualPeso <= 70 && percentualPeso > 50 ? 'text-black' : 'text-white'
+                    }`}>Pontos de atenção ({alertas.length}):</p>
+                    <ul className={`text-xs list-disc list-inside ${
+                      percentualPeso <= 70 && percentualPeso > 50 ? 'text-black/80' : 'text-white/90'
+                    }`}>
+                      {alertas.slice(0, 5).map((alerta, i) => (
+                        <li key={i} className="truncate">{alerta}</li>
+                      ))}
+                      {alertas.length > 5 && (
+                        <li>...e mais {alertas.length - 5} item(s)</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Parecer do Analista */}
           <Card>
             <CardHeader className="pb-3">
@@ -670,6 +727,9 @@ export default function ComiteDeliberacao() {
                 <Gavel className="h-5 w-5" />
                 Parecer do Analista
               </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Esta é uma informação baseada na opinião do analista, fica sob responsabilidade da associação a definição do evento.
+              </p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">

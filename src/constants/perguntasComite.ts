@@ -121,25 +121,9 @@ export const TIPOS_SINISTRO_PERGUNTAS = [
 ];
 
 // Perguntas organizadas conforme planilha - COLISÃO, DANOS DA NATUREZA, INCÊNDIO
+// NOTA: "Parecer do Analista" foi removido do questionário e transferido para o box do parecer
 export const PERGUNTAS_COMITE: PerguntaComite[] = [
   // === ANÁLISE PRÉVIA ===
-  {
-    id: 'parecer_analista',
-    pergunta: 'Parecer do Analista',
-    tipo: 'select',
-    opcoes: PARECERES_COMITE.map(p => p.value),
-    obrigatoria: true,
-    categoria: 'ANÁLISE PRÉVIA',
-    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
-  },
-  {
-    id: 'relato_analista',
-    pergunta: 'Relato do Analista',
-    tipo: 'textarea',
-    obrigatoria: true,
-    categoria: 'ANÁLISE PRÉVIA',
-    tiposSinistro: ['Colisão', 'Danos da Natureza', 'Incêndio', 'Roubo', 'Furto', 'Vidros', 'Perda Total', 'Terceiro']
-  },
   {
     id: 'situacao_associado_ativo',
     pergunta: 'Situação do Associado Ativo',

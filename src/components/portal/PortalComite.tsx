@@ -16,8 +16,9 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { MessageSquare, DollarSign, TrendingUp, FileDown, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { PERGUNTAS_COMITE, PerguntaComite, PARECERES_COMITE, PARECERES_ASSOCIACAO, PARECERES_ANALISTA, NIVEIS_ALERTA_PESO } from "@/constants/perguntasComite";
+import { PERGUNTAS_COMITE, PerguntaComite, PARECERES_COMITE, PARECERES_ASSOCIACAO, PARECERES_ANALISTA, NIVEIS_ALERTA_PESO, ORDEM_CATEGORIAS } from "@/constants/perguntasComite";
 import { exportDeliberacaoPDF } from "@/utils/pdfDeliberacao";
+import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta, SinistroPerguntaCategoria } from "@/hooks/useSinistroPerguntas";
 
 interface PortalComiteProps {
   corretoraId?: string;
@@ -525,48 +526,96 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     return s.status === filtroStatus;
   });
 
-  // Ordena TODAS as perguntas globalmente pela parte numérica do ID (1 → 2 → ... → 62)
-  const perguntasOrdenadasGlobal: PerguntaComite[] = [...PERGUNTAS_COMITE].sort((a, b) => {
-    const numA = parseInt(String(a.id).replace(/\D/g, ""), 10) || 0;
-    const numB = parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
-    return numA - numB;
-  });
+  // Hook para carregar perguntas do banco baseado no tipo de sinistro selecionado
+  const tipoSinistroSelecionado = selectedSinistro?.tipo_sinistro || '';
+  const { perguntas: perguntasDb, categorias: categoriasDb, loading: loadingPerguntas } = useSinistroPerguntas(tipoSinistroSelecionado);
+  const usarPerguntasDb = perguntasDb.length > 0;
 
-  // Calcula o peso/nível de alerta final baseado nas respostas negativas
-  const calcularPesoFinal = (): { nivel: typeof NIVEIS_ALERTA_PESO[0] | null; alertas: string[] } => {
-    const alertas: string[] = [];
-    let menorPrioridade = Infinity;
-    let nivelFinal: typeof NIVEIS_ALERTA_PESO[0] | null = null;
+  // Agrupar perguntas constantes por categoria
+  const perguntasFiltradas = tipoSinistroSelecionado 
+    ? PERGUNTAS_COMITE.filter(p => !p.tiposSinistro || p.tiposSinistro.includes(tipoSinistroSelecionado))
+    : PERGUNTAS_COMITE;
 
-    PERGUNTAS_COMITE.forEach((pergunta) => {
-      const resposta = respostas[pergunta.id];
-      if (!resposta || !pergunta.nivelAlerta) return;
+  const perguntasPorCategoria = perguntasFiltradas.reduce((acc, pergunta) => {
+    const cat = pergunta.categoria || 'Geral';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(pergunta);
+    return acc;
+  }, {} as Record<string, PerguntaComite[]>);
 
-      // Verifica se a resposta é negativa
-      const isNegativa = pergunta.pesoNegativo?.includes(resposta);
-      
-      if (isNegativa && pergunta.nivelAlerta) {
-        const nivelConfig = NIVEIS_ALERTA_PESO.find(n => n.value === pergunta.nivelAlerta);
-        if (nivelConfig) {
-          alertas.push(`${pergunta.pergunta}: ${resposta}`);
-          // Menor prioridade = mais crítico
-          if (nivelConfig.prioridade < menorPrioridade) {
-            menorPrioridade = nivelConfig.prioridade;
-            nivelFinal = nivelConfig;
-          }
-        }
-      }
-    });
+  const categoriasOrdenadas = ORDEM_CATEGORIAS.filter(cat => perguntasPorCategoria[cat]);
 
-    // Se não houver alertas, retorna aprovação
-    if (!nivelFinal) {
-      nivelFinal = NIVEIS_ALERTA_PESO.find(n => n.value === 'aprovacao') || null;
-    }
+  // Calcular peso das respostas
+  const { total: pesoTotal, maxPossivel, percentual: percentualPeso, alertas } = usarPerguntasDb 
+    ? calcularPesoRespostas(respostas, perguntasDb)
+    : { total: 0, maxPossivel: 0, percentual: 0, alertas: [] };
 
-    return { nivel: nivelFinal, alertas };
+  const totalPerguntas = usarPerguntasDb ? perguntasDb.length : perguntasFiltradas.length;
+  const perguntasRespondidas = Object.keys(respostas).filter((k) => respostas[k]).length;
+
+  const renderPerguntaDb = (pergunta: SinistroPergunta) => {
+    const valor = respostas[pergunta.id] || '';
+
+    return (
+      <div key={pergunta.id} className="space-y-1.5">
+        <Label className="text-xs font-medium flex items-center gap-2">
+          {pergunta.pergunta}
+          {pergunta.obrigatoria && <span className="text-destructive">*</span>}
+        </Label>
+
+        {pergunta.tipo_campo === 'select' && pergunta.opcoes && (
+          <Select value={valor} onValueChange={(v) => handleRespostaChange(pergunta.id, v)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Selecione..." />
+            </SelectTrigger>
+            <SelectContent>
+              {(pergunta.opcoes as string[]).filter(opcao => opcao?.trim()).map((opcao) => (
+                <SelectItem key={opcao} value={opcao} className="text-xs">{opcao}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {pergunta.tipo_campo === 'text' && (
+          <Input
+            value={valor}
+            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
+            placeholder="Digite..."
+            className="h-8 text-xs"
+          />
+        )}
+
+        {pergunta.tipo_campo === 'textarea' && (
+          <Textarea
+            value={valor}
+            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
+            placeholder="Digite..."
+            rows={2}
+            className="text-xs"
+          />
+        )}
+
+        {pergunta.tipo_campo === 'date' && (
+          <Input
+            type="date"
+            value={valor}
+            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
+            className="h-8 text-xs"
+          />
+        )}
+
+        {pergunta.tipo_campo === 'valor' && (
+          <Input
+            type="number"
+            value={valor}
+            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
+            placeholder="0,00"
+            className="h-8 text-xs"
+          />
+        )}
+      </div>
+    );
   };
-
-  const pesoCalculado = calcularPesoFinal();
 
   const renderPergunta = (pergunta: PerguntaComite) => {
     const valor = respostas[pergunta.id] || "";
@@ -620,12 +669,21 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
             className="h-8 text-xs"
           />
         )}
+
+        {pergunta.tipo === "valor" && (
+          <Input
+            type="number"
+            value={valor}
+            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
+            placeholder="0,00"
+            className="h-8 text-xs"
+          />
+        )}
       </div>
     );
   };
 
-  const perguntasRespondidas = Object.keys(respostas).filter((k) => respostas[k]).length;
-  const totalPerguntas = PERGUNTAS_COMITE.length;
+  // Duplicados removidos - já declarados acima
 
   return (
     <div className="space-y-6">
@@ -808,7 +866,31 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                   </div>
                   <ScrollArea className="flex-1 pr-4">
                     <Card className="p-4 bg-white border rounded-md shadow-sm">
-                      <div className="space-y-3">{perguntasOrdenadasGlobal.map(renderPergunta)}</div>
+                      <div className="space-y-6">
+                        {usarPerguntasDb ? (
+                          categoriasDb.length > 0 ? (
+                            categoriasDb.map(categoria => (
+                              <div key={categoria.id} className="space-y-4">
+                                <h3 className="font-semibold text-sm border-b pb-2">{categoria.nome}</h3>
+                                <div className="space-y-3">
+                                  {(categoria.perguntas || []).map(renderPerguntaDb)}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            perguntasDb.map(renderPerguntaDb)
+                          )
+                        ) : (
+                          categoriasOrdenadas.map(categoria => (
+                            <div key={categoria} className="space-y-4">
+                              <h3 className="font-semibold text-sm border-b pb-2">{categoria}</h3>
+                              <div className="space-y-3">
+                                {perguntasPorCategoria[categoria].map(renderPergunta)}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </Card>
                   </ScrollArea>
                 </div>
@@ -819,20 +901,32 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                   <ScrollArea className="flex-1">
                     <Card className="flex-1 p-4 bg-white">
                       <div className="space-y-4">
-                        {/* Peso Calculado baseado nas respostas */}
-                        {pesoCalculado.nivel && (
-                          <div className={`p-3 border-2 rounded-lg space-y-2 ${pesoCalculado.nivel.cor} ${pesoCalculado.nivel.textCor}`}>
-                            <h4 className="font-medium text-sm">Resultado da Análise</h4>
-                            <p className="text-xs font-bold">{pesoCalculado.nivel.label}</p>
-                            {pesoCalculado.alertas.length > 0 && (
-                              <div className="text-xs mt-2 p-2 bg-black/10 rounded">
-                                <p className="font-medium mb-1">Pontos de atenção ({pesoCalculado.alertas.length}):</p>
-                                <ul className="list-disc list-inside space-y-0.5">
-                                  {pesoCalculado.alertas.slice(0, 5).map((alerta, i) => (
+                        {/* Resultado da Análise baseado nas respostas */}
+                        {usarPerguntasDb && (
+                          <div className={`p-3 border-2 rounded-lg space-y-2 ${
+                            percentualPeso <= 30 ? 'bg-green-600 border-green-600' :
+                            percentualPeso <= 50 ? 'bg-lime-500 border-lime-500' :
+                            percentualPeso <= 70 ? 'bg-yellow-400 border-yellow-400' :
+                            percentualPeso <= 85 ? 'bg-orange-500 border-orange-500' :
+                            'bg-red-600 border-red-600'
+                          }`}>
+                            <h4 className={`font-medium text-sm ${percentualPeso <= 70 && percentualPeso > 50 ? 'text-black' : 'text-white'}`}>Resultado da Análise</h4>
+                            <p className={`text-xs font-bold ${percentualPeso <= 70 && percentualPeso > 50 ? 'text-black' : 'text-white'}`}>
+                              {percentualPeso <= 30 ? 'Evento passivo de aprovação - Nenhuma das respostas informadas indicam indícios de atenção' :
+                               percentualPeso <= 50 ? 'Evento passível de ressarcimento' :
+                               percentualPeso <= 70 ? 'Evento requer atenção - Mudanças no andamento' :
+                               percentualPeso <= 85 ? 'Evento requer atenção - Análise jurídica/sindicância/perícia' :
+                               'Evento requer atenção - Passível de negativa/análise jurídica'}
+                            </p>
+                            {alertas.length > 0 && (
+                              <div className={`text-xs mt-2 p-2 rounded ${percentualPeso <= 70 && percentualPeso > 50 ? 'bg-black/10' : 'bg-white/20'}`}>
+                                <p className={`font-medium mb-1 ${percentualPeso <= 70 && percentualPeso > 50 ? 'text-black' : 'text-white'}`}>Pontos de atenção ({alertas.length}):</p>
+                                <ul className={`list-disc list-inside space-y-0.5 ${percentualPeso <= 70 && percentualPeso > 50 ? 'text-black/80' : 'text-white/90'}`}>
+                                  {alertas.slice(0, 5).map((alerta, i) => (
                                     <li key={i} className="truncate">{alerta}</li>
                                   ))}
-                                  {pesoCalculado.alertas.length > 5 && (
-                                    <li>...e mais {pesoCalculado.alertas.length - 5} item(s)</li>
+                                  {alertas.length > 5 && (
+                                    <li>...e mais {alertas.length - 5} item(s)</li>
                                   )}
                                 </ul>
                               </div>
