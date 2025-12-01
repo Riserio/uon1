@@ -160,6 +160,14 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
     valor_indenizacao: 0,
   });
 
+  const [oficina, setOficina] = useState({
+    oficina_nome: "",
+    oficina_cnpj: "",
+    oficina_contato: "",
+    oficina_endereco: "",
+    oficina_tipo: "",
+  });
+
   // Estados FIPE externa
   const [marcas, setMarcas] = useState<Array<{ codigo: string; nome: string }>>([]);
   const [modelos, setModelos] = useState<Array<{ codigo: string; nome: string }>>([]);
@@ -305,6 +313,13 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
         valor_franquia: 0,
         valor_indenizacao: 0,
       });
+      setOficina({
+        oficina_nome: "",
+        oficina_cnpj: "",
+        oficina_contato: "",
+        oficina_endereco: "",
+        oficina_tipo: "",
+      });
       setEnableManualFipe(false);
       setMarcas([]);
       setModelos([]);
@@ -410,6 +425,23 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
           valor_franquia: data.valor_franquia || 0,
           valor_indenizacao: data.valor_indenizacao || 0,
         });
+
+        // Carregar dados de oficina do sinistro_acompanhamento
+        const { data: acompData } = await supabase
+          .from("sinistro_acompanhamento")
+          .select("oficina_nome, oficina_cnpj, oficina_contato, oficina_endereco, oficina_tipo")
+          .eq("atendimento_id", atendimentoId)
+          .maybeSingle();
+
+        if (acompData) {
+          setOficina({
+            oficina_nome: acompData.oficina_nome || "",
+            oficina_cnpj: acompData.oficina_cnpj || "",
+            oficina_contato: acompData.oficina_contato || "",
+            oficina_endereco: acompData.oficina_endereco || "",
+            oficina_tipo: acompData.oficina_tipo || "",
+          });
+        }
 
         // se já tiver valor FIPE gravado, não permite manual diretamente
         setEnableManualFipe(!vistoriaInfo.veiculo_valor_fipe);
@@ -712,6 +744,39 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
       if (atendError) {
         console.error("Erro ao atualizar tipo atendimento:", atendError);
         throw atendError;
+      }
+
+      // Salvar dados de oficina no sinistro_acompanhamento
+      if (oficina.oficina_nome || oficina.oficina_cnpj || oficina.oficina_contato || oficina.oficina_endereco || oficina.oficina_tipo) {
+        const { data: existingAcomp } = await supabase
+          .from("sinistro_acompanhamento")
+          .select("id")
+          .eq("atendimento_id", atendimento.id)
+          .maybeSingle();
+
+        if (existingAcomp) {
+          await supabase
+            .from("sinistro_acompanhamento")
+            .update({
+              oficina_nome: oficina.oficina_nome || null,
+              oficina_cnpj: oficina.oficina_cnpj || null,
+              oficina_contato: oficina.oficina_contato || null,
+              oficina_endereco: oficina.oficina_endereco || null,
+              oficina_tipo: oficina.oficina_tipo || null,
+            })
+            .eq("atendimento_id", atendimento.id);
+        } else {
+          await supabase
+            .from("sinistro_acompanhamento")
+            .insert({
+              atendimento_id: atendimento.id,
+              oficina_nome: oficina.oficina_nome || null,
+              oficina_cnpj: oficina.oficina_cnpj || null,
+              oficina_contato: oficina.oficina_contato || null,
+              oficina_endereco: oficina.oficina_endereco || null,
+              oficina_tipo: oficina.oficina_tipo || null,
+            });
+        }
       }
 
       toast.success("Dados salvos com sucesso");
@@ -1849,6 +1914,66 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                           onValueChange={(values) =>
                             setCustos({ ...custos, valor_indenizacao: values?.floatValue || 0 })
                           }
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dados da Oficina */}
+                  <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                    <h4 className="font-medium">Dados da Oficina</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="oficina_nome">Nome da Oficina</Label>
+                        <Input
+                          id="oficina_nome"
+                          value={oficina.oficina_nome}
+                          onChange={(e) => setOficina({ ...oficina, oficina_nome: e.target.value })}
+                          placeholder="Nome da oficina"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="oficina_tipo">Tipo de Oficina</Label>
+                        <Select
+                          value={oficina.oficina_tipo}
+                          onValueChange={(value) => setOficina({ ...oficina, oficina_tipo: value })}
+                        >
+                          <SelectTrigger id="oficina_tipo">
+                            <SelectValue placeholder="Selecione o tipo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="credenciada">Credenciada</SelectItem>
+                            <SelectItem value="livre_escolha">Livre Escolha</SelectItem>
+                            <SelectItem value="concessionaria">Concessionária</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="oficina_cnpj">CNPJ</Label>
+                        <MaskedInput
+                          id="oficina_cnpj"
+                          format="##.###.###/####-##"
+                          value={oficina.oficina_cnpj}
+                          onValueChange={(values) => setOficina({ ...oficina, oficina_cnpj: values.formattedValue })}
+                          placeholder="00.000.000/0000-00"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="oficina_contato">Contato</Label>
+                        <Input
+                          id="oficina_contato"
+                          value={oficina.oficina_contato}
+                          onChange={(e) => setOficina({ ...oficina, oficina_contato: e.target.value })}
+                          placeholder="Telefone ou responsável"
+                        />
+                      </div>
+                      <div className="space-y-2 col-span-2">
+                        <Label htmlFor="oficina_endereco">Endereço</Label>
+                        <Input
+                          id="oficina_endereco"
+                          value={oficina.oficina_endereco}
+                          onChange={(e) => setOficina({ ...oficina, oficina_endereco: e.target.value })}
+                          placeholder="Endereço completo"
                         />
                       </div>
                     </div>
