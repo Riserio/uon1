@@ -145,6 +145,12 @@ export default function Configuracoes() {
             </h1>
             <p className="text-muted-foreground mt-1">Personalize a aparência da aplicação</p>
           </div>
+          <Button
+            variant="destructive"
+            onClick={() => window.open('/configuracoes-teste-cilia', '_blank')}
+          >
+            🔥 Teste CILIA Direto
+          </Button>
         </div>
 
         <Tabs defaultValue="colors" className="w-full">
