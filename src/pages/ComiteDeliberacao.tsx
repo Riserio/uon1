@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta, normalizeTipoSinistro } from '@/hooks/useSinistroPerguntas';
+import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
 import { PARECERES_COMITE, PARECERES_ASSOCIACAO, PARECERES_ANALISTA } from '@/constants/perguntasComite';
 import { Save, FileDown, ArrowLeft, Gavel, CheckCircle2, XCircle, HelpCircle, AlertTriangle } from 'lucide-react';
 import { exportDeliberacaoPDF } from '@/utils/pdfDeliberacao';

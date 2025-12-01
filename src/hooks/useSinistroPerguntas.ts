@@ -45,16 +45,16 @@ export function useSinistroPerguntas(tipoSinistro?: string) {
       setLoading(true);
       setError(null);
 
-      // Normalizar tipo para busca EXATA - sem fallbacks
-      const tipoNormalizado = normalizeTipoSinistro(tipoSinistro);
+      // Usar o tipo EXATO como está salvo no sinistro - sem normalização
+      const tipoExato = tipoSinistro.trim();
 
-      console.log('🔍 Buscando perguntas para tipo:', tipoSinistro, '-> normalizado:', tipoNormalizado);
+      console.log('🔍 Buscando perguntas para tipo EXATO:', tipoExato);
 
-      // Carregar categorias - buscar APENAS pelo tipo normalizado exato
+      // Carregar categorias - buscar pelo tipo EXATO (case-sensitive)
       const { data: categoriasData, error: categoriasError } = await supabase
         .from('sinistro_pergunta_categorias')
         .select('*')
-        .ilike('tipo_sinistro', tipoNormalizado)
+        .eq('tipo_sinistro', tipoExato)
         .eq('ativo', true)
         .order('ordem');
 
@@ -62,11 +62,11 @@ export function useSinistroPerguntas(tipoSinistro?: string) {
 
       console.log('📁 Categorias encontradas:', categoriasData?.length || 0);
 
-      // Carregar perguntas - buscar APENAS pelo tipo normalizado exato
+      // Carregar perguntas - buscar pelo tipo EXATO (case-sensitive)
       const { data: perguntasData, error: perguntasError } = await supabase
         .from('sinistro_perguntas')
         .select('*')
-        .ilike('tipo_sinistro', tipoNormalizado)
+        .eq('tipo_sinistro', tipoExato)
         .eq('ativo', true)
         .order('ordem');
 
@@ -106,63 +106,18 @@ export function useSinistroPerguntas(tipoSinistro?: string) {
   return { categorias, perguntas, loading, error, reload: loadPerguntas };
 }
 
-// Normaliza o tipo de sinistro para um formato padronizado de busca
-// Retorna o padrão EXATO que deve existir no banco - sem fallbacks
+// Normaliza o tipo de sinistro - mantido apenas para compatibilidade
 export function normalizeTipoSinistro(tipo: string): string {
-  const tipoLower = (tipo || '').toLowerCase().trim();
-  
-  // Colisão - aceita variantes mas retorna padrão
-  if (tipoLower.includes('colisão') || tipoLower.includes('colisao')) {
-    return 'colisao';
-  }
-  
-  // Roubo
-  if (tipoLower === 'roubo' || tipoLower.includes('roubo')) {
-    return 'roubo';
-  }
-  
-  // Furto  
-  if (tipoLower === 'furto' || tipoLower.includes('furto')) {
-    return 'furto';
-  }
-  
-  // Roubo/Furto combinado
-  if (tipoLower.includes('roubo') && tipoLower.includes('furto')) {
-    return 'roubo_furto';
-  }
-  
-  // Vidros
-  if (tipoLower.includes('vidro')) {
-    return 'vidros';
-  }
-  
-  // Danos da Natureza
-  if (tipoLower.includes('dano') && tipoLower.includes('natureza')) {
-    return 'danos_natureza';
-  }
-  
-  // Incêndio
-  if (tipoLower.includes('incêndio') || tipoLower.includes('incendio')) {
-    return 'incendio';
-  }
-  
-  // Perda Total
-  if (tipoLower.includes('perda total')) {
-    return 'perda_total';
-  }
-  
-  // Retorna o tipo original em minúsculas - SEM FALLBACK para colisão
-  return tipoLower;
+  return (tipo || '').trim();
 }
 
 // Função legada mantida para compatibilidade
 export function getTipoVariants(tipo: string): string[] {
-  const normalizado = normalizeTipoSinistro(tipo);
-  return [normalizado];
+  return [(tipo || '').trim()];
 }
 
 export function mapTipoSinistro(tipo: string): string {
-  return normalizeTipoSinistro(tipo);
+  return (tipo || '').trim();
 }
 
 export function calcularPesoRespostas(
