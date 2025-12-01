@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { MessageSquare, DollarSign, TrendingUp, FileDown, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { PERGUNTAS_COMITE, PerguntaComite, PARECERES_COMITE, PARECERES_ASSOCIACAO, PARECERES_ANALISTA, NIVEIS_ALERTA_PESO, ORDEM_CATEGORIAS } from "@/constants/perguntasComite";
+import { PARECERES_COMITE, PARECERES_ASSOCIACAO, PARECERES_ANALISTA } from "@/constants/perguntasComite";
 import { exportDeliberacaoPDF } from "@/utils/pdfDeliberacao";
 import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta, SinistroPerguntaCategoria } from "@/hooks/useSinistroPerguntas";
 
@@ -529,28 +529,11 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
   // Hook para carregar perguntas do banco baseado no tipo de sinistro selecionado
   const tipoSinistroSelecionado = selectedSinistro?.tipo_sinistro || '';
   const { perguntas: perguntasDb, categorias: categoriasDb, loading: loadingPerguntas } = useSinistroPerguntas(tipoSinistroSelecionado);
-  const usarPerguntasDb = perguntasDb.length > 0;
-
-  // Agrupar perguntas constantes por categoria
-  const perguntasFiltradas = tipoSinistroSelecionado 
-    ? PERGUNTAS_COMITE.filter(p => !p.tiposSinistro || p.tiposSinistro.includes(tipoSinistroSelecionado))
-    : PERGUNTAS_COMITE;
-
-  const perguntasPorCategoria = perguntasFiltradas.reduce((acc, pergunta) => {
-    const cat = pergunta.categoria || 'Geral';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(pergunta);
-    return acc;
-  }, {} as Record<string, PerguntaComite[]>);
-
-  const categoriasOrdenadas = ORDEM_CATEGORIAS.filter(cat => perguntasPorCategoria[cat]);
 
   // Calcular peso das respostas
-  const { total: pesoTotal, maxPossivel, percentual: percentualPeso, alertas } = usarPerguntasDb 
-    ? calcularPesoRespostas(respostas, perguntasDb)
-    : { total: 0, maxPossivel: 0, percentual: 0, alertas: [] };
+  const { total: pesoTotal, maxPossivel, percentual: percentualPeso, alertas } = calcularPesoRespostas(respostas, perguntasDb);
 
-  const totalPerguntas = usarPerguntasDb ? perguntasDb.length : perguntasFiltradas.length;
+  const totalPerguntas = perguntasDb.length;
   const perguntasRespondidas = Object.keys(respostas).filter((k) => respostas[k]).length;
 
   const renderPerguntaDb = (pergunta: SinistroPergunta) => {
@@ -616,74 +599,6 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
       </div>
     );
   };
-
-  const renderPergunta = (pergunta: PerguntaComite) => {
-    const valor = respostas[pergunta.id] || "";
-
-    return (
-      <div key={pergunta.id} className="space-y-1.5">
-        <Label className="text-xs font-medium">
-          {pergunta.pergunta}
-          {pergunta.obrigatoria && <span className="text-destructive ml-1">*</span>}
-        </Label>
-
-        {pergunta.tipo === "select" && pergunta.opcoes && (
-          <Select value={valor} onValueChange={(v) => handleRespostaChange(pergunta.id, v)}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Selecione..." />
-            </SelectTrigger>
-            <SelectContent>
-              {pergunta.opcoes.map((opcao) => (
-                <SelectItem key={opcao} value={opcao} className="text-xs">
-                  {opcao}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
-        {pergunta.tipo === "text" && (
-          <Input
-            value={valor}
-            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
-            placeholder="Digite..."
-            className="h-8 text-xs"
-          />
-        )}
-
-        {pergunta.tipo === "textarea" && (
-          <Textarea
-            value={valor}
-            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
-            placeholder="Digite..."
-            rows={2}
-            className="text-xs"
-          />
-        )}
-
-        {pergunta.tipo === "date" && (
-          <Input
-            type="date"
-            value={valor}
-            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
-            className="h-8 text-xs"
-          />
-        )}
-
-        {pergunta.tipo === "valor" && (
-          <Input
-            type="number"
-            value={valor}
-            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
-            placeholder="0,00"
-            className="h-8 text-xs"
-          />
-        )}
-      </div>
-    );
-  };
-
-  // Duplicados removidos - já declarados acima
 
   return (
     <div className="space-y-6">
@@ -867,28 +782,23 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                   <ScrollArea className="flex-1 pr-4">
                     <Card className="p-4 bg-white border rounded-md shadow-sm">
                       <div className="space-y-6">
-                        {usarPerguntasDb ? (
-                          categoriasDb.length > 0 ? (
-                            categoriasDb.map(categoria => (
-                              <div key={categoria.id} className="space-y-4">
-                                <h3 className="font-semibold text-sm border-b pb-2">{categoria.nome}</h3>
-                                <div className="space-y-3">
-                                  {(categoria.perguntas || []).map(renderPerguntaDb)}
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            perguntasDb.map(renderPerguntaDb)
-                          )
-                        ) : (
-                          categoriasOrdenadas.map(categoria => (
-                            <div key={categoria} className="space-y-4">
-                              <h3 className="font-semibold text-sm border-b pb-2">{categoria}</h3>
+                        {loadingPerguntas ? (
+                          <p className="text-muted-foreground text-center py-8">Carregando perguntas...</p>
+                        ) : perguntasDb.length === 0 ? (
+                          <p className="text-muted-foreground text-center py-8">
+                            Nenhuma pergunta cadastrada para este tipo de sinistro. Configure as perguntas em Configurações de Sinistro.
+                          </p>
+                        ) : categoriasDb.length > 0 ? (
+                          categoriasDb.map(categoria => (
+                            <div key={categoria.id} className="space-y-4">
+                              <h3 className="font-semibold text-sm border-b pb-2">{categoria.nome}</h3>
                               <div className="space-y-3">
-                                {perguntasPorCategoria[categoria].map(renderPergunta)}
+                                {(categoria.perguntas || []).map(renderPerguntaDb)}
                               </div>
                             </div>
                           ))
+                        ) : (
+                          perguntasDb.map(renderPerguntaDb)
                         )}
                       </div>
                     </Card>
@@ -902,7 +812,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                     <Card className="flex-1 p-4 bg-white">
                       <div className="space-y-4">
                         {/* Resultado da Análise baseado nas respostas */}
-                        {usarPerguntasDb && (
+                        {perguntasDb.length > 0 && (
                           <div className={`p-3 border-2 rounded-lg space-y-2 ${
                             percentualPeso <= 30 ? 'bg-green-600 border-green-600' :
                             percentualPeso <= 50 ? 'bg-lime-500 border-lime-500' :

@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
-import { PERGUNTAS_COMITE, PARECERES_COMITE, PARECERES_ASSOCIACAO, PARECERES_ANALISTA, PerguntaComite, ORDEM_CATEGORIAS } from '@/constants/perguntasComite';
+import { PARECERES_COMITE, PARECERES_ASSOCIACAO, PARECERES_ANALISTA } from '@/constants/perguntasComite';
 import { Save, FileDown, ArrowLeft, Gavel, CheckCircle2, XCircle, HelpCircle, AlertTriangle } from 'lucide-react';
 import { exportDeliberacaoPDF } from '@/utils/pdfDeliberacao';
 import { formatCurrency } from '@/lib/formatters';
@@ -42,7 +42,6 @@ export default function ComiteDeliberacao() {
 
   const tipoFinal = vistoriaData?.tipo_sinistro || atendimentoData?.tipo_atendimento || '';
   const { perguntas: perguntasDb, categorias, loading: loadingPerguntas } = useSinistroPerguntas(tipoFinal);
-  const usarPerguntasDb = perguntasDb.length > 0;
 
   // Função para mapear tags auto_preenchivel para valores da vistoria
   const getAutoFillValue = (tag: string, vistoria: any, atendimento: any): string => {
@@ -361,70 +360,6 @@ export default function ComiteDeliberacao() {
     }
   };
 
-  const renderPerguntaConstante = (pergunta: PerguntaComite) => {
-    const valor = respostas[pergunta.id] || '';
-
-    return (
-      <div key={pergunta.id} className="space-y-1.5">
-        <Label className="text-xs font-medium flex items-center gap-2">
-          {pergunta.pergunta}
-          {pergunta.obrigatoria && <span className="text-destructive">*</span>}
-        </Label>
-
-        {pergunta.tipo === 'select' && pergunta.opcoes && (
-          <Select value={valor} onValueChange={(v) => handleRespostaChange(pergunta.id, v)}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Selecione..." />
-            </SelectTrigger>
-            <SelectContent>
-              {pergunta.opcoes.map((opcao) => (
-                <SelectItem key={opcao} value={opcao} className="text-xs">{opcao}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
-        {pergunta.tipo === 'text' && (
-          <Input
-            value={valor}
-            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
-            placeholder="Digite..."
-            className="h-8 text-xs"
-          />
-        )}
-
-        {pergunta.tipo === 'textarea' && (
-          <Textarea
-            value={valor}
-            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
-            placeholder="Digite..."
-            rows={2}
-            className="text-xs"
-          />
-        )}
-
-        {pergunta.tipo === 'date' && (
-          <Input
-            type="date"
-            value={valor}
-            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
-            className="h-8 text-xs"
-          />
-        )}
-
-        {pergunta.tipo === 'valor' && (
-          <Input
-            type="number"
-            value={valor}
-            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
-            placeholder="0,00"
-            className="h-8 text-xs"
-          />
-        )}
-      </div>
-    );
-  };
-
   const renderPerguntaDb = (pergunta: SinistroPergunta) => {
     const valor = respostas[pergunta.id] || '';
 
@@ -489,27 +424,11 @@ export default function ComiteDeliberacao() {
     );
   };
 
-  // Agrupar perguntas por categoria
-  const perguntasFiltradas = tipoFinal 
-    ? PERGUNTAS_COMITE.filter(p => !p.tiposSinistro || p.tiposSinistro.includes(tipoFinal))
-    : PERGUNTAS_COMITE;
-
-  const perguntasPorCategoria = perguntasFiltradas.reduce((acc, pergunta) => {
-    const cat = pergunta.categoria || 'Geral';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(pergunta);
-    return acc;
-  }, {} as Record<string, PerguntaComite[]>);
-
-  const categoriasOrdenadas = ORDEM_CATEGORIAS.filter(cat => perguntasPorCategoria[cat]);
-
-  const totalPerguntas = usarPerguntasDb ? perguntasDb.length : perguntasFiltradas.length;
+  const totalPerguntas = perguntasDb.length;
   const perguntasRespondidas = Object.keys(respostas).filter(k => respostas[k]).length;
   const percentualPreenchido = totalPerguntas > 0 ? Math.round((perguntasRespondidas / totalPerguntas) * 100) : 0;
 
-  const { total: pesoTotal, maxPossivel, percentual: percentualPeso, alertas } = usarPerguntasDb 
-    ? calcularPesoRespostas(respostas, perguntasDb)
-    : { total: 0, maxPossivel: 0, percentual: 0, alertas: [] };
+  const { total: pesoTotal, maxPossivel, percentual: percentualPeso, alertas } = calcularPesoRespostas(respostas, perguntasDb);
 
   const getParecerAnalistaInfo = () => {
     const config = PARECERES_ANALISTA.find(p => p.value === parecerAnalista.parecer);
@@ -603,7 +522,7 @@ export default function ComiteDeliberacao() {
             </div>
             <Progress value={percentualPreenchido} className="h-2" />
           </div>
-          {usarPerguntasDb && pesoTotal > 0 && (
+          {pesoTotal > 0 && (
             <div className="mt-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Peso Total das Respostas</span>
@@ -643,29 +562,23 @@ export default function ComiteDeliberacao() {
             <CardContent>
               <ScrollArea className="h-[600px] pr-4">
                 <div className="space-y-6">
-                  {usarPerguntasDb ? (
-                    // Usar perguntas do banco organizadas por categoria
-                    categorias.length > 0 ? (
-                      categorias.map(categoria => (
-                        <div key={categoria.id} className="space-y-4">
-                          <h3 className="font-semibold text-sm border-b pb-2">{categoria.nome}</h3>
-                          <div className="space-y-4">
-                            {(categoria.perguntas || []).map(renderPerguntaDb)}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      perguntasDb.map(renderPerguntaDb)
-                    )
-                  ) : (
-                    categoriasOrdenadas.map(categoria => (
-                      <div key={categoria} className="space-y-4">
-                        <h3 className="font-semibold text-sm border-b pb-2">{categoria}</h3>
+                  {loadingPerguntas ? (
+                    <p className="text-muted-foreground text-center py-8">Carregando perguntas...</p>
+                  ) : perguntasDb.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-8">
+                      Nenhuma pergunta cadastrada para este tipo de sinistro. Configure as perguntas em Configurações de Sinistro.
+                    </p>
+                  ) : categorias.length > 0 ? (
+                    categorias.map(categoria => (
+                      <div key={categoria.id} className="space-y-4">
+                        <h3 className="font-semibold text-sm border-b pb-2">{categoria.nome}</h3>
                         <div className="space-y-4">
-                          {perguntasPorCategoria[categoria].map(renderPerguntaConstante)}
+                          {(categoria.perguntas || []).map(renderPerguntaDb)}
                         </div>
                       </div>
                     ))
+                  ) : (
+                    perguntasDb.map(renderPerguntaDb)
                   )}
                 </div>
               </ScrollArea>
@@ -676,7 +589,7 @@ export default function ComiteDeliberacao() {
         {/* Pareceres */}
         <div className="space-y-6">
           {/* Resultado da Análise */}
-          {usarPerguntasDb && (
+          {perguntasDb.length > 0 && (
             <Card className={`border-2 ${
               percentualPeso <= 30 ? 'bg-green-600 border-green-600' :
               percentualPeso <= 50 ? 'bg-lime-500 border-lime-500' :
