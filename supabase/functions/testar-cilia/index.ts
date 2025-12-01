@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { base_url, auth_token } = await req.json();
+    const { base_url, auth_token, proxy_url } = await req.json();
 
     if (!base_url || !auth_token) {
       return new Response(
@@ -23,16 +23,19 @@ serve(async (req) => {
     // Limpar token
     const cleanToken = auth_token.trim().replace(/^["']|["']$/g, '');
     const cleanUrl = base_url.replace(/\/$/, "");
+    const useProxy = proxy_url && proxy_url.trim() !== '';
     
     console.log("testar-cilia: Testando conexão CILIA", { 
       url: cleanUrl,
       endpoint: `${cleanUrl}/services/generico-ws/rest/v2/integracao/createBudget`,
       tokenLength: cleanToken.length,
-      tokenPreview: `${cleanToken.slice(0, 10)}...${cleanToken.slice(-10)}`
+      tokenPreview: `${cleanToken.slice(0, 10)}...${cleanToken.slice(-10)}`,
+      usingProxy: useProxy,
+      proxyUrl: useProxy ? proxy_url : 'N/A'
     });
 
     // Endpoint correto conforme documentação CILIA
-    const testUrl = `${cleanUrl}/services/generico-ws/rest/v2/integracao/createBudget`;
+    const ciliaEndpoint = `${cleanUrl}/services/generico-ws/rest/v2/integracao/createBudget`;
     
     // Payload completo válido para teste de conexão
     const testPayload = {
@@ -107,15 +110,35 @@ serve(async (req) => {
       vehicleName: testPayload.Budget.vehicleName
     });
     
-    const response = await fetch(testUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "authToken": cleanToken,
-        "Accept": "application/json",
-      },
-      body: JSON.stringify(testPayload),
-    });
+    let response;
+    
+    if (useProxy) {
+      // Usar proxy Hostinger
+      console.log("testar-cilia: Usando proxy Hostinger");
+      response = await fetch(proxy_url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          cilia_url: ciliaEndpoint,
+          auth_token: cleanToken,
+          payload: testPayload,
+        }),
+      });
+    } else {
+      // Chamada direta (vai falhar com IP whitelist)
+      console.log("testar-cilia: Chamada direta sem proxy");
+      response = await fetch(ciliaEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "authToken": cleanToken,
+          "Accept": "application/json",
+        },
+        body: JSON.stringify(testPayload),
+      });
+    }
 
     const responseText = await response.text();
     let responseData;
@@ -169,8 +192,9 @@ serve(async (req) => {
           message: "Endpoint não encontrado. Verifique a URL base da API.",
           status: 404,
           debug: {
-            testedUrl: testUrl,
-            expectedPath: "/services/generico-ws/rest/v2/integracao/createBudget"
+            testedUrl: ciliaEndpoint,
+            expectedPath: "/services/generico-ws/rest/v2/integracao/createBudget",
+            usingProxy: useProxy
           }
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }

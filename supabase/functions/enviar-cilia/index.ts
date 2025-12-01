@@ -336,6 +336,8 @@ serve(async (req) => {
 
     const baseUrl = (integration.base_url || "https://sistema.cilia.com.br").replace(/\/$/, "");
     const ciliaUrl = `${baseUrl}/services/generico-ws/rest/v2/integracao/createBudget`;
+    const proxyUrl = integration.proxy_url;
+    const useProxy = proxyUrl && proxyUrl.trim() !== '';
 
     const bodyToSend = {
       Budget: budget,
@@ -343,18 +345,40 @@ serve(async (req) => {
 
     console.log("enviar-cilia: Enviando para CILIA", {
       url: ciliaUrl,
+      usingProxy: useProxy,
+      proxyUrl: useProxy ? proxyUrl : 'N/A',
       payloadPreview: bodyToSend,
     });
 
-    const ciliaResponse = await fetch(ciliaUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        authToken: integration.auth_token,
-        Accept: "application/json",
-      },
-      body: JSON.stringify(bodyToSend),
-    });
+    let ciliaResponse;
+    
+    if (useProxy) {
+      // Usar proxy Hostinger
+      console.log("enviar-cilia: Usando proxy Hostinger");
+      ciliaResponse = await fetch(proxyUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          cilia_url: ciliaUrl,
+          auth_token: integration.auth_token,
+          payload: bodyToSend,
+        }),
+      });
+    } else {
+      // Chamada direta (vai falhar com IP whitelist)
+      console.log("enviar-cilia: Chamada direta sem proxy");
+      ciliaResponse = await fetch(ciliaUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authToken: integration.auth_token,
+          Accept: "application/json",
+        },
+        body: JSON.stringify(bodyToSend),
+      });
+    }
 
     const responseText = await ciliaResponse.text();
     console.log("enviar-cilia: Resposta CILIA", {
