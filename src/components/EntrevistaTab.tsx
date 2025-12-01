@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useSinistroPerguntas, SinistroPergunta, getTipoVariants } from '@/hooks/useSinistroPerguntas';
+import { useSinistroPerguntas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
 import { Save, ExternalLink, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
