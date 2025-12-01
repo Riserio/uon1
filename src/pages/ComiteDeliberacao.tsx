@@ -516,7 +516,7 @@ export default function ComiteDeliberacao() {
             <div>
               <Label className="text-xs text-muted-foreground">Veículo</Label>
               <p className="font-medium">
-                {vistoriaData?.veiculo_marca || atendimentoData?.veiculo_marca} {vistoriaData?.veiculo_modelo || atendimentoData?.veiculo_modelo}
+                {vistoriaData?.veiculo_marca || atendimentoData?.veiculo_marca} {vistoriaData?.veiculo_modelo || atendimentoData?.veiculo_modelo} {(vistoriaData?.veiculo_ano || atendimentoData?.veiculo_ano) && `(${vistoriaData?.veiculo_ano || atendimentoData?.veiculo_ano})`}
               </p>
             </div>
             <div>
