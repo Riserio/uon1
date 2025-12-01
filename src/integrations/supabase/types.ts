@@ -96,6 +96,7 @@ export type Database = {
           created_by: string | null
           id: string
           nome: string
+          proxy_url: string | null
           tipo: string
           updated_at: string
         }
@@ -109,6 +110,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           nome: string
+          proxy_url?: string | null
           tipo: string
           updated_at?: string
         }
@@ -122,6 +124,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           nome?: string
+          proxy_url?: string | null
           tipo?: string
           updated_at?: string
         }

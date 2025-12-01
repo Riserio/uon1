@@ -64,6 +64,7 @@ export function ApiIntegrationsConfig() {
     ambiente: "producao",
     base_url: API_TYPES.cilia.defaultUrl,
     auth_token: "",
+    proxy_url: "",
     ativo: true,
   });
 
@@ -109,6 +110,7 @@ export function ApiIntegrationsConfig() {
         ambiente: integration.ambiente,
         base_url: integration.base_url,
         auth_token: integration.auth_token,
+        proxy_url: (integration as any).proxy_url || "",
         ativo: integration.ativo,
       });
     } else {
@@ -120,6 +122,7 @@ export function ApiIntegrationsConfig() {
         ambiente: "producao",
         base_url: apiConfig.defaultUrl,
         auth_token: "",
+        proxy_url: "",
         ativo: true,
       });
     }
@@ -146,6 +149,7 @@ export function ApiIntegrationsConfig() {
             ambiente: formData.ambiente,
             base_url: formData.base_url,
             auth_token: formData.auth_token,
+            proxy_url: formData.proxy_url || null,
             ativo: formData.ativo,
           })
           .eq("id", editingIntegration.id);
@@ -160,6 +164,7 @@ export function ApiIntegrationsConfig() {
           ambiente: formData.ambiente,
           base_url: formData.base_url,
           auth_token: formData.auth_token,
+          proxy_url: formData.proxy_url || null,
           ativo: formData.ativo,
           created_by: user?.id,
         });
@@ -221,6 +226,7 @@ export function ApiIntegrationsConfig() {
           body: {
             base_url: integration.base_url,
             auth_token: integration.auth_token,
+            proxy_url: (integration as any).proxy_url || null,
           },
         });
 
@@ -390,7 +396,7 @@ export function ApiIntegrationsConfig() {
                         ) : (
                           <Wifi className="h-3 w-3" />
                         )}
-                        Testar
+                        Testar {(integration as any).proxy_url ? '(Proxy)' : ''}
                       </Button>
                       <Switch
                         checked={integration.ativo}
@@ -527,6 +533,21 @@ export function ApiIntegrationsConfig() {
                 placeholder={API_TYPES[formData.tipo as keyof typeof API_TYPES]?.defaultUrl}
               />
             </div>
+            
+            {formData.tipo === "cilia" && (
+              <div className="space-y-2">
+                <Label>URL do Proxy (Hostinger) - OPCIONAL</Label>
+                <Input
+                  value={formData.proxy_url}
+                  onChange={(e) => setFormData({ ...formData, proxy_url: e.target.value })}
+                  placeholder="https://seudominio.com/cilia-proxy.php"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Configure um proxy no Hostinger para contornar o whitelist de IP da CILIA. 
+                  Deixe vazio para chamada direta (pode falhar com IP não autorizado).
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Token de Autenticação *</Label>
