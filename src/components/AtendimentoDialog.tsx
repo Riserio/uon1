@@ -1049,7 +1049,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                 onClick={() => atendimento && loadVistoriaCustos(atendimento.id)}
               >
                 <User className="h-4 w-4" />
-                Dados Pessoais
+                Dados do Evento
               </TabsTrigger>
               <TabsTrigger value="comite" className="gap-2">
                 <ClipboardList className="h-4 w-4" />
@@ -1078,7 +1078,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="corretora">Corretora *</Label>
+                      <Label htmlFor="corretora">Associação *</Label>
                       <Popover open={corretoraSearchOpen} onOpenChange={setCorretoraSearchOpen}>
                         <PopoverTrigger asChild>
                           <Button
@@ -1087,7 +1087,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                             aria-expanded={corretoraSearchOpen}
                             className="w-full justify-between"
                           >
-                            {corretoraDisplay || "Selecione uma corretora..."}
+                            {corretoraDisplay || "Selecione uma associação..."}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </PopoverTrigger>
@@ -1101,7 +1101,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                             <CommandEmpty>
                               {corretoraSearch.length < 3
                                 ? "Digite pelo menos 3 caracteres para buscar"
-                                : "Nenhuma corretora encontrada"}
+                                : "Nenhuma associação encontrada"}
                             </CommandEmpty>
                             {corretoraSearch.length >= 3 && corretoras && (
                               <CommandGroup>

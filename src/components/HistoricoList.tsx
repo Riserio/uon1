@@ -87,7 +87,7 @@ export function HistoricoList({
     return uuidRegex.test(value);
   };
 
-  const fetchName = async (id: string, type: 'corretora' | 'contato' | 'responsavel'): Promise<string> => {
+  const fetchName = async (id: string, type: 'corretora' | 'contato' | 'responsavel' | 'fluxo'): Promise<string> => {
     const cacheKey = `${type}_${id}`;
     
     if (nameCache[cacheKey]) {
@@ -118,6 +118,13 @@ export function HistoricoList({
           .eq('id', id)
           .single();
         name = data?.nome || id;
+      } else if (type === 'fluxo') {
+        const { data } = await supabase
+          .from('fluxos')
+          .select('nome')
+          .eq('id', id)
+          .single();
+        name = data?.nome || id;
       }
 
       nameCache[cacheKey] = name;
@@ -143,6 +150,8 @@ export function HistoricoList({
         return await fetchName(valueStr, 'contato');
       } else if (fieldName === 'responsavel_id') {
         return await fetchName(valueStr, 'responsavel');
+      } else if (fieldName === 'fluxo_id') {
+        return await fetchName(valueStr, 'fluxo');
       }
     }
     
@@ -158,7 +167,7 @@ export function HistoricoList({
       data_retorno: 'Data de Retorno',
       responsavel_id: 'Responsável',
       contato_id: 'Contato',
-      corretora_id: 'Corretora',
+      corretora_id: 'Associação',
       tags: 'Tags',
       arquivado: 'Arquivado',
       cliente_nome: 'Nome do Cliente',
@@ -166,8 +175,10 @@ export function HistoricoList({
       endereco: 'Endereço',
       custos: 'Custos',
       veiculo: 'Dados do Veículo',
-      dados_pessoais: 'Dados Pessoais',
+      dados_pessoais: 'Dados do Evento',
       vistoria_criada: 'Vistoria Criada',
+      fluxo_id: 'Fluxo',
+      fluxo_nome: 'Fluxo',
     };
     return labels[field] || field;
   };
