@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useSinistroPerguntas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
+import { useSinistroPerguntas, SinistroPergunta, getTipoVariants } from '@/hooks/useSinistroPerguntas';
 import { Save, ExternalLink, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -110,6 +110,12 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
     try {
       setSaving(true);
 
+      // FILTRAR: salvar APENAS respostas de perguntas válidas do banco
+      const perguntaIdsValidos = new Set(perguntasDb.map(p => p.id));
+      const respostasFiltradas = Object.fromEntries(
+        Object.entries(respostas).filter(([key]) => perguntaIdsValidos.has(key))
+      );
+
       // Verificar se já existe registro
       const { data: existing } = await supabase
         .from('sinistro_acompanhamento')
@@ -121,7 +127,7 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
         const { error } = await supabase
           .from('sinistro_acompanhamento')
           .update({
-            entrevista_respostas: respostas,
+            entrevista_respostas: respostasFiltradas,
             entrevista_data: new Date().toISOString(),
           })
           .eq('atendimento_id', atendimentoId);
@@ -132,7 +138,7 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
           .from('sinistro_acompanhamento')
           .insert({
             atendimento_id: atendimentoId,
-            entrevista_respostas: respostas,
+            entrevista_respostas: respostasFiltradas,
             entrevista_data: new Date().toISOString(),
           });
 

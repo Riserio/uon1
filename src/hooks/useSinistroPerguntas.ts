@@ -45,24 +45,24 @@ export function useSinistroPerguntas(tipoSinistro?: string) {
       setLoading(true);
       setError(null);
 
-      // Mapear tipo de sinistro para o tipo no banco
-      const tipoDb = mapTipoSinistro(tipoSinistro);
+      // Mapear tipo de sinistro para busca case-insensitive
+      const tipoVariants = getTipoVariants(tipoSinistro);
 
-      // Carregar categorias
+      // Carregar categorias - buscar por todas variantes do tipo
       const { data: categoriasData, error: categoriasError } = await supabase
         .from('sinistro_pergunta_categorias')
         .select('*')
-        .eq('tipo_sinistro', tipoDb)
+        .in('tipo_sinistro', tipoVariants)
         .eq('ativo', true)
         .order('ordem');
 
       if (categoriasError) throw categoriasError;
 
-      // Carregar perguntas
+      // Carregar perguntas - buscar por todas variantes do tipo
       const { data: perguntasData, error: perguntasError } = await supabase
         .from('sinistro_perguntas')
         .select('*')
-        .eq('tipo_sinistro', tipoDb)
+        .in('tipo_sinistro', tipoVariants)
         .eq('ativo', true)
         .order('ordem');
 
@@ -95,6 +95,47 @@ export function useSinistroPerguntas(tipoSinistro?: string) {
   return { categorias, perguntas, loading, error, reload: loadPerguntas };
 }
 
+// Retorna todas as variantes possíveis de um tipo de sinistro para busca
+export function getTipoVariants(tipo: string): string[] {
+  const tipoLower = (tipo || '').toLowerCase().trim();
+  
+  // Colisão
+  if (tipoLower.includes('colisão') || tipoLower.includes('colisao')) {
+    return ['colisao', 'Colisão', 'colisão', 'COLISAO', 'COLISÃO'];
+  }
+  
+  // Roubo/Furto
+  if (tipoLower.includes('roubo')) {
+    return ['roubo', 'Roubo', 'ROUBO', 'roubo_furto'];
+  }
+  if (tipoLower.includes('furto')) {
+    return ['furto', 'Furto', 'FURTO', 'roubo_furto'];
+  }
+  
+  // Vidros
+  if (tipoLower.includes('vidro')) {
+    return ['vidros', 'Vidros', 'VIDROS', 'vidro', 'Vidro'];
+  }
+  
+  // Danos da Natureza
+  if (tipoLower.includes('dano') && tipoLower.includes('natureza')) {
+    return ['Danos da Natureza', 'danos_natureza', 'danos da natureza', 'DANOS DA NATUREZA'];
+  }
+  
+  // Incêndio
+  if (tipoLower.includes('incêndio') || tipoLower.includes('incendio')) {
+    return ['Incêndio', 'incendio', 'incêndio', 'INCÊNDIO', 'INCENDIO'];
+  }
+  
+  // Perda Total
+  if (tipoLower.includes('perda total')) {
+    return ['perda_total', 'Perda Total', 'perda total', 'PERDA TOTAL'];
+  }
+  
+  // Default: retornar o próprio tipo + variantes de colisão como fallback
+  return [tipo, 'colisao', 'Colisão'];
+}
+
 export function mapTipoSinistro(tipo: string): string {
   const tipoLower = (tipo || '').toLowerCase().trim();
   
@@ -116,8 +157,14 @@ export function calcularPesoRespostas(
   let maxPossivel = 0;
   const alertas: string[] = [];
 
+  // FILTRAR: considerar APENAS respostas de perguntas que existem no array de perguntas
+  const perguntaIds = new Set(perguntas.map(p => p.id));
+
   perguntas.forEach(pergunta => {
     const resposta = respostas[pergunta.id];
+    
+    // Ignorar se a pergunta não está na lista válida
+    if (!perguntaIds.has(pergunta.id)) return;
     
     if (pergunta.peso > 0) {
       maxPossivel += pergunta.peso;

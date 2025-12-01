@@ -18,7 +18,7 @@ import { MessageSquare, DollarSign, TrendingUp, FileDown, Save } from "lucide-re
 import { useAuth } from "@/hooks/useAuth";
 import { PARECERES_COMITE, PARECERES_ASSOCIACAO, PARECERES_ANALISTA } from "@/constants/perguntasComite";
 import { exportDeliberacaoPDF } from "@/utils/pdfDeliberacao";
-import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta, SinistroPerguntaCategoria } from "@/hooks/useSinistroPerguntas";
+import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta, SinistroPerguntaCategoria, getTipoVariants } from "@/hooks/useSinistroPerguntas";
 
 interface PortalComiteProps {
   corretoraId?: string;
@@ -246,15 +246,13 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     }
 
     // Buscar TODAS as perguntas válidas do banco para filtrar respostas antigas
-    const tipoDb = sinistro.tipo_sinistro || '';
-    const tipoMapeado = tipoDb.toLowerCase().includes('colisão') || tipoDb.toLowerCase().includes('colisao') ? 'colisao' :
-                        tipoDb.toLowerCase().includes('roubo') || tipoDb.toLowerCase().includes('furto') ? 'roubo_furto' :
-                        tipoDb.toLowerCase().includes('vidro') ? 'vidros' : 'colisao';
+    // Usar getTipoVariants para buscar por todas variantes possíveis do tipo
+    const tipoVariants = getTipoVariants(sinistro.tipo_sinistro || '');
     
     const { data: perguntasValidas } = await supabase
       .from('sinistro_perguntas')
       .select('id')
-      .eq('tipo_sinistro', tipoMapeado)
+      .in('tipo_sinistro', tipoVariants)
       .eq('ativo', true);
 
     const perguntaIdsValidos = new Set((perguntasValidas || []).map(p => p.id));
@@ -330,8 +328,14 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         return;
       }
 
+      // FILTRAR: salvar APENAS respostas de perguntas válidas do banco
+      const perguntaIdsValidos = new Set(perguntasDb.map(p => p.id));
+      const respostasFiltradas = Object.fromEntries(
+        Object.entries(respostas).filter(([key]) => perguntaIdsValidos.has(key))
+      );
+
       const payload = {
-        entrevista_respostas: respostas,
+        entrevista_respostas: respostasFiltradas,
         entrevista_data: new Date().toISOString(),
       };
 
@@ -401,9 +405,15 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         .eq("atendimento_id", recordId)
         .maybeSingle();
 
+      // FILTRAR: salvar APENAS respostas de perguntas válidas do banco
+      const perguntaIdsValidosDelib = new Set(perguntasDb.map(p => p.id));
+      const respostasFiltradasDelib = Object.fromEntries(
+        Object.entries(respostas).filter(([key]) => perguntaIdsValidosDelib.has(key))
+      );
+
       const acompanhamentoData = {
         // mantemos as respostas no payload também, para garantir consistência
-        entrevista_respostas: respostas,
+        entrevista_respostas: respostasFiltradasDelib,
         entrevista_data: new Date().toISOString(),
         // Parecer do Analista
         parecer_analista: parecerAnalista.parecer || null,
