@@ -164,8 +164,9 @@ serve(async (req) => {
           message: "Endpoint não encontrado (404). Verifique se a URL base está correta.",
           status: 404,
           debug: {
-            url: testUrl,
-            receivedHTML: true
+            url: ciliaEndpoint,
+            receivedHTML: true,
+            usingProxy: useProxy
           }
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
