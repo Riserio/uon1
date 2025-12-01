@@ -4,10 +4,36 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Helper: formata DateTime no padrão do Cilia: "YYYY-MM-DDTHH:mm:ss-03:00"
+function toCiliaDateTime(dateInput: string | Date | null | undefined): string | null {
+  if (!dateInput) return null;
+  const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return null;
+  const iso = d.toISOString().slice(0, 19); // YYYY-MM-DDTHH:mm:ss (UTC)
+  // Aqui assumimos fuso -03:00; ajuste se precisar
+  return `${iso}-03:00`;
+}
+
+// Helper: formata Data simples "YYYY-MM-DD"
+function toCiliaDate(dateInput: string | Date | null | undefined): string | null {
+  if (!dateInput) return null;
+  const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+// Helper: garante string não vazia, com fallback
+function safeString(value: any, fallback: string = "NAO_INFORMADO"): string {
+  if (value === null || value === undefined) return fallback;
+  const s = String(value).trim();
+  return s === "" ? fallback : s;
+}
+
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -23,7 +49,10 @@ serve(async (req) => {
 
     if (!atendimento_id || !integration_id) {
       return new Response(
-        JSON.stringify({ success: false, message: "atendimento_id e integration_id são obrigatórios" }),
+        JSON.stringify({
+          success: false,
+          message: "atendimento_id e integration_id são obrigatórios",
+        }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -37,10 +66,24 @@ serve(async (req) => {
 
     if (integrationError || !integration) {
       console.error("enviar-cilia: Erro ao buscar integração", integrationError);
-      return new Response(JSON.stringify({ success: false, message: "Integração não encontrada" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "Integração não encontrada",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (!integration.auth_token) {
+      console.error("enviar-cilia: auth_token não configurado na integração");
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "Token de autenticação da integração (auth_token) não configurado",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     console.log("enviar-cilia: Integração encontrada", {
@@ -49,14 +92,13 @@ serve(async (req) => {
       ambiente: integration.ambiente,
     });
 
-    // Buscar dados do atendimento
+    // Buscar dados do atendimento + corretora
     const { data: atendimento, error: atendimentoError } = await supabase
       .from("atendimentos")
       .select(
         `
         *,
-        corretoras(nome, cnpj, email, telefone),
-        contatos(nome, email, telefone, cpf_cnpj:cargo)
+        corretoras(nome, cnpj, email, telefone)
       `,
       )
       .eq("id", atendimento_id)
@@ -64,10 +106,13 @@ serve(async (req) => {
 
     if (atendimentoError || !atendimento) {
       console.error("enviar-cilia: Erro ao buscar atendimento", atendimentoError);
-      return new Response(JSON.stringify({ success: false, message: "Atendimento não encontrado" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "Atendimento não encontrado",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // Buscar vistoria associada
@@ -77,7 +122,7 @@ serve(async (req) => {
       .eq("atendimento_id", atendimento_id)
       .maybeSingle();
 
-    // Buscar acompanhamento
+    // Buscar acompanhamento (custos, oficina, etc)
     const { data: acompanhamento } = await supabase
       .from("sinistro_acompanhamento")
       .select("*")
@@ -90,101 +135,221 @@ serve(async (req) => {
       acompanhamento: acompanhamento?.id,
     });
 
-    // Montar payload interno (seu modelo atual)
-    const ciliaPayload = {
-      numeroSinistro: `SIN-${new Date(atendimento.created_at).getFullYear()}-${String(atendimento.numero).padStart(6, "0")}`,
-      dataAbertura: atendimento.created_at,
-      status: atendimento.status,
-      assunto: atendimento.assunto,
-      observacoes: atendimento.observacoes,
-      prioridade: atendimento.prioridade,
-      // Dados do veículo
-      veiculo: {
-        marca: atendimento.veiculo_marca || vistoria?.veiculo_marca,
-        modelo: atendimento.veiculo_modelo || vistoria?.veiculo_modelo,
-        ano: atendimento.veiculo_ano || vistoria?.veiculo_ano,
-        placa: vistoria?.veiculo_placa,
-        cor: vistoria?.veiculo_cor,
-        chassi: vistoria?.veiculo_chassi,
-        valorFipe: atendimento.veiculo_valor_fipe || vistoria?.veiculo_valor_fipe,
+    // ==============================
+    // MAPEAMENTO PARA Budget (T1)
+    // ==============================
+
+    // Dados básicos do veículo
+    const veiculoMarca = atendimento.veiculo_marca || vistoria?.veiculo_marca;
+    const veiculoModelo = atendimento.veiculo_modelo || vistoria?.veiculo_modelo;
+    const veiculoAno = atendimento.veiculo_ano || vistoria?.veiculo_ano;
+    const veiculoNome = [veiculoMarca, veiculoModelo, veiculoAno].filter(Boolean).join(" ");
+
+    const veiculoChassi = vistoria?.veiculo_chassi || atendimento.veiculo_chassi;
+    const veiculoPlaca = vistoria?.veiculo_placa || atendimento.veiculo_placa;
+    const veiculoCor = vistoria?.veiculo_cor || atendimento.veiculo_cor;
+    const veiculoKm = vistoria?.veiculo_km || atendimento.veiculo_km || 0;
+
+    // Tipo de pintura (RF01): common | metallic | pearled
+    // TODO: se você tiver o tipo de pintura no banco, mapeie aqui.
+    const paintType = vistoria?.veiculo_tipo_pintura || "common";
+
+    // Região do veículo (RF02) – 1 = Casco
+    const vehicleRegionId = 1;
+
+    // Data de agendamento da vistoria (YYYY-MM-DD)
+    const schedulingDate =
+      toCiliaDate(vistoria?.data_agendamento || vistoria?.data_evento || atendimento.created_at) ||
+      toCiliaDate(new Date());
+
+    // Número de sinistro / processo interno
+    const casualtyNumber =
+      atendimento.numero ||
+      `SIN-${new Date(atendimento.created_at).getFullYear()}-${String(atendimento.id).padStart(6, "0")}`;
+
+    // noticeDate - data de aviso do sinistro (DateTime Cilia)
+    const noticeDate = toCiliaDateTime(atendimento.created_at) || toCiliaDateTime(new Date());
+
+    // Tipo de sinistro (RF03) – por enquanto fixo em 1 (Colisão)
+    // TODO: mapear vistoria.tipo_sinistro -> casualtyTypeId conforme tabela do manual.
+    const casualtyTypeId = 1;
+
+    // Tipo de processo (RF04): insured | third_party
+    // TODO: se você tiver no banco, mapeie; por enquanto deixo "insured".
+    const processType = "insured";
+
+    // Dados do cliente (vem da vistoria pública normalmente)
+    const clienteNome = vistoria?.cliente_nome || atendimento.cliente_nome;
+    const clienteEmail = vistoria?.cliente_email || atendimento.cliente_email;
+    const clienteCpfCnpj = vistoria?.cliente_cpf || atendimento.cliente_cpf_cnpj;
+
+    // Endereço do cliente – se você não tiver quebrado por campos,
+    // use o que tiver e depois vai refinando.
+    const clienteCep = vistoria?.cliente_cep || atendimento.cliente_cep || "00000-000";
+    const clienteBairro = vistoria?.cliente_bairro || "NAO_INFORMADO";
+    const clienteNumero = vistoria?.cliente_numero || "SN";
+    const clienteLogradouro = vistoria?.cliente_logradouro || vistoria?.endereco || "NAO_INFORMADO";
+    const clienteCidade = vistoria?.cliente_cidade || "NAO_INFORMADO";
+    const clienteEstado = vistoria?.cliente_estado || "NA";
+
+    const clienteDDD = vistoria?.cliente_telefone_ddd || "00";
+    const clienteTelefoneNumero = vistoria?.cliente_telefone || atendimento.telefone || "000000000";
+    const clienteTelefoneContato = clienteNome || "Cliente";
+
+    // Oficina – se existir acompanhamento, usa; senão tenta corretora como fallback
+    const oficinaDocumento = acompanhamento?.oficina_cnpj || atendimento.corretoras?.cnpj || "00000000000000";
+    const oficinaRazaoSocial = acompanhamento?.oficina_nome || atendimento.corretoras?.nome || "Oficina não informada";
+    const oficinaFantasia = oficinaRazaoSocial;
+    const oficinaEmail =
+      acompanhamento?.oficina_email || atendimento.corretoras?.email || clienteEmail || "contato@exemplo.com";
+    const oficinaResponsavel = acompanhamento?.oficina_responsavel || oficinaFantasia;
+
+    const oficinaCep = acompanhamento?.oficina_cep || clienteCep;
+    const oficinaBairro = acompanhamento?.oficina_bairro || clienteBairro;
+    const oficinaNumero = acompanhamento?.oficina_numero || clienteNumero;
+    const oficinaLogradouro = acompanhamento?.oficina_logradouro || "NAO_INFORMADO";
+    const oficinaCidade = acompanhamento?.oficina_cidade || clienteCidade;
+    const oficinaEstado = acompanhamento?.oficina_estado || clienteEstado;
+
+    const oficinaDDD = acompanhamento?.oficina_ddd || clienteDDD;
+    const oficinaTelefoneNumero =
+      acompanhamento?.oficina_telefone || atendimento.corretoras?.telefone || clienteTelefoneNumero;
+    const oficinaTelefoneContato = oficinaResponsavel;
+
+    // Tipo de credenciamento da oficina (RF05): referenced | credential | drp
+    // Para vistoria online, faz sentido usar "drp"
+    const insurerCredentialWorkshopType = "drp";
+
+    // Tipo de oficina (RF06): general | dealership | multi_brand_dealership
+    const workshopType = "general";
+
+    // LossDetails – opcional, mas já aproveitamos alguns campos da vistoria
+    const lossDetails = vistoria
+      ? {
+          responsibleInsured: true, // TODO: mapear se tiver essa info
+          lossDate: toCiliaDateTime(vistoria.data_evento || vistoria.data_incidente) || noticeDate,
+          eventPlace: vistoria.endereco || "Local não informado",
+          address: {
+            cep: clienteCep,
+            district: clienteBairro,
+            number: clienteNumero,
+            street: clienteLogradouro,
+            city: clienteCidade,
+            state: clienteEstado,
+          },
+          driverName: vistoria.condutor_nome || clienteNome || "Não informado",
+          driverLicense: vistoria.condutor_cnh || "",
+          driverLicenseExpirationDate: toCiliaDate(vistoria.condutor_cnh_validade) || null,
+          policeReport: !!vistoria.fez_bo,
+          policeReportNumber: vistoria.numero_bo || "",
+          details: vistoria.historico_evento || "",
+          observations: vistoria.observacoes || atendimento.observacoes || "",
+          damageDescription: vistoria.descricao_avarias || "",
+          requesterName: clienteNome || "",
+          requesterEmail: clienteEmail || "",
+          requesterPhone: clienteTelefoneNumero || "",
+          noticeNumber: casualtyNumber,
+        }
+      : undefined;
+
+    // BudgetSet (obrigatório)
+    const budgetSet: any = {
+      noticeDate,
+      casualtyNumber: safeString(casualtyNumber),
+      casualtyTypeId,
+      processType,
+      client: {
+        name: safeString(clienteNome),
+        email: safeString(clienteEmail),
+        identifier: safeString(clienteCpfCnpj),
+        clientType: processType, // insured / third_party
+        address: {
+          cep: safeString(clienteCep),
+          district: safeString(clienteBairro),
+          number: safeString(clienteNumero),
+          street: safeString(clienteLogradouro),
+          city: safeString(clienteCidade),
+          state: safeString(clienteEstado),
+        },
+        phone: {
+          ddd: safeString(clienteDDD),
+          number: safeString(clienteTelefoneNumero),
+          contactName: safeString(clienteTelefoneContato),
+        },
       },
-      // Dados do cliente
-      cliente: {
-        nome: vistoria?.cliente_nome,
-        cpf: vistoria?.cliente_cpf,
-        email: vistoria?.cliente_email,
-        telefone: vistoria?.cliente_telefone,
-      },
-      // Dados do sinistro
-      sinistro: {
-        tipo: vistoria?.tipo_sinistro,
-        dataEvento: vistoria?.data_evento || vistoria?.data_incidente,
-        horaEvento: vistoria?.hora_evento,
-        endereco: vistoria?.endereco,
-        historicoEvento: vistoria?.historico_evento,
-        fezBo: vistoria?.fez_bo,
-        foiHospital: vistoria?.foi_hospital,
-        houveRemocao: vistoria?.houve_remocao_veiculo,
-        acionouAssistencia: vistoria?.acionou_assistencia_24h,
-      },
-      // Dados do acompanhamento (custos, etc)
-      acompanhamento: acompanhamento
-        ? {
-            comiteStatus: acompanhamento.comite_status,
-            comiteDecisao: acompanhamento.comite_decisao,
-            cotaParticipacao: acompanhamento.cota_participacao,
-            cotaPercentual: acompanhamento.cota_percentual,
-            custoPecas: acompanhamento.custo_pecas,
-            custoMaoObra: acompanhamento.custo_mao_obra,
-            custoServicos: acompanhamento.custo_servicos,
-            custoOutros: acompanhamento.custo_outros,
-            reparoAutorizado: acompanhamento.reparo_autorizado,
-            oficinaNome: acompanhamento.oficina_nome,
-            oficinaCnpj: acompanhamento.oficina_cnpj,
-            financeiroStatus: acompanhamento.financeiro_status,
-            financeiroValorAprovado: acompanhamento.financeiro_valor_aprovado,
-            financeiroValorPago: acompanhamento.financeiro_valor_pago,
-            finalizado: acompanhamento.finalizado,
-            finalizadoData: acompanhamento.finalizado_data,
-          }
-        : null,
-      // Corretora
-      corretora: atendimento.corretoras
-        ? {
-            nome: atendimento.corretoras.nome,
-            cnpj: atendimento.corretoras.cnpj,
-            email: atendimento.corretoras.email,
-            telefone: atendimento.corretoras.telefone,
-          }
-        : null,
     };
 
-    // Montar URL correta do Cilia (QA ou PROD) a partir de integration.base_url
-    // A URL base deve incluir o caminho completo da API
+    if (lossDetails) {
+      budgetSet.lossDetails = lossDetails;
+    }
+
+    // Workshop (obrigatório)
+    const workshop = {
+      administrator: safeString(oficinaResponsavel),
+      company: safeString(oficinaRazaoSocial),
+      documentIdentifier: safeString(oficinaDocumento),
+      email: safeString(oficinaEmail),
+      registrationMunicipal: "",
+      registrationState: "",
+      trade: safeString(oficinaFantasia),
+      website: "",
+      address: {
+        cep: safeString(oficinaCep),
+        district: safeString(oficinaBairro),
+        number: safeString(oficinaNumero),
+        street: safeString(oficinaLogradouro),
+        city: safeString(oficinaCidade),
+        state: safeString(oficinaEstado),
+      },
+      phone: {
+        ddd: safeString(oficinaDDD),
+        number: safeString(oficinaTelefoneNumero),
+        contactName: safeString(oficinaTelefoneContato),
+      },
+      insurerCredentialWorkshopType,
+      workshopType,
+    };
+
+    // Budget (raiz)
+    const budget: any = {
+      body: safeString(veiculoChassi),
+      licensePlate: safeString(veiculoPlaca),
+      vehicleName: safeString(veiculoNome || veiculoModelo || "Veículo"),
+      mileage: Number(veiculoKm) || 0,
+      paintType,
+      color: safeString(veiculoCor),
+      vehicleRegionId,
+      schedulingDate: safeString(schedulingDate),
+      flowType: "initial", // RN07: se não informado, assume initial – aqui já mandamos explícito
+      integrationNumber: `ATD-${atendimento.id}`,
+      fipeValue: atendimento.veiculo_valor_fipe || vistoria?.veiculo_valor_fipe || null,
+      fipeCode: atendimento.veiculo_codigo_fipe || vistoria?.veiculo_codigo_fipe || null,
+      workshop,
+      budgetSet,
+      extraInfo: safeString(`Origem BP: atendimento ${atendimento.id} / número ${atendimento.numero ?? ""}`.trim()),
+    };
+
+    // Se quiser enviar fotos, aqui é o lugar:
+    // budget.photos = [
+    //   { url: "<url pública da foto>", album: "vehicle" },
+    // ];
+
     const baseUrl = (integration.base_url || "https://sistema.cilia.com.br").replace(/\/$/, "");
-    
-    // Endpoint correto da API CILIA para criação de orçamentos
-    // Documentação CILIA usa: /services/generico-ws/rest/v2/integracao/createBudget
     const ciliaUrl = `${baseUrl}/services/generico-ws/rest/v2/integracao/createBudget`;
+
+    const bodyToSend = {
+      Budget: budget,
+    };
 
     console.log("enviar-cilia: Enviando para CILIA", {
       url: ciliaUrl,
-      // o Budget real da doc você vai montar depois;
-      // por enquanto mando o ciliaPayload pra teste de rota
-      payloadPreview: ciliaPayload,
+      payloadPreview: bodyToSend,
     });
 
-    // Envelopar no formato esperado pela doc: { Budget: { ... } }
-    const bodyToSend = {
-      Budget: ciliaPayload, // depois você adapta pro modelo exato da Cilia (T1)
-    };
-
-    // Enviar para CILIA
     const ciliaResponse = await fetch(ciliaUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Cilia usa header "authToken", não Authorization Bearer
         authToken: integration.auth_token,
         Accept: "application/json",
       },
@@ -197,7 +362,7 @@ serve(async (req) => {
       body: responseText,
     });
 
-    let responseData;
+    let responseData: any;
     try {
       responseData = JSON.parse(responseText);
     } catch {
@@ -211,7 +376,9 @@ serve(async (req) => {
       });
 
       const errorMessage =
-        responseData?.message || responseData?.error || `Erro ${ciliaResponse.status}: ${responseText}`;
+        responseData?.message ||
+        responseData?.genericWsResponse?.message ||
+        `Erro ${ciliaResponse.status}: ${responseText}`;
 
       return new Response(
         JSON.stringify({
@@ -226,11 +393,14 @@ serve(async (req) => {
 
     console.log("enviar-cilia: Sucesso!", responseData);
 
+    const successMessage =
+      responseData?.message || responseData?.genericWsResponse?.message || "Orçamento enviado ao CILIA com sucesso";
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Sinistro enviado ao CILIA com sucesso",
-        budgetId: responseData?.id || responseData?.budgetId,
+        message: successMessage,
+        ciliaStatus: ciliaResponse.status,
         response: responseData,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
