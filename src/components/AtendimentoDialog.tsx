@@ -1096,10 +1096,24 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader className="pb-4 border-b flex-shrink-0">
-            <DialogTitle className="text-2xl">{atendimento ? "Editar Atendimento" : "Novo Atendimento"}</DialogTitle>
-            <DialogDescription>
-              {atendimento ? "Gerencie todas as informações do atendimento" : "Preencha as informações do atendimento"}
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-2xl">{atendimento ? "Editar Atendimento" : "Novo Atendimento"}</DialogTitle>
+                <DialogDescription>
+                  {atendimento ? "Gerencie todas as informações do atendimento" : "Preencha as informações do atendimento"}
+                </DialogDescription>
+              </div>
+              {atendimento && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowConclusaoDialog(true)}
+                  className="gap-2"
+                >
+                  <Check className="h-4 w-4" />
+                  Concluir Manualmente
+                </Button>
+              )}
+            </div>
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
