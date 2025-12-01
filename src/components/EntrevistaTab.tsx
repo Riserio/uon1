@@ -6,11 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { PERGUNTAS_COMITE, CATEGORIAS_PERGUNTAS, ORDEM_CATEGORIAS, PerguntaComite } from '@/constants/perguntasComite';
+import { useSinistroPerguntas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
 import { Save, ExternalLink, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -33,6 +32,10 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [respostas, setRespostas] = useState<Record<string, string>>({});
+
+  // Usar perguntas do banco de dados
+  const tipoSinistro = vistoriaData?.tipo_sinistro || '';
+  const { perguntas: perguntasDb, categorias: categoriasDb, loading: loadingPerguntas } = useSinistroPerguntas(tipoSinistro);
 
   useEffect(() => {
     loadRespostas();
@@ -139,7 +142,7 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
     }));
   };
 
-  const renderPergunta = (pergunta: PerguntaComite) => {
+  const renderPerguntaDb = (pergunta: SinistroPergunta) => {
     const valor = respostas[pergunta.id] || '';
 
     return (
@@ -149,7 +152,7 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
           {pergunta.obrigatoria && <span className="text-destructive ml-1">*</span>}
         </Label>
 
-        {pergunta.tipo === 'select' && pergunta.opcoes && (
+        {pergunta.tipo_campo === 'select' && pergunta.opcoes && (
           <Select
             value={valor}
             onValueChange={(v) => handleRespostaChange(pergunta.id, v)}
@@ -158,7 +161,7 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
               <SelectValue placeholder="Selecione..." />
             </SelectTrigger>
             <SelectContent>
-              {pergunta.opcoes.map((opcao) => (
+              {(pergunta.opcoes as string[]).filter(opcao => opcao?.trim()).map((opcao) => (
                 <SelectItem key={opcao} value={opcao}>
                   {opcao}
                 </SelectItem>
@@ -167,7 +170,7 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
           </Select>
         )}
 
-        {pergunta.tipo === 'text' && (
+        {pergunta.tipo_campo === 'text' && (
           <Input
             value={valor}
             onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
@@ -175,7 +178,7 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
           />
         )}
 
-        {pergunta.tipo === 'textarea' && (
+        {pergunta.tipo_campo === 'textarea' && (
           <Textarea
             value={valor}
             onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
@@ -184,22 +187,37 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
           />
         )}
 
-        {pergunta.tipo === 'date' && (
+        {pergunta.tipo_campo === 'date' && (
           <Input
             type="date"
             value={valor}
             onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
           />
         )}
+
+        {pergunta.tipo_campo === 'valor' && (
+          <Input
+            type="number"
+            value={valor}
+            onChange={(e) => handleRespostaChange(pergunta.id, e.target.value)}
+            placeholder="0,00"
+          />
+        )}
       </div>
     );
   };
 
-  const perguntasRespondidas = Object.keys(respostas).filter(k => respostas[k]).length;
-  const totalPerguntas = PERGUNTAS_COMITE.length;
-  const percentualPreenchido = Math.round((perguntasRespondidas / totalPerguntas) * 100);
+  // Filtrar respostas para considerar APENAS perguntas cadastradas no banco
+  const perguntaIds = new Set(perguntasDb.map(p => p.id));
+  const respostasFiltradas = Object.fromEntries(
+    Object.entries(respostas).filter(([k]) => perguntaIds.has(k))
+  );
 
-  if (loading) {
+  const perguntasRespondidas = Object.keys(respostasFiltradas).filter(k => respostasFiltradas[k]).length;
+  const totalPerguntas = perguntasDb.length;
+  const percentualPreenchido = totalPerguntas > 0 ? Math.round((perguntasRespondidas / totalPerguntas) * 100) : 0;
+
+  if (loading || loadingPerguntas) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -233,27 +251,31 @@ export function EntrevistaTab({ atendimentoId, vistoriaData, onUpdate }: Entrevi
         </div>
       </div>
 
-      {/* Perguntas agrupadas por categoria */}
+      {/* Perguntas do banco agrupadas por categoria */}
       <ScrollArea className="h-[600px] pr-4">
         <div className="space-y-6">
-          {ORDEM_CATEGORIAS.map((categoria) => {
-            const perguntas = CATEGORIAS_PERGUNTAS[categoria];
-            if (!perguntas || perguntas.length === 0) return null;
-
-            return (
-              <Card key={categoria}>
+          {perguntasDb.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>Nenhuma pergunta cadastrada para este tipo de sinistro.</p>
+              <p className="text-sm mt-2">Configure as perguntas em Configurações de Sinistro.</p>
+            </div>
+          ) : categoriasDb.length > 0 ? (
+            categoriasDb.map((categoria) => (
+              <Card key={categoria.id}>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
                     <FileText className="h-4 w-4" />
-                    {categoria}
+                    {categoria.nome}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {perguntas.map(renderPergunta)}
+                  {(categoria.perguntas || []).map(renderPerguntaDb)}
                 </CardContent>
               </Card>
-            );
-          })}
+            ))
+          ) : (
+            perguntasDb.map(renderPerguntaDb)
+          )}
         </div>
       </ScrollArea>
     </div>
