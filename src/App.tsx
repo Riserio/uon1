@@ -26,7 +26,7 @@ import Documentos from "./pages/Documentos";
 import Mensagens from "./pages/Mensagens";
 import Emails from "./pages/Emails";
 import Configuracoes from "./pages/Configuracoes";
-import ConfiguracoesTesteCilia from "./pages/ConfiguracoesTesteCilia";
+
 import NotFound from "./pages/NotFound";
 import IndividualPerformance from "./pages/IndividualPerformance";
 import DesempenhoCorretoras from "./pages/DesempenhoCorretoras";
@@ -172,7 +172,6 @@ const App = () => (
               <Route path="/emails" element={<ProtectedRoute><Emails /></ProtectedRoute>} />
               <Route path="/comunicados" element={<ProtectedRoute><AdminRoute><Comunicados /></AdminRoute></ProtectedRoute>} />
               <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
-              <Route path="/configuracoes-teste-cilia" element={<ProtectedRoute><AdminRoute><ConfiguracoesTesteCilia /></AdminRoute></ProtectedRoute>} />
               <Route path="/pid" element={<ProtectedRoute><PID /></ProtectedRoute>} />
               <Route path="/portal" element={<PortalRoute><Portal /></PortalRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
