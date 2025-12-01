@@ -93,13 +93,13 @@ export default function Configuracoes() {
       const fileName = `${user.id}-${type}-${Date.now()}.${fileExt}`;
       const filePath = `${type}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage.from("app-assets").upload(filePath, file, { upsert: true });
+      const { error: uploadError } = await supabase.storage.from("app-config").upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
       const {
         data: { publicUrl },
-      } = supabase.storage.from("app-assets").getPublicUrl(filePath);
+      } = supabase.storage.from("app-config").getPublicUrl(filePath);
 
       if (type === "logo") {
         await saveConfig({ logo_url: publicUrl });
