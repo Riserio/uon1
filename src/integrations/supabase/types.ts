@@ -2988,6 +2988,8 @@ export type Database = {
           data_incidente: string | null
           dias_validade: number | null
           endereco: string | null
+          endereco_associado: string | null
+          endereco_local_evento: string | null
           estava_chovendo: boolean | null
           fez_bo: boolean | null
           foi_hospital: boolean | null
@@ -3016,6 +3018,10 @@ export type Database = {
           relatorio_url: string | null
           status: string
           tem_terceiros: boolean | null
+          terceiro_marca_modelo: string | null
+          terceiro_nome: string | null
+          terceiro_placa: string | null
+          terceiro_telefone: string | null
           tipo_abertura: string
           tipo_pintura: string | null
           tipo_sinistro: string | null
@@ -3068,6 +3074,8 @@ export type Database = {
           data_incidente?: string | null
           dias_validade?: number | null
           endereco?: string | null
+          endereco_associado?: string | null
+          endereco_local_evento?: string | null
           estava_chovendo?: boolean | null
           fez_bo?: boolean | null
           foi_hospital?: boolean | null
@@ -3096,6 +3104,10 @@ export type Database = {
           relatorio_url?: string | null
           status?: string
           tem_terceiros?: boolean | null
+          terceiro_marca_modelo?: string | null
+          terceiro_nome?: string | null
+          terceiro_placa?: string | null
+          terceiro_telefone?: string | null
           tipo_abertura: string
           tipo_pintura?: string | null
           tipo_sinistro?: string | null
@@ -3148,6 +3160,8 @@ export type Database = {
           data_incidente?: string | null
           dias_validade?: number | null
           endereco?: string | null
+          endereco_associado?: string | null
+          endereco_local_evento?: string | null
           estava_chovendo?: boolean | null
           fez_bo?: boolean | null
           foi_hospital?: boolean | null
@@ -3176,6 +3190,10 @@ export type Database = {
           relatorio_url?: string | null
           status?: string
           tem_terceiros?: boolean | null
+          terceiro_marca_modelo?: string | null
+          terceiro_nome?: string | null
+          terceiro_placa?: string | null
+          terceiro_telefone?: string | null
           tipo_abertura?: string
           tipo_pintura?: string | null
           tipo_sinistro?: string | null

@@ -586,7 +586,7 @@ export default function ComiteDeliberacao() {
               </p>
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">Corretora</Label>
+              <Label className="text-xs text-muted-foreground">Associação</Label>
               <p className="font-medium">{atendimentoData?.corretora?.nome || '-'}</p>
             </div>
           </div>
@@ -763,18 +763,6 @@ export default function ComiteDeliberacao() {
                   </SelectContent>
                 </Select>
               </div>
-
-              {parecerAssociacao.parecer === 'aprovado' && (
-                <div className="space-y-2">
-                  <Label className="text-xs">Valor Aprovado</Label>
-                  <Input
-                    type="number"
-                    value={parecerAssociacao.valor_aprovado}
-                    onChange={(e) => setParecerAssociacao(prev => ({ ...prev, valor_aprovado: e.target.value }))}
-                    placeholder="0,00"
-                  />
-                </div>
-              )}
 
               <div className="space-y-2">
                 <Label className="text-xs">Justificativa da Associação</Label>

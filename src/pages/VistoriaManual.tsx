@@ -137,6 +137,7 @@ export default function VistoriaManual() {
     cliente_email: "",
     cliente_telefone: "",
     cliente_cpf: "",
+    endereco_associado: "",
     // Sinistro
     tipo_sinistro: "",
     relato_incidente: "",
@@ -144,7 +145,13 @@ export default function VistoriaManual() {
     hora_evento: "",
     condutor_veiculo: "",
     vitima_ou_causador: "",
+    endereco_local_evento: "",
+    estava_chovendo: null as boolean | null,
     tem_terceiros: null as boolean | null,
+    terceiro_placa: "",
+    terceiro_marca_modelo: "",
+    terceiro_nome: "",
+    terceiro_telefone: "",
     local_tem_camera: null as boolean | null,
     policia_foi_local: null as boolean | null,
     fez_bo: null as boolean | null,
@@ -283,7 +290,7 @@ export default function VistoriaManual() {
         .insert({
           tipo_abertura: "manual",
           tipo_vistoria: tipoVistoria,
-          status: "em_analise",
+          status: "concluida",
           created_by: user.id,
           corretora_id: formData.corretora_id || null,
           link_token: crypto.randomUUID(),
@@ -295,6 +302,7 @@ export default function VistoriaManual() {
           cliente_cpf: formData.cliente_cpf,
           cliente_email: formData.cliente_email,
           cliente_telefone: formData.cliente_telefone,
+          endereco_associado: formData.endereco_associado || null,
           veiculo_placa: formData.veiculo_placa,
           veiculo_marca: formData.veiculo_marca,
           veiculo_modelo: formData.veiculo_modelo,
@@ -315,7 +323,13 @@ export default function VistoriaManual() {
           hora_evento: formData.hora_evento || null,
           condutor_veiculo: formData.condutor_veiculo || null,
           vitima_ou_causador: formData.vitima_ou_causador || null,
+          endereco_local_evento: formData.endereco_local_evento || null,
+          estava_chovendo: formData.estava_chovendo,
           tem_terceiros: formData.tem_terceiros,
+          terceiro_placa: formData.terceiro_placa || null,
+          terceiro_marca_modelo: formData.terceiro_marca_modelo || null,
+          terceiro_nome: formData.terceiro_nome || null,
+          terceiro_telefone: formData.terceiro_telefone || null,
           local_tem_camera: formData.local_tem_camera,
           policia_foi_local: formData.policia_foi_local,
           fez_bo: formData.fez_bo,
@@ -806,6 +820,19 @@ export default function VistoriaManual() {
                     placeholder="(11) 99999-9999"
                   />
                 </div>
+                <div className="col-span-2">
+                  <Label>Endereço Completo do Associado</Label>
+                  <Input
+                    value={formData.endereco_associado}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        endereco_associado: e.target.value,
+                      }))
+                    }
+                    placeholder="Rua, número, bairro, cidade, estado, CEP"
+                  />
+                </div>
               </div>
             </div>
 
@@ -813,6 +840,19 @@ export default function VistoriaManual() {
             <div>
               <h3 className="text-lg font-semibold mb-4">Dados do Sinistro</h3>
               <div className="space-y-4">
+                <div>
+                  <Label>Endereço Completo do Local do Evento</Label>
+                  <Input
+                    value={formData.endereco_local_evento}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        endereco_local_evento: e.target.value,
+                      }))
+                    }
+                    placeholder="Rua, número, bairro, cidade, estado onde ocorreu o evento"
+                  />
+                </div>
                 <div>
                   <Label>Tipo de Sinistro *</Label>
                   <Select
@@ -937,6 +977,45 @@ export default function VistoriaManual() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Chovia no momento do acidente */}
+                    <div className="bg-muted/50 rounded-lg p-4 border">
+                      <Label className="text-sm font-semibold mb-3 block">Chovia no momento do acidente?</Label>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              estava_chovendo: true,
+                            }))
+                          }
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.estava_chovendo === true
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Sim
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              estava_chovendo: false,
+                            }))
+                          }
+                          className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                            formData.estava_chovendo === false
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background hover:border-primary/50"
+                          }`}
+                        >
+                          Não
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Houve terceiros */}
                     <div className="bg-muted/50 rounded-lg p-4 border">
                       <Label className="text-sm font-semibold mb-3 block">Houve terceiros envolvidos?</Label>
@@ -975,8 +1054,73 @@ export default function VistoriaManual() {
                         </button>
                       </div>
                     </div>
+                  </div>
 
-                    {/* Local possui câmeras */}
+                  {/* Dados do terceiro - exibido apenas quando tem_terceiros === true */}
+                  {formData.tem_terceiros === true && (
+                    <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800 mt-4">
+                      <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-3">Dados do Terceiro Envolvido</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Placa do Veículo do Terceiro</Label>
+                          <Input
+                            value={formData.terceiro_placa}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                terceiro_placa: e.target.value.toUpperCase(),
+                              }))
+                            }
+                            placeholder="ABC1D23"
+                            className="uppercase"
+                          />
+                        </div>
+                        <div>
+                          <Label>Marca/Modelo do Veículo do Terceiro</Label>
+                          <Input
+                            value={formData.terceiro_marca_modelo}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                terceiro_marca_modelo: e.target.value,
+                              }))
+                            }
+                            placeholder="Ex: Volkswagen Gol"
+                          />
+                        </div>
+                        <div>
+                          <Label>Nome do Terceiro</Label>
+                          <Input
+                            value={formData.terceiro_nome}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                terceiro_nome: e.target.value,
+                              }))
+                            }
+                            placeholder="Nome completo"
+                          />
+                        </div>
+                        <div>
+                          <Label>Telefone do Terceiro</Label>
+                          <MaskedInput
+                            format="(##) #####-####"
+                            mask="_"
+                            value={formData.terceiro_telefone}
+                            onValueChange={(values) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                terceiro_telefone: values.value,
+                              }))
+                            }
+                            placeholder="(11) 99999-9999"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-muted/50 rounded-lg p-4 border">
                       <Label className="text-sm font-semibold mb-3 block">O local possui câmeras de segurança?</Label>
                       <div className="flex gap-3">

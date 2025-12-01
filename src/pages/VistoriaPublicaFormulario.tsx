@@ -105,7 +105,13 @@ export default function VistoriaPublicaFormulario() {
     // Sinistro
     narrar_fatos: "",
     vitima_ou_causador: "",
+    endereco_local_evento: "",
+    estava_chovendo: false,
     tem_terceiros: false,
+    terceiro_placa: "",
+    terceiro_marca_modelo: "",
+    terceiro_nome: "",
+    terceiro_telefone: "",
     placa_terceiro: "",
     local_tem_camera: false,
     fez_bo: false,
@@ -407,6 +413,13 @@ export default function VistoriaPublicaFormulario() {
         atestado_obito_url: atestadoObitoUrl,
         laudo_alcoolemia_url: laudoAlcoolemiaUrl,
         croqui_acidente_url: croquiUrl,
+        status: "concluida", // Sempre finalizar como concluída
+        endereco_local_evento: formData.endereco_local_evento || null,
+        estava_chovendo: formData.estava_chovendo || null,
+        terceiro_placa: formData.terceiro_placa || formData.placa_terceiro || null,
+        terceiro_marca_modelo: formData.terceiro_marca_modelo || null,
+        terceiro_nome: formData.terceiro_nome || null,
+        terceiro_telefone: formData.terceiro_telefone || null,
       };
 
       if (formData.veiculo_fipe_data_consulta) {
@@ -894,6 +907,40 @@ export default function VistoriaPublicaFormulario() {
             {/* Step 2: Informações Gerais */}
             {currentStep === 2 && (
               <div className="space-y-6">
+                {/* Endereço do local do evento */}
+                <div>
+                  <Label className="text-base font-semibold">Endereço Completo do Local do Evento</Label>
+                  <Input
+                    value={formData.endereco_local_evento}
+                    onChange={(e) => setFormData({ ...formData, endereco_local_evento: e.target.value })}
+                    placeholder="Rua, número, bairro, cidade, estado"
+                    className="mt-2 h-12 text-lg"
+                  />
+                </div>
+
+                {/* Chovia no momento do acidente */}
+                <div>
+                  <Label className="text-base font-semibold mb-3 block">Chovia no momento do acidente?</Label>
+                  <RadioGroup
+                    value={formData.estava_chovendo ? "sim" : "nao"}
+                    onValueChange={(value) => setFormData({ ...formData, estava_chovendo: value === "sim" })}
+                    className="space-y-3"
+                  >
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
+                      <RadioGroupItem value="sim" id="chuva-sim" />
+                      <Label htmlFor="chuva-sim" className="flex-1 cursor-pointer font-medium">
+                        Sim
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-[hsl(var(--vistoria-primary))] transition-all">
+                      <RadioGroupItem value="nao" id="chuva-nao" />
+                      <Label htmlFor="chuva-nao" className="flex-1 cursor-pointer font-medium">
+                        Não
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
                 <div>
                   <Label className="text-base font-semibold mb-3 block">Houve terceiros envolvidos?</Label>
                   <RadioGroup
@@ -917,15 +964,51 @@ export default function VistoriaPublicaFormulario() {
                 </div>
 
                 {formData.tem_terceiros && (
-                  <div>
-                    <Label className="text-base font-semibold">Placa do Terceiro</Label>
-                    <Input
-                      value={formData.placa_terceiro}
-                      onChange={handlePlacaTerceiroChange}
-                      placeholder="Placa do veículo de terceiros"
-                      className="mt-2 h-12 font-mono text-lg uppercase"
-                      inputMode="text"
-                    />
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-4 border-2 border-yellow-200 dark:border-yellow-800 space-y-4">
+                    <h4 className="font-semibold text-yellow-800 dark:text-yellow-200">Dados do Terceiro Envolvido</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-sm font-medium">Placa do Veículo do Terceiro</Label>
+                        <Input
+                          value={formData.terceiro_placa || formData.placa_terceiro}
+                          onChange={(e) => setFormData({ 
+                            ...formData, 
+                            terceiro_placa: e.target.value.toUpperCase(),
+                            placa_terceiro: e.target.value.toUpperCase()
+                          })}
+                          placeholder="ABC1D23"
+                          className="mt-1 h-10 uppercase"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium">Marca/Modelo do Veículo</Label>
+                        <Input
+                          value={formData.terceiro_marca_modelo}
+                          onChange={(e) => setFormData({ ...formData, terceiro_marca_modelo: e.target.value })}
+                          placeholder="Ex: Volkswagen Gol"
+                          className="mt-1 h-10"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium">Nome do Terceiro</Label>
+                        <Input
+                          value={formData.terceiro_nome}
+                          onChange={(e) => setFormData({ ...formData, terceiro_nome: e.target.value })}
+                          placeholder="Nome completo"
+                          className="mt-1 h-10"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium">Telefone do Terceiro</Label>
+                        <MaskedInput
+                          format="(##) #####-####"
+                          value={formData.terceiro_telefone}
+                          onValueChange={(values) => setFormData({ ...formData, terceiro_telefone: values.value })}
+                          placeholder="(11) 99999-9999"
+                          className="mt-1 h-10"
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
 

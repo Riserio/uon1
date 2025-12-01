@@ -437,7 +437,7 @@ export default function AcompanhamentoSinistroInterno() {
           <TabsList className="flex flex-wrap h-auto gap-1 p-1 mb-6 bg-muted/50">
             <TabsTrigger value="corretora" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Building className="h-3 w-3 mr-1" />
-              Corretora
+              Associação
             </TabsTrigger>
             <TabsTrigger value="comite" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Users className="h-3 w-3 mr-1" />
@@ -448,8 +448,8 @@ export default function AcompanhamentoSinistroInterno() {
               Cota
             </TabsTrigger>
             <TabsTrigger value="custos" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <DollarSign className="h-3 w-3 mr-1" />
-              Custos
+              <Wrench className="h-3 w-3 mr-1" />
+              Reparo do Veículo
             </TabsTrigger>
             <TabsTrigger value="pecas" className="text-xs px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Package className="h-3 w-3 mr-1" />
@@ -477,26 +477,26 @@ export default function AcompanhamentoSinistroInterno() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Corretora */}
+          {/* Associação */}
           <TabsContent value="corretora">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Corretora Vinculada</CardTitle>
+                <CardTitle className="text-lg">Associação Vinculada</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Corretora</Label>
+                    <Label>Associação</Label>
                     <Select
                       value={atendimento?.corretora_id || "none"}
                       onValueChange={(value) => handleChangeCorretora(value === "none" ? null : value)}
                       disabled={savingCorretora}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma corretora" />
+                        <SelectValue placeholder="Selecione uma associação" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Sem corretora</SelectItem>
+                        <SelectItem value="none">Sem associação</SelectItem>
                         {corretoras.map((c) => (
                           <SelectItem key={c.id} value={c.id}>
                             {c.nome}
