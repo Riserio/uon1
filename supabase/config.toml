@@ -1,5 +1,8 @@
 project_id = "mnoczwmqgignmylbvpgp"
 
+[functions.upload-avatar]
+verify_jwt = false
+
 [functions.solicitar-mais-fotos]
 verify_jwt = false
 
