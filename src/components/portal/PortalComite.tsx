@@ -18,7 +18,7 @@ import { MessageSquare, DollarSign, TrendingUp, FileDown, Save } from "lucide-re
 import { useAuth } from "@/hooks/useAuth";
 import { PARECERES_COMITE, PARECERES_ASSOCIACAO, PARECERES_ANALISTA } from "@/constants/perguntasComite";
 import { exportDeliberacaoPDF } from "@/utils/pdfDeliberacao";
-import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta, SinistroPerguntaCategoria, getTipoVariants } from "@/hooks/useSinistroPerguntas";
+import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta, SinistroPerguntaCategoria, normalizeTipoSinistro } from "@/hooks/useSinistroPerguntas";
 
 interface PortalComiteProps {
   corretoraId?: string;
@@ -246,13 +246,13 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
     }
 
     // Buscar TODAS as perguntas válidas do banco para filtrar respostas antigas
-    // Usar getTipoVariants para buscar por todas variantes possíveis do tipo
-    const tipoVariants = getTipoVariants(sinistro.tipo_sinistro || '');
+    // Usar normalizeTipoSinistro para buscar tipo exato
+    const tipoNormalizado = normalizeTipoSinistro(sinistro.tipo_sinistro || '');
     
     const { data: perguntasValidas } = await supabase
       .from('sinistro_perguntas')
       .select('id')
-      .in('tipo_sinistro', tipoVariants)
+      .ilike('tipo_sinistro', tipoNormalizado)
       .eq('ativo', true);
 
     const perguntaIdsValidos = new Set((perguntasValidas || []).map(p => p.id));
