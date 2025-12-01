@@ -175,6 +175,7 @@ export default function ComiteDeliberacao() {
 
       if (acompanhamento) {
         setAcompanhamentoData(acompanhamento);
+        // Respostas serão filtradas pelo useEffect abaixo após perguntas carregarem
         if (acompanhamento.entrevista_respostas) {
           setRespostas(acompanhamento.entrevista_respostas as Record<string, string>);
         }
@@ -195,6 +196,20 @@ export default function ComiteDeliberacao() {
       setLoading(false);
     }
   };
+
+  // Filtrar respostas antigas quando perguntas do banco forem carregadas
+  useEffect(() => {
+    if (!loadingPerguntas && perguntasDb.length > 0 && Object.keys(respostas).length > 0) {
+      const perguntaIdsValidos = new Set(perguntasDb.map(p => p.id));
+      const respostasFiltradas = Object.fromEntries(
+        Object.entries(respostas).filter(([key]) => perguntaIdsValidos.has(key))
+      );
+      // Só atualizar se houver diferença (evita loop infinito)
+      if (Object.keys(respostasFiltradas).length !== Object.keys(respostas).length) {
+        setRespostas(respostasFiltradas);
+      }
+    }
+  }, [loadingPerguntas, perguntasDb]);
 
   const saveRespostas = useCallback(async (novasRespostas: Record<string, string>) => {
     try {

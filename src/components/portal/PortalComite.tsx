@@ -245,10 +245,28 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
       console.error("Erro ao carregar acompanhamento:", error);
     }
 
+    // Buscar TODAS as perguntas válidas do banco para filtrar respostas antigas
+    const tipoDb = sinistro.tipo_sinistro || '';
+    const tipoMapeado = tipoDb.toLowerCase().includes('colisão') || tipoDb.toLowerCase().includes('colisao') ? 'colisao' :
+                        tipoDb.toLowerCase().includes('roubo') || tipoDb.toLowerCase().includes('furto') ? 'roubo_furto' :
+                        tipoDb.toLowerCase().includes('vidro') ? 'vidros' : 'colisao';
+    
+    const { data: perguntasValidas } = await supabase
+      .from('sinistro_perguntas')
+      .select('id')
+      .eq('tipo_sinistro', tipoMapeado)
+      .eq('ativo', true);
+
+    const perguntaIdsValidos = new Set((perguntasValidas || []).map(p => p.id));
+
     let respostasFinais: Record<string, string> = {};
     
     if (acompData?.entrevista_respostas) {
-      respostasFinais = acompData.entrevista_respostas as Record<string, string>;
+      const respostasRaw = acompData.entrevista_respostas as Record<string, string>;
+      // FILTRAR: manter SOMENTE respostas de perguntas válidas do banco
+      respostasFinais = Object.fromEntries(
+        Object.entries(respostasRaw).filter(([key]) => perguntaIdsValidos.has(key))
+      );
     }
     
     // Auto-preencher com dados da vistoria
@@ -494,6 +512,20 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
   // Hook para carregar perguntas do banco baseado no tipo de sinistro selecionado
   const tipoSinistroSelecionado = selectedSinistro?.tipo_sinistro || '';
   const { perguntas: perguntasDb, categorias: categoriasDb, loading: loadingPerguntas } = useSinistroPerguntas(tipoSinistroSelecionado);
+
+  // Filtrar respostas antigas quando perguntas do banco forem carregadas
+  useEffect(() => {
+    if (!loadingPerguntas && perguntasDb.length > 0 && Object.keys(respostas).length > 0) {
+      const perguntaIdsValidos = new Set(perguntasDb.map(p => p.id));
+      const respostasFiltradas = Object.fromEntries(
+        Object.entries(respostas).filter(([key]) => perguntaIdsValidos.has(key))
+      );
+      // Só atualizar se houver diferença (evita loop infinito)
+      if (Object.keys(respostasFiltradas).length !== Object.keys(respostas).length) {
+        setRespostas(respostasFiltradas);
+      }
+    }
+  }, [loadingPerguntas, perguntasDb]);
 
   // Calcular peso das respostas usando APENAS perguntas do banco
   const perguntaIds = new Set(perguntasDb.map(p => p.id));
