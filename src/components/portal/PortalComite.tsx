@@ -907,20 +907,6 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                             </Select>
                           </div>
 
-                          {parecerAssociacao.parecer === "aprovado" && (
-                            <div className="space-y-2">
-                              <Label className="text-xs">Valor Aprovado *</Label>
-                              <CurrencyInput
-                                value={deliberacao.valor_aprovado}
-                                onValueChange={(values) =>
-                                  setDeliberacao({ ...deliberacao, valor_aprovado: values.value || "" })
-                                }
-                                placeholder="R$ 0,00"
-                                disabled={!parecerAnalista.parecer}
-                              />
-                            </div>
-                          )}
-
                           <div className="space-y-2">
                             <Label className="text-xs">Justificativa da Associação</Label>
                             <Textarea

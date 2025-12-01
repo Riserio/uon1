@@ -1065,7 +1065,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
               </TabsTrigger>
               <TabsTrigger value="custos" className="gap-2">
                 <DollarSign className="h-4 w-4" />
-                Custos
+                Reparo do Veículo
               </TabsTrigger>
               <TabsTrigger value="historico" className="gap-2">
                 <History className="h-4 w-4" />
