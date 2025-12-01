@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,6 +91,8 @@ const getAnosDisponiveis = () => {
 
 export default function VistoriaManual() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo") || "/sinistros";
   const { user } = useAuth();
   const [tipoVistoria, setTipoVistoria] = useState<"sinistro" | "reativacao">("sinistro");
   const [loading, setLoading] = useState(false);
@@ -525,7 +527,7 @@ export default function VistoriaManual() {
       }
 
       toast.success("Vistoria manual criada com sucesso!");
-      navigate(`/sinistros`);
+      navigate(returnTo);
     } catch (error) {
       console.error("Erro ao criar vistoria:", error);
       toast.error("Erro ao criar vistoria manual");
@@ -537,7 +539,7 @@ export default function VistoriaManual() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="mb-6">
-        <Button variant="outline" onClick={() => navigate("/sinistros")}>
+        <Button variant="outline" onClick={() => navigate(returnTo)}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar
         </Button>
@@ -1778,7 +1780,7 @@ export default function VistoriaManual() {
 
             {/* Botões */}
             <div className="flex gap-4">
-              <Button type="button" variant="outline" onClick={() => navigate("/sinistros")} className="flex-1">
+              <Button type="button" variant="outline" onClick={() => navigate(returnTo)} className="flex-1">
                 Cancelar
               </Button>
               <Button

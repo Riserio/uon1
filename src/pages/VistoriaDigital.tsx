@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 
 export default function VistoriaDigital() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo") || "/sinistros";
   const [step, setStep] = useState(1);
   const [tipoVistoria, setTipoVistoria] = useState<"sinistro" | "reativacao">("sinistro");
   const [vistoriaId, setVistoriaId] = useState("");
@@ -199,7 +201,7 @@ export default function VistoriaDigital() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="mb-6">
-        <Button variant="outline" onClick={() => navigate("/sinistros")}>
+        <Button variant="outline" onClick={() => navigate(returnTo)}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar
         </Button>
@@ -409,7 +411,7 @@ export default function VistoriaDigital() {
                 </Button>
               </div>
 
-              <Button onClick={() => navigate("/sinistros")} className="w-full" variant="secondary">
+              <Button onClick={() => navigate(returnTo)} className="w-full" variant="secondary">
                 Concluir
               </Button>
             </div>
