@@ -109,14 +109,15 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "Token rejeitado pela API CILIA. Possíveis causas: (1) Token incorreto ou copiado errado, (2) Token de ambiente errado (QA vs Produção), (3) Token revogado manualmente, (4) Whitelist de IP - Supabase Edge Functions usam IPs variáveis.",
+          message: "Erro de autenticação com API CILIA. Verifique se: (1) Token está correto, (2) URL base corresponde ao ambiente do token (Produção/Homologação), (3) Whitelist de IPs permite Edge Functions do Supabase.",
           status: 401,
           response: responseData,
           debug: {
             endpoint: testUrl,
             tokenLength: cleanToken.length,
             tokenPreview: `${cleanToken.slice(0, 15)}...${cleanToken.slice(-15)}`,
-            suggestion: "Entre em contato com suporte CILIA para: (1) Confirmar token ativo, (2) Verificar whitelist de IPs, (3) Confirmar ambiente correto"
+            ciliaError: responseData?.message || "Token de acesso inválido",
+            suggestion: "Contate suporte CILIA para: (1) Confirmar token está ativo, (2) Verificar whitelist de IPs, (3) Confirmar URL do ambiente"
           }
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
