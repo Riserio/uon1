@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { CiliaDirectTest } from "./CiliaDirectTest";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -391,7 +390,7 @@ export function ApiIntegrationsConfig() {
                         ) : (
                           <Wifi className="h-3 w-3" />
                         )}
-                        Testar via Edge Function
+                        Testar
                       </Button>
                       <Switch
                         checked={integration.ativo}
@@ -430,16 +429,6 @@ export function ApiIntegrationsConfig() {
                           {connectionStatus[integration.id]?.message}
                         </span>
                       )}
-                    </div>
-                  )}
-                  
-                  {integration.tipo === "cilia" && (
-                    <div className="mt-2">
-                      <CiliaDirectTest
-                        baseUrl={integration.base_url}
-                        authToken={integration.auth_token}
-                        integrationId={integration.id}
-                      />
                     </div>
                   )}
                 </div>
