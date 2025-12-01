@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta } from '@/hooks/useSinistroPerguntas';
+import { useSinistroPerguntas, calcularPesoRespostas, SinistroPergunta, getTipoVariants } from '@/hooks/useSinistroPerguntas';
 import { PARECERES_COMITE, PARECERES_ASSOCIACAO, PARECERES_ANALISTA } from '@/constants/perguntasComite';
 import { Save, FileDown, ArrowLeft, Gavel, CheckCircle2, XCircle, HelpCircle, AlertTriangle } from 'lucide-react';
 import { exportDeliberacaoPDF } from '@/utils/pdfDeliberacao';
@@ -213,6 +213,12 @@ export default function ComiteDeliberacao() {
 
   const saveRespostas = useCallback(async (novasRespostas: Record<string, string>) => {
     try {
+      // FILTRAR: salvar APENAS respostas de perguntas válidas do banco
+      const perguntaIdsValidos = new Set(perguntasDb.map(p => p.id));
+      const respostasFiltradas = Object.fromEntries(
+        Object.entries(novasRespostas).filter(([key]) => perguntaIdsValidos.has(key))
+      );
+
       const { data: existing } = await supabase
         .from('sinistro_acompanhamento')
         .select('id')
@@ -220,7 +226,7 @@ export default function ComiteDeliberacao() {
         .maybeSingle();
 
       const payload = {
-        entrevista_respostas: novasRespostas,
+        entrevista_respostas: respostasFiltradas,
         entrevista_data: new Date().toISOString(),
       };
 
@@ -240,7 +246,7 @@ export default function ComiteDeliberacao() {
     } catch (error) {
       console.error('Erro ao salvar respostas:', error);
     }
-  }, [atendimentoId]);
+  }, [atendimentoId, perguntasDb]);
 
   const handleRespostaChange = (perguntaId: string, valor: string) => {
     setRespostas(prev => {
@@ -265,7 +271,9 @@ export default function ComiteDeliberacao() {
         parecer_analista_justificativa: parecerAnalista.justificativa,
         parecer_analista_data: new Date().toISOString(),
         comite_status: parecerAnalista.parecer, // Manter compatibilidade
-        entrevista_respostas: respostas,
+        entrevista_respostas: Object.fromEntries(
+          Object.entries(respostas).filter(([key]) => new Set(perguntasDb.map(p => p.id)).has(key))
+        ),
       };
 
       if (existing) {
