@@ -59,8 +59,7 @@ const STEPS = [
   { id: 0, title: "Dados Pessoais", icon: User, description: "Informações do segurado" },
   { id: 1, title: "Dados do Evento", icon: Calendar, description: "Quando e onde ocorreu" },
   { id: 2, title: "Informações Gerais", icon: AlertCircle, description: "Detalhes do incidente" },
-  { id: 3, title: "Documentos", icon: FileText, description: "Anexos necessários" },
-  { id: 4, title: "Croqui", icon: MapPin, description: "Desenho do acidente" },
+  { id: 3, title: "Croqui", icon: MapPin, description: "Desenho do acidente" },
 ];
 
 export default function VistoriaPublicaFormulario() {
@@ -969,15 +968,17 @@ export default function VistoriaPublicaFormulario() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label className="text-sm font-medium">Placa do Veículo do Terceiro</Label>
-                        <Input
+                        <MaskedInput
+                          format="###-####"
+                          mask="_"
                           value={formData.terceiro_placa || formData.placa_terceiro}
-                          onChange={(e) => setFormData({ 
+                          onValueChange={(values) => setFormData({ 
                             ...formData, 
-                            terceiro_placa: e.target.value.toUpperCase(),
-                            placa_terceiro: e.target.value.toUpperCase()
+                            terceiro_placa: values.value.toUpperCase(),
+                            placa_terceiro: values.value.toUpperCase()
                           })}
-                          placeholder="ABC1D23"
-                          className="mt-1 h-10 uppercase"
+                          placeholder="ABC-1D23"
+                          className="mt-1 h-10 uppercase font-mono"
                         />
                       </div>
                       <div>
@@ -1201,87 +1202,8 @@ export default function VistoriaPublicaFormulario() {
               </div>
             )}
 
-            {/* Step 3: Documentos (Fotos) */}
+            {/* Step 3: Croqui */}
             {currentStep === 3 && (
-              <div className="space-y-6">
-                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-blue-800">
-                    As fotos do veículo e dos documentos (CNH e CRLV) já foram capturadas na etapa anterior do
-                    aplicativo. Confira abaixo as informações reconhecidas por OCR.
-                  </p>
-                </div>
-
-                {/* Seção CNH/Condutor */}
-                <h3 className="text-xl font-bold text-[hsl(var(--vistoria-primary))] mt-6">Dados do Condutor (CNH)</h3>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Nome na CNH</Label>
-                    <Input readOnly value={tempData?.cnhData?.nome || "Não detectado"} className="mt-1 bg-gray-100" />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">CPF na CNH</Label>
-                    <Input readOnly value={tempData?.cnhData?.cpf || "Não detectado"} className="mt-1 bg-gray-100" />
-                  </div>
-                </div>
-                {tempData?.fotos?.cnh?.[0] && (
-                  <p className="text-sm text-green-600 flex items-center gap-1">
-                    <CheckCircle className="h-4 w-4" /> CNH Capturada
-                  </p>
-                )}
-
-                {/* Seção Veículo (CRLV) */}
-                <h3 className="text-xl font-bold text-[hsl(var(--vistoria-primary))] mt-6">Dados do Veículo (CRLV)</h3>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Placa no CRLV</Label>
-                    <Input
-                      readOnly
-                      value={tempData?.vehicleData?.placa || "Não detectado"}
-                      className="mt-1 bg-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Chassi no CRLV</Label>
-                    <Input
-                      readOnly
-                      value={tempData?.vehicleData?.chassi || "Não detectado"}
-                      className="mt-1 bg-gray-100"
-                    />
-                  </div>
-                </div>
-                {tempData?.fotos?.crlv?.length > 0 && (
-                  <p className="text-sm text-green-600 flex items-center gap-1">
-                    <CheckCircle className="h-4 w-4" /> CRLV Capturado ({tempData.fotos.crlv.length} fotos)
-                  </p>
-                )}
-
-                {/* Seção Fotos do Veículo */}
-                <h3 className="text-xl font-bold text-[hsl(var(--vistoria-primary))] mt-6">
-                  Fotos do Veículo para Análise
-                </h3>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {Object.entries(tempData?.fotos || {}).map(([key, files]) => {
-                    if (key === "cnh" || key === "crlv") return null;
-                    const fileArray = files as File[];
-                    if (fileArray.length > 0) {
-                      return (
-                        <div key={key} className="border p-3 rounded-lg bg-white">
-                          <p className="text-sm font-medium capitalize flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            **{key.replace("_", " ")}**: {fileArray.length} foto(s)
-                          </p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Step 4: Croqui */}
-            {currentStep === 4 && (
               <div className="space-y-6">
                 <h3 className="text-xl font-bold text-[hsl(var(--vistoria-primary))]">Desenho do Acidente (Croqui)</h3>
                 <p className="text-sm text-muted-foreground">
@@ -1292,13 +1214,6 @@ export default function VistoriaPublicaFormulario() {
                 <div className="border border-gray-300 rounded-lg p-2 bg-white shadow-inner">
                   <SketchPad onSave={(data) => setCroqui(data)} />
                 </div>
-
-                {croqui && (
-                  <div className="mt-4">
-                    <p className="text-sm font-medium mb-2">Prévia do Croqui:</p>
-                    <img src={croqui} alt="Croqui do Acidente" className="max-w-full h-auto border rounded-lg" />
-                  </div>
-                )}
               </div>
             )}
             {/* Navigation and Submit */}
@@ -1317,7 +1232,7 @@ export default function VistoriaPublicaFormulario() {
                 <Button
                   onClick={() => setCurrentStep((prev) => Math.min(STEPS.length - 1, prev + 1))}
                   disabled={uploading}
-                  className="flex items-center gap-2 bg-[hsl(var(--vistoria-primary))] hover:bg-[hsl(var(--vistoria-primary))/90] text-white h-12"
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white h-12"
                 >
                   Próxima Etapa
                   <ArrowRight className="h-5 w-5" />
