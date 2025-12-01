@@ -968,17 +968,19 @@ export default function VistoriaPublicaFormulario() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label className="text-sm font-medium">Placa do Veículo do Terceiro</Label>
-                        <MaskedInput
-                          format="###-####"
-                          mask="_"
+                        <Input
                           value={formData.terceiro_placa || formData.placa_terceiro}
-                          onValueChange={(values) => setFormData({ 
-                            ...formData, 
-                            terceiro_placa: values.value.toUpperCase(),
-                            placa_terceiro: values.value.toUpperCase()
-                          })}
+                          onChange={(e) => {
+                            const formatted = normalizePlate(e.target.value);
+                            setFormData({ 
+                              ...formData, 
+                              terceiro_placa: formatted,
+                              placa_terceiro: formatted
+                            });
+                          }}
                           placeholder="ABC-1D23"
                           className="mt-1 h-10 uppercase font-mono"
+                          maxLength={8}
                         />
                       </div>
                       <div>
