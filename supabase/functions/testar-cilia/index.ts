@@ -20,40 +20,56 @@ serve(async (req) => {
       );
     }
 
-    // Limpar token de forma mais agressiva
-    const cleanToken = auth_token.trim()
-      .replace(/^["']|["']$/g, '')
-      .replace(/\s+/g, '')
-      .replace(/\n/g, '');
+    // Limpar token
+    const cleanToken = auth_token.trim().replace(/^["']|["']$/g, '');
     const cleanUrl = base_url.replace(/\/$/, "");
     
-    console.log("testar-cilia: INÍCIO DO TESTE", { 
+    console.log("testar-cilia: Testando conexão CILIA", { 
       url: cleanUrl,
-      tokenOriginalLength: auth_token.length,
-      tokenCleanLength: cleanToken.length,
-      tokenPreview: `${cleanToken.slice(0, 10)}...${cleanToken.slice(-10)}`,
-      tokenFull: cleanToken // LOG COMPLETO DO TOKEN PARA DEBUG
+      endpoint: `${cleanUrl}/services/generico-ws/rest/v2/integracao/createBudget`,
+      tokenLength: cleanToken.length,
+      tokenPreview: `${cleanToken.slice(0, 10)}...${cleanToken.slice(-10)}`
     });
 
-    // Testar com endpoint de criação de budget
+    // Endpoint correto conforme documentação CILIA
     const testUrl = `${cleanUrl}/services/generico-ws/rest/v2/integracao/createBudget`;
     
-    // Primeiro teste: com header "authToken" (formato atual)
-    console.log("testar-cilia: TESTE 1 - Header authToken");
-    const headers1 = {
-      "Content-Type": "application/json",
-      "authToken": cleanToken,
-      "Accept": "application/json",
+    // Payload mínimo válido conforme documentação
+    const minimalPayload = {
+      "Budget": {
+        "integrationNumber": "TEST-" + Date.now(),
+        "body": "00000000000000000",
+        "licensePlate": "AAA-0000",
+        "vehicleName": "Teste Conexao",
+        "vehicleRegionId": 1,
+        "insuredValue": 10000.00,
+        "mileage": 0,
+        "paintType": "common",
+        "color": "Preto",
+        "budgetSet": {
+          "casualtyNumber": "TEST-001",
+          "noticeDate": new Date().toISOString(),
+          "casualtyTypeId": "1",
+          "processType": "insured",
+          "client": {
+            "name": "Teste",
+            "identifier": "00000000000",
+            "clientType": "insured"
+          }
+        }
+      }
     };
-    console.log("testar-cilia: Headers teste 1", { 
-      headers: headers1,
-      tokenLength: cleanToken.length
-    });
+    
+    console.log("testar-cilia: Enviando requisição com authToken no header");
     
     const response = await fetch(testUrl, {
       method: "POST",
-      headers: headers1,
-      body: JSON.stringify({ Budget: { test: true } }),
+      headers: {
+        "Content-Type": "application/json",
+        "authToken": cleanToken,
+        "Accept": "application/json",
+      },
+      body: JSON.stringify(minimalPayload),
     });
 
     const responseText = await response.text();
@@ -64,90 +80,44 @@ serve(async (req) => {
       responseData = { raw: responseText };
     }
 
-    console.log("testar-cilia: RESPOSTA TESTE 1", { 
+    console.log("testar-cilia: Resposta da API", { 
       status: response.status,
       statusText: response.statusText,
       headers: Object.fromEntries(response.headers.entries()),
-      body: responseText.slice(0, 1000),
+      bodyPreview: responseText.slice(0, 500),
       bodyFull: responseData
     });
 
-    // Se o teste 1 falhou com 401, tentar teste 2 com Authorization Bearer
-    if (response.status === 401) {
-      console.log("testar-cilia: TESTE 2 - Header Authorization Bearer");
-      const headers2 = {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${cleanToken}`,
-        "Accept": "application/json",
-      };
-      
-      const response2 = await fetch(testUrl, {
-        method: "POST",
-        headers: headers2,
-        body: JSON.stringify({ Budget: { test: true } }),
-      });
-
-      const responseText2 = await response2.text();
-      let responseData2;
-      try {
-        responseData2 = JSON.parse(responseText2);
-      } catch {
-        responseData2 = { raw: responseText2 };
-      }
-
-      console.log("testar-cilia: RESPOSTA TESTE 2", { 
-        status: response2.status,
-        statusText: response2.statusText,
-        body: responseText2.slice(0, 1000),
-        bodyFull: responseData2
-      });
-
-      // Se teste 2 também falhou, retornar logs detalhados
-      if (response2.status === 401) {
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            message: "Ambos formatos de autenticação falharam. Detalhes nos logs.",
-            status: 401,
-            debug: {
-              teste1_authToken: {
-                status: response.status,
-                response: responseData
-              },
-              teste2_bearer: {
-                status: response2.status,
-                response: responseData2
-              },
-              tokenInfo: {
-                length: cleanToken.length,
-                preview: `${cleanToken.slice(0, 15)}...${cleanToken.slice(-15)}`
-              }
-            }
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Teste 2 funcionou!
+    // Verificar se é página HTML (404)
+    if (responseText.includes("<!DOCTYPE html>") || responseText.includes("<html>")) {
       return new Response(
         JSON.stringify({ 
-          success: true, 
-          message: "Conexão estabelecida com Authorization Bearer!",
-          status: response2.status,
-          response: responseData2,
-          authFormat: "Bearer"
+          success: false, 
+          message: "Endpoint não encontrado (404). Verifique se a URL base está correta.",
+          status: 404,
+          debug: {
+            url: testUrl,
+            receivedHTML: true
+          }
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Verificar se é página 404 HTML
-    if (responseText.includes("<!DOCTYPE html>") || responseText.includes("<html>")) {
+    // Analisar resposta
+    if (response.status === 401 || responseData?.code === 2 || responseData?.messageType === "error_invalid_token") {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "Endpoint não encontrado (404). Verifique a URL base da API.",
-          status: 404
+          message: "Token rejeitado pela API CILIA. Possíveis causas: (1) Token incorreto ou copiado errado, (2) Token de ambiente errado (QA vs Produção), (3) Token revogado manualmente, (4) Whitelist de IP - Supabase Edge Functions usam IPs variáveis.",
+          status: 401,
+          response: responseData,
+          debug: {
+            endpoint: testUrl,
+            tokenLength: cleanToken.length,
+            tokenPreview: `${cleanToken.slice(0, 15)}...${cleanToken.slice(-15)}`,
+            suggestion: "Entre em contato com suporte CILIA para: (1) Confirmar token ativo, (2) Verificar whitelist de IPs, (3) Confirmar ambiente correto"
+          }
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -157,18 +127,22 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "Endpoint não encontrado. Verifique a URL base.",
-          status: 404
+          message: "Endpoint não encontrado. Verifique a URL base da API.",
+          status: 404,
+          debug: {
+            testedUrl: testUrl,
+            expectedPath: "/services/generico-ws/rest/v2/integracao/createBudget"
+          }
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Se chegou aqui, a conexão está funcionando (mesmo com erros de validação de dados)
+    // Se chegou aqui, conexão funcionou (mesmo que tenha outros erros de validação)
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: "Conexão estabelecida com sucesso!",
+        message: "Conexão estabelecida com sucesso! API CILIA respondeu corretamente.",
         status: response.status,
         response: responseData
       }),
