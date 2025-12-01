@@ -154,7 +154,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "Erro de autenticação com API CILIA. Verifique se: (1) Token está correto, (2) URL base corresponde ao ambiente do token (Produção/Homologação), (3) Whitelist de IPs permite Edge Functions do Supabase.",
+          message: "🚫 PROBLEMA DE WHITELIST DE IP - A CILIA está rejeitando a requisição porque as Edge Functions do Supabase usam IPs dinâmicos que não estão autorizados.",
           status: 401,
           response: responseData,
           debug: {
@@ -162,7 +162,13 @@ serve(async (req) => {
             tokenLength: cleanToken.length,
             tokenPreview: `${cleanToken.slice(0, 15)}...${cleanToken.slice(-15)}`,
             ciliaError: responseData?.message || "Token de acesso inválido",
-            suggestion: "Contate suporte CILIA para: (1) Confirmar token está ativo, (2) Verificar whitelist de IPs, (3) Confirmar URL do ambiente"
+            ipRanges: "Supabase usa IPs dinâmicos da AWS us-east-1 (Norte da Virgínia)"
+          },
+          solucoes: {
+            "1_RECOMENDADO": "Contate suporte CILIA e solicite whitelist dos ranges de IP do Supabase/AWS us-east-1",
+            "2_ALTERNATIVA": "Use um servidor proxy com IP fixo para intermediar as chamadas à CILIA",
+            "3_TESTE_LOCAL": "Teste a API localmente com curl/Postman do seu computador para confirmar que token/payload estão corretos",
+            "4_DESABILITAR_WHITELIST": "Solicite à CILIA desabilitar whitelist de IP para este token específico (se possível)"
           }
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
