@@ -34,33 +34,78 @@ serve(async (req) => {
     // Endpoint correto conforme documentação CILIA
     const testUrl = `${cleanUrl}/services/generico-ws/rest/v2/integracao/createBudget`;
     
-    // Payload mínimo válido conforme documentação
-    const minimalPayload = {
+    // Payload completo válido para teste de conexão
+    const testPayload = {
       "Budget": {
-        "integrationNumber": "TEST-" + Date.now(),
-        "body": "00000000000000000",
-        "licensePlate": "AAA-0000",
-        "vehicleName": "Teste Conexao",
-        "vehicleRegionId": 1,
-        "insuredValue": 10000.00,
-        "mileage": 0,
+        "body": "9BWZZZ377VT004251",
+        "licensePlate": "ABC-1234",
+        "vehicleName": "VW GOL 1.0 2015",
+        "mileage": 123456,
         "paintType": "common",
-        "color": "Preto",
+        "color": "PRATA",
+        "vehicleRegionId": 1,
+        "schedulingDate": "2025-12-01",
+        "flowType": "initial",
+        "integrationNumber": "TESTE-" + Date.now(),
+        "workshop": {
+          "administrator": "JOÃO DA OFICINA",
+          "company": "OFICINA TESTE LTDA",
+          "documentIdentifier": "12345678000199",
+          "email": "oficina@teste.com",
+          "registrationMunicipal": "",
+          "registrationState": "",
+          "trade": "OFICINA TESTE",
+          "website": "",
+          "address": {
+            "cep": "04000-000",
+            "district": "CENTRO",
+            "number": "100",
+            "street": "RUA TESTE",
+            "city": "SÃO PAULO",
+            "state": "SP"
+          },
+          "phone": {
+            "ddd": "11",
+            "number": "999999999",
+            "contactName": "JOÃO DA OFICINA"
+          },
+          "insurerCredentialWorkshopType": "drp",
+          "workshopType": "general"
+        },
         "budgetSet": {
-          "casualtyNumber": "TEST-001",
-          "noticeDate": new Date().toISOString(),
-          "casualtyTypeId": "1",
+          "noticeDate": "2025-12-01T10:00:00-03:00",
+          "casualtyNumber": "SIN-TESTE-001",
+          "casualtyTypeId": 1,
           "processType": "insured",
           "client": {
-            "name": "Teste",
-            "identifier": "00000000000",
-            "clientType": "insured"
+            "name": "CLIENTE TESTE",
+            "email": "cliente@teste.com",
+            "identifier": "12345678909",
+            "clientType": "insured",
+            "address": {
+              "cep": "04000-000",
+              "district": "CENTRO",
+              "number": "200",
+              "street": "RUA DO CLIENTE",
+              "city": "SÃO PAULO",
+              "state": "SP"
+            },
+            "phone": {
+              "ddd": "11",
+              "number": "988888888",
+              "contactName": "CLIENTE TESTE"
+            }
           }
         }
       }
     };
     
     console.log("testar-cilia: Enviando requisição com authToken no header");
+    console.log("testar-cilia: Payload de teste", {
+      integrationNumber: testPayload.Budget.integrationNumber,
+      licensePlate: testPayload.Budget.licensePlate,
+      vehicleName: testPayload.Budget.vehicleName
+    });
     
     const response = await fetch(testUrl, {
       method: "POST",
@@ -69,7 +114,7 @@ serve(async (req) => {
         "authToken": cleanToken,
         "Accept": "application/json",
       },
-      body: JSON.stringify(minimalPayload),
+      body: JSON.stringify(testPayload),
     });
 
     const responseText = await response.text();
@@ -134,6 +179,20 @@ serve(async (req) => {
             testedUrl: testUrl,
             expectedPath: "/services/generico-ws/rest/v2/integracao/createBudget"
           }
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Status 201 = Budget criado com sucesso
+    if (response.status === 201) {
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "✅ Conexão estabelecida com sucesso! Budget de teste criado na CILIA.",
+          status: 201,
+          response: responseData,
+          budgetId: responseData?.id || responseData?.Budget?.id
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
