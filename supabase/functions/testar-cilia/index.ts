@@ -33,6 +33,12 @@ serve(async (req) => {
     // Testar com endpoint de criação de budget (teste)
     const testUrl = `${cleanUrl}/services/generico-ws/rest/v2/integracao/createBudget`;
     
+    console.log("testar-cilia: Headers enviados", { 
+      "Content-Type": "application/json",
+      "authToken": `${cleanToken.slice(0, 20)}...${cleanToken.slice(-20)}`,
+      "Accept": "application/json",
+    });
+    
     const response = await fetch(testUrl, {
       method: "POST",
       headers: {
@@ -51,9 +57,12 @@ serve(async (req) => {
       responseData = { raw: responseText };
     }
 
-    console.log("testar-cilia: Resposta", { 
-      status: response.status, 
-      body: responseText.slice(0, 500) 
+    console.log("testar-cilia: Resposta completa", { 
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+      body: responseText.slice(0, 1000),
+      bodyFull: responseData
     });
 
     // Verificar se é página 404 HTML
