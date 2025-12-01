@@ -159,6 +159,9 @@ serve(async (req) => {
         : null,
     };
 
+    // Limpar token de possíveis aspas ou espaços antes de usar
+    const cleanToken = integration.auth_token.trim().replace(/^["']|["']$/g, '');
+    
     // Montar URL correta do Cilia (QA ou PROD) a partir de integration.base_url
     // A URL base deve incluir o caminho completo da API
     const baseUrl = (integration.base_url || "https://sistema.cilia.com.br").replace(/\/$/, "");
@@ -169,8 +172,8 @@ serve(async (req) => {
 
     console.log("enviar-cilia: Enviando para CILIA", {
       url: ciliaUrl,
-      // o Budget real da doc você vai montar depois;
-      // por enquanto mando o ciliaPayload pra teste de rota
+      tokenLength: cleanToken.length,
+      tokenPreview: `${cleanToken.slice(0, 10)}...${cleanToken.slice(-10)}`,
       payloadPreview: ciliaPayload,
     });
 
@@ -184,8 +187,8 @@ serve(async (req) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Cilia usa header "authToken", não Authorization Bearer
-        authToken: integration.auth_token,
+        // Cilia usa header "authToken", não Authorization Bearer - SEM ASPAS!
+        authToken: cleanToken,
         Accept: "application/json",
       },
       body: JSON.stringify(bodyToSend),
