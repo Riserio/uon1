@@ -701,7 +701,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                         <div>
                           <div className="font-medium">{sinistro.veiculo_placa}</div>
                           <div className="text-xs text-muted-foreground">
-                            {sinistro.veiculo_marca} {sinistro.veiculo_modelo}
+                            {sinistro.veiculo_marca} {sinistro.veiculo_modelo} {sinistro.veiculo_ano && `(${sinistro.veiculo_ano})`}
                           </div>
                         </div>
                       ) : (
@@ -756,7 +756,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
                     <div>
                       <p className="text-muted-foreground text-xs">Veículo</p>
                       <p className="font-medium">
-                        {selectedSinistro.veiculo_marca} {selectedSinistro.veiculo_modelo} -{" "}
+                        {selectedSinistro.veiculo_marca} {selectedSinistro.veiculo_modelo} {selectedSinistro.veiculo_ano && `(${selectedSinistro.veiculo_ano})`} -{" "}
                         {selectedSinistro.veiculo_placa}
                       </p>
                     </div>
