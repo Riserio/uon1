@@ -160,7 +160,7 @@ export function ComiteTab({
             </div>
           )}
 
-          {!acompanhamentoData?.parecer_associacao && !podeDeliberar() && (
+          {!acompanhamentoData?.parecer_associacao && !podeDeliberar() && acompanhamentoData && (
             <Button
               variant="outline"
               onClick={() => navigate(`/sinistros/${atendimentoId}/deliberacao`)}
@@ -171,7 +171,7 @@ export function ComiteTab({
             </Button>
           )}
 
-          {!acompanhamentoData && (
+          {!acompanhamentoData && !podeDeliberar() && (
             <Button
               onClick={() => navigate(`/sinistros/${atendimentoId}/deliberacao`)}
               className="w-full gap-2"
