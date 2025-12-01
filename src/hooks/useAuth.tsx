@@ -145,6 +145,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
     
+    if (error) {
+      return { error };
+    }
+    
+    // Create/update profile with pending status (trigger may not exist)
+    if (data?.user) {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: data.user.id,
+          nome: nome,
+          email: email,
+          ativo: false,
+          status: 'pendente'
+        }, { onConflict: 'id' });
+      
+      if (profileError) {
+        console.error('Error creating profile:', profileError);
+      }
+    }
+    
     // If there was an automatic login, sign out immediately
     // User must wait for admin approval
     if (data?.session) {

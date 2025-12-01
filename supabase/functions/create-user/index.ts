@@ -136,10 +136,13 @@ serve(async (req) => {
       throw new Error('Erro ao criar usuário')
     }
 
-    // Update profile - set status to ativo (user created by admin is already approved)
+    // Create or update profile - set status to ativo (user created by admin is already approved)
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .update({
+      .upsert({
+        id: authData.user.id,
+        nome: nome,
+        email: email,
         telefone,
         cargo,
         equipe_id: role === 'comercial' ? equipe_id : null,
@@ -152,10 +155,14 @@ serve(async (req) => {
         cpf_cnpj,
         status: 'ativo',  // User created manually is already approved
         ativo: true  // User is active immediately
-      })
-      .eq('id', authData.user.id)
+      }, { onConflict: 'id' })
 
-    if (profileError) throw profileError
+    if (profileError) {
+      console.error('ERROR creating/updating profile:', profileError);
+      throw profileError;
+    }
+
+    console.log('6. Profile created/updated successfully for user:', authData.user.id);
 
     // Create user role
     const { error: roleError } = await supabaseAdmin
