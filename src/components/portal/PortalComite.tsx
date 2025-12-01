@@ -206,7 +206,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
   // Auto-preencher respostas baseado nos dados da vistoria e nas perguntas configuradas
   const autoFillFromVistoria = async (vistoria: any, existingRespostas: Record<string, string>) => {
-    // Buscar perguntas configuradas com auto_preenchivel
+    // Buscar APENAS perguntas configuradas com auto_preenchivel
     const { data: perguntasDb } = await supabase
       .from('sinistro_perguntas')
       .select('id, auto_preenchivel')
@@ -215,7 +215,7 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
 
     const novasRespostas = { ...existingRespostas };
     
-    // Preencher das perguntas configuradas
+    // Preencher APENAS das perguntas configuradas no banco de dados
     perguntasDb?.forEach(pergunta => {
       if (pergunta.auto_preenchivel && !novasRespostas[pergunta.id]) {
         const valor = getAutoFillValue(pergunta.auto_preenchivel, vistoria);
@@ -224,41 +224,6 @@ export default function PortalComite({ corretoraId }: PortalComiteProps) {
         }
       }
     });
-
-    // Preencher campos básicos mapeados pelo ID legado
-    if (vistoria.cliente_nome && !novasRespostas.nome_associado) {
-      novasRespostas.nome_associado = vistoria.cliente_nome;
-    }
-    if (vistoria.veiculo_placa && !novasRespostas.placa) {
-      novasRespostas.placa = vistoria.veiculo_placa;
-    }
-    if (vistoria.veiculo_marca && vistoria.veiculo_modelo && !novasRespostas.marca_modelo) {
-      novasRespostas.marca_modelo = `${vistoria.veiculo_marca} ${vistoria.veiculo_modelo}`;
-    }
-    if (vistoria.veiculo_ano && !novasRespostas.ano_fabricacao) {
-      novasRespostas.ano_fabricacao = vistoria.veiculo_ano;
-    }
-    if (vistoria.tipo_sinistro && !novasRespostas.tipo_evento) {
-      novasRespostas.tipo_evento = vistoria.tipo_sinistro;
-    }
-    if (vistoria.data_incidente && !novasRespostas.data_evento) {
-      novasRespostas.data_evento = new Date(vistoria.data_incidente).toLocaleDateString('pt-BR');
-    }
-    if (vistoria.endereco && !novasRespostas.local_evento) {
-      novasRespostas.local_evento = vistoria.endereco;
-    }
-    if (vistoria.relato_incidente && !novasRespostas.descricao_evento) {
-      novasRespostas.descricao_evento = vistoria.relato_incidente;
-    }
-    if (vistoria.narrar_fatos && !novasRespostas.descricao_evento) {
-      novasRespostas.descricao_evento = vistoria.narrar_fatos;
-    }
-    if (vistoria.veiculo_valor_fipe && !novasRespostas.valor_fipe) {
-      novasRespostas.valor_fipe = formatCurrency(vistoria.veiculo_valor_fipe);
-    }
-    if (vistoria.condutor_veiculo && !novasRespostas.condutor_nome) {
-      novasRespostas.condutor_nome = vistoria.condutor_veiculo;
-    }
     
     return novasRespostas;
   };
