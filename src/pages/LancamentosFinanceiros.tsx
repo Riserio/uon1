@@ -116,12 +116,10 @@ export default function LancamentosFinanceiros() {
   });
 
   useEffect(() => {
-    if (userRole === "admin" || userRole === "superintendente") {
-      fetchLancamentos();
-      fetchCorretoras();
-      fetchSinistros();
-    }
-  }, [userRole]);
+    fetchLancamentos();
+    fetchCorretoras();
+    fetchSinistros();
+  }, []);
 
   useEffect(() => {
     filterLancamentos();
@@ -404,17 +402,6 @@ export default function LancamentosFinanceiros() {
     aprovados: filteredLancamentos.filter((l) => l.status === "aprovado").length,
   };
 
-  if (userRole !== "admin" && userRole !== "superintendente") {
-    return (
-      <div className="p-6">
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-muted-foreground">Você não tem permissão para acessar esta página.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="p-6 space-y-6">
