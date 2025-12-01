@@ -46,46 +46,42 @@ export function AvatarUpload({ userId, currentAvatarUrl, userName, onUploadCompl
         return;
       }
 
-      const fileExt = file.name.split(".").pop();
-      const fileName = `avatar-${userId}-${Date.now()}.${fileExt}`;
+      console.log('Uploading avatar via Edge Function...');
 
-      console.log('Uploading avatar:', fileName);
-
-      // Upload usando o service role implicitamente via Supabase client configurado
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(fileName, file, { 
-          upsert: true,
-          contentType: file.type 
-        });
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw uploadError;
+      // Get current session for auth token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Você precisa estar autenticado");
+        return;
       }
 
-      console.log('Upload successful:', uploadData);
+      // Upload via Edge Function (bypasses RLS)
+      const formData = new FormData();
+      formData.append('file', file);
 
-      // Pegar URL pública
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("avatars").getPublicUrl(fileName);
+      const { data, error } = await supabase.functions.invoke('upload-avatar', {
+        body: formData,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
 
-      console.log('Public URL:', publicUrl);
-
-      // Atualizar perfil com URL do avatar
-      const { error: updateError } = await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", userId);
-
-      if (updateError) {
-        console.error('Profile update error:', updateError);
-        throw updateError;
+      if (error) {
+        console.error('Upload error:', error);
+        throw error;
       }
 
-      setAvatarUrl(publicUrl);
+      if (!data || !data.publicUrl) {
+        throw new Error('Failed to get public URL from upload');
+      }
+
+      console.log('Upload successful:', data);
+
+      setAvatarUrl(data.publicUrl);
       toast.success("Foto atualizada com sucesso!");
 
       if (onUploadComplete) {
-        onUploadComplete(publicUrl);
+        onUploadComplete(data.publicUrl);
       }
     } catch (error: any) {
       console.error('Avatar upload error:', error);
