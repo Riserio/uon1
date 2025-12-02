@@ -115,6 +115,13 @@ export default function Corretoras() {
       return;
     }
 
+    // Check if session is valid
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      toast.error('Sessão expirada. Por favor, faça login novamente.');
+      return;
+    }
+
     if (editingItem) {
       const { error } = await supabase
         .from('corretoras')
@@ -122,7 +129,12 @@ export default function Corretoras() {
         .eq('id', editingItem.id);
       
       if (error) {
-        toast.error('Erro ao atualizar associação');
+        console.error('Erro ao atualizar:', error);
+        if (error.code === 'PGRST303' || error.message?.includes('JWT')) {
+          toast.error('Sessão expirada. Por favor, faça login novamente.');
+        } else {
+          toast.error(`Erro ao atualizar associação: ${error.message}`);
+        }
       } else {
         toast.success('Associação atualizada!');
         setDialogOpen(false);
@@ -134,7 +146,12 @@ export default function Corretoras() {
         .insert([{ ...formData, nome: formData.nome! }]);
       
       if (error) {
-        toast.error('Erro ao criar associação');
+        console.error('Erro ao criar:', error);
+        if (error.code === 'PGRST303' || error.message?.includes('JWT')) {
+          toast.error('Sessão expirada. Por favor, faça login novamente.');
+        } else {
+          toast.error(`Erro ao criar associação: ${error.message}`);
+        }
       } else {
         toast.success('Associação criada!');
         setDialogOpen(false);
