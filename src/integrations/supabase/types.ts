@@ -2142,6 +2142,172 @@ export type Database = {
           },
         ]
       }
+      sga_eventos: {
+        Row: {
+          ano_fabricacao: number | null
+          associado_estado: string | null
+          classificacao: string | null
+          cooperativa: string | null
+          created_at: string | null
+          custo_evento: number | null
+          data_alteracao: string | null
+          data_cadastro_evento: string | null
+          data_cadastro_item: string | null
+          data_conclusao: string | null
+          data_evento: string | null
+          data_previsao_entrega: string | null
+          data_ultima_alteracao_situacao: string | null
+          envolvimento: string | null
+          envolvimento_terceiro: string | null
+          evento_estado: string | null
+          id: string
+          importacao_id: string
+          modelo_veiculo: string | null
+          modelo_veiculo_terceiro: string | null
+          motivo_evento: string | null
+          participacao: number | null
+          passivel_ressarcimento: string | null
+          placa: string | null
+          placa_terceiro: string | null
+          previsao_valor_reparo: number | null
+          regional: string | null
+          regional_veiculo: string | null
+          situacao_analise_evento: string | null
+          situacao_evento: string | null
+          solicitou_carro_reserva: string | null
+          tipo_evento: string | null
+          usuario_alteracao: string | null
+          valor_mao_de_obra: number | null
+          valor_protegido_veiculo: number | null
+          valor_reparo: number | null
+          voluntario: string | null
+        }
+        Insert: {
+          ano_fabricacao?: number | null
+          associado_estado?: string | null
+          classificacao?: string | null
+          cooperativa?: string | null
+          created_at?: string | null
+          custo_evento?: number | null
+          data_alteracao?: string | null
+          data_cadastro_evento?: string | null
+          data_cadastro_item?: string | null
+          data_conclusao?: string | null
+          data_evento?: string | null
+          data_previsao_entrega?: string | null
+          data_ultima_alteracao_situacao?: string | null
+          envolvimento?: string | null
+          envolvimento_terceiro?: string | null
+          evento_estado?: string | null
+          id?: string
+          importacao_id: string
+          modelo_veiculo?: string | null
+          modelo_veiculo_terceiro?: string | null
+          motivo_evento?: string | null
+          participacao?: number | null
+          passivel_ressarcimento?: string | null
+          placa?: string | null
+          placa_terceiro?: string | null
+          previsao_valor_reparo?: number | null
+          regional?: string | null
+          regional_veiculo?: string | null
+          situacao_analise_evento?: string | null
+          situacao_evento?: string | null
+          solicitou_carro_reserva?: string | null
+          tipo_evento?: string | null
+          usuario_alteracao?: string | null
+          valor_mao_de_obra?: number | null
+          valor_protegido_veiculo?: number | null
+          valor_reparo?: number | null
+          voluntario?: string | null
+        }
+        Update: {
+          ano_fabricacao?: number | null
+          associado_estado?: string | null
+          classificacao?: string | null
+          cooperativa?: string | null
+          created_at?: string | null
+          custo_evento?: number | null
+          data_alteracao?: string | null
+          data_cadastro_evento?: string | null
+          data_cadastro_item?: string | null
+          data_conclusao?: string | null
+          data_evento?: string | null
+          data_previsao_entrega?: string | null
+          data_ultima_alteracao_situacao?: string | null
+          envolvimento?: string | null
+          envolvimento_terceiro?: string | null
+          evento_estado?: string | null
+          id?: string
+          importacao_id?: string
+          modelo_veiculo?: string | null
+          modelo_veiculo_terceiro?: string | null
+          motivo_evento?: string | null
+          participacao?: number | null
+          passivel_ressarcimento?: string | null
+          placa?: string | null
+          placa_terceiro?: string | null
+          previsao_valor_reparo?: number | null
+          regional?: string | null
+          regional_veiculo?: string | null
+          situacao_analise_evento?: string | null
+          situacao_evento?: string | null
+          solicitou_carro_reserva?: string | null
+          tipo_evento?: string | null
+          usuario_alteracao?: string | null
+          valor_mao_de_obra?: number | null
+          valor_protegido_veiculo?: number | null
+          valor_reparo?: number | null
+          voluntario?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sga_eventos_importacao_id_fkey"
+            columns: ["importacao_id"]
+            isOneToOne: false
+            referencedRelation: "sga_importacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sga_importacoes: {
+        Row: {
+          ativo: boolean | null
+          corretora_id: string | null
+          created_at: string | null
+          id: string
+          importado_por: string | null
+          nome_arquivo: string
+          total_registros: number | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          corretora_id?: string | null
+          created_at?: string | null
+          id?: string
+          importado_por?: string | null
+          nome_arquivo: string
+          total_registros?: number | null
+        }
+        Update: {
+          ativo?: boolean | null
+          corretora_id?: string | null
+          created_at?: string | null
+          id?: string
+          importado_por?: string | null
+          nome_arquivo?: string
+          total_registros?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sga_importacoes_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sinistro_acompanhamento: {
         Row: {
           atendimento_id: string
