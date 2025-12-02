@@ -51,6 +51,7 @@ import Portal from './pages/Portal';
 import DashboardFinanceiro from "@/pages/DashboardFinanceiro";
 import CustosSinistros from "@/pages/CustosSinistros";
 import SinistroConfiguracoes from "@/pages/SinistroConfiguracoes";
+import SGAInsights from "@/pages/SGAInsights";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -173,6 +174,7 @@ const App = () => (
               <Route path="/comunicados" element={<ProtectedRoute><AdminRoute><Comunicados /></AdminRoute></ProtectedRoute>} />
               <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
               <Route path="/pid" element={<ProtectedRoute><PID /></ProtectedRoute>} />
+              <Route path="/sga-insights" element={<ProtectedRoute><SGAInsights /></ProtectedRoute>} />
               <Route path="/portal" element={<PortalRoute><Portal /></PortalRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

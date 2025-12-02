@@ -15,12 +15,13 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
-  Users, BarChart3, Car, ShieldCheck, MessageSquare, Calendar, Activity
+  Users, BarChart3, Car, ShieldCheck, MessageSquare, Calendar, Activity, Database
 } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 
 export default function PID() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState<string>("");
@@ -70,13 +71,24 @@ export default function PID() {
       <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Header */}
         <div className="space-y-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              BI - Indicadores
-            </h1>
-            <p className="text-muted-foreground mt-2 text-sm sm:text-base lg:text-lg">
-              Gestão completa de dados financeiros e sinistros das corretoras
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                BI - Indicadores
+              </h1>
+              <p className="text-muted-foreground mt-2 text-sm sm:text-base lg:text-lg">
+                Gestão completa de dados financeiros e sinistros das corretoras
+              </p>
+            </div>
+            
+            {/* Botão SGA Insights */}
+            <Button
+              onClick={() => navigate("/sga-insights")}
+              className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg"
+            >
+              <Database className="h-4 w-4" />
+              <span>SGA Insights</span>
+            </Button>
           </div>
 
           {/* Seleção de Corretora */}
