@@ -67,6 +67,7 @@ export default function Emails() {
   });
   const [editandoTemplate, setEditandoTemplate] = useState<string | null>(null);
   const [historico, setHistorico] = useState<any[]>([]);
+  const [emailQueue, setEmailQueue] = useState<any[]>([]);
   const [emailAuto, setEmailAuto] = useState<EmailAutoConfig>({ enabled: false });
   const [stats, setStats] = useState({
     total: 0,
@@ -84,6 +85,7 @@ export default function Emails() {
       loadSMTPConfig();
       loadTemplates();
       loadHistorico();
+      loadEmailQueue();
       loadEmailAutoConfig();
       loadStats();
       loadAvailableStatus();
@@ -218,13 +220,27 @@ export default function Emails() {
         )
       `)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(200);
 
     if (error) {
       console.error('Erro ao carregar histórico:', error);
       toast.error('Erro ao carregar histórico de e-mails');
     } else if (data) {
       setHistorico(data);
+    }
+  };
+
+  const loadEmailQueue = async () => {
+    const { data, error } = await supabase
+      .from('email_queue')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      console.error('Erro ao carregar fila de emails:', error);
+    } else if (data) {
+      setEmailQueue(data);
     }
   };
 
@@ -368,17 +384,16 @@ export default function Emails() {
 
   const loadStats = async () => {
     try {
-      // Get total emails from history
+      // Get ALL emails from history (system-wide, not filtered by user)
       const { data: historicoData } = await supabase
         .from('email_historico')
-        .select('status', { count: 'exact' })
-        .eq('enviado_por', user!.id);
+        .select('status');
 
       const enviados = historicoData?.filter(e => e.status === 'enviado').length || 0;
       const falhados = historicoData?.filter(e => e.status === 'erro').length || 0;
       const total = (historicoData?.length || 0);
 
-      // Get pending from queue
+      // Get ALL pending from queue (system-wide)
       const { count: pendentes } = await supabase
         .from('email_queue')
         .select('*', { count: 'exact', head: true })
@@ -421,9 +436,10 @@ export default function Emails() {
       const result = response.data;
       toast.success(`${result.succeeded} email(s) enviado(s) com sucesso`);
       
-      // Reload stats and history
+      // Reload stats, history and queue
       loadStats();
       loadHistorico();
+      loadEmailQueue();
     } catch (error: any) {
       console.error('Erro ao processar fila:', error);
       toast.error(error.message || 'Erro ao processar fila');
@@ -675,6 +691,114 @@ export default function Emails() {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Fila de Emails */}
+            {emailQueue.length > 0 && (
+              <Card className="mt-6">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Fila de Emails</CardTitle>
+                      <CardDescription>Emails aguardando processamento</CardDescription>
+                    </div>
+                    <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                      {emailQueue.filter(e => e.status === 'pendente').length} pendente(s)
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                    {emailQueue.slice(0, 20).map((email) => (
+                      <div key={email.id} className="flex items-start gap-3 p-3 border rounded-lg">
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          email.status === 'pendente' ? 'bg-yellow-100' :
+                          email.status === 'enviado' ? 'bg-green-100' : 'bg-red-100'
+                        }`}>
+                          {email.status === 'pendente' ? (
+                            <Clock className="h-4 w-4 text-yellow-600" />
+                          ) : email.status === 'enviado' ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-600" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm truncate">{email.assunto}</p>
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              {email.tipo}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">Para: {email.destinatario}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(email.created_at).toLocaleString('pt-BR')}
+                            {email.tentativas > 0 && ` • ${email.tentativas} tentativa(s)`}
+                          </p>
+                          {email.erro_mensagem && (
+                            <p className="text-xs text-red-600 mt-1">{email.erro_mensagem}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Últimos Emails Enviados */}
+            <Card className="mt-6">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Últimos Emails Enviados</CardTitle>
+                    <CardDescription>Histórico recente de envios do sistema</CardDescription>
+                  </div>
+                  <Badge variant="outline">
+                    {historico.length} registro(s)
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {historico.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhum email enviado ainda</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                    {historico.slice(0, 30).map((email) => (
+                      <div key={email.id} className="flex items-start gap-3 p-3 border rounded-lg">
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          email.status === 'enviado' ? 'bg-green-100' : 'bg-red-100'
+                        }`}>
+                          {email.status === 'enviado' ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-600" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm truncate">{email.assunto}</p>
+                            <Badge variant={email.status === 'enviado' ? 'default' : 'destructive'} className="text-xs shrink-0">
+                              {email.status === 'enviado' ? 'Enviado' : 'Erro'}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">Para: {email.destinatario}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {email.enviado_em ? new Date(email.enviado_em).toLocaleString('pt-BR') : new Date(email.created_at).toLocaleString('pt-BR')}
+                            {email.atendimentos?.assunto && ` • ${email.atendimentos.assunto}`}
+                          </p>
+                          {email.erro_mensagem && (
+                            <p className="text-xs text-red-600 mt-1">{email.erro_mensagem}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
