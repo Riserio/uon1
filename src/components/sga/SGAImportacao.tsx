@@ -118,6 +118,12 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
       const buffer = await selectedFile.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      
+      // Pular primeira linha (título "Relatório de Evento") e usar segunda linha como cabeçalho
+      const range = XLSX.utils.decode_range(firstSheet["!ref"] || "A1");
+      range.s.r = 1; // Começar da linha 2 (índice 1)
+      firstSheet["!ref"] = XLSX.utils.encode_range(range);
+      
       const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
       
       // Pegar apenas 5 primeiras linhas como preview
@@ -147,6 +153,12 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      
+      // Pular primeira linha (título "Relatório de Evento") e usar segunda linha como cabeçalho
+      const range = XLSX.utils.decode_range(firstSheet["!ref"] || "A1");
+      range.s.r = 1; // Começar da linha 2 (índice 1)
+      firstSheet["!ref"] = XLSX.utils.encode_range(range);
+      
       const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
 
       if (!jsonData.length) {
