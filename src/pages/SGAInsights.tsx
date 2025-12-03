@@ -85,11 +85,12 @@ export default function SGAInsights() {
       if (importacao) {
         setImportacaoAtiva(importacao);
         
-        // Buscar eventos dessa importação
+        // Buscar eventos dessa importação (sem limite - máximo 100k registros)
         const { data: eventosData, error: evError } = await supabase
           .from("sga_eventos")
           .select("*")
-          .eq("importacao_id", importacao.id);
+          .eq("importacao_id", importacao.id)
+          .limit(100000);
 
         if (evError) {
           console.error("Erro ao buscar eventos:", evError);
