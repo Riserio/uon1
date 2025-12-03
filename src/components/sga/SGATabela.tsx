@@ -32,12 +32,35 @@ const formatDate = (date: string | null) => {
 };
 
 const SITUACAO_COLORS: { [key: string]: string } = {
-  "FINALIZADO": "bg-green-500/20 text-green-600 border-green-500/30",
-  "EM ANALISE": "bg-yellow-500/20 text-yellow-600 border-yellow-500/30",
-  "ABERTO": "bg-blue-500/20 text-blue-600 border-blue-500/30",
-  "NEGADO": "bg-red-500/20 text-red-600 border-red-500/30",
-  "ARQUIVADO": "bg-gray-500/20 text-gray-600 border-gray-500/30",
-  "CANCELADO ACIONAMENTO": "bg-orange-500/20 text-orange-600 border-orange-500/30"
+  "FINALIZADO": "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30",
+  "EM ANALISE": "bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30",
+  "ABERTO": "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30",
+  "NEGADO": "bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30",
+  "ARQUIVADO": "bg-slate-500/20 text-slate-700 dark:text-slate-400 border-slate-500/30",
+  "CANCELADO ACIONAMENTO": "bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30",
+  "CANCELADO": "bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-500/30",
+  "EM ABERTO": "bg-sky-500/20 text-sky-700 dark:text-sky-400 border-sky-500/30",
+  "PENDENTE": "bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30",
+  "APROVADO": "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
+  "RECUSADO": "bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30",
+  "AGUARDANDO": "bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500/30",
+  "EM ANDAMENTO": "bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 border-indigo-500/30",
+};
+
+// Função para obter cor do status dinamicamente
+const getStatusColor = (status: string | null) => {
+  if (!status) return "bg-muted text-muted-foreground";
+  const upperStatus = status.toUpperCase();
+  if (SITUACAO_COLORS[upperStatus]) return SITUACAO_COLORS[upperStatus];
+  // Cores genéricas baseadas em palavras-chave
+  if (upperStatus.includes("FINAL") || upperStatus.includes("CONCLU")) return SITUACAO_COLORS["FINALIZADO"];
+  if (upperStatus.includes("NEGAD") || upperStatus.includes("RECUS")) return SITUACAO_COLORS["NEGADO"];
+  if (upperStatus.includes("CANCEL") || upperStatus.includes("ARQUIV")) return SITUACAO_COLORS["ARQUIVADO"];
+  if (upperStatus.includes("PENDEN") || upperStatus.includes("AGUARD")) return SITUACAO_COLORS["PENDENTE"];
+  if (upperStatus.includes("ANALIS") || upperStatus.includes("ANDAMENTO")) return SITUACAO_COLORS["EM ANALISE"];
+  if (upperStatus.includes("ABERT")) return SITUACAO_COLORS["ABERTO"];
+  if (upperStatus.includes("APROV")) return SITUACAO_COLORS["APROVADO"];
+  return "bg-violet-500/20 text-violet-700 dark:text-violet-400 border-violet-500/30";
 };
 
 export default function SGATabela({ eventos, loading }: SGATabelaProps) {
@@ -326,7 +349,7 @@ export default function SGATabela({ eventos, loading }: SGATabelaProps) {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={SITUACAO_COLORS[evento.situacao_evento] || "bg-muted"}>
+                      <Badge className={getStatusColor(evento.situacao_evento)}>
                         {evento.situacao_evento || "-"}
                       </Badge>
                     </TableCell>

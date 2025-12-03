@@ -85,19 +85,38 @@ export default function SGAInsights() {
       if (importacao) {
         setImportacaoAtiva(importacao);
         
-        // Buscar eventos dessa importação (sem limite - máximo 100k registros)
-        // Usar range para garantir que ultrapasse o limite padrão de 1000
-        const { data: eventosData, error: evError } = await supabase
-          .from("sga_eventos")
-          .select("*")
-          .eq("importacao_id", importacao.id)
-          .range(0, 99999);
+        // Buscar eventos em lotes para ultrapassar limite de 1000 do Supabase
+        const BATCH_SIZE = 1000;
+        let allEventos: any[] = [];
+        let hasMore = true;
+        let offset = 0;
 
-        if (evError) {
-          console.error("Erro ao buscar eventos:", evError);
-        } else {
-          setEventos(eventosData || []);
+        while (hasMore) {
+          const { data: batch, error: evError } = await supabase
+            .from("sga_eventos")
+            .select("*")
+            .eq("importacao_id", importacao.id)
+            .range(offset, offset + BATCH_SIZE - 1);
+
+          if (evError) {
+            console.error("Erro ao buscar eventos:", evError);
+            break;
+          }
+
+          if (batch && batch.length > 0) {
+            allEventos = [...allEventos, ...batch];
+            offset += BATCH_SIZE;
+            hasMore = batch.length === BATCH_SIZE;
+          } else {
+            hasMore = false;
+          }
+
+          // Segurança: máximo 100 lotes (100k registros)
+          if (offset >= 100000) break;
         }
+
+        console.log(`Total de eventos carregados: ${allEventos.length}`);
+        setEventos(allEventos);
       } else {
         setEventos([]);
         setImportacaoAtiva(null);
