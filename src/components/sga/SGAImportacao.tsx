@@ -11,6 +11,8 @@ import * as XLSX from "xlsx";
 
 interface SGAImportacaoProps {
   onImportSuccess: () => void;
+  corretoraId: string;
+  corretoraNome: string;
 }
 
 // Mapeamento de colunas do Excel para campos do banco
@@ -97,7 +99,7 @@ const parseMoneyValue = (value: any): number => {
   return isNaN(num) ? 0 : num;
 };
 
-export default function SGAImportacao({ onImportSuccess }: SGAImportacaoProps) {
+export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraNome }: SGAImportacaoProps) {
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -132,6 +134,11 @@ export default function SGAImportacao({ onImportSuccess }: SGAImportacaoProps) {
       return;
     }
 
+    if (!corretoraId) {
+      toast.error("Selecione uma associação primeiro");
+      return;
+    }
+
     setImporting(true);
     setProgress(0);
 
@@ -150,21 +157,23 @@ export default function SGAImportacao({ onImportSuccess }: SGAImportacaoProps) {
 
       setProgress(10);
 
-      // Desativar importações anteriores
+      // Desativar importações anteriores DA MESMA ASSOCIAÇÃO
       await supabase
         .from("sga_importacoes")
         .update({ ativo: false })
-        .eq("ativo", true);
+        .eq("ativo", true)
+        .eq("corretora_id", corretoraId);
 
       setProgress(20);
 
-      // Criar nova importação
+      // Criar nova importação com corretora_id
       const { data: importacao, error: impError } = await supabase
         .from("sga_importacoes")
         .insert({
           nome_arquivo: file.name,
           total_registros: jsonData.length,
-          ativo: true
+          ativo: true,
+          corretora_id: corretoraId
         })
         .select()
         .single();
@@ -219,7 +228,7 @@ export default function SGAImportacao({ onImportSuccess }: SGAImportacaoProps) {
         setProgress(30 + Math.round((i + 1) / totalBatches * 70));
       }
 
-      toast.success(`${jsonData.length} registros importados com sucesso!`);
+      toast.success(`${jsonData.length} registros importados com sucesso para ${corretoraNome}!`);
       setFile(null);
       setPreview([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -233,6 +242,24 @@ export default function SGAImportacao({ onImportSuccess }: SGAImportacaoProps) {
     }
   };
 
+  if (!corretoraId) {
+    return (
+      <Card className="border-yellow-500/20 bg-yellow-500/5">
+        <CardContent className="p-6">
+          <div className="flex gap-3 items-center">
+            <AlertCircle className="h-6 w-6 text-yellow-500" />
+            <div>
+              <p className="font-medium text-yellow-600">Selecione uma Associação</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Para importar dados, primeiro selecione uma associação no filtro acima.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Upload Card */}
@@ -243,7 +270,9 @@ export default function SGAImportacao({ onImportSuccess }: SGAImportacaoProps) {
             Importar Planilha do SGA
           </CardTitle>
           <CardDescription>
-            Selecione um arquivo Excel (.xlsx) exportado do SGA. A nova importação irá sobrepor os dados anteriores.
+            Importando dados para: <span className="font-semibold text-foreground">{corretoraNome}</span>
+            <br />
+            Selecione um arquivo Excel (.xlsx) exportado do SGA. A nova importação irá sobrepor os dados anteriores desta associação.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -351,7 +380,7 @@ export default function SGAImportacao({ onImportSuccess }: SGAImportacaoProps) {
             <div className="text-sm">
               <p className="font-medium text-yellow-600">Importante</p>
               <p className="text-muted-foreground mt-1">
-                Ao importar uma nova planilha, ela se tornará a fonte de dados ativa. 
+                Ao importar uma nova planilha, ela se tornará a fonte de dados ativa para <strong>{corretoraNome}</strong>. 
                 As importações anteriores ficam salvas no histórico e podem ser reativadas a qualquer momento.
               </p>
             </div>

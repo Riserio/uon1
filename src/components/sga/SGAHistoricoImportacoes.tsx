@@ -5,27 +5,35 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { History, CheckCircle, Trash2, RefreshCw, FileSpreadsheet, Loader2 } from "lucide-react";
+import { History, CheckCircle, Trash2, RefreshCw, FileSpreadsheet, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface SGAHistoricoImportacoesProps {
   onActivate: () => void;
+  corretoraId: string;
 }
 
-export default function SGAHistoricoImportacoes({ onActivate }: SGAHistoricoImportacoesProps) {
+export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGAHistoricoImportacoesProps) {
   const [importacoes, setImportacoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const fetchImportacoes = async () => {
+    if (!corretoraId) {
+      setImportacoes([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("sga_importacoes")
         .select("*")
+        .eq("corretora_id", corretoraId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -39,15 +47,16 @@ export default function SGAHistoricoImportacoes({ onActivate }: SGAHistoricoImpo
 
   useEffect(() => {
     fetchImportacoes();
-  }, []);
+  }, [corretoraId]);
 
   const handleActivate = async (id: string) => {
     setActivating(id);
     try {
-      // Desativar todas
+      // Desativar todas da mesma associação
       await supabase
         .from("sga_importacoes")
         .update({ ativo: false })
+        .eq("corretora_id", corretoraId)
         .neq("id", id);
 
       // Ativar a selecionada
@@ -93,6 +102,24 @@ export default function SGAHistoricoImportacoes({ onActivate }: SGAHistoricoImpo
     }
   };
 
+  if (!corretoraId) {
+    return (
+      <Card className="border-yellow-500/20 bg-yellow-500/5">
+        <CardContent className="p-6">
+          <div className="flex gap-3 items-center">
+            <AlertCircle className="h-6 w-6 text-yellow-500" />
+            <div>
+              <p className="font-medium text-yellow-600">Selecione uma Associação</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Para ver o histórico de importações, primeiro selecione uma associação no filtro acima.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -109,7 +136,7 @@ export default function SGAHistoricoImportacoes({ onActivate }: SGAHistoricoImpo
         ) : importacoes.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Nenhuma importação realizada ainda.</p>
+            <p>Nenhuma importação realizada para esta associação.</p>
           </div>
         ) : (
           <Table>
