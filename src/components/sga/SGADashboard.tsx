@@ -18,14 +18,61 @@ const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+const formatCompactCurrency = (value: number) => {
+  if (value >= 1000000) {
+    return `R$ ${(value / 1000000).toFixed(1)}M`;
+  }
+  if (value >= 1000) {
+    return `R$ ${(value / 1000).toFixed(0)}k`;
+  }
+  return `R$ ${value.toFixed(0)}`;
+};
+
+// Filtrar valores N/I e vazios
+const filterValidValues = (data: any[], excludeNI = true) => {
+  if (!excludeNI) return data;
+  return data.filter(item => 
+    item.name && 
+    item.name !== "N/I" && 
+    item.name !== "" && 
+    item.name !== "NAO INFORMADO" &&
+    item.name !== "NÃO INFORMADO"
+  );
+};
+
+// Truncar texto longo
+const truncateText = (text: string, maxLength: number = 15) => {
+  if (!text) return "-";
+  return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
+};
+
+// Custom tooltip
+const CustomTooltip = ({ active, payload, label, isCurrency = false }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-background border rounded-lg shadow-lg p-3 text-sm">
+        <p className="font-medium mb-1">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <p key={index} style={{ color: entry.color }}>
+            {entry.name}: {isCurrency ? formatCurrency(entry.value) : entry.value.toLocaleString('pt-BR')}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
   const stats = useMemo(() => {
     if (!eventos.length) return null;
 
-    // Por Estado
+    // Por Estado (filtrar N/I)
     const porEstado = eventos.reduce((acc: any, e) => {
-      const estado = e.evento_estado || "N/I";
-      acc[estado] = (acc[estado] || 0) + 1;
+      const estado = e.evento_estado || "";
+      if (estado && estado !== "N/I" && estado !== "NAO INFORMADO") {
+        acc[estado] = (acc[estado] || 0) + 1;
+      }
       return acc;
     }, {});
     const estadoData = Object.entries(porEstado)
@@ -33,30 +80,36 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
       .sort((a: any, b: any) => b.value - a.value)
       .slice(0, 10);
 
-    // Por Motivo
+    // Por Motivo (filtrar N/I)
     const porMotivo = eventos.reduce((acc: any, e) => {
-      const motivo = e.motivo_evento || "N/I";
-      acc[motivo] = (acc[motivo] || 0) + 1;
+      const motivo = e.motivo_evento || "";
+      if (motivo && motivo !== "N/I" && motivo !== "NAO INFORMADO") {
+        acc[motivo] = (acc[motivo] || 0) + 1;
+      }
       return acc;
     }, {});
     const motivoData = Object.entries(porMotivo)
       .map(([name, value]) => ({ name, value }))
       .sort((a: any, b: any) => b.value - a.value);
 
-    // Por Situação
+    // Por Situação (filtrar N/I)
     const porSituacao = eventos.reduce((acc: any, e) => {
-      const situacao = e.situacao_evento || "N/I";
-      acc[situacao] = (acc[situacao] || 0) + 1;
+      const situacao = e.situacao_evento || "";
+      if (situacao && situacao !== "N/I" && situacao !== "NAO INFORMADO") {
+        acc[situacao] = (acc[situacao] || 0) + 1;
+      }
       return acc;
     }, {});
     const situacaoData = Object.entries(porSituacao)
       .map(([name, value]) => ({ name, value }))
       .sort((a: any, b: any) => b.value - a.value);
 
-    // Por Regional
+    // Por Regional (filtrar N/I)
     const porRegional = eventos.reduce((acc: any, e) => {
-      const regional = e.regional || "N/I";
-      acc[regional] = (acc[regional] || 0) + 1;
+      const regional = e.regional || "";
+      if (regional && regional !== "N/I" && regional !== "NAO INFORMADO") {
+        acc[regional] = (acc[regional] || 0) + 1;
+      }
       return acc;
     }, {});
     const regionalData = Object.entries(porRegional)
@@ -66,8 +119,10 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
 
     // Por Tipo Evento
     const porTipo = eventos.reduce((acc: any, e) => {
-      const tipo = e.tipo_evento || "N/I";
-      acc[tipo] = (acc[tipo] || 0) + 1;
+      const tipo = e.tipo_evento || "";
+      if (tipo && tipo !== "N/I" && tipo !== "NAO INFORMADO") {
+        acc[tipo] = (acc[tipo] || 0) + 1;
+      }
       return acc;
     }, {});
     const tipoData = Object.entries(porTipo)
@@ -96,8 +151,10 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
 
     // Custos por Regional
     const custosPorRegional = eventos.reduce((acc: any, e) => {
-      const regional = e.regional || "N/I";
-      acc[regional] = (acc[regional] || 0) + (e.custo_evento || 0);
+      const regional = e.regional || "";
+      if (regional && regional !== "N/I" && regional !== "NAO INFORMADO") {
+        acc[regional] = (acc[regional] || 0) + (e.custo_evento || 0);
+      }
       return acc;
     }, {});
     const custosRegionalData = Object.entries(custosPorRegional)
@@ -107,8 +164,10 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
 
     // Envolvimento
     const porEnvolvimento = eventos.reduce((acc: any, e) => {
-      const env = e.envolvimento || "N/I";
-      acc[env] = (acc[env] || 0) + 1;
+      const env = e.envolvimento || "";
+      if (env && env !== "N/I" && env !== "NAO INFORMADO") {
+        acc[env] = (acc[env] || 0) + 1;
+      }
       return acc;
     }, {});
     const envolvimentoData = Object.entries(porEnvolvimento)
@@ -222,18 +281,27 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={stats.timelineData}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="mesLabel" className="text-xs" />
-              <YAxis yAxisId="left" className="text-xs" />
-              <YAxis yAxisId="right" orientation="right" className="text-xs" />
-              <Tooltip 
-                formatter={(value: number, name: string) => [
-                  name === 'custo' ? formatCurrency(value) : value,
-                  name === 'custo' ? 'Custo' : 'Eventos'
-                ]}
+              <XAxis 
+                dataKey="mesLabel" 
+                tick={{ fontSize: 11 }}
+                interval="preserveStartEnd"
               />
-              <Legend />
+              <YAxis 
+                yAxisId="left" 
+                tick={{ fontSize: 11 }}
+                width={50}
+              />
+              <YAxis 
+                yAxisId="right" 
+                orientation="right" 
+                tick={{ fontSize: 11 }}
+                tickFormatter={(v) => formatCompactCurrency(v)}
+                width={70}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
               <Area yAxisId="left" type="monotone" dataKey="eventos" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="Eventos" />
-              <Line yAxisId="right" type="monotone" dataKey="custo" stroke="#ef4444" name="Custo (R$)" />
+              <Line yAxisId="right" type="monotone" dataKey="custo" stroke="#ef4444" name="Custo (R$)" dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </CardContent>
@@ -244,47 +312,64 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
         {/* Por Estado */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Eventos por Estado</CardTitle>
+            <CardTitle className="text-base">Eventos por Estado (Top 10)</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.estadoData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis type="number" className="text-xs" />
-                <YAxis type="category" dataKey="name" className="text-xs" width={40} />
-                <Tooltip />
-                <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+              <BarChart data={stats.estadoData} layout="vertical" margin={{ left: 10, right: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis 
+                  type="category" 
+                  dataKey="name" 
+                  tick={{ fontSize: 11 }} 
+                  width={35}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Eventos" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Por Motivo */}
+        {/* Por Motivo - Donut com legenda */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Eventos por Motivo</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={stats.motivoData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={2}
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                  labelLine={false}
-                >
-                  {stats.motivoData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value: number) => [value, 'Quantidade']} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="flex items-center gap-4">
+              <ResponsiveContainer width="50%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={stats.motivoData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {stats.motivoData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: number) => [value.toLocaleString('pt-BR'), 'Quantidade']} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex-1 space-y-2 max-h-[250px] overflow-y-auto">
+                {stats.motivoData.map((item, index) => (
+                  <div key={item.name} className="flex items-center gap-2 text-sm">
+                    <div 
+                      className="w-3 h-3 rounded-full shrink-0" 
+                      style={{ backgroundColor: COLORS[index % COLORS.length] }} 
+                    />
+                    <span className="truncate flex-1" title={item.name}>{item.name}</span>
+                    <span className="font-medium text-muted-foreground">{String(item.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -295,12 +380,20 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.situacaoData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="name" className="text-xs" angle={-45} textAnchor="end" height={80} />
-                <YAxis className="text-xs" />
-                <Tooltip />
-                <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
+              <BarChart data={stats.situacaoData} margin={{ bottom: 60, left: 10, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fontSize: 10 }} 
+                  angle={-35} 
+                  textAnchor="end" 
+                  interval={0}
+                  height={70}
+                  tickFormatter={(v) => truncateText(v, 12)}
+                />
+                <YAxis tick={{ fontSize: 11 }} width={40} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} name="Eventos" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -313,12 +406,22 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.custosRegionalData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis type="number" className="text-xs" tickFormatter={(v) => `R$ ${(v/1000).toFixed(0)}k`} />
-                <YAxis type="category" dataKey="name" className="text-xs" width={120} />
-                <Tooltip formatter={(value: number) => [formatCurrency(value), 'Custo']} />
-                <Bar dataKey="value" fill="#ef4444" radius={[0, 4, 4, 0]} />
+              <BarChart data={stats.custosRegionalData} layout="vertical" margin={{ left: 10, right: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                <XAxis 
+                  type="number" 
+                  tick={{ fontSize: 10 }} 
+                  tickFormatter={(v) => formatCompactCurrency(v)}
+                />
+                <YAxis 
+                  type="category" 
+                  dataKey="name" 
+                  tick={{ fontSize: 10 }} 
+                  width={100}
+                  tickFormatter={(v) => truncateText(v, 18)}
+                />
+                <Tooltip content={<CustomTooltip isCurrency />} />
+                <Bar dataKey="value" fill="#ef4444" radius={[0, 4, 4, 0]} name="Custo" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -331,12 +434,18 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.regionalData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis type="number" className="text-xs" />
-                <YAxis type="category" dataKey="name" className="text-xs" width={120} />
-                <Tooltip />
-                <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+              <BarChart data={stats.regionalData} layout="vertical" margin={{ left: 10, right: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis 
+                  type="category" 
+                  dataKey="name" 
+                  tick={{ fontSize: 10 }} 
+                  width={100}
+                  tickFormatter={(v) => truncateText(v, 18)}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} name="Eventos" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -350,28 +459,32 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           <CardContent>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-muted-foreground mb-2">Tipo de Evento</p>
-                {stats.tipoData.map((item, i) => (
-                  <div key={item.name} className="flex items-center justify-between py-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                      <span className="text-sm">{item.name}</span>
+                <p className="text-sm text-muted-foreground mb-2 font-medium">Tipo de Evento</p>
+                <div className="space-y-1.5">
+                  {stats.tipoData.map((item, i) => (
+                    <div key={item.name} className="flex items-center justify-between py-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                        <span className="text-sm truncate" title={item.name}>{item.name}</span>
+                      </div>
+                      <span className="text-sm font-medium ml-2">{String(item.value)}</span>
                     </div>
-                    <span className="text-sm font-medium">{String(item.value)}</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground mb-2">Envolvimento</p>
-                {stats.envolvimentoData.map((item, i) => (
-                  <div key={item.name} className="flex items-center justify-between py-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[(i + 3) % COLORS.length] }} />
-                      <span className="text-sm">{item.name}</span>
+                <p className="text-sm text-muted-foreground mb-2 font-medium">Envolvimento</p>
+                <div className="space-y-1.5">
+                  {stats.envolvimentoData.map((item, i) => (
+                    <div key={item.name} className="flex items-center justify-between py-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[(i + 3) % COLORS.length] }} />
+                        <span className="text-sm truncate" title={item.name}>{item.name}</span>
+                      </div>
+                      <span className="text-sm font-medium ml-2">{String(item.value)}</span>
                     </div>
-                    <span className="text-sm font-medium">{String(item.value)}</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </CardContent>
