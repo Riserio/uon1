@@ -23,38 +23,38 @@ export default function PID() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [corretoras, setCorretoras] = useState<any[]>([]);
-  const [selectedCorretora, setSelectedCorretora] = useState<string>("");
+  const [associacoes, setAssociacoes] = useState<any[]>([]);
+  const [selectedAssociacao, setSelectedAssociacao] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [usuariosDialogOpen, setUsuariosDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
 
-  const selectedCorretoraData = corretoras.find((c) => c.id === selectedCorretora);
+  const selectedAssociacaoData = associacoes.find((c) => c.id === selectedAssociacao);
 
   useEffect(() => {
-    async function fetchCorretoras() {
+    async function fetchAssociacoes() {
       try {
         const { data, error } = await supabase.from("corretoras").select("id, nome, slug").order("nome");
 
         if (error) throw error;
 
-        setCorretoras(data || []);
+        setAssociacoes(data || []);
         
-        const corretoraParam = searchParams.get("corretora");
-        if (corretoraParam && data?.some(c => c.id === corretoraParam)) {
-          setSelectedCorretora(corretoraParam);
+        const associacaoParam = searchParams.get("corretora");
+        if (associacaoParam && data?.some(c => c.id === associacaoParam)) {
+          setSelectedAssociacao(associacaoParam);
         } else if (data && data.length > 0) {
-          setSelectedCorretora(data[0].id);
+          setSelectedAssociacao(data[0].id);
         }
       } catch (error) {
-        console.error("Erro ao carregar corretoras:", error);
-        toast.error("Erro ao carregar corretoras");
+        console.error("Erro ao carregar associações:", error);
+        toast.error("Erro ao carregar associações");
       } finally {
         setLoading(false);
       }
     }
 
-    fetchCorretoras();
+    fetchAssociacoes();
   }, [searchParams]);
 
   const tabs = [
@@ -65,6 +65,14 @@ export default function PID() {
     { id: "sinistros", label: "Sinistros", icon: ShieldCheck },
     { id: "comite", label: "Comitê", icon: MessageSquare },
   ];
+
+  const handleNavigateToSGA = () => {
+    if (selectedAssociacao) {
+      navigate(`/sga-insights?associacao=${selectedAssociacao}`);
+    } else {
+      navigate("/sga-insights");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -77,13 +85,13 @@ export default function PID() {
                 BI - Indicadores
               </h1>
               <p className="text-muted-foreground mt-2 text-sm sm:text-base lg:text-lg">
-                Gestão completa de dados financeiros e sinistros das corretoras
+                Gestão completa de dados financeiros e sinistros das associações
               </p>
             </div>
             
             {/* Botão SGA Insights */}
             <Button
-              onClick={() => navigate("/sga-insights")}
+              onClick={handleNavigateToSGA}
               className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg"
             >
               <Database className="h-4 w-4" />
@@ -91,38 +99,38 @@ export default function PID() {
             </Button>
           </div>
 
-          {/* Seleção de Corretora */}
+          {/* Seleção de Associação */}
           <Card className="border-2 border-primary/10 shadow-lg bg-gradient-to-br from-card to-card/80">
             <CardContent className="p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 flex-1 w-full">
-                  <Label htmlFor="corretora-select" className="text-base sm:text-lg font-semibold whitespace-nowrap">
-                    Selecionar Corretora:
+                  <Label htmlFor="associacao-select" className="text-base sm:text-lg font-semibold whitespace-nowrap">
+                    Selecionar Associação:
                   </Label>
 
-                  <Select value={selectedCorretora} onValueChange={setSelectedCorretora} disabled={loading}>
+                  <Select value={selectedAssociacao} onValueChange={setSelectedAssociacao} disabled={loading}>
                     <SelectTrigger
-                      id="corretora-select"
+                      id="associacao-select"
                       className="w-full sm:max-w-md h-11 sm:h-12 border-2 text-sm sm:text-base"
                     >
-                      <SelectValue placeholder="Escolha uma corretora..." />
+                      <SelectValue placeholder="Escolha uma associação..." />
                     </SelectTrigger>
 
                     <SelectContent>
-                      {corretoras.map((corretora) => (
+                      {associacoes.map((associacao) => (
                         <SelectItem
-                          key={corretora.id}
-                          value={corretora.id}
+                          key={associacao.id}
+                          value={associacao.id}
                           className="text-sm sm:text-base py-2 sm:py-3"
                         >
-                          {corretora.nome}
+                          {associacao.nome}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {selectedCorretora && (
+                {selectedAssociacao && (
                   <Button
                     variant="outline"
                     onClick={() => setUsuariosDialogOpen(true)}
@@ -162,38 +170,38 @@ export default function PID() {
           </div>
 
           <TabsContent value="dashboard" className="space-y-4 mt-0">
-            <PIDDashboard corretoraId={selectedCorretora} />
+            <PIDDashboard corretoraId={selectedAssociacao} />
           </TabsContent>
 
           <TabsContent value="operacional" className="space-y-4 mt-0">
-            <PIDOperacional corretoraId={selectedCorretora} />
+            <PIDOperacional corretoraId={selectedAssociacao} />
           </TabsContent>
 
           <TabsContent value="estudo-base" className="space-y-4 mt-0">
-            <PIDEstudoBase corretoraId={selectedCorretora} />
+            <PIDEstudoBase corretoraId={selectedAssociacao} />
           </TabsContent>
 
           <TabsContent value="historico" className="space-y-4 mt-0">
-            <PIDHistorico corretoraId={selectedCorretora} />
+            <PIDHistorico corretoraId={selectedAssociacao} />
           </TabsContent>
 
           <TabsContent value="sinistros" className="space-y-4 mt-0">
-            <PortalSinistros corretoraId={selectedCorretora} />
+            <PortalSinistros corretoraId={selectedAssociacao} />
           </TabsContent>
 
           <TabsContent value="comite" className="space-y-4 mt-0">
-            <PortalComite corretoraId={selectedCorretora} />
+            <PortalComite corretoraId={selectedAssociacao} />
           </TabsContent>
         </Tabs>
       </div>
 
       {/* Modal Gerenciar Usuários PID */}
-      {selectedCorretoraData && (
+      {selectedAssociacaoData && (
         <GerenciarUsuariosCorretoraDialog
           open={usuariosDialogOpen}
           onOpenChange={setUsuariosDialogOpen}
-          corretoraId={selectedCorretoraData.id}
-          corretoraNome={selectedCorretoraData.nome}
+          corretoraId={selectedAssociacaoData.id}
+          corretoraNome={selectedAssociacaoData.nome}
         />
       )}
     </div>
