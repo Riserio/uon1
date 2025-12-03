@@ -70,11 +70,13 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
     // Por Estado (filtrar N/I)
     const porEstado = eventos.reduce((acc: any, e) => {
       const estado = e.evento_estado || "";
-      if (estado && estado !== "N/I" && estado !== "NAO INFORMADO") {
+      // Filtrar apenas siglas de estado válidas (2 caracteres)
+      if (estado && estado !== "N/I" && estado !== "NAO INFORMADO" && estado.length === 2) {
         acc[estado] = (acc[estado] || 0) + 1;
       }
       return acc;
     }, {});
+    const totalEstadosDistintos = Object.keys(porEstado).length;
     const estadoData = Object.entries(porEstado)
       .map(([name, value]) => ({ name, value }))
       .sort((a: any, b: any) => b.value - a.value)
@@ -184,7 +186,8 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
       envolvimentoData,
       totalCusto: eventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0),
       totalReparo: eventos.reduce((acc, e) => acc + (e.valor_reparo || 0), 0),
-      mediaParticipacao: eventos.reduce((acc, e) => acc + (e.participacao || 0), 0) / eventos.length
+      mediaParticipacao: eventos.reduce((acc, e) => acc + (e.participacao || 0), 0) / eventos.length,
+      totalEstadosDistintos
     };
   }, [eventos]);
 
@@ -261,7 +264,7 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Estados Distintos</p>
-                <p className="text-2xl font-bold">{stats.estadoData.length}</p>
+                <p className="text-2xl font-bold">{stats.totalEstadosDistintos}</p>
               </div>
               <MapPin className="h-8 w-8 text-purple-500/30" />
             </div>
