@@ -307,6 +307,52 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
         </CardContent>
       </Card>
 
+      {/* Por Situação - Full Width */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Eventos por Situação</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={stats.situacaoData} layout="vertical" margin={{ left: 20, right: 30 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11 }} />
+              <YAxis 
+                type="category" 
+                dataKey="name" 
+                tick={{ fontSize: 11 }} 
+                width={150}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="value" fill="#10b981" radius={[0, 4, 4, 0]} name="Eventos" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Por Regional - Full Width */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Eventos por Regional (Top 10)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={stats.regionalData} layout="vertical" margin={{ left: 20, right: 30 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11 }} />
+              <YAxis 
+                type="category" 
+                dataKey="name" 
+                tick={{ fontSize: 11 }} 
+                width={180}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} name="Eventos" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
       {/* Charts Grid */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* Por Estado */}
@@ -373,32 +419,6 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           </CardContent>
         </Card>
 
-        {/* Por Situação */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Eventos por Situação</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.situacaoData} margin={{ bottom: 60, left: 10, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-                <XAxis 
-                  dataKey="name" 
-                  tick={{ fontSize: 10 }} 
-                  angle={-35} 
-                  textAnchor="end" 
-                  interval={0}
-                  height={70}
-                  tickFormatter={(v) => truncateText(v, 12)}
-                />
-                <YAxis tick={{ fontSize: 11 }} width={40} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} name="Eventos" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
         {/* Custos por Regional */}
         <Card>
           <CardHeader>
@@ -422,30 +442,6 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                 />
                 <Tooltip content={<CustomTooltip isCurrency />} />
                 <Bar dataKey="value" fill="#ef4444" radius={[0, 4, 4, 0]} name="Custo" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Por Regional */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Eventos por Regional (Top 10)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.regionalData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis 
-                  type="category" 
-                  dataKey="name" 
-                  tick={{ fontSize: 10 }} 
-                  width={100}
-                  tickFormatter={(v) => truncateText(v, 18)}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} name="Eventos" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
