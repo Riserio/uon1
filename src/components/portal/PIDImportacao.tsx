@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,6 +20,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  History,
+  Trash2,
+  Calendar,
 } from "lucide-react";
 
 interface PIDImportacaoProps {
@@ -36,6 +41,18 @@ interface FileStatus {
   file: File | null;
   status: "idle" | "processing" | "success" | "error";
   result: string | null;
+}
+
+interface ImportHistory {
+  id: string;
+  ano: number;
+  mes: number;
+  placas_ativas: number | null;
+  total_cotas: number | null;
+  total_associados: number | null;
+  cadastros_realizados: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 const meses = [
@@ -58,6 +75,9 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
   const [ano, setAno] = useState(new Date().getFullYear().toString());
   const [mes, setMes] = useState((new Date().getMonth() + 1).toString().padStart(2, "0"));
   const [importing, setImporting] = useState(false);
+  const [history, setHistory] = useState<ImportHistory[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [placasFile, setPlacasFile] = useState<FileStatus>({
     file: null,
@@ -83,6 +103,56 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
   });
 
   const anos = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
+
+  const fetchHistory = useCallback(async () => {
+    if (!corretoraId) return;
+    
+    setLoadingHistory(true);
+    try {
+      const { data, error } = await supabase
+        .from("pid_operacional")
+        .select("id, ano, mes, placas_ativas, total_cotas, total_associados, cadastros_realizados, created_at, updated_at")
+        .eq("corretora_id", corretoraId)
+        .order("ano", { ascending: false })
+        .order("mes", { ascending: false });
+
+      if (error) throw error;
+      setHistory(data || []);
+    } catch (error) {
+      console.error("Erro ao buscar histórico:", error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [corretoraId]);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  const handleDeleteImport = async (id: string) => {
+    setDeletingId(id);
+    try {
+      const { error } = await supabase
+        .from("pid_operacional")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+      
+      toast.success("Registro excluído com sucesso");
+      fetchHistory();
+      onImportSuccess?.();
+    } catch (error: any) {
+      console.error("Erro ao excluir registro:", error);
+      toast.error("Erro ao excluir: " + error.message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const getMesLabel = (mesNum: number) => {
+    return meses.find(m => parseInt(m.value) === mesNum)?.label || mesNum.toString();
+  };
 
   const parseNumber = (text: string): number => {
     if (!text) return 0;
@@ -424,6 +494,7 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
         cadastros_realizados: null,
       });
 
+      fetchHistory();
       onImportSuccess?.();
     } catch (error: any) {
       console.error("Erro ao importar dados:", error);
@@ -706,6 +777,119 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
           </CardContent>
         </Card>
       )}
+
+      {/* Histórico de Importações */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Histórico de Importações
+          </CardTitle>
+          <CardDescription>
+            Visualize e gerencie os dados importados por período
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingHistory ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : history.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhuma importação realizada ainda.
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-32">Período</TableHead>
+                    <TableHead className="text-right">Placas Ativas</TableHead>
+                    <TableHead className="text-right">Total Cotas</TableHead>
+                    <TableHead className="text-right">Associados</TableHead>
+                    <TableHead className="text-right">Cadastros</TableHead>
+                    <TableHead className="text-right">Atualizado em</TableHead>
+                    <TableHead className="w-20 text-center">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {history.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">
+                            {getMesLabel(item.mes)}/{item.ano}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {item.placas_ativas?.toLocaleString("pt-BR") || "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {item.total_cotas?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) || "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {item.total_associados?.toLocaleString("pt-BR") || "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {item.cadastros_realizados?.toLocaleString("pt-BR") || "-"}
+                      </TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">
+                        {new Date(item.updated_at).toLocaleDateString("pt-BR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              disabled={deletingId === item.id}
+                            >
+                              {deletingId === item.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Excluir importação</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja excluir os dados importados de{" "}
+                                <strong>{getMesLabel(item.mes)}/{item.ano}</strong>?
+                                <br />
+                                Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteImport(item.id)}
+                                className="bg-destructive hover:bg-destructive/90"
+                              >
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
