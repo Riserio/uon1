@@ -135,7 +135,7 @@ export default function Portal() {
             <div className="flex items-center gap-2 sm:gap-3 justify-end">
               <Button 
                 variant="outline" 
-                onClick={() => navigate(`/sga-insights?associacao=${corretora.id}`)}
+                onClick={() => navigate(`/portal/sga-insights?associacao=${corretora.id}`)}
                 className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
               >
                 <TrendingUp className="h-4 w-4" />
