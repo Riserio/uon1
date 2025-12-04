@@ -11,7 +11,7 @@ import PortalSinistros from "@/components/portal/PortalSinistros";
 import PortalComite from "@/components/portal/PortalComite";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare } from "lucide-react";
+import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 
 /**
@@ -129,10 +129,18 @@ export default function Portal() {
               </div>
               <div className="min-w-0">
                 <h1 className="text-lg sm:text-xl md:text-2xl font-bold leading-tight truncate">{corretora.nome}</h1>
-                <p className="text-xs sm:text-sm text-muted-foreground">Portal de Gestão · PID</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Portal de Gestão · BI</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 sm:gap-4 justify-end">
+            <div className="flex items-center gap-2 sm:gap-3 justify-end">
+              <Button 
+                variant="outline" 
+                onClick={() => navigate(`/sga-insights?associacao=${corretora.id}`)}
+                className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
+              >
+                <TrendingUp className="h-4 w-4" />
+                <span className="hidden sm:inline">SGA Insights</span>
+              </Button>
               <Button variant="outline" onClick={handleLogout} className="gap-2 px-3 sm:px-4 text-xs sm:text-sm">
                 <LogOut className="h-4 w-4" />
                 Sair
