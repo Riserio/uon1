@@ -191,7 +191,9 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
   const [ano, setAno] = useState(new Date().getFullYear().toString());
   const [mes, setMes] = useState((new Date().getMonth() + 1).toString().padStart(2, "0"));
 
-  const anos = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
+  // Anos: próximo ano + atuais (inclui 2026)
+  const currentYear = new Date().getFullYear();
+  const anos = Array.from({ length: 6 }, (_, i) => (currentYear + 1 - i).toString());
   const meses = [
     { value: "01", label: "Janeiro" },
     { value: "02", label: "Fevereiro" },
