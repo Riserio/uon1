@@ -175,6 +175,7 @@ const App = () => (
               <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
               <Route path="/pid" element={<ProtectedRoute><PID /></ProtectedRoute>} />
               <Route path="/sga-insights" element={<ProtectedRoute><SGAInsights /></ProtectedRoute>} />
+              <Route path="/portal/sga-insights" element={<PortalRoute><SGAInsights /></PortalRoute>} />
               <Route path="/portal" element={<PortalRoute><Portal /></PortalRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
