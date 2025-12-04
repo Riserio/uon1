@@ -17,6 +17,7 @@ interface HistoricoData {
   ano: number;
   mes: number;
   placas_ativas: number;
+  total_cotas: number;
   total_associados: number;
   faturamento_operacional: number;
   total_recebido: number;
@@ -208,6 +209,7 @@ export default function PIDHistorico({ corretoraId }: PIDHistoricoProps) {
                   <TableRow className="bg-muted/30">
                     <TableHead className="font-semibold">Período</TableHead>
                     <TableHead className="text-right font-semibold">Placas</TableHead>
+                    <TableHead className="text-right font-semibold">Cotas</TableHead>
                     <TableHead className="text-right font-semibold">Faturamento</TableHead>
                     <TableHead className="text-right font-semibold">Recebido</TableHead>
                     <TableHead className="text-right font-semibold">Sinistralidade</TableHead>
@@ -233,6 +235,12 @@ export default function PIDHistorico({ corretoraId }: PIDHistoricoProps) {
                           <div className="flex items-center justify-end gap-1">
                             {item.placas_ativas?.toLocaleString("pt-BR") || 0}
                             {getTrendIcon(item.placas_ativas, anterior?.placas_ativas)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {item.total_cotas?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) || "0,00"}
+                            {getTrendIcon(item.total_cotas, anterior?.total_cotas)}
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-medium">
