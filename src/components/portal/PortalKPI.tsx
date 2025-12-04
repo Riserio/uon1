@@ -78,7 +78,9 @@ export default function PortalKPI({ corretoraId }: { corretoraId?: string }) {
     }
   }, [ano, mes, corretoraId]);
 
-  const anos = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
+  // Anos: próximo ano + atuais (inclui 2026)
+  const currentYear = new Date().getFullYear();
+  const anos = Array.from({ length: 6 }, (_, i) => (currentYear + 1 - i).toString());
 
   const meses = [
     { value: "01", label: "Janeiro" },

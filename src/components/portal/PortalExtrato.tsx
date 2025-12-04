@@ -60,7 +60,9 @@ export default function PortalExtrato({ corretoraId }: { corretoraId?: string })
     }
   }, [filters.ano, filters.mes, filters.produto, filters.seguradora, filters.status, corretoraId]);
 
-  const anos = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
+  // Anos: próximo ano + atuais (inclui 2026)
+  const currentYear = new Date().getFullYear();
+  const anos = Array.from({ length: 6 }, (_, i) => (currentYear + 1 - i).toString());
   const meses = [
     { value: '01', label: 'Janeiro' },
     { value: '02', label: 'Fevereiro' },

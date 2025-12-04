@@ -40,7 +40,9 @@ export default function PIDHistorico({ corretoraId }: PIDHistoricoProps) {
   const [anoInicio, setAnoInicio] = useState((new Date().getFullYear() - 1).toString());
   const [anoFim, setAnoFim] = useState(new Date().getFullYear().toString());
 
-  const anos = Array.from({ length: 6 }, (_, i) => (new Date().getFullYear() - i).toString());
+  // Anos: próximo ano + atuais (inclui 2026)
+  const currentYear = new Date().getFullYear();
+  const anos = Array.from({ length: 7 }, (_, i) => (currentYear + 1 - i).toString());
 
   const fetchHistorico = async () => {
     if (!corretoraId) return;

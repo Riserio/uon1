@@ -102,7 +102,9 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
     cadastros_realizados: null,
   });
 
-  const anos = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
+  // Anos: próximo ano + atuais (inclui 2026)
+  const currentYear = new Date().getFullYear();
+  const anos = Array.from({ length: 6 }, (_, i) => (currentYear + 1 - i).toString());
 
   const fetchHistory = useCallback(async () => {
     if (!corretoraId) return;
