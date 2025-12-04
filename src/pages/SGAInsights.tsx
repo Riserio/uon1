@@ -186,35 +186,51 @@ export default function SGAInsights() {
             )}
           </div>
 
-          {/* Seletor de Associação */}
-          <Card className="border-primary/20 bg-card/50 backdrop-blur mb-4">
-            <CardContent className="p-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-                <Label htmlFor="associacao-select-sga" className="text-base font-semibold whitespace-nowrap">
-                  Associação:
-                </Label>
-                <Select 
-                  value={selectedAssociacao} 
-                  onValueChange={setSelectedAssociacao} 
-                  disabled={loadingAssociacoes}
-                >
-                  <SelectTrigger
-                    id="associacao-select-sga"
-                    className="w-full sm:max-w-md h-10 border-2"
+          {/* Seletor de Associação - apenas para acesso interno */}
+          {!isPortalAccess && (
+            <Card className="border-primary/20 bg-card/50 backdrop-blur mb-4">
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
+                  <Label htmlFor="associacao-select-sga" className="text-base font-semibold whitespace-nowrap">
+                    Associação:
+                  </Label>
+                  <Select 
+                    value={selectedAssociacao} 
+                    onValueChange={setSelectedAssociacao} 
+                    disabled={loadingAssociacoes}
                   >
-                    <SelectValue placeholder="Selecione uma associação..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {associacoes.map((associacao) => (
-                      <SelectItem key={associacao.id} value={associacao.id}>
-                        {associacao.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
+                    <SelectTrigger
+                      id="associacao-select-sga"
+                      className="w-full sm:max-w-md h-10 border-2"
+                    >
+                      <SelectValue placeholder="Selecione uma associação..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {associacoes.map((associacao) => (
+                        <SelectItem key={associacao.id} value={associacao.id}>
+                          {associacao.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Nome da Associação para parceiros */}
+          {isPortalAccess && selectedAssociacaoNome && (
+            <Card className="border-primary/20 bg-card/50 backdrop-blur mb-4">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <Label className="text-base font-semibold whitespace-nowrap">
+                    Associação:
+                  </Label>
+                  <span className="text-lg font-medium">{selectedAssociacaoNome}</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Quick Stats */}
           {eventos.length > 0 && (
