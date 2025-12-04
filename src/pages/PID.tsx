@@ -7,6 +7,7 @@ import PIDDashboard from "@/components/portal/PIDDashboard";
 import PIDOperacional from "@/components/portal/PIDOperacional";
 import PIDEstudoBase from "@/components/portal/PIDEstudoBase";
 import PIDHistorico from "@/components/portal/PIDHistorico";
+import PIDImportacao from "@/components/portal/PIDImportacao";
 import PortalSinistros from "@/components/portal/PortalSinistros";
 import PortalComite from "@/components/portal/PortalComite";
 import { GerenciarUsuariosCorretoraDialog } from "@/components/GerenciarUsuariosCorretoraDialog";
@@ -15,7 +16,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
-  Users, BarChart3, Car, ShieldCheck, MessageSquare, Calendar, Activity, Database
+  Users, BarChart3, Car, ShieldCheck, MessageSquare, Calendar, Activity, Database, Upload
 } from "lucide-react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 
@@ -62,6 +63,7 @@ export default function PID() {
     { id: "operacional", label: "Operacional", icon: Activity },
     { id: "estudo-base", label: "Estudo de Base", icon: Car },
     { id: "historico", label: "Histórico", icon: Calendar },
+    { id: "importacao", label: "Importação", icon: Upload },
     { id: "sinistros", label: "Sinistros", icon: ShieldCheck },
     { id: "comite", label: "Comitê", icon: MessageSquare },
   ];
@@ -183,6 +185,13 @@ export default function PID() {
 
           <TabsContent value="historico" className="space-y-4 mt-0">
             <PIDHistorico corretoraId={selectedAssociacao} />
+          </TabsContent>
+
+          <TabsContent value="importacao" className="space-y-4 mt-0">
+            <PIDImportacao 
+              corretoraId={selectedAssociacao} 
+              onImportSuccess={() => setActiveTab("operacional")} 
+            />
           </TabsContent>
 
           <TabsContent value="sinistros" className="space-y-4 mt-0">
