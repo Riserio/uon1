@@ -17,6 +17,9 @@ import {
   PieChart as PieIcon,
   Truck,
   MapPin,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -184,11 +187,61 @@ const PermanenciaTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+// Componente de variação responsivo
+interface VariationIndicatorProps {
+  current: number;
+  previous: number | null;
+  format?: "number" | "currency" | "percent";
+}
+
+const VariationIndicator = ({ current, previous, format = "number" }: VariationIndicatorProps) => {
+  if (previous === null || previous === undefined) return null;
+  
+  const diff = current - previous;
+  const percentChange = previous !== 0 ? ((current - previous) / Math.abs(previous)) * 100 : 0;
+  const isPositive = diff > 0;
+  const isNeutral = diff === 0;
+
+  const formatDiff = () => {
+    switch (format) {
+      case "currency":
+        return formatCurrency(Math.abs(diff));
+      case "percent":
+        return formatPercent(Math.abs(diff));
+      default:
+        return Math.abs(diff).toLocaleString("pt-BR");
+    }
+  };
+
+  const colorClass = isNeutral 
+    ? "text-muted-foreground" 
+    : isPositive 
+      ? "text-green-600" 
+      : "text-red-600";
+
+  const Icon = isNeutral ? Minus : isPositive ? TrendingUp : TrendingDown;
+
+  return (
+    <div className={`flex items-center gap-1 text-xs ${colorClass}`}>
+      <Icon className="h-3 w-3" />
+      {/* Apenas percentual em telas pequenas */}
+      <span className="sm:hidden">
+        {isPositive ? "+" : isNeutral ? "" : "-"}{Math.abs(percentChange).toFixed(1)}%
+      </span>
+      {/* Valor absoluto + percentual em telas maiores */}
+      <span className="hidden sm:inline">
+        {isPositive ? "+" : isNeutral ? "" : "-"}{formatDiff()} ({isPositive ? "+" : ""}{percentChange.toFixed(1)}%)
+      </span>
+    </div>
+  );
+};
+
 export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [ano, setAno] = useState(new Date().getFullYear().toString());
   const [dadosAno, setDadosAno] = useState<any[]>([]);
   const [dadosAtual, setDadosAtual] = useState<any>(null);
+  const [dadosAnterior, setDadosAnterior] = useState<any>(null);
 
   const anos = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
 
@@ -207,9 +260,17 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       setDadosAno(anoData || []);
 
       if (anoData && anoData.length > 0) {
+        // Dados do mês mais recente
         setDadosAtual(anoData[anoData.length - 1]);
+        // Dados do mês anterior (se existir)
+        if (anoData.length > 1) {
+          setDadosAnterior(anoData[anoData.length - 2]);
+        } else {
+          setDadosAnterior(null);
+        }
       } else {
         setDadosAtual(null);
+        setDadosAnterior(null);
       }
     } catch (error: any) {
       console.error("Error fetching dashboard data:", error);
@@ -435,6 +496,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <div className="mt-2">
                   <div className="text-2xl font-bold">{dadosAtual.placas_ativas?.toLocaleString("pt-BR")}</div>
                   <div className="text-xs text-muted-foreground">Placas Ativas</div>
+                  <VariationIndicator
+                    current={dadosAtual.placas_ativas || 0}
+                    previous={dadosAnterior?.placas_ativas}
+                    format="number"
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -447,6 +513,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <div className="mt-2">
                   <div className="text-2xl font-bold">{formatCurrency(dadosAtual.faturamento_operacional)}</div>
                   <div className="text-xs text-muted-foreground">Faturamento</div>
+                  <VariationIndicator
+                    current={dadosAtual.faturamento_operacional || 0}
+                    previous={dadosAnterior?.faturamento_operacional}
+                    format="currency"
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -459,6 +530,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <div className="mt-2">
                   <div className="text-2xl font-bold">{formatCurrency(dadosAtual.total_recebido)}</div>
                   <div className="text-xs text-muted-foreground">Total Recebido</div>
+                  <VariationIndicator
+                    current={dadosAtual.total_recebido || 0}
+                    previous={dadosAnterior?.total_recebido}
+                    format="currency"
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -471,6 +547,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <div className="mt-2">
                   <div className="text-2xl font-bold">{formatPercent(dadosAtual.sinistralidade_financeira || 0)}</div>
                   <div className="text-xs text-muted-foreground">Sinistralidade</div>
+                  <VariationIndicator
+                    current={(dadosAtual.sinistralidade_financeira || 0) * 100}
+                    previous={dadosAnterior ? (dadosAnterior.sinistralidade_financeira || 0) * 100 : null}
+                    format="percent"
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -483,6 +564,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <div className="mt-2">
                   <div className="text-2xl font-bold">{formatPercent(dadosAtual.percentual_inadimplencia || 0)}</div>
                   <div className="text-xs text-muted-foreground">Inadimplência</div>
+                  <VariationIndicator
+                    current={(dadosAtual.percentual_inadimplencia || 0) * 100}
+                    previous={dadosAnterior ? (dadosAnterior.percentual_inadimplencia || 0) * 100 : null}
+                    format="percent"
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -501,6 +587,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     {dadosAtual.crescimento_liquido?.toLocaleString("pt-BR")}
                   </div>
                   <div className="text-xs text-muted-foreground">Crescimento Líquido</div>
+                  <VariationIndicator
+                    current={dadosAtual.crescimento_liquido || 0}
+                    previous={dadosAnterior?.crescimento_liquido}
+                    format="number"
+                  />
                 </div>
               </CardContent>
             </Card>
