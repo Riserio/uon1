@@ -156,13 +156,43 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
     return meses.find(m => parseInt(m.value) === mesNum)?.label || mesNum.toString();
   };
 
-  const parseNumber = (text: string): number => {
-    if (!text) return 0;
+  const parseNumber = (text: string | number): number => {
+    if (text === null || text === undefined || text === "") return 0;
+    
+    // Se já é um número, retorna diretamente
+    if (typeof text === "number") {
+      return text;
+    }
+    
+    const str = text.toString().trim();
+    
     // Remove espaços e textos, extrai apenas números
-    const match = text.match(/[\d.,]+/);
+    const match = str.match(/[\d.,]+/);
     if (!match) return 0;
-    // Converte formato brasileiro para número
-    return parseFloat(match[0].replace(/\./g, "").replace(",", ".")) || 0;
+    
+    const numStr = match[0];
+    
+    // Detectar formato: brasileiro (30.212,07) vs americano (30,212.07 ou 30212.07)
+    const lastDot = numStr.lastIndexOf(".");
+    const lastComma = numStr.lastIndexOf(",");
+    
+    if (lastComma > lastDot) {
+      // Formato brasileiro: 30.212,07 -> ponto é milhar, vírgula é decimal
+      return parseFloat(numStr.replace(/\./g, "").replace(",", ".")) || 0;
+    } else if (lastDot > lastComma) {
+      // Formato americano/internacional: 30,212.07 ou 30212.07 -> vírgula é milhar, ponto é decimal
+      return parseFloat(numStr.replace(/,/g, "")) || 0;
+    } else {
+      // Apenas números sem separadores ou apenas ponto/vírgula
+      // Se tem ponto e mais de 2 dígitos depois, pode ser milhar brasileiro
+      const afterDot = numStr.split(".")[1];
+      if (afterDot && afterDot.length > 2) {
+        // Provavelmente milhar brasileiro: 30.212 -> 30212
+        return parseFloat(numStr.replace(/\./g, "")) || 0;
+      }
+      // Assume formato decimal padrão
+      return parseFloat(numStr.replace(/,/g, ".")) || 0;
+    }
   };
 
   const processPlacasFile = async (file: File): Promise<{ placas: number; cotas: number }> => {
