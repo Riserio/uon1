@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import SGAHistoricoImportacoes from "./SGAHistoricoImportacoes";
 
 interface SGAImportacaoProps {
   onImportSuccess: () => void;
@@ -393,6 +394,12 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
           </div>
         </CardContent>
       </Card>
+
+      {/* Histórico de Importações */}
+      <SGAHistoricoImportacoes 
+        onActivate={onImportSuccess} 
+        corretoraId={corretoraId}
+      />
     </div>
   );
 }

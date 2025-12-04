@@ -1,26 +1,29 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Upload, Database, Map, BarChart3, History, TrendingUp, AlertTriangle, Car } from "lucide-react";
+import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car } from "lucide-react";
 import { toast } from "sonner";
 import SGADashboard from "@/components/sga/SGADashboard";
 import SGAImportacao from "@/components/sga/SGAImportacao";
-import SGAHistoricoImportacoes from "@/components/sga/SGAHistoricoImportacoes";
 import SGAMapa from "@/components/sga/SGAMapa";
 import SGATabela from "@/components/sga/SGATabela";
 
 export default function SGAInsights() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [eventos, setEventos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
+  
+  // Detectar se é acesso via portal (parceiro)
+  const isPortalAccess = location.pathname.startsWith('/portal');
   
   // Associações
   const [associacoes, setAssociacoes] = useState<any[]>([]);
@@ -137,13 +140,19 @@ export default function SGAInsights() {
 
   const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome || "";
 
-  const tabs = [
-    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-    { id: "mapa", label: "Mapa Geográfico", icon: Map },
-    { id: "tabela", label: "Dados Completos", icon: Database },
-    { id: "importar", label: "Importar Dados", icon: Upload },
-    { id: "historico", label: "Histórico", icon: History },
-  ];
+  // Tabs - esconder importação para parceiros
+  const tabs = isPortalAccess 
+    ? [
+        { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+        { id: "mapa", label: "Mapa Geográfico", icon: Map },
+        { id: "tabela", label: "Dados Completos", icon: Database },
+      ]
+    : [
+        { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+        { id: "mapa", label: "Mapa Geográfico", icon: Map },
+        { id: "tabela", label: "Dados Completos", icon: Database },
+        { id: "importar", label: "Importar Dados", icon: Upload },
+      ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -277,7 +286,7 @@ export default function SGAInsights() {
       {/* Content */}
       <div className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-5 w-full max-w-3xl mx-auto bg-muted/50">
+          <TabsList className={`grid w-full max-w-3xl mx-auto bg-muted/50 ${isPortalAccess ? 'grid-cols-3' : 'grid-cols-4'}`}>
             {tabs.map((tab) => (
               <TabsTrigger
                 key={tab.id}
@@ -302,20 +311,15 @@ export default function SGAInsights() {
             <SGATabela eventos={eventos} loading={loading} />
           </TabsContent>
 
-          <TabsContent value="importar">
-            <SGAImportacao 
-              onImportSuccess={fetchEventos} 
-              corretoraId={selectedAssociacao}
-              corretoraNome={selectedAssociacaoNome}
-            />
-          </TabsContent>
-
-          <TabsContent value="historico">
-            <SGAHistoricoImportacoes 
-              onActivate={fetchEventos} 
-              corretoraId={selectedAssociacao}
-            />
-          </TabsContent>
+          {!isPortalAccess && (
+            <TabsContent value="importar">
+              <SGAImportacao 
+                onImportSuccess={fetchEventos} 
+                corretoraId={selectedAssociacao}
+                corretoraNome={selectedAssociacaoNome}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>
