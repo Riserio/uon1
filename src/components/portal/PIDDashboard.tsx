@@ -190,15 +190,23 @@ const PermanenciaTooltip = ({ active, payload, label }: any) => {
 // Componente de variação responsivo
 interface VariationIndicatorProps {
   current: number;
-  previous: number | null;
+  previous: number | null | undefined;
   format?: "number" | "currency" | "percent";
 }
 
 const VariationIndicator = ({ current, previous, format = "number" }: VariationIndicatorProps) => {
-  if (previous === null || previous === undefined) return null;
+  // Quando não há dados anteriores, mostra indicador neutro
+  if (previous === null || previous === undefined) {
+    return (
+      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+        <Minus className="h-3 w-3" />
+        <span>—</span>
+      </div>
+    );
+  }
   
   const diff = current - previous;
-  const percentChange = previous !== 0 ? ((current - previous) / Math.abs(previous)) * 100 : 0;
+  const percentChange = previous !== 0 ? ((current - previous) / Math.abs(previous)) * 100 : (current > 0 ? 100 : 0);
   const isPositive = diff > 0;
   const isNeutral = diff === 0;
 
@@ -207,7 +215,8 @@ const VariationIndicator = ({ current, previous, format = "number" }: VariationI
       case "currency":
         return formatCurrency(Math.abs(diff));
       case "percent":
-        return formatPercent(Math.abs(diff));
+        // Para porcentagem, o diff já está em pontos percentuais
+        return Math.abs(diff).toFixed(2).replace('.', ',') + ' p.p.';
       default:
         return Math.abs(diff).toLocaleString("pt-BR");
     }
@@ -222,7 +231,7 @@ const VariationIndicator = ({ current, previous, format = "number" }: VariationI
   const Icon = isNeutral ? Minus : isPositive ? TrendingUp : TrendingDown;
 
   return (
-    <div className={`flex items-center gap-1 text-xs ${colorClass}`}>
+    <div className={`flex items-center gap-1 text-xs mt-1 ${colorClass}`}>
       <Icon className="h-3 w-3" />
       {/* Apenas percentual em telas pequenas */}
       <span className="sm:hidden">
