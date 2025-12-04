@@ -248,31 +248,77 @@ const VariationIndicator = ({ current, previous, format = "number" }: VariationI
 export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [ano, setAno] = useState(new Date().getFullYear().toString());
+  const [mes, setMes] = useState<string>("all"); // "all" ou "1"-"12"
   const [dadosAno, setDadosAno] = useState<any[]>([]);
   const [dadosAtual, setDadosAtual] = useState<any>(null);
   const [dadosAnterior, setDadosAnterior] = useState<any>(null);
 
   const anos = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
+  const meses = [
+    { value: "all", label: "Todos os meses" },
+    { value: "1", label: "Janeiro" },
+    { value: "2", label: "Fevereiro" },
+    { value: "3", label: "Março" },
+    { value: "4", label: "Abril" },
+    { value: "5", label: "Maio" },
+    { value: "6", label: "Junho" },
+    { value: "7", label: "Julho" },
+    { value: "8", label: "Agosto" },
+    { value: "9", label: "Setembro" },
+    { value: "10", label: "Outubro" },
+    { value: "11", label: "Novembro" },
+    { value: "12", label: "Dezembro" },
+  ];
 
   const fetchDados = async () => {
     if (!corretoraId) return;
     setLoading(true);
     try {
-      const { data: anoData, error } = await supabase
+      let query = supabase
         .from("pid_operacional")
         .select("*")
         .eq("corretora_id", corretoraId)
-        .eq("ano", parseInt(ano))
-        .order("mes", { ascending: true });
+        .eq("ano", parseInt(ano));
+      
+      // Se um mês específico foi selecionado
+      if (mes !== "all") {
+        query = query.eq("mes", parseInt(mes));
+      }
+      
+      const { data: anoData, error } = await query.order("mes", { ascending: true });
 
       if (error) throw error;
       setDadosAno(anoData || []);
 
       if (anoData && anoData.length > 0) {
-        // Dados do mês mais recente
+        // Dados do mês mais recente (ou único se filtrado)
         setDadosAtual(anoData[anoData.length - 1]);
-        // Dados do mês anterior (se existir)
-        if (anoData.length > 1) {
+        
+        // Para dados anteriores, buscar o mês anterior
+        if (mes !== "all") {
+          // Buscar mês anterior ao selecionado
+          const mesAnterior = parseInt(mes) - 1;
+          if (mesAnterior >= 1) {
+            const { data: prevData } = await supabase
+              .from("pid_operacional")
+              .select("*")
+              .eq("corretora_id", corretoraId)
+              .eq("ano", parseInt(ano))
+              .eq("mes", mesAnterior)
+              .single();
+            setDadosAnterior(prevData || null);
+          } else {
+            // Janeiro - buscar dezembro do ano anterior
+            const { data: prevData } = await supabase
+              .from("pid_operacional")
+              .select("*")
+              .eq("corretora_id", corretoraId)
+              .eq("ano", parseInt(ano) - 1)
+              .eq("mes", 12)
+              .single();
+            setDadosAnterior(prevData || null);
+          }
+        } else if (anoData.length > 1) {
           setDadosAnterior(anoData[anoData.length - 2]);
         } else {
           setDadosAnterior(null);
@@ -294,7 +340,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       fetchDados();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [corretoraId, ano]);
+  }, [corretoraId, ano, mes]);
 
   // Dados calculados automaticamente
   const chartData = useMemo(() => {
@@ -470,24 +516,39 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
           </p>
         </div>
 
-        <Select value={ano} onValueChange={setAno}>
-          <SelectTrigger className="w-28">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {anos.map((a) => (
-              <SelectItem key={a} value={a}>
-                {a}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={mes} onValueChange={setMes}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {meses.map((m) => (
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          <Select value={ano} onValueChange={setAno}>
+            <SelectTrigger className="w-24">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {anos.map((a) => (
+                <SelectItem key={a} value={a}>
+                  {a}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {!dadosAtual ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            Nenhum dado encontrado para {ano}. Cadastre informações na aba Operacional.
+            Nenhum dado encontrado para {mes !== "all" ? `${meses.find(m => m.value === mes)?.label} de ` : ""}{ano}. Cadastre informações na aba Operacional.
           </CardContent>
         </Card>
       ) : (
