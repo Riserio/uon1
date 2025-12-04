@@ -248,14 +248,16 @@ const VariationIndicator = ({ current, previous, format = "number" }: VariationI
 export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [ano, setAno] = useState(new Date().getFullYear().toString());
-  const [mes, setMes] = useState<string>("all"); // "all" ou "1"-"12"
+  const [mes, setMes] = useState<string>((new Date().getMonth() + 1).toString()); // Mês atual (1-12)
   const [dadosAno, setDadosAno] = useState<any[]>([]);
   const [dadosAtual, setDadosAtual] = useState<any>(null);
   const [dadosAnterior, setDadosAnterior] = useState<any>(null);
 
-  const anos = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
-  const meses = [
-    { value: "all", label: "Todos os meses" },
+  // Anos: atual + 4 anteriores + próximo ano (2026)
+  const currentYear = new Date().getFullYear();
+  const anos = Array.from({ length: 6 }, (_, i) => (currentYear + 1 - i).toString());
+  
+  const mesesOptions = [
     { value: "1", label: "Janeiro" },
     { value: "2", label: "Fevereiro" },
     { value: "3", label: "Março" },
@@ -274,54 +276,42 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     if (!corretoraId) return;
     setLoading(true);
     try {
-      let query = supabase
+      // Sempre busca mês específico
+      const { data: anoData, error } = await supabase
         .from("pid_operacional")
         .select("*")
         .eq("corretora_id", corretoraId)
-        .eq("ano", parseInt(ano));
-      
-      // Se um mês específico foi selecionado
-      if (mes !== "all") {
-        query = query.eq("mes", parseInt(mes));
-      }
-      
-      const { data: anoData, error } = await query.order("mes", { ascending: true });
+        .eq("ano", parseInt(ano))
+        .eq("mes", parseInt(mes))
+        .order("mes", { ascending: true });
 
       if (error) throw error;
       setDadosAno(anoData || []);
 
       if (anoData && anoData.length > 0) {
-        // Dados do mês mais recente (ou único se filtrado)
-        setDadosAtual(anoData[anoData.length - 1]);
+        setDadosAtual(anoData[0]);
         
-        // Para dados anteriores, buscar o mês anterior
-        if (mes !== "all") {
-          // Buscar mês anterior ao selecionado
-          const mesAnterior = parseInt(mes) - 1;
-          if (mesAnterior >= 1) {
-            const { data: prevData } = await supabase
-              .from("pid_operacional")
-              .select("*")
-              .eq("corretora_id", corretoraId)
-              .eq("ano", parseInt(ano))
-              .eq("mes", mesAnterior)
-              .single();
-            setDadosAnterior(prevData || null);
-          } else {
-            // Janeiro - buscar dezembro do ano anterior
-            const { data: prevData } = await supabase
-              .from("pid_operacional")
-              .select("*")
-              .eq("corretora_id", corretoraId)
-              .eq("ano", parseInt(ano) - 1)
-              .eq("mes", 12)
-              .single();
-            setDadosAnterior(prevData || null);
-          }
-        } else if (anoData.length > 1) {
-          setDadosAnterior(anoData[anoData.length - 2]);
+        // Buscar mês anterior para comparação
+        const mesAnterior = parseInt(mes) - 1;
+        if (mesAnterior >= 1) {
+          const { data: prevData } = await supabase
+            .from("pid_operacional")
+            .select("*")
+            .eq("corretora_id", corretoraId)
+            .eq("ano", parseInt(ano))
+            .eq("mes", mesAnterior)
+            .single();
+          setDadosAnterior(prevData || null);
         } else {
-          setDadosAnterior(null);
+          // Janeiro - buscar dezembro do ano anterior
+          const { data: prevData } = await supabase
+            .from("pid_operacional")
+            .select("*")
+            .eq("corretora_id", corretoraId)
+            .eq("ano", parseInt(ano) - 1)
+            .eq("mes", 12)
+            .single();
+          setDadosAnterior(prevData || null);
         }
       } else {
         setDadosAtual(null);
@@ -522,7 +512,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {meses.map((m) => (
+              {mesesOptions.map((m) => (
                 <SelectItem key={m.value} value={m.value}>
                   {m.label}
                 </SelectItem>
@@ -548,7 +538,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       {!dadosAtual ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            Nenhum dado encontrado para {mes !== "all" ? `${meses.find(m => m.value === mes)?.label} de ` : ""}{ano}. Cadastre informações na aba Operacional.
+            Nenhum dado encontrado para {mesesOptions.find(m => m.value === mes)?.label} de {ano}. Cadastre informações na aba Operacional.
           </CardContent>
         </Card>
       ) : (
