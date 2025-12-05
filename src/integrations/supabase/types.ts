@@ -389,6 +389,53 @@ export type Database = {
           },
         ]
       }
+      bi_audit_logs: {
+        Row: {
+          acao: string
+          corretora_id: string | null
+          created_at: string | null
+          dados_anteriores: Json | null
+          dados_novos: Json | null
+          descricao: string
+          id: string
+          modulo: string
+          user_id: string
+          user_nome: string
+        }
+        Insert: {
+          acao: string
+          corretora_id?: string | null
+          created_at?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          descricao: string
+          id?: string
+          modulo: string
+          user_id: string
+          user_nome: string
+        }
+        Update: {
+          acao?: string
+          corretora_id?: string | null
+          created_at?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          descricao?: string
+          id?: string
+          modulo?: string
+          user_id?: string
+          user_nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bi_audit_logs_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comunicados: {
         Row: {
           ativo: boolean

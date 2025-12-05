@@ -6,24 +6,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car } from "lucide-react";
+import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History } from "lucide-react";
 import { toast } from "sonner";
 import SGADashboard from "@/components/sga/SGADashboard";
 import SGAImportacao from "@/components/sga/SGAImportacao";
 import SGAMapa from "@/components/sga/SGAMapa";
 import SGATabela from "@/components/sga/SGATabela";
+import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function SGAInsights() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const { userRole } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [eventos, setEventos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
+  const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   
   // Detectar se é acesso via portal (parceiro)
   const isPortalAccess = location.pathname.startsWith('/portal');
+  
+  // Verifica se pode ver histórico (superintendente ou admin)
+  const canViewHistorico = userRole === "superintendente" || userRole === "admin";
   
   // Associações
   const [associacoes, setAssociacoes] = useState<any[]>([]);
@@ -176,6 +183,18 @@ export default function SGAInsights() {
                 Business Intelligence de Eventos do SGA
               </p>
             </div>
+            
+            {/* Botão Histórico - só para superintendente e admin */}
+            {canViewHistorico && (
+              <Button
+                variant="outline"
+                onClick={() => setHistoricoDialogOpen(true)}
+                className="gap-2"
+              >
+                <History className="h-4 w-4" />
+                <span className="hidden sm:inline">Histórico</span>
+              </Button>
+            )}
             {importacaoAtiva && (
               <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
                 <Database className="h-4 w-4" />
@@ -338,6 +357,14 @@ export default function SGAInsights() {
           )}
         </Tabs>
       </div>
+
+      {/* Modal Histórico de Alterações */}
+      <BIAuditLogDialog
+        open={historicoDialogOpen}
+        onOpenChange={setHistoricoDialogOpen}
+        modulo="sga_insights"
+        corretoraId={selectedAssociacao}
+      />
     </div>
   );
 }
