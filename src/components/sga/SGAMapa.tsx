@@ -196,8 +196,8 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
     
     eventos.forEach(e => {
       const estado = e.evento_estado?.toUpperCase() || "";
-      // Usa evento_cidade se disponível, senão usa cooperativa como fallback
-      const cidade = (e.evento_cidade?.toUpperCase() || e.cooperativa?.toUpperCase() || "").trim();
+      // Usa evento_cidade - campo direto da planilha
+      const cidade = (e.evento_cidade?.toUpperCase() || "").trim();
       const cooperativa = e.cooperativa || "";
       const regional = e.regional || "";
       const tipoEvento = e.tipo_evento || "Não informado";
