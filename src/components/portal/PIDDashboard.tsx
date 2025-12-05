@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency, formatPercent, calcPercent } from "@/lib/formatters";
@@ -249,6 +250,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [ano, setAno] = useState(new Date().getFullYear().toString());
   const [mes, setMes] = useState<string>((new Date().getMonth() + 1).toString()); // Mês atual (1-12)
+  const [todoPeriodo, setTodoPeriodo] = useState(false);
   const [dadosAno, setDadosAno] = useState<any[]>([]);
   const [dadosAtual, setDadosAtual] = useState<any>(null);
   const [dadosAnterior, setDadosAnterior] = useState<any>(null);
@@ -258,7 +260,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const anos = Array.from({ length: 6 }, (_, i) => (currentYear + 1 - i).toString());
   
   const mesesOptions = [
-    { value: "todos", label: "Todo Período" },
     { value: "1", label: "Janeiro" },
     { value: "2", label: "Fevereiro" },
     { value: "3", label: "Março" },
@@ -281,12 +282,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         .from("pid_operacional")
         .select("*")
         .eq("corretora_id", corretoraId)
-        .eq("ano", parseInt(ano))
+        .order("ano", { ascending: true })
         .order("mes", { ascending: true });
 
-      // Se não for "todos", filtra por mês específico
-      if (mes !== "todos") {
-        query = query.eq("mes", parseInt(mes));
+      // Se não for todo período, aplica filtros
+      if (!todoPeriodo) {
+        query = query.eq("ano", parseInt(ano)).eq("mes", parseInt(mes));
       }
 
       const { data: anoData, error } = await query;
@@ -295,19 +296,20 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       setDadosAno(anoData || []);
 
       if (anoData && anoData.length > 0) {
-        // Se for "todos", pega o último mês disponível como atual
-        const dadoAtual = mes === "todos" ? anoData[anoData.length - 1] : anoData[0];
+        // Pega o último registro como atual
+        const dadoAtual = anoData[anoData.length - 1];
         setDadosAtual(dadoAtual);
         
         // Buscar mês anterior para comparação
         const mesAtual = dadoAtual.mes;
+        const anoAtual = dadoAtual.ano;
         const mesAnterior = mesAtual - 1;
         if (mesAnterior >= 1) {
           const { data: prevData } = await supabase
             .from("pid_operacional")
             .select("*")
             .eq("corretora_id", corretoraId)
-            .eq("ano", parseInt(ano))
+            .eq("ano", anoAtual)
             .eq("mes", mesAnterior)
             .single();
           setDadosAnterior(prevData || null);
@@ -317,7 +319,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             .from("pid_operacional")
             .select("*")
             .eq("corretora_id", corretoraId)
-            .eq("ano", parseInt(ano) - 1)
+            .eq("ano", anoAtual - 1)
             .eq("mes", 12)
             .single();
           setDadosAnterior(prevData || null);
@@ -339,7 +341,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       fetchDados();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [corretoraId, ano, mes]);
+  }, [corretoraId, ano, mes, todoPeriodo]);
 
   // Dados calculados automaticamente
   const chartData = useMemo(() => {
@@ -360,8 +362,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       const arrecadacaoJuros = calcPercent(d.arrecadamento_juros, d.total_recebido);
       const descontadoBanco = calcPercent(d.descontado_banco, d.total_recebido);
 
+      // Label: se todo período, mostra Mês/Ano, senão só mês
+      const mesLabel = todoPeriodo 
+        ? `${mesesNome[d.mes - 1]}/${String(d.ano).slice(-2)}`
+        : mesesNome[d.mes - 1];
+
       return {
-        mes: mesesNome[d.mes - 1],
+        mes: mesLabel,
         // Movimentação de Base
         placas_ativas: d.placas_ativas || 0,
         total_cotas: d.total_cotas || 0,
@@ -458,7 +465,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         cme_explit: d.cme_explit || 0,
       };
     });
-  }, [dadosAno]);
+  }, [dadosAno, todoPeriodo]);
 
   // Série de Permanência mês a mês: Entrada, Perdas, Saldo e % variação do saldo
   const permanenciaSeries = useMemo(() => {
@@ -483,15 +490,20 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         }
       }
 
+      // Label: se todo período, mostra Mês/Ano, senão só mês
+      const mesLabel = todoPeriodo 
+        ? `${mesesNome[d.mes - 1]}/${String(d.ano).slice(-2)}`
+        : mesesNome[d.mes - 1];
+
       return {
-        mes: mesesNome[d.mes - 1],
+        mes: mesLabel,
         entrada,
         perdas,
         saldo,
         variacao_permanencia: variacao, // em %
       };
     });
-  }, [dadosAno]);
+  }, [dadosAno, todoPeriodo]);
 
   if (loading) {
     return (
@@ -508,7 +520,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            Dashboard PID
+            Dashboard BI
           </h2>
           <p className="text-sm text-muted-foreground">
             Visão consolidada dos indicadores operacionais, financeiros e de sinistros
@@ -516,8 +528,17 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Select value={mes} onValueChange={setMes}>
-            <SelectTrigger className="w-40">
+          <Button
+            variant={todoPeriodo ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTodoPeriodo(!todoPeriodo)}
+            className="whitespace-nowrap"
+          >
+            Todo Período
+          </Button>
+          
+          <Select value={mes} onValueChange={(v) => { setMes(v); setTodoPeriodo(false); }} disabled={todoPeriodo}>
+            <SelectTrigger className={`w-40 ${todoPeriodo ? 'opacity-50' : ''}`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -529,8 +550,8 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
             </SelectContent>
           </Select>
           
-          <Select value={ano} onValueChange={setAno}>
-            <SelectTrigger className="w-24">
+          <Select value={ano} onValueChange={(v) => { setAno(v); setTodoPeriodo(false); }} disabled={todoPeriodo}>
+            <SelectTrigger className={`w-24 ${todoPeriodo ? 'opacity-50' : ''}`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -547,7 +568,10 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       {!dadosAtual ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            Nenhum dado encontrado para {mesesOptions.find(m => m.value === mes)?.label} de {ano}. Cadastre informações na aba Operacional.
+            {todoPeriodo 
+              ? "Nenhum dado histórico encontrado. Cadastre informações na aba Operacional."
+              : `Nenhum dado encontrado para ${mesesOptions.find(m => m.value === mes)?.label} de ${ano}. Cadastre informações na aba Operacional.`
+            }
           </CardContent>
         </Card>
       ) : (
