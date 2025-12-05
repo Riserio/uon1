@@ -186,15 +186,39 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showClusters, setShowClusters] = useState(true);
 
-  // Agregar eventos por cidade (não por regional)
+  // Agregar eventos por cidade (usando evento_cidade)
   const locationData = useMemo(() => {
-    const byState: { [key: string]: { count: number; custo: number; cities: { [key: string]: { count: number; custo: number; regional?: string } } } } = {};
+    const byState: { [key: string]: { count: number; custo: number; cities: { [key: string]: { count: number; custo: number; cooperativa?: string } } } } = {};
     const byRegional: { [key: string]: { count: number; custo: number; estados: Set<string>; cidades: Set<string> } } = {};
+    const byTipoEvento: { [key: string]: { count: number; custo: number } } = {};
+    const byMotivoEvento: { [key: string]: { count: number; custo: number } } = {};
+    const bySituacao: { [key: string]: number } = {};
     
     eventos.forEach(e => {
       const estado = e.evento_estado?.toUpperCase() || "";
-      const cidade = e.cooperativa?.toUpperCase() || ""; // Cidade, não regional
+      const cidade = e.evento_cidade?.toUpperCase() || ""; // Usando evento_cidade
+      const cooperativa = e.cooperativa || "";
       const regional = e.regional || "";
+      const tipoEvento = e.tipo_evento || "Não informado";
+      const motivoEvento = e.motivo_evento || "Não informado";
+      const situacao = e.situacao_evento || "Não informado";
+      
+      // Agregar por tipo de evento
+      if (!byTipoEvento[tipoEvento]) {
+        byTipoEvento[tipoEvento] = { count: 0, custo: 0 };
+      }
+      byTipoEvento[tipoEvento].count += 1;
+      byTipoEvento[tipoEvento].custo += e.custo_evento || 0;
+
+      // Agregar por motivo do evento
+      if (!byMotivoEvento[motivoEvento]) {
+        byMotivoEvento[motivoEvento] = { count: 0, custo: 0 };
+      }
+      byMotivoEvento[motivoEvento].count += 1;
+      byMotivoEvento[motivoEvento].custo += e.custo_evento || 0;
+
+      // Agregar por situação
+      bySituacao[situacao] = (bySituacao[situacao] || 0) + 1;
       
       if (estado && estado.length === 2 && STATE_COORDS[estado]) {
         if (!byState[estado]) {
@@ -205,7 +229,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
         
         if (cidade && cidade !== "N/I" && cidade !== "NAO INFORMADO") {
           if (!byState[estado].cities[cidade]) {
-            byState[estado].cities[cidade] = { count: 0, custo: 0, regional };
+            byState[estado].cities[cidade] = { count: 0, custo: 0, cooperativa };
           }
           byState[estado].cities[cidade].count += 1;
           byState[estado].cities[cidade].custo += e.custo_evento || 0;
@@ -225,7 +249,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
     });
 
     // Criar lista de cidades com coordenadas
-    const byCityGlobal: { state: string; city: string; count: number; custo: number; coords: [number, number] | null; regional?: string }[] = [];
+    const byCityGlobal: { state: string; city: string; count: number; custo: number; coords: [number, number] | null; cooperativa?: string }[] = [];
     
     Object.entries(byState).forEach(([state, data]) => {
       Object.entries(data.cities).forEach(([city, cityData]) => {
@@ -236,7 +260,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
           count: cityData.count,
           custo: cityData.custo,
           coords,
-          regional: cityData.regional
+          cooperativa: cityData.cooperativa
         });
       });
     });
@@ -252,10 +276,38 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
       }))
       .sort((a, b) => b.custo - a.custo);
 
+    // Converter tipo de evento para array
+    const tipoEventoArray = Object.entries(byTipoEvento)
+      .map(([tipo, data]) => ({ tipo, ...data }))
+      .sort((a, b) => b.custo - a.custo);
+
+    // Converter motivo de evento para array
+    const motivoEventoArray = Object.entries(byMotivoEvento)
+      .map(([motivo, data]) => ({ motivo, ...data }))
+      .sort((a, b) => b.custo - a.custo);
+
+    // Converter situação para array
+    const situacaoArray = Object.entries(bySituacao)
+      .map(([situacao, count]) => ({ situacao, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Top cidades por custo
+    const topCidadesCusto = [...byCityGlobal].sort((a, b) => b.custo - a.custo).slice(0, 10);
+
     const maxCount = Math.max(...Object.values(byState).map(s => s.count), 1);
     const maxCityCount = Math.max(...byCityGlobal.map(c => c.count), 1);
 
-    return { byState, byCityGlobal, regionaisArray, maxCount, maxCityCount };
+    return { 
+      byState, 
+      byCityGlobal, 
+      regionaisArray, 
+      tipoEventoArray,
+      motivoEventoArray,
+      situacaoArray,
+      topCidadesCusto,
+      maxCount, 
+      maxCityCount 
+    };
   }, [eventos]);
 
   // Cidades filtradas pelo estado selecionado
@@ -271,7 +323,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
       cities = cities.filter(c => 
         normalizeText(c.city).includes(search) || 
         c.state.includes(search) ||
-        (c.regional && normalizeText(c.regional).includes(search))
+        (c.cooperativa && normalizeText(c.cooperativa).includes(search))
       );
     }
     
@@ -295,7 +347,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
         properties: {
           city: city.city,
           state: city.state,
-          regional: city.regional,
+          cooperativa: city.cooperativa,
           count: city.count,
           custo: city.custo,
           mag: city.count // Para heatmap
@@ -509,7 +561,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
             <div style="padding: 10px; min-width: 180px;">
               <h3 style="font-weight: bold; font-size: 14px; margin-bottom: 2px; color: hsl(220, 85%, 35%);">${props?.city}</h3>
               <p style="font-size: 11px; color: #666; margin-bottom: 8px;">
-                ${props?.state}${props?.regional ? ` • Regional: ${props?.regional}` : ''}
+                ${props?.state}${props?.cooperativa ? ` • Cooperativa: ${props?.cooperativa}` : ''}
               </p>
               <div style="background: hsl(220, 20%, 97%); border-radius: 8px; padding: 8px;">
                 <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
@@ -585,7 +637,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
             <div style="padding: 10px; min-width: 180px;">
               <h3 style="font-weight: bold; font-size: 14px; margin-bottom: 2px; color: hsl(220, 85%, 35%);">${city.city}</h3>
               <p style="font-size: 11px; color: #666; margin-bottom: 8px;">
-                ${city.state}${city.regional ? ` • Regional: ${city.regional}` : ''}
+                ${city.state}${city.cooperativa ? ` • Cooperativa: ${city.cooperativa}` : ''}
               </p>
               <div style="background: hsl(220, 20%, 97%); border-radius: 8px; padding: 8px; margin-bottom: 8px;">
                 <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
@@ -891,9 +943,9 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
                             <Navigation className="h-4 w-4 text-muted-foreground shrink-0" />
                           </div>
                           
-                          {city.regional && (
-                            <p className="text-xs text-muted-foreground mb-2 truncate pl-8" title={city.regional}>
-                              Regional: {city.regional}
+                          {city.cooperativa && (
+                            <p className="text-xs text-muted-foreground mb-2 truncate pl-8" title={city.cooperativa}>
+                              Cooperativa: {city.cooperativa}
                             </p>
                           )}
                           
@@ -997,6 +1049,149 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Top Cidades por Custo */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-primary" />
+            Top 10 Cidades por Custo
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {locationData.topCidadesCusto.map((city, index) => (
+              <div 
+                key={`${city.state}-${city.city}`}
+                className="p-4 rounded-lg border bg-card hover:shadow-md hover:border-primary/30 transition-all cursor-pointer"
+                onClick={() => zoomToCity(city)}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div 
+                    className="flex items-center justify-center w-7 h-7 rounded-full font-bold text-xs text-white"
+                    style={{ backgroundColor: getMarkerColor(city.custo, locationData.topCidadesCusto[0]?.custo || 1) }}
+                  >
+                    {index + 1}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="font-semibold text-sm truncate" title={city.city}>
+                      {city.city}
+                    </h4>
+                    <p className="text-xs text-muted-foreground">{city.state}</p>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Custo:</span>
+                    <span className="text-sm font-bold text-primary">{formatCurrency(city.custo)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Eventos:</span>
+                    <span className="text-sm font-semibold">{city.count.toLocaleString('pt-BR')}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Grid de Estatísticas */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Por Tipo de Evento */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-primary" />
+              Por Tipo de Evento
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {locationData.tipoEventoArray.slice(0, 5).map((item, index) => (
+                <div key={item.tipo} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: getMarkerColor(item.count, locationData.tipoEventoArray[0]?.count || 1) }}
+                    />
+                    <span className="text-sm font-medium">{item.tipo}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold">{item.count.toLocaleString('pt-BR')}</p>
+                    <p className="text-xs text-muted-foreground">{formatCurrency(item.custo)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Por Motivo do Evento */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-primary" />
+              Por Motivo do Evento
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {locationData.motivoEventoArray.slice(0, 5).map((item, index) => (
+                <div key={item.motivo} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div 
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: getMarkerColor(item.count, locationData.motivoEventoArray[0]?.count || 1) }}
+                    />
+                    <span className="text-sm font-medium truncate">{item.motivo}</span>
+                  </div>
+                  <div className="text-right shrink-0 ml-2">
+                    <p className="text-sm font-bold">{item.count.toLocaleString('pt-BR')}</p>
+                    <p className="text-xs text-muted-foreground">{formatCurrency(item.custo)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Por Situação */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Layers className="h-4 w-4 text-primary" />
+              Por Situação
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {locationData.situacaoArray.slice(0, 5).map((item) => (
+                <div key={item.situacao} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <Badge 
+                      variant="outline" 
+                      className={`text-xs shrink-0 ${
+                        item.situacao === 'FINALIZADO' ? 'bg-green-100 text-green-800 border-green-300' :
+                        item.situacao === 'CANCELADO' ? 'bg-red-100 text-red-800 border-red-300' :
+                        'bg-yellow-100 text-yellow-800 border-yellow-300'
+                      }`}
+                    >
+                      {item.situacao}
+                    </Badge>
+                  </div>
+                  <div className="text-right shrink-0 ml-2">
+                    <p className="text-sm font-bold">{item.count.toLocaleString('pt-BR')}</p>
+                    <p className="text-xs text-muted-foreground">
+                      ({((item.count / eventos.length) * 100).toFixed(1)}%)
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
