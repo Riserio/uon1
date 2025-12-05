@@ -384,7 +384,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
 
   // Agregar eventos por cidade (usando evento_cidade, com fallback para cooperativa)
   const locationData = useMemo(() => {
-    const byState: { [key: string]: { count: number; custo: number; cities: { [key: string]: { count: number; custo: number; cooperativa?: string } } } } = {};
+    const byState: { [key: string]: { count: number; custo: number; countSemCidade: number; custoSemCidade: number; cooperativasSemCidade: Set<string>; cities: { [key: string]: { count: number; custo: number; cooperativa?: string } } } } = {};
     const byRegional: { [key: string]: { count: number; custo: number; estados: Set<string>; cidades: Set<string> } } = {};
     const byTipoEvento: { [key: string]: { count: number; custo: number } } = {};
     const byMotivoEvento: { [key: string]: { count: number; custo: number } } = {};
@@ -419,17 +419,27 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
       
       if (estado && estado.length === 2 && STATE_COORDS[estado]) {
         if (!byState[estado]) {
-          byState[estado] = { count: 0, custo: 0, cities: {} };
+          byState[estado] = { count: 0, custo: 0, countSemCidade: 0, custoSemCidade: 0, cooperativasSemCidade: new Set(), cities: {} };
         }
         byState[estado].count += 1;
         byState[estado].custo += e.custo_evento || 0;
         
-        if (cidade && cidade !== "N/I" && cidade !== "NAO INFORMADO") {
+        // Verifica se tem cidade válida
+        const temCidadeValida = cidade && cidade !== "N/I" && cidade !== "NAO INFORMADO" && cidade.length > 0;
+        
+        if (temCidadeValida) {
           if (!byState[estado].cities[cidade]) {
             byState[estado].cities[cidade] = { count: 0, custo: 0, cooperativa };
           }
           byState[estado].cities[cidade].count += 1;
           byState[estado].cities[cidade].custo += e.custo_evento || 0;
+        } else {
+          // Eventos sem cidade - agrupa por estado
+          byState[estado].countSemCidade += 1;
+          byState[estado].custoSemCidade += e.custo_evento || 0;
+          if (cooperativa) {
+            byState[estado].cooperativasSemCidade.add(cooperativa);
+          }
         }
 
         // Agregar por regional
@@ -440,15 +450,16 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
           byRegional[regional].count += 1;
           byRegional[regional].custo += e.custo_evento || 0;
           byRegional[regional].estados.add(estado);
-          if (cidade) byRegional[regional].cidades.add(cidade);
+          if (temCidadeValida) byRegional[regional].cidades.add(cidade);
         }
       }
     });
 
     // Criar lista de cidades com coordenadas
-    const byCityGlobal: { state: string; city: string; count: number; custo: number; coords: [number, number] | null; cooperativa?: string }[] = [];
+    const byCityGlobal: { state: string; city: string; count: number; custo: number; coords: [number, number] | null; cooperativa?: string; isStateLevel?: boolean }[] = [];
     
     Object.entries(byState).forEach(([state, data]) => {
+      // Adiciona cidades específicas
       Object.entries(data.cities).forEach(([city, cityData]) => {
         const coords = getCityCoords(city, state);
         byCityGlobal.push({
@@ -460,6 +471,24 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
           cooperativa: cityData.cooperativa
         });
       });
+      
+      // Adiciona eventos sem cidade como entrada a nível de estado
+      if (data.countSemCidade > 0) {
+        const cooperativas = Array.from(data.cooperativasSemCidade);
+        const label = cooperativas.length > 0 
+          ? `${state} (${cooperativas.slice(0, 2).join(", ")}${cooperativas.length > 2 ? "..." : ""})`
+          : `${state} (Sem cidade)`;
+        
+        byCityGlobal.push({
+          state,
+          city: label,
+          count: data.countSemCidade,
+          custo: data.custoSemCidade,
+          coords: STATE_COORDS[state] || null,
+          cooperativa: cooperativas.join(", "),
+          isStateLevel: true
+        });
+      }
     });
 
     // Converter regionais para array
