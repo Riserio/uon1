@@ -231,14 +231,17 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
   useEffect(() => {
     if (!data) return;
 
+    // Total Veículos Geral = soma das quantidades
     const totalVeiculosGeral = categorias.reduce((sum, cat) => {
       return sum + (data[`qtd_${cat.key}` as keyof EstudoBaseData] as number || 0);
     }, 0);
 
-    const totalProtegidoGeral = categorias.reduce((sum, cat) => {
+    // Veículos Ativos = soma dos protegidos (quantidade)
+    const totalVeiculosAtivos = categorias.reduce((sum, cat) => {
       return sum + (data[`protegido_${cat.key}` as keyof EstudoBaseData] as number || 0);
     }, 0);
 
+    // Total Valor Protegido Geral = soma dos valores protegidos (monetário)
     const totalValorProtegidoGeral = categorias.reduce((sum, cat) => {
       return sum + (data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number || 0);
     }, 0);
@@ -254,14 +257,14 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
     // Only update if values changed to prevent infinite loop
     if (
       data.total_veiculos_geral !== totalVeiculosGeral ||
-      data.protegido_geral !== totalProtegidoGeral ||
+      data.total_veiculos_ativos !== totalVeiculosAtivos ||
       data.valor_protegido_geral !== totalValorProtegidoGeral ||
       Math.abs(data.tm_geral - tmGeral) > 0.01
     ) {
       setData(prev => prev ? {
         ...prev,
         total_veiculos_geral: totalVeiculosGeral,
-        protegido_geral: totalProtegidoGeral,
+        total_veiculos_ativos: totalVeiculosAtivos,
         valor_protegido_geral: totalValorProtegidoGeral,
         tm_geral: parseFloat(tmGeral.toFixed(2)),
       } : null);
@@ -353,66 +356,30 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
         </div>
       </div>
 
-      {/* Totais Gerais */}
+      {/* Totais Gerais - Calculados automaticamente */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">Total Veículos Geral</div>
-            {canEdit ? (
-              <Input
-                type="number"
-                value={data.total_veiculos_geral}
-                onChange={(e) => updateField("total_veiculos_geral", parseInt(e.target.value) || 0)}
-                className="mt-1 h-10 text-xl font-bold border-none bg-transparent p-0"
-              />
-            ) : (
-              <div className="mt-1 text-2xl font-bold">{data.total_veiculos_geral.toLocaleString("pt-BR")}</div>
-            )}
+            <div className="mt-1 text-2xl font-bold">{data.total_veiculos_geral.toLocaleString("pt-BR")}</div>
           </CardContent>
         </Card>
         <Card className="border-green-500/20 bg-green-500/5">
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">Veículos Ativos</div>
-            {canEdit ? (
-              <Input
-                type="number"
-                value={data.total_veiculos_ativos}
-                onChange={(e) => updateField("total_veiculos_ativos", parseInt(e.target.value) || 0)}
-                className="mt-1 h-10 text-xl font-bold border-none bg-transparent p-0"
-              />
-            ) : (
-              <div className="mt-1 text-2xl font-bold">{data.total_veiculos_ativos.toLocaleString("pt-BR")}</div>
-            )}
+            <div className="mt-1 text-2xl font-bold">{data.total_veiculos_ativos.toLocaleString("pt-BR")}</div>
           </CardContent>
         </Card>
         <Card className="border-amber-500/20 bg-amber-500/5">
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">Ticket Médio Geral</div>
-            {canEdit ? (
-              <Input
-                type="number"
-                value={data.tm_geral}
-                onChange={(e) => updateField("tm_geral", parseFloat(e.target.value) || 0)}
-                className="mt-1 h-10 text-xl font-bold border-none bg-transparent p-0"
-              />
-            ) : (
-              <div className="mt-1 text-2xl font-bold">{formatCurrency(data.tm_geral)}</div>
-            )}
+            <div className="mt-1 text-2xl font-bold">{formatCurrency(data.tm_geral)}</div>
           </CardContent>
         </Card>
         <Card className="border-purple-500/20 bg-purple-500/5">
           <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground">Total Protegido Geral</div>
-            {canEdit ? (
-              <Input
-                type="number"
-                value={data.protegido_geral}
-                onChange={(e) => updateField("protegido_geral", parseInt(e.target.value) || 0)}
-                className="mt-1 h-10 text-xl font-bold border-none bg-transparent p-0"
-              />
-            ) : (
-              <div className="mt-1 text-2xl font-bold">{data.protegido_geral.toLocaleString("pt-BR")}</div>
-            )}
+            <div className="text-xs text-muted-foreground">Valor Protegido Geral</div>
+            <div className="mt-1 text-2xl font-bold">{formatCurrency(data.valor_protegido_geral)}</div>
           </CardContent>
         </Card>
       </div>
