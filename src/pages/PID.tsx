@@ -11,24 +11,29 @@ import PIDImportacao from "@/components/portal/PIDImportacao";
 import PortalSinistros from "@/components/portal/PortalSinistros";
 import PortalComite from "@/components/portal/PortalComite";
 import { GerenciarUsuariosCorretoraDialog } from "@/components/GerenciarUsuariosCorretoraDialog";
+import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
-  Users, BarChart3, Car, ShieldCheck, MessageSquare, Calendar, Activity, Database, Upload
+  Users, BarChart3, Car, ShieldCheck, MessageSquare, Calendar, Activity, Database, Upload, History
 } from "lucide-react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 
 export default function PID() {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [associacoes, setAssociacoes] = useState<any[]>([]);
   const [selectedAssociacao, setSelectedAssociacao] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [usuariosDialogOpen, setUsuariosDialogOpen] = useState(false);
+  const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
+
+  // Verifica se pode ver histórico (superintendente ou admin)
+  const canViewHistorico = userRole === "superintendente" || userRole === "admin";
 
   const selectedAssociacaoData = associacoes.find((c) => c.id === selectedAssociacao);
 
@@ -94,14 +99,28 @@ export default function PID() {
               </p>
             </div>
             
-            {/* Botão SGA Insights */}
-            <Button
-              onClick={handleNavigateToSGA}
-              className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg"
-            >
-              <Database className="h-4 w-4" />
-              <span>SGA Insights</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Botão Histórico - só para superintendente e admin */}
+              {canViewHistorico && (
+                <Button
+                  variant="outline"
+                  onClick={() => setHistoricoDialogOpen(true)}
+                  className="gap-2"
+                >
+                  <History className="h-4 w-4" />
+                  <span className="hidden sm:inline">Histórico</span>
+                </Button>
+              )}
+              
+              {/* Botão SGA Insights */}
+              <Button
+                onClick={handleNavigateToSGA}
+                className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg"
+              >
+                <Database className="h-4 w-4" />
+                <span>SGA Insights</span>
+              </Button>
+            </div>
           </div>
 
           {/* Seleção de Associação */}
@@ -216,6 +235,14 @@ export default function PID() {
           corretoraNome={selectedAssociacaoData.nome}
         />
       )}
+
+      {/* Modal Histórico de Alterações */}
+      <BIAuditLogDialog
+        open={historicoDialogOpen}
+        onOpenChange={setHistoricoDialogOpen}
+        modulo="bi_indicadores"
+        corretoraId={selectedAssociacao}
+      />
     </div>
   );
 }
