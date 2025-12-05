@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -227,23 +227,42 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
     setData({ ...data, [field]: value });
   };
 
-  // Prepare chart data
-  const distribuicaoFrotaData = data ? categorias.map((cat, index) => ({
-    name: cat.label,
-    value: data[`qtd_${cat.key}` as keyof EstudoBaseData] as number,
-    fill: COLORS[index % COLORS.length],
-  })).filter(d => d.value > 0) : [];
+  // Prepare chart data with useMemo to ensure reactivity
+  const distribuicaoFrotaData = useMemo(() => {
+    if (!data) return [];
+    return categorias.map((cat, index) => ({
+      name: cat.label,
+      value: data[`qtd_${cat.key}` as keyof EstudoBaseData] as number,
+      fill: COLORS[index % COLORS.length],
+    })).filter(d => d.value > 0);
+  }, [data]);
 
-  const ticketMedioData = data ? categorias.map((cat) => ({
-    categoria: cat.label,
-    valor: data[`tm_${cat.key}` as keyof EstudoBaseData] as number,
-  })).filter(d => d.valor > 0) : [];
+  const ticketMedioData = useMemo(() => {
+    if (!data) return [];
+    return categorias.map((cat) => ({
+      categoria: cat.label,
+      valor: data[`tm_${cat.key}` as keyof EstudoBaseData] as number,
+    })).filter(d => d.valor > 0);
+  }, [data]);
 
-  const valorProtegidoData = data ? categorias.map((cat, index) => ({
-    name: cat.label,
-    value: data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number,
-    fill: COLORS[index % COLORS.length],
-  })).filter(d => d.value > 0) : [];
+  const valorProtegidoData = useMemo(() => {
+    if (!data) return [];
+    return categorias.map((cat, index) => ({
+      name: cat.label,
+      value: data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number,
+      fill: COLORS[index % COLORS.length],
+    })).filter(d => d.value > 0);
+  }, [data]);
+
+  // Generate unique key for charts to force re-render
+  const chartKey = useMemo(() => {
+    if (!data) return 'empty';
+    return JSON.stringify({
+      qtd: categorias.map(c => data[`qtd_${c.key}` as keyof EstudoBaseData]),
+      tm: categorias.map(c => data[`tm_${c.key}` as keyof EstudoBaseData]),
+      vp: categorias.map(c => data[`valor_protegido_${c.key}` as keyof EstudoBaseData]),
+    });
+  }, [data]);
 
   if (loading) {
     return (
@@ -444,7 +463,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
           </CardHeader>
           <CardContent className="h-[300px]">
             {distribuicaoFrotaData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer key={`frota-${chartKey}`} width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={distribuicaoFrotaData}
@@ -476,7 +495,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
           </CardHeader>
           <CardContent className="h-[300px]">
             {ticketMedioData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer key={`ticket-${chartKey}`} width="100%" height="100%">
                 <BarChart data={ticketMedioData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} />
