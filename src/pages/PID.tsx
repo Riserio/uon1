@@ -70,7 +70,10 @@ export default function PID() {
 
   const handleNavigateToSGA = () => {
     if (selectedAssociacao) {
-      navigate(`/sga-insights?associacao=${selectedAssociacao}`);
+      navigate({
+        pathname: "/sga-insights",
+        search: `?associacao=${selectedAssociacao}`
+      });
     } else {
       navigate("/sga-insights");
     }
