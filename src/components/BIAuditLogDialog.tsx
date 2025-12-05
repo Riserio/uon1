@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { History, User, Calendar, FileText, Database, Upload, Edit, Trash2 } from "lucide-react";
+import { History, User, Calendar, FileText, Database, Upload, Edit, Trash2, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -95,12 +95,93 @@ export function BIAuditLogDialog({ open, onOpenChange, modulo, corretoraId }: BI
 
   const moduloLabel = modulo === "bi_indicadores" ? "BI - Indicadores" : "SGA Insights";
 
+  const formatValue = (value: any): string => {
+    if (value === null || value === undefined) return "-";
+    if (typeof value === "number") {
+      return value.toLocaleString("pt-BR");
+    }
+    return String(value);
+  };
+
   const formatJsonData = (data: Json | null): string => {
     if (!data) return "";
     if (typeof data === "object") {
       return JSON.stringify(data, null, 2);
     }
     return String(data);
+  };
+
+  const renderComparison = (log: BIAuditLog) => {
+    const anterior = log.dados_anteriores as Record<string, any> | null;
+    const novo = log.dados_novos as Record<string, any> | null;
+    
+    if (!anterior && !novo) return null;
+    
+    // Get all unique keys from both objects
+    const allKeys = new Set([
+      ...(anterior ? Object.keys(anterior) : []),
+      ...(novo ? Object.keys(novo) : [])
+    ]);
+
+    const fieldLabels: Record<string, string> = {
+      ano: "Ano",
+      mes: "Mês",
+      placas_ativas: "Placas Ativas",
+      total_cotas: "Total Cotas",
+      total_associados: "Total Associados",
+      cadastros_realizados: "Cadastros Realizados",
+      cancelamentos: "Cancelamentos",
+      inadimplentes: "Inadimplentes",
+      faturamento_operacional: "Faturamento Operacional",
+      total_recebido: "Total Recebido",
+      data_referencia: "Data Referência",
+      total_veiculos_geral: "Total Veículos",
+      total_veiculos_ativos: "Veículos Ativos",
+      protegido_geral: "Valor Protegido",
+      tm_geral: "TM Geral",
+      arquivo: "Arquivo",
+      total_registros: "Total Registros",
+      corretora: "Associação",
+    };
+
+    return (
+      <div className="mt-3 border rounded-lg overflow-hidden">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-muted/50">
+              <th className="px-3 py-2 text-left font-medium">Campo</th>
+              {anterior && <th className="px-3 py-2 text-left font-medium text-red-400">Valor Anterior</th>}
+              {novo && <th className="px-3 py-2 text-left font-medium text-green-400">Novo Valor</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from(allKeys).map((key) => {
+              const oldValue = anterior?.[key];
+              const newValue = novo?.[key];
+              const hasChanged = JSON.stringify(oldValue) !== JSON.stringify(newValue);
+              
+              return (
+                <tr key={key} className={hasChanged ? "bg-yellow-500/5" : ""}>
+                  <td className="px-3 py-1.5 border-t font-medium text-muted-foreground">
+                    {fieldLabels[key] || key}
+                  </td>
+                  {anterior && (
+                    <td className={`px-3 py-1.5 border-t ${hasChanged ? "text-red-400 line-through" : ""}`}>
+                      {formatValue(oldValue)}
+                    </td>
+                  )}
+                  {novo && (
+                    <td className={`px-3 py-1.5 border-t ${hasChanged ? "text-green-400 font-medium" : ""}`}>
+                      {formatValue(newValue)}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   return (
@@ -153,26 +234,7 @@ export function BIAuditLogDialog({ open, onOpenChange, modulo, corretoraId }: BI
                           </span>
                         </div>
 
-                        {(log.dados_anteriores || log.dados_novos) && (
-                          <div className="mt-3 text-xs">
-                            {log.dados_anteriores && typeof log.dados_anteriores === "object" && Object.keys(log.dados_anteriores).length > 0 && (
-                              <div className="mb-2">
-                                <span className="text-muted-foreground">Valores anteriores:</span>
-                                <pre className="mt-1 p-2 bg-muted/50 rounded text-xs overflow-x-auto">
-                                  {formatJsonData(log.dados_anteriores)}
-                                </pre>
-                              </div>
-                            )}
-                            {log.dados_novos && typeof log.dados_novos === "object" && Object.keys(log.dados_novos).length > 0 && (
-                              <div>
-                                <span className="text-muted-foreground">Novos valores:</span>
-                                <pre className="mt-1 p-2 bg-muted/50 rounded text-xs overflow-x-auto">
-                                  {formatJsonData(log.dados_novos)}
-                                </pre>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        {(log.dados_anteriores || log.dados_novos) && renderComparison(log)}
                       </div>
                     </div>
                   </div>

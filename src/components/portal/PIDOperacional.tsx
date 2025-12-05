@@ -190,6 +190,7 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<PIDOperacionalData | null>(null);
+  const [originalData, setOriginalData] = useState<PIDOperacionalData | null>(null);
   const [ano, setAno] = useState(new Date().getFullYear().toString());
   const [mes, setMes] = useState((new Date().getMonth() + 1).toString().padStart(2, "0"));
 
@@ -352,14 +353,18 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
       if (error) throw error;
       
       if (result) {
-        setData(result as unknown as PIDOperacionalData);
+        const fetchedData = result as unknown as PIDOperacionalData;
+        setData(fetchedData);
+        setOriginalData(fetchedData);
       } else {
-        setData({
+        const newData = {
           ...defaultData,
           corretora_id: corretoraId,
           ano: parseInt(ano),
           mes: parseInt(mes),
-        });
+        };
+        setData(newData);
+        setOriginalData(null);
       }
     } catch (error: any) {
       console.error("Error fetching PID data:", error);
@@ -480,19 +485,40 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
         if (error) throw error;
       }
 
-      // Registrar log
+      // Registrar log com valores anteriores e novos
       await registrarLog({
         modulo: "bi_indicadores",
         acao: calculatedData.id ? "alteracao" : "importacao",
         descricao: `Dados operacionais ${calculatedData.id ? "atualizados" : "criados"} para ${meses.find(m => m.value === mes)?.label}/${ano}`,
         corretoraId,
+        dadosAnteriores: originalData ? {
+          ano: originalData.ano,
+          mes: originalData.mes,
+          placas_ativas: originalData.placas_ativas,
+          total_cotas: originalData.total_cotas,
+          total_associados: originalData.total_associados,
+          cadastros_realizados: originalData.cadastros_realizados,
+          cancelamentos: originalData.cancelamentos,
+          inadimplentes: originalData.inadimplentes,
+          faturamento_operacional: originalData.faturamento_operacional,
+          total_recebido: originalData.total_recebido,
+        } : null,
         dadosNovos: {
           ano: parseInt(ano),
           mes: parseInt(mes),
           placas_ativas: calculatedData.placas_ativas,
+          total_cotas: calculatedData.total_cotas,
           total_associados: calculatedData.total_associados,
+          cadastros_realizados: calculatedData.cadastros_realizados,
+          cancelamentos: calculatedData.cancelamentos,
+          inadimplentes: calculatedData.inadimplentes,
+          faturamento_operacional: calculatedData.faturamento_operacional,
+          total_recebido: calculatedData.total_recebido,
         },
       });
+
+      // Atualizar originalData após salvar
+      setOriginalData(calculatedData);
 
       toast.success("Dados salvos com sucesso!");
       fetchData();

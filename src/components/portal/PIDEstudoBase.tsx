@@ -120,6 +120,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<EstudoBaseData | null>(null);
+  const [originalData, setOriginalData] = useState<EstudoBaseData | null>(null);
   const [dataReferencia, setDataReferencia] = useState(new Date().toISOString().split("T")[0]);
 
   const fetchData = async () => {
@@ -136,13 +137,17 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
       if (error) throw error;
 
       if (result) {
-        setData(result as unknown as EstudoBaseData);
+        const fetchedData = result as unknown as EstudoBaseData;
+        setData(fetchedData);
+        setOriginalData(fetchedData);
       } else {
-        setData({
+        const newData = {
           ...defaultData,
           corretora_id: corretoraId,
           data_referencia: dataReferencia,
-        });
+        };
+        setData(newData);
+        setOriginalData(null);
       }
     } catch (error: any) {
       console.error("Error fetching estudo base:", error);
@@ -182,13 +187,30 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
         if (error) throw error;
       }
 
-      // Registrar log
+      // Registrar log com valores anteriores e novos
       await registrarLog({
         modulo: "bi_indicadores",
         acao: data.id ? "alteracao" : "importacao",
         descricao: `Estudo de Base ${data.id ? "atualizado" : "criado"} - ${dataReferencia}`,
         corretoraId,
+        dadosAnteriores: originalData ? {
+          data_referencia: originalData.data_referencia,
+          total_veiculos_geral: originalData.total_veiculos_geral,
+          total_veiculos_ativos: originalData.total_veiculos_ativos,
+          protegido_geral: originalData.protegido_geral,
+          tm_geral: originalData.tm_geral,
+        } : null,
+        dadosNovos: {
+          data_referencia: dataReferencia,
+          total_veiculos_geral: data.total_veiculos_geral,
+          total_veiculos_ativos: data.total_veiculos_ativos,
+          protegido_geral: data.protegido_geral,
+          tm_geral: data.tm_geral,
+        },
       });
+
+      // Atualizar originalData após salvar
+      setOriginalData(data);
 
       toast.success("Dados salvos com sucesso!");
       fetchData();

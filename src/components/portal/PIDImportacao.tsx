@@ -136,6 +136,9 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
   const handleDeleteImport = async (id: string) => {
     setDeletingId(id);
     try {
+      // Buscar dados antes de excluir para registrar no log
+      const recordToDelete = history.find(h => h.id === id);
+      
       const { error } = await supabase
         .from("pid_operacional")
         .delete()
@@ -143,12 +146,20 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
 
       if (error) throw error;
       
-      // Registrar log de exclusão
+      // Registrar log de exclusão com dados anteriores
       await registrarLog({
         modulo: "bi_indicadores",
         acao: "exclusao",
-        descricao: `Registro de importação excluído`,
+        descricao: `Registro de ${getMesLabel(recordToDelete?.mes || 0)}/${recordToDelete?.ano} excluído`,
         corretoraId,
+        dadosAnteriores: recordToDelete ? {
+          ano: recordToDelete.ano,
+          mes: recordToDelete.mes,
+          placas_ativas: recordToDelete.placas_ativas,
+          total_cotas: recordToDelete.total_cotas,
+          total_associados: recordToDelete.total_associados,
+          cadastros_realizados: recordToDelete.cadastros_realizados,
+        } : null,
       });
       
       toast.success("Registro excluído com sucesso");
