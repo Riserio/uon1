@@ -967,7 +967,7 @@ export default function Usuarios() {
                               <SelectItem value="administrativo">Administrativo</SelectItem>
                               <SelectItem value="lider">Líder</SelectItem>
                               <SelectItem value="comercial">Comercial</SelectItem>
-                              <SelectItem value="parceiro">Parceiro (Acesso PID)</SelectItem>
+                              <SelectItem value="parceiro">Parceiro (Acesso BI)</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>

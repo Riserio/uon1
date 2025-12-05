@@ -258,6 +258,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const anos = Array.from({ length: 6 }, (_, i) => (currentYear + 1 - i).toString());
   
   const mesesOptions = [
+    { value: "todos", label: "Todo Período" },
     { value: "1", label: "Janeiro" },
     { value: "2", label: "Fevereiro" },
     { value: "3", label: "Março" },
@@ -276,23 +277,31 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     if (!corretoraId) return;
     setLoading(true);
     try {
-      // Sempre busca mês específico
-      const { data: anoData, error } = await supabase
+      let query = supabase
         .from("pid_operacional")
         .select("*")
         .eq("corretora_id", corretoraId)
         .eq("ano", parseInt(ano))
-        .eq("mes", parseInt(mes))
         .order("mes", { ascending: true });
+
+      // Se não for "todos", filtra por mês específico
+      if (mes !== "todos") {
+        query = query.eq("mes", parseInt(mes));
+      }
+
+      const { data: anoData, error } = await query;
 
       if (error) throw error;
       setDadosAno(anoData || []);
 
       if (anoData && anoData.length > 0) {
-        setDadosAtual(anoData[0]);
+        // Se for "todos", pega o último mês disponível como atual
+        const dadoAtual = mes === "todos" ? anoData[anoData.length - 1] : anoData[0];
+        setDadosAtual(dadoAtual);
         
         // Buscar mês anterior para comparação
-        const mesAnterior = parseInt(mes) - 1;
+        const mesAtual = dadoAtual.mes;
+        const mesAnterior = mesAtual - 1;
         if (mesAnterior >= 1) {
           const { data: prevData } = await supabase
             .from("pid_operacional")

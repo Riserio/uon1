@@ -206,7 +206,7 @@ export default function GerenciarParceirosDialog({ open, onOpenChange, corretora
                   id="acesso-exclusivo"
                 />
                 <Label htmlFor="acesso-exclusivo">
-                  Acesso exclusivo ao PID (usuário não acessa sistema interno)
+                  Acesso exclusivo ao BI (usuário não acessa sistema interno)
                 </Label>
               </div>
 

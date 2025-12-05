@@ -15,7 +15,7 @@ import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, Mes
 import { toast } from "sonner";
 
 /**
- * PORTAL PID - Painel de Indicadores e Demonstrativos para Parceiros
+ * PORTAL BI - Business Intelligence para Parceiros
  *
  * Este é o portal EXCLUSIVO para usuários com role 'parceiro'.
  *
