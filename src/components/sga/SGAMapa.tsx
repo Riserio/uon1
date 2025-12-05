@@ -186,7 +186,7 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showClusters, setShowClusters] = useState(true);
 
-  // Agregar eventos por cidade (usando evento_cidade)
+  // Agregar eventos por cidade (usando evento_cidade, com fallback para cooperativa)
   const locationData = useMemo(() => {
     const byState: { [key: string]: { count: number; custo: number; cities: { [key: string]: { count: number; custo: number; cooperativa?: string } } } } = {};
     const byRegional: { [key: string]: { count: number; custo: number; estados: Set<string>; cidades: Set<string> } } = {};
@@ -196,7 +196,8 @@ export default function SGAMapa({ eventos, loading }: SGAMapaProps) {
     
     eventos.forEach(e => {
       const estado = e.evento_estado?.toUpperCase() || "";
-      const cidade = e.evento_cidade?.toUpperCase() || ""; // Usando evento_cidade
+      // Usa evento_cidade se disponível, senão usa cooperativa como fallback
+      const cidade = (e.evento_cidade?.toUpperCase() || e.cooperativa?.toUpperCase() || "").trim();
       const cooperativa = e.cooperativa || "";
       const regional = e.regional || "";
       const tipoEvento = e.tipo_evento || "Não informado";

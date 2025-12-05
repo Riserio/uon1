@@ -2206,6 +2206,7 @@ export type Database = {
           data_ultima_alteracao_situacao: string | null
           envolvimento: string | null
           envolvimento_terceiro: string | null
+          evento_cidade: string | null
           evento_estado: string | null
           id: string
           importacao_id: string
@@ -2245,6 +2246,7 @@ export type Database = {
           data_ultima_alteracao_situacao?: string | null
           envolvimento?: string | null
           envolvimento_terceiro?: string | null
+          evento_cidade?: string | null
           evento_estado?: string | null
           id?: string
           importacao_id: string
@@ -2284,6 +2286,7 @@ export type Database = {
           data_ultima_alteracao_situacao?: string | null
           envolvimento?: string | null
           envolvimento_terceiro?: string | null
+          evento_cidade?: string | null
           evento_estado?: string | null
           id?: string
           importacao_id?: string

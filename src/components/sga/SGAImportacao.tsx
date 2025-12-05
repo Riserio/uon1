@@ -51,7 +51,8 @@ const COLUMN_MAP: { [key: string]: string } = {
   "ANO FABRICACAO": "ano_fabricacao",
   "VOLUNTARIO": "voluntario",
   "REGIONAL VEICULO": "regional_veiculo",
-  "ASSOCIADO ESTADO": "associado_estado"
+  "ASSOCIADO ESTADO": "associado_estado",
+  "EVENTO CIDADE": "evento_cidade"
 };
 
 // Função para converter data do Excel
