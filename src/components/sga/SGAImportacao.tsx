@@ -16,7 +16,7 @@ interface SGAImportacaoProps {
   corretoraNome: string;
 }
 
-// Mapeamento de colunas do Excel para campos do banco
+// Mapeamento de colunas do Excel para campos do banco (case-insensitive)
 const COLUMN_MAP: { [key: string]: string } = {
   "EVENTO ESTADO": "evento_estado",
   "DATA CADASTRO ITEM": "data_cadastro_item",
@@ -52,7 +52,30 @@ const COLUMN_MAP: { [key: string]: string } = {
   "VOLUNTARIO": "voluntario",
   "REGIONAL VEICULO": "regional_veiculo",
   "ASSOCIADO ESTADO": "associado_estado",
-  "EVENTO CIDADE": "evento_cidade"
+  "EVENTO CIDADE": "evento_cidade",
+  "CIDADE EVENTO": "evento_cidade",
+  "CIDADE": "evento_cidade"
+};
+
+// Função para normalizar header (remove espaços extras e converte para uppercase)
+const normalizeHeader = (header: string): string => {
+  return header.trim().toUpperCase().replace(/\s+/g, " ");
+};
+
+// Função para encontrar valor no row considerando variações de header
+const getValueFromRow = (row: any, targetHeader: string): any => {
+  // Primeiro tenta o header exato
+  if (row[targetHeader] !== undefined) return row[targetHeader];
+  
+  // Depois tenta normalizado (case-insensitive e espaços)
+  const normalizedTarget = normalizeHeader(targetHeader);
+  for (const key of Object.keys(row)) {
+    if (normalizeHeader(key) === normalizedTarget) {
+      return row[key];
+    }
+  }
+  
+  return undefined;
 };
 
 // Função para converter data do Excel
@@ -156,6 +179,16 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
       
       console.log("Import headers:", Object.keys(jsonData[0] || {}));
       console.log("Sample data:", jsonData[0]);
+      
+      // Debug: procurar colunas que podem ser cidade
+      const headers = Object.keys(jsonData[0] || {});
+      const cidadeHeaders = headers.filter(h => 
+        normalizeHeader(h).includes("CIDADE") || normalizeHeader(h).includes("CITY")
+      );
+      console.log("Colunas de cidade encontradas:", cidadeHeaders);
+      if (cidadeHeaders.length > 0) {
+        console.log("Valor da primeira linha para cidade:", jsonData[0][cidadeHeaders[0]]);
+      }
 
       if (!jsonData.length) {
         toast.error("Arquivo vazio ou sem dados válidos");
@@ -200,8 +233,20 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
         const records = batch.map((row: any) => {
           const record: any = { importacao_id: importacao.id };
           
+          // Usar Set para evitar duplicatas de dbCol (ex: EVENTO CIDADE, CIDADE EVENTO, CIDADE -> evento_cidade)
+          const processedDbCols = new Set<string>();
+          
           Object.entries(COLUMN_MAP).forEach(([excelCol, dbCol]) => {
-            const value = row[excelCol];
+            // Pular se já processamos este campo do banco
+            if (processedDbCols.has(dbCol)) return;
+            
+            // Usar função case-insensitive para encontrar o valor
+            const value = getValueFromRow(row, excelCol);
+            
+            // Se encontrou valor, marcar como processado
+            if (value !== undefined && value !== null && value !== "") {
+              processedDbCols.add(dbCol);
+            }
             
             // Campos de data
             if (dbCol.startsWith("data_")) {
