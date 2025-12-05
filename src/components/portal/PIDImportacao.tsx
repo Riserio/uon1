@@ -156,11 +156,19 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
     return meses.find(m => parseInt(m.value) === mesNum)?.label || mesNum.toString();
   };
 
-  const parseNumber = (text: string | number): number => {
+  const parseNumber = (text: string | number | Date | any): number => {
     if (text === null || text === undefined || text === "") return 0;
+    
+    // Se for uma instância de Date, ignorar (não deve ser parseado como número)
+    if (text instanceof Date) return 0;
+    
+    // Se for objeto (pode ser Date do XLSX), ignorar
+    if (typeof text === "object") return 0;
     
     // Se já é um número, retorna diretamente
     if (typeof text === "number") {
+      // Verificar se é um número absurdamente grande (provavelmente data serial do Excel mal interpretada)
+      if (text > 10000000) return 0;
       return text;
     }
     
@@ -201,11 +209,12 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
       reader.onload = (e) => {
         try {
           const data = e.target?.result;
-          const workbook = XLSX.read(data, { type: "binary" });
+          // cellDates: false evita conversão automática de números para datas
+          const workbook = XLSX.read(data, { type: "binary", cellDates: false, cellNF: false, cellText: true });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           
-          // Converter para array de arrays
+          // Converter para array de arrays com raw: false para obter valores formatados
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
           
           let totalVeiculos = 0;
@@ -285,7 +294,7 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
       reader.onload = (e) => {
         try {
           const data = e.target?.result;
-          const workbook = XLSX.read(data, { type: "binary" });
+          const workbook = XLSX.read(data, { type: "binary", cellDates: false, cellNF: false, cellText: true });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           
@@ -323,7 +332,7 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
       reader.onload = (e) => {
         try {
           const data = e.target?.result;
-          const workbook = XLSX.read(data, { type: "binary" });
+          const workbook = XLSX.read(data, { type: "binary", cellDates: false, cellNF: false, cellText: true });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           
