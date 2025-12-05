@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { formatCurrency, formatPercent, calcPercent } from "@/lib/formatters";
 import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import { useAuth } from "@/hooks/useAuth";
+import { useBIAuditLog } from "@/hooks/useBIAuditLog";
 import { NumericFormat } from "react-number-format";
 import {
   Save, TrendingUp, TrendingDown, Users, Car, Shield, Phone, MapPin,
@@ -182,6 +183,7 @@ const defaultData: Omit<PIDOperacionalData, 'corretora_id' | 'ano' | 'mes'> = {
 
 export default function PIDOperacional({ corretoraId }: { corretoraId?: string }) {
   const { user } = useAuth();
+  const { registrarLog } = useBIAuditLog();
   const { canEditMenu } = useMenuPermissions(user?.id);
   const canEdit = canEditMenu("pid");
   
@@ -477,6 +479,20 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
           .insert({ ...saveData, created_by: user.id });
         if (error) throw error;
       }
+
+      // Registrar log
+      await registrarLog({
+        modulo: "bi_indicadores",
+        acao: calculatedData.id ? "alteracao" : "importacao",
+        descricao: `Dados operacionais ${calculatedData.id ? "atualizados" : "criados"} para ${meses.find(m => m.value === mes)?.label}/${ano}`,
+        corretoraId,
+        dadosNovos: {
+          ano: parseInt(ano),
+          mes: parseInt(mes),
+          placas_ativas: calculatedData.placas_ativas,
+          total_associados: calculatedData.total_associados,
+        },
+      });
 
       toast.success("Dados salvos com sucesso!");
       fetchData();

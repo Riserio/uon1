@@ -9,6 +9,7 @@ import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2 } from "luc
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import SGAHistoricoImportacoes from "./SGAHistoricoImportacoes";
+import { useBIAuditLog } from "@/hooks/useBIAuditLog";
 
 interface SGAImportacaoProps {
   onImportSuccess: () => void;
@@ -125,6 +126,7 @@ const parseMoneyValue = (value: any): number => {
 };
 
 export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraNome }: SGAImportacaoProps) {
+  const { registrarLog } = useBIAuditLog();
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -280,6 +282,19 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
 
         setProgress(30 + Math.round((i + 1) / totalBatches * 70));
       }
+
+      // Registrar log de importação
+      await registrarLog({
+        modulo: "sga_insights",
+        acao: "importacao",
+        descricao: `Importação de ${jsonData.length} registros - ${file.name}`,
+        corretoraId,
+        dadosNovos: {
+          arquivo: file.name,
+          total_registros: jsonData.length,
+          corretora: corretoraNome,
+        },
+      });
 
       toast.success(`${jsonData.length} registros importados com sucesso para ${corretoraNome}!`);
       setFile(null);

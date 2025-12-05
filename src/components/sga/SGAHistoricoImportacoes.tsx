@@ -9,6 +9,7 @@ import { History, CheckCircle, Trash2, RefreshCw, FileSpreadsheet, Loader2, Aler
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useBIAuditLog } from "@/hooks/useBIAuditLog";
 
 interface SGAHistoricoImportacoesProps {
   onActivate: () => void;
@@ -16,6 +17,7 @@ interface SGAHistoricoImportacoesProps {
 }
 
 export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGAHistoricoImportacoesProps) {
+  const { registrarLog } = useBIAuditLog();
   const [importacoes, setImportacoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState<string | null>(null);
@@ -52,6 +54,8 @@ export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGA
   const handleActivate = async (id: string) => {
     setActivating(id);
     try {
+      const importacao = importacoes.find(i => i.id === id);
+      
       // Desativar todas da mesma associação
       await supabase
         .from("sga_importacoes")
@@ -64,6 +68,19 @@ export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGA
         .from("sga_importacoes")
         .update({ ativo: true })
         .eq("id", id);
+
+      // Registrar log
+      await registrarLog({
+        modulo: "sga_insights",
+        acao: "alteracao",
+        descricao: `Importação ativada: ${importacao?.nome_arquivo}`,
+        corretoraId,
+        dadosNovos: {
+          importacao_id: id,
+          arquivo: importacao?.nome_arquivo,
+          total_registros: importacao?.total_registros,
+        },
+      });
 
       toast.success("Importação ativada com sucesso!");
       fetchImportacoes();
@@ -79,6 +96,8 @@ export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGA
   const handleDelete = async (id: string) => {
     setDeleting(id);
     try {
+      const importacao = importacoes.find(i => i.id === id);
+      
       // Deletar eventos primeiro (cascade deveria fazer isso, mas por segurança)
       await supabase
         .from("sga_eventos")
@@ -90,6 +109,19 @@ export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGA
         .from("sga_importacoes")
         .delete()
         .eq("id", id);
+
+      // Registrar log
+      await registrarLog({
+        modulo: "sga_insights",
+        acao: "exclusao",
+        descricao: `Importação excluída: ${importacao?.nome_arquivo}`,
+        corretoraId,
+        dadosAnteriores: {
+          importacao_id: id,
+          arquivo: importacao?.nome_arquivo,
+          total_registros: importacao?.total_registros,
+        },
+      });
 
       toast.success("Importação excluída com sucesso!");
       fetchImportacoes();
