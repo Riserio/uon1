@@ -227,6 +227,56 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
     setData({ ...data, [field]: value });
   };
 
+  // Auto-calculate totals when category values change
+  useEffect(() => {
+    if (!data) return;
+
+    const totalVeiculosGeral = categorias.reduce((sum, cat) => {
+      return sum + (data[`qtd_${cat.key}` as keyof EstudoBaseData] as number || 0);
+    }, 0);
+
+    const totalProtegidoGeral = categorias.reduce((sum, cat) => {
+      return sum + (data[`protegido_${cat.key}` as keyof EstudoBaseData] as number || 0);
+    }, 0);
+
+    const totalValorProtegidoGeral = categorias.reduce((sum, cat) => {
+      return sum + (data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number || 0);
+    }, 0);
+
+    // Calculate weighted average for ticket médio
+    const totalTMPonderado = categorias.reduce((sum, cat) => {
+      const qtd = data[`qtd_${cat.key}` as keyof EstudoBaseData] as number || 0;
+      const tm = data[`tm_${cat.key}` as keyof EstudoBaseData] as number || 0;
+      return sum + (qtd * tm);
+    }, 0);
+    const tmGeral = totalVeiculosGeral > 0 ? totalTMPonderado / totalVeiculosGeral : 0;
+
+    // Only update if values changed to prevent infinite loop
+    if (
+      data.total_veiculos_geral !== totalVeiculosGeral ||
+      data.protegido_geral !== totalProtegidoGeral ||
+      data.valor_protegido_geral !== totalValorProtegidoGeral ||
+      Math.abs(data.tm_geral - tmGeral) > 0.01
+    ) {
+      setData(prev => prev ? {
+        ...prev,
+        total_veiculos_geral: totalVeiculosGeral,
+        protegido_geral: totalProtegidoGeral,
+        valor_protegido_geral: totalValorProtegidoGeral,
+        tm_geral: parseFloat(tmGeral.toFixed(2)),
+      } : null);
+    }
+  }, [
+    data?.qtd_passeio, data?.qtd_motocicletas, data?.qtd_utilitarios_suvs_vans,
+    data?.qtd_caminhoes, data?.qtd_taxi_app, data?.qtd_especiais_importados, data?.qtd_carretas,
+    data?.tm_passeio, data?.tm_motocicletas, data?.tm_utilitarios_suvs_vans,
+    data?.tm_caminhoes, data?.tm_taxi_app, data?.tm_especiais_importados, data?.tm_carretas,
+    data?.protegido_passeio, data?.protegido_motocicletas, data?.protegido_utilitarios_suvs_vans,
+    data?.protegido_caminhoes, data?.protegido_taxi_app, data?.protegido_especiais_importados, data?.protegido_carretas,
+    data?.valor_protegido_passeio, data?.valor_protegido_motocicletas, data?.valor_protegido_utilitarios_suvs_vans,
+    data?.valor_protegido_caminhoes, data?.valor_protegido_taxi_app, data?.valor_protegido_especiais_importados, data?.valor_protegido_carretas,
+  ]);
+
   // Prepare chart data with useMemo to ensure reactivity
   const distribuicaoFrotaData = useMemo(() => {
     if (!data) return [];
