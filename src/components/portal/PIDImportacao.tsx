@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useBIAuditLog } from "@/hooks/useBIAuditLog";
 import * as XLSX from "xlsx";
 import {
   Upload,
@@ -72,6 +73,7 @@ const meses = [
 
 export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImportacaoProps) {
   const { user } = useAuth();
+  const { registrarLog } = useBIAuditLog();
   const [ano, setAno] = useState(new Date().getFullYear().toString());
   const [mes, setMes] = useState((new Date().getMonth() + 1).toString().padStart(2, "0"));
   const [importing, setImporting] = useState(false);
@@ -140,6 +142,14 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
         .eq("id", id);
 
       if (error) throw error;
+      
+      // Registrar log de exclusão
+      await registrarLog({
+        modulo: "bi_indicadores",
+        acao: "exclusao",
+        descricao: `Registro de importação excluído`,
+        corretoraId,
+      });
       
       toast.success("Registro excluído com sucesso");
       fetchHistory();
@@ -521,6 +531,22 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
 
         if (insertError) throw insertError;
       }
+
+      // Registrar log de importação
+      await registrarLog({
+        modulo: "bi_indicadores",
+        acao: "importacao",
+        descricao: `Importação de dados para ${getMesLabel(parseInt(mes))}/${ano}`,
+        corretoraId,
+        dadosNovos: {
+          ano: parseInt(ano),
+          mes: parseInt(mes),
+          placas_ativas: importResult.placas_ativas,
+          total_cotas: importResult.total_cotas,
+          total_associados: importResult.total_associados,
+          cadastros_realizados: importResult.cadastros_realizados,
+        },
+      });
 
       toast.success("Dados importados com sucesso!");
 

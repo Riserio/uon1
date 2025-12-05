@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import { useAuth } from "@/hooks/useAuth";
+import { useBIAuditLog } from "@/hooks/useBIAuditLog";
 import { Save, Car, Bike, Truck, Calendar } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -112,6 +113,7 @@ const categorias = [
 
 export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string }) {
   const { user } = useAuth();
+  const { registrarLog } = useBIAuditLog();
   const { canEditMenu } = useMenuPermissions(user?.id);
   const canEdit = canEditMenu("pid");
 
@@ -179,6 +181,14 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
           .insert({ ...saveData, created_by: user.id });
         if (error) throw error;
       }
+
+      // Registrar log
+      await registrarLog({
+        modulo: "bi_indicadores",
+        acao: data.id ? "alteracao" : "importacao",
+        descricao: `Estudo de Base ${data.id ? "atualizado" : "criado"} - ${dataReferencia}`,
+        corretoraId,
+      });
 
       toast.success("Dados salvos com sucesso!");
       fetchData();
