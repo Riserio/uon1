@@ -90,7 +90,7 @@ const Landing = () => {
           <div className="text-center space-y-8 animate-fade-in">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 border border-[#5a4fcf]/20 text-[#362c89] text-sm font-medium shadow-sm backdrop-blur-sm">
               <Sparkles className="h-4 w-4 text-[#7c3aed]" />
-              Plataforma completa de gestão
+              Plataforma para administradoras e associações
             </div>
             
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight">
@@ -132,25 +132,6 @@ const Landing = () => {
                 className="h-24 w-auto opacity-90 hover:opacity-100 transition-opacity duration-300 drop-shadow-lg"
               />
             </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-            {[
-              { value: "500+", label: "Associações", color: "from-[#362c89] to-[#5a4fcf]" },
-              { value: "50k+", label: "Sinistros gerenciados", color: "from-[#5a4fcf] to-[#7c3aed]" },
-              { value: "99.9%", label: "Uptime garantido", color: "from-[#7c3aed] to-[#8b5cf6]" },
-              { value: "24/7", label: "Suporte disponível", color: "from-[#8b5cf6] to-[#a78bfa]" }
-            ].map((stat, index) => (
-              <div 
-                key={index}
-                className="relative group text-center p-6 rounded-2xl bg-white/70 backdrop-blur-sm border border-[#5a4fcf]/10 hover:border-[#5a4fcf]/30 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 overflow-hidden"
-              >
-                <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
-                <div className={`text-3xl md:text-4xl font-bold bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`}>{stat.value}</div>
-                <div className="text-sm text-[#5a4fcf]/70 mt-1 font-medium">{stat.label}</div>
-              </div>
-            ))}
           </div>
         </div>
       </section>
