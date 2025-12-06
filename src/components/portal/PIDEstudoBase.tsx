@@ -121,10 +121,40 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<EstudoBaseData | null>(null);
   const [originalData, setOriginalData] = useState<EstudoBaseData | null>(null);
-  const [dataReferencia, setDataReferencia] = useState(new Date().toISOString().split("T")[0]);
+  const [dataReferencia, setDataReferencia] = useState<string>("");
+  const [initialized, setInitialized] = useState(false);
+
+  // Fetch most recent period with data on initial load
+  const fetchMostRecentPeriod = async () => {
+    if (!corretoraId) return;
+    setLoading(true);
+    try {
+      const { data: result, error } = await supabase
+        .from("pid_estudo_base")
+        .select("data_referencia")
+        .eq("corretora_id", corretoraId)
+        .order("data_referencia", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      if (result) {
+        setDataReferencia(result.data_referencia);
+      } else {
+        // No data, use current date
+        setDataReferencia(new Date().toISOString().split("T")[0]);
+      }
+      setInitialized(true);
+    } catch (error: any) {
+      console.error("Error fetching most recent period:", error);
+      setDataReferencia(new Date().toISOString().split("T")[0]);
+      setInitialized(true);
+    }
+  };
 
   const fetchData = async () => {
-    if (!corretoraId) return;
+    if (!corretoraId || !dataReferencia) return;
     setLoading(true);
     try {
       const { data: result, error } = await supabase
@@ -157,11 +187,19 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
     }
   };
 
+  // Initialize with most recent period
   useEffect(() => {
-    if (corretoraId) {
+    if (corretoraId && !initialized) {
+      fetchMostRecentPeriod();
+    }
+  }, [corretoraId]);
+
+  // Fetch data when period changes
+  useEffect(() => {
+    if (corretoraId && dataReferencia && initialized) {
       fetchData();
     }
-  }, [corretoraId, dataReferencia]);
+  }, [corretoraId, dataReferencia, initialized]);
 
   const handleSave = async () => {
     if (!data || !corretoraId || !user) return;
