@@ -255,6 +255,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [dadosAtual, setDadosAtual] = useState<any>(null);
   const [dadosAnterior, setDadosAnterior] = useState<any>(null);
   const [initialized, setInitialized] = useState(false);
+  const [ultimoMesComDados, setUltimoMesComDados] = useState<{ ano: string; mes: string } | null>(null);
 
   // Anos: atual + 4 anteriores + próximo ano (2026)
   const currentYear = new Date().getFullYear();
@@ -291,20 +292,41 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       if (error) throw error;
       
       if (result) {
-        setAno(result.ano.toString());
-        setMes(result.mes.toString());
+        const anoStr = result.ano.toString();
+        const mesStr = result.mes.toString();
+        setAno(anoStr);
+        setMes(mesStr);
+        setUltimoMesComDados({ ano: anoStr, mes: mesStr });
       } else {
         // No data, use current month
-        setAno(new Date().getFullYear().toString());
-        setMes((new Date().getMonth() + 1).toString());
+        const anoStr = new Date().getFullYear().toString();
+        const mesStr = (new Date().getMonth() + 1).toString();
+        setAno(anoStr);
+        setMes(mesStr);
+        setUltimoMesComDados(null);
       }
       setInitialized(true);
     } catch (error: any) {
       console.error("Error fetching most recent period:", error);
-      setAno(new Date().getFullYear().toString());
-      setMes((new Date().getMonth() + 1).toString());
+      const anoStr = new Date().getFullYear().toString();
+      const mesStr = (new Date().getMonth() + 1).toString();
+      setAno(anoStr);
+      setMes(mesStr);
+      setUltimoMesComDados(null);
       setInitialized(true);
     }
+  };
+
+  // Handler for toggling "Todo Período"
+  const handleTodoPeriodoToggle = () => {
+    if (todoPeriodo) {
+      // Switching from "Todo Período" to specific month - use last month with data
+      if (ultimoMesComDados) {
+        setAno(ultimoMesComDados.ano);
+        setMes(ultimoMesComDados.mes);
+      }
+    }
+    setTodoPeriodo(!todoPeriodo);
   };
 
   const fetchDados = async () => {
@@ -546,6 +568,23 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     });
   }, [dadosAno, todoPeriodo]);
 
+  // Cálculo de médias para "Todo Período"
+  const mediasConsolidadas = useMemo(() => {
+    if (!todoPeriodo || !dadosAno || dadosAno.length === 0) return null;
+    
+    const count = dadosAno.length;
+    const sum = (field: string) => dadosAno.reduce((acc, d) => acc + (d[field] || 0), 0);
+    const avg = (field: string) => sum(field) / count;
+    
+    return {
+      sinistralidade_geral: avg("sinistralidade_geral"),
+      sinistralidade_financeira: avg("sinistralidade_financeira"),
+      percentual_inadimplencia: avg("percentual_inadimplencia"),
+      percentual_inadimplencia_boletos: avg("percentual_inadimplencia_boletos"),
+      percentual_inadimplencia_financeira: avg("percentual_inadimplencia_financeira"),
+    };
+  }, [todoPeriodo, dadosAno]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -572,7 +611,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
           <Button
             variant={todoPeriodo ? "default" : "outline"}
             size="sm"
-            onClick={() => setTodoPeriodo(!todoPeriodo)}
+            onClick={handleTodoPeriodoToggle}
             className="whitespace-nowrap"
           >
             Todo Período
@@ -617,8 +656,8 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         </Card>
       ) : (
         <>
-          {/* KPIs Principais */}
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          {/* KPIs Principais - Linha 1 */}
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
             <Card className="bg-gradient-to-br from-blue-500/10 to-transparent border-blue-500/20">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -673,40 +712,6 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-amber-500/10 to-transparent border-amber-500/20">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <AlertTriangle className="h-5 w-5 text-amber-500" />
-                </div>
-                <div className="mt-2">
-                  <div className="text-2xl font-bold">{formatPercent(dadosAtual.sinistralidade_financeira || 0)}</div>
-                  <div className="text-xs text-muted-foreground">Sinistralidade</div>
-                  <VariationIndicator
-                    current={(dadosAtual.sinistralidade_financeira || 0) * 100}
-                    previous={dadosAnterior ? (dadosAnterior.sinistralidade_financeira || 0) * 100 : null}
-                    format="percent"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-red-500/10 to-transparent border-red-500/20">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <Percent className="h-5 w-5 text-red-500" />
-                </div>
-                <div className="mt-2">
-                  <div className="text-2xl font-bold">{formatPercent(dadosAtual.percentual_inadimplencia || 0)}</div>
-                  <div className="text-xs text-muted-foreground">Inadimplência</div>
-                  <VariationIndicator
-                    current={(dadosAtual.percentual_inadimplencia || 0) * 100}
-                    previous={dadosAnterior ? (dadosAnterior.percentual_inadimplencia || 0) * 100 : null}
-                    format="percent"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
             <Card className="bg-gradient-to-br from-purple-500/10 to-transparent border-purple-500/20">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -726,6 +731,126 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                     previous={dadosAnterior?.crescimento_liquido}
                     format="number"
                   />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-cyan-500/10 to-transparent border-cyan-500/20">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <CreditCard className="h-5 w-5 text-cyan-500" />
+                </div>
+                <div className="mt-2">
+                  <div className="text-2xl font-bold">{formatCurrency(dadosAtual.ticket_medio_boleto || 0)}</div>
+                  <div className="text-xs text-muted-foreground">Ticket Médio</div>
+                  <VariationIndicator
+                    current={dadosAtual.ticket_medio_boleto || 0}
+                    previous={dadosAnterior?.ticket_medio_boleto}
+                    format="currency"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* KPIs Sinistralidade e Inadimplência - Linha 2 */}
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+            <Card className="bg-gradient-to-br from-amber-500/10 to-transparent border-amber-500/20">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  {todoPeriodo && <Badge variant="secondary" className="text-[9px]">Média</Badge>}
+                </div>
+                <div className="mt-2">
+                  <div className="text-2xl font-bold">
+                    {formatPercent(todoPeriodo && mediasConsolidadas 
+                      ? mediasConsolidadas.sinistralidade_geral 
+                      : (dadosAtual.sinistralidade_geral || 0)
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Sinistralidade Geral</div>
+                  {!todoPeriodo && (
+                    <VariationIndicator
+                      current={(dadosAtual.sinistralidade_geral || 0) * 100}
+                      previous={dadosAnterior ? (dadosAnterior.sinistralidade_geral || 0) * 100 : null}
+                      format="percent"
+                    />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-orange-500/10 to-transparent border-orange-500/20">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <AlertTriangle className="h-5 w-5 text-orange-500" />
+                  {todoPeriodo && <Badge variant="secondary" className="text-[9px]">Média</Badge>}
+                </div>
+                <div className="mt-2">
+                  <div className="text-2xl font-bold">
+                    {formatPercent(todoPeriodo && mediasConsolidadas 
+                      ? mediasConsolidadas.sinistralidade_financeira 
+                      : (dadosAtual.sinistralidade_financeira || 0)
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Sinistralidade Financeira</div>
+                  {!todoPeriodo && (
+                    <VariationIndicator
+                      current={(dadosAtual.sinistralidade_financeira || 0) * 100}
+                      previous={dadosAnterior ? (dadosAnterior.sinistralidade_financeira || 0) * 100 : null}
+                      format="percent"
+                    />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-red-500/10 to-transparent border-red-500/20">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <Percent className="h-5 w-5 text-red-500" />
+                  {todoPeriodo && <Badge variant="secondary" className="text-[9px]">Média</Badge>}
+                </div>
+                <div className="mt-2">
+                  <div className="text-2xl font-bold">
+                    {formatPercent(todoPeriodo && mediasConsolidadas 
+                      ? mediasConsolidadas.percentual_inadimplencia_boletos 
+                      : (dadosAtual.percentual_inadimplencia_boletos || 0)
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Inadimplência Boletos</div>
+                  {!todoPeriodo && (
+                    <VariationIndicator
+                      current={(dadosAtual.percentual_inadimplencia_boletos || 0) * 100}
+                      previous={dadosAnterior ? (dadosAnterior.percentual_inadimplencia_boletos || 0) * 100 : null}
+                      format="percent"
+                    />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-rose-500/10 to-transparent border-rose-500/20">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <Percent className="h-5 w-5 text-rose-500" />
+                  {todoPeriodo && <Badge variant="secondary" className="text-[9px]">Média</Badge>}
+                </div>
+                <div className="mt-2">
+                  <div className="text-2xl font-bold">
+                    {formatPercent(todoPeriodo && mediasConsolidadas 
+                      ? mediasConsolidadas.percentual_inadimplencia_financeira 
+                      : (dadosAtual.percentual_inadimplencia_financeira || 0)
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Inadimplência Financeira</div>
+                  {!todoPeriodo && (
+                    <VariationIndicator
+                      current={(dadosAtual.percentual_inadimplencia_financeira || 0) * 100}
+                      previous={dadosAnterior ? (dadosAnterior.percentual_inadimplencia_financeira || 0) * 100 : null}
+                      format="percent"
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
