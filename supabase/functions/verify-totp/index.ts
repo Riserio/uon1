@@ -117,7 +117,7 @@ serve(async (req) => {
     
     // Setup TOTP
     if (action === "setup") {
-      const { email } = await req.json();
+      const { email, forceReset } = await req.json();
       
       if (!email) {
         return new Response(JSON.stringify({ error: "Missing email" }), {
@@ -140,32 +140,52 @@ serve(async (req) => {
         });
       }
       
-      const secret = generateTOTPSecret();
+      // Check if user already has a TOTP secret configured
+      const { data: existingTotp } = await supabaseAdmin
+        .from("user_totp")
+        .select("secret, enabled")
+        .eq("user_id", profile.id)
+        .single();
       
-      const { error: upsertError } = await supabaseAdmin.from("user_totp").upsert(
-        {
-          user_id: profile.id,
-          secret: secret,
-          enabled: false,
-        },
-        { onConflict: "user_id" }
-      );
+      let secret: string;
       
-      if (upsertError) {
-        console.error("Error creating TOTP:", upsertError);
-        return new Response(JSON.stringify({ error: "Failed to setup TOTP" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      // Only generate new secret if: no existing secret OR forceReset is true
+      if (!existingTotp?.secret || forceReset) {
+        secret = generateTOTPSecret();
+        
+        const { error: upsertError } = await supabaseAdmin.from("user_totp").upsert(
+          {
+            user_id: profile.id,
+            secret: secret,
+            enabled: false,
+          },
+          { onConflict: "user_id" }
+        );
+        
+        if (upsertError) {
+          console.error("Error creating TOTP:", upsertError);
+          return new Response(JSON.stringify({ error: "Failed to setup TOTP" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } else {
+        // Use existing secret
+        secret = existingTotp.secret;
       }
       
       const issuer = "Portal PID";
       const accountName = `${profile.nome} (${email})`;
       const qrCodeUri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(accountName)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}`;
       
-      console.log("TOTP setup successful for user:", profile.id);
+      console.log("TOTP setup successful for user:", profile.id, "isExisting:", !!existingTotp?.secret && !forceReset);
       return new Response(
-        JSON.stringify({ success: true, qrCodeUri, secret }),
+        JSON.stringify({ 
+          success: true, 
+          qrCodeUri, 
+          secret,
+          isExisting: !!existingTotp?.enabled && !forceReset
+        }),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
