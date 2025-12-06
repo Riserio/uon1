@@ -628,8 +628,8 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
         </div>
       </div>
 
-      {/* KPIs Principais */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
+      {/* KPIs Principais - Linha 1 */}
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         <MetricCard
           title="Placas Ativas"
           value={calculatedData.placas_ativas}
@@ -651,24 +651,48 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
           isCurrency
         />
         <MetricCard
-          title="Sinistralidade"
-          value={formatPercent(calculatedData.sinistralidade_financeira)}
-          icon={<AlertTriangle className="h-4 w-4" />}
-          isPercent
-          invertTrend
-        />
-        <MetricCard
-          title="Inadimplência"
-          value={formatPercent(calculatedData.percentual_inadimplencia)}
-          icon={<TrendingDown className="h-4 w-4" />}
-          isPercent
-          invertTrend
+          title="Ticket Médio"
+          value={formatCurrency(calculatedData.ticket_medio_boleto)}
+          icon={<DollarSign className="h-4 w-4" />}
+          isCurrency
         />
         <MetricCard
           title="Crescimento"
           value={formatPercent(calculatedData.crescimento_liquido)}
           icon={<TrendingUp className="h-4 w-4" />}
           isPercent
+        />
+      </div>
+
+      {/* KPIs Sinistralidade e Inadimplência - Linha 2 */}
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <MetricCard
+          title="Sinistralidade Geral"
+          value={formatPercent(calculatedData.sinistralidade_geral)}
+          icon={<AlertTriangle className="h-4 w-4" />}
+          isPercent
+          invertTrend
+        />
+        <MetricCard
+          title="Sinistralidade Financeira"
+          value={formatPercent(calculatedData.sinistralidade_financeira)}
+          icon={<AlertTriangle className="h-4 w-4" />}
+          isPercent
+          invertTrend
+        />
+        <MetricCard
+          title="Inadimplência Boletos"
+          value={formatPercent(calculatedData.percentual_inadimplencia_boletos)}
+          icon={<TrendingDown className="h-4 w-4" />}
+          isPercent
+          invertTrend
+        />
+        <MetricCard
+          title="Inadimplência Financeira"
+          value={formatPercent(calculatedData.percentual_inadimplencia_financeira)}
+          icon={<TrendingDown className="h-4 w-4" />}
+          isPercent
+          invertTrend
         />
       </div>
 
