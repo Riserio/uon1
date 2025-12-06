@@ -238,14 +238,14 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     const permanencia = (data.cadastros_realizados + data.reativacao) - (data.cancelamentos + data.inadimplentes);
     const indice_permanencia = calcPercent(permanencia, data.cadastros_realizados + data.reativacao);
 
-    // Indicadores Financeiros
-    const percentual_emissao_boleto = calcPercent(data.boletos_liquidados, boletosEmitidos);
-    const percentual_inadimplencia_boletos = calcPercent(data.boletos_abertos, boletosEmitidos);
-    const percentual_cancelamento_boletos = calcPercent(data.boletos_cancelados, boletosEmitidos);
-    const ticket_medio_boleto = data.boletos_liquidados > 0 ? totalRecebido / data.boletos_liquidados : 0;
-    const percentual_inadimplencia_financeira = calcPercent(data.valor_boletos_abertos, faturamento);
-    const percentual_arrecadacao_juros = calcPercent(data.arrecadamento_juros, totalRecebido);
-    const percentual_descontado_banco = calcPercent(data.descontado_banco, totalRecebido);
+    // Indicadores Financeiros - usar valores do banco se disponíveis (importados), senão calcular
+    const percentual_emissao_boleto = data.percentual_emissao_boleto || calcPercent(data.boletos_liquidados, boletosEmitidos);
+    const percentual_inadimplencia_boletos = data.percentual_inadimplencia_boletos || calcPercent(data.boletos_abertos, boletosEmitidos);
+    const percentual_cancelamento_boletos = data.percentual_cancelamento_boletos || calcPercent(data.boletos_cancelados, boletosEmitidos);
+    const ticket_medio_boleto = data.ticket_medio_boleto || (data.boletos_liquidados > 0 ? totalRecebido / data.boletos_liquidados : 0);
+    const percentual_inadimplencia_financeira = data.percentual_inadimplencia_financeira || calcPercent(data.valor_boletos_abertos, faturamento);
+    const percentual_arrecadacao_juros = data.percentual_arrecadacao_juros || calcPercent(data.arrecadamento_juros, totalRecebido);
+    const percentual_descontado_banco = data.percentual_descontado_banco || calcPercent(data.descontado_banco, totalRecebido);
 
     // Eventos - Total automático
     const abertura_total_eventos = 
@@ -285,11 +285,12 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     const ticket_medio_vidros = data.pagamento_qtd_vidros > 0 ? data.pagamento_valor_vidros / data.pagamento_qtd_vidros : 0;
     const ticket_medio_carro_reserva = data.pagamento_qtd_carro_reserva > 0 ? data.pagamento_valor_carro_reserva / data.pagamento_qtd_carro_reserva : 0;
 
-    // Índices
-    const indice_dano_parcial = calcPercent(qtd_parcial, placas);
-    const indice_dano_integral = calcPercent(qtd_integral, placas);
-    const sinistralidade_financeira = calcPercent(custo_total_eventos, totalRecebido);
-    const sinistralidade_geral = calcPercent(abertura_total_eventos, placas);
+    // Índices - usar valores do banco se disponíveis (importados), senão calcular
+    const indice_dano_parcial = data.indice_dano_parcial || calcPercent(qtd_parcial, placas);
+    const indice_dano_integral = data.indice_dano_integral || calcPercent(qtd_integral, placas);
+    // IMPORTANTE: Usar valor do banco se existir (foi importado), senão calcular
+    const sinistralidade_financeira = data.sinistralidade_financeira || calcPercent(custo_total_eventos, totalRecebido);
+    const sinistralidade_geral = data.sinistralidade_geral || calcPercent(abertura_total_eventos, placas);
 
     // Assistência
     const comprometimento_assistencia = calcPercent(data.custo_assistencia, totalRecebido);
