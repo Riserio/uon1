@@ -52,6 +52,7 @@ import DashboardFinanceiro from "@/pages/DashboardFinanceiro";
 import CustosSinistros from "@/pages/CustosSinistros";
 import SinistroConfiguracoes from "@/pages/SinistroConfiguracoes";
 import SGAInsights from "@/pages/SGAInsights";
+import Landing from "./pages/Landing";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -143,7 +144,8 @@ const App = () => (
             <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
               <Route path="/acompanhamento" element={<AcompanhamentoSinistro />} />
               <Route path="/configuracao-status-publico" element={<ProtectedRoute><ConfiguracaoStatusPublico /></ProtectedRoute>} />
-              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/" element={<Landing />} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/atendimentos" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/sinistros" element={<ProtectedRoute><Sinistros /></ProtectedRoute>} />
               <Route path="/sinistros/configuracoes" element={<ProtectedRoute><SinistroConfiguracoes /></ProtectedRoute>} />
@@ -152,7 +154,6 @@ const App = () => (
               <Route path="/vistorias/nova/digital" element={<ProtectedRoute><VistoriaDigital /></ProtectedRoute>} />
               <Route path="/vistorias/nova/manual" element={<ProtectedRoute><VistoriaManual /></ProtectedRoute>} />
               <Route path="/vistorias/:id" element={<ProtectedRoute><VistoriaDetalhe /></ProtectedRoute>} />
-              <Route path="/dashboard" element={<Navigate to="/" replace />} />
               <Route path="/dashboard-analytics" element={<ProtectedRoute><DashboardAnalytics /></ProtectedRoute>} />
               <Route path="/desempenho-individual" element={<ProtectedRoute><IndividualPerformance /></ProtectedRoute>} />
               <Route path="/performance/individual" element={<ProtectedRoute><IndividualPerformance /></ProtectedRoute>} />
