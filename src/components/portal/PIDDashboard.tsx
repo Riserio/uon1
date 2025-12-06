@@ -427,6 +427,18 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       const arrecadacaoJuros = d.percentual_arrecadacao_juros ?? calcPercent(d.arrecadamento_juros, d.total_recebido);
       const descontadoBanco = d.percentual_descontado_banco ?? calcPercent(d.descontado_banco, d.total_recebido);
 
+      // Sinistralidade - usar valores do banco se disponíveis, senão calcular
+      const custoTotalEventos = d.custo_total_eventos ?? (
+        (d.pagamento_valor_parcial_associado || 0) +
+        (d.pagamento_valor_parcial_terceiro || 0) +
+        (d.pagamento_valor_integral_associado || 0) +
+        (d.pagamento_valor_integral_terceiro || 0) +
+        (d.pagamento_valor_vidros || 0) +
+        (d.pagamento_valor_carro_reserva || 0)
+      );
+      const sinistroFinanceiro = d.sinistralidade_financeira ?? calcPercent(custoTotalEventos, d.total_recebido);
+      const sinistroGeral = d.sinistralidade_geral ?? calcPercent(d.abertura_total_eventos, d.placas_ativas);
+
       // Label: se todo período, mostra Mês/Ano, senão só mês
       const mesLabel = todoPeriodo 
         ? `${mesesNome[d.mes - 1]}/${String(d.ano).slice(-2)}`
@@ -502,9 +514,9 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         pagamento_valor_vidros: d.pagamento_valor_vidros || 0,
         pagamento_valor_carro_reserva: d.pagamento_valor_carro_reserva || 0,
 
-        // Eventos - Índices
-        sinistralidade_financeira: (d.sinistralidade_financeira || 0) * 100,
-        sinistralidade_geral: (d.sinistralidade_geral || 0) * 100,
+        // Eventos - Índices (usar valores calculados com fallback)
+        sinistralidade_financeira: sinistroFinanceiro * 100,
+        sinistralidade_geral: sinistroGeral * 100,
         indice_dano_parcial: (d.indice_dano_parcial || 0) * 100,
         indice_dano_integral: (d.indice_dano_integral || 0) * 100,
         ticket_medio_parcial: d.ticket_medio_parcial || 0,
