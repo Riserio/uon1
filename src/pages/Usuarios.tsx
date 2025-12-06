@@ -398,7 +398,7 @@ export default function Usuarios() {
         const createdUserId = result.userId || result.user?.id || null;
 
         toast.success(`Usuário criado! Senha temporária: ${tempPassword}`);
-        await logUserAction("create", `Usuário criado (${selectedRole}) - ${validatedData.nome}`, createdUserId);
+        await logUserAction("create", createdUserId, { nome: validatedData.nome, role: selectedRole });
 
         setDialogOpen(false);
         fetchProfiles();
