@@ -21,8 +21,10 @@ interface HistoricoData {
   total_associados: number;
   faturamento_operacional: number;
   total_recebido: number;
+  sinistralidade_geral: number;
   sinistralidade_financeira: number;
-  percentual_inadimplencia: number;
+  percentual_inadimplencia_boletos: number;
+  percentual_inadimplencia_financeira: number;
   cadastros_realizados: number;
   cancelamentos: number;
   crescimento_liquido: number;
@@ -212,8 +214,10 @@ export default function PIDHistorico({ corretoraId }: PIDHistoricoProps) {
                     <TableHead className="text-right font-semibold">Cotas</TableHead>
                     <TableHead className="text-right font-semibold">Faturamento</TableHead>
                     <TableHead className="text-right font-semibold">Recebido</TableHead>
-                    <TableHead className="text-right font-semibold">Sinistralidade</TableHead>
-                    <TableHead className="text-right font-semibold">Inadimpl.</TableHead>
+                    <TableHead className="text-right font-semibold">Sinist. Geral</TableHead>
+                    <TableHead className="text-right font-semibold">Sinist. Fin.</TableHead>
+                    <TableHead className="text-right font-semibold">Inadimpl. Bol.</TableHead>
+                    <TableHead className="text-right font-semibold">Inadimpl. Fin.</TableHead>
                     <TableHead className="text-right font-semibold">Cadastros</TableHead>
                     <TableHead className="text-right font-semibold">Cancelam.</TableHead>
                     <TableHead className="text-right font-semibold">Cresc. Líq.</TableHead>
@@ -257,6 +261,14 @@ export default function PIDHistorico({ corretoraId }: PIDHistoricoProps) {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
+                            <span className={item.sinistralidade_geral > 0.5 ? "text-red-500" : ""}>
+                              {formatPercent(item.sinistralidade_geral || 0)}
+                            </span>
+                            {getTrendIcon(item.sinistralidade_geral, anterior?.sinistralidade_geral, true)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
                             <span className={item.sinistralidade_financeira > 0.5 ? "text-red-500" : ""}>
                               {formatPercent(item.sinistralidade_financeira || 0)}
                             </span>
@@ -265,10 +277,18 @@ export default function PIDHistorico({ corretoraId }: PIDHistoricoProps) {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <span className={item.percentual_inadimplencia > 0.1 ? "text-amber-500" : ""}>
-                              {formatPercent(item.percentual_inadimplencia || 0)}
+                            <span className={item.percentual_inadimplencia_boletos > 0.1 ? "text-amber-500" : ""}>
+                              {formatPercent(item.percentual_inadimplencia_boletos || 0)}
                             </span>
-                            {getTrendIcon(item.percentual_inadimplencia, anterior?.percentual_inadimplencia, true)}
+                            {getTrendIcon(item.percentual_inadimplencia_boletos, anterior?.percentual_inadimplencia_boletos, true)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <span className={item.percentual_inadimplencia_financeira > 0.1 ? "text-amber-500" : ""}>
+                              {formatPercent(item.percentual_inadimplencia_financeira || 0)}
+                            </span>
+                            {getTrendIcon(item.percentual_inadimplencia_financeira, anterior?.percentual_inadimplencia_financeira, true)}
                           </div>
                         </TableCell>
                         <TableCell className="text-right text-green-600">
