@@ -1,18 +1,18 @@
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import LogoUon1 from "@/assets/uon1-logo.png";
-import { 
-  Shield, 
-  BarChart3, 
-  Users, 
-  FileText, 
+import {
+  Shield,
+  BarChart3,
+  Users,
+  FileText,
   ChevronRight,
   CheckCircle,
   ArrowRight,
   Zap,
   Lock,
   TrendingUp,
-  Sparkles
+  Sparkles,
 } from "lucide-react";
 
 const Landing = () => {
@@ -23,26 +23,26 @@ const Landing = () => {
       icon: Shield,
       title: "Gestão de Sinistros",
       description: "Controle completo do ciclo de vida dos sinistros, desde abertura até conclusão.",
-      gradient: "from-[#362c89] to-[#5a4fcf]"
+      gradient: "from-[#362c89] to-[#5a4fcf]",
     },
     {
       icon: BarChart3,
       title: "BI & Indicadores",
       description: "Dashboards inteligentes com KPIs em tempo real para tomada de decisão.",
-      gradient: "from-[#7c3aed] to-[#a78bfa]"
+      gradient: "from-[#7c3aed] to-[#a78bfa]",
     },
     {
       icon: Users,
       title: "Portal do Parceiro",
       description: "Acesso exclusivo para parceiros acompanharem suas operações.",
-      gradient: "from-[#5a4fcf] to-[#8b5cf6]"
+      gradient: "from-[#5a4fcf] to-[#8b5cf6]",
     },
     {
       icon: FileText,
       title: "Vistorias Digitais",
       description: "Processo de vistoria 100% digital com análise automatizada por IA.",
-      gradient: "from-[#8b5cf6] to-[#c4b5fd]"
-    }
+      gradient: "from-[#8b5cf6] to-[#c4b5fd]",
+    },
   ];
 
   const benefits = [
@@ -51,7 +51,7 @@ const Landing = () => {
     "Relatórios detalhados e exportáveis",
     "Suporte técnico especializado",
     "Atualizações contínuas sem custo adicional",
-    "Conformidade com LGPD"
+    "Conformidade com LGPD",
   ];
 
   return (
@@ -60,14 +60,10 @@ const Landing = () => {
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-xl border-b border-[#5a4fcf]/10">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img 
-              src={LogoUon1} 
-              alt="Uon1" 
-              className="h-12 w-auto"
-            />
+            <img src={LogoUon1} alt="Uon1" className="h-12 w-auto" />
           </div>
-          <Button 
-            onClick={() => navigate('/auth')}
+          <Button
+            onClick={() => navigate("/auth")}
             className="gap-2 bg-gradient-to-r from-[#362c89] to-[#5a4fcf] hover:from-[#2d2473] hover:to-[#4a3fbf] text-white shadow-lg shadow-[#362c89]/30 transition-all duration-300 hover:shadow-xl hover:shadow-[#362c89]/40 hover:-translate-y-0.5 border-0"
           >
             Acessar Uon1
@@ -92,7 +88,7 @@ const Landing = () => {
               <Sparkles className="h-4 w-4 text-[#7c3aed]" />
               Plataforma para administradoras e associações
             </div>
-            
+
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight">
               <span className="text-[#1e1b4b]">Gestão inteligente de</span>
               <br />
@@ -100,22 +96,22 @@ const Landing = () => {
                 sinistros e operações
               </span>
             </h1>
-            
+
             <p className="text-xl text-[#4c4587] max-w-2xl mx-auto leading-relaxed">
-              Transforme a gestão da sua associação com uma plataforma moderna, 
-              segura e eficiente. Tudo que você precisa em um só lugar.
+              Transforme a gestão da sua administradora e associação com uma plataforma moderna, segura e eficiente.
+              Tudo que você precisa em um só lugar.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-              <Button 
+              <Button
                 size="lg"
-                onClick={() => navigate('/auth')}
+                onClick={() => navigate("/auth")}
                 className="gap-2 text-lg px-8 py-6 bg-gradient-to-r from-[#362c89] to-[#5a4fcf] hover:from-[#2d2473] hover:to-[#4a3fbf] shadow-xl shadow-[#362c89]/30 transition-all duration-300 hover:shadow-2xl hover:shadow-[#362c89]/40 hover:-translate-y-1 border-0 text-white"
               >
                 Começar agora
                 <ChevronRight className="h-5 w-5" />
               </Button>
-              <Button 
+              <Button
                 size="lg"
                 variant="outline"
                 className="gap-2 text-lg px-8 py-6 border-2 border-[#5a4fcf]/40 text-[#362c89] hover:bg-[#5a4fcf]/10 hover:border-[#5a4fcf] transition-all duration-300 bg-white/50 backdrop-blur-sm"
@@ -126,9 +122,9 @@ const Landing = () => {
 
             {/* Logo centralizada */}
             <div className="pt-12 flex justify-center">
-              <img 
-                src={LogoUon1} 
-                alt="Uon1" 
+              <img
+                src={LogoUon1}
+                alt="Uon1"
                 className="h-24 w-auto opacity-90 hover:opacity-100 transition-opacity duration-300 drop-shadow-lg"
               />
             </div>
@@ -142,7 +138,10 @@ const Landing = () => {
         <div className="container mx-auto max-w-6xl relative">
           <div className="text-center mb-16 animate-fade-in">
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-[#1e1b4b]">
-              Recursos <span className="bg-gradient-to-r from-[#5a4fcf] to-[#7c3aed] bg-clip-text text-transparent">poderosos</span>
+              Recursos{" "}
+              <span className="bg-gradient-to-r from-[#5a4fcf] to-[#7c3aed] bg-clip-text text-transparent">
+                poderosos
+              </span>
             </h2>
             <p className="text-[#4c4587] text-lg max-w-2xl mx-auto">
               Ferramentas desenvolvidas para otimizar cada etapa da sua operação
@@ -151,13 +150,17 @@ const Landing = () => {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature, index) => (
-              <div 
+              <div
                 key={index}
                 className="group relative p-6 rounded-2xl bg-white/80 backdrop-blur-sm border border-[#5a4fcf]/10 hover:border-[#5a4fcf]/30 shadow-sm hover:shadow-xl transition-all duration-500 hover:-translate-y-2 overflow-hidden animate-fade-in"
                 style={{ animationDelay: `${index * 0.1}s` }}
               >
-                <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
-                <div className={`relative w-14 h-14 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-all duration-300 shadow-lg shadow-[#362c89]/20`}>
+                <div
+                  className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-300`}
+                />
+                <div
+                  className={`relative w-14 h-14 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-all duration-300 shadow-lg shadow-[#362c89]/20`}
+                >
                   <feature.icon className="h-7 w-7 text-white" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2 text-[#1e1b4b] relative">{feature.title}</h3>
@@ -174,17 +177,18 @@ const Landing = () => {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="animate-fade-in">
               <h2 className="text-3xl md:text-4xl font-bold mb-6 text-[#1e1b4b]">
-                Por que escolher a <span className="bg-gradient-to-r from-[#362c89] to-[#7c3aed] bg-clip-text text-transparent">Uon1</span>?
+                Por que escolher a{" "}
+                <span className="bg-gradient-to-r from-[#362c89] to-[#7c3aed] bg-clip-text text-transparent">Uon1</span>
+                ?
               </h2>
               <p className="text-[#4c4587] text-lg mb-8">
-                Nossa plataforma foi desenvolvida pensando nas necessidades reais 
-                das associações de proteção veicular, oferecendo soluções que 
-                realmente fazem diferença no dia a dia.
+                Nossa plataforma foi desenvolvida pensando nas necessidades reais das associações de proteção veicular,
+                oferecendo soluções que realmente fazem diferença no dia a dia.
               </p>
-              
+
               <div className="space-y-3">
                 {benefits.map((benefit, index) => (
-                  <div 
+                  <div
                     key={index}
                     className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/60 transition-colors animate-fade-in group"
                     style={{ animationDelay: `${index * 0.1}s` }}
@@ -198,7 +202,7 @@ const Landing = () => {
               </div>
             </div>
 
-            <div className="relative animate-fade-in" style={{ animationDelay: '0.3s' }}>
+            <div className="relative animate-fade-in" style={{ animationDelay: "0.3s" }}>
               <div className="absolute inset-0 bg-gradient-to-r from-[#362c89]/20 to-[#7c3aed]/20 rounded-3xl blur-2xl" />
               <div className="relative grid grid-cols-2 gap-4">
                 <div className="space-y-4">
@@ -241,16 +245,14 @@ const Landing = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-[#362c89]/5 to-transparent" />
         <div className="container mx-auto max-w-4xl text-center relative animate-fade-in">
           <div className="p-12 rounded-3xl bg-gradient-to-br from-[#362c89] via-[#5a4fcf] to-[#7c3aed] shadow-2xl shadow-[#362c89]/30">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6 text-white">
-              Pronto para transformar sua operação?
-            </h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-6 text-white">Pronto para transformar sua operação?</h2>
             <p className="text-white/80 text-lg mb-8 max-w-2xl mx-auto">
-              Junte-se a centenas de associações que já utilizam a Uon1 
-              para gerenciar suas operações de forma eficiente.
+              Junte-se a centenas de associações que já utilizam a Uon1 para gerenciar suas operações de forma
+              eficiente.
             </p>
-            <Button 
+            <Button
               size="lg"
-              onClick={() => navigate('/auth')}
+              onClick={() => navigate("/auth")}
               className="gap-2 text-lg px-10 py-6 bg-white text-[#362c89] hover:bg-white/90 shadow-xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 border-0 font-semibold"
             >
               Acessar o sistema
@@ -264,19 +266,19 @@ const Landing = () => {
       <footer className="py-8 px-6 border-t border-[#5a4fcf]/10 bg-white/50 backdrop-blur-sm">
         <div className="container mx-auto max-w-6xl flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img 
-              src={LogoUon1} 
-              alt="Uon1" 
-              className="h-8 w-auto opacity-80"
-            />
-            <span className="text-[#5a4fcf]/60">
-              © {new Date().getFullYear()} Uon1. Todos os direitos reservados.
-            </span>
+            <img src={LogoUon1} alt="Uon1" className="h-8 w-auto opacity-80" />
+            <span className="text-[#5a4fcf]/60">© {new Date().getFullYear()} Uon1. Todos os direitos reservados.</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-[#5a4fcf]/60">
-            <a href="#" className="hover:text-[#362c89] transition-colors">Termos de Uso</a>
-            <a href="#" className="hover:text-[#362c89] transition-colors">Privacidade</a>
-            <a href="#" className="hover:text-[#362c89] transition-colors">Contato</a>
+            <a href="#" className="hover:text-[#362c89] transition-colors">
+              Termos de Uso
+            </a>
+            <a href="#" className="hover:text-[#362c89] transition-colors">
+              Privacidade
+            </a>
+            <a href="#" className="hover:text-[#362c89] transition-colors">
+              Contato
+            </a>
           </div>
         </div>
       </footer>
