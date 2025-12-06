@@ -182,8 +182,8 @@ const Landing = () => {
                 ?
               </h2>
               <p className="text-[#4c4587] text-lg mb-8">
-                Nossa plataforma foi desenvolvida pensando nas necessidades reais das associações de proteção veicular,
-                oferecendo soluções que realmente fazem diferença no dia a dia.
+                Nossa plataforma foi desenvolvida pensando nas necessidades reais das administradoras e associações de
+                proteção veicular, oferecendo soluções que realmente fazem diferença no dia a dia.
               </p>
 
               <div className="space-y-3">
