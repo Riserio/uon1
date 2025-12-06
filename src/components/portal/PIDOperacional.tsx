@@ -191,8 +191,9 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<PIDOperacionalData | null>(null);
   const [originalData, setOriginalData] = useState<PIDOperacionalData | null>(null);
-  const [ano, setAno] = useState(new Date().getFullYear().toString());
-  const [mes, setMes] = useState((new Date().getMonth() + 1).toString().padStart(2, "0"));
+  const [ano, setAno] = useState<string>("");
+  const [mes, setMes] = useState<string>("");
+  const [initialized, setInitialized] = useState(false);
 
   // Anos: próximo ano + atuais (inclui 2026)
   const currentYear = new Date().getFullYear();
@@ -338,8 +339,41 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     };
   }, [data]);
 
-  const fetchData = async () => {
+  // Fetch most recent period with data on initial load
+  const fetchMostRecentPeriod = async () => {
     if (!corretoraId) return;
+    setLoading(true);
+    try {
+      const { data: result, error } = await supabase
+        .from("pid_operacional")
+        .select("ano, mes")
+        .eq("corretora_id", corretoraId)
+        .order("ano", { ascending: false })
+        .order("mes", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      if (result) {
+        setAno(result.ano.toString());
+        setMes(result.mes.toString().padStart(2, "0"));
+      } else {
+        // No data, use current month
+        setAno(new Date().getFullYear().toString());
+        setMes((new Date().getMonth() + 1).toString().padStart(2, "0"));
+      }
+      setInitialized(true);
+    } catch (error: any) {
+      console.error("Error fetching most recent period:", error);
+      setAno(new Date().getFullYear().toString());
+      setMes((new Date().getMonth() + 1).toString().padStart(2, "0"));
+      setInitialized(true);
+    }
+  };
+
+  const fetchData = async () => {
+    if (!corretoraId || !ano || !mes) return;
     setLoading(true);
     try {
       const { data: result, error } = await supabase
@@ -374,11 +408,19 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     }
   };
 
+  // Initialize with most recent period
   useEffect(() => {
-    if (corretoraId) {
+    if (corretoraId && !initialized) {
+      fetchMostRecentPeriod();
+    }
+  }, [corretoraId]);
+
+  // Fetch data when period changes
+  useEffect(() => {
+    if (corretoraId && ano && mes && initialized) {
       fetchData();
     }
-  }, [corretoraId, ano, mes]);
+  }, [corretoraId, ano, mes, initialized]);
 
   const handleSave = async () => {
     if (!calculatedData || !corretoraId || !user) return;
