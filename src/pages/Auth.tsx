@@ -65,12 +65,15 @@ export default function Auth() {
         return;
       }
 
-      if (!totpData || !totpData.enabled) {
-        await setupTOTP(effectiveUser);
-      } else {
-        // Always fetch QR code even if already enabled
-        await setupTOTP(effectiveUser);
+      // Fetch QR code (will reuse existing secret if already configured)
+      await setupTOTP(effectiveUser, false);
+      
+      if (totpData?.enabled) {
+        // User already has TOTP configured - go directly to verification
         setStep("TOTP");
+      } else {
+        // User needs to set up TOTP for the first time
+        setStep("TOTP_SETUP");
       }
     } catch (error) {
       console.error("Error checking TOTP status:", error);
@@ -78,7 +81,7 @@ export default function Auth() {
     }
   };
 
-  const setupTOTP = async (currentUser?: MinimalUser) => {
+  const setupTOTP = async (currentUser?: MinimalUser, forceReset = false) => {
     const effectiveUser: MinimalUser | undefined =
       currentUser ??
       (user
@@ -94,6 +97,7 @@ export default function Auth() {
       const { data, error } = await supabase.functions.invoke("verify-totp/setup", {
         body: {
           email: effectiveUser.email,
+          forceReset,
         },
       });
 
@@ -111,11 +115,23 @@ export default function Auth() {
       }
 
       setQrCodeUri(data.qrCodeUri);
-      setStep("TOTP_SETUP");
+      
+      if (forceReset) {
+        toast.success("Novo QR Code gerado! Escaneie novamente.");
+        setStep("TOTP_SETUP");
+      }
     } catch (error: any) {
       console.error("Error setting up TOTP:", error);
       toast.error("Erro ao configurar autenticação");
     }
+  };
+
+  const handleResetTOTP = async () => {
+    if (!user?.email) return;
+    setSubmitting(true);
+    await setupTOTP({ id: user.id, email: user.email }, true);
+    setTotpCode("");
+    setSubmitting(false);
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -523,7 +539,7 @@ export default function Auth() {
                     />
                   </div>
                   <p className="text-sm text-muted-foreground text-center">
-                    Escaneie este código com o Google Authenticator
+                    Escaneie este código com o Google Authenticator se necessário
                   </p>
                 </div>
               )}
@@ -561,6 +577,17 @@ export default function Auth() {
                 ) : (
                   "Confirmar acesso"
                 )}
+              </Button>
+              
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={handleResetTOTP}
+                disabled={submitting}
+              >
+                <QrCode className="w-4 h-4 mr-2" />
+                Gerar novo QR Code
               </Button>
             </form>
           )}
