@@ -419,11 +419,13 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       const permanencia = totalEntrada - totalPerdas;
       const indicePermanencia = d.placas_ativas > 0 ? calcPercent(permanencia, d.placas_ativas) : 0;
 
-      const inadimplenciaBoletos = calcPercent(d.boletos_abertos, d.boletos_emitidos);
-      const cancelamentoBoletos = calcPercent(d.boletos_cancelados, d.boletos_emitidos);
-      const inadimplenciaFinanceira = calcPercent(d.valor_boletos_abertos, d.faturamento_operacional);
-      const arrecadacaoJuros = calcPercent(d.arrecadamento_juros, d.total_recebido);
-      const descontadoBanco = calcPercent(d.descontado_banco, d.total_recebido);
+      // Usar valores salvos no banco para consistência com Operacional
+      // Fallback para cálculo apenas se não houver valor salvo
+      const inadimplenciaBoletos = d.percentual_inadimplencia_boletos ?? calcPercent(d.boletos_abertos, d.boletos_emitidos);
+      const cancelamentoBoletos = d.percentual_cancelamento_boletos ?? calcPercent(d.boletos_cancelados, d.boletos_emitidos);
+      const inadimplenciaFinanceira = d.percentual_inadimplencia_financeira ?? calcPercent(d.valor_boletos_abertos, d.faturamento_operacional);
+      const arrecadacaoJuros = d.percentual_arrecadacao_juros ?? calcPercent(d.arrecadamento_juros, d.total_recebido);
+      const descontadoBanco = d.percentual_descontado_banco ?? calcPercent(d.descontado_banco, d.total_recebido);
 
       // Label: se todo período, mostra Mês/Ano, senão só mês
       const mesLabel = todoPeriodo 
