@@ -124,9 +124,17 @@ export default function Portal() {
         <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-              </div>
+              {corretora.logo_url ? (
+                <img
+                  src={corretora.logo_url}
+                  alt={corretora.nome}
+                  className="h-9 w-9 sm:h-10 sm:w-10 rounded-full object-cover"
+                />
+              ) : (
+                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                </div>
+              )}
               <div className="min-w-0">
                 <h1 className="text-lg sm:text-xl md:text-2xl font-bold leading-tight truncate">{corretora.nome}</h1>
                 <p className="text-xs sm:text-sm text-muted-foreground">Portal de Gestão · BI</p>
@@ -148,13 +156,6 @@ export default function Portal() {
                 <LogOut className="h-4 w-4" />
                 Sair
               </Button>
-              {corretora.logo_url && (
-                <img
-                  src={corretora.logo_url}
-                  alt={corretora.nome}
-                  className="h-8 sm:h-10 md:h-12 w-auto object-contain"
-                />
-              )}
             </div>
           </div>
         </div>

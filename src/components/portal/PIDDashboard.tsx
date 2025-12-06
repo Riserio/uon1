@@ -250,7 +250,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [ano, setAno] = useState(new Date().getFullYear().toString());
   const [mes, setMes] = useState<string>((new Date().getMonth() + 1).toString()); // Mês atual (1-12)
-  const [todoPeriodo, setTodoPeriodo] = useState(false);
+  const [todoPeriodo, setTodoPeriodo] = useState(true);
   const [dadosAno, setDadosAno] = useState<any[]>([]);
   const [dadosAtual, setDadosAtual] = useState<any>(null);
   const [dadosAnterior, setDadosAnterior] = useState<any>(null);
