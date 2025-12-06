@@ -120,34 +120,64 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<EstudoBaseData | null>(null);
+  const [allPeriodData, setAllPeriodData] = useState<EstudoBaseData[]>([]);
   const [originalData, setOriginalData] = useState<EstudoBaseData | null>(null);
   const [dataReferencia, setDataReferencia] = useState(new Date().toISOString().split("T")[0]);
+  const [todoPeriodo, setTodoPeriodo] = useState(true); // Default to all period
 
   const fetchData = async () => {
     if (!corretoraId) return;
     setLoading(true);
     try {
-      const { data: result, error } = await supabase
-        .from("pid_estudo_base")
-        .select("*")
-        .eq("corretora_id", corretoraId)
-        .eq("data_referencia", dataReferencia)
-        .maybeSingle();
+      if (todoPeriodo) {
+        // Fetch all periods
+        const { data: results, error } = await supabase
+          .from("pid_estudo_base")
+          .select("*")
+          .eq("corretora_id", corretoraId)
+          .order("data_referencia", { ascending: false });
 
-      if (error) throw error;
-
-      if (result) {
-        const fetchedData = result as unknown as EstudoBaseData;
-        setData(fetchedData);
-        setOriginalData(fetchedData);
+        if (error) throw error;
+        
+        if (results && results.length > 0) {
+          setAllPeriodData(results as unknown as EstudoBaseData[]);
+          // Use the most recent data for display totals or aggregate
+          const mostRecent = results[0] as unknown as EstudoBaseData;
+          setData(mostRecent);
+          setOriginalData(null);
+        } else {
+          setAllPeriodData([]);
+          const newData = {
+            ...defaultData,
+            corretora_id: corretoraId,
+            data_referencia: dataReferencia,
+          };
+          setData(newData);
+          setOriginalData(null);
+        }
       } else {
-        const newData = {
-          ...defaultData,
-          corretora_id: corretoraId,
-          data_referencia: dataReferencia,
-        };
-        setData(newData);
-        setOriginalData(null);
+        const { data: result, error } = await supabase
+          .from("pid_estudo_base")
+          .select("*")
+          .eq("corretora_id", corretoraId)
+          .eq("data_referencia", dataReferencia)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (result) {
+          const fetchedData = result as unknown as EstudoBaseData;
+          setData(fetchedData);
+          setOriginalData(fetchedData);
+        } else {
+          const newData = {
+            ...defaultData,
+            corretora_id: corretoraId,
+            data_referencia: dataReferencia,
+          };
+          setData(newData);
+          setOriginalData(null);
+        }
       }
     } catch (error: any) {
       console.error("Error fetching estudo base:", error);
@@ -161,7 +191,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
     if (corretoraId) {
       fetchData();
     }
-  }, [corretoraId, dataReferencia]);
+  }, [corretoraId, dataReferencia, todoPeriodo]);
 
   const handleSave = async () => {
     if (!data || !corretoraId || !user) return;
@@ -336,18 +366,28 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
           <p className="text-sm text-muted-foreground">Análise da frota por categoria de veículo</p>
         </div>
 
-        <div className="flex gap-3 items-center">
+        <div className="flex gap-3 items-center flex-wrap">
+          <Button
+            variant={todoPeriodo ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTodoPeriodo(true)}
+            className="gap-2"
+          >
+            Todo Período
+          </Button>
+
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <Input
               type="date"
               value={dataReferencia}
-              onChange={(e) => setDataReferencia(e.target.value)}
+              onChange={(e) => { setDataReferencia(e.target.value); setTodoPeriodo(false); }}
               className="w-40"
+              disabled={todoPeriodo}
             />
           </div>
 
-          {canEdit && (
+          {canEdit && !todoPeriodo && (
             <Button onClick={handleSave} disabled={saving} className="gap-2">
               <Save className="h-4 w-4" />
               {saving ? "Salvando..." : "Salvar"}

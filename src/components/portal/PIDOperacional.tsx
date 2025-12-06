@@ -190,9 +190,11 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<PIDOperacionalData | null>(null);
+  const [allPeriodData, setAllPeriodData] = useState<PIDOperacionalData[]>([]);
   const [originalData, setOriginalData] = useState<PIDOperacionalData | null>(null);
   const [ano, setAno] = useState(new Date().getFullYear().toString());
   const [mes, setMes] = useState((new Date().getMonth() + 1).toString().padStart(2, "0"));
+  const [todoPeriodo, setTodoPeriodo] = useState(true); // Default to all period
 
   // Anos: próximo ano + atuais (inclui 2026)
   const currentYear = new Date().getFullYear();
@@ -342,29 +344,53 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     if (!corretoraId) return;
     setLoading(true);
     try {
-      const { data: result, error } = await supabase
-        .from("pid_operacional")
-        .select("*")
-        .eq("corretora_id", corretoraId)
-        .eq("ano", parseInt(ano))
-        .eq("mes", parseInt(mes))
-        .maybeSingle();
+      if (todoPeriodo) {
+        // Fetch all periods
+        const { data: results, error } = await supabase
+          .from("pid_operacional")
+          .select("*")
+          .eq("corretora_id", corretoraId)
+          .order("ano", { ascending: false })
+          .order("mes", { ascending: false });
 
-      if (error) throw error;
-      
-      if (result) {
-        const fetchedData = result as unknown as PIDOperacionalData;
-        setData(fetchedData);
-        setOriginalData(fetchedData);
+        if (error) throw error;
+        
+        if (results && results.length > 0) {
+          setAllPeriodData(results as unknown as PIDOperacionalData[]);
+          // Aggregate data for display
+          const aggregated = aggregateData(results as unknown as PIDOperacionalData[]);
+          setData(aggregated);
+          setOriginalData(null);
+        } else {
+          setAllPeriodData([]);
+          setData(null);
+          setOriginalData(null);
+        }
       } else {
-        const newData = {
-          ...defaultData,
-          corretora_id: corretoraId,
-          ano: parseInt(ano),
-          mes: parseInt(mes),
-        };
-        setData(newData);
-        setOriginalData(null);
+        const { data: result, error } = await supabase
+          .from("pid_operacional")
+          .select("*")
+          .eq("corretora_id", corretoraId)
+          .eq("ano", parseInt(ano))
+          .eq("mes", parseInt(mes))
+          .maybeSingle();
+
+        if (error) throw error;
+        
+        if (result) {
+          const fetchedData = result as unknown as PIDOperacionalData;
+          setData(fetchedData);
+          setOriginalData(fetchedData);
+        } else {
+          const newData = {
+            ...defaultData,
+            corretora_id: corretoraId,
+            ano: parseInt(ano),
+            mes: parseInt(mes),
+          };
+          setData(newData);
+          setOriginalData(null);
+        }
       }
     } catch (error: any) {
       console.error("Error fetching PID data:", error);
@@ -374,11 +400,31 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     }
   };
 
+  // Aggregate data from all periods
+  const aggregateData = (records: PIDOperacionalData[]): PIDOperacionalData => {
+    if (records.length === 0) return { ...defaultData, corretora_id: corretoraId || '', ano: 0, mes: 0 };
+    
+    const aggregated: PIDOperacionalData = {
+      ...defaultData,
+      corretora_id: corretoraId || '',
+      ano: records[0].ano,
+      mes: records[0].mes,
+    };
+
+    // Sum up numeric fields
+    const numericFields = Object.keys(defaultData) as (keyof typeof defaultData)[];
+    numericFields.forEach(field => {
+      (aggregated as any)[field] = records.reduce((sum, r) => sum + ((r as any)[field] || 0), 0);
+    });
+
+    return aggregated;
+  };
+
   useEffect(() => {
     if (corretoraId) {
       fetchData();
     }
-  }, [corretoraId, ano, mes]);
+  }, [corretoraId, ano, mes, todoPeriodo]);
 
   const handleSave = async () => {
     if (!calculatedData || !corretoraId || !user) return;
@@ -554,8 +600,21 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
           <p className="text-sm text-muted-foreground">Programa de Preparação Regulatória</p>
         </div>
 
-        <div className="flex gap-3 items-center">
-          <Select value={ano} onValueChange={setAno}>
+        <div className="flex gap-3 items-center flex-wrap">
+          <Button
+            variant={todoPeriodo ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTodoPeriodo(true)}
+            className="gap-2"
+          >
+            Todo Período
+          </Button>
+
+          <Select 
+            value={ano} 
+            onValueChange={(v) => { setAno(v); setTodoPeriodo(false); }}
+            disabled={todoPeriodo}
+          >
             <SelectTrigger className="w-28">
               <SelectValue />
             </SelectTrigger>
@@ -566,7 +625,11 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
             </SelectContent>
           </Select>
 
-          <Select value={mes} onValueChange={setMes}>
+          <Select 
+            value={mes} 
+            onValueChange={(v) => { setMes(v); setTodoPeriodo(false); }}
+            disabled={todoPeriodo}
+          >
             <SelectTrigger className="w-36">
               <SelectValue />
             </SelectTrigger>
@@ -577,7 +640,7 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
             </SelectContent>
           </Select>
 
-          {canEdit && (
+          {canEdit && !todoPeriodo && (
             <Button onClick={handleSave} disabled={saving} className="gap-2">
               <Save className="h-4 w-4" />
               {saving ? "Salvando..." : "Salvar"}
