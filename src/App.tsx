@@ -120,6 +120,21 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return userRole === 'superintendente' ? <>{children}</> : <Navigate to="/" replace />;
 }
 
+// Componente para redirecionar baseado no domínio
+function DomainBasedRoute() {
+  const hostname = window.location.hostname;
+  
+  // Se for uon1.com.br (com ou sem www), mostra a landing
+  const isMainDomain = hostname === 'uon1.com.br' || hostname === 'www.uon1.com.br';
+  
+  if (isMainDomain) {
+    return <Landing />;
+  }
+  
+  // Qualquer outro domínio ou subdomínio redireciona para /auth
+  return <Navigate to="/auth" replace />;
+}
+
 const App = () => (
   <BrowserRouter>
     <QueryClientProvider client={queryClient}>
@@ -144,7 +159,7 @@ const App = () => (
             <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
               <Route path="/acompanhamento" element={<AcompanhamentoSinistro />} />
               <Route path="/configuracao-status-publico" element={<ProtectedRoute><ConfiguracaoStatusPublico /></ProtectedRoute>} />
-              <Route path="/" element={<Landing />} />
+              <Route path="/" element={<DomainBasedRoute />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/atendimentos" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/sinistros" element={<ProtectedRoute><Sinistros /></ProtectedRoute>} />
