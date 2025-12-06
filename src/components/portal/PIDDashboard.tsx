@@ -248,12 +248,13 @@ const VariationIndicator = ({ current, previous, format = "number" }: VariationI
 
 export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
   const [loading, setLoading] = useState(true);
-  const [ano, setAno] = useState(new Date().getFullYear().toString());
-  const [mes, setMes] = useState<string>((new Date().getMonth() + 1).toString()); // Mês atual (1-12)
+  const [ano, setAno] = useState<string>("");
+  const [mes, setMes] = useState<string>("");
   const [todoPeriodo, setTodoPeriodo] = useState(true);
   const [dadosAno, setDadosAno] = useState<any[]>([]);
   const [dadosAtual, setDadosAtual] = useState<any>(null);
   const [dadosAnterior, setDadosAnterior] = useState<any>(null);
+  const [initialized, setInitialized] = useState(false);
 
   // Anos: atual + 4 anteriores + próximo ano (2026)
   const currentYear = new Date().getFullYear();
@@ -274,6 +275,38 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     { value: "12", label: "Dezembro" },
   ];
 
+  // Fetch most recent period with data
+  const fetchMostRecentPeriod = async () => {
+    if (!corretoraId) return;
+    try {
+      const { data: result, error } = await supabase
+        .from("pid_operacional")
+        .select("ano, mes")
+        .eq("corretora_id", corretoraId)
+        .order("ano", { ascending: false })
+        .order("mes", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      if (result) {
+        setAno(result.ano.toString());
+        setMes(result.mes.toString());
+      } else {
+        // No data, use current month
+        setAno(new Date().getFullYear().toString());
+        setMes((new Date().getMonth() + 1).toString());
+      }
+      setInitialized(true);
+    } catch (error: any) {
+      console.error("Error fetching most recent period:", error);
+      setAno(new Date().getFullYear().toString());
+      setMes((new Date().getMonth() + 1).toString());
+      setInitialized(true);
+    }
+  };
+
   const fetchDados = async () => {
     if (!corretoraId) return;
     setLoading(true);
@@ -286,7 +319,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         .order("mes", { ascending: true });
 
       // Se não for todo período, aplica filtros
-      if (!todoPeriodo) {
+      if (!todoPeriodo && ano && mes) {
         query = query.eq("ano", parseInt(ano)).eq("mes", parseInt(mes));
       }
 
@@ -336,12 +369,20 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     }
   };
 
+  // Initialize with most recent period
   useEffect(() => {
-    if (corretoraId) {
+    if (corretoraId && !initialized) {
+      fetchMostRecentPeriod();
+    }
+  }, [corretoraId]);
+
+  // Fetch data when period changes
+  useEffect(() => {
+    if (corretoraId && initialized) {
       fetchDados();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [corretoraId, ano, mes, todoPeriodo]);
+  }, [corretoraId, ano, mes, todoPeriodo, initialized]);
 
   // Dados calculados automaticamente
   const chartData = useMemo(() => {
