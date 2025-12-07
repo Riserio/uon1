@@ -259,16 +259,48 @@ export function ApiIntegrationsConfig() {
           toast.error(data?.message || "Erro na conexão CILIA");
         }
       } else if (integration.tipo === "sga_hinova") {
-        // Para SGA Hinova, também usar edge function quando implementado
-        // Por enquanto, mostrar mensagem
-        setConnectionStatus(prev => ({ 
-          ...prev, 
-          [integration.id]: { 
-            success: false, 
-            message: "Teste de conexão SGA Hinova ainda não implementado" 
-          } 
-        }));
-        toast.info("Teste SGA Hinova em desenvolvimento");
+        // Testar conexão SGA Hinova via Edge Function
+        const { data, error } = await supabase.functions.invoke("testar-sga-hinova", {
+          body: {
+            base_url: integration.base_url,
+            auth_token: integration.auth_token,
+          },
+        });
+
+        if (error) {
+          console.error("Erro ao testar SGA Hinova:", error);
+          setConnectionStatus(prev => ({ 
+            ...prev, 
+            [integration.id]: { 
+              success: false, 
+              message: `Erro: ${error.message}` 
+            } 
+          }));
+          toast.error("Erro ao testar conexão SGA Hinova");
+          return;
+        }
+
+        console.log("Teste SGA Hinova resultado:", data);
+
+        if (data?.success) {
+          setConnectionStatus(prev => ({ 
+            ...prev, 
+            [integration.id]: { 
+              success: true, 
+              message: data.message || "Conexão estabelecida com sucesso!" 
+            } 
+          }));
+          toast.success("Conexão SGA Hinova OK!");
+        } else {
+          setConnectionStatus(prev => ({ 
+            ...prev, 
+            [integration.id]: { 
+              success: false, 
+              message: data?.message || "Erro ao testar conexão" 
+            } 
+          }));
+          toast.error(data?.message || "Erro na conexão SGA Hinova");
+        }
       }
     } catch (error: any) {
       console.error("Erro ao testar conexão:", error);
