@@ -6,6 +6,136 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Configurações de retry
+const MAX_RETRIES = 3;
+const INITIAL_DELAY_MS = 1000;
+const MAX_DELAY_MS = 10000;
+
+// Função para delay com backoff exponencial
+function getDelayWithBackoff(attempt: number): number {
+  const delay = Math.min(INITIAL_DELAY_MS * Math.pow(2, attempt), MAX_DELAY_MS);
+  // Adicionar jitter para evitar thundering herd
+  const jitter = Math.random() * 0.3 * delay;
+  return delay + jitter;
+}
+
+// Função para aguardar
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Verifica se o erro indica token inválido/expirado
+function isTokenError(status: number, responseData: Record<string, unknown>): boolean {
+  if (status === 401 || status === 403) return true;
+  if (responseData?.code === 2) return true;
+  if (responseData?.messageType === "error_invalid_token") return true;
+  if (typeof responseData?.message === "string" && 
+      (responseData.message.toLowerCase().includes("token") || 
+       responseData.message.toLowerCase().includes("unauthorized") ||
+       responseData.message.toLowerCase().includes("não autorizado"))) return true;
+  return false;
+}
+
+// Verifica se o erro é temporário e pode tentar retry
+function isRetryableError(status: number): boolean {
+  // Erros de servidor (5xx) ou timeout são retryable
+  return status >= 500 || status === 408 || status === 429;
+}
+
+// Função principal de envio com retry
+async function sendToCiliaWithRetry(
+  ciliaUrl: string,
+  cleanToken: string,
+  bodyToSend: Record<string, unknown>,
+  maxRetries: number = MAX_RETRIES
+): Promise<{ success: boolean; status: number; data: Record<string, unknown>; tokenExpired?: boolean }> {
+  let lastError: Error | null = null;
+  let lastStatus = 0;
+  let lastData: Record<string, unknown> = {};
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      console.log(`enviar-cilia: Tentativa ${attempt + 1}/${maxRetries}`);
+
+      const response = await fetch(ciliaUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authToken: cleanToken,
+          Accept: "application/json",
+        },
+        body: JSON.stringify(bodyToSend),
+      });
+
+      const responseText = await response.text();
+      lastStatus = response.status;
+
+      let responseData: Record<string, unknown>;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch {
+        responseData = { raw: responseText };
+      }
+      lastData = responseData;
+
+      console.log(`enviar-cilia: Resposta tentativa ${attempt + 1}`, {
+        status: response.status,
+        body: responseText.slice(0, 500),
+      });
+
+      // Se token expirado, não faz retry - precisa atualizar manualmente
+      if (isTokenError(response.status, responseData)) {
+        console.error("enviar-cilia: Token expirado ou inválido - requer atualização manual");
+        return {
+          success: false,
+          status: response.status,
+          data: responseData,
+          tokenExpired: true,
+        };
+      }
+
+      // Sucesso!
+      if (response.ok) {
+        return {
+          success: true,
+          status: response.status,
+          data: responseData,
+        };
+      }
+
+      // Se erro não é retryable, retorna imediatamente
+      if (!isRetryableError(response.status)) {
+        return {
+          success: false,
+          status: response.status,
+          data: responseData,
+        };
+      }
+
+      // Erro retryable - aguarda e tenta novamente
+      if (attempt < maxRetries - 1) {
+        const delay = getDelayWithBackoff(attempt);
+        console.log(`enviar-cilia: Erro retryable, aguardando ${Math.round(delay)}ms antes de retry`);
+        await sleep(delay);
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.error(`enviar-cilia: Erro na tentativa ${attempt + 1}:`, lastError.message);
+
+      if (attempt < maxRetries - 1) {
+        const delay = getDelayWithBackoff(attempt);
+        console.log(`enviar-cilia: Aguardando ${Math.round(delay)}ms antes de retry`);
+        await sleep(delay);
+      }
+    }
+  }
+
+  // Todas as tentativas falharam
+  return {
+    success: false,
+    status: lastStatus || 500,
+    data: lastError ? { error: lastError.message } : lastData,
+  };
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -90,7 +220,7 @@ serve(async (req) => {
       acompanhamento: acompanhamento?.id,
     });
 
-    // Montar payload interno (seu modelo atual)
+    // Montar payload interno
     const ciliaPayload = {
       numeroSinistro: `SIN-${new Date(atendimento.created_at).getFullYear()}-${String(atendimento.numero).padStart(6, "0")}`,
       dataAbertura: atendimento.created_at,
@@ -98,7 +228,6 @@ serve(async (req) => {
       assunto: atendimento.assunto,
       observacoes: atendimento.observacoes,
       prioridade: atendimento.prioridade,
-      // Dados do veículo
       veiculo: {
         marca: atendimento.veiculo_marca || vistoria?.veiculo_marca,
         modelo: atendimento.veiculo_modelo || vistoria?.veiculo_modelo,
@@ -108,14 +237,12 @@ serve(async (req) => {
         chassi: vistoria?.veiculo_chassi,
         valorFipe: atendimento.veiculo_valor_fipe || vistoria?.veiculo_valor_fipe,
       },
-      // Dados do cliente
       cliente: {
         nome: vistoria?.cliente_nome,
         cpf: vistoria?.cliente_cpf,
         email: vistoria?.cliente_email,
         telefone: vistoria?.cliente_telefone,
       },
-      // Dados do sinistro
       sinistro: {
         tipo: vistoria?.tipo_sinistro,
         dataEvento: vistoria?.data_evento || vistoria?.data_incidente,
@@ -127,7 +254,6 @@ serve(async (req) => {
         houveRemocao: vistoria?.houve_remocao_veiculo,
         acionouAssistencia: vistoria?.acionou_assistencia_24h,
       },
-      // Dados do acompanhamento (custos, etc)
       acompanhamento: acompanhamento
         ? {
             comiteStatus: acompanhamento.comite_status,
@@ -148,7 +274,6 @@ serve(async (req) => {
             finalizadoData: acompanhamento.finalizado_data,
           }
         : null,
-      // Corretora
       corretora: atendimento.corretoras
         ? {
             nome: atendimento.corretoras.nome,
@@ -159,82 +284,78 @@ serve(async (req) => {
         : null,
     };
 
-    // Limpar token de possíveis aspas ou espaços antes de usar
+    // Limpar token
     const cleanToken = integration.auth_token.trim().replace(/^["']|["']$/g, '');
-    
-    // Montar URL correta do Cilia (QA ou PROD) a partir de integration.base_url
-    // A URL base deve incluir o caminho completo da API
     const baseUrl = (integration.base_url || "https://sistema.cilia.com.br").replace(/\/$/, "");
-    
-    // Endpoint correto da API CILIA para criação de orçamentos
-    // Documentação CILIA usa: /services/generico-ws/rest/v2/integracao/createBudget
     const ciliaUrl = `${baseUrl}/services/generico-ws/rest/v2/integracao/createBudget`;
 
-    console.log("enviar-cilia: Enviando para CILIA", {
+    console.log("enviar-cilia: Enviando para CILIA com retry automático", {
       url: ciliaUrl,
       tokenLength: cleanToken.length,
       tokenPreview: `${cleanToken.slice(0, 10)}...${cleanToken.slice(-10)}`,
-      payloadPreview: ciliaPayload,
+      maxRetries: MAX_RETRIES,
     });
 
-    // Envelopar no formato esperado pela doc: { Budget: { ... } }
     const bodyToSend = {
-      Budget: ciliaPayload, // depois você adapta pro modelo exato da Cilia (T1)
+      Budget: ciliaPayload,
     };
 
-    // Enviar para CILIA
-    const ciliaResponse = await fetch(ciliaUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        // Cilia usa header "authToken", não Authorization Bearer - SEM ASPAS!
-        authToken: cleanToken,
-        Accept: "application/json",
-      },
-      body: JSON.stringify(bodyToSend),
-    });
+    // Enviar com retry automático
+    const result = await sendToCiliaWithRetry(ciliaUrl, cleanToken, bodyToSend);
 
-    const responseText = await ciliaResponse.text();
-    console.log("enviar-cilia: Resposta CILIA", {
-      status: ciliaResponse.status,
-      body: responseText,
-    });
-
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch {
-      responseData = { raw: responseText };
-    }
-
-    if (!ciliaResponse.ok) {
-      console.error("enviar-cilia: Erro na resposta CILIA", {
-        status: ciliaResponse.status,
-        response: responseData,
-      });
-
-      const errorMessage =
-        responseData?.message || responseData?.error || `Erro ${ciliaResponse.status}: ${responseText}`;
+    // Token expirado - mensagem clara para o usuário
+    if (result.tokenExpired) {
+      // Marcar integração como inativa para alertar o usuário
+      await supabase
+        .from("api_integrations")
+        .update({ ativo: false })
+        .eq("id", integration_id);
 
       return new Response(
         JSON.stringify({
           success: false,
-          message: errorMessage,
-          ciliaStatus: ciliaResponse.status,
-          response: responseData,
+          message: "⚠️ TOKEN EXPIRADO: O token de acesso à CILIA expirou ou é inválido. " +
+                   "Acesse Configurações → API/Integrações → CILIA e atualize o token. " +
+                   "A integração foi desativada automaticamente.",
+          tokenExpired: true,
+          ciliaStatus: result.status,
+          response: result.data,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    console.log("enviar-cilia: Sucesso!", responseData);
+    if (!result.success) {
+      console.error("enviar-cilia: Falha após todas as tentativas", {
+        status: result.status,
+        response: result.data,
+      });
+
+      const errorMessage =
+        typeof result.data?.message === 'string' ? result.data.message :
+        typeof result.data?.error === 'string' ? result.data.error :
+        `Erro ${result.status} após ${MAX_RETRIES} tentativas`;
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: errorMessage,
+          ciliaStatus: result.status,
+          response: result.data,
+          retriesAttempted: MAX_RETRIES,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    console.log("enviar-cilia: Sucesso!", result.data);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: "Sinistro enviado ao CILIA com sucesso",
-        budgetId: responseData?.id || responseData?.budgetId,
-        response: responseData,
+        budgetId: result.data?.id || result.data?.budgetId,
+        response: result.data,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
