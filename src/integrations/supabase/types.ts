@@ -50,6 +50,56 @@ export type Database = {
         }
         Relationships: []
       }
+      alertas_ponto: {
+        Row: {
+          ativo: boolean | null
+          created_at: string
+          dias_semana: number[] | null
+          enviado_em: string | null
+          funcionario_id: string
+          horario_programado: string | null
+          id: string
+          mensagem: string
+          tipo: string
+          updated_at: string
+          visualizado_em: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string
+          dias_semana?: number[] | null
+          enviado_em?: string | null
+          funcionario_id: string
+          horario_programado?: string | null
+          id?: string
+          mensagem: string
+          tipo: string
+          updated_at?: string
+          visualizado_em?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string
+          dias_semana?: number[] | null
+          enviado_em?: string | null
+          funcionario_id?: string
+          horario_programado?: string | null
+          id?: string
+          mensagem?: string
+          tipo?: string
+          updated_at?: string
+          visualizado_em?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_ponto_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       andamentos: {
         Row: {
           atendimento_id: string
@@ -389,6 +439,53 @@ export type Database = {
           },
         ]
       }
+      banco_horas: {
+        Row: {
+          created_at: string
+          data: string
+          funcionario_id: string
+          horas_esperadas: unknown
+          horas_trabalhadas: unknown
+          id: string
+          observacao: string | null
+          saldo: unknown
+          tipo: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data: string
+          funcionario_id: string
+          horas_esperadas?: unknown
+          horas_trabalhadas?: unknown
+          id?: string
+          observacao?: string | null
+          saldo?: unknown
+          tipo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          funcionario_id?: string
+          horas_esperadas?: unknown
+          horas_trabalhadas?: unknown
+          id?: string
+          observacao?: string | null
+          saldo?: unknown
+          tipo?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "banco_horas_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bi_audit_logs: {
         Row: {
           acao: string
@@ -527,6 +624,262 @@ export type Database = {
             columns: ["corretora_id"]
             isOneToOne: false
             referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contrato_assinaturas: {
+        Row: {
+          assinado_em: string | null
+          assinatura_url: string | null
+          contrato_id: string
+          cpf: string | null
+          created_at: string
+          email: string
+          hash_documento: string | null
+          id: string
+          ip_assinatura: string | null
+          latitude: number | null
+          link_expires_at: string | null
+          link_token: string | null
+          longitude: number | null
+          nome: string
+          notificado_em: string | null
+          ordem: number | null
+          status: string
+          tipo: string
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          assinado_em?: string | null
+          assinatura_url?: string | null
+          contrato_id: string
+          cpf?: string | null
+          created_at?: string
+          email: string
+          hash_documento?: string | null
+          id?: string
+          ip_assinatura?: string | null
+          latitude?: number | null
+          link_expires_at?: string | null
+          link_token?: string | null
+          longitude?: number | null
+          nome: string
+          notificado_em?: string | null
+          ordem?: number | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          assinado_em?: string | null
+          assinatura_url?: string | null
+          contrato_id?: string
+          cpf?: string | null
+          created_at?: string
+          email?: string
+          hash_documento?: string | null
+          id?: string
+          ip_assinatura?: string | null
+          latitude?: number | null
+          link_expires_at?: string | null
+          link_token?: string | null
+          longitude?: number | null
+          nome?: string
+          notificado_em?: string | null
+          ordem?: number | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contrato_assinaturas_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contrato_historico: {
+        Row: {
+          acao: string
+          contrato_id: string
+          created_at: string
+          dados: Json | null
+          descricao: string | null
+          id: string
+          ip: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          acao: string
+          contrato_id: string
+          created_at?: string
+          dados?: Json | null
+          descricao?: string | null
+          id?: string
+          ip?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          acao?: string
+          contrato_id?: string
+          created_at?: string
+          dados?: Json | null
+          descricao?: string | null
+          id?: string
+          ip?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contrato_historico_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contrato_templates: {
+        Row: {
+          ativo: boolean | null
+          categoria: string | null
+          conteudo_html: string
+          created_at: string
+          created_by: string
+          descricao: string | null
+          id: string
+          titulo: string
+          updated_at: string
+          variaveis_disponiveis: Json | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          categoria?: string | null
+          conteudo_html: string
+          created_at?: string
+          created_by: string
+          descricao?: string | null
+          id?: string
+          titulo: string
+          updated_at?: string
+          variaveis_disponiveis?: Json | null
+        }
+        Update: {
+          ativo?: boolean | null
+          categoria?: string | null
+          conteudo_html?: string
+          created_at?: string
+          created_by?: string
+          descricao?: string | null
+          id?: string
+          titulo?: string
+          updated_at?: string
+          variaveis_disponiveis?: Json | null
+        }
+        Relationships: []
+      }
+      contratos: {
+        Row: {
+          conteudo_html: string
+          contratado_cnpj: string | null
+          contratado_email: string | null
+          contratado_nome: string | null
+          contratante_cpf: string | null
+          contratante_email: string | null
+          contratante_nome: string | null
+          contratante_telefone: string | null
+          corretora_id: string | null
+          created_at: string
+          created_by: string
+          data_fim: string | null
+          data_inicio: string | null
+          id: string
+          link_expires_at: string | null
+          link_token: string | null
+          numero: string
+          pdf_url: string | null
+          status: string
+          template_id: string | null
+          titulo: string
+          updated_at: string
+          valor_contrato: number | null
+          variaveis_preenchidas: Json | null
+        }
+        Insert: {
+          conteudo_html: string
+          contratado_cnpj?: string | null
+          contratado_email?: string | null
+          contratado_nome?: string | null
+          contratante_cpf?: string | null
+          contratante_email?: string | null
+          contratante_nome?: string | null
+          contratante_telefone?: string | null
+          corretora_id?: string | null
+          created_at?: string
+          created_by: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          id?: string
+          link_expires_at?: string | null
+          link_token?: string | null
+          numero: string
+          pdf_url?: string | null
+          status?: string
+          template_id?: string | null
+          titulo: string
+          updated_at?: string
+          valor_contrato?: number | null
+          variaveis_preenchidas?: Json | null
+        }
+        Update: {
+          conteudo_html?: string
+          contratado_cnpj?: string | null
+          contratado_email?: string | null
+          contratado_nome?: string | null
+          contratante_cpf?: string | null
+          contratante_email?: string | null
+          contratante_nome?: string | null
+          contratante_telefone?: string | null
+          corretora_id?: string | null
+          created_at?: string
+          created_by?: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          id?: string
+          link_expires_at?: string | null
+          link_token?: string | null
+          numero?: string
+          pdf_url?: string | null
+          status?: string
+          template_id?: string | null
+          titulo?: string
+          updated_at?: string
+          valor_contrato?: number | null
+          variaveis_preenchidas?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contratos_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contrato_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -1086,6 +1439,108 @@ export type Database = {
           },
         ]
       }
+      funcionarios: {
+        Row: {
+          ativo: boolean | null
+          carga_horaria_semanal: number | null
+          cargo: string | null
+          corretora_id: string | null
+          cpf: string | null
+          created_at: string
+          created_by: string
+          dados_bancarios: Json | null
+          data_admissao: string | null
+          data_demissao: string | null
+          departamento: string | null
+          documentos_urls: Json | null
+          email: string | null
+          endereco: Json | null
+          foto_url: string | null
+          horario_almoco_fim: string | null
+          horario_almoco_inicio: string | null
+          horario_entrada: string | null
+          horario_saida: string | null
+          id: string
+          nome: string
+          profile_id: string | null
+          salario: number | null
+          telefone: string | null
+          tipo_contrato: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          carga_horaria_semanal?: number | null
+          cargo?: string | null
+          corretora_id?: string | null
+          cpf?: string | null
+          created_at?: string
+          created_by: string
+          dados_bancarios?: Json | null
+          data_admissao?: string | null
+          data_demissao?: string | null
+          departamento?: string | null
+          documentos_urls?: Json | null
+          email?: string | null
+          endereco?: Json | null
+          foto_url?: string | null
+          horario_almoco_fim?: string | null
+          horario_almoco_inicio?: string | null
+          horario_entrada?: string | null
+          horario_saida?: string | null
+          id?: string
+          nome: string
+          profile_id?: string | null
+          salario?: number | null
+          telefone?: string | null
+          tipo_contrato?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          carga_horaria_semanal?: number | null
+          cargo?: string | null
+          corretora_id?: string | null
+          cpf?: string | null
+          created_at?: string
+          created_by?: string
+          dados_bancarios?: Json | null
+          data_admissao?: string | null
+          data_demissao?: string | null
+          departamento?: string | null
+          documentos_urls?: Json | null
+          email?: string | null
+          endereco?: Json | null
+          foto_url?: string | null
+          horario_almoco_fim?: string | null
+          horario_almoco_inicio?: string | null
+          horario_entrada?: string | null
+          horario_saida?: string | null
+          id?: string
+          nome?: string
+          profile_id?: string | null
+          salario?: number | null
+          telefone?: string | null
+          tipo_contrato?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funcionarios_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funcionarios_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_calendar_integrations: {
         Row: {
           access_token: string
@@ -1121,6 +1576,62 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      justificativas_ausencia: {
+        Row: {
+          aprovado_em: string | null
+          aprovado_por: string | null
+          created_at: string
+          created_by: string
+          data_fim: string
+          data_inicio: string
+          documento_url: string | null
+          funcionario_id: string
+          id: string
+          motivo: string | null
+          status: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          created_at?: string
+          created_by: string
+          data_fim: string
+          data_inicio: string
+          documento_url?: string | null
+          funcionario_id: string
+          id?: string
+          motivo?: string | null
+          status?: string | null
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          created_at?: string
+          created_by?: string
+          data_fim?: string
+          data_inicio?: string
+          documento_url?: string | null
+          funcionario_id?: string
+          id?: string
+          motivo?: string | null
+          status?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "justificativas_ausencia_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       lancamentos_financeiros: {
         Row: {
@@ -2117,6 +2628,74 @@ export type Database = {
             columns: ["lider_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      registros_ponto: {
+        Row: {
+          ajustado: boolean | null
+          ajustado_em: string | null
+          ajustado_por: string | null
+          created_at: string
+          data_hora: string
+          dispositivo: string | null
+          endereco_aproximado: string | null
+          foto_url: string | null
+          funcionario_id: string
+          id: string
+          ip: string | null
+          latitude: number | null
+          longitude: number | null
+          motivo_ajuste: string | null
+          observacao: string | null
+          tipo: string
+          user_agent: string | null
+        }
+        Insert: {
+          ajustado?: boolean | null
+          ajustado_em?: string | null
+          ajustado_por?: string | null
+          created_at?: string
+          data_hora?: string
+          dispositivo?: string | null
+          endereco_aproximado?: string | null
+          foto_url?: string | null
+          funcionario_id: string
+          id?: string
+          ip?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          motivo_ajuste?: string | null
+          observacao?: string | null
+          tipo: string
+          user_agent?: string | null
+        }
+        Update: {
+          ajustado?: boolean | null
+          ajustado_em?: string | null
+          ajustado_por?: string | null
+          created_at?: string
+          data_hora?: string
+          dispositivo?: string | null
+          endereco_aproximado?: string | null
+          foto_url?: string | null
+          funcionario_id?: string
+          id?: string
+          ip?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          motivo_ajuste?: string | null
+          observacao?: string | null
+          tipo?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registros_ponto_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "funcionarios"
             referencedColumns: ["id"]
           },
         ]
@@ -3464,6 +4043,7 @@ export type Database = {
         Args: { target_profile_id: string; viewer_id: string }
         Returns: boolean
       }
+      generate_contrato_numero: { Args: never; Returns: string }
       generate_lancamento_numero: { Args: never; Returns: string }
       get_user_corretora_id: { Args: { _user_id: string }; Returns: string }
       get_user_lider_id: { Args: { _user_id: string }; Returns: string }
