@@ -120,8 +120,9 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return userRole === 'superintendente' ? <>{children}</> : <Navigate to="/dashboard" replace />;
 }
 
-// Componente para redirecionar baseado no domínio
+// Componente para redirecionar baseado no domínio e status de login
 function DomainBasedRoute() {
+  const { user, loading } = useAuth();
   const hostname = window.location.hostname;
   
   // Se for uon1.com.br (com ou sem www), mostra a landing
@@ -131,7 +132,16 @@ function DomainBasedRoute() {
     return <Landing />;
   }
   
-  // Qualquer outro domínio ou subdomínio redireciona para /auth
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+  }
+  
+  // Se usuário está logado, vai para dashboard
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  // Usuário não logado vai para auth
   return <Navigate to="/auth" replace />;
 }
 
