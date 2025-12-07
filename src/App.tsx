@@ -108,7 +108,7 @@ function PortalRoute({ children }: { children: React.ReactNode }) {
   // DECISÃO DEFINITIVA: Apenas usuários com role 'parceiro' podem acessar o portal PID
   // Todos os outros usuários são redirecionados para o dashboard principal
   if (!isParceiro) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
   
   // Parceiros veem APENAS o portal - sem sidebar, sem acesso a outras rotas
@@ -117,7 +117,7 @@ function PortalRoute({ children }: { children: React.ReactNode }) {
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { userRole } = useAuth();
-  return userRole === 'superintendente' ? <>{children}</> : <Navigate to="/" replace />;
+  return userRole === 'superintendente' ? <>{children}</> : <Navigate to="/dashboard" replace />;
 }
 
 // Componente para redirecionar baseado no domínio
