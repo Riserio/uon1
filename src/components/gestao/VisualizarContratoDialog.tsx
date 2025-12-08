@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -14,17 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import {
-  CheckCircle2,
-  Clock,
-  XCircle,
-  FileText,
-  Copy,
-  User,
-  MessageCircle,
-  Download,
-  Mail,
-} from "lucide-react";
+import { CheckCircle2, Clock, XCircle, FileText, Copy, User, MessageCircle, Download, Mail } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 
@@ -35,19 +26,27 @@ interface VisualizarContratoDialogProps {
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  pendente: { label: "Pendente", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400", icon: <Clock className="h-3 w-3" /> },
-  assinado: { label: "Assinado", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", icon: <CheckCircle2 className="h-3 w-3" /> },
-  recusado: { label: "Recusado", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400", icon: <XCircle className="h-3 w-3" /> },
+  pendente: {
+    label: "Pendente",
+    color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+    icon: <Clock className="h-3 w-3" />,
+  },
+  assinado: {
+    label: "Assinado",
+    color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+    icon: <CheckCircle2 className="h-3 w-3" />,
+  },
+  recusado: {
+    label: "Recusado",
+    color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+    icon: <XCircle className="h-3 w-3" />,
+  },
 };
 
-export default function VisualizarContratoDialog({
-  contrato,
-  open,
-  onOpenChange,
-}: VisualizarContratoDialogProps) {
+export default function VisualizarContratoDialog({ contrato, open, onOpenChange }: VisualizarContratoDialogProps) {
   // Fetch histórico
   const { data: historico } = useQuery({
-    queryKey: ["contrato_historico", contrato.id],
+    queryKey: ["contrato_historico", contrato?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("contrato_historico")
@@ -57,10 +56,10 @@ export default function VisualizarContratoDialog({
       if (error) throw error;
       return data;
     },
-    enabled: open,
+    enabled: open && !!contrato?.id,
   });
 
-  const assinaturas = contrato.contrato_assinaturas || [];
+  const assinaturas = contrato?.contrato_assinaturas || [];
 
   const copyLink = () => {
     if (!contrato.link_token) {
@@ -80,9 +79,9 @@ export default function VisualizarContratoDialog({
     const link = `${window.location.origin}/contrato/${contrato.link_token}`;
     const phone = contrato.contratante_telefone?.replace(/\D/g, "") || "";
     const message = encodeURIComponent(
-      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`
+      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`,
     );
-    const whatsappUrl = phone 
+    const whatsappUrl = phone
       ? `https://web.whatsapp.com/send?phone=55${phone}&text=${message}`
       : `https://web.whatsapp.com/send?text=${message}`;
     window.open(whatsappUrl, "_blank");
@@ -96,270 +95,340 @@ export default function VisualizarContratoDialog({
     const link = `${window.location.origin}/contrato/${contrato.link_token}`;
     const subject = encodeURIComponent(`Contrato para assinatura: ${contrato.titulo}`);
     const body = encodeURIComponent(
-      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`
+      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`,
     );
     const mailtoUrl = `mailto:${contrato.contratante_email || ""}?subject=${subject}&body=${body}`;
     window.open(mailtoUrl, "_blank");
   };
 
-  const downloadPDF = () => {
+  // Helper: fetch image and convert to DataURL (for addImage)
+  const fetchImageDataUrl = async (url?: string): Promise<string | null> => {
+    if (!url) return null;
+    try {
+      const res = await fetch(url, { mode: "cors" });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (err) {
+      console.warn("Não foi possível carregar a imagem da logo:", err);
+      return null;
+    }
+  };
+
+  // Main: gerar PDF com formatação parecida com HTML e incluir logo quando disponível
+  const downloadPDF = async () => {
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 20;
-      let yPosition = margin;
+      const margin = 18;
+      const usableWidth = pageWidth - 2 * margin;
+      const lineHeight = 6;
+      let y = margin;
 
-      // Header
+      const addNewPageIfNeeded = (neededHeight = lineHeight) => {
+        if (y + neededHeight > pageHeight - margin) {
+          doc.addPage();
+          y = margin;
+        }
+      };
+
+      // Tenta buscar a logo (contrato.logo_url) — fallback: /favicon.ico (se existir)
+      const logoUrl = contrato?.logo_url || "/favicon.ico";
+      const logoDataUrl = await fetchImageDataUrl(logoUrl);
+
+      // Header (logo à direita, texto à esquerda)
+      if (logoDataUrl) {
+        // tentamos desenhar a logo (mantendo proporção)
+        try {
+          const logoWidth = 48; // largura desejada em pt
+          const logoHeight = 18; // altura desejada
+          doc.addImage(logoDataUrl, "PNG", pageWidth - margin - logoWidth, y, logoWidth, logoHeight);
+        } catch (err) {
+          // se falhar, ignora imagem
+          console.warn("addImage falhou:", err);
+        }
+      }
+
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 30, 30);
-      doc.text("Vangard Gestora", margin, yPosition + 10);
+      doc.text("Vangard Gestora", margin, y + 8);
+
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100, 100, 100);
-      doc.text("vangardgestora.com.br", margin, yPosition + 16);
-      yPosition += 30;
+      doc.text("vangardgestora.com.br", margin, y + 14);
+      y += 28;
 
-      // Title with blue underline
+      // Título centralizado com underline azul
+      const titleText = contrato?.titulo || "Contrato";
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(41, 98, 255);
-      const titleText = contrato.titulo || "Contrato";
       const titleWidth = doc.getTextWidth(titleText);
-      const titleX = (pageWidth - titleWidth) / 2;
-      doc.text(titleText, titleX, yPosition);
+      const titleX = Math.max(margin, (pageWidth - titleWidth) / 2);
+      addNewPageIfNeeded(12);
+      doc.text(titleText, titleX, y);
       doc.setDrawColor(41, 98, 255);
-      doc.setLineWidth(0.3);
-      doc.line(titleX, yPosition + 2, titleX + titleWidth, yPosition + 2);
-      yPosition += 12;
+      doc.setLineWidth(0.35);
+      doc.line(titleX, y + 2, Math.min(titleX + titleWidth, pageWidth - margin), y + 2);
+      y += 12;
 
-      // Contract description
+      // Descrição
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(60, 60, 60);
-      const descText = "Contrato de prestação de serviços para prestação de serviços de associação e proteção veicular.";
-      const descLines = doc.splitTextToSize(descText, pageWidth - 2 * margin);
-      for (const line of descLines) {
-        doc.text(line, margin, yPosition);
-        yPosition += 5;
-      }
-      yPosition += 8;
+      const descText =
+        "Contrato de prestação de serviços para prestação de serviços de associação e proteção veicular.";
+      const descLines = doc.splitTextToSize(descText, usableWidth);
+      addNewPageIfNeeded(descLines.length * lineHeight);
+      descLines.forEach((line) => {
+        doc.text(line, margin, y);
+        y += lineHeight;
+      });
+      y += 6;
 
-      // PARTES section
+      // PARTES
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 30, 30);
-      doc.text("PARTES", margin, yPosition);
-      yPosition += 8;
+      addNewPageIfNeeded(10);
+      doc.text("PARTES", margin, y);
+      y += 8;
 
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(60, 60, 60);
-      
-      // Contratante info
-      doc.text(`CONTRATANTE: ${contrato.contratante_nome || "-"}`, margin, yPosition);
-      yPosition += 5;
-      doc.text(`CPF/CNPJ: ${contrato.contratante_cpf || contrato.contratado_cnpj || "-"}`, margin, yPosition);
-      yPosition += 5;
-      doc.text(`E-mail: ${contrato.contratante_email || "-"}`, margin, yPosition);
-      yPosition += 5;
-      if (contrato.contratante_telefone) {
-        doc.text(`Telefone: ${contrato.contratante_telefone}`, margin, yPosition);
-        yPosition += 5;
+      addNewPageIfNeeded(40);
+      doc.text(`CONTRATANTE: ${contrato?.contratante_nome || "-"}`, margin, y);
+      y += lineHeight;
+      doc.text(`CPF/CNPJ: ${contrato?.contratante_cpf || contrato?.contratado_cnpj || "-"}`, margin, y);
+      y += lineHeight;
+      doc.text(`E-mail: ${contrato?.contratante_email || "-"}`, margin, y);
+      y += lineHeight;
+      if (contrato?.contratante_telefone) {
+        doc.text(`Telefone: ${contrato.contratante_telefone}`, margin, y);
+        y += lineHeight;
       }
-      yPosition += 5;
-      
-      // Contratada info
-      doc.text("CONTRATADA: Vangard Gestora", margin, yPosition);
-      yPosition += 5;
-      doc.text("Rua Jacuí, 1273 - Floresta, Belo Horizonte - MG", margin, yPosition);
-      yPosition += 12;
+      y += 6;
+      doc.text("CONTRATADA: Vangard Gestora", margin, y);
+      y += lineHeight;
+      doc.text("Rua Jacuí, 1273 - Floresta, Belo Horizonte - MG", margin, y);
+      y += 12;
 
-      // Contract content - extract structured text from HTML preserving paragraphs
-      const extractStructuredText = (html: string): { type: 'title' | 'subtitle' | 'text'; content: string }[] => {
-        const tempDiv = document.createElement("div");
-        tempDiv.innerHTML = html;
-        
-        // Remove script and style tags
-        tempDiv.querySelectorAll("script, style, header, footer").forEach(el => el.remove());
-        
-        const sections: { type: 'title' | 'subtitle' | 'text'; content: string }[] = [];
-        
-        // Extract h1 as title
-        tempDiv.querySelectorAll("h1").forEach(el => {
-          const text = (el.textContent || "").trim();
-          if (text) sections.push({ type: 'title', content: text });
-        });
-        
-        // Extract strong/b and clause headers as subtitles
-        tempDiv.querySelectorAll(".clause strong, .clause > strong:first-child").forEach(el => {
-          const text = (el.textContent || "").trim();
-          if (text && text.includes("CLÁUSULA")) {
-            sections.push({ type: 'subtitle', content: text });
+      // --- Função robusta para extrair seções do HTML mantendo parágrafos, títulos e listas ---
+      const extractSectionsFromHtml = (html: string) => {
+        const temp = document.createElement("div");
+        temp.innerHTML = html || "";
+        temp.querySelectorAll("script, style, header, footer, noscript").forEach((n) => n.remove());
+
+        const sections: { type: "title" | "subtitle" | "text" | "list"; content: string }[] = [];
+
+        const walk = (node: ChildNode) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            const txt = (node.textContent || "").replace(/\s+/g, " ").trim();
+            return txt;
           }
-        });
-        
-        // Extract paragraphs
-        tempDiv.querySelectorAll("p, .clause p").forEach(el => {
-          const text = (el.textContent || "").trim();
-          if (text && text.length > 10) {
-            sections.push({ type: 'text', content: text });
+
+          if (node.nodeType !== Node.ELEMENT_NODE) return "";
+
+          const el = node as HTMLElement;
+          const tag = el.tagName.toLowerCase();
+
+          if (["h1", "h2", "h3"].includes(tag)) {
+            const text = (el.textContent || "").trim();
+            if (text) sections.push({ type: "title", content: text });
+            return;
           }
-        });
-        
-        // If no structured content found, get plain text
-        if (sections.length === 0) {
-          const text = (tempDiv.textContent || "").trim().replace(/\s+/g, " ");
-          if (text) sections.push({ type: 'text', content: text });
-        }
-        
+
+          if (tag === "p") {
+            const text = (el.textContent || "").trim();
+            if (text) sections.push({ type: "text", content: text });
+            return;
+          }
+
+          if (tag === "ul" || tag === "ol") {
+            const items = Array.from(el.children)
+              .map((li, idx) => {
+                const txt = (li.textContent || "").trim();
+                if (!txt) return null;
+                if (tag === "ol") return `${idx + 1}. ${txt}`;
+                return `• ${txt}`;
+              })
+              .filter(Boolean)
+              .join("\n");
+            if (items) sections.push({ type: "list", content: items });
+            return;
+          }
+
+          // se elemento tem poucos filhos textuais, tratar como parágrafo
+          const hasBlockChildren = Array.from(el.children).some((c) => {
+            const t = (c as HTMLElement).tagName.toLowerCase();
+            return ["div", "p", "ul", "ol", "table", "section", "article", "hr"].includes(t);
+          });
+          if (!hasBlockChildren) {
+            const text = (el.textContent || "").replace(/\s+/g, " ").trim();
+            if (text && text.length > 0) {
+              sections.push({ type: "text", content: text });
+              return;
+            }
+          }
+
+          el.childNodes.forEach((child) => walk(child));
+        };
+
+        temp.childNodes.forEach((n) => walk(n));
         return sections;
       };
 
-      const sections = extractStructuredText(contrato.conteudo_html || "");
-      
-      for (const section of sections) {
-        if (yPosition > pageHeight - 30) {
-          doc.addPage();
-          yPosition = margin;
-        }
-        
-        if (section.type === 'title') {
-          doc.setFontSize(13);
+      const sections = extractSectionsFromHtml(contrato?.conteudo_html || "");
+
+      // Renderiza as seções mantendo espaçamento e pages
+      for (const sec of sections) {
+        if (sec.type === "title") {
+          doc.setFontSize(12);
           doc.setFont("helvetica", "bold");
           doc.setTextColor(41, 98, 255);
-          const titleWidth2 = doc.getTextWidth(section.content);
-          const titleX2 = (pageWidth - titleWidth2) / 2;
-          doc.text(section.content, titleX2, yPosition);
-          yPosition += 10;
-        } else if (section.type === 'subtitle') {
+          const lines = doc.splitTextToSize(sec.content, usableWidth);
+          addNewPageIfNeeded(lines.length * lineHeight + 6);
+          lines.forEach((l) => {
+            doc.text(l, margin, y);
+            y += lineHeight;
+          });
+          y += 4;
+        } else if (sec.type === "subtitle") {
           doc.setFontSize(11);
           doc.setFont("helvetica", "bold");
           doc.setTextColor(30, 30, 30);
-          doc.text(section.content, margin, yPosition);
-          yPosition += 8;
+          const lines = doc.splitTextToSize(sec.content, usableWidth);
+          addNewPageIfNeeded(lines.length * lineHeight + 4);
+          lines.forEach((l) => {
+            doc.text(l, margin, y);
+            y += lineHeight;
+          });
+          y += 4;
+        } else if (sec.type === "list") {
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(60, 60, 60);
+          const listLines = sec.content.split("\n");
+          for (const li of listLines) {
+            const wrapped = doc.splitTextToSize(li, usableWidth - 8);
+            addNewPageIfNeeded(wrapped.length * lineHeight + 2);
+            wrapped.forEach((wl) => {
+              doc.text(wl, margin + 8, y);
+              y += lineHeight;
+            });
+            y += 2;
+          }
+          y += 4;
         } else {
           doc.setFontSize(10);
           doc.setFont("helvetica", "normal");
           doc.setTextColor(60, 60, 60);
-          
-          const textLines = doc.splitTextToSize(section.content, pageWidth - 2 * margin);
-          
-          for (let i = 0; i < textLines.length; i++) {
-            if (yPosition > pageHeight - 30) {
-              doc.addPage();
-              yPosition = margin;
-            }
-            doc.text(textLines[i], margin, yPosition, { align: "left", maxWidth: pageWidth - 2 * margin });
-            yPosition += 5;
-          }
-          yPosition += 3;
+          const lines = doc.splitTextToSize(sec.content, usableWidth);
+          addNewPageIfNeeded(lines.length * lineHeight + 2);
+          lines.forEach((line) => {
+            doc.text(line, margin, y);
+            y += lineHeight;
+          });
+          y += 4;
         }
       }
 
-      // Add signature footer
+      // Assinaturas
       if (assinaturas && assinaturas.length > 0) {
-        if (yPosition > pageHeight - 120) {
-          doc.addPage();
-          yPosition = margin;
-        }
-
-        yPosition += 15;
-        
+        addNewPageIfNeeded(40);
         doc.setDrawColor(102, 51, 153);
         doc.setLineWidth(0.5);
-        doc.line(margin, yPosition, pageWidth - margin, yPosition);
-        yPosition += 10;
-
-        doc.setFontSize(14);
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 8;
+        doc.setFontSize(13);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(102, 51, 153);
-        doc.text("REGISTRO DE ASSINATURAS", margin, yPosition);
-        yPosition += 12;
+        doc.text("REGISTRO DE ASSINATURAS", margin, y);
+        y += 10;
 
-        // Add contract creation info
-        if (contrato.created_at) {
-          doc.setDrawColor(230, 230, 230);
-          doc.setFillColor(245, 245, 250);
-          doc.roundedRect(margin, yPosition - 5, pageWidth - 2 * margin, 20, 3, 3, "FD");
-          
+        if (contrato?.created_at) {
           const dataCriacao = format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
-          doc.setFont("helvetica", "bold");
+          addNewPageIfNeeded(28);
           doc.setFontSize(10);
+          doc.setFont("helvetica", "bold");
           doc.setTextColor(60, 60, 100);
-          doc.text("Contrato Gerado:", margin + 5, yPosition + 3);
-          doc.setFont("helvetica", "normal");
-          doc.text(dataCriacao, margin + 45, yPosition + 3);
-          doc.text(`Número: ${contrato.numero || "N/A"}`, margin + 5, yPosition + 11);
-          
-          yPosition += 28;
+          // caixa leve de fundo (usando rect com fill)
+          try {
+            doc.setFillColor(245, 245, 250);
+            doc.rect(margin, y - 6, usableWidth, 20, "F");
+          } catch (err) {
+            // alguns backends do jspdf podem não suportar setFillColor; ignore
+          }
+          doc.setTextColor(0, 0, 0);
+          doc.text(`Contrato Gerado: ${dataCriacao}`, margin + 4, y + 2);
+          doc.text(`Número: ${contrato.numero || "N/A"}`, margin + 4, y + 8);
+          y += 28;
         }
 
         for (const assinatura of assinaturas) {
           if (assinatura.status === "assinado" && assinatura.assinado_em) {
-            if (yPosition > pageHeight - 55) {
-              doc.addPage();
-              yPosition = margin;
-            }
-
-            const tipoLabel = assinatura.tipo === "contratado" ? "CONTRATADA" : 
-                              assinatura.tipo === "contratante" ? "CONTRATANTE" : "TESTEMUNHA";
-            
-            doc.setDrawColor(230, 230, 230);
-            doc.setFillColor(250, 250, 250);
-            doc.roundedRect(margin, yPosition - 5, pageWidth - 2 * margin, 42, 3, 3, "FD");
-
-            const dataAssinatura = format(new Date(assinatura.assinado_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
-            
-            doc.setFont("helvetica", "bold");
+            addNewPageIfNeeded(56);
+            const tipoLabel =
+              assinatura.tipo === "contratado"
+                ? "CONTRATADA"
+                : assinatura.tipo === "contratante"
+                  ? "CONTRATANTE"
+                  : "TESTEMUNHA";
             doc.setFontSize(11);
+            doc.setFont("helvetica", "bold");
             doc.setTextColor(0, 0, 0);
-            doc.text(`${assinatura.nome || "Signatário"}`, margin + 5, yPosition + 3);
-            
-            doc.setFontSize(8);
-            doc.setTextColor(102, 51, 153);
-            doc.text(`[${tipoLabel}]`, margin + 5 + doc.getTextWidth(assinatura.nome || "Signatário") + 3, yPosition + 3);
-            
-            doc.setFont("helvetica", "normal");
+            doc.text(`${assinatura.nome || "Signatário"}`, margin + 2, y);
             doc.setFontSize(9);
-            doc.setTextColor(80, 80, 80);
-            
-            doc.text(`Data/Hora: ${dataAssinatura}`, margin + 5, yPosition + 12);
-            doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, margin + 5, yPosition + 20);
-            
-            const hash = assinatura.hash_documento ? `${assinatura.hash_documento.substring(0, 50)}...` : "N/A";
-            doc.text(`Hash: ${hash}`, margin + 5, yPosition + 28);
-            
+            doc.setFont("helvetica", "normal");
+            const dataAss = format(new Date(assinatura.assinado_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
+            doc.text(`Data/Hora: ${dataAss}`, margin + 2, y + 8);
+            doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, margin + 2, y + 15);
+            const hash = assinatura.hash_documento ? `${assinatura.hash_documento.substring(0, 60)}...` : "N/A";
+            doc.text(`Hash: ${hash}`, margin + 2, y + 22);
             if (assinatura.latitude && assinatura.longitude) {
-              doc.text(`Localização: ${Number(assinatura.latitude).toFixed(6)}, ${Number(assinatura.longitude).toFixed(6)}`, margin + 5, yPosition + 36);
+              doc.text(
+                `Localização: ${Number(assinatura.latitude).toFixed(6)}, ${Number(assinatura.longitude).toFixed(6)}`,
+                margin + 2,
+                y + 29,
+              );
             } else {
-              doc.text(`Localização: Não disponível`, margin + 5, yPosition + 36);
+              doc.text(`Localização: Não disponível`, margin + 2, y + 29);
             }
-            
-            yPosition += 50;
+            y += 40;
           }
         }
       }
 
-      // Footer
+      // Footer: número de páginas e carimbo
       const totalPages = doc.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        const footerY = pageHeight - 15;
-        doc.setDrawColor(200, 200, 200);
-        doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
+        const footerY = pageHeight - 12;
+        doc.setDrawColor(220, 220, 220);
+        doc.line(margin, footerY - 6, pageWidth - margin, footerY - 6);
         doc.setFontSize(8);
         doc.setTextColor(128, 128, 128);
-        doc.text(`Documento gerado em ${format(new Date(), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })} | Uon1Sign | Página ${i} de ${totalPages}`, margin, footerY);
+        const gen = format(new Date(), "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
+        doc.text(`Documento gerado em ${gen} | Uon1Sign | Página ${i} de ${totalPages}`, margin, footerY);
       }
 
-      const fileName = `${contrato.numero || "contrato"}_${(contrato.titulo || "documento").replace(/\s+/g, '_')}.pdf`;
+      // Salvar arquivo com nome seguro
+      const sanitize = (s: string) => String(s || "").replace(/[^\w\-_. ]+/g, "");
+      const fileName = `${sanitize(String(contrato?.numero || "contrato"))}_${sanitize(String(contrato?.titulo || "documento")).replace(/\s+/g, "_")}.pdf`;
       doc.save(fileName);
       toast.success("PDF baixado com sucesso!");
     } catch (error) {
       console.error("Erro ao gerar PDF:", error);
-      toast.error("Erro ao gerar PDF. Verifique os dados do contrato.");
+      toast.error("Erro ao gerar PDF. Verifique os dados do contrato e a conexão da logo.");
     }
   };
 
@@ -368,20 +437,21 @@ export default function VisualizarContratoDialog({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
-            <DialogTitle>{contrato.titulo}</DialogTitle>
-            <Badge variant="outline">{contrato.numero}</Badge>
+            <DialogTitle>{contrato?.titulo}</DialogTitle>
+            <Badge variant="outline">{contrato?.numero}</Badge>
           </div>
           <DialogDescription>
-            Criado em {format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            Criado em{" "}
+            {contrato?.created_at
+              ? format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+              : "-"}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="documento" className="w-full">
           <TabsList>
             <TabsTrigger value="documento">Documento</TabsTrigger>
-            <TabsTrigger value="assinaturas">
-              Assinaturas ({assinaturas.length})
-            </TabsTrigger>
+            <TabsTrigger value="assinaturas">Assinaturas ({assinaturas.length})</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
 
@@ -397,17 +467,27 @@ export default function VisualizarContratoDialog({
                       <Download className="h-4 w-4 mr-2" />
                       Baixar PDF
                     </Button>
-                    {(contrato.status === "aguardando_assinatura" || contrato.link_token) && (
+                    {(contrato?.status === "aguardando_assinatura" || contrato?.link_token) && (
                       <>
                         <Button variant="outline" size="sm" onClick={copyLink}>
                           <Copy className="h-4 w-4 mr-2" />
                           Copiar Link
                         </Button>
-                        <Button variant="outline" size="sm" onClick={sendWhatsApp} className="text-green-600 hover:text-green-700">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={sendWhatsApp}
+                          className="text-green-600 hover:text-green-700"
+                        >
                           <MessageCircle className="h-4 w-4 mr-2" />
                           WhatsApp
                         </Button>
-                        <Button variant="outline" size="sm" onClick={sendEmail} className="text-blue-600 hover:text-blue-700">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={sendEmail}
+                          className="text-blue-600 hover:text-blue-700"
+                        >
                           <Mail className="h-4 w-4 mr-2" />
                           E-mail
                         </Button>
@@ -420,38 +500,36 @@ export default function VisualizarContratoDialog({
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-muted-foreground">Contratante:</span>
-                    <p className="font-medium">{contrato.contratante_nome || "-"}</p>
+                    <p className="font-medium">{contrato?.contratante_nome || "-"}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground">E-mail:</span>
-                    <p className="font-medium">{contrato.contratante_email || "-"}</p>
+                    <p className="font-medium">{contrato?.contratante_email || "-"}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground">CPF/CNPJ:</span>
-                    <p className="font-medium">{contrato.contratante_cpf || contrato.contratante_cnpj || "-"}</p>
+                    <p className="font-medium">{contrato?.contratante_cpf || contrato?.contratante_cnpj || "-"}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Valor:</span>
                     <p className="font-medium">
-                      {contrato.valor_contrato
-                        ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(contrato.valor_contrato)
+                      {contrato?.valor_contrato
+                        ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+                            contrato.valor_contrato,
+                          )
                         : "-"}
                     </p>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Início:</span>
                     <p className="font-medium">
-                      {contrato.data_inicio
-                        ? format(new Date(contrato.data_inicio), "dd/MM/yyyy")
-                        : "-"}
+                      {contrato?.data_inicio ? format(new Date(contrato.data_inicio), "dd/MM/yyyy") : "-"}
                     </p>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Fim:</span>
                     <p className="font-medium">
-                      {contrato.data_fim
-                        ? format(new Date(contrato.data_fim), "dd/MM/yyyy")
-                        : "-"}
+                      {contrato?.data_fim ? format(new Date(contrato.data_fim), "dd/MM/yyyy") : "-"}
                     </p>
                   </div>
                 </div>
@@ -460,7 +538,7 @@ export default function VisualizarContratoDialog({
                   <h4 className="font-medium mb-2">Prévia do Documento</h4>
                   <div
                     className="prose prose-sm max-w-none border rounded-lg p-4 bg-card max-h-[400px] overflow-y-auto"
-                    dangerouslySetInnerHTML={{ __html: contrato.conteudo_html }}
+                    dangerouslySetInnerHTML={{ __html: contrato?.conteudo_html || "" }}
                   />
                 </div>
               </CardContent>
@@ -493,9 +571,7 @@ export default function VisualizarContratoDialog({
                                   {assinatura.tipo}
                                 </Badge>
                               </div>
-                              <p className="text-sm text-muted-foreground">
-                                {assinatura.email}
-                              </p>
+                              <p className="text-sm text-muted-foreground">{assinatura.email}</p>
                             </div>
                           </div>
                           <div className="text-right">
@@ -513,11 +589,7 @@ export default function VisualizarContratoDialog({
                         {assinatura.assinatura_url && (
                           <div className="mt-3 border-t pt-3">
                             <p className="text-xs text-muted-foreground mb-2">Assinatura:</p>
-                            <img
-                              src={assinatura.assinatura_url}
-                              alt="Assinatura"
-                              className="max-h-16 border rounded"
-                            />
+                            <img src={assinatura.assinatura_url} alt="Assinatura" className="max-h-16 border rounded" />
                           </div>
                         )}
                         {assinatura.status === "assinado" && (
@@ -550,7 +622,7 @@ export default function VisualizarContratoDialog({
               ) : (
                 <div className="relative">
                   <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
-                  {historico?.map((item: any, index: number) => (
+                  {historico?.map((item: any) => (
                     <div key={item.id} className="relative pl-10 pb-4">
                       <div className="absolute left-2.5 w-3 h-3 rounded-full bg-primary border-2 border-background" />
                       <div className="bg-card border rounded-lg p-3">
@@ -560,16 +632,8 @@ export default function VisualizarContratoDialog({
                             {format(new Date(item.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                           </span>
                         </div>
-                        {item.descricao && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {item.descricao}
-                          </p>
-                        )}
-                        {item.ip && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            IP: {item.ip}
-                          </p>
-                        )}
+                        {item.descricao && <p className="text-sm text-muted-foreground mt-1">{item.descricao}</p>}
+                        {item.ip && <p className="text-xs text-muted-foreground mt-1">IP: {item.ip}</p>}
                       </div>
                     </div>
                   ))}
