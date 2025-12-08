@@ -190,7 +190,37 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
 
       if (contratoError) throw contratoError;
 
-      // Criar assinatura do contratante
+      // Get current location and IP for contratada signature
+      let contratadaLatitude: number | null = null;
+      let contratadaLongitude: number | null = null;
+      let contratadaIp = "N/A";
+
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+        });
+        contratadaLatitude = position.coords.latitude;
+        contratadaLongitude = position.coords.longitude;
+      } catch (e) {
+        console.log("Geolocation not available for contratada");
+      }
+
+      try {
+        const ipResponse = await fetch("https://api.ipify.org?format=json");
+        const ipData = await ipResponse.json();
+        contratadaIp = ipData.ip;
+      } catch (e) {
+        console.log("Could not get IP for contratada");
+      }
+
+      // Generate hash for contratada signature
+      const encoder = new TextEncoder();
+      const hashData = encoder.encode(conteudoProcessado + "contratada" + new Date().toISOString());
+      const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const contratadaHash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+
+      // Criar assinatura do contratante (pendente) e da contratada (já assinada automaticamente)
       const assinaturas = [
         {
           contrato_id: contrato.id,
@@ -199,6 +229,22 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
           cpf: contratanteCpf,
           tipo: "contratante",
           ordem: 1,
+          status: "pendente",
+        },
+        {
+          contrato_id: contrato.id,
+          nome: "Vangard Gestora",
+          email: "contatos@vangardgestora.com.br",
+          cpf: null,
+          tipo: "contratado",
+          ordem: 0,
+          status: "assinado",
+          assinado_em: new Date().toISOString(),
+          ip_assinatura: contratadaIp,
+          latitude: contratadaLatitude,
+          longitude: contratadaLongitude,
+          hash_documento: contratadaHash,
+          user_agent: navigator.userAgent,
         },
         ...signatarios.map((s, i) => ({
           contrato_id: contrato.id,
@@ -207,6 +253,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
           cpf: s.cpf,
           tipo: s.tipo,
           ordem: i + 2,
+          status: "pendente",
         })),
       ];
 
@@ -216,12 +263,14 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
 
       if (assinaturasError) throw assinaturasError;
 
-      // Registrar histórico
+      // Registrar histórico com dados de geração
       await supabase.from("contrato_historico").insert({
         contrato_id: contrato.id,
         acao: "criado",
-        descricao: "Contrato criado",
+        descricao: `Contrato criado e assinado automaticamente pela contratada. IP: ${contratadaIp}${contratadaLatitude ? `, Localização: ${contratadaLatitude.toFixed(6)}, ${contratadaLongitude?.toFixed(6)}` : ""}`,
         user_id: user.id,
+        ip: contratadaIp,
+        user_agent: navigator.userAgent,
       });
 
       return contrato;
