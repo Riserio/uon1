@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { MaskedInput } from "@/components/ui/masked-input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 
 interface Signatario {
   nome: string;
@@ -407,12 +408,10 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Valor do Contrato</Label>
-              <Input
-                type="number"
-                step="0.01"
+              <CurrencyInput
                 value={valorContrato}
-                onChange={(e) => setValorContrato(e.target.value)}
-                placeholder="0.00"
+                onValueChange={(values) => setValorContrato(values.value)}
+                placeholder="R$ 0,00"
               />
             </div>
             <div className="space-y-2">
