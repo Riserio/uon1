@@ -132,6 +132,16 @@ export default function ContratoAssinatura() {
         console.log("Geolocation not available");
       }
 
+      // Get IP (try to get real IP via external service)
+      let ipAddress = "N/A";
+      try {
+        const ipResponse = await fetch("https://api.ipify.org?format=json");
+        const ipData = await ipResponse.json();
+        ipAddress = ipData.ip;
+      } catch (e) {
+        console.log("Could not get IP");
+      }
+
       // Generate hash
       const encoder = new TextEncoder();
       const data = encoder.encode(contrato.conteudo_html + currentAssinatura.id + new Date().toISOString());
@@ -146,7 +156,7 @@ export default function ContratoAssinatura() {
           status: "assinado",
           assinado_em: new Date().toISOString(),
           assinatura_url: assinaturaDataUrl,
-          ip_assinatura: "browser",
+          ip_assinatura: ipAddress,
           latitude,
           longitude,
           hash_documento: hashHex,
@@ -161,14 +171,17 @@ export default function ContratoAssinatura() {
         contrato_id: contrato.id,
         acao: "assinado",
         descricao: `Contrato assinado por ${currentAssinatura.nome}`,
-        ip: "browser",
+        ip: ipAddress,
         user_agent: navigator.userAgent,
       });
 
-      // Check if all signatures are done
-      const allSigned = contrato.contrato_assinaturas.every(
-        (a: any) => a.id === currentAssinatura.id || a.status === "assinado"
-      );
+      // Check if all signatures are done - fetch fresh data
+      const { data: freshAssinaturas } = await supabase
+        .from("contrato_assinaturas")
+        .select("*")
+        .eq("contrato_id", contrato.id);
+
+      const allSigned = freshAssinaturas?.every((a: any) => a.status === "assinado");
 
       if (allSigned) {
         await supabase
