@@ -53,6 +53,7 @@ import CustosSinistros from "@/pages/CustosSinistros";
 import SinistroConfiguracoes from "@/pages/SinistroConfiguracoes";
 import SGAInsights from "@/pages/SGAInsights";
 import Landing from "./pages/Landing";
+import Gestao from "./pages/Gestao";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -200,6 +201,7 @@ const App = () => (
               <Route path="/comunicados" element={<ProtectedRoute><AdminRoute><Comunicados /></AdminRoute></ProtectedRoute>} />
               <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
               <Route path="/pid" element={<ProtectedRoute><PID /></ProtectedRoute>} />
+              <Route path="/gestao" element={<ProtectedRoute><Gestao /></ProtectedRoute>} />
               <Route path="/sga-insights" element={<ProtectedRoute><SGAInsights /></ProtectedRoute>} />
               <Route path="/portal/sga-insights" element={<PortalRoute><SGAInsights /></PortalRoute>} />
               <Route path="/portal" element={<PortalRoute><Portal /></PortalRoute>} />

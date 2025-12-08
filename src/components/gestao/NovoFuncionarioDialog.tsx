@@ -234,18 +234,18 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
               <div className="space-y-2">
                 <Label>CPF</Label>
                 <MaskedInput
-                  mask="999.999.999-99"
+                  format="###.###.###-##"
                   value={cpf}
-                  onChange={(e) => setCpf(e.target.value)}
+                  onValueChange={(values) => setCpf(values.value)}
                   placeholder="000.000.000-00"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Telefone</Label>
                 <MaskedInput
-                  mask="(99) 99999-9999"
+                  format="(##) #####-####"
                   value={telefone}
-                  onChange={(e) => setTelefone(e.target.value)}
+                  onValueChange={(values) => setTelefone(values.value)}
                   placeholder="(00) 00000-0000"
                 />
               </div>
@@ -367,9 +367,9 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
               <div className="space-y-2">
                 <Label>CEP</Label>
                 <MaskedInput
-                  mask="99999-999"
+                  format="#####-###"
                   value={cep}
-                  onChange={(e) => setCep(e.target.value)}
+                  onValueChange={(values) => setCep(values.value)}
                   placeholder="00000-000"
                 />
               </div>
