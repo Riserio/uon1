@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { MaskedInput } from "@/components/ui/masked-input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 
 interface NovoFuncionarioDialogProps {
   open: boolean;
@@ -289,12 +290,10 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
               </div>
               <div className="space-y-2">
                 <Label>Salário</Label>
-                <Input
-                  type="number"
-                  step="0.01"
+                <CurrencyInput
                   value={salario}
-                  onChange={(e) => setSalario(e.target.value)}
-                  placeholder="0.00"
+                  onValueChange={(values) => setSalario(values.value)}
+                  placeholder="R$ 0,00"
                 />
               </div>
               <div className="space-y-2">
