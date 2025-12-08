@@ -60,6 +60,10 @@ export default function VisualizarContratoDialog({
   const assinaturas = contrato.contrato_assinaturas || [];
 
   const copyLink = () => {
+    if (!contrato.link_token) {
+      toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
+      return;
+    }
     const link = `${window.location.origin}/contrato/${contrato.link_token}`;
     navigator.clipboard.writeText(link);
     toast.success("Link copiado!");
@@ -94,7 +98,7 @@ export default function VisualizarContratoDialog({
                   <div>
                     <CardTitle className="text-lg">Dados do Contrato</CardTitle>
                   </div>
-                  {contrato.status === "aguardando_assinatura" && (
+                  {(contrato.status === "aguardando_assinatura" || contrato.link_token) && (
                     <Button variant="outline" size="sm" onClick={copyLink}>
                       <Copy className="h-4 w-4 mr-2" />
                       Copiar Link

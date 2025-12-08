@@ -42,6 +42,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
+  const [contratoAnteriorId, setContratoAnteriorId] = useState<string>("");
   const [templateId, setTemplateId] = useState<string>("");
   const [titulo, setTitulo] = useState("");
   const [contratanteNome, setContratanteNome] = useState("");
@@ -54,6 +55,35 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
   const [corretoraId, setCorretoraId] = useState<string>("");
   const [conteudoHtml, setConteudoHtml] = useState("");
   const [signatarios, setSignatarios] = useState<Signatario[]>([]);
+
+  // Fetch contratos anteriores para reaproveitar dados
+  const { data: contratosAnteriores } = useQuery({
+    queryKey: ["contratos-anteriores"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contratos")
+        .select("id, numero, titulo, contratante_nome, contratante_email, contratante_cpf, contratante_telefone, corretora_id")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data;
+    },
+    enabled: open,
+  });
+
+  // Quando seleciona contrato anterior, preenche dados do cliente
+  useEffect(() => {
+    if (contratoAnteriorId) {
+      const contratoAnterior = contratosAnteriores?.find((c) => c.id === contratoAnteriorId);
+      if (contratoAnterior) {
+        setContratanteNome(contratoAnterior.contratante_nome || "");
+        setContratanteEmail(contratoAnterior.contratante_email || "");
+        setContratanteCpf(contratoAnterior.contratante_cpf || "");
+        setContratanteTelefone(contratoAnterior.contratante_telefone || "");
+        setCorretoraId(contratoAnterior.corretora_id || "");
+      }
+    }
+  }, [contratoAnteriorId, contratosAnteriores]);
 
   // Fetch corretoras
   const { data: corretoras } = useQuery({
@@ -193,6 +223,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
   });
 
   const resetForm = () => {
+    setContratoAnteriorId("");
     setTemplateId("");
     setTitulo("");
     setContratanteNome("");
@@ -218,6 +249,25 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Reaproveitar dados de contrato anterior */}
+          {contratosAnteriores && contratosAnteriores.length > 0 && (
+            <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-dashed">
+              <Label className="text-sm text-muted-foreground">Reaproveitar dados do cliente</Label>
+              <Select value={contratoAnteriorId} onValueChange={setContratoAnteriorId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um contrato anterior (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contratosAnteriores.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.numero} - {c.contratante_nome || "Sem nome"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Template */}
           <div className="space-y-2">
             <Label>Template (opcional)</Label>
