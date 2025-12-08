@@ -202,7 +202,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
         <p style="margin:6px 0;"><strong>CONTRATANTE:</strong> ${contrato?.contratante_nome || "-"}</p>
         <p style="margin:6px 0;"><strong>CPF/CNPJ:</strong> ${contrato?.contratante_cpf || contrato?.contratante_cnpj || "-"}</p>
         <p style="margin:6px 0;"><strong>E-mail:</strong> ${contrato?.contratante_email || "-"}</p>
-        <p style="margin:6px 0;"><strong>CONTRATADA:</strong> Vangard Gestora — Rua Jacuí, 1273 - Floresta, Belo Horizonte - MG</p>
+        <p style="margin:6px 0;"><strong>CONTRATADA:</strong> Vangard Gestora — Rua Gonçalves Dias, 89 - Funcionários, Belo Horizonte - MG</p>
       `;
       container.appendChild(meta);
 
