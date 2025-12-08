@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { 
-  Plus, 
-  Search, 
-  FileText, 
-  Send, 
-  Eye, 
+import {
+  Plus,
+  Search,
+  FileText,
+  Send,
+  Eye,
   CheckCircle2,
   Clock,
   XCircle,
@@ -28,13 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -45,10 +39,26 @@ import { downloadContratoPDF } from "./utils/downloadContratoPDF";
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   rascunho: { label: "Rascunho", color: "bg-muted text-muted-foreground", icon: <FileText className="h-3 w-3" /> },
-  aguardando_assinatura: { label: "Aguardando Assinatura", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400", icon: <Clock className="h-3 w-3" /> },
-  assinado: { label: "Assinado", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", icon: <CheckCircle2 className="h-3 w-3" /> },
-  cancelado: { label: "Cancelado", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400", icon: <XCircle className="h-3 w-3" /> },
-  expirado: { label: "Expirado", color: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400", icon: <XCircle className="h-3 w-3" /> },
+  aguardando_assinatura: {
+    label: "Aguardando Assinatura",
+    color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+    icon: <Clock className="h-3 w-3" />,
+  },
+  assinado: {
+    label: "Assinado",
+    color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+    icon: <CheckCircle2 className="h-3 w-3" />,
+  },
+  cancelado: {
+    label: "Cancelado",
+    color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+    icon: <XCircle className="h-3 w-3" />,
+  },
+  expirado: {
+    label: "Expirado",
+    color: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
+    icon: <XCircle className="h-3 w-3" />,
+  },
 };
 
 export default function GestaoContratos() {
@@ -66,10 +76,12 @@ export default function GestaoContratos() {
     queryFn: async () => {
       let query = supabase
         .from("contratos")
-        .select(`
+        .select(
+          `
           *,
           contrato_assinaturas(*)
-        `)
+        `,
+        )
         .order("created_at", { ascending: false });
 
       if (statusFilter !== "all") {
@@ -86,11 +98,7 @@ export default function GestaoContratos() {
   const { data: templates } = useQuery({
     queryKey: ["contrato_templates"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contrato_templates")
-        .select("*")
-        .eq("ativo", true)
-        .order("titulo");
+      const { data, error } = await supabase.from("contrato_templates").select("*").eq("ativo", true).order("titulo");
       if (error) throw error;
       return data;
     },
@@ -101,9 +109,9 @@ export default function GestaoContratos() {
     mutationFn: async (contratoId: string) => {
       const { error } = await supabase
         .from("contratos")
-        .update({ 
+        .update({
           status: "aguardando_assinatura",
-          link_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          link_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         })
         .eq("id", contratoId);
       if (error) throw error;
@@ -143,9 +151,9 @@ export default function GestaoContratos() {
     const link = `${window.location.origin}/contrato/${contrato.link_token}`;
     const phone = contrato.contratante_telefone?.replace(/\D/g, "") || "";
     const message = encodeURIComponent(
-      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`
+      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`,
     );
-    const whatsappUrl = phone 
+    const whatsappUrl = phone
       ? `https://web.whatsapp.com/send?phone=55${phone}&text=${message}`
       : `https://web.whatsapp.com/send?text=${message}`;
     window.open(whatsappUrl, "_blank");
@@ -159,7 +167,7 @@ export default function GestaoContratos() {
     const link = `${window.location.origin}/contrato/${contrato.link_token}`;
     const subject = encodeURIComponent(`Contrato para assinatura: ${contrato.titulo}`);
     const body = encodeURIComponent(
-      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`
+      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`,
     );
     const mailtoUrl = `mailto:${contrato.contratante_email || ""}?subject=${subject}&body=${body}`;
     window.open(mailtoUrl, "_blank");
@@ -261,9 +269,7 @@ export default function GestaoContratos() {
             <CardContent className="py-12 text-center">
               <FileSignature className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium">Nenhum contrato encontrado</h3>
-              <p className="text-muted-foreground mt-1">
-                Crie seu primeiro contrato clicando no botão acima
-              </p>
+              <p className="text-muted-foreground mt-1">Crie seu primeiro contrato clicando no botão acima</p>
             </CardContent>
           </Card>
         ) : (
@@ -279,9 +285,7 @@ export default function GestaoContratos() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-mono text-muted-foreground">
-                          {contrato.numero}
-                        </span>
+                        <span className="text-sm font-mono text-muted-foreground">{contrato.numero}</span>
                         <Badge className={`${status.color} flex items-center gap-1`}>
                           {status.icon}
                           {status.label}
@@ -289,12 +293,13 @@ export default function GestaoContratos() {
                       </div>
                       <h3 className="font-medium text-foreground truncate">{contrato.titulo}</h3>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
-                        {contrato.contratante_nome && (
-                          <span>Contratante: {contrato.contratante_nome}</span>
-                        )}
+                        {contrato.contratante_nome && <span>Contratante: {contrato.contratante_nome}</span>}
                         {contrato.valor_contrato && (
                           <span>
-                            Valor: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(contrato.valor_contrato)}
+                            Valor:{" "}
+                            {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+                              contrato.valor_contrato,
+                            )}
                           </span>
                         )}
                         {assinaturas.length > 0 && (
@@ -326,12 +331,7 @@ export default function GestaoContratos() {
                       </Button>
                       {hasLink && (
                         <>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => copyLink(contrato)}
-                            title="Copiar Link"
-                          >
+                          <Button variant="ghost" size="icon" onClick={() => copyLink(contrato)} title="Copiar Link">
                             <Copy className="h-4 w-4" />
                           </Button>
                           <Button
@@ -360,7 +360,7 @@ export default function GestaoContratos() {
                           size="icon"
                           onClick={() => enviarParaAssinatura.mutate(contrato.id)}
                           disabled={enviarParaAssinatura.isPending}
-                          title="Enviar para Assinatura"
+                          title="Liberar para Assinatura"
                         >
                           <Send className="h-4 w-4" />
                         </Button>
@@ -375,11 +375,7 @@ export default function GestaoContratos() {
       </div>
 
       {/* Dialogs */}
-      <NovoContratoDialog
-        open={novoContratoOpen}
-        onOpenChange={setNovoContratoOpen}
-        templates={templates || []}
-      />
+      <NovoContratoDialog open={novoContratoOpen} onOpenChange={setNovoContratoOpen} templates={templates || []} />
       <TemplateContratoDialog open={templateOpen} onOpenChange={setTemplateOpen} />
       {visualizarContrato && (
         <VisualizarContratoDialog
