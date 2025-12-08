@@ -22,6 +22,7 @@ import {
   Copy,
   ExternalLink,
   User,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -69,6 +70,22 @@ export default function VisualizarContratoDialog({
     toast.success("Link copiado!");
   };
 
+  const sendWhatsApp = () => {
+    if (!contrato.link_token) {
+      toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
+      return;
+    }
+    const link = `${window.location.origin}/contrato/${contrato.link_token}`;
+    const phone = contrato.contratante_telefone?.replace(/\D/g, "") || "";
+    const message = encodeURIComponent(
+      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`
+    );
+    const whatsappUrl = phone 
+      ? `https://web.whatsapp.com/send?phone=55${phone}&text=${message}`
+      : `https://web.whatsapp.com/send?text=${message}`;
+    window.open(whatsappUrl, "_blank");
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -99,10 +116,16 @@ export default function VisualizarContratoDialog({
                     <CardTitle className="text-lg">Dados do Contrato</CardTitle>
                   </div>
                   {(contrato.status === "aguardando_assinatura" || contrato.link_token) && (
-                    <Button variant="outline" size="sm" onClick={copyLink}>
-                      <Copy className="h-4 w-4 mr-2" />
-                      Copiar Link
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={copyLink}>
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copiar Link
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={sendWhatsApp} className="text-green-600 hover:text-green-700">
+                        <MessageCircle className="h-4 w-4 mr-2" />
+                        WhatsApp
+                      </Button>
+                    </div>
                   )}
                 </div>
               </CardHeader>

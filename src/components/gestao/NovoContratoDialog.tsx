@@ -47,7 +47,9 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
   const [titulo, setTitulo] = useState("");
   const [contratanteNome, setContratanteNome] = useState("");
   const [contratanteEmail, setContratanteEmail] = useState("");
+  const [contratanteTipo, setContratanteTipo] = useState<"pf" | "pj">("pf");
   const [contratanteCpf, setContratanteCpf] = useState("");
+  const [contratanteCnpj, setContratanteCnpj] = useState("");
   const [contratanteTelefone, setContratanteTelefone] = useState("");
   const [valorContrato, setValorContrato] = useState("");
   const [dataInicio, setDataInicio] = useState("");
@@ -152,7 +154,8 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
           conteudo_html: conteudoProcessado,
           contratante_nome: contratanteNome,
           contratante_email: contratanteEmail,
-          contratante_cpf: contratanteCpf,
+          contratante_cpf: contratanteTipo === "pf" ? contratanteCpf : null,
+          contratado_cnpj: contratanteTipo === "pj" ? contratanteCnpj : null,
           contratante_telefone: contratanteTelefone,
           valor_contrato: valorContrato ? parseFloat(valorContrato) : null,
           data_inicio: dataInicio || null,
@@ -163,6 +166,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
           variaveis_preenchidas: {
             nome: contratanteNome,
             cpf: contratanteCpf,
+            cnpj: contratanteCnpj,
             email: contratanteEmail,
             telefone: contratanteTelefone,
             valor: valorContrato,
@@ -228,7 +232,9 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
     setTitulo("");
     setContratanteNome("");
     setContratanteEmail("");
+    setContratanteTipo("pf");
     setContratanteCpf("");
+    setContratanteCnpj("");
     setContratanteTelefone("");
     setValorContrato("");
     setDataInicio("");
@@ -314,14 +320,34 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
 
           {/* Dados do Contratante */}
           <div className="border rounded-lg p-4 space-y-4">
-            <h4 className="font-medium">Dados do Contratante</h4>
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">Dados do Contratante</h4>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={contratanteTipo === "pf" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setContratanteTipo("pf")}
+                >
+                  Pessoa Física
+                </Button>
+                <Button
+                  type="button"
+                  variant={contratanteTipo === "pj" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setContratanteTipo("pj")}
+                >
+                  Pessoa Jurídica
+                </Button>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Nome *</Label>
+                <Label>{contratanteTipo === "pf" ? "Nome Completo *" : "Razão Social *"}</Label>
                 <Input
                   value={contratanteNome}
                   onChange={(e) => setContratanteNome(e.target.value)}
-                  placeholder="Nome completo"
+                  placeholder={contratanteTipo === "pf" ? "Nome completo" : "Razão Social"}
                 />
               </div>
               <div className="space-y-2">
@@ -333,17 +359,29 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
                   placeholder="email@exemplo.com"
                 />
               </div>
+              {contratanteTipo === "pf" ? (
+                <div className="space-y-2">
+                  <Label>CPF</Label>
+                  <MaskedInput
+                    format="###.###.###-##"
+                    value={contratanteCpf}
+                    onValueChange={(values) => setContratanteCpf(values.value)}
+                    placeholder="000.000.000-00"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>CNPJ</Label>
+                  <MaskedInput
+                    format="##.###.###/####-##"
+                    value={contratanteCnpj}
+                    onValueChange={(values) => setContratanteCnpj(values.value)}
+                    placeholder="00.000.000/0000-00"
+                  />
+                </div>
+              )}
               <div className="space-y-2">
-                <Label>CPF</Label>
-                <MaskedInput
-                  format="###.###.###-##"
-                  value={contratanteCpf}
-                  onValueChange={(values) => setContratanteCpf(values.value)}
-                  placeholder="000.000.000-00"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Telefone</Label>
+                <Label>Telefone / WhatsApp</Label>
                 <MaskedInput
                   format="(##) #####-####"
                   value={contratanteTelefone}
