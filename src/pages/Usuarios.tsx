@@ -500,7 +500,8 @@ export default function Usuarios() {
       nome: formData.nome || editingItem.nome,
       email: formData.email || editingItem.email,
       cargo: formData.cargo,
-      role: editingRole
+      role: editingRole,
+      isFuncionario
     });
 
     // Update email in auth if changed
@@ -510,6 +511,46 @@ export default function Usuarios() {
       });
       if (emailError) {
         console.error("Erro ao atualizar email no auth:", emailError);
+      }
+    }
+
+    // Gerenciar registro de funcionário
+    if (isFuncionario && !createdFuncionarioId) {
+      // Criar novo funcionário
+      const { data: novoFuncionario, error: funcionarioError } = await supabase
+        .from("funcionarios")
+        .insert({
+          profile_id: editingItem.id,
+          nome: formData.nome || editingItem.nome,
+          email: formData.email || editingItem.email,
+          telefone: formData.telefone || null,
+          cargo: formData.cargo || null,
+          cpf: formData.cpf_cnpj || null,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (funcionarioError) {
+        console.error("Erro ao criar funcionário:", funcionarioError);
+        toast.warning("Usuário atualizado, mas houve erro ao criar registro de funcionário");
+      } else {
+        setCreatedFuncionarioId(novoFuncionario.id);
+        setShowFuncionarioPrompt(true);
+        fetchProfiles();
+        fetchUserRoles();
+        return;
+      }
+    } else if (!isFuncionario && createdFuncionarioId) {
+      // Remover funcionário
+      const { error: deleteError } = await supabase
+        .from("funcionarios")
+        .delete()
+        .eq("id", createdFuncionarioId);
+
+      if (deleteError) {
+        console.error("Erro ao remover funcionário:", deleteError);
+        toast.warning("Usuário atualizado, mas houve erro ao remover registro de funcionário");
       }
     }
 
@@ -599,7 +640,7 @@ export default function Usuarios() {
     }
   };
 
-  const openDialog = (item?: Profile) => {
+  const openDialog = async (item?: Profile) => {
     if (item) {
       setEditingItem(item);
       setFormData({
@@ -607,6 +648,16 @@ export default function Usuarios() {
       });
       setEditingRole((userRoles[item.id] as RoleType) || "comercial");
       setSelectedEquipes(userEquipes[item.id] || []);
+      
+      // Verificar se já é funcionário
+      const { data: funcionarioData } = await supabase
+        .from("funcionarios")
+        .select("id")
+        .eq("profile_id", item.id)
+        .maybeSingle();
+      
+      setIsFuncionario(!!funcionarioData);
+      setCreatedFuncionarioId(funcionarioData?.id || null);
     } else {
       setEditingItem(null);
       setFormData({});
@@ -1025,6 +1076,52 @@ export default function Usuarios() {
                       </div>
                     )}
 
+                    {/* PERFIL E FUNCIONÁRIO - EDIÇÃO */}
+                    {editingItem && (
+                      <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+                        <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                          Perfil de Acesso
+                        </h3>
+                        <div className="grid gap-2">
+                          <Label>Perfil *</Label>
+                          <Select value={editingRole} onValueChange={(v) => setEditingRole(v as RoleType)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="superintendente">Superintendente</SelectItem>
+                              <SelectItem value="admin">Administrador</SelectItem>
+                              <SelectItem value="administrativo">Administrativo</SelectItem>
+                              <SelectItem value="lider">Líder</SelectItem>
+                              <SelectItem value="comercial">Comercial</SelectItem>
+                              <SelectItem value="parceiro">Parceiro (Acesso BI)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {/* Flag Funcionário */}
+                        <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                          <input
+                            type="checkbox"
+                            id="is_funcionario_edit"
+                            checked={isFuncionario}
+                            onChange={(e) => setIsFuncionario(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <div className="flex-1">
+                            <Label htmlFor="is_funcionario_edit" className="text-sm font-medium cursor-pointer">
+                              Este usuário é funcionário
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              {createdFuncionarioId 
+                                ? "Já existe registro de funcionário vinculado"
+                                : "Se marcado, será criado um registro de funcionário"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* INFORMAÇÕES PESSOAIS */}
                     <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                       <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
@@ -1034,7 +1131,7 @@ export default function Usuarios() {
                       {editingItem && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="grid gap-2">
-                            <Label>Nome</Label>
+                            <Label>Nome *</Label>
                             <Input
                               value={formData.nome ?? editingItem.nome}
                               onChange={(e) =>
@@ -1046,7 +1143,7 @@ export default function Usuarios() {
                             />
                           </div>
                           <div className="grid gap-2">
-                            <Label>Email</Label>
+                            <Label>Email *</Label>
                             <Input
                               type="email"
                               value={formData.email ?? editingItem.email}
