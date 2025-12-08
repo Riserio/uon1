@@ -54,6 +54,7 @@ import SinistroConfiguracoes from "@/pages/SinistroConfiguracoes";
 import SGAInsights from "@/pages/SGAInsights";
 import Landing from "./pages/Landing";
 import Gestao from "./pages/Gestao";
+import ContratoAssinatura from "./pages/ContratoAssinatura";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -168,6 +169,7 @@ const App = () => (
             <Route path="/vistoria/:token/formulario" element={<VistoriaPublicaFormulario />} />
             <Route path="/vistoria/:token/termos" element={<VistoriaPublicaTermos />} />
             <Route path="/vistoria/:token/conclusao" element={<VistoriaPublicaConclusao />} />
+              <Route path="/contrato/:token" element={<ContratoAssinatura />} />
               <Route path="/acompanhamento" element={<AcompanhamentoSinistro />} />
               <Route path="/configuracao-status-publico" element={<ProtectedRoute><ConfiguracaoStatusPublico /></ProtectedRoute>} />
               <Route path="/" element={<DomainBasedRoute />} />
