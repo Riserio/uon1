@@ -1,15 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Loader2, FileText, CheckCircle2, XCircle, PenLine, AlertCircle } from "lucide-react";
-import { format } from "date-fns";
+import { Loader2, FileText, CheckCircle2, XCircle, PenLine, AlertCircle, Clock } from "lucide-react";
+import { format, isPast } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export default function ContratoAssinatura() {
@@ -19,6 +18,7 @@ export default function ContratoAssinatura() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
+  const [canvasSize, setCanvasSize] = useState({ width: 500, height: 150 });
 
   // Fetch contrato by token
   const { data: contrato, isLoading, error, refetch } = useQuery({
@@ -45,10 +45,31 @@ export default function ContratoAssinatura() {
     (a: any) => a.status === "pendente"
   );
 
+  // Resize canvas based on container
+  useEffect(() => {
+    const updateCanvasSize = () => {
+      const container = canvasRef.current?.parentElement;
+      if (container) {
+        const containerWidth = container.clientWidth - 16; // padding
+        const newWidth = Math.min(containerWidth, 600);
+        const newHeight = Math.round(newWidth * 0.3);
+        setCanvasSize({ width: newWidth, height: newHeight });
+      }
+    };
+
+    updateCanvasSize();
+    window.addEventListener('resize', updateCanvasSize);
+    return () => window.removeEventListener('resize', updateCanvasSize);
+  }, []);
+
   // Setup canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // Set actual canvas dimensions
+    canvas.width = canvasSize.width;
+    canvas.height = canvasSize.height;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -57,9 +78,31 @@ export default function ContratoAssinatura() {
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+  }, [canvasSize]);
+
+  const getCoordinates = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    if ("touches" in e) {
+      return {
+        x: (e.touches[0].clientX - rect.left) * scaleX,
+        y: (e.touches[0].clientY - rect.top) * scaleY
+      };
+    } else {
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+    }
   }, []);
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     setIsDrawing(true);
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -67,15 +110,13 @@ export default function ContratoAssinatura() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = "touches" in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = "touches" in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
-
+    const { x, y } = getCoordinates(e);
     ctx.beginPath();
     ctx.moveTo(x, y);
-  };
+  }, [getCoordinates]);
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     if (!isDrawing) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -83,18 +124,15 @@ export default function ContratoAssinatura() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = "touches" in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = "touches" in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
-
+    const { x, y } = getCoordinates(e);
     ctx.lineTo(x, y);
     ctx.stroke();
     setHasSignature(true);
-  };
+  }, [isDrawing, getCoordinates]);
 
-  const stopDrawing = () => {
+  const stopDrawing = useCallback(() => {
     setIsDrawing(false);
-  };
+  }, []);
 
   const clearSignature = () => {
     const canvas = canvasRef.current;
@@ -225,6 +263,27 @@ export default function ContratoAssinatura() {
     );
   }
 
+  // Check if link is expired
+  if (contrato.link_expires_at && isPast(new Date(contrato.link_expires_at))) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center">
+            <Clock className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Link Expirado</h2>
+            <p className="text-muted-foreground">
+              O prazo para assinatura deste contrato expirou em{" "}
+              {format(new Date(contrato.link_expires_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}.
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Entre em contato com o remetente para solicitar um novo link.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const allSigned = contrato.contrato_assinaturas?.every((a: any) => a.status === "assinado");
 
   if (allSigned) {
@@ -260,17 +319,22 @@ export default function ContratoAssinatura() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="min-h-screen bg-background p-2 sm:p-4 md:p-8">
+      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
         <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <FileText className="h-8 w-8 text-primary" />
-              <div>
-                <CardTitle>{contrato.titulo}</CardTitle>
-                <CardDescription>
+          <CardHeader className="p-4 sm:p-6">
+            <div className="flex items-start sm:items-center gap-3 flex-col sm:flex-row">
+              <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-lg sm:text-xl break-words">{contrato.titulo}</CardTitle>
+                <CardDescription className="text-sm">
                   Contrato nº {contrato.numero} • Criado em {format(new Date(contrato.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                  {contrato.link_expires_at && (
+                    <span className="block sm:inline sm:ml-2 text-amber-600">
+                      • Expira em {format(new Date(contrato.link_expires_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    </span>
+                  )}
                 </CardDescription>
               </div>
             </div>
@@ -279,12 +343,12 @@ export default function ContratoAssinatura() {
 
         {/* Contract Content */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Documento</CardTitle>
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-2">
+            <CardTitle className="text-base sm:text-lg">Documento</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-2 sm:pt-2">
             <div
-              className="prose prose-sm max-w-none border rounded-lg p-4 bg-card max-h-[50vh] overflow-y-auto"
+              className="prose prose-sm max-w-none border rounded-lg p-3 sm:p-4 bg-card max-h-[40vh] sm:max-h-[50vh] overflow-y-auto text-sm"
               dangerouslySetInnerHTML={{ __html: contrato.conteudo_html }}
             />
           </CardContent>
@@ -292,22 +356,25 @@ export default function ContratoAssinatura() {
 
         {/* Signature Area */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <PenLine className="h-5 w-5" />
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-2">
+            <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+              <PenLine className="h-4 w-4 sm:h-5 sm:w-5" />
               Assinatura de {currentAssinatura.nome}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-sm">
               Desenhe sua assinatura no campo abaixo
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="border-2 border-dashed rounded-lg p-2 bg-white">
+          <CardContent className="p-4 sm:p-6 pt-2 sm:pt-2 space-y-4">
+            <div className="border-2 border-dashed rounded-lg p-2 bg-white overflow-hidden">
               <canvas
                 ref={canvasRef}
-                width={500}
-                height={150}
-                className="w-full cursor-crosshair touch-none"
+                style={{
+                  width: '100%',
+                  height: `${canvasSize.height}px`,
+                  touchAction: 'none'
+                }}
+                className="cursor-crosshair block"
                 onMouseDown={startDrawing}
                 onMouseMove={draw}
                 onMouseUp={stopDrawing}
@@ -327,7 +394,7 @@ export default function ContratoAssinatura() {
                 checked={aceito}
                 onCheckedChange={(checked) => setAceito(checked === true)}
               />
-              <Label htmlFor="aceitar" className="text-sm leading-relaxed">
+              <Label htmlFor="aceitar" className="text-xs sm:text-sm leading-relaxed">
                 Li e aceito os termos do contrato. Estou ciente de que esta assinatura
                 digital tem validade jurídica conforme a legislação brasileira.
               </Label>

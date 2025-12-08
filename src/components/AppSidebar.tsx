@@ -225,6 +225,16 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
 
+                {/* E-mails */}
+                {canView("emails") && <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/emails" activeClassName="bg-primary text-primary-foreground">
+                        <Mail className="h-4 w-4" />
+                        {!collapsed && <span>E-mails</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>}
+
                 {/* Mensagens */}
                 {canView("mensagens") && <SidebarMenuItem>
                     <SidebarMenuButton asChild>
