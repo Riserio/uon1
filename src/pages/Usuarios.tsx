@@ -1090,7 +1090,6 @@ export default function Usuarios() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="superintendente">Superintendente</SelectItem>
-                              <SelectItem value="admin">Administrador</SelectItem>
                               <SelectItem value="administrativo">Administrativo</SelectItem>
                               <SelectItem value="lider">Líder</SelectItem>
                               <SelectItem value="comercial">Comercial</SelectItem>
