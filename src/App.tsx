@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { usePontoAlertas } from "@/hooks/usePontoAlertas";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import Auth from "./pages/Auth";
@@ -68,6 +69,7 @@ const queryClient = new QueryClient({
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isParceiro } = useAuth();
   usePushNotifications();
+  usePontoAlertas();
   
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;

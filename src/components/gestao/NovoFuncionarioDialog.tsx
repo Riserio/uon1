@@ -359,6 +359,28 @@ export default function NovoFuncionarioDialog({ open, onOpenChange, funcionario 
                 />
               </div>
             </div>
+
+            {/* Seção de Alertas de Lembrete */}
+            {isEditing && (
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <Label className="text-base font-medium">Alertas de Lembrete de Ponto</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Configure lembretes para notificar o funcionário antes do horário de ponto
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Use o botão "Configurar Alertas" na tela de Jornada para criar e gerenciar os lembretes de ponto deste funcionário.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Os alertas serão exibidos como notificações no sistema quando o usuário vinculado estiver logado.
+                  </p>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="endereco" className="space-y-4 mt-4">
