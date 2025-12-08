@@ -107,6 +107,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
   const fetchImageDataUrl = async (url?: string): Promise<string | null> => {
     if (!url) return null;
     try {
+      // try to fetch and convert to base64
       const res = await fetch(url, { mode: "cors" });
       if (!res.ok) return null;
       const blob = await res.blob();
@@ -133,7 +134,11 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
     const toastId = toast.loading("Gerando PDF — preservando layout. Aguarde...");
 
     try {
-      // build offscreen container that contains the exact HTML preview + signatures
+      // Resolve logo as DataURL first (local or remote). Use contrato.logo_url or fallback to public logo.
+      const logoUrl = contrato?.logo_url || "/logo-preta.png";
+      const logoDataUrl = await fetchImageDataUrl(logoUrl);
+
+      // build offscreen container with the content plus signatures
       const container = document.createElement("div");
       container.style.position = "fixed";
       container.style.left = "-9999px";
@@ -143,11 +148,12 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
       container.style.padding = "24px";
       container.style.width = "794px"; // approx A4 width at 96dpi
       container.style.boxSizing = "border-box";
-      container.style.fontFamily = "Arial, Helvetica, sans-serif";
+      // preserve page fonts/spacing by using the same font stack as your app
+      container.style.fontFamily = "Inter, Roboto, Arial, Helvetica, sans-serif";
       container.style.fontSize = "12px";
       container.className = "pdf-offscreen-container";
 
-      // header (visually for first page)
+      // header (first page visual)
       const header = document.createElement("div");
       header.style.display = "flex";
       header.style.justifyContent = "space-between";
@@ -155,15 +161,22 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
       header.style.gap = "12px";
       header.style.marginBottom = "8px";
 
-      // local logo: prefer contrato.logo_url, otherwise local public/logo-preta.png
-      const logoUrl = contrato?.logo_url || "/logo-preta.png";
+      // create logo img with dataUrl if available
       const logoImg = document.createElement("img");
-      logoImg.src = logoUrl;
       logoImg.alt = "Vangard Gestora";
       logoImg.style.maxWidth = "180px";
       logoImg.style.height = "auto";
       logoImg.style.objectFit = "contain";
-      logoImg.crossOrigin = "anonymous"; // helps if hosted with CORS
+      logoImg.style.display = "block";
+
+      if (logoDataUrl) {
+        logoImg.src = logoDataUrl;
+      } else {
+        // fallback to original URL (may fail if CORS), but at least tries
+        logoImg.src = logoUrl;
+        logoImg.crossOrigin = "anonymous";
+      }
+
       const leftText = document.createElement("div");
       leftText.innerHTML = `<div style="font-weight:700;font-size:16px">Vangard Gestora</div><div style="color:#666;font-size:11px">vangardgestora.com.br</div>`;
 
@@ -171,7 +184,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
       header.appendChild(logoImg);
       container.appendChild(header);
 
-      // title
+      // title (we'll include it visually in the captured content, but you asked it can be at bottom — keep here for preview fidelity)
       const titleEl = document.createElement("div");
       titleEl.style.textAlign = "center";
       titleEl.style.fontWeight = "700";
@@ -193,16 +206,17 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
       `;
       container.appendChild(meta);
 
-      // content (use contrato.conteudo_html)
+      // content (use contrato.conteudo_html to ensure faithful structure)
       const content = document.createElement("div");
       content.className = "pdf-content";
       content.style.lineHeight = "1.35";
       content.style.color = "#222";
       content.style.fontSize = "12px";
+      // Put the HTML exactly as in preview
       content.innerHTML = contrato?.conteudo_html || previewRef.current.innerHTML || "";
       container.appendChild(content);
 
-      // signatures log appended
+      // signatures log appended at the end (this will be captured)
       const sigSection = document.createElement("div");
       sigSection.style.marginTop = "18px";
       sigSection.innerHTML = `<h4 style="color:#662b91;margin:8px 0 6px">REGISTRO DE ASSINATURAS</h4>`;
@@ -245,6 +259,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
       }
       container.appendChild(sigSection);
 
+      // footer note (captured in the content)
       const gen = format(new Date(), "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
       const footerNote = document.createElement("div");
       footerNote.style.marginTop = "12px";
@@ -253,11 +268,11 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
       footerNote.textContent = `Documento gerado em ${gen} | Uon1Sign`;
       container.appendChild(footerNote);
 
+      // append offscreen and wait small time for images to load (logo included)
       document.body.appendChild(container);
-      // small delay to let local images load
       await new Promise((r) => setTimeout(r, 450));
 
-      // capture
+      // capture using html2canvas
       const canvas = await html2canvas(container, {
         scale: 2,
         useCORS: true,
@@ -269,7 +284,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
       // remove temp container
       document.body.removeChild(container);
 
-      // prepare pdf
+      // prepare jsPDF
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidthMm = pdf.internal.pageSize.getWidth();
       const pdfHeightMm = pdf.internal.pageSize.getHeight();
@@ -284,8 +299,8 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
       const pxPerMm = canvasWidthPx / usablePdfWidthMm;
       const pageCanvasHeightPx = Math.floor(contentAreaMm * pxPerMm);
 
-      // logo data url
-      const logoDataUrl = await fetchImageDataUrl(logoUrl);
+      // logo data url already fetched above as logoDataUrl (re-use)
+      const logoData = logoDataUrl;
 
       // slice pages
       let remainingHeightPx = canvasHeightPx;
@@ -308,12 +323,12 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
 
         if (pageIndex > 0) pdf.addPage();
 
-        // repeated header
+        // repeated header (with logo if data available)
         try {
-          if (logoDataUrl) {
+          if (logoData) {
             const logoWidthMm = 36;
             const logoHeightMm = 12;
-            pdf.addImage(logoDataUrl, "PNG", pageMarginMm, 6, logoWidthMm, logoHeightMm);
+            pdf.addImage(logoData, "PNG", pageMarginMm, 6, logoWidthMm, logoHeightMm);
             pdf.setFontSize(12);
             pdf.setFont("helvetica", "bold");
             pdf.setTextColor(30, 30, 30);
@@ -323,6 +338,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
             pdf.setTextColor(100, 100, 100);
             pdf.text("vangardgestora.com.br", pageMarginMm + logoWidthMm + 4, 17);
           } else {
+            // no logo data: text only header
             pdf.setFontSize(12);
             pdf.setFont("helvetica", "bold");
             pdf.setTextColor(30, 30, 30);
@@ -333,14 +349,14 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
             pdf.text("vangardgestora.com.br", pageMarginMm, 17);
           }
         } catch (err) {
-          // fallback header text only
+          // fallback to text header only in case adding image fails
           pdf.setFontSize(12);
           pdf.setFont("helvetica", "bold");
           pdf.setTextColor(30, 30, 30);
           pdf.text("Vangard Gestora", pageMarginMm, 12);
         }
 
-        // draw slice image
+        // draw slice image under header
         const imgY = headerHeightMm;
         pdf.addImage(imgData, "PNG", pageMarginMm, imgY, usablePdfWidthMm, imgHeightMm);
 
@@ -355,6 +371,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
         const footerText = `Documento gerado em ${gen2} | Uon1Sign | Página ${pageIndex + 1}`;
         pdf.text(footerText, pageMarginMm, footerY);
 
+        // advance
         yOffsetPx += sliceHeightPx;
         remainingHeightPx -= sliceHeightPx;
         pageIndex += 1;
@@ -362,13 +379,23 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
 
       const sanitize = (s: string) => String(s || "").replace(/[^\w\-_. ]+/g, "");
       const fileName = `${sanitize(String(contrato?.numero || "contrato"))}_${sanitize(String(contrato?.titulo || "documento")).replace(/\s+/g, "_")}.pdf`;
+
+      // Save PDF (trigger download)
       pdf.save(fileName);
 
-      // update toast (use same id to replace the loading)
-      toast.success("PDF gerado com fidelidade ao HTML!", { id: toastId });
+      // make sure to remove loading toast and show success
+      try {
+        toast.remove(toastId);
+      } catch (_) {
+        /* ignore */
+      }
+      toast.success("PDF gerado com fidelidade ao HTML!");
     } catch (err) {
       console.error("Erro ao gerar PDF via html2canvas + jsPDF:", err);
-      toast.error("Erro ao gerar PDF. Veja console para detalhes.", { id: toastId });
+      try {
+        toast.remove(toastId);
+      } catch (_) {}
+      toast.error("Erro ao gerar PDF. Veja console para detalhes.");
     }
   };
 
