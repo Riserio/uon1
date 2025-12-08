@@ -14,6 +14,7 @@ export default function Gestao() {
 
   const isAdmin = userRole === "admin" || userRole === "superintendente";
   const canManageUsers = userRole === "admin" || userRole === "administrativo" || userRole === "superintendente";
+  const canViewJornada = isAdmin || userRole === "administrativo" || userRole === "lider" || userRole === "comercial";
 
   // For non-admin users, default to jornada tab
   const defaultTab = isAdmin ? "contratos" : "jornada";
