@@ -61,6 +61,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
   });
 
   const assinaturas = contrato?.contrato_assinaturas || [];
+
   const previewRef = useRef<HTMLDivElement | null>(null);
 
   const copyLink = () => {
@@ -103,7 +104,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
     window.open(mailtoUrl, "_blank");
   };
 
-  // Converte imagem remota para dataURL (evita problemas de CORS ao desenhar no canvas)
+  // fetch image -> dataURL (for repeating header logo in pdf)
   const fetchImageDataUrl = async (url?: string): Promise<string | null> => {
     if (!url) return null;
     try {
@@ -117,114 +118,75 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
         reader.readAsDataURL(blob);
       });
     } catch (err) {
-      console.warn("Não foi possível carregar a imagem da logo:", err);
+      console.warn("Não foi possível carregar a imagem:", err);
       return null;
     }
   };
 
-  /**
-   * Gera PDF preservando layout:
-   * - captura header em canvas separado (com logo)
-   * - captura container completo em canvas
-   * - divide o canvas em fatias por página, compondo cada página com header + slice + footer
-   * - salva PDF com cabeçalho repetido e rodapé em cada página
-   */
+  // ---------- MAIN: generate PDF by capturing the HTML preview with html2canvas,
+  // then assemble pages in jsPDF while adding repeating header/footer ----------
   const downloadPDF = async () => {
+    if (!previewRef.current) {
+      toast.error("Preview do contrato não disponível.");
+      return;
+    }
+
+    toast.loading("Gerando PDF — preservando layout. Aguarde...");
+
     try {
-      if (!previewRef.current) {
-        toast.error("Preview do contrato não disponível.");
-        return;
-      }
+      // Build offscreen container with the content plus signatures log (so final capture includes signatures)
+      const container = document.createElement("div");
+      container.style.position = "fixed";
+      container.style.left = "-9999px";
+      container.style.top = "0";
+      container.style.background = "#ffffff";
+      container.style.color = "#222";
+      container.style.padding = "24px";
+      container.style.width = "794px"; // ~A4 width in px at 96dpi (approx). We'll scale with html2canvas scale.
+      container.style.boxSizing = "border-box";
+      container.style.fontFamily = "Arial, Helvetica, sans-serif";
+      container.style.fontSize = "12px";
+      container.className = "pdf-offscreen-container";
 
-      toast.loading("Gerando PDF — preservando layout. Aguarde...");
+      // Header (visual in the capture isn't necessary because we'll render header via jsPDF on each page;
+      // but keeping one header in captured content helps first page fidelity)
+      const header = document.createElement("div");
+      header.style.display = "flex";
+      header.style.justifyContent = "space-between";
+      header.style.alignItems = "flex-start";
+      header.style.gap = "12px";
+      header.style.marginBottom = "8px";
 
-      // --- 1) Prepara logo DataURL (prefere contrato.logo_url, senão tenta a logo preta pública)
-      const preferredLogo =
-        contrato?.logo_url || "https://vangardgestora.com.br/wp-content/uploads/2023/01/logo-preta.png";
-      const logoDataUrl = await fetchImageDataUrl(preferredLogo);
-
-      // --- 2) Monta um elemento de header isolado (para capturar e repetir)
-      const headerEl = document.createElement("div");
-      headerEl.style.boxSizing = "border-box";
-      headerEl.style.width = "794px"; //  A4 @ ~96dpi -> ~794px width at scale 1
-      headerEl.style.padding = "16px 24px";
-      headerEl.style.display = "flex";
-      headerEl.style.justifyContent = "space-between";
-      headerEl.style.alignItems = "flex-start";
-      headerEl.style.background = "#ffffff";
-      headerEl.style.color = "#222";
-      headerEl.style.fontFamily = "inherit";
-
-      const left = document.createElement("div");
-      left.innerHTML = `<div style="font-weight:700;font-size:18px">Vangard Gestora</div><div style="font-size:12px;color:#666;">vangardgestora.com.br</div>`;
-      headerEl.appendChild(left);
-
+      // logo: prefer contrato.logo_url, otherwise Vangard public black logo
+      const logoUrl = contrato?.logo_url || "https://vangardgestora.com.br/wp-content/uploads/2023/01/logo-preta.png";
       const logoImg = document.createElement("img");
+      logoImg.src = logoUrl;
       logoImg.alt = "Vangard Gestora";
       logoImg.style.maxWidth = "180px";
       logoImg.style.height = "auto";
       logoImg.style.objectFit = "contain";
-      logoImg.style.display = "block";
-      if (logoDataUrl) {
-        logoImg.src = logoDataUrl;
-      } else {
-        // se não carregou, ainda tenta o URL direto (pode falhar por CORS)
-        logoImg.src = preferredLogo;
-      }
-      headerEl.appendChild(logoImg);
+      logoImg.crossOrigin = "anonymous";
 
-      headerEl.style.position = "fixed";
-      headerEl.style.left = "-9999px";
-      document.body.appendChild(headerEl);
+      const leftText = document.createElement("div");
+      leftText.innerHTML = `<div style="font-weight:700;font-size:16px">Vangard Gestora</div><div style="color:#666;font-size:11px">vangardgestora.com.br</div>`;
 
-      // Captura header (melhor como imagem separada)
-      const headerCanvas = await html2canvas(headerEl, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
-      const headerPxHeight = headerCanvas.height;
-      const headerDataUrl = headerCanvas.toDataURL("image/png");
-      // remove header do DOM
-      document.body.removeChild(headerEl);
-
-      // --- 3) Monta o container com layout (clone do preview + meta + title + header area included in container)
-      const container = document.createElement("div");
-      container.className = "pdf-print-container";
-      container.style.boxSizing = "border-box";
-      container.style.width = "794px";
-      container.style.padding = "16px 24px";
-      container.style.background = "white";
-      container.style.color = "#222";
-      container.style.fontFamily = "inherit";
-      container.style.lineHeight = "1.35";
-
-      // Add header visual inside the container (so the top of the first page appears identical)
-      const containerHeader = document.createElement("div");
-      containerHeader.style.display = "flex";
-      containerHeader.style.justifyContent = "space-between";
-      containerHeader.style.alignItems = "flex-start";
-      containerHeader.style.marginBottom = "8px";
-      containerHeader.innerHTML = left.innerHTML;
-      const containerLogo = document.createElement("img");
-      containerLogo.alt = "Vangard Gestora";
-      containerLogo.style.maxWidth = "180px";
-      containerLogo.style.height = "auto";
-      containerLogo.style.objectFit = "contain";
-      if (logoDataUrl) containerLogo.src = logoDataUrl;
-      else containerLogo.src = preferredLogo;
-      containerHeader.appendChild(containerLogo);
-      container.appendChild(containerHeader);
+      header.appendChild(leftText);
+      header.appendChild(logoImg);
+      container.appendChild(header);
 
       // Title
-      const titleNode = document.createElement("div");
-      titleNode.style.textAlign = "center";
-      titleNode.style.margin = "6px 0 12px 0";
-      titleNode.style.color = "#2962ff";
-      titleNode.style.fontWeight = "700";
-      titleNode.style.fontSize = "16px";
-      titleNode.textContent = contrato?.titulo || "Contrato";
-      container.appendChild(titleNode);
+      const titleEl = document.createElement("div");
+      titleEl.style.textAlign = "center";
+      titleEl.style.fontWeight = "700";
+      titleEl.style.fontSize = "14px";
+      titleEl.style.color = "#2962ff";
+      titleEl.style.marginBottom = "8px";
+      titleEl.textContent = contrato?.titulo || "Contrato";
+      container.appendChild(titleEl);
 
       // Meta (PARTES)
       const meta = document.createElement("div");
-      meta.style.marginBottom = "10px";
+      meta.style.marginBottom = "8px";
       meta.innerHTML = `
         <strong>PARTES</strong>
         <p style="margin:6px 0;"><strong>CONTRATANTE:</strong> ${contrato?.contratante_nome || "-"}</p>
@@ -234,170 +196,194 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
       `;
       container.appendChild(meta);
 
-      // Content: insere o HTML do contrato (mantendo a formatação que aparece no preview)
-      const contentWrapper = document.createElement("div");
-      contentWrapper.className = "pdf-content";
-      contentWrapper.style.color = "#222";
-      contentWrapper.style.fontSize = "12px";
-      contentWrapper.style.lineHeight = "1.35";
-      // se o HTML vier com classes/prose, mantemos o innerHTML cru
-      contentWrapper.innerHTML = contrato?.conteudo_html || (previewRef.current ? previewRef.current.innerHTML : "");
-      container.appendChild(contentWrapper);
+      // Content (use contrato.conteudo_html to ensure faithful structure)
+      const content = document.createElement("div");
+      content.className = "pdf-content";
+      content.style.lineHeight = "1.35";
+      content.style.color = "#222";
+      content.style.fontSize = "12px";
+      content.innerHTML = contrato?.conteudo_html || previewRef.current.innerHTML || "";
+      container.appendChild(content);
 
-      // Log de assinaturas ao final (visível na captura)
-      if (assinaturas && assinaturas.length > 0) {
-        const assinaturasTitle = document.createElement("h4");
-        assinaturasTitle.textContent = "REGISTRO DE ASSINATURAS";
-        assinaturasTitle.style.color = "#663399";
-        assinaturasTitle.style.marginTop = "14px";
-        container.appendChild(assinaturasTitle);
-
-        const createdInfo = document.createElement("div");
-        createdInfo.style.marginBottom = "8px";
-        if (contrato?.created_at) {
-          const dataCriacao = format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
-          createdInfo.innerHTML = `<div><strong>Contrato Gerado:</strong> ${dataCriacao}</div><div><strong>Número:</strong> ${contrato.numero || "N/A"}</div>`;
-          container.appendChild(createdInfo);
-        }
-
-        assinaturas.forEach((a: any) => {
-          const box = document.createElement("div");
-          box.style.border = "1px solid #eee";
-          box.style.padding = "8px";
-          box.style.marginBottom = "8px";
-          box.innerHTML = `<div style="font-weight:600">${a.nome || "Signatário"}</div>
-            <div style="font-size:12px;color:#333">Tipo: ${a.tipo || "-"} — Status: ${a.status || "-"}</div>
-            <div style="font-size:12px;color:#666">Data/Hora: ${a.assinado_em ? format(new Date(a.assinado_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR }) : "N/A"}</div>
-            <div style="font-size:12px;color:#666">IP: ${a.ip_assinatura || "N/A"}</div>
-            <div style="font-size:12px;color:#666">Hash: ${a.hash_documento ? `${a.hash_documento.substring(0, 60)}...` : "N/A"}</div>
-          `;
-          // se tiver assinatura imagem, tenta adicionar
-          if (a.assinatura_url) {
-            const img = document.createElement("img");
-            img.src = a.assinatura_url;
-            img.alt = "assinatura";
-            img.style.maxHeight = "60px";
-            img.style.display = "block";
-            img.style.marginTop = "8px";
-            box.appendChild(img);
-          }
-          container.appendChild(box);
-        });
+      // Append SIGNATURE LOG section at the end (visible in capture)
+      const sigSection = document.createElement("div");
+      sigSection.style.marginTop = "18px";
+      sigSection.innerHTML = `<h4 style="color:#662b91;margin:8px 0 6px">REGISTRO DE ASSINATURAS</h4>`;
+      if (contrato?.created_at) {
+        sigSection.innerHTML += `<div style="background:#f6f6fb;padding:8px;border-radius:4px;margin-bottom:8px">
+          <div style="font-weight:700">Contrato Gerado:</div>
+          <div>${format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}</div>
+          <div style="margin-top:6px">Número: ${contrato.numero || "N/A"}</div>
+        </div>`;
       }
+      if (assinaturas && assinaturas.length > 0) {
+        assinaturas.forEach((a: any) => {
+          const aHtml = document.createElement("div");
+          aHtml.style.border = "1px solid #eee";
+          aHtml.style.padding = "8px";
+          aHtml.style.borderRadius = "6px";
+          aHtml.style.marginBottom = "8px";
+          const dataAss = a.assinado_em
+            ? format(new Date(a.assinado_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })
+            : "-";
+          aHtml.innerHTML = `
+            <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+              <div>
+                <div style="font-weight:700">${a.nome || "Signatário"}</div>
+                <div style="font-size:12px;color:#555">${a.email || ""}</div>
+                <div style="font-size:12px;color:#555">${a.tipo ? a.tipo.toUpperCase() : ""}</div>
+              </div>
+              <div style="text-align:right;font-size:12px;color:#333">
+                <div>Data/Hora: ${dataAss}</div>
+                <div>IP: ${a.ip_assinatura || "N/A"}</div>
+                <div>Hash: ${a.hash_documento ? a.hash_documento.substring(0, 60) + "..." : "N/A"}</div>
+                <div>Local: ${a.latitude && a.longitude ? `${Number(a.latitude).toFixed(6)}, ${Number(a.longitude).toFixed(6)}` : "Não disponível"}</div>
+              </div>
+            </div>
+          `;
+          sigSection.appendChild(aHtml);
+        });
+      } else {
+        sigSection.innerHTML += `<div style="color:#666">Nenhuma assinatura registrada.</div>`;
+      }
+      container.appendChild(sigSection);
 
-      // coloca offscreen para captura
-      container.style.position = "fixed";
-      container.style.left = "-9999px";
-      container.style.top = "0";
+      // Footer note (a primeira captura will include footer, but for repeating footer we will add again in jsPDF)
+      const gen = format(new Date(), "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
+      const footerNote = document.createElement("div");
+      footerNote.style.marginTop = "12px";
+      footerNote.style.fontSize = "11px";
+      footerNote.style.color = "#666";
+      footerNote.textContent = `Documento gerado em ${gen} | Uon1Sign`;
+      container.appendChild(footerNote);
+
+      // Append container offscreen
       document.body.appendChild(container);
 
-      // espera um pouquinho para carregar imagens/fonte
-      await new Promise((r) => setTimeout(r, 350));
+      // small delay to let images load
+      await new Promise((r) => setTimeout(r, 400));
 
-      // --- 4) captura o container completo em canvas (alta resolução)
-      const fullCanvas = await html2canvas(container, {
+      // Capture with html2canvas
+      const canvas = await html2canvas(container, {
         scale: 2,
         useCORS: true,
+        allowTaint: false,
         backgroundColor: "#ffffff",
+        logging: false,
       });
 
-      // remove container
+      // Remove offscreen container
       document.body.removeChild(container);
 
-      // --- 5) Composição por páginas: para cada fatia, criamos um tmpCanvas que inclui headerCanvas + slice + footer text ---
+      // Prepare jsPDF
       const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidthMm = pdf.internal.pageSize.getWidth(); // mm
-      const pdfHeightMm = pdf.internal.pageSize.getHeight(); // mm
+      const pdfWidthMm = pdf.internal.pageSize.getWidth(); // ~210 mm
+      const pdfHeightMm = pdf.internal.pageSize.getHeight(); // ~297 mm
+      const pageMarginMm = 12; // margin left/right in mm
+      const headerHeightMm = 18; // space for repeated header
+      const footerHeightMm = 12; // space for repeated footer
+      const contentAreaMm = pdfHeightMm - headerHeightMm - footerHeightMm - 2 * 4; // small extra spacing
 
-      // Pixels <-> mm conversion using image properties
-      const imgDataFull = fullCanvas.toDataURL("image/png");
-      const imgPropsFull = (pdf as any).getImageProperties(imgDataFull);
-      // largura da imagem em pixels
-      const fullPxWidth = fullCanvas.width;
-      const fullPxHeight = fullCanvas.height;
-      // escala para ajustar largura da página
-      const pxToMm = pdfWidthMm / fullPxWidth;
-      // altura equivalente em mm: fullPxHeight * pxToMm
+      // Convert px <-> mm using canvas dimensions
+      const canvasWidthPx = canvas.width;
+      const canvasHeightPx = canvas.height;
+      // scale so canvas width fits full PDF width (minus margins)
+      const usablePdfWidthMm = pdfWidthMm - 2 * pageMarginMm;
+      const pxPerMm = canvasWidthPx / usablePdfWidthMm;
+      const pageCanvasHeightPx = Math.floor(contentAreaMm * pxPerMm);
 
-      // headerCanvas: já capturado acima (headerCanvas)
-      const headerImg = headerDataUrl;
-      const headerCanvasObj = headerCanvas;
-      const headerPxH = headerCanvasObj.height; // px
+      // Prepare logo data url to draw in header on each page
+      const logoDataUrl = await fetchImageDataUrl(logoUrl);
 
-      // Footer height in px (we draw text, estimate)
-      const footerPxH = Math.round(20 * (fullCanvas.width / 794)); // roughly 20px at base width scaled
-
-      // page image height in pixels (slice) available for content: compute px equivalent for pdf page height minus header/footer
-      const pagePxHeight = Math.floor(pdfHeightMm / pxToMm); // full page in px (approx)
-      const contentSlicePx = pagePxHeight - headerPxH - footerPxH;
-      if (contentSlicePx <= 50) {
-        // fallback very small, use whole page
-        toast.error("Erro de cálculo de paginação. Tente reduzir escala.");
-        return;
-      }
-
-      // now iterate slices
-      let remaining = fullPxHeight;
-      let offsetY = 0;
+      // Now slice canvas vertically into pages and add header/footer on each page
+      let remainingHeightPx = canvasHeightPx;
+      let yOffsetPx = 0;
       let pageIndex = 0;
 
-      while (remaining > 0) {
-        // slice height in px for this page
-        const sliceHeightPx = Math.min(contentSlicePx, remaining);
+      while (remainingHeightPx > 0) {
+        // create slice canvas
+        const sliceHeightPx = Math.min(pageCanvasHeightPx, remainingHeightPx);
+        const tmpCanvas = document.createElement("canvas");
+        tmpCanvas.width = canvasWidthPx;
+        tmpCanvas.height = sliceHeightPx;
+        const tCtx = tmpCanvas.getContext("2d")!;
+        tCtx.fillStyle = "#ffffff";
+        tCtx.fillRect(0, 0, tmpCanvas.width, tmpCanvas.height);
+        // draw from source canvas
+        tCtx.drawImage(canvas, 0, yOffsetPx, canvasWidthPx, sliceHeightPx, 0, 0, canvasWidthPx, sliceHeightPx);
 
-        // create canvas for page: width = fullCanvas.width; height = headerPxH + sliceHeightPx + footerPxH
-        const tmp = document.createElement("canvas");
-        tmp.width = fullPxWidth;
-        tmp.height = headerPxH + sliceHeightPx + footerPxH;
-        const ctx = tmp.getContext("2d")!;
-
-        // draw header
-        ctx.drawImage(
-          headerCanvasObj,
-          0,
-          0,
-          headerCanvasObj.width,
-          headerCanvasObj.height,
-          0,
-          0,
-          fullPxWidth,
-          headerPxH,
-        );
-
-        // draw slice of fullCanvas
-        ctx.drawImage(fullCanvas, 0, offsetY, fullPxWidth, sliceHeightPx, 0, headerPxH, fullPxWidth, sliceHeightPx);
-
-        // draw footer text
-        const genText = `Documento gerado em ${format(new Date(), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })} | Uon1Sign | Página ${pageIndex + 1}`;
-        ctx.fillStyle = "#666";
-        const footerFontPx = Math.max(10, Math.floor(10 * (fullPxWidth / 794)));
-        ctx.font = `${footerFontPx}px sans-serif`;
-        const textWidthPx = ctx.measureText(genText).width;
-        const padding = 12;
-        ctx.fillText(genText, padding, headerPxH + sliceHeightPx + footerPxH - 6);
-
-        // convert to image and add to PDF
-        const pageImgData = tmp.toDataURL("image/png");
-        const props = (pdf as any).getImageProperties(pageImgData);
-        const pageImgHeightMm = (props.height * pdfWidthMm) / props.width;
+        const imgData = tmpCanvas.toDataURL("image/png");
+        const imgProps = (pdf as any).getImageProperties(imgData);
+        const imgHeightMm = (imgProps.height * usablePdfWidthMm) / imgProps.width;
 
         if (pageIndex > 0) pdf.addPage();
-        pdf.addImage(pageImgData, "PNG", 0, 0, pdfWidthMm, pageImgHeightMm);
+
+        // draw repeated header
+        if (logoDataUrl) {
+          try {
+            const logoWidthMm = 36; // mm
+            const logoHeightMm = 12;
+            pdf.addImage(logoDataUrl, "PNG", pageMarginMm, 6, logoWidthMm, logoHeightMm);
+            // company text to the left of logo (or right if you prefer)
+            pdf.setFontSize(12);
+            pdf.setFont("helvetica", "bold");
+            pdf.setTextColor(30, 30, 30);
+            pdf.text("Vangard Gestora", pageMarginMm + logoWidthMm + 4, 12);
+            pdf.setFontSize(9);
+            pdf.setFont("helvetica", "normal");
+            pdf.setTextColor(100, 100, 100);
+            pdf.text("vangardgestora.com.br", pageMarginMm + logoWidthMm + 4, 17);
+          } catch (err) {
+            // fallback: draw text header only
+            pdf.setFontSize(12);
+            pdf.setFont("helvetica", "bold");
+            pdf.setTextColor(30, 30, 30);
+            pdf.text("Vangard Gestora", pageMarginMm, 12);
+            pdf.setFontSize(9);
+            pdf.setFont("helvetica", "normal");
+            pdf.setTextColor(100, 100, 100);
+            pdf.text("vangardgestora.com.br", pageMarginMm, 17);
+          }
+        } else {
+          // no logo: draw text header
+          pdf.setFontSize(12);
+          pdf.setFont("helvetica", "bold");
+          pdf.setTextColor(30, 30, 30);
+          pdf.text("Vangard Gestora", pageMarginMm, 12);
+          pdf.setFontSize(9);
+          pdf.setFont("helvetica", "normal");
+          pdf.setTextColor(100, 100, 100);
+          pdf.text("vangardgestora.com.br", pageMarginMm, 17);
+        }
+
+        // draw the image slice at y = headerHeightMm + small offset
+        const imgY = headerHeightMm;
+        pdf.addImage(imgData, "PNG", pageMarginMm, imgY, usablePdfWidthMm, imgHeightMm);
+
+        // draw repeated footer
+        const footerY = pdfHeightMm - footerHeightMm + 4;
+        pdf.setDrawColor(220, 220, 220);
+        pdf.setLineWidth(0.3);
+        pdf.line(pageMarginMm, footerY - 4, pdfWidthMm - pageMarginMm, footerY - 4);
+        pdf.setFontSize(8);
+        pdf.setTextColor(120, 120, 120);
+        const gen2 = format(new Date(), "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
+        const footerText = `Documento gerado em ${gen2} | Uon1Sign | Página ${pageIndex + 1}`;
+        pdf.text(footerText, pageMarginMm, footerY);
 
         // advance
+        yOffsetPx += sliceHeightPx;
+        remainingHeightPx -= sliceHeightPx;
         pageIndex += 1;
-        offsetY += sliceHeightPx;
-        remaining -= sliceHeightPx;
       }
 
-      // salvar
       const sanitize = (s: string) => String(s || "").replace(/[^\w\-_. ]+/g, "");
       const fileName = `${sanitize(String(contrato?.numero || "contrato"))}_${sanitize(String(contrato?.titulo || "documento")).replace(/\s+/g, "_")}.pdf`;
       pdf.save(fileName);
 
-      toast.success("PDF gerado com fidelidade ao HTML (logo incluída, cabeçalho e rodapé repetidos).");
+      toast.success("PDF gerado com fidelidade ao HTML!");
     } catch (err) {
-      console.error("Erro ao gerar PDF via html2canvas (com header/footer):", err);
+      console.error("Erro ao gerar PDF via html2canvas + jsPDF:", err);
       toast.error("Erro ao gerar PDF. Veja console para detalhes.");
     }
   };
