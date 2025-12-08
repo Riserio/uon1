@@ -23,8 +23,10 @@ import {
   ExternalLink,
   User,
   MessageCircle,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
+import jsPDF from "jspdf";
 
 interface VisualizarContratoDialogProps {
   contrato: any;
@@ -86,6 +88,104 @@ export default function VisualizarContratoDialog({
     window.open(whatsappUrl, "_blank");
   };
 
+  const downloadPDF = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    let yPosition = margin;
+
+    // Title
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text(contrato.titulo, margin, yPosition);
+    yPosition += 10;
+
+    // Contract number
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Contrato nº ${contrato.numero}`, margin, yPosition);
+    yPosition += 15;
+
+    // Contract content (simplified - strip HTML)
+    doc.setFontSize(11);
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = contrato.conteudo_html;
+    const textContent = tempDiv.textContent || tempDiv.innerText || "";
+    
+    const lines = doc.splitTextToSize(textContent, pageWidth - 2 * margin);
+    
+    for (const line of lines) {
+      if (yPosition > pageHeight - 60) {
+        doc.addPage();
+        yPosition = margin;
+      }
+      doc.text(line, margin, yPosition);
+      yPosition += 6;
+    }
+
+    // Add signature footer
+    if (assinaturas.length > 0) {
+      // Ensure we have space for footer
+      if (yPosition > pageHeight - 80) {
+        doc.addPage();
+        yPosition = margin;
+      }
+
+      yPosition += 10;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 10;
+
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("Registro de Assinaturas", margin, yPosition);
+      yPosition += 10;
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+
+      for (const assinatura of assinaturas) {
+        if (assinatura.status === "assinado" && assinatura.assinado_em) {
+          if (yPosition > pageHeight - 30) {
+            doc.addPage();
+            yPosition = margin;
+          }
+
+          const dataAssinatura = format(new Date(assinatura.assinado_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
+          
+          doc.setFont("helvetica", "bold");
+          doc.text(`${assinatura.nome}`, margin, yPosition);
+          yPosition += 5;
+          
+          doc.setFont("helvetica", "normal");
+          doc.text(`Assinado em: ${dataAssinatura}`, margin, yPosition);
+          yPosition += 4;
+          doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, margin, yPosition);
+          yPosition += 4;
+          doc.text(`Hash: ${assinatura.hash_documento || "N/A"}`, margin, yPosition);
+          yPosition += 4;
+          
+          if (assinatura.latitude && assinatura.longitude) {
+            doc.text(`Localização: ${assinatura.latitude.toFixed(6)}, ${assinatura.longitude.toFixed(6)}`, margin, yPosition);
+            yPosition += 4;
+          }
+          
+          yPosition += 6;
+        }
+      }
+
+      // Document hash footer
+      yPosition += 5;
+      doc.setFontSize(8);
+      doc.setTextColor(128, 128, 128);
+      doc.text(`Documento gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}`, margin, yPosition);
+    }
+
+    doc.save(`${contrato.numero}_${contrato.titulo.replace(/\s+/g, '_')}.pdf`);
+    toast.success("PDF baixado com sucesso!");
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -115,18 +215,24 @@ export default function VisualizarContratoDialog({
                   <div>
                     <CardTitle className="text-lg">Dados do Contrato</CardTitle>
                   </div>
-                  {(contrato.status === "aguardando_assinatura" || contrato.link_token) && (
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={copyLink}>
-                        <Copy className="h-4 w-4 mr-2" />
-                        Copiar Link
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={sendWhatsApp} className="text-green-600 hover:text-green-700">
-                        <MessageCircle className="h-4 w-4 mr-2" />
-                        WhatsApp
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex gap-2 flex-wrap">
+                    <Button variant="outline" size="sm" onClick={downloadPDF}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Baixar PDF
+                    </Button>
+                    {(contrato.status === "aguardando_assinatura" || contrato.link_token) && (
+                      <>
+                        <Button variant="outline" size="sm" onClick={copyLink}>
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copiar Link
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={sendWhatsApp} className="text-green-600 hover:text-green-700">
+                          <MessageCircle className="h-4 w-4 mr-2" />
+                          WhatsApp
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
