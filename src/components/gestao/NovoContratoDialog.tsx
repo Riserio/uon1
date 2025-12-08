@@ -118,7 +118,6 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
       const { data: contrato, error: contratoError } = await supabase
         .from("contratos")
         .insert({
-          template_id: templateId || null,
           titulo,
           conteudo_html: conteudoProcessado,
           contratante_nome: contratanteNome,
@@ -140,7 +139,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
             data_inicio: dataInicio,
             data_fim: dataFim,
           },
-        })
+        } as any)
         .select()
         .single();
 
@@ -287,18 +286,18 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
               <div className="space-y-2">
                 <Label>CPF</Label>
                 <MaskedInput
-                  mask="999.999.999-99"
+                  format="###.###.###-##"
                   value={contratanteCpf}
-                  onChange={(e) => setContratanteCpf(e.target.value)}
+                  onValueChange={(values) => setContratanteCpf(values.value)}
                   placeholder="000.000.000-00"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Telefone</Label>
                 <MaskedInput
-                  mask="(99) 99999-9999"
+                  format="(##) #####-####"
                   value={contratanteTelefone}
-                  onChange={(e) => setContratanteTelefone(e.target.value)}
+                  onValueChange={(values) => setContratanteTelefone(values.value)}
                   placeholder="(00) 00000-0000"
                 />
               </div>

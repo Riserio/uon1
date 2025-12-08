@@ -16,6 +16,7 @@ import {
   Mail,
   TrendingUp,
   DollarSign,
+  Briefcase,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -379,6 +380,18 @@ export function AppSidebar() {
                       <NavLink to="/comunicados" activeClassName="bg-primary text-primary-foreground">
                         <Megaphone className="h-4 w-4" />
                         {!collapsed && <span>Comunicados</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+
+                {/* Gestão */}
+                {canView("gestao") && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/gestao" activeClassName="bg-primary text-primary-foreground">
+                        <Briefcase className="h-4 w-4" />
+                        {!collapsed && <span>Gestão</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
