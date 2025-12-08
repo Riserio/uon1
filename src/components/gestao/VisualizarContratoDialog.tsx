@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+// components/gestao/VisualizarContratoDialog.tsx
+import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -15,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CheckCircle2, Clock, XCircle, FileText, Copy, User, MessageCircle, Download, Mail } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Copy, User, MessageCircle, Download, Mail } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 
@@ -62,7 +63,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
   const assinaturas = contrato?.contrato_assinaturas || [];
 
   const copyLink = () => {
-    if (!contrato.link_token) {
+    if (!contrato?.link_token) {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
       return;
     }
@@ -72,7 +73,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
   };
 
   const sendWhatsApp = () => {
-    if (!contrato.link_token) {
+    if (!contrato?.link_token) {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
       return;
     }
@@ -88,7 +89,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
   };
 
   const sendEmail = () => {
-    if (!contrato.link_token) {
+    if (!contrato?.link_token) {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
       return;
     }
@@ -101,7 +102,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
     window.open(mailtoUrl, "_blank");
   };
 
-  // Helper: fetch image and convert to DataURL (for addImage)
+  // Fetch image and convert to DataURL for jsPDF.addImage
   const fetchImageDataUrl = async (url?: string): Promise<string | null> => {
     if (!url) return null;
     try {
@@ -120,15 +121,23 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
     }
   };
 
-  // Main: gerar PDF com formatação parecida com HTML e incluir logo quando disponível
+  /**
+   * Gera o PDF:
+   * - usa "times" para aproximar fonte serifada
+   * - margens maiores e lineHeight ajustável (tweak aqui)
+   * - tenta incluir logo preta: prioridade: contrato.logo_url -> /vangard-preta.png (coloque no /public)
+   */
+
   const downloadPDF = async () => {
     try {
-      const doc = new jsPDF();
+      const doc = new jsPDF({ unit: "pt", format: "a4" }); // pt (pontos) para melhor controle
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 18;
+
+      // Ajuste fino aqui:
+      const margin = 36; // Aumentei margem para respeitar seu pedido
       const usableWidth = pageWidth - 2 * margin;
-      const lineHeight = 6;
+      const lineHeight = 8; // espaçamento entre linhas — aumente/reduza para ajustar
       let y = margin;
 
       const addNewPageIfNeeded = (neededHeight = lineHeight) => {
@@ -138,77 +147,88 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
         }
       };
 
-      // Tenta buscar a logo (contrato.logo_url) — fallback: /favicon.ico (se existir)
-      const logoUrl = contrato?.logo_url || "/favicon.ico";
-      const logoDataUrl = await fetchImageDataUrl(logoUrl);
+      // Tentativa de localizar logo preta da Vangard:
+      // 1) contrato.logo_url (quando preenchido)
+      // 2) arquivo local público: /vangard-preta.png (coloque em /public)
+      // Se não achar, não quebra o fluxo.
+      const candidateLogos = [
+        contrato?.logo_url,
+        "/vangard-preta.png",
+        "/logo-vangard-preta.png",
+        // você pode adicionar aqui URLs públicas da sua CDN se preferir
+      ].filter(Boolean) as string[];
 
-      // Header (logo à direita, texto à esquerda)
+      let logoDataUrl: string | null = null;
+      for (const url of candidateLogos) {
+        logoDataUrl = await fetchImageDataUrl(url).catch(() => null);
+        if (logoDataUrl) break;
+      }
+
+      // HEADER: logo à direita, nome à esquerda
       if (logoDataUrl) {
-        // tentamos desenhar a logo (mantendo proporção)
         try {
-          const logoWidth = 48; // largura desejada em pt
-          const logoHeight = 18; // altura desejada
-          doc.addImage(logoDataUrl, "PNG", pageWidth - margin - logoWidth, y, logoWidth, logoHeight);
+          const logoWidth = 110; // pontos
+          const logoHeight = 30; // pontos
+          doc.addImage(logoDataUrl, "PNG", pageWidth - margin - logoWidth, y - 6, logoWidth, logoHeight);
         } catch (err) {
-          // se falhar, ignora imagem
           console.warn("addImage falhou:", err);
         }
       }
 
+      // Font: usar 'times' para aparência mais próxima de documento impresso
+      doc.setFont("times", "normal");
       doc.setFontSize(16);
-      doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 30, 30);
       doc.text("Vangard Gestora", margin, y + 8);
 
       doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
       doc.setTextColor(100, 100, 100);
-      doc.text("vangardgestora.com.br", margin, y + 14);
-      y += 28;
+      doc.text("vangardgestora.com.br", margin, y + 22);
+      y += 40;
 
-      // Título centralizado com underline azul
+      // TÍTULO centralizado com underline azul escuro
       const titleText = contrato?.titulo || "Contrato";
       doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
+      doc.setFont("times", "bold");
       doc.setTextColor(41, 98, 255);
       const titleWidth = doc.getTextWidth(titleText);
       const titleX = Math.max(margin, (pageWidth - titleWidth) / 2);
-      addNewPageIfNeeded(12);
+      addNewPageIfNeeded(18);
       doc.text(titleText, titleX, y);
       doc.setDrawColor(41, 98, 255);
-      doc.setLineWidth(0.35);
-      doc.line(titleX, y + 2, Math.min(titleX + titleWidth, pageWidth - margin), y + 2);
-      y += 12;
+      doc.setLineWidth(0.6);
+      doc.line(titleX, y + 3, Math.min(titleX + titleWidth, pageWidth - margin), y + 3);
+      y += 18;
 
-      // Descrição
+      // Descrição breve
+      doc.setFont("times", "normal");
       doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
       doc.setTextColor(60, 60, 60);
       const descText =
         "Contrato de prestação de serviços para prestação de serviços de associação e proteção veicular.";
       const descLines = doc.splitTextToSize(descText, usableWidth);
       addNewPageIfNeeded(descLines.length * lineHeight);
-      descLines.forEach((line) => {
-        doc.text(line, margin, y);
+      descLines.forEach((l) => {
+        doc.text(l, margin, y);
         y += lineHeight;
       });
-      y += 6;
+      y += 10;
 
       // PARTES
+      doc.setFont("times", "bold");
       doc.setFontSize(11);
-      doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 30, 30);
-      addNewPageIfNeeded(10);
+      addNewPageIfNeeded(14);
       doc.text("PARTES", margin, y);
-      y += 8;
+      y += 14;
 
+      doc.setFont("times", "normal");
       doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
       doc.setTextColor(60, 60, 60);
-      addNewPageIfNeeded(40);
+      addNewPageIfNeeded(60);
       doc.text(`CONTRATANTE: ${contrato?.contratante_nome || "-"}`, margin, y);
       y += lineHeight;
-      doc.text(`CPF/CNPJ: ${contrato?.contratante_cpf || contrato?.contratado_cnpj || "-"}`, margin, y);
+      doc.text(`CPF/CNPJ: ${contrato?.contratante_cpf || contrato?.contratante_cnpj || "-"}`, margin, y);
       y += lineHeight;
       doc.text(`E-mail: ${contrato?.contratante_email || "-"}`, margin, y);
       y += lineHeight;
@@ -216,13 +236,18 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
         doc.text(`Telefone: ${contrato.contratante_telefone}`, margin, y);
         y += lineHeight;
       }
-      y += 6;
+      y += 8;
       doc.text("CONTRATADA: Vangard Gestora", margin, y);
       y += lineHeight;
       doc.text("Rua Jacuí, 1273 - Floresta, Belo Horizonte - MG", margin, y);
-      y += 12;
+      y += 18;
 
-      // --- Função robusta para extrair seções do HTML mantendo parágrafos, títulos e listas ---
+      /**
+       * Parser mais cuidadoso para manter parágrafos e espaçamento:
+       * - priorizamos tags <p>, <h1..h3>, <ul>, <ol>
+       * - se o HTML vier "plano" (texto corrido), tentamos quebrar em parágrafos sempre que houver duas quebras de linha
+       * - mantemos espaços e quebras internas, evitando juntar sentenças
+       */
       const extractSectionsFromHtml = (html: string) => {
         const temp = document.createElement("div");
         temp.innerHTML = html || "";
@@ -230,180 +255,170 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
 
         const sections: { type: "title" | "subtitle" | "text" | "list"; content: string }[] = [];
 
-        const walk = (node: ChildNode) => {
-          if (node.nodeType === Node.TEXT_NODE) {
-            const txt = (node.textContent || "").replace(/\s+/g, " ").trim();
-            return txt;
-          }
+        const pushText = (txt: string) => {
+          const clean = txt
+            .replace(/\u00A0/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+          if (clean) sections.push({ type: "text", content: clean });
+        };
 
-          if (node.nodeType !== Node.ELEMENT_NODE) return "";
-
-          const el = node as HTMLElement;
-          const tag = el.tagName.toLowerCase();
-
-          if (["h1", "h2", "h3"].includes(tag)) {
-            const text = (el.textContent || "").trim();
-            if (text) sections.push({ type: "title", content: text });
-            return;
-          }
-
-          if (tag === "p") {
-            const text = (el.textContent || "").trim();
-            if (text) sections.push({ type: "text", content: text });
-            return;
-          }
-
-          if (tag === "ul" || tag === "ol") {
+        // If there are explicit p/h/ul elements -> use them
+        const hasBlocks = temp.querySelectorAll("p, h1, h2, h3, ul, ol").length > 0;
+        if (hasBlocks) {
+          temp.querySelectorAll("h1,h2,h3").forEach((el) => {
+            const t = (el.textContent || "").trim();
+            if (t) sections.push({ type: "title", content: t });
+          });
+          temp.querySelectorAll("p").forEach((el) => {
+            const t = (el.textContent || "").replace(/\u00A0/g, " ").trim();
+            if (t) sections.push({ type: "text", content: t });
+          });
+          temp.querySelectorAll("ul,ol").forEach((el) => {
+            const tag = el.tagName.toLowerCase();
             const items = Array.from(el.children)
               .map((li, idx) => {
                 const txt = (li.textContent || "").trim();
                 if (!txt) return null;
-                if (tag === "ol") return `${idx + 1}. ${txt}`;
-                return `• ${txt}`;
+                return tag === "ol" ? `${idx + 1}. ${txt}` : `• ${txt}`;
               })
               .filter(Boolean)
               .join("\n");
             if (items) sections.push({ type: "list", content: items });
-            return;
-          }
-
-          // se elemento tem poucos filhos textuais, tratar como parágrafo
-          const hasBlockChildren = Array.from(el.children).some((c) => {
-            const t = (c as HTMLElement).tagName.toLowerCase();
-            return ["div", "p", "ul", "ol", "table", "section", "article", "hr"].includes(t);
           });
-          if (!hasBlockChildren) {
-            const text = (el.textContent || "").replace(/\s+/g, " ").trim();
-            if (text && text.length > 0) {
-              sections.push({ type: "text", content: text });
-              return;
+        } else {
+          // No blocks: fallback to splitting by double newline or CLAUSE markers
+          const raw = (temp.textContent || "").replace(/\u00A0/g, " ");
+          // split by two or more line breaks
+          const parts = raw
+            .split(/\n\s*\n/)
+            .map((p) => p.trim())
+            .filter(Boolean);
+          // Try to tag lines that look like "CLÁUSULA" as title
+          parts.forEach((p) => {
+            if (/^\s*CL[ÁA]USULA\s*\d+/i.test(p) || /^CL[ÁA]USULA/i.test(p) || /^[A-Z\s]{6,30}\s*—/.test(p)) {
+              sections.push({ type: "title", content: p });
+            } else if (/^\s*(?:•|\d+\.)\s*/.test(p)) {
+              sections.push({
+                type: "list",
+                content: p
+                  .split(/\n/)
+                  .map((l) => l.trim())
+                  .join("\n"),
+              });
+            } else {
+              sections.push({ type: "text", content: p });
             }
-          }
+          });
+        }
 
-          el.childNodes.forEach((child) => walk(child));
-        };
-
-        temp.childNodes.forEach((n) => walk(n));
         return sections;
       };
 
-      const sections = extractSectionsFromHtml(contrato?.conteudo_html || "");
+      // Clean HTML small issues (replace common NBSP etc)
+      const htmlContent = (contrato?.conteudo_html || "").replace(/\u00A0/g, " ").trim();
+      const sections = extractSectionsFromHtml(htmlContent);
 
-      // Renderiza as seções mantendo espaçamento e pages
+      // Render sections with cuidado para parágrafos
       for (const sec of sections) {
         if (sec.type === "title") {
+          doc.setFont("times", "bold");
           doc.setFontSize(12);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(41, 98, 255);
+          doc.setTextColor(34, 80, 160);
           const lines = doc.splitTextToSize(sec.content, usableWidth);
           addNewPageIfNeeded(lines.length * lineHeight + 6);
           lines.forEach((l) => {
             doc.text(l, margin, y);
             y += lineHeight;
           });
-          y += 4;
-        } else if (sec.type === "subtitle") {
-          doc.setFontSize(11);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(30, 30, 30);
-          const lines = doc.splitTextToSize(sec.content, usableWidth);
-          addNewPageIfNeeded(lines.length * lineHeight + 4);
-          lines.forEach((l) => {
-            doc.text(l, margin, y);
-            y += lineHeight;
-          });
-          y += 4;
+          y += 6;
         } else if (sec.type === "list") {
+          doc.setFont("times", "normal");
           doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
           doc.setTextColor(60, 60, 60);
           const listLines = sec.content.split("\n");
           for (const li of listLines) {
-            const wrapped = doc.splitTextToSize(li, usableWidth - 8);
-            addNewPageIfNeeded(wrapped.length * lineHeight + 2);
+            const wrapped = doc.splitTextToSize(li, usableWidth - 12);
+            addNewPageIfNeeded(wrapped.length * lineHeight + 4);
             wrapped.forEach((wl) => {
               doc.text(wl, margin + 8, y);
               y += lineHeight;
             });
             y += 2;
           }
-          y += 4;
+          y += 6;
         } else {
+          // texto normal: respeitar parágrafos inteiros (não juntar)
+          doc.setFont("times", "normal");
           doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
           doc.setTextColor(60, 60, 60);
-          const lines = doc.splitTextToSize(sec.content, usableWidth);
-          addNewPageIfNeeded(lines.length * lineHeight + 2);
-          lines.forEach((line) => {
-            doc.text(line, margin, y);
+          const paraLines = doc.splitTextToSize(sec.content, usableWidth);
+          addNewPageIfNeeded(paraLines.length * lineHeight + 4);
+          paraLines.forEach((pl) => {
+            doc.text(pl, margin, y);
             y += lineHeight;
           });
-          y += 4;
+          // adicionar espaço extra entre parágrafos para leitura (imita espaçamento do PDF)
+          y += lineHeight / 1.4;
         }
       }
 
-      // Assinaturas
+      // Assinaturas (mantém o bloco ao final)
       if (assinaturas && assinaturas.length > 0) {
-        addNewPageIfNeeded(40);
+        addNewPageIfNeeded(36);
         doc.setDrawColor(102, 51, 153);
-        doc.setLineWidth(0.5);
+        doc.setLineWidth(0.6);
         doc.line(margin, y, pageWidth - margin, y);
-        y += 8;
+        y += 10;
+        doc.setFont("times", "bold");
         doc.setFontSize(13);
-        doc.setFont("helvetica", "bold");
         doc.setTextColor(102, 51, 153);
         doc.text("REGISTRO DE ASSINATURAS", margin, y);
-        y += 10;
+        y += 12;
 
         if (contrato?.created_at) {
           const dataCriacao = format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
           addNewPageIfNeeded(28);
+          doc.setFont("times", "bold");
           doc.setFontSize(10);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(60, 60, 100);
-          // caixa leve de fundo (usando rect com fill)
+          doc.setTextColor(50, 50, 80);
+          // caixa leve de fundo (fallback caso canvas fill não suportado)
           try {
             doc.setFillColor(245, 245, 250);
             doc.rect(margin, y - 6, usableWidth, 20, "F");
           } catch (err) {
-            // alguns backends do jspdf podem não suportar setFillColor; ignore
+            /* ignore */
           }
           doc.setTextColor(0, 0, 0);
           doc.text(`Contrato Gerado: ${dataCriacao}`, margin + 4, y + 2);
-          doc.text(`Número: ${contrato.numero || "N/A"}`, margin + 4, y + 8);
-          y += 28;
+          doc.text(`Número: ${contrato.numero || "N/A"}`, margin + 4, y + 10);
+          y += 30;
         }
 
         for (const assinatura of assinaturas) {
           if (assinatura.status === "assinado" && assinatura.assinado_em) {
-            addNewPageIfNeeded(56);
-            const tipoLabel =
-              assinatura.tipo === "contratado"
-                ? "CONTRATADA"
-                : assinatura.tipo === "contratante"
-                  ? "CONTRATANTE"
-                  : "TESTEMUNHA";
+            addNewPageIfNeeded(64);
+            doc.setFont("times", "bold");
             doc.setFontSize(11);
-            doc.setFont("helvetica", "bold");
-            doc.setTextColor(0, 0, 0);
-            doc.text(`${assinatura.nome || "Signatário"}`, margin + 2, y);
+            doc.setTextColor(20, 20, 20);
+            doc.text(`${assinatura.nome || "Signatário"}`, margin, y);
+            doc.setFont("times", "normal");
             doc.setFontSize(9);
-            doc.setFont("helvetica", "normal");
             const dataAss = format(new Date(assinatura.assinado_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
-            doc.text(`Data/Hora: ${dataAss}`, margin + 2, y + 8);
-            doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, margin + 2, y + 15);
+            doc.text(`Data/Hora: ${dataAss}`, margin, y + 12);
+            doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, margin, y + 24);
             const hash = assinatura.hash_documento ? `${assinatura.hash_documento.substring(0, 60)}...` : "N/A";
-            doc.text(`Hash: ${hash}`, margin + 2, y + 22);
+            doc.text(`Hash: ${hash}`, margin, y + 36);
             if (assinatura.latitude && assinatura.longitude) {
               doc.text(
                 `Localização: ${Number(assinatura.latitude).toFixed(6)}, ${Number(assinatura.longitude).toFixed(6)}`,
-                margin + 2,
-                y + 29,
+                margin,
+                y + 48,
               );
             } else {
-              doc.text(`Localização: Não disponível`, margin + 2, y + 29);
+              doc.text(`Localização: Não disponível`, margin, y + 48);
             }
-            y += 40;
+            y += 64;
           }
         }
       }
@@ -412,18 +427,20 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
       const totalPages = doc.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        const footerY = pageHeight - 12;
+        const footerY = pageHeight - margin + 6;
         doc.setDrawColor(220, 220, 220);
-        doc.line(margin, footerY - 6, pageWidth - margin, footerY - 6);
+        doc.line(margin, footerY - 10, pageWidth - margin, footerY - 10);
+        doc.setFont("times", "normal");
         doc.setFontSize(8);
-        doc.setTextColor(128, 128, 128);
+        doc.setTextColor(120, 120, 120);
         const gen = format(new Date(), "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
         doc.text(`Documento gerado em ${gen} | Uon1Sign | Página ${i} de ${totalPages}`, margin, footerY);
       }
 
-      // Salvar arquivo com nome seguro
-      const sanitize = (s: string) => String(s || "").replace(/[^\w\-_. ]+/g, "");
+      // Nome de arquivo seguro
+      const sanitize = (s: any) => String(s || "").replace(/[^\w\-_. ]+/g, "");
       const fileName = `${sanitize(String(contrato?.numero || "contrato"))}_${sanitize(String(contrato?.titulo || "documento")).replace(/\s+/g, "_")}.pdf`;
+
       doc.save(fileName);
       toast.success("PDF baixado com sucesso!");
     } catch (error) {
@@ -496,6 +513,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
                   </div>
                 </div>
               </CardHeader>
+
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
@@ -586,12 +604,14 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
                             )}
                           </div>
                         </div>
+
                         {assinatura.assinatura_url && (
                           <div className="mt-3 border-t pt-3">
                             <p className="text-xs text-muted-foreground mb-2">Assinatura:</p>
                             <img src={assinatura.assinatura_url} alt="Assinatura" className="max-h-16 border rounded" />
                           </div>
                         )}
+
                         {assinatura.status === "assinado" && (
                           <div className="mt-2 text-xs text-muted-foreground">
                             <p>IP: {assinatura.ip_assinatura || "N/A"}</p>
