@@ -4,23 +4,38 @@ import html2canvas from "html2canvas";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-// fetch image -> dataURL (for repeated header logo in pdf)
-const fetchImageDataUrl = async (url?: string): Promise<string | null> => {
-  if (!url) return null;
-  try {
-    const res = await fetch(url, { mode: "cors" });
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch (err) {
-    console.warn("Não foi possível carregar a imagem:", err);
-    return null;
-  }
+// Carrega imagem via Image element e converte para dataURL (evita CORS)
+const fetchImageDataUrl = (url?: string): Promise<string | null> => {
+  return new Promise((resolve) => {
+    if (!url) {
+      resolve(null);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL("image/png"));
+        } else {
+          resolve(null);
+        }
+      } catch (err) {
+        console.warn("Não foi possível converter a imagem:", err);
+        resolve(null);
+      }
+    };
+    img.onerror = () => {
+      console.warn("Não foi possível carregar a imagem:", url);
+      resolve(null);
+    };
+    img.src = url;
+  });
 };
 
 // Extrai URL da logo do HTML do contrato
