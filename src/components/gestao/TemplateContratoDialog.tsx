@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Plus, Edit, Trash2, FileText } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, FileText, Upload, X, Image } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,11 +40,14 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
   const [isCreating, setIsCreating] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [categoria, setCategoria] = useState("");
   const [conteudoHtml, setConteudoHtml] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
 
   // Fetch templates
   const { data: templates, isLoading } = useQuery({
@@ -65,8 +68,48 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
     setDescricao("");
     setCategoria("");
     setConteudoHtml("");
+    setLogoUrl("");
     setIsCreating(false);
     setEditingTemplate(null);
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Por favor, selecione uma imagem.");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("A imagem deve ter no máximo 2MB.");
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const fileName = `template-logos/${Date.now()}.${ext}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("documentos")
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("documentos")
+        .getPublicUrl(fileName);
+
+      setLogoUrl(publicUrl);
+      toast.success("Logo carregada com sucesso!");
+    } catch (err: any) {
+      console.error("Erro ao fazer upload:", err);
+      toast.error("Erro ao carregar logo: " + err.message);
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
   const startEdit = (template: any) => {
@@ -74,6 +117,7 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
     setDescricao(template.descricao || "");
     setCategoria(template.categoria || "");
     setConteudoHtml(template.conteudo_html);
+    setLogoUrl(template.logo_url || "");
     setEditingTemplate(template);
     setIsCreating(true);
   };
@@ -91,6 +135,7 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
             descricao,
             categoria,
             conteudo_html: conteudoHtml,
+            logo_url: logoUrl || null,
             updated_at: new Date().toISOString(),
           })
           .eq("id", editingTemplate.id);
@@ -101,6 +146,7 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
           descricao,
           categoria,
           conteudo_html: conteudoHtml,
+          logo_url: logoUrl || null,
           created_by: user.id,
         });
         if (error) throw error;
@@ -205,6 +251,54 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
                   onChange={(e) => setDescricao(e.target.value)}
                   placeholder="Breve descrição do template"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Logo do PDF (canto superior esquerdo)</Label>
+                <div className="flex items-center gap-4">
+                  {logoUrl ? (
+                    <div className="relative">
+                      <img 
+                        src={logoUrl} 
+                        alt="Logo" 
+                        className="h-16 w-auto object-contain border rounded p-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-6 w-6"
+                        onClick={() => setLogoUrl("")}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleLogoUpload}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingLogo}
+                      >
+                        {uploadingLogo ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Upload className="h-4 w-4 mr-2" />
+                        )}
+                        Carregar Logo
+                      </Button>
+                      <span className="text-xs text-muted-foreground">Max: 2MB</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-2">
