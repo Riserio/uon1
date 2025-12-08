@@ -165,139 +165,93 @@ export default function GestaoContratos() {
     window.open(mailtoUrl, "_blank");
   };
 
-  const downloadPDF = async (contrato: any) => {
-    const assinaturas = contrato.contrato_assinaturas || [];
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 20;
-    let yPosition = margin;
-
-    // Load Vangard logo
+  const downloadPDF = (contrato: any) => {
     try {
-      const logoUrl = "/images/vangard-logo.png";
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      
-      await new Promise<void>((resolve) => {
-        img.onload = () => {
-          const logoWidth = 50;
-          const logoHeight = (img.height / img.width) * logoWidth;
-          doc.addImage(img, "PNG", margin, yPosition, logoWidth, logoHeight);
-          
-          // Company info next to logo
-          doc.setFontSize(12);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(30, 30, 30);
-          doc.text("Vangard Gestora", margin + logoWidth + 10, yPosition + 8);
-          doc.setFontSize(9);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("vangardgestora.com.br", margin + logoWidth + 10, yPosition + 14);
-          
-          yPosition += logoHeight + 15;
-          resolve();
-        };
-        img.onerror = () => {
-          doc.setFontSize(16);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(30, 30, 30);
-          doc.text("Vangard Gestora", margin, yPosition + 10);
-          doc.setFontSize(9);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("vangardgestora.com.br", margin, yPosition + 16);
-          yPosition += 25;
-          resolve();
-        };
-        img.src = logoUrl;
-      });
-    } catch (error) {
-      console.log("Logo not loaded:", error);
-      yPosition += 10;
-    }
+      const assinaturas = contrato.contrato_assinaturas || [];
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      let yPosition = margin;
 
-    // Title with blue underline
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(41, 98, 255);
-    const titleText = contrato.titulo;
-    const titleWidth = doc.getTextWidth(titleText);
-    const titleX = (pageWidth - titleWidth) / 2;
-    doc.text(titleText, titleX, yPosition);
-    doc.setDrawColor(41, 98, 255);
-    doc.setLineWidth(0.3);
-    doc.line(titleX, yPosition + 2, titleX + titleWidth, yPosition + 2);
-    yPosition += 15;
+      // Header with company name
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 30, 30);
+      doc.text("Vangard Gestora", margin, yPosition + 10);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 100, 100);
+      doc.text("vangardgestora.com.br", margin, yPosition + 16);
+      yPosition += 30;
 
-    // PARTES section
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(30, 30, 30);
-    doc.text("PARTES", margin, yPosition);
-    yPosition += 8;
+      // Title with blue underline
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(41, 98, 255);
+      const titleText = contrato.titulo || "Contrato";
+      const titleWidth = doc.getTextWidth(titleText);
+      const titleX = (pageWidth - titleWidth) / 2;
+      doc.text(titleText, titleX, yPosition);
+      doc.setDrawColor(41, 98, 255);
+      doc.setLineWidth(0.3);
+      doc.line(titleX, yPosition + 2, titleX + titleWidth, yPosition + 2);
+      yPosition += 15;
 
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(60, 60, 60);
-    
-    // Contratante
-    doc.text("CONTRATANTE: ", margin, yPosition);
-    doc.setFont("helvetica", "bold");
-    doc.text(contrato.contratante_nome || "-", margin + doc.getTextWidth("CONTRATANTE: "), yPosition);
-    yPosition += 5;
-    doc.setFont("helvetica", "normal");
-    doc.text(`CPF/CNPJ: ${contrato.contratante_cpf || contrato.contratante_cnpj || "-"} | E-mail: ${contrato.contratante_email || "-"}`, margin, yPosition);
-    yPosition += 8;
-    
-    // Contratada
-    doc.text("CONTRATADA: ", margin, yPosition);
-    doc.setFont("helvetica", "bold");
-    doc.text("Vangard Gestora", margin + doc.getTextWidth("CONTRATADA: "), yPosition);
-    yPosition += 12;
+      // PARTES section
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 30, 30);
+      doc.text("PARTES", margin, yPosition);
+      yPosition += 8;
 
-    // Contract content with formatting
-    const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = contrato.conteudo_html;
-    
-    const parseHtmlToPdfText = (html: string) => {
-      const div = document.createElement("div");
-      div.innerHTML = html;
-      const sections: { type: 'heading' | 'text'; content: string }[] = [];
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(60, 60, 60);
       
-      div.querySelectorAll('h1, h2, h3, h4, p, div').forEach((el) => {
-        const text = el.textContent?.trim();
-        if (!text) return;
-        if (['H1', 'H2', 'H3', 'H4'].includes(el.tagName) || text.match(/^CLÁUSULA \d+/)) {
-          sections.push({ type: 'heading', content: text });
-        } else {
-          sections.push({ type: 'text', content: text });
-        }
-      });
+      // Contratante
+      doc.text("CONTRATANTE: ", margin, yPosition);
+      doc.setFont("helvetica", "bold");
+      doc.text(contrato.contratante_nome || "-", margin + doc.getTextWidth("CONTRATANTE: "), yPosition);
+      yPosition += 5;
+      doc.setFont("helvetica", "normal");
+      const cpfCnpj = contrato.contratante_cpf || contrato.contratante_cnpj || "-";
+      const email = contrato.contratante_email || "-";
+      doc.text(`CPF/CNPJ: ${cpfCnpj} | E-mail: ${email}`, margin, yPosition);
+      yPosition += 8;
       
-      return sections.length > 0 ? sections : [{ type: 'text' as const, content: div.textContent || '' }];
-    };
-    
-    const sections = parseHtmlToPdfText(contrato.conteudo_html);
-    
-    for (const section of sections) {
-      if (yPosition > pageHeight - 30) {
-        doc.addPage();
-        yPosition = margin;
-      }
+      // Contratada
+      doc.text("CONTRATADA: ", margin, yPosition);
+      doc.setFont("helvetica", "bold");
+      doc.text("Vangard Gestora", margin + doc.getTextWidth("CONTRATADA: "), yPosition);
+      yPosition += 15;
+
+      // Contract content - extract clean text from HTML
+      const extractTextFromHtml = (html: string): string => {
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = html;
+        
+        // Remove script and style tags
+        tempDiv.querySelectorAll("script, style").forEach(el => el.remove());
+        
+        // Get clean text content
+        let text = tempDiv.textContent || tempDiv.innerText || "";
+        
+        // Clean up whitespace
+        text = text.replace(/\s+/g, " ").trim();
+        
+        return text;
+      };
+
+      const cleanText = extractTextFromHtml(contrato.conteudo_html || "");
       
-      if (section.type === 'heading') {
-        yPosition += 5;
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(30, 30, 30);
-        doc.text(section.content, margin, yPosition);
-        yPosition += 7;
-      } else {
+      if (cleanText) {
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(60, 60, 60);
-        const lines = doc.splitTextToSize(section.content, pageWidth - 2 * margin);
+        
+        const lines = doc.splitTextToSize(cleanText, pageWidth - 2 * margin);
+        
         for (const line of lines) {
           if (yPosition > pageHeight - 30) {
             doc.addPage();
@@ -307,72 +261,78 @@ export default function GestaoContratos() {
           yPosition += 5;
         }
       }
-    }
 
-    // Signatures
-    if (assinaturas.length > 0 && assinaturas.some((a: any) => a.status === "assinado")) {
-      if (yPosition > pageHeight - 120) {
-        doc.addPage();
-        yPosition = margin;
-      }
+      // Signatures
+      if (assinaturas.length > 0 && assinaturas.some((a: any) => a.status === "assinado")) {
+        if (yPosition > pageHeight - 120) {
+          doc.addPage();
+          yPosition = margin;
+        }
 
-      yPosition += 15;
-      doc.setDrawColor(102, 51, 153);
-      doc.setLineWidth(0.5);
-      doc.line(margin, yPosition, pageWidth - margin, yPosition);
-      yPosition += 10;
+        yPosition += 15;
+        doc.setDrawColor(102, 51, 153);
+        doc.setLineWidth(0.5);
+        doc.line(margin, yPosition, pageWidth - margin, yPosition);
+        yPosition += 10;
 
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(102, 51, 153);
-      doc.text("REGISTRO DE ASSINATURAS", margin, yPosition);
-      yPosition += 12;
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(102, 51, 153);
+        doc.text("REGISTRO DE ASSINATURAS", margin, yPosition);
+        yPosition += 12;
 
-      for (const assinatura of assinaturas) {
-        if (assinatura.status === "assinado" && assinatura.assinado_em) {
-          if (yPosition > pageHeight - 50) {
-            doc.addPage();
-            yPosition = margin;
+        for (const assinatura of assinaturas) {
+          if (assinatura.status === "assinado" && assinatura.assinado_em) {
+            if (yPosition > pageHeight - 50) {
+              doc.addPage();
+              yPosition = margin;
+            }
+
+            doc.setDrawColor(230, 230, 230);
+            doc.setFillColor(250, 250, 250);
+            doc.roundedRect(margin, yPosition - 5, pageWidth - 2 * margin, 35, 3, 3, "FD");
+
+            const dataAssinatura = format(new Date(assinatura.assinado_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
+            
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`${assinatura.nome || "Signatário"}`, margin + 5, yPosition + 3);
+            
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(80, 80, 80);
+            
+            doc.text(`Data/Hora: ${dataAssinatura}`, margin + 5, yPosition + 12);
+            doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, margin + 90, yPosition + 12);
+            
+            const hash = assinatura.hash_documento ? `${assinatura.hash_documento.substring(0, 40)}...` : "N/A";
+            doc.text(`Hash: ${hash}`, margin + 5, yPosition + 20);
+            
+            if (assinatura.latitude && assinatura.longitude) {
+              doc.text(`Localização: ${assinatura.latitude.toFixed(6)}, ${assinatura.longitude.toFixed(6)}`, margin + 5, yPosition + 28);
+            }
+            
+            yPosition += 42;
           }
-
-          doc.setDrawColor(230, 230, 230);
-          doc.setFillColor(250, 250, 250);
-          doc.roundedRect(margin, yPosition - 5, pageWidth - 2 * margin, 35, 3, 3, "FD");
-
-          const dataAssinatura = format(new Date(assinatura.assinado_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
-          
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(11);
-          doc.setTextColor(0, 0, 0);
-          doc.text(`${assinatura.nome}`, margin + 5, yPosition + 3);
-          
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(9);
-          doc.setTextColor(80, 80, 80);
-          
-          doc.text(`Data/Hora: ${dataAssinatura}`, margin + 5, yPosition + 12);
-          doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, margin + 90, yPosition + 12);
-          doc.text(`Hash: ${assinatura.hash_documento?.substring(0, 40) || "N/A"}...`, margin + 5, yPosition + 20);
-          
-          if (assinatura.latitude && assinatura.longitude) {
-            doc.text(`Localização: ${assinatura.latitude.toFixed(6)}, ${assinatura.longitude.toFixed(6)}`, margin + 5, yPosition + 28);
-          }
-          
-          yPosition += 42;
         }
       }
+
+      // Footer
+      yPosition = pageHeight - 15;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, yPosition - 5, pageWidth - margin, yPosition - 5);
+      doc.setFontSize(8);
+      doc.setTextColor(128, 128, 128);
+      doc.text(`Documento gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })} | Uon1Sign`, margin, yPosition);
+
+      const fileName = `${contrato.numero || "contrato"}_${(contrato.titulo || "documento").replace(/\s+/g, '_')}.pdf`;
+      doc.save(fileName);
+      toast.success("PDF baixado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      toast.error("Erro ao gerar PDF");
     }
-
-    // Footer
-    yPosition = pageHeight - 15;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, yPosition - 5, pageWidth - margin, yPosition - 5);
-    doc.setFontSize(8);
-    doc.setTextColor(128, 128, 128);
-    doc.text(`Documento gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })} | Uon1Sign`, margin, yPosition);
-
-    doc.save(`${contrato.numero}_${contrato.titulo.replace(/\s+/g, '_')}.pdf`);
-    toast.success("PDF baixado com sucesso!");
   };
 
   const filteredContratos = contratos?.filter((c) => {

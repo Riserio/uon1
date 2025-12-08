@@ -214,18 +214,33 @@ export default function ContratoAssinatura() {
       });
 
       // Check if all signatures are done - fetch fresh data
-      const { data: freshAssinaturas } = await supabase
+      const { data: freshAssinaturas, error: fetchError } = await supabase
         .from("contrato_assinaturas")
         .select("*")
         .eq("contrato_id", contrato.id);
 
-      const allSigned = freshAssinaturas?.every((a: any) => a.status === "assinado");
+      if (fetchError) {
+        console.error("Erro ao buscar assinaturas:", fetchError);
+      }
+
+      console.log("Fresh assinaturas:", freshAssinaturas);
+      
+      const allSigned = freshAssinaturas && freshAssinaturas.length > 0 && 
+        freshAssinaturas.every((a: any) => a.status === "assinado");
+
+      console.log("All signed:", allSigned);
 
       if (allSigned) {
-        await supabase
+        const { error: updateError } = await supabase
           .from("contratos")
           .update({ status: "assinado" })
           .eq("id", contrato.id);
+          
+        if (updateError) {
+          console.error("Erro ao atualizar status do contrato:", updateError);
+        } else {
+          console.log("Status do contrato atualizado para assinado");
+        }
       }
 
       return true;
