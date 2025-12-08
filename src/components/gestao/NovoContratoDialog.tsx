@@ -172,6 +172,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
           data_fim: dataFim || null,
           link_expires_at: linkExpiresAt,
           corretora_id: corretoraId || null,
+          template_id: templateId || null,
           status: "rascunho",
           created_by: user.id,
           variaveis_preenchidas: {
