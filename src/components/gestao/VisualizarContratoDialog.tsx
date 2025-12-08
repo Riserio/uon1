@@ -176,34 +176,85 @@ export default function VisualizarContratoDialog({
       doc.text("Rua Jacuí, 1273 - Floresta, Belo Horizonte - MG", margin, yPosition);
       yPosition += 12;
 
-      // Contract content - extract clean text from HTML
-      const extractTextFromHtml = (html: string): string => {
+      // Contract content - extract structured text from HTML preserving paragraphs
+      const extractStructuredText = (html: string): { type: 'title' | 'subtitle' | 'text'; content: string }[] => {
         const tempDiv = document.createElement("div");
         tempDiv.innerHTML = html;
         
         // Remove script and style tags
-        tempDiv.querySelectorAll("script, style").forEach(el => el.remove());
+        tempDiv.querySelectorAll("script, style, header, footer").forEach(el => el.remove());
         
-        // Get clean text content
-        let text = tempDiv.textContent || tempDiv.innerText || "";
+        const sections: { type: 'title' | 'subtitle' | 'text'; content: string }[] = [];
         
-        // Clean up whitespace
-        text = text.replace(/\s+/g, " ").trim();
+        // Extract h1 as title
+        tempDiv.querySelectorAll("h1").forEach(el => {
+          const text = (el.textContent || "").trim();
+          if (text) sections.push({ type: 'title', content: text });
+        });
         
-        return text;
+        // Extract strong/b and clause headers as subtitles
+        tempDiv.querySelectorAll(".clause strong, .clause > strong:first-child").forEach(el => {
+          const text = (el.textContent || "").trim();
+          if (text && text.includes("CLÁUSULA")) {
+            sections.push({ type: 'subtitle', content: text });
+          }
+        });
+        
+        // Extract paragraphs
+        tempDiv.querySelectorAll("p, .clause p").forEach(el => {
+          const text = (el.textContent || "").trim();
+          if (text && text.length > 10) {
+            sections.push({ type: 'text', content: text });
+          }
+        });
+        
+        // If no structured content found, get plain text
+        if (sections.length === 0) {
+          const text = (tempDiv.textContent || "").trim().replace(/\s+/g, " ");
+          if (text) sections.push({ type: 'text', content: text });
+        }
+        
+        return sections;
       };
 
-      const textContent = extractTextFromHtml(contrato.conteudo_html || "");
+      const sections = extractStructuredText(contrato.conteudo_html || "");
       
-      if (textContent) {
-        const contentLines = doc.splitTextToSize(textContent, pageWidth - 2 * margin);
-        for (const line of contentLines) {
-          if (yPosition > pageHeight - 30) {
-            doc.addPage();
-            yPosition = margin;
+      for (const section of sections) {
+        if (yPosition > pageHeight - 30) {
+          doc.addPage();
+          yPosition = margin;
+        }
+        
+        if (section.type === 'title') {
+          doc.setFontSize(13);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(41, 98, 255);
+          const titleWidth2 = doc.getTextWidth(section.content);
+          const titleX2 = (pageWidth - titleWidth2) / 2;
+          doc.text(section.content, titleX2, yPosition);
+          yPosition += 10;
+        } else if (section.type === 'subtitle') {
+          doc.setFontSize(11);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 30, 30);
+          doc.text(section.content, margin, yPosition);
+          yPosition += 8;
+        } else {
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(60, 60, 60);
+          
+          const textLines = doc.splitTextToSize(section.content, pageWidth - 2 * margin);
+          
+          for (let i = 0; i < textLines.length; i++) {
+            if (yPosition > pageHeight - 30) {
+              doc.addPage();
+              yPosition = margin;
+            }
+            doc.text(textLines[i], margin, yPosition, { align: "left", maxWidth: pageWidth - 2 * margin });
+            yPosition += 5;
           }
-          doc.text(line, margin, yPosition);
-          yPosition += 5;
+          yPosition += 3;
         }
       }
 
@@ -225,47 +276,68 @@ export default function VisualizarContratoDialog({
         doc.setFont("helvetica", "bold");
         doc.setTextColor(102, 51, 153);
         doc.text("REGISTRO DE ASSINATURAS", margin, yPosition);
-        yPosition += 10;
-
-        doc.setFontSize(9);
-        doc.setTextColor(100, 100, 100);
-        doc.setFont("helvetica", "normal");
-        doc.text("Este documento foi assinado digitalmente.", margin, yPosition);
         yPosition += 12;
+
+        // Add contract creation info
+        if (contrato.created_at) {
+          doc.setDrawColor(230, 230, 230);
+          doc.setFillColor(245, 245, 250);
+          doc.roundedRect(margin, yPosition - 5, pageWidth - 2 * margin, 20, 3, 3, "FD");
+          
+          const dataCriacao = format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10);
+          doc.setTextColor(60, 60, 100);
+          doc.text("Contrato Gerado:", margin + 5, yPosition + 3);
+          doc.setFont("helvetica", "normal");
+          doc.text(dataCriacao, margin + 45, yPosition + 3);
+          doc.text(`Número: ${contrato.numero || "N/A"}`, margin + 5, yPosition + 11);
+          
+          yPosition += 28;
+        }
 
         for (const assinatura of assinaturas) {
           if (assinatura.status === "assinado" && assinatura.assinado_em) {
-            if (yPosition > pageHeight - 50) {
+            if (yPosition > pageHeight - 55) {
               doc.addPage();
               yPosition = margin;
             }
 
+            const tipoLabel = assinatura.tipo === "contratado" ? "CONTRATADA" : 
+                              assinatura.tipo === "contratante" ? "CONTRATANTE" : "TESTEMUNHA";
+            
             doc.setDrawColor(230, 230, 230);
             doc.setFillColor(250, 250, 250);
-            doc.roundedRect(margin, yPosition - 5, pageWidth - 2 * margin, 35, 3, 3, "FD");
+            doc.roundedRect(margin, yPosition - 5, pageWidth - 2 * margin, 42, 3, 3, "FD");
 
-            const dataAssinatura = format(new Date(assinatura.assinado_em), "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
+            const dataAssinatura = format(new Date(assinatura.assinado_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
             
             doc.setFont("helvetica", "bold");
             doc.setFontSize(11);
             doc.setTextColor(0, 0, 0);
-            doc.text(assinatura.nome || "Signatário", margin + 5, yPosition + 3);
+            doc.text(`${assinatura.nome || "Signatário"}`, margin + 5, yPosition + 3);
+            
+            doc.setFontSize(8);
+            doc.setTextColor(102, 51, 153);
+            doc.text(`[${tipoLabel}]`, margin + 5 + doc.getTextWidth(assinatura.nome || "Signatário") + 3, yPosition + 3);
             
             doc.setFont("helvetica", "normal");
             doc.setFontSize(9);
             doc.setTextColor(80, 80, 80);
             
             doc.text(`Data/Hora: ${dataAssinatura}`, margin + 5, yPosition + 12);
-            doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, margin + 90, yPosition + 12);
+            doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, margin + 5, yPosition + 20);
             
-            const hashText = assinatura.hash_documento ? assinatura.hash_documento.substring(0, 40) + "..." : "N/A";
-            doc.text(`Hash: ${hashText}`, margin + 5, yPosition + 20);
+            const hash = assinatura.hash_documento ? `${assinatura.hash_documento.substring(0, 50)}...` : "N/A";
+            doc.text(`Hash: ${hash}`, margin + 5, yPosition + 28);
             
             if (assinatura.latitude && assinatura.longitude) {
-              doc.text(`Loc: ${Number(assinatura.latitude).toFixed(6)}, ${Number(assinatura.longitude).toFixed(6)}`, margin + 5, yPosition + 28);
+              doc.text(`Localização: ${Number(assinatura.latitude).toFixed(6)}, ${Number(assinatura.longitude).toFixed(6)}`, margin + 5, yPosition + 36);
+            } else {
+              doc.text(`Localização: Não disponível`, margin + 5, yPosition + 36);
             }
             
-            yPosition += 42;
+            yPosition += 50;
           }
         }
       }
