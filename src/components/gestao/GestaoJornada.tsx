@@ -23,10 +23,17 @@ import {
   AlertTriangle,
   Calendar,
   Bell,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, differenceInMinutes, getDaysInMonth, getDay, isWeekend } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
+import * as XLSX from "xlsx";
 import ConfigurarAlertasDialog from "./ConfigurarAlertasDialog";
 
 const tiposPonto = [
@@ -36,8 +43,21 @@ const tiposPonto = [
   { value: "saida", label: "Saída", icon: LogOut, color: "text-red-600" },
 ];
 
+// Calculate business days in a month
+const getBusinessDaysInMonth = (year: number, month: number): number => {
+  const daysInMonth = getDaysInMonth(new Date(year, month - 1));
+  let businessDays = 0;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month - 1, day);
+    if (!isWeekend(date)) {
+      businessDays++;
+    }
+  }
+  return businessDays;
+};
+
 export default function GestaoJornada() {
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const queryClient = useQueryClient();
   const [funcionarioId, setFuncionarioId] = useState<string>("");
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -46,19 +66,38 @@ export default function GestaoJornada() {
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
 
+  // Check user permissions
+  const canManageAll = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
+  const canExport = userRole === "admin" || userRole === "superintendente" || userRole === "administrativo";
+  const isLimitedUser = userRole === "lider" || userRole === "comercial";
+
   // Fetch funcionários
   const { data: funcionarios } = useQuery({
-    queryKey: ["funcionarios"],
+    queryKey: ["funcionarios", user?.id, isLimitedUser],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("funcionarios")
         .select("*")
         .eq("ativo", true)
         .order("nome");
+      
+      // For lider/comercial, only show their own record
+      if (isLimitedUser && user?.id) {
+        query = query.eq("profile_id", user.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
   });
+
+  // Auto-select for limited users
+  useEffect(() => {
+    if (isLimitedUser && funcionarios?.length === 1 && !funcionarioId) {
+      setFuncionarioId(funcionarios[0].id);
+    }
+  }, [isLimitedUser, funcionarios, funcionarioId]);
 
   // Fetch registros do mês
   const { data: registros, isLoading } = useQuery({
@@ -80,6 +119,25 @@ export default function GestaoJornada() {
       return data;
     },
     enabled: !!funcionarioId,
+  });
+
+  // Fetch all records for export
+  const { data: allRegistros } = useQuery({
+    queryKey: ["all_registros_ponto", mes, ano],
+    queryFn: async () => {
+      const inicio = new Date(ano, mes - 1, 1).toISOString();
+      const fim = new Date(ano, mes, 0, 23, 59, 59).toISOString();
+
+      const { data, error } = await supabase
+        .from("registros_ponto")
+        .select("*, funcionarios(nome, cargo)")
+        .gte("data_hora", inicio)
+        .lte("data_hora", fim)
+        .order("data_hora", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: canExport,
   });
 
   // Get today's records for disabling buttons
@@ -105,7 +163,6 @@ export default function GestaoJornada() {
           const lng = position.coords.longitude;
           setLocation({ lat, lng });
 
-          // Tentar obter endereço aproximado (reverse geocoding simples)
           try {
             const response = await fetch(
               `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
@@ -131,7 +188,6 @@ export default function GestaoJornada() {
     mutationFn: async (tipo: string) => {
       if (!funcionarioId) throw new Error("Selecione um funcionário");
 
-      // Check if already registered today
       if (registeredTypes.has(tipo)) {
         throw new Error(`${tiposPonto.find(t => t.value === tipo)?.label} já foi registrado(a) hoje`);
       }
@@ -158,14 +214,95 @@ export default function GestaoJornada() {
     },
   });
 
-  // Calcular estatísticas
-  const stats = {
-    diasTrabalhados: new Set(registros?.filter((r: any) => r.tipo === "entrada").map((r: any) => 
-      format(new Date(r.data_hora), "yyyy-MM-dd")
-    )).size,
-    horasEstimadas: 0,
-    atrasos: 0,
-  };
+  const funcionarioSelecionado = funcionarios?.find((f) => f.id === funcionarioId);
+
+  // Calculate detailed stats
+  const detailedStats = useMemo(() => {
+    if (!registros || !funcionarioSelecionado) return null;
+
+    const businessDays = getBusinessDaysInMonth(ano, mes);
+    const registrosPorDia: Record<string, any[]> = {};
+    
+    registros.forEach((r: any) => {
+      const dia = format(new Date(r.data_hora), "yyyy-MM-dd");
+      if (!registrosPorDia[dia]) registrosPorDia[dia] = [];
+      registrosPorDia[dia].push(r);
+    });
+
+    const workedDays: Array<{
+      date: string;
+      dayName: string;
+      hoursWorked: number;
+      isLate: boolean;
+      lateMinutes: number;
+      entrada?: string;
+      saida?: string;
+    }> = [];
+
+    let totalMinutesWorked = 0;
+    let lateCount = 0;
+
+    const expectedEntrada = funcionarioSelecionado.horario_entrada || "08:00";
+    const [expectedHour, expectedMinute] = expectedEntrada.split(":").map(Number);
+
+    Object.entries(registrosPorDia).forEach(([dia, regs]) => {
+      const entrada = regs.find((r: any) => r.tipo === "entrada");
+      const saida = regs.find((r: any) => r.tipo === "saida");
+      const saidaAlmoco = regs.find((r: any) => r.tipo === "saida_almoco");
+      const voltaAlmoco = regs.find((r: any) => r.tipo === "volta_almoco");
+
+      let hoursWorked = 0;
+      let isLate = false;
+      let lateMinutes = 0;
+
+      if (entrada) {
+        const entradaDate = new Date(entrada.data_hora);
+        const expectedDate = new Date(entradaDate);
+        expectedDate.setHours(expectedHour, expectedMinute, 0, 0);
+        
+        const diffMinutes = differenceInMinutes(entradaDate, expectedDate);
+        if (diffMinutes > 10) {
+          isLate = true;
+          lateMinutes = diffMinutes;
+          lateCount++;
+        }
+      }
+
+      if (entrada && saida) {
+        const entradaTime = new Date(entrada.data_hora).getTime();
+        const saidaTime = new Date(saida.data_hora).getTime();
+        let almocoMinutes = 0;
+
+        if (saidaAlmoco && voltaAlmoco) {
+          const saidaAlmocoTime = new Date(saidaAlmoco.data_hora).getTime();
+          const voltaAlmocoTime = new Date(voltaAlmoco.data_hora).getTime();
+          almocoMinutes = (voltaAlmocoTime - saidaAlmocoTime) / (1000 * 60);
+        }
+
+        const totalMinutes = (saidaTime - entradaTime) / (1000 * 60) - almocoMinutes;
+        hoursWorked = Math.max(0, totalMinutes / 60);
+        totalMinutesWorked += totalMinutes;
+      }
+
+      workedDays.push({
+        date: dia,
+        dayName: format(parseISO(dia), "EEEE", { locale: ptBR }),
+        hoursWorked,
+        isLate,
+        lateMinutes,
+        entrada: entrada ? format(new Date(entrada.data_hora), "HH:mm") : undefined,
+        saida: saida ? format(new Date(saida.data_hora), "HH:mm") : undefined,
+      });
+    });
+
+    return {
+      businessDays,
+      workedDaysCount: workedDays.length,
+      workedDays: workedDays.sort((a, b) => b.date.localeCompare(a.date)),
+      totalHoursWorked: totalMinutesWorked / 60,
+      lateCount,
+    };
+  }, [registros, funcionarioSelecionado, ano, mes]);
 
   // Agrupar registros por dia
   const registrosPorDia = registros?.reduce((acc: any, registro: any) => {
@@ -175,7 +312,74 @@ export default function GestaoJornada() {
     return acc;
   }, {});
 
-  const funcionarioSelecionado = funcionarios?.find((f) => f.id === funcionarioId);
+  // Export to PDF
+  const exportToPDF = (individual: boolean) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("Relatório de Ponto", 20, 20);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Período: ${format(new Date(ano, mes - 1), "MMMM 'de' yyyy", { locale: ptBR })}`, 20, 28);
+    
+    if (individual && funcionarioSelecionado) {
+      doc.text(`Funcionário: ${funcionarioSelecionado.nome}`, 20, 34);
+    }
+
+    const dataToExport = individual ? registros : allRegistros;
+    
+    if (!dataToExport || dataToExport.length === 0) {
+      doc.text("Nenhum registro encontrado", 20, 50);
+    } else {
+      const tableData = dataToExport.map((r: any) => [
+        individual ? "" : (r.funcionarios?.nome || "N/A"),
+        format(new Date(r.data_hora), "dd/MM/yyyy"),
+        format(new Date(r.data_hora), "EEEE", { locale: ptBR }),
+        format(new Date(r.data_hora), "HH:mm"),
+        tiposPonto.find(t => t.value === r.tipo)?.label || r.tipo,
+      ]);
+
+      (doc as any).autoTable({
+        startY: individual ? 40 : 40,
+        head: [individual ? ["Data", "Dia", "Hora", "Tipo"] : ["Funcionário", "Data", "Dia", "Hora", "Tipo"]],
+        body: individual ? tableData.map(row => row.slice(1)) : tableData,
+        theme: "striped",
+        headStyles: { fillColor: [102, 51, 153] },
+      });
+    }
+
+    doc.save(`relatorio_ponto_${individual ? funcionarioSelecionado?.nome?.replace(/\s+/g, '_') : 'todos'}_${mes}_${ano}.pdf`);
+    toast.success("PDF exportado com sucesso!");
+  };
+
+  // Export to Excel
+  const exportToExcel = (individual: boolean) => {
+    const dataToExport = individual ? registros : allRegistros;
+    
+    if (!dataToExport || dataToExport.length === 0) {
+      toast.error("Nenhum registro para exportar");
+      return;
+    }
+
+    const excelData = dataToExport.map((r: any) => ({
+      Funcionário: individual ? funcionarioSelecionado?.nome : (r.funcionarios?.nome || "N/A"),
+      Data: format(new Date(r.data_hora), "dd/MM/yyyy"),
+      Dia: format(new Date(r.data_hora), "EEEE", { locale: ptBR }),
+      Hora: format(new Date(r.data_hora), "HH:mm:ss"),
+      Tipo: tiposPonto.find(t => t.value === r.tipo)?.label || r.tipo,
+      Endereço: r.endereco_aproximado || "",
+      Dispositivo: r.dispositivo || "",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Registros de Ponto");
+    XLSX.writeFile(wb, `relatorio_ponto_${individual ? funcionarioSelecionado?.nome?.replace(/\s+/g, '_') : 'todos'}_${mes}_${ano}.xlsx`);
+    toast.success("Excel exportado com sucesso!");
+  };
 
   return (
     <div className="space-y-6">
@@ -187,14 +391,21 @@ export default function GestaoJornada() {
             Controle de Jornada
           </CardTitle>
           <CardDescription>
-            Registre e acompanhe a jornada de trabalho dos colaboradores
+            {isLimitedUser 
+              ? "Registre e acompanhe sua jornada de trabalho"
+              : "Registre e acompanhe a jornada de trabalho dos colaboradores"
+            }
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4 items-end">
             <div className="flex-1 space-y-2">
               <Label>Funcionário</Label>
-              <Select value={funcionarioId} onValueChange={setFuncionarioId}>
+              <Select 
+                value={funcionarioId} 
+                onValueChange={setFuncionarioId}
+                disabled={isLimitedUser && funcionarios?.length === 1}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um funcionário" />
                 </SelectTrigger>
@@ -207,10 +418,12 @@ export default function GestaoJornada() {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" onClick={() => setAlertasOpen(true)} disabled={!funcionarioId}>
-              <Bell className="h-4 w-4 mr-2" />
-              Configurar Alertas
-            </Button>
+            {canManageAll && (
+              <Button variant="outline" onClick={() => setAlertasOpen(true)} disabled={!funcionarioId}>
+                <Bell className="h-4 w-4 mr-2" />
+                Configurar Alertas
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -300,12 +513,12 @@ export default function GestaoJornada() {
           <TabsContent value="historico">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-4">
                   <CardTitle className="flex items-center gap-2">
                     <Calendar className="h-5 w-5" />
                     Histórico de Ponto
                   </CardTitle>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <Select value={mes.toString()} onValueChange={(v) => setMes(parseInt(v))}>
                       <SelectTrigger className="w-[140px]">
                         <SelectValue />
@@ -381,28 +594,133 @@ export default function GestaoJornada() {
           </TabsContent>
 
           <TabsContent value="relatorio">
-            <div className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-6">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Dias Trabalhados</CardDescription>
+                    <CardTitle className="text-2xl">{detailedStats?.workedDaysCount || 0}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Dias Úteis no Mês</CardDescription>
+                    <CardTitle className="text-2xl">{detailedStats?.businessDays || 0}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Horas Trabalhadas</CardDescription>
+                    <CardTitle className="text-2xl">{detailedStats?.totalHoursWorked.toFixed(1) || "0"}h</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Jornada Configurada</CardDescription>
+                    <CardTitle className="text-2xl">
+                      {funcionarioSelecionado?.carga_horaria_semanal || 44}h/sem
+                    </CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card className={detailedStats?.lateCount ? "border-red-200 bg-red-50/50 dark:bg-red-950/20" : ""}>
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Atrasos (+10min)
+                    </CardDescription>
+                    <CardTitle className={`text-2xl ${detailedStats?.lateCount ? "text-red-600" : ""}`}>
+                      {detailedStats?.lateCount || 0}
+                    </CardTitle>
+                  </CardHeader>
+                </Card>
+              </div>
+
+              {/* Export Buttons */}
+              {canExport && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Download className="h-5 w-5" />
+                      Exportar Relatório
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" onClick={() => exportToPDF(true)}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        PDF Individual
+                      </Button>
+                      <Button variant="outline" onClick={() => exportToExcel(true)}>
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        Excel Individual
+                      </Button>
+                      <Button variant="outline" onClick={() => exportToPDF(false)}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        PDF Todos
+                      </Button>
+                      <Button variant="outline" onClick={() => exportToExcel(false)}>
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        Excel Todos
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Detailed Days List */}
               <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Dias Trabalhados</CardDescription>
-                  <CardTitle className="text-2xl">{stats.diasTrabalhados}</CardTitle>
+                <CardHeader>
+                  <CardTitle className="text-lg">Dias Trabalhados</CardTitle>
+                  <CardDescription>
+                    Horário esperado: {funcionarioSelecionado?.horario_entrada || "08:00"} - {funcionarioSelecionado?.horario_saida || "18:00"}
+                  </CardDescription>
                 </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Jornada Configurada</CardDescription>
-                  <CardTitle className="text-2xl">
-                    {funcionarioSelecionado?.carga_horaria_semanal || 44}h/semana
-                  </CardTitle>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Horário</CardDescription>
-                  <CardTitle className="text-lg">
-                    {funcionarioSelecionado?.horario_entrada} - {funcionarioSelecionado?.horario_saida}
-                  </CardTitle>
-                </CardHeader>
+                <CardContent>
+                  {detailedStats?.workedDays && detailedStats.workedDays.length > 0 ? (
+                    <div className="space-y-2">
+                      {detailedStats.workedDays.map((day) => (
+                        <div 
+                          key={day.date} 
+                          className={`flex items-center justify-between p-3 rounded-lg border ${
+                            day.isLate ? "border-red-200 bg-red-50/50 dark:bg-red-950/20" : "bg-muted/30"
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="flex flex-col">
+                              <span className="font-medium capitalize">{day.dayName}</span>
+                              <span className="text-sm text-muted-foreground">
+                                {format(parseISO(day.date), "dd/MM/yyyy")}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm">
+                            <div className="text-right">
+                              <span className="text-muted-foreground">Entrada: </span>
+                              <span className="font-medium">{day.entrada || "-"}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-muted-foreground">Saída: </span>
+                              <span className="font-medium">{day.saida || "-"}</span>
+                            </div>
+                            <div className="text-right min-w-[80px]">
+                              <span className="font-medium">{day.hoursWorked.toFixed(1)}h</span>
+                            </div>
+                            {day.isLate && (
+                              <Badge variant="destructive" className="text-xs">
+                                +{day.lateMinutes}min
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-4">
+                      Nenhum dia trabalhado registrado neste período
+                    </p>
+                  )}
+                </CardContent>
               </Card>
             </div>
           </TabsContent>
@@ -410,12 +728,14 @@ export default function GestaoJornada() {
       )}
 
       {/* Dialog de Alertas */}
-      <ConfigurarAlertasDialog
-        open={alertasOpen}
-        onOpenChange={setAlertasOpen}
-        funcionarioId={funcionarioId}
-        funcionarioNome={funcionarioSelecionado?.nome}
-      />
+      {canManageAll && (
+        <ConfigurarAlertasDialog
+          open={alertasOpen}
+          onOpenChange={setAlertasOpen}
+          funcionarioId={funcionarioId}
+          funcionarioNome={funcionarioSelecionado?.nome}
+        />
+      )}
     </div>
   );
 }
