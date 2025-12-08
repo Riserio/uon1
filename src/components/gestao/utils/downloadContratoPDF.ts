@@ -50,7 +50,7 @@ const extractLogoFromHtml = (html: string): string | null => {
   return null;
 };
 
-export async function downloadContratoPDF(contrato: any) {
+export async function downloadContratoPDF(contrato: any, templateLogoUrl?: string) {
   if (!contrato) {
     toast.error("Contrato não encontrado.");
     return;
@@ -59,9 +59,8 @@ export async function downloadContratoPDF(contrato: any) {
   const toastId = toast.loading("Gerando PDF — preservando layout. Aguarde...");
 
   try {
-    // Extrai logo do HTML do contrato ou usa fallback
-    const logoFromHtml = extractLogoFromHtml(contrato?.conteudo_html);
-    const logoUrl = logoFromHtml || contrato?.logo_url || "/images/vangard-logo.png";
+    // Prioridade: 1) logo_url do template passado, 2) logo_url do contrato, 3) fallback
+    const logoUrl = templateLogoUrl || contrato?.logo_url || "/images/vangard-logo.png";
     const logoDataUrl = await fetchImageDataUrl(logoUrl);
 
     // Build offscreen container with the content plus signatures

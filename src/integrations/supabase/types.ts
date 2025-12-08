@@ -758,6 +758,7 @@ export type Database = {
           created_by: string
           descricao: string | null
           id: string
+          logo_url: string | null
           titulo: string
           updated_at: string
           variaveis_disponiveis: Json | null
@@ -770,6 +771,7 @@ export type Database = {
           created_by: string
           descricao?: string | null
           id?: string
+          logo_url?: string | null
           titulo: string
           updated_at?: string
           variaveis_disponiveis?: Json | null
@@ -782,6 +784,7 @@ export type Database = {
           created_by?: string
           descricao?: string | null
           id?: string
+          logo_url?: string | null
           titulo?: string
           updated_at?: string
           variaveis_disponiveis?: Json | null

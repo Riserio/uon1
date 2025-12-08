@@ -104,7 +104,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
 
   // PDF download uses shared utility
   const handleDownloadPDF = () => {
-    downloadContratoPDF({ ...contrato, contrato_assinaturas: assinaturas });
+    downloadContratoPDF({ ...contrato, contrato_assinaturas: assinaturas }, contrato?.contrato_templates?.logo_url);
   };
 
   return (

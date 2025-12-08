@@ -79,7 +79,8 @@ export default function GestaoContratos() {
         .select(
           `
           *,
-          contrato_assinaturas(*)
+          contrato_assinaturas(*),
+          contrato_templates:template_id(logo_url)
         `,
         )
         .order("created_at", { ascending: false });
@@ -324,7 +325,7 @@ export default function GestaoContratos() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => downloadContratoPDF(contrato)}
+                        onClick={() => downloadContratoPDF(contrato, contrato.contrato_templates?.logo_url)}
                         title="Baixar PDF"
                       >
                         <Download className="h-4 w-4" />
