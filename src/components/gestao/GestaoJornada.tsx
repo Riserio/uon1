@@ -30,7 +30,14 @@ import {
   Mail,
   MessageCircle,
   Send,
+  Receipt,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format, parseISO, differenceInMinutes, getDaysInMonth, getDay, isWeekend } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -455,6 +462,123 @@ export default function GestaoJornada() {
     toast.success("Excel exportado com sucesso!");
   };
 
+  // Gerar protocolo único para o recibo
+  const gerarProtocolo = () => {
+    const now = new Date();
+    const ano = now.getFullYear().toString().slice(-2);
+    const mes = (now.getMonth() + 1).toString().padStart(2, '0');
+    const dia = now.getDate().toString().padStart(2, '0');
+    const hora = now.getHours().toString().padStart(2, '0');
+    const min = now.getMinutes().toString().padStart(2, '0');
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `REC${ano}${mes}${dia}${hora}${min}${random}`;
+  };
+
+  // Baixar recibo de ponto como PDF
+  const baixarReciboPDF = () => {
+    if (!funcionarioSelecionado || todayRecords.length === 0) {
+      toast.error("Nenhum registro de ponto hoje para baixar");
+      return;
+    }
+
+    const protocolo = gerarProtocolo();
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let yPosition = margin;
+
+    // Header
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 30, 30);
+    doc.text("RECIBO DE PONTO", pageWidth / 2, yPosition, { align: "center" });
+    yPosition += 10;
+
+    // Protocolo
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Protocolo: ${protocolo}`, pageWidth / 2, yPosition, { align: "center" });
+    yPosition += 15;
+
+    // Linha divisória
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 10;
+
+    // Informações do colaborador
+    doc.setFontSize(11);
+    doc.setTextColor(60, 60, 60);
+    doc.setFont("helvetica", "bold");
+    doc.text("Colaborador:", margin, yPosition);
+    doc.setFont("helvetica", "normal");
+    doc.text(funcionarioSelecionado.nome, margin + 35, yPosition);
+    yPosition += 7;
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Cargo:", margin, yPosition);
+    doc.setFont("helvetica", "normal");
+    doc.text(funcionarioSelecionado.cargo || "Não informado", margin + 20, yPosition);
+    yPosition += 7;
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Data:", margin, yPosition);
+    doc.setFont("helvetica", "normal");
+    doc.text(format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR }), margin + 15, yPosition);
+    yPosition += 15;
+
+    // Registros
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 10;
+
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 30, 30);
+    doc.text("Registros do Dia", margin, yPosition);
+    yPosition += 10;
+
+    const sortedRecords = todayRecords.sort((a: any, b: any) => 
+      new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime()
+    );
+
+    sortedRecords.forEach((registro: any) => {
+      const tipo = tiposPonto.find(t => t.value === registro.tipo);
+      const hora = format(new Date(registro.data_hora), "HH:mm:ss");
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${tipo?.label || registro.tipo}:`, margin + 5, yPosition);
+      doc.setFont("helvetica", "normal");
+      doc.text(hora, margin + 45, yPosition);
+      
+      if (registro.endereco) {
+        yPosition += 5;
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`📍 ${registro.endereco.substring(0, 60)}${registro.endereco.length > 60 ? '...' : ''}`, margin + 5, yPosition);
+        doc.setTextColor(60, 60, 60);
+      }
+      yPosition += 8;
+    });
+
+    yPosition += 10;
+
+    // Rodapé
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 8;
+
+    doc.setFontSize(8);
+    doc.setTextColor(128, 128, 128);
+    doc.text(`Documento gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}`, margin, yPosition);
+    yPosition += 4;
+    doc.text("Este é um recibo eletrônico gerado automaticamente pelo sistema.", margin, yPosition);
+
+    doc.save(`recibo_ponto_${funcionarioSelecionado.nome.replace(/\s+/g, '_')}_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+    toast.success(`Recibo baixado! Protocolo: ${protocolo}`);
+  };
+
   // Enviar recibo de ponto por WhatsApp
   const enviarReciboWhatsApp = () => {
     if (!funcionarioSelecionado || todayRecords.length === 0) {
@@ -462,6 +586,7 @@ export default function GestaoJornada() {
       return;
     }
 
+    const protocolo = gerarProtocolo();
     const registrosTexto = todayRecords
       .sort((a: any, b: any) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime())
       .map((r: any) => {
@@ -470,7 +595,7 @@ export default function GestaoJornada() {
       })
       .join("\n");
 
-    const mensagem = `*RECIBO DE PONTO*\n\nColaborador: ${funcionarioSelecionado.nome}\nData: ${format(new Date(), "dd/MM/yyyy")}\n\n${registrosTexto}\n\n_Registro gerado automaticamente pelo sistema._`;
+    const mensagem = `*RECIBO DE PONTO*\n📋 Protocolo: ${protocolo}\n\nColaborador: ${funcionarioSelecionado.nome}\nData: ${format(new Date(), "dd/MM/yyyy")}\n\n${registrosTexto}\n\n_Registro gerado automaticamente pelo sistema._`;
 
     const phone = funcionarioSelecionado.telefone?.replace(/\D/g, "") || "";
     const whatsappUrl = phone 
@@ -478,7 +603,7 @@ export default function GestaoJornada() {
       : `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
     
     window.open(whatsappUrl, "_blank");
-    toast.success("Abrindo WhatsApp...");
+    toast.success(`Abrindo WhatsApp... Protocolo: ${protocolo}`);
   };
 
   // Enviar recibo de ponto por Email
@@ -488,6 +613,7 @@ export default function GestaoJornada() {
       return;
     }
 
+    const protocolo = gerarProtocolo();
     const registrosTexto = todayRecords
       .sort((a: any, b: any) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime())
       .map((r: any) => {
@@ -496,12 +622,12 @@ export default function GestaoJornada() {
       })
       .join("\n");
 
-    const subject = `Recibo de Ponto - ${format(new Date(), "dd/MM/yyyy")} - ${funcionarioSelecionado.nome}`;
-    const body = `RECIBO DE PONTO\n\nColaborador: ${funcionarioSelecionado.nome}\nData: ${format(new Date(), "dd/MM/yyyy")}\n\n${registrosTexto}\n\nRegistro gerado automaticamente pelo sistema.`;
+    const subject = `Recibo de Ponto - ${format(new Date(), "dd/MM/yyyy")} - ${funcionarioSelecionado.nome} - Protocolo: ${protocolo}`;
+    const body = `RECIBO DE PONTO\n\n📋 Protocolo: ${protocolo}\n\nColaborador: ${funcionarioSelecionado.nome}\nData: ${format(new Date(), "dd/MM/yyyy")}\n\n${registrosTexto}\n\nRegistro gerado automaticamente pelo sistema.`;
 
     const mailtoUrl = `mailto:${funcionarioSelecionado.email || ""}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(mailtoUrl, "_blank");
-    toast.success("Abrindo email...");
+    toast.success(`Abrindo email... Protocolo: ${protocolo}`);
   };
 
   return (
@@ -605,26 +731,28 @@ export default function GestaoJornada() {
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-medium">Últimos registros de hoje</h4>
                     {todayRecords.length > 0 && (
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={enviarReciboWhatsApp}
-                          className="text-green-600 hover:text-green-700"
-                        >
-                          <MessageCircle className="h-4 w-4 mr-1" />
-                          WhatsApp
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={enviarReciboEmail}
-                          className="text-blue-600 hover:text-blue-700"
-                        >
-                          <Mail className="h-4 w-4 mr-1" />
-                          E-mail
-                        </Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <Receipt className="h-4 w-4 mr-1" />
+                            Recibo
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={enviarReciboWhatsApp}>
+                            <MessageCircle className="h-4 w-4 mr-2 text-green-600" />
+                            Enviar por WhatsApp
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={enviarReciboEmail}>
+                            <Mail className="h-4 w-4 mr-2 text-blue-600" />
+                            Enviar por E-mail
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={baixarReciboPDF}>
+                            <Download className="h-4 w-4 mr-2 text-purple-600" />
+                            Baixar PDF
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
                   <div className="space-y-2">
