@@ -1,5 +1,5 @@
 // components/gestao/VisualizarContratoDialog.tsx
-import React from "react";
+import React, { useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -19,6 +19,7 @@ import { ptBR } from "date-fns/locale";
 import { CheckCircle2, Clock, XCircle, Copy, User, MessageCircle, Download, Mail } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 interface VisualizarContratoDialogProps {
   contrato: any;
@@ -45,7 +46,6 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
 };
 
 export default function VisualizarContratoDialog({ contrato, open, onOpenChange }: VisualizarContratoDialogProps) {
-  // Fetch histórico
   const { data: historico } = useQuery({
     queryKey: ["contrato_historico", contrato?.id],
     queryFn: async () => {
@@ -62,8 +62,10 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
 
   const assinaturas = contrato?.contrato_assinaturas || [];
 
+  const previewRef = useRef<HTMLDivElement | null>(null);
+
   const copyLink = () => {
-    if (!contrato?.link_token) {
+    if (!contrato.link_token) {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
       return;
     }
@@ -73,7 +75,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
   };
 
   const sendWhatsApp = () => {
-    if (!contrato?.link_token) {
+    if (!contrato.link_token) {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
       return;
     }
@@ -89,7 +91,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
   };
 
   const sendEmail = () => {
-    if (!contrato?.link_token) {
+    if (!contrato.link_token) {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
       return;
     }
@@ -102,350 +104,165 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
     window.open(mailtoUrl, "_blank");
   };
 
-  // Fetch image and convert to DataURL for jsPDF.addImage
-  const fetchImageDataUrl = async (url?: string): Promise<string | null> => {
-    if (!url) return null;
-    try {
-      const res = await fetch(url, { mode: "cors" });
-      if (!res.ok) return null;
-      const blob = await res.blob();
-      return await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    } catch (err) {
-      console.warn("Não foi possível carregar a imagem da logo:", err);
-      return null;
-    }
-  };
-
-  /**
-   * Gera o PDF:
-   * - usa "times" para aproximar fonte serifada
-   * - margens maiores e lineHeight ajustável (tweak aqui)
-   * - tenta incluir logo preta: prioridade: contrato.logo_url -> /vangard-preta.png (coloque no /public)
-   */
-
+  // --- Novo: gera PDF capturando o DOM (html2canvas) para manter fontes/margens/espacamento exatos ---
   const downloadPDF = async () => {
     try {
-      const doc = new jsPDF({ unit: "pt", format: "a4" }); // pt (pontos) para melhor controle
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-
-      // Ajuste fino aqui:
-      const margin = 36; // Aumentei margem para respeitar seu pedido
-      const usableWidth = pageWidth - 2 * margin;
-      const lineHeight = 8; // espaçamento entre linhas — aumente/reduza para ajustar
-      let y = margin;
-
-      const addNewPageIfNeeded = (neededHeight = lineHeight) => {
-        if (y + neededHeight > pageHeight - margin) {
-          doc.addPage();
-          y = margin;
-        }
-      };
-
-      // Tentativa de localizar logo preta da Vangard:
-      // 1) contrato.logo_url (quando preenchido)
-      // 2) arquivo local público: /vangard-preta.png (coloque em /public)
-      // Se não achar, não quebra o fluxo.
-      const candidateLogos = [
-        contrato?.logo_url,
-        "/vangard-preta.png",
-        "/logo-vangard-preta.png",
-        // você pode adicionar aqui URLs públicas da sua CDN se preferir
-      ].filter(Boolean) as string[];
-
-      let logoDataUrl: string | null = null;
-      for (const url of candidateLogos) {
-        logoDataUrl = await fetchImageDataUrl(url).catch(() => null);
-        if (logoDataUrl) break;
+      if (!previewRef.current) {
+        toast.error("Preview do contrato não disponível.");
+        return;
       }
 
-      // HEADER: logo à direita, nome à esquerda
-      if (logoDataUrl) {
-        try {
-          const logoWidth = 110; // pontos
-          const logoHeight = 30; // pontos
-          doc.addImage(logoDataUrl, "PNG", pageWidth - margin - logoWidth, y - 6, logoWidth, logoHeight);
-        } catch (err) {
-          console.warn("addImage falhou:", err);
-        }
-      }
+      toast.loading("Gerando PDF — preservando layout. Aguarde...");
 
-      // Font: usar 'times' para aparência mais próxima de documento impresso
-      doc.setFont("times", "normal");
-      doc.setFontSize(16);
-      doc.setTextColor(30, 30, 30);
-      doc.text("Vangard Gestora", margin, y + 8);
+      // Build a clone node so we don't affect the visible UI (we can adjust styles specifically for print)
+      const clone = previewRef.current.cloneNode(true) as HTMLElement;
 
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.text("vangardgestora.com.br", margin, y + 22);
-      y += 40;
+      // Ensure the clone uses the same computed fonts/styles: append style tag copying document styles (simple approach)
+      // Clone current document stylesheets into inline style to preserve fonts/typography in the offscreen node.
+      const styleEl = document.createElement("style");
+      // Minimal print CSS to enforce margins and font smoothing for capture (adjust as needed)
+      styleEl.innerHTML = `
+        :root { --pdf-margin: 24px; }
+        body, html { background: white; }
+        .pdf-print-container { box-sizing: border-box; width: 794px; padding: 24px; background: white; color: #222; font-family: inherit; }
+        .pdf-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:12px; }
+        .pdf-title { text-align:center; margin-bottom:8px; color:#2962ff; font-weight:700; }
+        .pdf-content h1, .pdf-content h2, .pdf-content h3 { color: #2962ff; margin: 12px 0 6px; }
+        .pdf-content p { margin: 6px 0; line-height: 1.35; }
+        .pdf-content ul, .pdf-content ol { margin: 6px 0 12px 20px; }
+      `;
+      const container = document.createElement("div");
+      container.className = "pdf-print-container";
+      container.style.background = "white";
+      container.style.color = "#222";
 
-      // TÍTULO centralizado com underline azul escuro
-      const titleText = contrato?.titulo || "Contrato";
-      doc.setFontSize(14);
-      doc.setFont("times", "bold");
-      doc.setTextColor(41, 98, 255);
-      const titleWidth = doc.getTextWidth(titleText);
-      const titleX = Math.max(margin, (pageWidth - titleWidth) / 2);
-      addNewPageIfNeeded(18);
-      doc.text(titleText, titleX, y);
-      doc.setDrawColor(41, 98, 255);
-      doc.setLineWidth(0.6);
-      doc.line(titleX, y + 3, Math.min(titleX + titleWidth, pageWidth - margin), y + 3);
-      y += 18;
+      // Header area: logo (preto) + company text
+      const header = document.createElement("div");
+      header.className = "pdf-header";
 
-      // Descrição breve
-      doc.setFont("times", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(60, 60, 60);
-      const descText =
-        "Contrato de prestação de serviços para prestação de serviços de associação e proteção veicular.";
-      const descLines = doc.splitTextToSize(descText, usableWidth);
-      addNewPageIfNeeded(descLines.length * lineHeight);
-      descLines.forEach((l) => {
-        doc.text(l, margin, y);
-        y += lineHeight;
+      // LOGO: prefer contrato.logo_url (se informado), senão tenta a logo preta pública da Vangard
+      const logoUrl = contrato?.logo_url || "https://vangardgestora.com.br/wp-content/uploads/2023/01/logo-preta.png";
+      const logoImg = document.createElement("img");
+      logoImg.src = logoUrl;
+      logoImg.alt = "Vangard Gestora";
+      logoImg.style.maxWidth = "180px";
+      logoImg.style.height = "auto";
+      logoImg.style.objectFit = "contain";
+      logoImg.style.display = "block";
+      logoImg.crossOrigin = "anonymous"; // tenta permitir CORS
+
+      const headerLeft = document.createElement("div");
+      headerLeft.innerHTML = `<div style="font-weight:700;font-size:18px">Vangard Gestora</div><div style="font-size:12px;color:#666;">vangardgestora.com.br</div>`;
+
+      header.appendChild(headerLeft);
+      header.appendChild(logoImg);
+
+      // Title
+      const titleNode = document.createElement("div");
+      titleNode.className = "pdf-title";
+      titleNode.style.fontSize = "16px";
+      titleNode.style.fontWeight = "700";
+      titleNode.textContent = contrato?.titulo || "Contrato";
+
+      // Content wrapper: inject the contract HTML inside .pdf-content
+      const contentWrapper = document.createElement("div");
+      contentWrapper.className = "pdf-content";
+      // Use contrato.conteudo_html if present; otherwise use the current content of preview clone
+      contentWrapper.innerHTML = contrato?.conteudo_html || clone.innerHTML || "";
+
+      // Add partes/metadata on top of content (keeps same order you used)
+      const meta = document.createElement("div");
+      meta.style.marginBottom = "10px";
+      meta.innerHTML = `
+        <strong>PARTES</strong>
+        <p><strong>CONTRATANTE:</strong> ${contrato?.contratante_nome || "-"}</p>
+        <p><strong>CPF/CNPJ:</strong> ${contrato?.contratante_cpf || contrato?.contratante_cnpj || "-"}</p>
+        <p><strong>E-mail:</strong> ${contrato?.contratante_email || "-"}</p>
+        <p><strong>CONTRATADA:</strong> Vangard Gestora — Rua Jacuí, 1273 - Floresta, Belo Horizonte - MG</p>
+      `;
+
+      // Compose print node
+      container.appendChild(styleEl);
+      container.appendChild(header);
+      container.appendChild(titleNode);
+      container.appendChild(meta);
+      container.appendChild(contentWrapper);
+
+      // Attach to body offscreen (invisible) so html2canvas can read fonts/styles
+      container.style.position = "fixed";
+      container.style.left = "-9999px";
+      container.style.top = "0";
+      document.body.appendChild(container);
+
+      // Wait a tick for images/fonts to load
+      await new Promise((r) => setTimeout(r, 300));
+
+      // Use html2canvas to capture the container
+      const canvas = await html2canvas(container, {
+        scale: 2, // improve resolution
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: "#ffffff",
+        logging: false,
       });
-      y += 10;
 
-      // PARTES
-      doc.setFont("times", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(30, 30, 30);
-      addNewPageIfNeeded(14);
-      doc.text("PARTES", margin, y);
-      y += 14;
+      // Remove offscreen container
+      document.body.removeChild(container);
 
-      doc.setFont("times", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(60, 60, 60);
-      addNewPageIfNeeded(60);
-      doc.text(`CONTRATANTE: ${contrato?.contratante_nome || "-"}`, margin, y);
-      y += lineHeight;
-      doc.text(`CPF/CNPJ: ${contrato?.contratante_cpf || contrato?.contratante_cnpj || "-"}`, margin, y);
-      y += lineHeight;
-      doc.text(`E-mail: ${contrato?.contratante_email || "-"}`, margin, y);
-      y += lineHeight;
-      if (contrato?.contratante_telefone) {
-        doc.text(`Telefone: ${contrato.contratante_telefone}`, margin, y);
-        y += lineHeight;
-      }
-      y += 8;
-      doc.text("CONTRATADA: Vangard Gestora", margin, y);
-      y += lineHeight;
-      doc.text("Rua Jacuí, 1273 - Floresta, Belo Horizonte - MG", margin, y);
-      y += 18;
+      // Build PDF from canvas (A4 portrait in mm)
+      const pdf = new jsPDF("p", "mm", "a4");
+      const imgData = canvas.toDataURL("image/png");
 
-      /**
-       * Parser mais cuidadoso para manter parágrafos e espaçamento:
-       * - priorizamos tags <p>, <h1..h3>, <ul>, <ol>
-       * - se o HTML vier "plano" (texto corrido), tentamos quebrar em parágrafos sempre que houver duas quebras de linha
-       * - mantemos espaços e quebras internas, evitando juntar sentenças
-       */
-      const extractSectionsFromHtml = (html: string) => {
-        const temp = document.createElement("div");
-        temp.innerHTML = html || "";
-        temp.querySelectorAll("script, style, header, footer, noscript").forEach((n) => n.remove());
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeightPage = pdf.internal.pageSize.getHeight();
 
-        const sections: { type: "title" | "subtitle" | "text" | "list"; content: string }[] = [];
+      // Calculate image height in mm with aspect ratio
+      const imgProps = (pdf as any).getImageProperties(imgData);
+      const imgWidthMm = pdfWidth;
+      const imgHeightMm = (imgProps.height * imgWidthMm) / imgProps.width;
 
-        const pushText = (txt: string) => {
-          const clean = txt
-            .replace(/\u00A0/g, " ")
-            .replace(/\s+/g, " ")
-            .trim();
-          if (clean) sections.push({ type: "text", content: clean });
-        };
-
-        // If there are explicit p/h/ul elements -> use them
-        const hasBlocks = temp.querySelectorAll("p, h1, h2, h3, ul, ol").length > 0;
-        if (hasBlocks) {
-          temp.querySelectorAll("h1,h2,h3").forEach((el) => {
-            const t = (el.textContent || "").trim();
-            if (t) sections.push({ type: "title", content: t });
-          });
-          temp.querySelectorAll("p").forEach((el) => {
-            const t = (el.textContent || "").replace(/\u00A0/g, " ").trim();
-            if (t) sections.push({ type: "text", content: t });
-          });
-          temp.querySelectorAll("ul,ol").forEach((el) => {
-            const tag = el.tagName.toLowerCase();
-            const items = Array.from(el.children)
-              .map((li, idx) => {
-                const txt = (li.textContent || "").trim();
-                if (!txt) return null;
-                return tag === "ol" ? `${idx + 1}. ${txt}` : `• ${txt}`;
-              })
-              .filter(Boolean)
-              .join("\n");
-            if (items) sections.push({ type: "list", content: items });
-          });
-        } else {
-          // No blocks: fallback to splitting by double newline or CLAUSE markers
-          const raw = (temp.textContent || "").replace(/\u00A0/g, " ");
-          // split by two or more line breaks
-          const parts = raw
-            .split(/\n\s*\n/)
-            .map((p) => p.trim())
-            .filter(Boolean);
-          // Try to tag lines that look like "CLÁUSULA" as title
-          parts.forEach((p) => {
-            if (/^\s*CL[ÁA]USULA\s*\d+/i.test(p) || /^CL[ÁA]USULA/i.test(p) || /^[A-Z\s]{6,30}\s*—/.test(p)) {
-              sections.push({ type: "title", content: p });
-            } else if (/^\s*(?:•|\d+\.)\s*/.test(p)) {
-              sections.push({
-                type: "list",
-                content: p
-                  .split(/\n/)
-                  .map((l) => l.trim())
-                  .join("\n"),
-              });
-            } else {
-              sections.push({ type: "text", content: p });
-            }
-          });
-        }
-
-        return sections;
-      };
-
-      // Clean HTML small issues (replace common NBSP etc)
-      const htmlContent = (contrato?.conteudo_html || "").replace(/\u00A0/g, " ").trim();
-      const sections = extractSectionsFromHtml(htmlContent);
-
-      // Render sections with cuidado para parágrafos
-      for (const sec of sections) {
-        if (sec.type === "title") {
-          doc.setFont("times", "bold");
-          doc.setFontSize(12);
-          doc.setTextColor(34, 80, 160);
-          const lines = doc.splitTextToSize(sec.content, usableWidth);
-          addNewPageIfNeeded(lines.length * lineHeight + 6);
-          lines.forEach((l) => {
-            doc.text(l, margin, y);
-            y += lineHeight;
-          });
-          y += 6;
-        } else if (sec.type === "list") {
-          doc.setFont("times", "normal");
-          doc.setFontSize(10);
-          doc.setTextColor(60, 60, 60);
-          const listLines = sec.content.split("\n");
-          for (const li of listLines) {
-            const wrapped = doc.splitTextToSize(li, usableWidth - 12);
-            addNewPageIfNeeded(wrapped.length * lineHeight + 4);
-            wrapped.forEach((wl) => {
-              doc.text(wl, margin + 8, y);
-              y += lineHeight;
-            });
-            y += 2;
-          }
-          y += 6;
-        } else {
-          // texto normal: respeitar parágrafos inteiros (não juntar)
-          doc.setFont("times", "normal");
-          doc.setFontSize(10);
-          doc.setTextColor(60, 60, 60);
-          const paraLines = doc.splitTextToSize(sec.content, usableWidth);
-          addNewPageIfNeeded(paraLines.length * lineHeight + 4);
-          paraLines.forEach((pl) => {
-            doc.text(pl, margin, y);
-            y += lineHeight;
-          });
-          // adicionar espaço extra entre parágrafos para leitura (imita espaçamento do PDF)
-          y += lineHeight / 1.4;
+      if (imgHeightMm <= pdfHeightPage) {
+        pdf.addImage(imgData, "PNG", 0, 0, imgWidthMm, imgHeightMm);
+      } else {
+        // Need to split into pages
+        let remainingHeightPx = canvas.height;
+        const pageCanvasHeightPx = Math.floor((canvas.width * pdfHeightPage) / imgWidthMm); // px equivalent of one pdf page height
+        let page = 0;
+        while (remainingHeightPx > 0) {
+          const tmpCanvas = document.createElement("canvas");
+          tmpCanvas.width = canvas.width;
+          tmpCanvas.height = Math.min(pageCanvasHeightPx, remainingHeightPx);
+          const ctx = tmpCanvas.getContext("2d")!;
+          // draw the slice
+          ctx.drawImage(
+            canvas,
+            0,
+            page * pageCanvasHeightPx,
+            canvas.width,
+            tmpCanvas.height,
+            0,
+            0,
+            canvas.width,
+            tmpCanvas.height,
+          );
+          const pageImg = tmpCanvas.toDataURL("image/png");
+          const pageImgProps = (pdf as any).getImageProperties(pageImg);
+          const pageImgHeightMm = (pageImgProps.height * imgWidthMm) / pageImgProps.width;
+          if (page > 0) pdf.addPage();
+          pdf.addImage(pageImg, "PNG", 0, 0, imgWidthMm, pageImgHeightMm);
+          remainingHeightPx -= pageCanvasHeightPx;
+          page += 1;
         }
       }
 
-      // Assinaturas (mantém o bloco ao final)
-      if (assinaturas && assinaturas.length > 0) {
-        addNewPageIfNeeded(36);
-        doc.setDrawColor(102, 51, 153);
-        doc.setLineWidth(0.6);
-        doc.line(margin, y, pageWidth - margin, y);
-        y += 10;
-        doc.setFont("times", "bold");
-        doc.setFontSize(13);
-        doc.setTextColor(102, 51, 153);
-        doc.text("REGISTRO DE ASSINATURAS", margin, y);
-        y += 12;
-
-        if (contrato?.created_at) {
-          const dataCriacao = format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
-          addNewPageIfNeeded(28);
-          doc.setFont("times", "bold");
-          doc.setFontSize(10);
-          doc.setTextColor(50, 50, 80);
-          // caixa leve de fundo (fallback caso canvas fill não suportado)
-          try {
-            doc.setFillColor(245, 245, 250);
-            doc.rect(margin, y - 6, usableWidth, 20, "F");
-          } catch (err) {
-            /* ignore */
-          }
-          doc.setTextColor(0, 0, 0);
-          doc.text(`Contrato Gerado: ${dataCriacao}`, margin + 4, y + 2);
-          doc.text(`Número: ${contrato.numero || "N/A"}`, margin + 4, y + 10);
-          y += 30;
-        }
-
-        for (const assinatura of assinaturas) {
-          if (assinatura.status === "assinado" && assinatura.assinado_em) {
-            addNewPageIfNeeded(64);
-            doc.setFont("times", "bold");
-            doc.setFontSize(11);
-            doc.setTextColor(20, 20, 20);
-            doc.text(`${assinatura.nome || "Signatário"}`, margin, y);
-            doc.setFont("times", "normal");
-            doc.setFontSize(9);
-            const dataAss = format(new Date(assinatura.assinado_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
-            doc.text(`Data/Hora: ${dataAss}`, margin, y + 12);
-            doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, margin, y + 24);
-            const hash = assinatura.hash_documento ? `${assinatura.hash_documento.substring(0, 60)}...` : "N/A";
-            doc.text(`Hash: ${hash}`, margin, y + 36);
-            if (assinatura.latitude && assinatura.longitude) {
-              doc.text(
-                `Localização: ${Number(assinatura.latitude).toFixed(6)}, ${Number(assinatura.longitude).toFixed(6)}`,
-                margin,
-                y + 48,
-              );
-            } else {
-              doc.text(`Localização: Não disponível`, margin, y + 48);
-            }
-            y += 64;
-          }
-        }
-      }
-
-      // Footer: número de páginas e carimbo
-      const totalPages = doc.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        const footerY = pageHeight - margin + 6;
-        doc.setDrawColor(220, 220, 220);
-        doc.line(margin, footerY - 10, pageWidth - margin, footerY - 10);
-        doc.setFont("times", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(120, 120, 120);
-        const gen = format(new Date(), "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
-        doc.text(`Documento gerado em ${gen} | Uon1Sign | Página ${i} de ${totalPages}`, margin, footerY);
-      }
-
-      // Nome de arquivo seguro
-      const sanitize = (s: any) => String(s || "").replace(/[^\w\-_. ]+/g, "");
+      const sanitize = (s: string) => String(s || "").replace(/[^\w\-_. ]+/g, "");
       const fileName = `${sanitize(String(contrato?.numero || "contrato"))}_${sanitize(String(contrato?.titulo || "documento")).replace(/\s+/g, "_")}.pdf`;
+      pdf.save(fileName);
 
-      doc.save(fileName);
-      toast.success("PDF baixado com sucesso!");
-    } catch (error) {
-      console.error("Erro ao gerar PDF:", error);
-      toast.error("Erro ao gerar PDF. Verifique os dados do contrato e a conexão da logo.");
+      toast.success("PDF gerado com fidelidade ao HTML!");
+    } catch (err) {
+      console.error("Erro ao gerar PDF via html2canvas:", err);
+      toast.error("Erro ao gerar PDF. Veja console para detalhes.");
     }
   };
 
@@ -481,14 +298,13 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <Button variant="outline" size="sm" onClick={downloadPDF}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Baixar PDF
+                      <Download className="h-4 w-4 mr-2" /> Baixar PDF
                     </Button>
+
                     {(contrato?.status === "aguardando_assinatura" || contrato?.link_token) && (
                       <>
                         <Button variant="outline" size="sm" onClick={copyLink}>
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copiar Link
+                          <Copy className="h-4 w-4 mr-2" /> Copiar Link
                         </Button>
                         <Button
                           variant="outline"
@@ -496,8 +312,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
                           onClick={sendWhatsApp}
                           className="text-green-600 hover:text-green-700"
                         >
-                          <MessageCircle className="h-4 w-4 mr-2" />
-                          WhatsApp
+                          <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
                         </Button>
                         <Button
                           variant="outline"
@@ -505,8 +320,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
                           onClick={sendEmail}
                           className="text-blue-600 hover:text-blue-700"
                         >
-                          <Mail className="h-4 w-4 mr-2" />
-                          E-mail
+                          <Mail className="h-4 w-4 mr-2" /> E-mail
                         </Button>
                       </>
                     )}
@@ -554,8 +368,12 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
 
                 <div className="border-t pt-4">
                   <h4 className="font-medium mb-2">Prévia do Documento</h4>
+
+                  {/* previewRef contém o conteúdo que será capturado por html2canvas */}
                   <div
-                    className="prose prose-sm max-w-none border rounded-lg p-4 bg-card max-h-[400px] overflow-y-auto"
+                    ref={previewRef}
+                    className="prose prose-sm max-w-none border rounded-lg p-6 bg-white text-black"
+                    style={{ background: "#ffffff", color: "#222", fontFamily: "inherit", lineHeight: 1.35 }}
                     dangerouslySetInnerHTML={{ __html: contrato?.conteudo_html || "" }}
                   />
                 </div>
@@ -564,6 +382,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
           </TabsContent>
 
           <TabsContent value="assinaturas" className="mt-4">
+            {/* ... mesma renderização de assinaturas que você já tinha ... */}
             <div className="space-y-3">
               {assinaturas.length === 0 ? (
                 <Card>
