@@ -3,15 +3,11 @@ import {
   LayoutDashboard,
   Building2,
   Users,
-  UserCircle,
   Calendar,
   LogOut,
-  Megaphone,
-  Settings,
   FileText,
   MessageCircle,
   ClipboardList,
-  Camera,
   AlertTriangle,
   Mail,
   TrendingUp,
@@ -20,10 +16,8 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
-import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
-import { usePendingUsers } from "@/hooks/usePendingUsers";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import {
   Sidebar,
@@ -122,7 +116,6 @@ export function AppSidebar() {
   const { state, toggleSidebar } = useSidebar();
   const { config } = useAppConfig();
   const unreadMessages = useUnreadMessages();
-  const pendingUsers = usePendingUsers();
   const collapsed = state === "collapsed";
 
   const { canView } = useMenuPermissionsForRole(userRole);
@@ -248,27 +241,6 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 )}
 
-                {/* Usuários */}
-                {(userRole === "admin" || userRole === "administrativo" || userRole === "superintendente") &&
-                  canView("usuarios") && (
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <NavLink to="/usuarios" activeClassName="bg-primary text-primary-foreground">
-                          <div className="flex items-center justify-between w-full">
-                            <div className="flex items-center gap-2">
-                              <UserCircle className="h-4 w-4" />
-                              {!collapsed && <span>Usuários</span>}
-                            </div>
-                            {!collapsed && pendingUsers > 0 && (
-                              <Badge variant="destructive" className="ml-auto">
-                                {pendingUsers}
-                              </Badge>
-                            )}
-                          </div>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -361,30 +333,6 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 )}
 
-                {/* E-mails */}
-                {canView("emails") && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/emails" activeClassName="bg-primary text-primary-foreground">
-                        <Mail className="h-4 w-4" />
-                        {!collapsed && <span>E-mails</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-
-                {/* Comunicados */}
-                {canView("comunicados") && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <NavLink to="/comunicados" activeClassName="bg-primary text-primary-foreground">
-                        <Megaphone className="h-4 w-4" />
-                        {!collapsed && <span>Comunicados</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-
                 {/* Gestão */}
                 {canView("gestao") && (
                   <SidebarMenuItem>
@@ -394,18 +342,6 @@ export function AppSidebar() {
                         {!collapsed && <span>Gestão</span>}
                       </NavLink>
                     </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-
-                {/* Configurações */}
-                {canView("configuracoes") && (
-                  <SidebarMenuItem>
-                    <Link to="/configuracoes">
-                      <SidebarMenuButton>
-                        <Settings className="h-4 w-4" />
-                        {!collapsed && <span>Configurações</span>}
-                      </SidebarMenuButton>
-                    </Link>
                   </SidebarMenuItem>
                 )}
               </SidebarMenu>
