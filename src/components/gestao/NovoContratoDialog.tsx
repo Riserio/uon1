@@ -54,6 +54,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
   const [valorContrato, setValorContrato] = useState("");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
+  const [prazoAssinatura, setPrazoAssinatura] = useState("");
   const [corretoraId, setCorretoraId] = useState<string>("");
   const [conteudoHtml, setConteudoHtml] = useState("");
   const [signatarios, setSignatarios] = useState<Signatario[]>([]);
@@ -146,6 +147,14 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
 
       const conteudoProcessado = processarConteudo(conteudoHtml);
 
+      // Calculate link expiration date if prazoAssinatura is set
+      let linkExpiresAt: string | null = null;
+      if (prazoAssinatura) {
+        const expirationDate = new Date(prazoAssinatura);
+        expirationDate.setHours(23, 59, 59, 999);
+        linkExpiresAt = expirationDate.toISOString();
+      }
+
       // Criar contrato
       const { data: contrato, error: contratoError } = await supabase
         .from("contratos")
@@ -160,6 +169,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
           valor_contrato: valorContrato ? parseFloat(valorContrato) : null,
           data_inicio: dataInicio || null,
           data_fim: dataFim || null,
+          link_expires_at: linkExpiresAt,
           corretora_id: corretoraId || null,
           status: "rascunho",
           created_by: user.id,
@@ -239,6 +249,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
     setValorContrato("");
     setDataInicio("");
     setDataFim("");
+    setPrazoAssinatura("");
     setCorretoraId("");
     setConteudoHtml("");
     setSignatarios([]);
@@ -393,7 +404,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
           </div>
 
           {/* Valor e Datas */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Valor do Contrato</Label>
               <Input
@@ -405,7 +416,21 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
               />
             </div>
             <div className="space-y-2">
-              <Label>Data de Início</Label>
+              <Label>Prazo para Assinatura</Label>
+              <Input
+                type="date"
+                value={prazoAssinatura}
+                onChange={(e) => setPrazoAssinatura(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+              />
+              <p className="text-xs text-muted-foreground">
+                Após essa data, o link de assinatura expira
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Data de Início do Contrato</Label>
               <Input
                 type="date"
                 value={dataInicio}
@@ -413,7 +438,7 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
               />
             </div>
             <div className="space-y-2">
-              <Label>Data de Fim</Label>
+              <Label>Data de Fim do Contrato</Label>
               <Input
                 type="date"
                 value={dataFim}
