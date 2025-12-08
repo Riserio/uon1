@@ -23,6 +23,18 @@ const fetchImageDataUrl = async (url?: string): Promise<string | null> => {
   }
 };
 
+// Extrai URL da logo do HTML do contrato
+const extractLogoFromHtml = (html: string): string | null => {
+  if (!html) return null;
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  const img = doc.querySelector("img");
+  if (img && img.src) {
+    return img.src;
+  }
+  return null;
+};
+
 export async function downloadContratoPDF(contrato: any) {
   if (!contrato) {
     toast.error("Contrato não encontrado.");
@@ -32,8 +44,9 @@ export async function downloadContratoPDF(contrato: any) {
   const toastId = toast.loading("Gerando PDF — preservando layout. Aguarde...");
 
   try {
-    // Resolve logo as DataURL
-    const logoUrl = contrato?.logo_url || "/images/vangard-logo.png";
+    // Extrai logo do HTML do contrato ou usa fallback
+    const logoFromHtml = extractLogoFromHtml(contrato?.conteudo_html);
+    const logoUrl = logoFromHtml || contrato?.logo_url || "/images/vangard-logo.png";
     const logoDataUrl = await fetchImageDataUrl(logoUrl);
 
     // Build offscreen container with the content plus signatures
