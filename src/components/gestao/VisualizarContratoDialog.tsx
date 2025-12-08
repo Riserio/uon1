@@ -110,7 +110,7 @@ export default function VisualizarContratoDialog({
       const margin = 20;
       let yPosition = margin;
 
-      // Fallback header without image loading issues
+      // Header
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 30, 30);
@@ -121,220 +121,151 @@ export default function VisualizarContratoDialog({
       doc.text("vangardgestora.com.br", margin, yPosition + 16);
       yPosition += 30;
 
-    // Title with blue underline (like reference image)
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(41, 98, 255); // Blue color like reference
-    const titleText = contrato.titulo;
-    const titleWidth = doc.getTextWidth(titleText);
-    const titleX = (pageWidth - titleWidth) / 2;
-    doc.text(titleText, titleX, yPosition);
-    doc.setDrawColor(41, 98, 255);
-    doc.setLineWidth(0.3);
-    doc.line(titleX, yPosition + 2, titleX + titleWidth, yPosition + 2);
-    yPosition += 12;
-
-    // Contract description
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(60, 60, 60);
-    const descText = "Contrato de prestação de serviços para prestação de serviços de associação e proteção veicular (doravante \"Serviço\").";
-    const descLines = doc.splitTextToSize(descText, pageWidth - 2 * margin);
-    for (const line of descLines) {
-      doc.text(line, margin, yPosition);
-      yPosition += 5;
-    }
-    yPosition += 8;
-
-    // PARTES section
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(30, 30, 30);
-    doc.text("PARTES", margin, yPosition);
-    yPosition += 8;
-
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(60, 60, 60);
-    
-    // Contratante info - formatted like reference
-    const contratanteText = `CONTRATANTE: `;
-    doc.text(contratanteText, margin, yPosition);
-    doc.setFont("helvetica", "bold");
-    doc.text(contrato.contratante_nome || "-", margin + doc.getTextWidth(contratanteText), yPosition);
-    doc.setFont("helvetica", "normal");
-    const cpfText = `, portador(a) do CPF nº `;
-    doc.text(cpfText, margin + doc.getTextWidth(contratanteText) + doc.getTextWidth(contrato.contratante_nome || "-"), yPosition);
-    yPosition += 5;
-    
-    doc.setFont("helvetica", "bold");
-    doc.text(contrato.contratante_cpf || contrato.contratante_cnpj || "-", margin, yPosition);
-    doc.setFont("helvetica", "normal");
-    const emailText = `, e-mail `;
-    doc.text(emailText, margin + doc.getTextWidth(contrato.contratante_cpf || contrato.contratante_cnpj || "-"), yPosition);
-    doc.setFont("helvetica", "bold");
-    doc.text(contrato.contratante_email || "-", margin + doc.getTextWidth(contrato.contratante_cpf || contrato.contratante_cnpj || "-") + doc.getTextWidth(emailText), yPosition);
-    yPosition += 5;
-    
-    if (contrato.contratante_telefone) {
-      doc.setFont("helvetica", "normal");
-      doc.text("telefone ", margin, yPosition);
-      doc.setFont("helvetica", "bold");
-      doc.text(contrato.contratante_telefone, margin + doc.getTextWidth("telefone "), yPosition);
-      doc.setFont("helvetica", "normal");
-      doc.text(".", margin + doc.getTextWidth("telefone ") + doc.getTextWidth(contrato.contratante_telefone), yPosition);
-      yPosition += 5;
-    }
-    yPosition += 3;
-    
-    // Contratada info
-    doc.setFont("helvetica", "normal");
-    doc.text("CONTRATADA: ", margin, yPosition);
-    doc.setFont("helvetica", "bold");
-    doc.text("Vangard Gestora", margin + doc.getTextWidth("CONTRATADA: "), yPosition);
-    doc.setFont("helvetica", "normal");
-    doc.text(", com sede na Rua Jacuí, 1273 – Floresta, Belo Horizonte - MG,", margin + doc.getTextWidth("CONTRATADA: ") + doc.getTextWidth("Vangard Gestora"), yPosition);
-    yPosition += 5;
-    doc.text('doravante denominada simplesmente "VANGARD".', margin, yPosition);
-    yPosition += 12;
-
-    // Contract content with proper formatting
-    const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = contrato.conteudo_html;
-    
-    // Parse HTML content preserving some structure
-    const parseHtmlToPdfText = (html: string) => {
-      const div = document.createElement("div");
-      div.innerHTML = html;
-      
-      const sections: { type: 'heading' | 'text'; content: string }[] = [];
-      
-      div.querySelectorAll('h1, h2, h3, h4, p, div').forEach((el) => {
-        const text = el.textContent?.trim();
-        if (!text) return;
-        
-        if (['H1', 'H2', 'H3', 'H4'].includes(el.tagName) || text.match(/^CLÁUSULA \d+/)) {
-          sections.push({ type: 'heading', content: text });
-        } else {
-          sections.push({ type: 'text', content: text });
-        }
-      });
-      
-      return sections.length > 0 ? sections : [{ type: 'text' as const, content: div.textContent || '' }];
-    };
-    
-    const sections = parseHtmlToPdfText(contrato.conteudo_html);
-    
-    for (const section of sections) {
-      if (yPosition > pageHeight - 30) {
-        doc.addPage();
-        yPosition = margin;
-      }
-      
-      if (section.type === 'heading') {
-        yPosition += 5;
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(30, 30, 30);
-        doc.text(section.content, margin, yPosition);
-        yPosition += 7;
-      } else {
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(60, 60, 60);
-        const lines = doc.splitTextToSize(section.content, pageWidth - 2 * margin);
-        for (const line of lines) {
-          if (yPosition > pageHeight - 30) {
-            doc.addPage();
-            yPosition = margin;
-          }
-          doc.text(line, margin, yPosition);
-          yPosition += 5;
-        }
-      }
-    }
-
-    // Add signature footer
-    if (assinaturas.length > 0) {
-      // New page for signatures if needed
-      if (yPosition > pageHeight - 120) {
-        doc.addPage();
-        yPosition = margin;
-      }
-
-      yPosition += 15;
-      
-      // Signature section header
-      doc.setDrawColor(102, 51, 153);
-      doc.setLineWidth(0.5);
-      doc.line(margin, yPosition, pageWidth - margin, yPosition);
-      yPosition += 10;
-
+      // Title with blue underline
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(102, 51, 153);
-      doc.text("REGISTRO DE ASSINATURAS", margin, yPosition);
-      yPosition += 10;
-
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.setFont("helvetica", "normal");
-      doc.text("Este documento foi assinado digitalmente. As informações abaixo garantem a autenticidade das assinaturas.", margin, yPosition);
+      doc.setTextColor(41, 98, 255);
+      const titleText = contrato.titulo;
+      const titleWidth = doc.getTextWidth(titleText);
+      const titleX = (pageWidth - titleWidth) / 2;
+      doc.text(titleText, titleX, yPosition);
+      doc.setDrawColor(41, 98, 255);
+      doc.setLineWidth(0.3);
+      doc.line(titleX, yPosition + 2, titleX + titleWidth, yPosition + 2);
       yPosition += 12;
 
-      for (const assinatura of assinaturas) {
-        if (assinatura.status === "assinado" && assinatura.assinado_em) {
-          if (yPosition > pageHeight - 50) {
-            doc.addPage();
-            yPosition = margin;
-          }
+      // Contract description
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(60, 60, 60);
+      const descText = "Contrato de prestação de serviços para prestação de serviços de associação e proteção veicular (doravante \"Serviço\").";
+      const descLines = doc.splitTextToSize(descText, pageWidth - 2 * margin);
+      for (const line of descLines) {
+        doc.text(line, margin, yPosition);
+        yPosition += 5;
+      }
+      yPosition += 8;
 
-          // Box for each signature
-          doc.setDrawColor(230, 230, 230);
-          doc.setFillColor(250, 250, 250);
-          doc.roundedRect(margin, yPosition - 5, pageWidth - 2 * margin, 35, 3, 3, "FD");
+      // PARTES section
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 30, 30);
+      doc.text("PARTES", margin, yPosition);
+      yPosition += 8;
 
-          const dataAssinatura = format(new Date(assinatura.assinado_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
-          
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(11);
-          doc.setTextColor(0, 0, 0);
-          doc.text(`${assinatura.nome}`, margin + 5, yPosition + 3);
-          
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(9);
-          doc.setTextColor(80, 80, 80);
-          
-          const col1X = margin + 5;
-          const col2X = margin + 90;
-          
-          doc.text(`Data/Hora: ${dataAssinatura}`, col1X, yPosition + 12);
-          doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, col2X, yPosition + 12);
-          
-          doc.text(`Hash: ${assinatura.hash_documento?.substring(0, 40) || "N/A"}...`, col1X, yPosition + 20);
-          
-          if (assinatura.latitude && assinatura.longitude) {
-            doc.text(`Localização: ${assinatura.latitude.toFixed(6)}, ${assinatura.longitude.toFixed(6)}`, col1X, yPosition + 28);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(60, 60, 60);
+      
+      // Contratante info
+      doc.text(`CONTRATANTE: ${contrato.contratante_nome || "-"}`, margin, yPosition);
+      yPosition += 5;
+      doc.text(`CPF/CNPJ: ${contrato.contratante_cpf || contrato.contratante_cnpj || "-"}`, margin, yPosition);
+      yPosition += 5;
+      doc.text(`E-mail: ${contrato.contratante_email || "-"}`, margin, yPosition);
+      yPosition += 5;
+      if (contrato.contratante_telefone) {
+        doc.text(`Telefone: ${contrato.contratante_telefone}`, margin, yPosition);
+        yPosition += 5;
+      }
+      yPosition += 5;
+      
+      // Contratada info
+      doc.text("CONTRATADA: Vangard Gestora", margin, yPosition);
+      yPosition += 5;
+      doc.text("Rua Jacuí, 1273 – Floresta, Belo Horizonte - MG", margin, yPosition);
+      yPosition += 12;
+
+      // Contract content
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = contrato.conteudo_html;
+      const textContent = tempDiv.textContent || tempDiv.innerText || "";
+      
+      const contentLines = doc.splitTextToSize(textContent, pageWidth - 2 * margin);
+      for (const line of contentLines) {
+        if (yPosition > pageHeight - 30) {
+          doc.addPage();
+          yPosition = margin;
+        }
+        doc.text(line, margin, yPosition);
+        yPosition += 5;
+      }
+
+      // Add signature footer
+      if (assinaturas.length > 0) {
+        if (yPosition > pageHeight - 120) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        yPosition += 15;
+        
+        doc.setDrawColor(102, 51, 153);
+        doc.setLineWidth(0.5);
+        doc.line(margin, yPosition, pageWidth - margin, yPosition);
+        yPosition += 10;
+
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(102, 51, 153);
+        doc.text("REGISTRO DE ASSINATURAS", margin, yPosition);
+        yPosition += 10;
+
+        doc.setFontSize(9);
+        doc.setTextColor(100, 100, 100);
+        doc.setFont("helvetica", "normal");
+        doc.text("Este documento foi assinado digitalmente. As informações abaixo garantem a autenticidade das assinaturas.", margin, yPosition);
+        yPosition += 12;
+
+        for (const assinatura of assinaturas) {
+          if (assinatura.status === "assinado" && assinatura.assinado_em) {
+            if (yPosition > pageHeight - 50) {
+              doc.addPage();
+              yPosition = margin;
+            }
+
+            doc.setDrawColor(230, 230, 230);
+            doc.setFillColor(250, 250, 250);
+            doc.roundedRect(margin, yPosition - 5, pageWidth - 2 * margin, 35, 3, 3, "FD");
+
+            const dataAssinatura = format(new Date(assinatura.assinado_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
+            
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`${assinatura.nome}`, margin + 5, yPosition + 3);
+            
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(80, 80, 80);
+            
+            doc.text(`Data/Hora: ${dataAssinatura}`, margin + 5, yPosition + 12);
+            doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, margin + 90, yPosition + 12);
+            
+            doc.text(`Hash: ${assinatura.hash_documento?.substring(0, 40) || "N/A"}...`, margin + 5, yPosition + 20);
+            
+            if (assinatura.latitude && assinatura.longitude) {
+              doc.text(`Localização: ${assinatura.latitude.toFixed(6)}, ${assinatura.longitude.toFixed(6)}`, margin + 5, yPosition + 28);
+            }
+            
+            yPosition += 42;
           }
-          
-          yPosition += 42;
         }
       }
-    }
 
-    // Footer
-    yPosition = pageHeight - 15;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, yPosition - 5, pageWidth - margin, yPosition - 5);
-    doc.setFontSize(8);
-    doc.setTextColor(128, 128, 128);
-    doc.text(`Documento gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })} | Uon1Sign`, margin, yPosition);
+      // Footer
+      yPosition = pageHeight - 15;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, yPosition - 5, pageWidth - margin, yPosition - 5);
+      doc.setFontSize(8);
+      doc.setTextColor(128, 128, 128);
+      doc.text(`Documento gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })} | Uon1Sign`, margin, yPosition);
 
-    doc.save(`${contrato.numero}_${contrato.titulo.replace(/\s+/g, '_')}.pdf`);
-    toast.success("PDF baixado com sucesso!");
+      doc.save(`${contrato.numero}_${contrato.titulo.replace(/\s+/g, '_')}.pdf`);
+      toast.success("PDF baixado com sucesso!");
     } catch (error) {
       console.error("Erro ao gerar PDF:", error);
-      toast.error("Erro ao gerar PDF");
+      toast.error("Erro ao gerar PDF. Tente novamente.");
     }
   };
 
