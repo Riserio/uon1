@@ -20,10 +20,10 @@ import {
   XCircle,
   FileText,
   Copy,
-  ExternalLink,
   User,
   MessageCircle,
   Download,
+  Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
@@ -88,99 +88,212 @@ export default function VisualizarContratoDialog({
     window.open(whatsappUrl, "_blank");
   };
 
-  const downloadPDF = () => {
+  const sendEmail = () => {
+    if (!contrato.link_token) {
+      toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
+      return;
+    }
+    const link = `${window.location.origin}/contrato/${contrato.link_token}`;
+    const subject = encodeURIComponent(`Contrato para assinatura: ${contrato.titulo}`);
+    const body = encodeURIComponent(
+      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`
+    );
+    const mailtoUrl = `mailto:${contrato.contratante_email || ""}?subject=${subject}&body=${body}`;
+    window.open(mailtoUrl, "_blank");
+  };
+
+  const downloadPDF = async () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 20;
     let yPosition = margin;
 
-    // Title
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.text(contrato.titulo, margin, yPosition);
+    // Try to load logo
+    try {
+      const logoUrl = "/images/logo.png";
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      
+      await new Promise<void>((resolve) => {
+        img.onload = () => {
+          const logoWidth = 40;
+          const logoHeight = (img.height / img.width) * logoWidth;
+          doc.addImage(img, "PNG", margin, yPosition, logoWidth, logoHeight);
+          yPosition += logoHeight + 10;
+          resolve();
+        };
+        img.onerror = () => {
+          resolve(); // Continue without logo
+        };
+        img.src = logoUrl;
+      });
+    } catch (error) {
+      console.log("Logo not loaded:", error);
+    }
+
+    // Header line
+    doc.setDrawColor(102, 51, 153); // Purple
+    doc.setLineWidth(0.5);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
     yPosition += 10;
 
-    // Contract number
+    // Title
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(102, 51, 153);
+    doc.text(contrato.titulo, margin, yPosition);
+    yPosition += 8;
+
+    // Contract number and date
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
     doc.text(`Contrato nº ${contrato.numero}`, margin, yPosition);
-    yPosition += 15;
+    yPosition += 5;
+    doc.text(`Data de criação: ${format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, margin, yPosition);
+    yPosition += 10;
 
-    // Contract content (simplified - strip HTML)
-    doc.setFontSize(11);
+    // Separator
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 10;
+
+    // Contract parties info
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    doc.text("DADOS DO CONTRATO", margin, yPosition);
+    yPosition += 8;
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    
+    const contractInfo = [
+      ["Contratante:", contrato.contratante_nome || "-"],
+      ["CPF/CNPJ:", contrato.contratante_cpf || contrato.contratante_cnpj || "-"],
+      ["E-mail:", contrato.contratante_email || "-"],
+      ["Telefone:", contrato.contratante_telefone || "-"],
+      ["Valor:", contrato.valor_contrato ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(contrato.valor_contrato) : "-"],
+      ["Vigência:", `${contrato.data_inicio ? format(new Date(contrato.data_inicio), "dd/MM/yyyy") : "-"} a ${contrato.data_fim ? format(new Date(contrato.data_fim), "dd/MM/yyyy") : "-"}`],
+    ];
+
+    for (const [label, value] of contractInfo) {
+      doc.setFont("helvetica", "bold");
+      doc.text(label, margin, yPosition);
+      doc.setFont("helvetica", "normal");
+      doc.text(value, margin + 35, yPosition);
+      yPosition += 6;
+    }
+
+    yPosition += 10;
+
+    // Separator
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 10;
+
+    // Contract content
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    doc.text("CONTEÚDO DO CONTRATO", margin, yPosition);
+    yPosition += 10;
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    
+    // Parse HTML content to text
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = contrato.conteudo_html;
     const textContent = tempDiv.textContent || tempDiv.innerText || "";
     
-    const lines = doc.splitTextToSize(textContent, pageWidth - 2 * margin);
+    const lines = doc.splitTextToSize(textContent.trim(), pageWidth - 2 * margin);
     
     for (const line of lines) {
-      if (yPosition > pageHeight - 60) {
-        doc.addPage();
-        yPosition = margin;
-      }
-      doc.text(line, margin, yPosition);
-      yPosition += 6;
-    }
-
-    // Add signature footer
-    if (assinaturas.length > 0) {
-      // Ensure we have space for footer
       if (yPosition > pageHeight - 80) {
         doc.addPage();
         yPosition = margin;
       }
+      doc.text(line, margin, yPosition);
+      yPosition += 5;
+    }
 
-      yPosition += 10;
-      doc.setDrawColor(200, 200, 200);
+    // Add signature footer
+    if (assinaturas.length > 0) {
+      // New page for signatures if needed
+      if (yPosition > pageHeight - 120) {
+        doc.addPage();
+        yPosition = margin;
+      }
+
+      yPosition += 15;
+      
+      // Signature section header
+      doc.setDrawColor(102, 51, 153);
+      doc.setLineWidth(0.5);
       doc.line(margin, yPosition, pageWidth - margin, yPosition);
       yPosition += 10;
 
-      doc.setFontSize(12);
+      doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
-      doc.text("Registro de Assinaturas", margin, yPosition);
+      doc.setTextColor(102, 51, 153);
+      doc.text("REGISTRO DE ASSINATURAS", margin, yPosition);
       yPosition += 10;
 
       doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
       doc.setFont("helvetica", "normal");
+      doc.text("Este documento foi assinado digitalmente. As informações abaixo garantem a autenticidade das assinaturas.", margin, yPosition);
+      yPosition += 12;
 
       for (const assinatura of assinaturas) {
         if (assinatura.status === "assinado" && assinatura.assinado_em) {
-          if (yPosition > pageHeight - 30) {
+          if (yPosition > pageHeight - 50) {
             doc.addPage();
             yPosition = margin;
           }
 
+          // Box for each signature
+          doc.setDrawColor(230, 230, 230);
+          doc.setFillColor(250, 250, 250);
+          doc.roundedRect(margin, yPosition - 5, pageWidth - 2 * margin, 35, 3, 3, "FD");
+
           const dataAssinatura = format(new Date(assinatura.assinado_em), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
           
           doc.setFont("helvetica", "bold");
-          doc.text(`${assinatura.nome}`, margin, yPosition);
-          yPosition += 5;
+          doc.setFontSize(11);
+          doc.setTextColor(0, 0, 0);
+          doc.text(`${assinatura.nome}`, margin + 5, yPosition + 3);
           
           doc.setFont("helvetica", "normal");
-          doc.text(`Assinado em: ${dataAssinatura}`, margin, yPosition);
-          yPosition += 4;
-          doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, margin, yPosition);
-          yPosition += 4;
-          doc.text(`Hash: ${assinatura.hash_documento || "N/A"}`, margin, yPosition);
-          yPosition += 4;
+          doc.setFontSize(9);
+          doc.setTextColor(80, 80, 80);
+          
+          const col1X = margin + 5;
+          const col2X = margin + 90;
+          
+          doc.text(`Data/Hora: ${dataAssinatura}`, col1X, yPosition + 12);
+          doc.text(`IP: ${assinatura.ip_assinatura || "N/A"}`, col2X, yPosition + 12);
+          
+          doc.text(`Hash: ${assinatura.hash_documento?.substring(0, 40) || "N/A"}...`, col1X, yPosition + 20);
           
           if (assinatura.latitude && assinatura.longitude) {
-            doc.text(`Localização: ${assinatura.latitude.toFixed(6)}, ${assinatura.longitude.toFixed(6)}`, margin, yPosition);
-            yPosition += 4;
+            doc.text(`Localização: ${assinatura.latitude.toFixed(6)}, ${assinatura.longitude.toFixed(6)}`, col1X, yPosition + 28);
           }
           
-          yPosition += 6;
+          yPosition += 42;
         }
       }
-
-      // Document hash footer
-      yPosition += 5;
-      doc.setFontSize(8);
-      doc.setTextColor(128, 128, 128);
-      doc.text(`Documento gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}`, margin, yPosition);
     }
+
+    // Footer
+    yPosition = pageHeight - 15;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, yPosition - 5, pageWidth - margin, yPosition - 5);
+    doc.setFontSize(8);
+    doc.setTextColor(128, 128, 128);
+    doc.text(`Documento gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })} | Uon1Sign`, margin, yPosition);
 
     doc.save(`${contrato.numero}_${contrato.titulo.replace(/\s+/g, '_')}.pdf`);
     toast.success("PDF baixado com sucesso!");
@@ -230,6 +343,10 @@ export default function VisualizarContratoDialog({
                           <MessageCircle className="h-4 w-4 mr-2" />
                           WhatsApp
                         </Button>
+                        <Button variant="outline" size="sm" onClick={sendEmail} className="text-blue-600 hover:text-blue-700">
+                          <Mail className="h-4 w-4 mr-2" />
+                          E-mail
+                        </Button>
                       </>
                     )}
                   </div>
@@ -246,8 +363,8 @@ export default function VisualizarContratoDialog({
                     <p className="font-medium">{contrato.contratante_email || "-"}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">CPF:</span>
-                    <p className="font-medium">{contrato.contratante_cpf || "-"}</p>
+                    <span className="text-muted-foreground">CPF/CNPJ:</span>
+                    <p className="font-medium">{contrato.contratante_cpf || contrato.contratante_cnpj || "-"}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Valor:</span>

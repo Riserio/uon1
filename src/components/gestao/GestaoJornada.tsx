@@ -1,11 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -18,18 +17,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Clock, 
   MapPin, 
-  Camera, 
   LogIn, 
   LogOut, 
   Coffee,
   AlertTriangle,
-  CheckCircle2,
   Calendar,
-  Plus,
   Bell,
 } from "lucide-react";
 import { toast } from "sonner";
-import { format, startOfMonth, endOfMonth, parseISO, differenceInMinutes } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import ConfigurarAlertasDialog from "./ConfigurarAlertasDialog";
 
@@ -86,6 +82,20 @@ export default function GestaoJornada() {
     enabled: !!funcionarioId,
   });
 
+  // Get today's records for disabling buttons
+  const todayRecords = useMemo(() => {
+    if (!registros) return [];
+    const today = format(new Date(), "yyyy-MM-dd");
+    return registros.filter((r: any) => 
+      format(new Date(r.data_hora), "yyyy-MM-dd") === today
+    );
+  }, [registros]);
+
+  // Check which types have already been registered today
+  const registeredTypes = useMemo(() => {
+    return new Set(todayRecords.map((r: any) => r.tipo));
+  }, [todayRecords]);
+
   // Obter localização
   useEffect(() => {
     if (navigator.geolocation) {
@@ -121,6 +131,11 @@ export default function GestaoJornada() {
     mutationFn: async (tipo: string) => {
       if (!funcionarioId) throw new Error("Selecione um funcionário");
 
+      // Check if already registered today
+      if (registeredTypes.has(tipo)) {
+        throw new Error(`${tiposPonto.find(t => t.value === tipo)?.label} já foi registrado(a) hoje`);
+      }
+
       const { error } = await supabase.from("registros_ponto").insert({
         funcionario_id: funcionarioId,
         tipo,
@@ -128,7 +143,7 @@ export default function GestaoJornada() {
         latitude: location?.lat,
         longitude: location?.lng,
         endereco_aproximado: endereco,
-        ip: "", // Seria obtido via API externa
+        ip: "",
         user_agent: navigator.userAgent,
         dispositivo: /Mobile|Android|iPhone/i.test(navigator.userAgent) ? "mobile" : "desktop",
       });
@@ -230,16 +245,21 @@ export default function GestaoJornada() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {tiposPonto.map((tipo) => {
                     const Icon = tipo.icon;
+                    const isRegistered = registeredTypes.has(tipo.value);
                     return (
                       <Button
                         key={tipo.value}
                         variant="outline"
-                        className={`h-24 flex-col gap-2 ${tipo.color}`}
+                        className={`h-24 flex-col gap-2 ${tipo.color} ${isRegistered ? 'opacity-50 cursor-not-allowed' : ''}`}
                         onClick={() => registrarPonto.mutate(tipo.value)}
-                        disabled={registrarPonto.isPending}
+                        disabled={registrarPonto.isPending || isRegistered}
+                        title={isRegistered ? `${tipo.label} já registrado(a) hoje` : `Registrar ${tipo.label}`}
                       >
                         <Icon className="h-8 w-8" />
                         <span>{tipo.label}</span>
+                        {isRegistered && (
+                          <span className="text-xs text-muted-foreground">Registrado</span>
+                        )}
                       </Button>
                     );
                   })}
@@ -248,9 +268,7 @@ export default function GestaoJornada() {
                 <div className="mt-6 p-4 bg-muted/50 rounded-lg">
                   <h4 className="font-medium mb-2">Últimos registros de hoje</h4>
                   <div className="space-y-2">
-                    {registros?.filter((r: any) => 
-                      format(new Date(r.data_hora), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
-                    ).slice(0, 4).map((registro: any) => {
+                    {todayRecords.slice(0, 4).map((registro: any) => {
                       const tipo = tiposPonto.find((t) => t.value === registro.tipo);
                       const Icon = tipo?.icon || Clock;
                       return (
@@ -263,14 +281,12 @@ export default function GestaoJornada() {
                             <span className="capitalize">{tipo?.label}</span>
                           </div>
                           <span className="text-muted-foreground">
-                            {format(new Date(registro.data_hora), "HH:mm")}
+                            {format(new Date(registro.data_hora), "dd/MM HH:mm")}
                           </span>
                         </div>
                       );
                     })}
-                    {registros?.filter((r: any) => 
-                      format(new Date(r.data_hora), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
-                    ).length === 0 && (
+                    {todayRecords.length === 0 && (
                       <p className="text-muted-foreground text-sm text-center py-2">
                         Nenhum registro hoje
                       </p>
@@ -346,10 +362,12 @@ export default function GestaoJornada() {
                                 className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm"
                               >
                                 <Icon className={`h-4 w-4 ${tipo?.color}`} />
-                                <span>{format(new Date(registro.data_hora), "HH:mm")}</span>
-                                <span className="text-muted-foreground capitalize text-xs">
-                                  {tipo?.label}
-                                </span>
+                                <div className="flex flex-col">
+                                  <span>{format(new Date(registro.data_hora), "dd/MM HH:mm")}</span>
+                                  <span className="text-muted-foreground capitalize text-xs">
+                                    {tipo?.label}
+                                  </span>
+                                </div>
                               </div>
                             );
                           })}
