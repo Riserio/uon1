@@ -27,6 +27,9 @@ import {
   FileSpreadsheet,
   FileText,
   AlertCircle,
+  Mail,
+  MessageCircle,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, parseISO, differenceInMinutes, getDaysInMonth, getDay, isWeekend } from "date-fns";
@@ -43,17 +46,88 @@ const tiposPonto = [
   { value: "saida", label: "Saída", icon: LogOut, color: "text-red-600" },
 ];
 
-// Calculate business days in a month
+// Feriados de Belo Horizonte, MG (nacionais, estaduais e municipais)
+const getFeriadosBH = (year: number): string[] => {
+  const feriados = [
+    // Feriados Nacionais Fixos
+    `${year}-01-01`, // Confraternização Universal
+    `${year}-04-21`, // Tiradentes
+    `${year}-05-01`, // Dia do Trabalho
+    `${year}-09-07`, // Independência
+    `${year}-10-12`, // Nossa Senhora Aparecida
+    `${year}-11-02`, // Finados
+    `${year}-11-15`, // Proclamação da República
+    `${year}-12-25`, // Natal
+    // Feriados Estaduais de Minas Gerais
+    `${year}-04-21`, // Data Magna de Minas Gerais (mesmo dia de Tiradentes)
+    // Feriados Municipais de Belo Horizonte
+    `${year}-08-15`, // Assunção de Nossa Senhora
+    `${year}-12-08`, // Imaculada Conceição (Padroeira de BH)
+  ];
+  
+  // Feriados móveis (Páscoa-based) - cálculo aproximado
+  const calcularPascoa = (ano: number) => {
+    const a = ano % 19;
+    const b = Math.floor(ano / 100);
+    const c = ano % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const mes = Math.floor((h + l - 7 * m + 114) / 31);
+    const dia = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(ano, mes - 1, dia);
+  };
+
+  const pascoa = calcularPascoa(year);
+  const carnaval = new Date(pascoa);
+  carnaval.setDate(pascoa.getDate() - 47);
+  const carnaval2 = new Date(pascoa);
+  carnaval2.setDate(pascoa.getDate() - 46);
+  const sextaSanta = new Date(pascoa);
+  sextaSanta.setDate(pascoa.getDate() - 2);
+  const corpusChristi = new Date(pascoa);
+  corpusChristi.setDate(pascoa.getDate() + 60);
+
+  const formatDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  
+  feriados.push(
+    formatDate(carnaval),      // Segunda de Carnaval
+    formatDate(carnaval2),     // Terça de Carnaval
+    formatDate(sextaSanta),    // Sexta-feira Santa
+    formatDate(corpusChristi), // Corpus Christi
+  );
+
+  return feriados;
+};
+
+// Calculate business days in a month (excluding weekends and BH holidays)
 const getBusinessDaysInMonth = (year: number, month: number): number => {
   const daysInMonth = getDaysInMonth(new Date(year, month - 1));
+  const feriadosBH = getFeriadosBH(year);
   let businessDays = 0;
+  
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(year, month - 1, day);
-    if (!isWeekend(date)) {
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    
+    if (!isWeekend(date) && !feriadosBH.includes(dateStr)) {
       businessDays++;
     }
   }
   return businessDays;
+};
+
+// Format hours as "Xh Ym"
+const formatHoursMinutes = (totalHours: number): string => {
+  const hours = Math.floor(totalHours);
+  const minutes = Math.round((totalHours - hours) * 60);
+  return `${hours}h${minutes.toString().padStart(2, '0')}m`;
 };
 
 export default function GestaoJornada() {
@@ -381,6 +455,55 @@ export default function GestaoJornada() {
     toast.success("Excel exportado com sucesso!");
   };
 
+  // Enviar recibo de ponto por WhatsApp
+  const enviarReciboWhatsApp = () => {
+    if (!funcionarioSelecionado || todayRecords.length === 0) {
+      toast.error("Nenhum registro de ponto hoje para enviar");
+      return;
+    }
+
+    const registrosTexto = todayRecords
+      .sort((a: any, b: any) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime())
+      .map((r: any) => {
+        const tipo = tiposPonto.find(t => t.value === r.tipo);
+        return `• ${tipo?.label}: ${format(new Date(r.data_hora), "HH:mm")}`;
+      })
+      .join("\n");
+
+    const mensagem = `*RECIBO DE PONTO*\n\nColaborador: ${funcionarioSelecionado.nome}\nData: ${format(new Date(), "dd/MM/yyyy")}\n\n${registrosTexto}\n\n_Registro gerado automaticamente pelo sistema._`;
+
+    const phone = funcionarioSelecionado.telefone?.replace(/\D/g, "") || "";
+    const whatsappUrl = phone 
+      ? `https://web.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(mensagem)}`
+      : `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
+    
+    window.open(whatsappUrl, "_blank");
+    toast.success("Abrindo WhatsApp...");
+  };
+
+  // Enviar recibo de ponto por Email
+  const enviarReciboEmail = () => {
+    if (!funcionarioSelecionado || todayRecords.length === 0) {
+      toast.error("Nenhum registro de ponto hoje para enviar");
+      return;
+    }
+
+    const registrosTexto = todayRecords
+      .sort((a: any, b: any) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime())
+      .map((r: any) => {
+        const tipo = tiposPonto.find(t => t.value === r.tipo);
+        return `• ${tipo?.label}: ${format(new Date(r.data_hora), "HH:mm")}`;
+      })
+      .join("\n");
+
+    const subject = `Recibo de Ponto - ${format(new Date(), "dd/MM/yyyy")} - ${funcionarioSelecionado.nome}`;
+    const body = `RECIBO DE PONTO\n\nColaborador: ${funcionarioSelecionado.nome}\nData: ${format(new Date(), "dd/MM/yyyy")}\n\n${registrosTexto}\n\nRegistro gerado automaticamente pelo sistema.`;
+
+    const mailtoUrl = `mailto:${funcionarioSelecionado.email || ""}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(mailtoUrl, "_blank");
+    toast.success("Abrindo email...");
+  };
+
   return (
     <div className="space-y-6">
       {/* Seleção de Funcionário */}
@@ -479,7 +602,31 @@ export default function GestaoJornada() {
                 </div>
 
                 <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-                  <h4 className="font-medium mb-2">Últimos registros de hoje</h4>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium">Últimos registros de hoje</h4>
+                    {todayRecords.length > 0 && (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={enviarReciboWhatsApp}
+                          className="text-green-600 hover:text-green-700"
+                        >
+                          <MessageCircle className="h-4 w-4 mr-1" />
+                          WhatsApp
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={enviarReciboEmail}
+                          className="text-blue-600 hover:text-blue-700"
+                        >
+                          <Mail className="h-4 w-4 mr-1" />
+                          E-mail
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     {todayRecords.slice(0, 4).map((registro: any) => {
                       const tipo = tiposPonto.find((t) => t.value === registro.tipo);
@@ -612,7 +759,7 @@ export default function GestaoJornada() {
                 <Card>
                   <CardHeader className="pb-2">
                     <CardDescription>Horas Trabalhadas</CardDescription>
-                    <CardTitle className="text-2xl">{detailedStats?.totalHoursWorked.toFixed(1) || "0"}h</CardTitle>
+                    <CardTitle className="text-2xl">{detailedStats ? formatHoursMinutes(detailedStats.totalHoursWorked) : "0h00m"}</CardTitle>
                   </CardHeader>
                 </Card>
                 <Card>
@@ -704,7 +851,7 @@ export default function GestaoJornada() {
                               <span className="font-medium">{day.saida || "-"}</span>
                             </div>
                             <div className="text-right min-w-[80px]">
-                              <span className="font-medium">{day.hoursWorked.toFixed(1)}h</span>
+                              <span className="font-medium">{formatHoursMinutes(day.hoursWorked)}</span>
                             </div>
                             {day.isLate && (
                               <Badge variant="destructive" className="text-xs">

@@ -103,56 +103,23 @@ export default function VisualizarContratoDialog({
   };
 
   const downloadPDF = async () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 20;
-    let yPosition = margin;
-
-    // Load Vangard logo
     try {
-      const logoUrl = "/images/vangard-logo.png";
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      
-      await new Promise<void>((resolve) => {
-        img.onload = () => {
-          const logoWidth = 50;
-          const logoHeight = (img.height / img.width) * logoWidth;
-          doc.addImage(img, "PNG", margin, yPosition, logoWidth, logoHeight);
-          
-          // Company info next to logo
-          doc.setFontSize(12);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(30, 30, 30);
-          doc.text("Vangard Gestora", margin + logoWidth + 10, yPosition + 8);
-          doc.setFontSize(9);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("vangardgestora.com.br", margin + logoWidth + 10, yPosition + 14);
-          
-          yPosition += logoHeight + 15;
-          resolve();
-        };
-        img.onerror = () => {
-          // Fallback: text header
-          doc.setFontSize(16);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(30, 30, 30);
-          doc.text("Vangard Gestora", margin, yPosition + 10);
-          doc.setFontSize(9);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("vangardgestora.com.br", margin, yPosition + 16);
-          yPosition += 25;
-          resolve();
-        };
-        img.src = logoUrl;
-      });
-    } catch (error) {
-      console.log("Logo not loaded:", error);
-      yPosition += 10;
-    }
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      let yPosition = margin;
+
+      // Fallback header without image loading issues
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 30, 30);
+      doc.text("Vangard Gestora", margin, yPosition + 10);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 100, 100);
+      doc.text("vangardgestora.com.br", margin, yPosition + 16);
+      yPosition += 30;
 
     // Title with blue underline (like reference image)
     doc.setFontSize(14);
@@ -365,6 +332,10 @@ export default function VisualizarContratoDialog({
 
     doc.save(`${contrato.numero}_${contrato.titulo.replace(/\s+/g, '_')}.pdf`);
     toast.success("PDF baixado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      toast.error("Erro ao gerar PDF");
+    }
   };
 
   return (
