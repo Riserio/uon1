@@ -109,114 +109,182 @@ export default function VisualizarContratoDialog({
     const margin = 20;
     let yPosition = margin;
 
-    // Try to load logo
+    // Load Vangard logo
     try {
-      const logoUrl = "/images/logo.png";
+      const logoUrl = "/images/vangard-logo.png";
       const img = new Image();
       img.crossOrigin = "anonymous";
       
       await new Promise<void>((resolve) => {
         img.onload = () => {
-          const logoWidth = 40;
+          const logoWidth = 50;
           const logoHeight = (img.height / img.width) * logoWidth;
           doc.addImage(img, "PNG", margin, yPosition, logoWidth, logoHeight);
-          yPosition += logoHeight + 10;
+          
+          // Company info next to logo
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 30, 30);
+          doc.text("Vangard Gestora", margin + logoWidth + 10, yPosition + 8);
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(100, 100, 100);
+          doc.text("vangardgestora.com.br", margin + logoWidth + 10, yPosition + 14);
+          
+          yPosition += logoHeight + 15;
           resolve();
         };
         img.onerror = () => {
-          resolve(); // Continue without logo
+          // Fallback: text header
+          doc.setFontSize(16);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 30, 30);
+          doc.text("Vangard Gestora", margin, yPosition + 10);
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(100, 100, 100);
+          doc.text("vangardgestora.com.br", margin, yPosition + 16);
+          yPosition += 25;
+          resolve();
         };
         img.src = logoUrl;
       });
     } catch (error) {
       console.log("Logo not loaded:", error);
+      yPosition += 10;
     }
 
-    // Header line
-    doc.setDrawColor(102, 51, 153); // Purple
-    doc.setLineWidth(0.5);
-    doc.line(margin, yPosition, pageWidth - margin, yPosition);
-    yPosition += 10;
-
-    // Title
-    doc.setFontSize(18);
+    // Title with blue underline (like reference image)
+    doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(102, 51, 153);
-    doc.text(contrato.titulo, margin, yPosition);
-    yPosition += 8;
+    doc.setTextColor(41, 98, 255); // Blue color like reference
+    const titleText = contrato.titulo;
+    const titleWidth = doc.getTextWidth(titleText);
+    const titleX = (pageWidth - titleWidth) / 2;
+    doc.text(titleText, titleX, yPosition);
+    doc.setDrawColor(41, 98, 255);
+    doc.setLineWidth(0.3);
+    doc.line(titleX, yPosition + 2, titleX + titleWidth, yPosition + 2);
+    yPosition += 12;
 
-    // Contract number and date
+    // Contract description
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Contrato nº ${contrato.numero}`, margin, yPosition);
+    doc.setTextColor(60, 60, 60);
+    const descText = "Contrato de prestação de serviços para prestação de serviços de associação e proteção veicular (doravante \"Serviço\").";
+    const descLines = doc.splitTextToSize(descText, pageWidth - 2 * margin);
+    for (const line of descLines) {
+      doc.text(line, margin, yPosition);
+      yPosition += 5;
+    }
+    yPosition += 8;
+
+    // PARTES section
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 30, 30);
+    doc.text("PARTES", margin, yPosition);
+    yPosition += 8;
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(60, 60, 60);
+    
+    // Contratante info - formatted like reference
+    const contratanteText = `CONTRATANTE: `;
+    doc.text(contratanteText, margin, yPosition);
+    doc.setFont("helvetica", "bold");
+    doc.text(contrato.contratante_nome || "-", margin + doc.getTextWidth(contratanteText), yPosition);
+    doc.setFont("helvetica", "normal");
+    const cpfText = `, portador(a) do CPF nº `;
+    doc.text(cpfText, margin + doc.getTextWidth(contratanteText) + doc.getTextWidth(contrato.contratante_nome || "-"), yPosition);
     yPosition += 5;
-    doc.text(`Data de criação: ${format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, margin, yPosition);
-    yPosition += 10;
-
-    // Separator
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, yPosition, pageWidth - margin, yPosition);
-    yPosition += 10;
-
-    // Contract parties info
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text("DADOS DO CONTRATO", margin, yPosition);
-    yPosition += 8;
-
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
     
-    const contractInfo = [
-      ["Contratante:", contrato.contratante_nome || "-"],
-      ["CPF/CNPJ:", contrato.contratante_cpf || contrato.contratante_cnpj || "-"],
-      ["E-mail:", contrato.contratante_email || "-"],
-      ["Telefone:", contrato.contratante_telefone || "-"],
-      ["Valor:", contrato.valor_contrato ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(contrato.valor_contrato) : "-"],
-      ["Vigência:", `${contrato.data_inicio ? format(new Date(contrato.data_inicio), "dd/MM/yyyy") : "-"} a ${contrato.data_fim ? format(new Date(contrato.data_fim), "dd/MM/yyyy") : "-"}`],
-    ];
-
-    for (const [label, value] of contractInfo) {
-      doc.setFont("helvetica", "bold");
-      doc.text(label, margin, yPosition);
+    doc.setFont("helvetica", "bold");
+    doc.text(contrato.contratante_cpf || contrato.contratante_cnpj || "-", margin, yPosition);
+    doc.setFont("helvetica", "normal");
+    const emailText = `, e-mail `;
+    doc.text(emailText, margin + doc.getTextWidth(contrato.contratante_cpf || contrato.contratante_cnpj || "-"), yPosition);
+    doc.setFont("helvetica", "bold");
+    doc.text(contrato.contratante_email || "-", margin + doc.getTextWidth(contrato.contratante_cpf || contrato.contratante_cnpj || "-") + doc.getTextWidth(emailText), yPosition);
+    yPosition += 5;
+    
+    if (contrato.contratante_telefone) {
       doc.setFont("helvetica", "normal");
-      doc.text(value, margin + 35, yPosition);
-      yPosition += 6;
+      doc.text("telefone ", margin, yPosition);
+      doc.setFont("helvetica", "bold");
+      doc.text(contrato.contratante_telefone, margin + doc.getTextWidth("telefone "), yPosition);
+      doc.setFont("helvetica", "normal");
+      doc.text(".", margin + doc.getTextWidth("telefone ") + doc.getTextWidth(contrato.contratante_telefone), yPosition);
+      yPosition += 5;
     }
-
-    yPosition += 10;
-
-    // Separator
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, yPosition, pageWidth - margin, yPosition);
-    yPosition += 10;
-
-    // Contract content
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text("CONTEÚDO DO CONTRATO", margin, yPosition);
-    yPosition += 10;
-
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
+    yPosition += 3;
     
-    // Parse HTML content to text
+    // Contratada info
+    doc.setFont("helvetica", "normal");
+    doc.text("CONTRATADA: ", margin, yPosition);
+    doc.setFont("helvetica", "bold");
+    doc.text("Vangard Gestora", margin + doc.getTextWidth("CONTRATADA: "), yPosition);
+    doc.setFont("helvetica", "normal");
+    doc.text(", com sede na Rua Jacuí, 1273 – Floresta, Belo Horizonte - MG,", margin + doc.getTextWidth("CONTRATADA: ") + doc.getTextWidth("Vangard Gestora"), yPosition);
+    yPosition += 5;
+    doc.text('doravante denominada simplesmente "VANGARD".', margin, yPosition);
+    yPosition += 12;
+
+    // Contract content with proper formatting
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = contrato.conteudo_html;
-    const textContent = tempDiv.textContent || tempDiv.innerText || "";
     
-    const lines = doc.splitTextToSize(textContent.trim(), pageWidth - 2 * margin);
+    // Parse HTML content preserving some structure
+    const parseHtmlToPdfText = (html: string) => {
+      const div = document.createElement("div");
+      div.innerHTML = html;
+      
+      const sections: { type: 'heading' | 'text'; content: string }[] = [];
+      
+      div.querySelectorAll('h1, h2, h3, h4, p, div').forEach((el) => {
+        const text = el.textContent?.trim();
+        if (!text) return;
+        
+        if (['H1', 'H2', 'H3', 'H4'].includes(el.tagName) || text.match(/^CLÁUSULA \d+/)) {
+          sections.push({ type: 'heading', content: text });
+        } else {
+          sections.push({ type: 'text', content: text });
+        }
+      });
+      
+      return sections.length > 0 ? sections : [{ type: 'text' as const, content: div.textContent || '' }];
+    };
     
-    for (const line of lines) {
-      if (yPosition > pageHeight - 80) {
+    const sections = parseHtmlToPdfText(contrato.conteudo_html);
+    
+    for (const section of sections) {
+      if (yPosition > pageHeight - 30) {
         doc.addPage();
         yPosition = margin;
       }
-      doc.text(line, margin, yPosition);
-      yPosition += 5;
+      
+      if (section.type === 'heading') {
+        yPosition += 5;
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(30, 30, 30);
+        doc.text(section.content, margin, yPosition);
+        yPosition += 7;
+      } else {
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(60, 60, 60);
+        const lines = doc.splitTextToSize(section.content, pageWidth - 2 * margin);
+        for (const line of lines) {
+          if (yPosition > pageHeight - 30) {
+            doc.addPage();
+            yPosition = margin;
+          }
+          doc.text(line, margin, yPosition);
+          yPosition += 5;
+        }
+      }
     }
 
     // Add signature footer

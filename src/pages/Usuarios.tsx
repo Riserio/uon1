@@ -134,7 +134,9 @@ export default function Usuarios() {
   } | null>(null);
 
   const [logs, setLogs] = useState<UserLog[]>([]);
-
+  const [isFuncionario, setIsFuncionario] = useState(false);
+  const [showFuncionarioPrompt, setShowFuncionarioPrompt] = useState(false);
+  const [createdFuncionarioId, setCreatedFuncionarioId] = useState<string | null>(null);
   const filteredProfiles = useMemo(() => {
     if (!searchTerm) return profiles;
     const term = searchTerm.toLowerCase();
@@ -397,10 +399,37 @@ export default function Usuarios() {
 
         const createdUserId = result.userId || result.user?.id || null;
 
-        toast.success(`Usuário criado! Senha temporária: ${tempPassword}`);
-        await logUserAction("create", createdUserId, { nome: validatedData.nome, role: selectedRole });
+        // Se marcou como funcionário, criar registro de funcionário
+        if (isFuncionario && createdUserId) {
+          const { data: funcionarioData, error: funcionarioError } = await supabase
+            .from("funcionarios")
+            .insert({
+              profile_id: createdUserId,
+              nome: validatedData.nome,
+              email: validatedData.email,
+              telefone: formData.telefone || null,
+              cargo: formData.cargo || null,
+              cpf: formData.cpf_cnpj || null,
+              created_by: user.id,
+            })
+            .select()
+            .single();
 
-        setDialogOpen(false);
+          if (funcionarioError) {
+            console.error("Erro ao criar funcionário:", funcionarioError);
+            toast.warning("Usuário criado, mas houve erro ao criar registro de funcionário");
+          } else {
+            setCreatedFuncionarioId(funcionarioData.id);
+            setShowFuncionarioPrompt(true);
+          }
+        }
+
+        toast.success(`Usuário criado! Senha temporária: ${tempPassword}`);
+        await logUserAction("create", createdUserId, { nome: validatedData.nome, role: selectedRole, isFuncionario });
+
+        if (!isFuncionario) {
+          setDialogOpen(false);
+        }
         fetchProfiles();
         fetchUserRoles();
       } catch (error) {
@@ -584,6 +613,9 @@ export default function Usuarios() {
       setSelectedRole("comercial");
       setSelectedEquipes([]);
       setTempPassword("");
+      setIsFuncionario(false);
+      setShowFuncionarioPrompt(false);
+      setCreatedFuncionarioId(null);
     }
     setDialogOpen(true);
   };
@@ -970,6 +1002,25 @@ export default function Usuarios() {
                               <SelectItem value="parceiro">Parceiro (Acesso BI)</SelectItem>
                             </SelectContent>
                           </Select>
+                        </div>
+                        
+                        {/* Flag Funcionário */}
+                        <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                          <input
+                            type="checkbox"
+                            id="is_funcionario"
+                            checked={isFuncionario}
+                            onChange={(e) => setIsFuncionario(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <div className="flex-1">
+                            <Label htmlFor="is_funcionario" className="text-sm font-medium cursor-pointer">
+                              Este usuário é funcionário
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Se marcado, será criado um registro de funcionário automaticamente
+                            </p>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -2119,6 +2170,46 @@ export default function Usuarios() {
           open={roleMenuPermissionsDialogOpen}
           onOpenChange={setRoleMenuPermissionsDialogOpen}
         />
+
+        {/* Dialog para completar dados do funcionário */}
+        <Dialog open={showFuncionarioPrompt} onOpenChange={(open) => {
+          setShowFuncionarioPrompt(open);
+          if (!open) {
+            setDialogOpen(false);
+            setIsFuncionario(false);
+            setCreatedFuncionarioId(null);
+          }
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Funcionário criado com sucesso!</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-muted-foreground">
+                O registro de funcionário foi criado. Deseja completar as informações de jornada, endereço e dados bancários agora?
+              </p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => {
+                setShowFuncionarioPrompt(false);
+                setDialogOpen(false);
+                setIsFuncionario(false);
+                setCreatedFuncionarioId(null);
+              }}>
+                Depois
+              </Button>
+              <Button onClick={() => {
+                setShowFuncionarioPrompt(false);
+                setDialogOpen(false);
+                setIsFuncionario(false);
+                // Navigate to Gestão > Funcionários
+                window.location.href = '/gestao?tab=funcionarios';
+              }}>
+                Completar Agora
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </Tabs>
     </div>
   );

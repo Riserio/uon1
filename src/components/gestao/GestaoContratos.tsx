@@ -12,7 +12,6 @@ import {
   FileText, 
   Send, 
   Eye, 
-  MoreHorizontal,
   CheckCircle2,
   Clock,
   XCircle,
@@ -174,106 +173,140 @@ export default function GestaoContratos() {
     const margin = 20;
     let yPosition = margin;
 
-    // Try to load logo
+    // Load Vangard logo
     try {
-      const logoUrl = "/images/logo.png";
+      const logoUrl = "/images/vangard-logo.png";
       const img = new Image();
       img.crossOrigin = "anonymous";
       
       await new Promise<void>((resolve) => {
         img.onload = () => {
-          const logoWidth = 40;
+          const logoWidth = 50;
           const logoHeight = (img.height / img.width) * logoWidth;
           doc.addImage(img, "PNG", margin, yPosition, logoWidth, logoHeight);
-          yPosition += logoHeight + 10;
+          
+          // Company info next to logo
+          doc.setFontSize(12);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 30, 30);
+          doc.text("Vangard Gestora", margin + logoWidth + 10, yPosition + 8);
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(100, 100, 100);
+          doc.text("vangardgestora.com.br", margin + logoWidth + 10, yPosition + 14);
+          
+          yPosition += logoHeight + 15;
           resolve();
         };
         img.onerror = () => {
+          doc.setFontSize(16);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 30, 30);
+          doc.text("Vangard Gestora", margin, yPosition + 10);
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(100, 100, 100);
+          doc.text("vangardgestora.com.br", margin, yPosition + 16);
+          yPosition += 25;
           resolve();
         };
         img.src = logoUrl;
       });
     } catch (error) {
       console.log("Logo not loaded:", error);
+      yPosition += 10;
     }
 
-    // Header line
-    doc.setDrawColor(102, 51, 153);
-    doc.setLineWidth(0.5);
-    doc.line(margin, yPosition, pageWidth - margin, yPosition);
-    yPosition += 10;
-
-    // Title
-    doc.setFontSize(18);
+    // Title with blue underline
+    doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(102, 51, 153);
-    doc.text(contrato.titulo, margin, yPosition);
-    yPosition += 8;
+    doc.setTextColor(41, 98, 255);
+    const titleText = contrato.titulo;
+    const titleWidth = doc.getTextWidth(titleText);
+    const titleX = (pageWidth - titleWidth) / 2;
+    doc.text(titleText, titleX, yPosition);
+    doc.setDrawColor(41, 98, 255);
+    doc.setLineWidth(0.3);
+    doc.line(titleX, yPosition + 2, titleX + titleWidth, yPosition + 2);
+    yPosition += 15;
 
-    // Contract number
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Contrato nº ${contrato.numero}`, margin, yPosition);
-    yPosition += 5;
-    doc.text(`Data de criação: ${format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, margin, yPosition);
-    yPosition += 10;
-
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, yPosition, pageWidth - margin, yPosition);
-    yPosition += 10;
-
-    // Contract parties
-    doc.setFontSize(12);
+    // PARTES section
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text("DADOS DO CONTRATO", margin, yPosition);
+    doc.setTextColor(30, 30, 30);
+    doc.text("PARTES", margin, yPosition);
     yPosition += 8;
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
+    doc.setTextColor(60, 60, 60);
     
-    const contractInfo = [
-      ["Contratante:", contrato.contratante_nome || "-"],
-      ["CPF/CNPJ:", contrato.contratante_cpf || contrato.contratante_cnpj || "-"],
-      ["E-mail:", contrato.contratante_email || "-"],
-      ["Valor:", contrato.valor_contrato ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(contrato.valor_contrato) : "-"],
-    ];
-
-    for (const [label, value] of contractInfo) {
-      doc.setFont("helvetica", "bold");
-      doc.text(label, margin, yPosition);
-      doc.setFont("helvetica", "normal");
-      doc.text(value, margin + 35, yPosition);
-      yPosition += 6;
-    }
-
-    yPosition += 10;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, yPosition, pageWidth - margin, yPosition);
-    yPosition += 10;
-
-    // Content
-    doc.setFontSize(12);
+    // Contratante
+    doc.text("CONTRATANTE: ", margin, yPosition);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text("CONTEÚDO DO CONTRATO", margin, yPosition);
-    yPosition += 10;
-
-    doc.setFontSize(10);
+    doc.text(contrato.contratante_nome || "-", margin + doc.getTextWidth("CONTRATANTE: "), yPosition);
+    yPosition += 5;
     doc.setFont("helvetica", "normal");
+    doc.text(`CPF/CNPJ: ${contrato.contratante_cpf || contrato.contratante_cnpj || "-"} | E-mail: ${contrato.contratante_email || "-"}`, margin, yPosition);
+    yPosition += 8;
+    
+    // Contratada
+    doc.text("CONTRATADA: ", margin, yPosition);
+    doc.setFont("helvetica", "bold");
+    doc.text("Vangard Gestora", margin + doc.getTextWidth("CONTRATADA: "), yPosition);
+    yPosition += 12;
+
+    // Contract content with formatting
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = contrato.conteudo_html;
-    const textContent = tempDiv.textContent || tempDiv.innerText || "";
-    const lines = doc.splitTextToSize(textContent.trim(), pageWidth - 2 * margin);
     
-    for (const line of lines) {
-      if (yPosition > pageHeight - 80) {
+    const parseHtmlToPdfText = (html: string) => {
+      const div = document.createElement("div");
+      div.innerHTML = html;
+      const sections: { type: 'heading' | 'text'; content: string }[] = [];
+      
+      div.querySelectorAll('h1, h2, h3, h4, p, div').forEach((el) => {
+        const text = el.textContent?.trim();
+        if (!text) return;
+        if (['H1', 'H2', 'H3', 'H4'].includes(el.tagName) || text.match(/^CLÁUSULA \d+/)) {
+          sections.push({ type: 'heading', content: text });
+        } else {
+          sections.push({ type: 'text', content: text });
+        }
+      });
+      
+      return sections.length > 0 ? sections : [{ type: 'text' as const, content: div.textContent || '' }];
+    };
+    
+    const sections = parseHtmlToPdfText(contrato.conteudo_html);
+    
+    for (const section of sections) {
+      if (yPosition > pageHeight - 30) {
         doc.addPage();
         yPosition = margin;
       }
-      doc.text(line, margin, yPosition);
-      yPosition += 5;
+      
+      if (section.type === 'heading') {
+        yPosition += 5;
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(30, 30, 30);
+        doc.text(section.content, margin, yPosition);
+        yPosition += 7;
+      } else {
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(60, 60, 60);
+        const lines = doc.splitTextToSize(section.content, pageWidth - 2 * margin);
+        for (const line of lines) {
+          if (yPosition > pageHeight - 30) {
+            doc.addPage();
+            yPosition = margin;
+          }
+          doc.text(line, margin, yPosition);
+          yPosition += 5;
+        }
+      }
     }
 
     // Signatures
@@ -540,45 +573,6 @@ export default function GestaoContratos() {
                           <Send className="h-4 w-4" />
                         </Button>
                       )}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setVisualizarContrato(contrato)}>
-                            <Eye className="h-4 w-4 mr-2" />
-                            Visualizar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => downloadPDF(contrato)}>
-                            <Download className="h-4 w-4 mr-2" />
-                            Baixar PDF
-                          </DropdownMenuItem>
-                          {hasLink && (
-                            <>
-                              <DropdownMenuItem onClick={() => copyLink(contrato)}>
-                                <Copy className="h-4 w-4 mr-2" />
-                                Copiar Link
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => sendWhatsApp(contrato)}>
-                                <MessageCircle className="h-4 w-4 mr-2" />
-                                Enviar WhatsApp
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => sendEmail(contrato)}>
-                                <Mail className="h-4 w-4 mr-2" />
-                                Enviar E-mail
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          {contrato.status === "rascunho" && (
-                            <DropdownMenuItem onClick={() => enviarParaAssinatura.mutate(contrato.id)}>
-                              <Send className="h-4 w-4 mr-2" />
-                              Enviar para Assinatura
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     </div>
                   </div>
                 </CardContent>
