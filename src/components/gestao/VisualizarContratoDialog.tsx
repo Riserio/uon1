@@ -176,19 +176,35 @@ export default function VisualizarContratoDialog({
       doc.text("Rua Jacuí, 1273 - Floresta, Belo Horizonte - MG", margin, yPosition);
       yPosition += 12;
 
-      // Contract content
-      const tempDiv = document.createElement("div");
-      tempDiv.innerHTML = contrato.conteudo_html || "";
-      const textContent = tempDiv.textContent || tempDiv.innerText || "";
+      // Contract content - extract clean text from HTML
+      const extractTextFromHtml = (html: string): string => {
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = html;
+        
+        // Remove script and style tags
+        tempDiv.querySelectorAll("script, style").forEach(el => el.remove());
+        
+        // Get clean text content
+        let text = tempDiv.textContent || tempDiv.innerText || "";
+        
+        // Clean up whitespace
+        text = text.replace(/\s+/g, " ").trim();
+        
+        return text;
+      };
+
+      const textContent = extractTextFromHtml(contrato.conteudo_html || "");
       
-      const contentLines = doc.splitTextToSize(textContent, pageWidth - 2 * margin);
-      for (const line of contentLines) {
-        if (yPosition > pageHeight - 30) {
-          doc.addPage();
-          yPosition = margin;
+      if (textContent) {
+        const contentLines = doc.splitTextToSize(textContent, pageWidth - 2 * margin);
+        for (const line of contentLines) {
+          if (yPosition > pageHeight - 30) {
+            doc.addPage();
+            yPosition = margin;
+          }
+          doc.text(line, margin, yPosition);
+          yPosition += 5;
         }
-        doc.text(line, margin, yPosition);
-        yPosition += 5;
       }
 
       // Add signature footer
