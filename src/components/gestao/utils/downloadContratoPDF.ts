@@ -65,19 +65,22 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
 
     // Build offscreen container with the content plus signatures
     const container = document.createElement("div");
-    container.style.position = "absolute";
-    container.style.left = "-9999px";
-    container.style.top = "-9999px";
-    container.style.visibility = "hidden";
-    container.style.pointerEvents = "none";
-    container.style.zIndex = "-9999";
-    container.style.background = "#ffffff";
-    container.style.color = "#222";
-    container.style.padding = "24px";
-    container.style.width = "794px";
-    container.style.boxSizing = "border-box";
-    container.style.fontFamily = "Inter, Roboto, Arial, Helvetica, sans-serif";
-    container.style.fontSize = "12px";
+    container.style.cssText = `
+      position: fixed !important;
+      left: -99999px !important;
+      top: -99999px !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+      z-index: -99999 !important;
+      background: #ffffff;
+      color: #222;
+      padding: 24px;
+      width: 794px;
+      box-sizing: border-box;
+      font-family: Inter, Roboto, Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      overflow: hidden !important;
+    `;
     container.className = "pdf-offscreen-container";
 
     // Header (first page visual) - logo on right
@@ -251,29 +254,15 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
       if (pageIndex > 0) {
         pdf.addPage();
         
-        // Repeated header only on pages 2+ - text left, logo right
-        try {
-          pdf.setFontSize(12);
-          pdf.setFont("helvetica", "bold");
-          pdf.setTextColor(30, 30, 30);
-          pdf.text("Vangard Gestora", pageMarginMm, 12);
-          pdf.setFontSize(9);
-          pdf.setFont("helvetica", "normal");
-          pdf.setTextColor(100, 100, 100);
-          pdf.text("vangardgestora.com.br", pageMarginMm, 17);
-          
-          if (logoData) {
-            const logoWidthMm = 45;
-            const logoHeightMm = 15;
-            const logoX = pdfWidthMm - pageMarginMm - logoWidthMm;
-            pdf.addImage(logoData, "PNG", logoX, 4, logoWidthMm, logoHeightMm);
-          }
-        } catch (err) {
-          pdf.setFontSize(12);
-          pdf.setFont("helvetica", "bold");
-          pdf.setTextColor(30, 30, 30);
-          pdf.text("Vangard Gestora", pageMarginMm, 12);
-        }
+        // Repeated header only on pages 2+ - text only, no logo
+        pdf.setFontSize(12);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(30, 30, 30);
+        pdf.text("Vangard Gestora", pageMarginMm, 12);
+        pdf.setFontSize(9);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(100, 100, 100);
+        pdf.text("vangardgestora.com.br", pageMarginMm, 17);
       }
 
       // Draw slice image under header
