@@ -65,9 +65,12 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
 
     // Build offscreen container with the content plus signatures
     const container = document.createElement("div");
-    container.style.position = "fixed";
+    container.style.position = "absolute";
     container.style.left = "-9999px";
-    container.style.top = "0";
+    container.style.top = "-9999px";
+    container.style.visibility = "hidden";
+    container.style.pointerEvents = "none";
+    container.style.zIndex = "-9999";
     container.style.background = "#ffffff";
     container.style.color = "#222";
     container.style.padding = "24px";
@@ -260,10 +263,10 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
           pdf.text("vangardgestora.com.br", pageMarginMm, 17);
           
           if (logoData) {
-            const logoWidthMm = 36;
-            const logoHeightMm = 12;
+            const logoWidthMm = 45;
+            const logoHeightMm = 15;
             const logoX = pdfWidthMm - pageMarginMm - logoWidthMm;
-            pdf.addImage(logoData, "PNG", logoX, 6, logoWidthMm, logoHeightMm);
+            pdf.addImage(logoData, "PNG", logoX, 4, logoWidthMm, logoHeightMm);
           }
         } catch (err) {
           pdf.setFontSize(12);
