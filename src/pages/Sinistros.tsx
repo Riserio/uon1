@@ -171,22 +171,55 @@ export default function Sinistros() {
         `).in("atendimento_id", atendimentoIds);
       const {
         data: historicoData
-      } = await supabase.from("atendimentos_historico").select("atendimento_id, acao, created_at, campos_alterados").in("atendimento_id", atendimentoIds).order("created_at", {
+      } = await supabase.from("atendimentos_historico").select("atendimento_id, acao, created_at, campos_alterados, valores_anteriores, valores_novos").in("atendimento_id", atendimentoIds).order("created_at", {
         ascending: true
       });
+
+      // Buscar nomes dos fluxos para exibição
+      const { data: fluxosData } = await supabase.from("fluxos").select("id, nome");
+      const fluxosMap = new Map((fluxosData || []).map(f => [f.id, f.nome]));
+
       const claimsWithTimeline: Claim[] = (atendimentosData || []).filter(atendimento => canViewFluxo(atendimento.fluxo_id)).map(atendimento => {
         const statusConfig = statusData?.find(s => s.nome === atendimento.status);
         const vistoria = vistoriasData?.find(v => v.atendimento_id === atendimento.id);
         const historico = historicoData?.filter(h => h.atendimento_id === atendimento.id) || [];
+        
+        // Filtrar apenas mudanças de status e fluxo
+        const statusFluxoChanges = historico.filter(h => {
+          const campos = h.campos_alterados;
+          if (!Array.isArray(campos)) return false;
+          return campos.includes("status") || campos.includes("fluxo_id");
+        });
+
         const timeline = [{
           date: atendimento.created_at,
           title: "Sinistro Registrado",
-          description: "Protocolo aberto automaticamente"
-        }, ...historico.map(h => ({
-          date: h.created_at,
-          title: h.acao,
-          description: Array.isArray(h.campos_alterados) ? `Campos alterados: ${h.campos_alterados.join(", ")}` : "Atualização realizada"
-        }))];
+          description: `Status inicial: ${atendimento.status}`
+        }, ...statusFluxoChanges.map(h => {
+          const campos = h.campos_alterados as string[];
+          const anteriores = h.valores_anteriores as Record<string, any> || {};
+          const novos = h.valores_novos as Record<string, any> || {};
+          
+          const changes: string[] = [];
+          
+          if (campos.includes("status")) {
+            const statusAnterior = anteriores.status || "N/A";
+            const statusNovo = novos.status || "N/A";
+            changes.push(`Status: ${statusAnterior} → ${statusNovo}`);
+          }
+          
+          if (campos.includes("fluxo_id")) {
+            const fluxoAnterior = fluxosMap.get(anteriores.fluxo_id) || "N/A";
+            const fluxoNovo = fluxosMap.get(novos.fluxo_id) || "N/A";
+            changes.push(`Fluxo: ${fluxoAnterior} → ${fluxoNovo}`);
+          }
+          
+          return {
+            date: h.created_at,
+            title: "Alteração de " + (campos.includes("status") && campos.includes("fluxo_id") ? "Status e Fluxo" : campos.includes("status") ? "Status" : "Fluxo"),
+            description: changes.join(" | ")
+          };
+        })];
         return {
           id: atendimento.id,
           numero: atendimento.numero,
