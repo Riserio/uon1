@@ -322,7 +322,7 @@ export function AtendimentoCard({
                     className="text-[10px] h-4 px-1.5 rounded bg-orange-500/10 text-orange-600 border-orange-500/20 flex items-center gap-0.5"
                   >
                     <AlertTriangle className="w-2.5 h-2.5" />
-                    Atenção
+                  Retornado
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
