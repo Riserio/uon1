@@ -1388,7 +1388,7 @@ export default function VistoriaManual() {
             <div>
               <h3 className="text-lg font-semibold mb-4">Vinculação</h3>
               <div>
-                <Label>Corretora</Label>
+                <Label>Associação</Label>
                 <Select
                   value={formData.corretora_id || undefined}
                   onValueChange={(value) =>
@@ -1399,7 +1399,7 @@ export default function VistoriaManual() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione a corretora" />
+                    <SelectValue placeholder="Selecione a associação" />
                   </SelectTrigger>
                   <SelectContent>
                     {corretoras.map((corretora) => (
