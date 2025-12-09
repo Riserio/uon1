@@ -147,14 +147,25 @@ export default function VistoriaDigital() {
         if (statusError) throw statusError;
 
         if (statusList && statusList.length > 0) {
-          await supabase.from("atendimentos").insert({
+          // Criar atendimento com dados sincronizados
+          const { data: atendimento, error: atendimentoError } = await supabase.from("atendimentos").insert({
             user_id: user.id,
+            corretora_id: selectedCorretora || null,
             assunto: `Vistoria ${tipoVistoria === "sinistro" ? "Sinistro" : "Reativação"} #${vistoria.numero}`,
             prioridade: "Alta",
             status: statusList[0].nome,
             fluxo_id: fluxoId,
+            tipo_atendimento: "sinistro",
             observacoes: `Vistoria digital criada - Aguardando envio de fotos pelo cliente.\nLink Token: ${vistoria.link_token}`,
-          });
+          }).select().single();
+
+          if (!atendimentoError && atendimento) {
+            // Vincular vistoria ao atendimento para sincronização bidirecional
+            await supabase
+              .from("vistorias")
+              .update({ atendimento_id: atendimento.id })
+              .eq("id", vistoria.id);
+          }
         }
       }
 
