@@ -172,6 +172,7 @@ const Index = () => {
         fluxoId: item.fluxo_id,
         createdAt: item.created_at,
         updatedAt: item.updated_at,
+        regressou: item.regressou || false,
       }));
       setAtendimentos(mappedData);
     } catch (error: any) {
@@ -470,16 +471,17 @@ const Index = () => {
   // *** AJUSTADO: já muda fluxo_id, pega primeiro status do novo fluxo e recarrega usando esse fluxo ***
   const handleUpdateStatus = async (id: string, newStatus: string) => {
     try {
-      // Busca o atendimento para pegar o fluxo atual
+      // Busca o atendimento para pegar o fluxo atual e status atual
       const { data: atendimentoData, error: atendimentoError } = await supabase
         .from("atendimentos")
-        .select("fluxo_id")
+        .select("fluxo_id, status")
         .eq("id", id)
         .single();
 
       if (atendimentoError) throw atendimentoError;
 
       const fluxoAtualId = atendimentoData?.fluxo_id || selectedFluxoId;
+      const statusAtual = atendimentoData?.status;
 
       // Verificar se pode editar o fluxo
       if (!canEditFluxo(fluxoAtualId)) {
@@ -489,6 +491,24 @@ const Index = () => {
 
       let fluxoParaSalvar = fluxoAtualId;
       let statusParaSalvar = newStatus;
+      let regressou = false;
+
+      // Detectar regressão: verificar ordem do status atual vs novo status
+      const { data: statusOrdens } = await supabase
+        .from("status_config")
+        .select("nome, ordem")
+        .eq("fluxo_id", fluxoAtualId)
+        .eq("ativo", true);
+
+      if (statusOrdens) {
+        const ordemAtual = statusOrdens.find((s) => s.nome === statusAtual)?.ordem ?? 0;
+        const ordemNova = statusOrdens.find((s) => s.nome === newStatus)?.ordem ?? 0;
+        
+        // Se a ordem nova for menor que a atual, é uma regressão
+        if (ordemNova < ordemAtual) {
+          regressou = true;
+        }
+      }
 
       // Checar config do status atual
       const { data: statusConfig } = await supabase
@@ -555,6 +575,7 @@ const Index = () => {
         updated_at: new Date().toISOString(),
         status_changed_at: new Date().toISOString(),
         fluxo_id: fluxoParaSalvar,
+        ...(regressou && { regressou: true }),
       };
 
       // Atualiza no banco

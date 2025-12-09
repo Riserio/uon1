@@ -282,6 +282,7 @@ export type Database = {
           numero: number
           observacoes: string | null
           prioridade: Database["public"]["Enums"]["priority_type"]
+          regressou: boolean | null
           responsavel_id: string | null
           status: string
           status_changed_at: string | null
@@ -312,6 +313,7 @@ export type Database = {
           numero?: number
           observacoes?: string | null
           prioridade?: Database["public"]["Enums"]["priority_type"]
+          regressou?: boolean | null
           responsavel_id?: string | null
           status?: string
           status_changed_at?: string | null
@@ -342,6 +344,7 @@ export type Database = {
           numero?: number
           observacoes?: string | null
           prioridade?: Database["public"]["Enums"]["priority_type"]
+          regressou?: boolean | null
           responsavel_id?: string | null
           status?: string
           status_changed_at?: string | null
