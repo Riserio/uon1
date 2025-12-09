@@ -6,28 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import {
-  Plus,
-  Search,
-  FileText,
-  Send,
-  Eye,
-  CheckCircle2,
-  Clock,
-  XCircle,
-  FileSignature,
-  Filter,
-  Download,
-  Copy,
-  MessageCircle,
-  Mail,
-} from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Plus, Search, FileText, Send, Eye, CheckCircle2, Clock, XCircle, FileSignature, Filter, Download, Copy, MessageCircle, Mail } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -36,33 +16,41 @@ import NovoContratoDialog from "./NovoContratoDialog";
 import TemplateContratoDialog from "./TemplateContratoDialog";
 import VisualizarContratoDialog from "./VisualizarContratoDialog";
 import { downloadContratoPDF } from "./utils/downloadContratoPDF";
-
-const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  rascunho: { label: "Rascunho", color: "bg-muted text-muted-foreground", icon: <FileText className="h-3 w-3" /> },
+const statusConfig: Record<string, {
+  label: string;
+  color: string;
+  icon: React.ReactNode;
+}> = {
+  rascunho: {
+    label: "Rascunho",
+    color: "bg-muted text-muted-foreground",
+    icon: <FileText className="h-3 w-3" />
+  },
   aguardando_assinatura: {
     label: "Aguardando Assinatura",
     color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-    icon: <Clock className="h-3 w-3" />,
+    icon: <Clock className="h-3 w-3" />
   },
   assinado: {
     label: "Assinado",
     color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-    icon: <CheckCircle2 className="h-3 w-3" />,
+    icon: <CheckCircle2 className="h-3 w-3" />
   },
   cancelado: {
     label: "Cancelado",
     color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-    icon: <XCircle className="h-3 w-3" />,
+    icon: <XCircle className="h-3 w-3" />
   },
   expirado: {
     label: "Expirado",
     color: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
-    icon: <XCircle className="h-3 w-3" />,
-  },
+    icon: <XCircle className="h-3 w-3" />
+  }
 };
-
 export default function GestaoContratos() {
-  const { user } = useAuth();
+  const {
+    user
+  } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -71,50 +59,55 @@ export default function GestaoContratos() {
   const [visualizarContrato, setVisualizarContrato] = useState<any>(null);
 
   // Fetch contratos
-  const { data: contratos, isLoading } = useQuery({
+  const {
+    data: contratos,
+    isLoading
+  } = useQuery({
     queryKey: ["contratos", statusFilter],
     queryFn: async () => {
-      let query = supabase
-        .from("contratos")
-        .select(
-          `
+      let query = supabase.from("contratos").select(`
           *,
           contrato_assinaturas(*),
           contrato_templates:template_id(logo_url)
-        `,
-        )
-        .order("created_at", { ascending: false });
-
+        `).order("created_at", {
+        ascending: false
+      });
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
       }
-
-      const { data, error } = await query;
+      const {
+        data,
+        error
+      } = await query;
       if (error) throw error;
       return data;
-    },
+    }
   });
 
   // Fetch templates
-  const { data: templates } = useQuery({
+  const {
+    data: templates
+  } = useQuery({
     queryKey: ["contrato_templates"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("contrato_templates").select("*").eq("ativo", true).order("titulo");
+      const {
+        data,
+        error
+      } = await supabase.from("contrato_templates").select("*").eq("ativo", true).order("titulo");
       if (error) throw error;
       return data;
-    },
+    }
   });
 
   // Enviar para assinatura
   const enviarParaAssinatura = useMutation({
     mutationFn: async (contratoId: string) => {
-      const { error } = await supabase
-        .from("contratos")
-        .update({
-          status: "aguardando_assinatura",
-          link_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        })
-        .eq("id", contratoId);
+      const {
+        error
+      } = await supabase.from("contratos").update({
+        status: "aguardando_assinatura",
+        link_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      }).eq("id", contratoId);
       if (error) throw error;
 
       // Registrar histórico
@@ -122,18 +115,19 @@ export default function GestaoContratos() {
         contrato_id: contratoId,
         acao: "enviado",
         descricao: "Contrato enviado para assinatura",
-        user_id: user?.id,
+        user_id: user?.id
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["contratos"] });
+      queryClient.invalidateQueries({
+        queryKey: ["contratos"]
+      });
       toast.success("Contrato enviado para assinatura!");
     },
-    onError: (error) => {
+    onError: error => {
       toast.error("Erro ao enviar contrato: " + error.message);
-    },
+    }
   });
-
   const copyLink = (contrato: any) => {
     if (!contrato.link_token) {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
@@ -143,7 +137,6 @@ export default function GestaoContratos() {
     navigator.clipboard.writeText(link);
     toast.success("Link copiado!");
   };
-
   const sendWhatsApp = (contrato: any) => {
     if (!contrato.link_token) {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
@@ -151,15 +144,10 @@ export default function GestaoContratos() {
     }
     const link = `${window.location.origin}/contrato/${contrato.link_token}`;
     const phone = contrato.contratante_telefone?.replace(/\D/g, "") || "";
-    const message = encodeURIComponent(
-      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`,
-    );
-    const whatsappUrl = phone
-      ? `https://web.whatsapp.com/send?phone=55${phone}&text=${message}`
-      : `https://web.whatsapp.com/send?text=${message}`;
+    const message = encodeURIComponent(`Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`);
+    const whatsappUrl = phone ? `https://web.whatsapp.com/send?phone=55${phone}&text=${message}` : `https://web.whatsapp.com/send?text=${message}`;
     window.open(whatsappUrl, "_blank");
   };
-
   const sendEmail = (contrato: any) => {
     if (!contrato.link_token) {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
@@ -167,34 +155,25 @@ export default function GestaoContratos() {
     }
     const link = `${window.location.origin}/contrato/${contrato.link_token}`;
     const subject = encodeURIComponent(`Contrato para assinatura: ${contrato.titulo}`);
-    const body = encodeURIComponent(
-      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`,
-    );
+    const body = encodeURIComponent(`Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`);
     const mailtoUrl = `mailto:${contrato.contratante_email || ""}?subject=${subject}&body=${body}`;
     window.open(mailtoUrl, "_blank");
   };
 
   // PDF download now uses shared utility
 
-  const filteredContratos = contratos?.filter((c) => {
+  const filteredContratos = contratos?.filter(c => {
     if (!search) return true;
     const searchLower = search.toLowerCase();
-    return (
-      c.numero?.toLowerCase().includes(searchLower) ||
-      c.titulo?.toLowerCase().includes(searchLower) ||
-      c.contratante_nome?.toLowerCase().includes(searchLower)
-    );
+    return c.numero?.toLowerCase().includes(searchLower) || c.titulo?.toLowerCase().includes(searchLower) || c.contratante_nome?.toLowerCase().includes(searchLower);
   });
-
   const stats = {
     total: contratos?.length || 0,
-    rascunho: contratos?.filter((c) => c.status === "rascunho").length || 0,
-    aguardando: contratos?.filter((c) => c.status === "aguardando_assinatura").length || 0,
-    assinados: contratos?.filter((c) => c.status === "assinado").length || 0,
+    rascunho: contratos?.filter(c => c.status === "rascunho").length || 0,
+    aguardando: contratos?.filter(c => c.status === "aguardando_assinatura").length || 0,
+    assinados: contratos?.filter(c => c.status === "assinado").length || 0
   };
-
-  return (
-    <div className="space-y-6">
+  return <div className="space-y-6">
       {/* Header com Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
@@ -228,12 +207,7 @@ export default function GestaoContratos() {
         <div className="flex flex-1 gap-2">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar contratos..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+            <Input placeholder="Buscar contratos..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
@@ -263,25 +237,18 @@ export default function GestaoContratos() {
 
       {/* Lista de Contratos */}
       <div className="space-y-3">
-        {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-        ) : filteredContratos?.length === 0 ? (
-          <Card>
+        {isLoading ? <div className="text-center py-8 text-muted-foreground">Carregando...</div> : filteredContratos?.length === 0 ? <Card>
             <CardContent className="py-12 text-center">
               <FileSignature className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium">Nenhum contrato encontrado</h3>
               <p className="text-muted-foreground mt-1">Crie seu primeiro contrato clicando no botão acima</p>
             </CardContent>
-          </Card>
-        ) : (
-          filteredContratos?.map((contrato) => {
-            const status = statusConfig[contrato.status] || statusConfig.rascunho;
-            const assinaturas = contrato.contrato_assinaturas || [];
-            const assinaturasCompletas = assinaturas.filter((a: any) => a.status === "assinado").length;
-            const hasLink = contrato.status === "aguardando_assinatura" || contrato.link_token;
-
-            return (
-              <Card key={contrato.id} className="hover:shadow-md transition-shadow">
+          </Card> : filteredContratos?.map(contrato => {
+        const status = statusConfig[contrato.status] || statusConfig.rascunho;
+        const assinaturas = contrato.contrato_assinaturas || [];
+        const assinaturasCompletas = assinaturas.filter((a: any) => a.status === "assinado").length;
+        const hasLink = contrato.status === "aguardando_assinatura" || contrato.link_token;
+        return <Card key={contrato.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
@@ -295,96 +262,46 @@ export default function GestaoContratos() {
                       <h3 className="font-medium text-foreground truncate">{contrato.titulo}</h3>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
                         {contrato.contratante_nome && <span>Contratante: {contrato.contratante_nome}</span>}
-                        {contrato.valor_contrato && (
-                          <span>
+                        {contrato.valor_contrato && <span>
                             Valor:{" "}
-                            {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                              contrato.valor_contrato,
-                            )}
-                          </span>
-                        )}
-                        {assinaturas.length > 0 && (
-                          <span>
+                            {new Intl.NumberFormat("pt-BR", {
+                      style: "currency",
+                      currency: "BRL"
+                    }).format(contrato.valor_contrato)}
+                          </span>}
+                        {assinaturas.length > 0 && <span>
                             Assinaturas: {assinaturasCompletas}/{assinaturas.length}
-                          </span>
-                        )}
+                          </span>}
                       </div>
                       <p className="text-xs text-muted-foreground mt-2">
-                        Criado em {format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        Criado em {format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm", {
+                    locale: ptBR
+                  })}
                       </p>
                     </div>
                     <div className="flex items-center gap-1 flex-wrap justify-end">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setVisualizarContrato(contrato)}
-                        title="Visualizar"
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => setVisualizarContrato(contrato)} title="Visualizar">
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => downloadContratoPDF(contrato, contrato.contrato_templates?.logo_url)}
-                        title="Baixar PDF"
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      {hasLink && (
-                        <>
-                          <Button variant="ghost" size="icon" onClick={() => copyLink(contrato)} title="Copiar Link">
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => sendWhatsApp(contrato)}
-                            title="Enviar WhatsApp"
-                            className="text-green-600 hover:text-green-700"
-                          >
-                            <MessageCircle className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => sendEmail(contrato)}
-                            title="Enviar E-mail"
-                            className="text-blue-600 hover:text-blue-700"
-                          >
-                            <Mail className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                      {contrato.status === "rascunho" && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => enviarParaAssinatura.mutate(contrato.id)}
-                          disabled={enviarParaAssinatura.isPending}
-                          title="Liberar para Assinatura"
-                        >
+                      
+                      {hasLink && <>
+                          
+                          
+                          
+                        </>}
+                      {contrato.status === "rascunho" && <Button variant="ghost" size="icon" onClick={() => enviarParaAssinatura.mutate(contrato.id)} disabled={enviarParaAssinatura.isPending} title="Liberar para Assinatura">
                           <Send className="h-4 w-4" />
-                        </Button>
-                      )}
+                        </Button>}
                     </div>
                   </div>
                 </CardContent>
-              </Card>
-            );
-          })
-        )}
+              </Card>;
+      })}
       </div>
 
       {/* Dialogs */}
       <NovoContratoDialog open={novoContratoOpen} onOpenChange={setNovoContratoOpen} templates={templates || []} />
       <TemplateContratoDialog open={templateOpen} onOpenChange={setTemplateOpen} />
-      {visualizarContrato && (
-        <VisualizarContratoDialog
-          contrato={visualizarContrato}
-          open={!!visualizarContrato}
-          onOpenChange={() => setVisualizarContrato(null)}
-        />
-      )}
-    </div>
-  );
+      {visualizarContrato && <VisualizarContratoDialog contrato={visualizarContrato} open={!!visualizarContrato} onOpenChange={() => setVisualizarContrato(null)} />}
+    </div>;
 }
