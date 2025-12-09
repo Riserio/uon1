@@ -412,7 +412,7 @@ export default function VistoriaPublicaFormulario() {
         atestado_obito_url: atestadoObitoUrl,
         laudo_alcoolemia_url: laudoAlcoolemiaUrl,
         croqui_acidente_url: croquiUrl,
-        status: "concluida", // Sempre finalizar como concluída
+        status: "aguardando_assinatura", // Aguarda aceite de termos e assinatura
         endereco_local_evento: formData.endereco_local_evento || null,
         estava_chovendo: formData.estava_chovendo || null,
         terceiro_placa: formData.terceiro_placa || formData.placa_terceiro || null,
