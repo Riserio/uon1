@@ -137,13 +137,29 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
     `;
     container.appendChild(meta);
 
-    // Content (use contrato.conteudo_html)
+    // Content (use contrato.conteudo_html) - extract body content if full HTML document
     const content = document.createElement("div");
     content.className = "pdf-content";
     content.style.lineHeight = "1.35";
     content.style.color = "#222";
     content.style.fontSize = "12px";
-    content.innerHTML = contrato?.conteudo_html || "";
+    
+    let htmlContent = contrato?.conteudo_html || "";
+    // If it's a full HTML document, extract only the body content
+    if (htmlContent.includes("<!doctype") || htmlContent.includes("<html")) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlContent, "text/html");
+      const bodyContent = doc.body?.innerHTML || "";
+      // Also extract styles to apply inline
+      const styleContent = doc.head?.querySelector("style")?.textContent || "";
+      if (styleContent) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = styleContent;
+        container.appendChild(styleEl);
+      }
+      htmlContent = bodyContent;
+    }
+    content.innerHTML = htmlContent;
     container.appendChild(content);
 
     // Signatures log
