@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, MapPin, LogIn, LogOut, Coffee, AlertTriangle, Calendar, Bell, Download, FileSpreadsheet, FileText, AlertCircle, Mail, MessageCircle, Send } from "lucide-react";
+import { Clock, MapPin, LogIn, LogOut, Coffee, AlertTriangle, Calendar, Bell, Download, FileSpreadsheet, FileText, AlertCircle, Mail, MessageCircle, Send, Plus, Pencil, Paperclip, Lock } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format, parseISO, differenceInMinutes, getDaysInMonth, getDay, isWeekend } from "date-fns";
@@ -17,6 +17,9 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import * as XLSX from "xlsx";
 import ConfigurarAlertasDialog from "./ConfigurarAlertasDialog";
+import AjusteManualPontoDialog from "./AjusteManualPontoDialog";
+import AnexosPontoDialog from "./AnexosPontoDialog";
+import FechamentoMensalDialog from "./FechamentoMensalDialog";
 const tiposPonto = [{
   value: "entrada",
   label: "Entrada",
@@ -141,6 +144,10 @@ export default function GestaoJornada() {
   } | null>(null);
   const [endereco, setEndereco] = useState<string>("");
   const [alertasOpen, setAlertasOpen] = useState(false);
+  const [ajusteOpen, setAjusteOpen] = useState(false);
+  const [anexosOpen, setAnexosOpen] = useState(false);
+  const [fechamentoOpen, setFechamentoOpen] = useState(false);
+  const [registroParaAjuste, setRegistroParaAjuste] = useState<any>(null);
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [ano, setAno] = useState(new Date().getFullYear());
 
@@ -610,10 +617,29 @@ export default function GestaoJornada() {
                 </SelectContent>
               </Select>
             </div>
-            {canManageAll && <Button variant="outline" onClick={() => setAlertasOpen(true)} disabled={!funcionarioId}>
-                <Bell className="h-4 w-4 mr-2" />
-                Configurar Alertas
-              </Button>}
+            {canManageAll && (
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="outline" onClick={() => setAnexosOpen(true)} disabled={!funcionarioId}>
+                  <Paperclip className="h-4 w-4 mr-2" />
+                  Anexos
+                </Button>
+                <Button variant="outline" onClick={() => {
+                  setRegistroParaAjuste(null);
+                  setAjusteOpen(true);
+                }} disabled={!funcionarioId}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Ajuste Manual
+                </Button>
+                <Button variant="outline" onClick={() => setFechamentoOpen(true)} disabled={!funcionarioId}>
+                  <Lock className="h-4 w-4 mr-2" />
+                  Fechamento
+                </Button>
+                <Button variant="outline" onClick={() => setAlertasOpen(true)} disabled={!funcionarioId}>
+                  <Bell className="h-4 w-4 mr-2" />
+                  Alertas
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -756,14 +782,30 @@ export default function GestaoJornada() {
                           {regs.sort((a: any, b: any) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime()).map((registro: any) => {
                     const tipo = tiposPonto.find(t => t.value === registro.tipo);
                     const Icon = tipo?.icon || Clock;
-                    return <div key={registro.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
-                                <Icon className={`h-4 w-4 ${tipo?.color}`} />
-                                <div className="flex flex-col">
-                                  <span>{format(new Date(registro.data_hora), "dd/MM HH:mm")}</span>
-                                  <span className="text-muted-foreground capitalize text-xs">
-                                    {tipo?.label}
-                                  </span>
+                    return <div key={registro.id} className={`flex items-center justify-between p-2 bg-muted/50 rounded text-sm ${registro.ajustado ? 'border border-amber-500' : ''}`}>
+                                <div className="flex items-center gap-2">
+                                  <Icon className={`h-4 w-4 ${tipo?.color}`} />
+                                  <div className="flex flex-col">
+                                    <span>{format(new Date(registro.data_hora), "dd/MM HH:mm")}</span>
+                                    <span className="text-muted-foreground capitalize text-xs">
+                                      {tipo?.label}
+                                      {registro.ajustado && <span className="ml-1 text-amber-600">(ajustado)</span>}
+                                    </span>
+                                  </div>
                                 </div>
+                                {canManageAll && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={() => {
+                                      setRegistroParaAjuste(registro);
+                                      setAjusteOpen(true);
+                                    }}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                )}
                               </div>;
                   })}
                         </div>
@@ -891,7 +933,36 @@ export default function GestaoJornada() {
           </TabsContent>
         </Tabs>}
 
-      {/* Dialog de Alertas */}
+      {/* Dialogs */}
       {canManageAll && <ConfigurarAlertasDialog open={alertasOpen} onOpenChange={setAlertasOpen} funcionarioId={funcionarioId} funcionarioNome={funcionarioSelecionado?.nome} />}
+      
+      {canManageAll && funcionarioId && (
+        <AjusteManualPontoDialog
+          open={ajusteOpen}
+          onOpenChange={setAjusteOpen}
+          funcionarioId={funcionarioId}
+          funcionarioNome={funcionarioSelecionado?.nome || ""}
+          registroExistente={registroParaAjuste}
+        />
+      )}
+      
+      {canManageAll && funcionarioId && (
+        <AnexosPontoDialog
+          open={anexosOpen}
+          onOpenChange={setAnexosOpen}
+          funcionarioId={funcionarioId}
+          funcionarioNome={funcionarioSelecionado?.nome || ""}
+        />
+      )}
+      
+      {funcionarioId && (
+        <FechamentoMensalDialog
+          open={fechamentoOpen}
+          onOpenChange={setFechamentoOpen}
+          funcionarioId={funcionarioId}
+          funcionarioNome={funcionarioSelecionado?.nome || ""}
+          funcionarioProfileId={funcionarioSelecionado?.profile_id}
+        />
+      )}
     </div>;
 }
