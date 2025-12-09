@@ -8,16 +8,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ConcluirFluxoManualDialogProps {
   open: boolean;
@@ -95,7 +87,6 @@ export function ConcluirFluxoManualDialog({
 
     if (data) {
       setStatusOptions(data);
-      // Auto-select first status
       if (data.length > 0) {
         setSelectedStatus(data[0].nome);
       }
@@ -114,94 +105,85 @@ export function ConcluirFluxoManualDialog({
     onOpenChange(false);
   };
 
+  const handleFluxoSelect = (fluxoId: string) => {
+    setSelectedFluxo(fluxoId === selectedFluxo ? "" : fluxoId);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-green-500" />
-            Card Finalizado
-          </DialogTitle>
+          <DialogTitle>Card Finalizado</DialogTitle>
           <DialogDescription>
-            Este card chegou ao status final do fluxo atual. Deseja direcioná-lo
-            para outro fluxo?
+            Este card chegou ao status final. Deseja direcioná-lo para outro fluxo?
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label>Direcionar para o fluxo:</Label>
-            <Select value={selectedFluxo} onValueChange={setSelectedFluxo}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um fluxo (opcional)" />
-              </SelectTrigger>
-              <SelectContent>
-                {fluxos.map((fluxo) => (
-                  <SelectItem key={fluxo.id} value={fluxo.id}>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: fluxo.cor || "#6b7280" }}
-                      />
-                      {fluxo.nome}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="py-4">
+          <div className="space-y-1">
+            {fluxos.map((fluxo) => (
+              <button
+                key={fluxo.id}
+                onClick={() => handleFluxoSelect(fluxo.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors",
+                  selectedFluxo === fluxo.id
+                    ? "bg-primary/10"
+                    : "hover:bg-muted/50"
+                )}
+              >
+                <div
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: fluxo.cor || "#6b7280" }}
+                />
+                <span className="text-sm font-medium text-foreground">
+                  {fluxo.nome}
+                </span>
+              </button>
+            ))}
           </div>
 
           {selectedFluxo && statusOptions.length > 0 && (
-            <div className="space-y-2">
-              <Label>Status inicial no novo fluxo:</Label>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((status) => (
-                    <SelectItem key={status.id} value={status.nome}>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-2 h-2 rounded-full"
-                          style={{ backgroundColor: status.cor || "#6b7280" }}
-                        />
-                        {status.nome}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {selectedFluxo && selectedStatus && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 text-sm">
-              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              <span>
-                O card será movido para{" "}
-                <strong className="text-foreground">
-                  {fluxos.find((f) => f.id === selectedFluxo)?.nome}
-                </strong>{" "}
-                no status{" "}
-                <strong className="text-foreground">{selectedStatus}</strong>
-              </span>
+            <div className="mt-4 pt-4 border-t">
+              <p className="text-sm text-muted-foreground mb-2">Status inicial:</p>
+              <div className="space-y-1">
+                {statusOptions.map((status) => (
+                  <button
+                    key={status.id}
+                    onClick={() => setSelectedStatus(status.nome)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors",
+                      selectedStatus === status.nome
+                        ? "bg-primary/10"
+                        : "hover:bg-muted/50"
+                    )}
+                  >
+                    <div
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: status.cor || "#6b7280" }}
+                    />
+                    <span className="text-sm text-foreground">
+                      {status.nome}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
+        <DialogFooter className="flex-row gap-2 sm:gap-2">
           <Button
             variant="outline"
             onClick={handleConcluirSemMover}
-            className="w-full sm:w-auto"
+            className="flex-1"
           >
             Apenas finalizar
           </Button>
           <Button
             onClick={handleConfirm}
             disabled={!selectedFluxo || !selectedStatus || loading}
-            className="w-full sm:w-auto"
+            className="flex-1"
           >
             {loading ? "Movendo..." : "Mover para fluxo"}
           </Button>
