@@ -17,7 +17,9 @@ interface SearchableVehicleSelectProps {
 }
 
 // Helper para categorizar marcas por tipo de veículo
+// IMPORTANTE: Usa comparação exata para permitir "Ford" (carros) e "FORD" (caminhões) separados
 const getBrandCategory = (brand: string): string[] => {
+  // Marcas exclusivas de motos (comparação uppercase)
   const motorcycleBrands = [
     "ADLY",
     "APRILIA",
@@ -29,7 +31,6 @@ const getBrandCategory = (brand: string): string[] => {
     "BENELLI",
     "BETA",
     "BIMOTA",
-    "BMW",
     "BRANDY",
     "BRAVA",
     "BRAVAX",
@@ -89,11 +90,12 @@ const getBrandCategory = (brand: string): string[] => {
     "ZONTES",
   ];
 
-  const truckBrands = [
+  // Marcas de caminhões/ônibus - comparação exata com o nome no JSON
+  // "FORD" maiúsculo = caminhões, "Ford" capitalizado = carros
+  const truckBrandsExact = [
     "AGRALE",
     "BEPOBUS",
-    "CHEVROLET",
-    "FORD",
+    "FORD",        // FORD maiúsculo = F-4000, F-350, etc (caminhões)
     "FORD CARGO",
     "FOTON",
     "IVECO",
@@ -120,15 +122,17 @@ const getBrandCategory = (brand: string): string[] => {
 
   const categories: string[] = [];
 
+  // Verifica se é moto (comparação uppercase)
   if (motorcycleBrands.includes(brand.toUpperCase())) {
     categories.push("moto");
   }
 
-  if (truckBrands.includes(brand.toUpperCase())) {
+  // Verifica se é caminhão - usa comparação EXATA para distinguir "FORD" de "Ford"
+  if (truckBrandsExact.includes(brand)) {
     categories.push("caminhao");
   }
 
-  // Se não cair em nenhuma, considera carro
+  // Se não cair em nenhuma categoria específica, considera carro
   if (categories.length === 0) {
     categories.push("carro");
   }
