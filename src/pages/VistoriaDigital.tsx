@@ -111,7 +111,7 @@ export default function VistoriaDigital() {
           tipo_sinistro: tipoSinistro || null,
           status: "aguardando_fotos",
           created_by: user.id,
-          corretora_id: selectedCorretora || null,
+          corretora_id: selectedCorretora && selectedCorretora.trim() !== "" ? selectedCorretora : null,
           cliente_cpf: clienteCpf || null,
           horario_inicio: horarioInicio,
           horario_fim: horarioFim,
@@ -150,7 +150,7 @@ export default function VistoriaDigital() {
           // Criar atendimento com dados sincronizados
           const { data: atendimento, error: atendimentoError } = await supabase.from("atendimentos").insert({
             user_id: user.id,
-            corretora_id: selectedCorretora || null,
+            corretora_id: selectedCorretora && selectedCorretora.trim() !== "" ? selectedCorretora : null,
             assunto: `Vistoria ${tipoVistoria === "sinistro" ? "Sinistro" : "Reativação"} #${vistoria.numero}`,
             prioridade: "Alta",
             status: statusList[0].nome,

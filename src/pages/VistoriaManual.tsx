@@ -294,7 +294,7 @@ export default function VistoriaManual() {
           tipo_vistoria: tipoVistoria,
           status: "concluida",
           created_by: user.id,
-          corretora_id: formData.corretora_id || null,
+          corretora_id: formData.corretora_id && formData.corretora_id.trim() !== "" ? formData.corretora_id : null,
           link_token: crypto.randomUUID(),
           dias_validade: 7,
           latitude,
@@ -491,7 +491,7 @@ export default function VistoriaManual() {
         .from("atendimentos")
         .insert({
           user_id: user.id,
-          corretora_id: formData.corretora_id || null,
+          corretora_id: formData.corretora_id && formData.corretora_id.trim() !== "" ? formData.corretora_id : null,
           responsavel_id: user.id,
           assunto: `Vistoria ${tipoVistoria === "sinistro" ? "Sinistro" : "Reativação"} - ${
             formData.veiculo_placa || "Placa não informada"
