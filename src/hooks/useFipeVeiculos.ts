@@ -49,29 +49,36 @@ export function useFipeVeiculos() {
   const [modeloCodigo, setModeloCodigo] = useState<number | null>(null);
 
   // Fallback para marcas do JSON local
+  // IMPORTANTE: Preservar nomes originais do JSON para distinguir "Ford" (carros) de "FORD" (caminhões)
   const getMarcasFromJSON = useCallback((tipoVeiculo: string) => {
-    const allMarcas = Object.keys(marcasModelosData as VeiculosData)
-      .map(marca => marca.charAt(0).toUpperCase() + marca.slice(1).toLowerCase())
-      .sort();
+    const allMarcas = Object.keys(marcasModelosData as VeiculosData).sort();
     
     return allMarcas.map((name, index) => ({
       code: index,
-      name: name,
+      name: name, // Manter nome original do JSON sem transformação
     }));
   }, []);
 
   // Fallback para modelos do JSON local
+  // IMPORTANTE: Preservar nomes originais do JSON
   const getModelosFromJSON = useCallback((marca: string) => {
-    const marcaOriginal = Object.keys(marcasModelosData as VeiculosData).find(
-      m => m.toLowerCase() === marca.toLowerCase()
+    // Buscar marca exata primeiro, depois case-insensitive como fallback
+    let marcaOriginal = Object.keys(marcasModelosData as VeiculosData).find(
+      m => m === marca
     );
+    
+    if (!marcaOriginal) {
+      marcaOriginal = Object.keys(marcasModelosData as VeiculosData).find(
+        m => m.toLowerCase() === marca.toLowerCase()
+      );
+    }
     
     if (!marcaOriginal) return [];
     
     const modelosData = (marcasModelosData as VeiculosData)[marcaOriginal] || [];
     return modelosData.map((nome, index) => ({
       code: index,
-      name: nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase(),
+      name: nome, // Manter nome original sem transformação
     })).sort((a, b) => a.name.localeCompare(b.name));
   }, []);
 
