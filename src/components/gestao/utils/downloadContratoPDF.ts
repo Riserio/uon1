@@ -65,22 +65,16 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
 
     // Build offscreen container with the content plus signatures
     const container = document.createElement("div");
-    container.style.cssText = `
-      position: fixed !important;
-      left: -99999px !important;
-      top: -99999px !important;
-      visibility: hidden !important;
-      pointer-events: none !important;
-      z-index: -99999 !important;
-      background: #ffffff;
-      color: #222;
-      padding: 24px;
-      width: 794px;
-      box-sizing: border-box;
-      font-family: Inter, Roboto, Arial, Helvetica, sans-serif;
-      font-size: 12px;
-      overflow: hidden !important;
-    `;
+    container.style.position = "fixed";
+    container.style.left = "-9999px";
+    container.style.top = "0";
+    container.style.background = "#ffffff";
+    container.style.color = "#222";
+    container.style.padding = "24px";
+    container.style.width = "794px";
+    container.style.boxSizing = "border-box";
+    container.style.fontFamily = "Inter, Roboto, Arial, Helvetica, sans-serif";
+    container.style.fontSize = "12px";
     container.className = "pdf-offscreen-container";
 
     // Header (first page visual) - logo on right
@@ -137,29 +131,13 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
     `;
     container.appendChild(meta);
 
-    // Content (use contrato.conteudo_html) - extract body content if full HTML document
+    // Content (use contrato.conteudo_html)
     const content = document.createElement("div");
     content.className = "pdf-content";
     content.style.lineHeight = "1.35";
     content.style.color = "#222";
     content.style.fontSize = "12px";
-    
-    let htmlContent = contrato?.conteudo_html || "";
-    // If it's a full HTML document, extract only the body content
-    if (htmlContent.includes("<!doctype") || htmlContent.includes("<html")) {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlContent, "text/html");
-      const bodyContent = doc.body?.innerHTML || "";
-      // Also extract styles to apply inline
-      const styleContent = doc.head?.querySelector("style")?.textContent || "";
-      if (styleContent) {
-        const styleEl = document.createElement("style");
-        styleEl.textContent = styleContent;
-        container.appendChild(styleEl);
-      }
-      htmlContent = bodyContent;
-    }
-    content.innerHTML = htmlContent;
+    content.innerHTML = contrato?.conteudo_html || "";
     container.appendChild(content);
 
     // Signatures log
@@ -270,15 +248,29 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
       if (pageIndex > 0) {
         pdf.addPage();
         
-        // Repeated header only on pages 2+ - text only, no logo
-        pdf.setFontSize(12);
-        pdf.setFont("helvetica", "bold");
-        pdf.setTextColor(30, 30, 30);
-        pdf.text("Vangard Gestora", pageMarginMm, 12);
-        pdf.setFontSize(9);
-        pdf.setFont("helvetica", "normal");
-        pdf.setTextColor(100, 100, 100);
-        pdf.text("vangardgestora.com.br", pageMarginMm, 17);
+        // Repeated header only on pages 2+ - text left, logo right
+        try {
+          pdf.setFontSize(12);
+          pdf.setFont("helvetica", "bold");
+          pdf.setTextColor(30, 30, 30);
+          pdf.text("Vangard Gestora", pageMarginMm, 12);
+          pdf.setFontSize(9);
+          pdf.setFont("helvetica", "normal");
+          pdf.setTextColor(100, 100, 100);
+          pdf.text("vangardgestora.com.br", pageMarginMm, 17);
+          
+          if (logoData) {
+            const logoWidthMm = 36;
+            const logoHeightMm = 12;
+            const logoX = pdfWidthMm - pageMarginMm - logoWidthMm;
+            pdf.addImage(logoData, "PNG", logoX, 6, logoWidthMm, logoHeightMm);
+          }
+        } catch (err) {
+          pdf.setFontSize(12);
+          pdf.setFont("helvetica", "bold");
+          pdf.setTextColor(30, 30, 30);
+          pdf.text("Vangard Gestora", pageMarginMm, 12);
+        }
       }
 
       // Draw slice image under header
