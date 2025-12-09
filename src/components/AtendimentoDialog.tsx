@@ -20,6 +20,8 @@ import {
   User,
   Link2,
   ClipboardList,
+  CheckCircle2,
+  ArrowRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -2010,54 +2012,85 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
 
       {/* Dialog de Conclusão Manual */}
       <Dialog open={showConclusaoDialog} onOpenChange={setShowConclusaoDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Concluir Atendimento</DialogTitle>
-            <DialogDescription>Selecione para qual fluxo e status deseja enviar este atendimento</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
+              Concluir Atendimento
+            </DialogTitle>
+            <DialogDescription>
+              Selecione para qual fluxo e status deseja direcionar este atendimento
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Fluxo de Destino</Label>
+              <Label>Direcionar para o fluxo:</Label>
               <Select value={selectedFluxoConclusao} onValueChange={setSelectedFluxoConclusao}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o fluxo" />
+                  <SelectValue placeholder="Selecione um fluxo" />
                 </SelectTrigger>
                 <SelectContent>
                   {fluxos.map((fluxo) => (
                     <SelectItem key={fluxo.id} value={fluxo.id}>
-                      {fluxo.nome}
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: fluxo.cor || "#6b7280" }}
+                        />
+                        {fluxo.nome}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {selectedFluxoConclusao && (
+            {selectedFluxoConclusao && statusList.length > 0 && (
               <div className="space-y-2">
-                <Label>Status de Destino</Label>
+                <Label>Status inicial no novo fluxo:</Label>
                 <Select value={selectedStatusConclusao} onValueChange={setSelectedStatusConclusao}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o status" />
+                    <SelectValue placeholder="Selecione um status" />
                   </SelectTrigger>
                   <SelectContent>
                     {statusList.map((status) => (
                       <SelectItem key={status.id} value={status.nome}>
-                        {status.nome}
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: status.cor || "#6b7280" }}
+                          />
+                          {status.nome}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
+
+            {selectedFluxoConclusao && selectedStatusConclusao && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 text-sm">
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                <span>
+                  O card será movido para{" "}
+                  <strong className="text-foreground">
+                    {fluxos.find((f) => f.id === selectedFluxoConclusao)?.nome}
+                  </strong>{" "}
+                  no status{" "}
+                  <strong className="text-foreground">{selectedStatusConclusao}</strong>
+                </span>
+              </div>
+            )}
           </div>
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowConclusaoDialog(false)}>
+          <div className="flex flex-col sm:flex-row justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowConclusaoDialog(false)} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button onClick={handleConcluirManual} disabled={!selectedFluxoConclusao || !selectedStatusConclusao}>
-              Confirmar
+            <Button onClick={handleConcluirManual} disabled={!selectedFluxoConclusao || !selectedStatusConclusao} className="w-full sm:w-auto">
+              Mover para fluxo
             </Button>
           </div>
         </DialogContent>
