@@ -13,132 +13,8 @@ interface SearchableVehicleSelectProps {
   onChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
-  vehicleType?: string; // "carro" | "moto" | "caminhao"
+  vehicleType?: string; // Mantido para compatibilidade, mas não é mais usado para filtragem
 }
-
-// Helper para categorizar marcas por tipo de veículo
-// IMPORTANTE: Usa comparação exata para permitir "Ford" (carros) e "FORD" (caminhões) separados
-const getBrandCategory = (brand: string): string[] => {
-  // Marcas exclusivas de motos (comparação uppercase)
-  const motorcycleBrands = [
-    "ADLY",
-    "APRILIA",
-    "AVELLOZ",
-    "AMAZONAS",
-    "ATALA",
-    "BAJAJ",
-    "BEE",
-    "BENELLI",
-    "BETA",
-    "BIMOTA",
-    "BRANDY",
-    "BRAVA",
-    "BRAVAX",
-    "BUELL",
-    "BUENO",
-    "BULL",
-    "CAGIVA",
-    "CALOI",
-    "CASAL",
-    "DAELIM",
-    "DAFRA",
-    "DAYUN",
-    "DERBI",
-    "DUCATI",
-    "EMME",
-    "FYM",
-    "GARELLI",
-    "GAS GAS",
-    "HARLEY-DAVIDSON",
-    "HARTFORD",
-    "HONDA",
-    "HUSABERG",
-    "HUSQVARNA",
-    "HYOSUNG",
-    "IROS",
-    "JIALING",
-    "JOHNNYPAG",
-    "KAHENA",
-    "KASINSKI",
-    "KAWASAKI",
-    "KEEWAY",
-    "KTM",
-    "KYMCO",
-    "LAVRALE",
-    "LERIVO",
-    "LIFAN",
-    "MALAGUTI",
-    "MIZA",
-    "MOBILETE",
-    "MOTO GUZZI",
-    "MRX",
-    "MV AGUSTA",
-    "ORCA",
-    "PEUGEOT",
-    "PIAGGIO",
-    "SANYANG",
-    "SHINERAY",
-    "SUNDOWN",
-    "SUZUKI",
-    "TRAXX",
-    "TRIUMPH",
-    "VENTO",
-    "VESPA",
-    "YAMAHA",
-    "YUMBO",
-    "ZONGSHEN",
-    "ZONTES",
-  ];
-
-  // Marcas de caminhões/ônibus - comparação exata com o nome no JSON
-  // "FORD" maiúsculo = caminhões, "Ford" capitalizado = carros
-  const truckBrandsExact = [
-    "AGRALE",
-    "BEPOBUS",
-    "FORD",        // FORD maiúsculo = F-4000, F-350, etc (caminhões)
-    "FORD CARGO",
-    "FOTON",
-    "IVECO",
-    "MAN",
-    "MERCEDES-BENZ",
-    "NAVISTAR",
-    "SAAB-SCANIA",
-    "SCANIA",
-    "SHACMAN",
-    "SIAMOTO",
-    "SINOTRUCK",
-    "VOLKSWAGEN",
-    "VOLVO",
-    "WALKBUS",
-    "DAF",
-    "FREIGHTLINER",
-    "INTERNATIONAL",
-    "KENWORTH",
-    "MACK",
-    "PETERBILT",
-    "STERLING",
-    "WESTERN STAR",
-  ];
-
-  const categories: string[] = [];
-
-  // Verifica se é moto (comparação uppercase)
-  if (motorcycleBrands.includes(brand.toUpperCase())) {
-    categories.push("moto");
-  }
-
-  // Verifica se é caminhão - usa comparação EXATA para distinguir "FORD" de "Ford"
-  if (truckBrandsExact.includes(brand)) {
-    categories.push("caminhao");
-  }
-
-  // Se não cair em nenhuma categoria específica, considera carro
-  if (categories.length === 0) {
-    categories.push("carro");
-  }
-
-  return categories;
-};
 
 export function SearchableVehicleSelect({
   label,
@@ -152,25 +28,19 @@ export function SearchableVehicleSelect({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
+  // IMPORTANTE: Não filtrar por vehicleType aqui porque a API FIPE já retorna marcas filtradas por tipo.
+  // A filtragem por tipo só é necessária quando usamos o fallback JSON, mas isso é feito no hook useFipeVeiculos.
   const filteredOptions = useMemo(() => {
     let filtered = options;
 
-    // 🔹 Filtra por tipo de veículo, se informado (carro / moto / caminhão)
-    if (vehicleType) {
-      filtered = filtered.filter((option) => {
-        const categories = getBrandCategory(option);
-        return categories.includes(vehicleType);
-      });
-    }
-
-    // 🔹 Sempre permite buscar (sem limite mínimo de caracteres)
+    // 🔹 Apenas filtro de busca por texto
     if (search.trim().length > 0) {
       const searchLower = search.toLowerCase();
       filtered = filtered.filter((option) => option.toLowerCase().includes(searchLower));
     }
 
     return [...filtered].sort();
-  }, [options, search, vehicleType]);
+  }, [options, search]);
 
   return (
     <div className="space-y-2">

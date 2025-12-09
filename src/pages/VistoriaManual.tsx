@@ -14,43 +14,7 @@ import { ArrowLeft, Camera, Upload, X, Save } from "lucide-react";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { useAuth } from "@/hooks/useAuth";
 
-const MARCAS = [
-  "Audi",
-  "BMW",
-  "Chevrolet",
-  "Citroën",
-  "Fiat",
-  "Ford",
-  "Honda",
-  "Hyundai",
-  "Jeep",
-  "Kia",
-  "Mercedes-Benz",
-  "Mitsubishi",
-  "Nissan",
-  "Peugeot",
-  "Renault",
-  "Toyota",
-  "Volkswagen",
-  "Volvo",
-  "Outros",
-];
-
-const MODELOS_POR_MARCA: { [key: string]: string[] } = {
-  Volkswagen: ["Gol", "Fox", "Polo", "Virtus", "T-Cross", "Nivus", "Taos", "Tiguan", "Amarok"],
-  Chevrolet: ["Onix", "Prisma", "Tracker", "Cruze", "S10", "Spin", "Montana"],
-  Fiat: ["Argo", "Cronos", "Mobi", "Pulse", "Fastback", "Toro", "Strada"],
-  Ford: ["Ka", "EcoSport", "Ranger", "Territory", "Maverick"],
-  Toyota: ["Corolla", "Yaris", "Hilux", "SW4", "Etios", "Corolla Cross"],
-  Honda: ["Civic", "City", "HR-V", "CR-V", "Fit"],
-  Hyundai: ["HB20", "Creta", "Tucson", "Santa Fe", "ix35"],
-  Jeep: ["Renegade", "Compass", "Commander"],
-  Renault: ["Kwid", "Sandero", "Logan", "Duster", "Oroch", "Captur"],
-  Nissan: ["Kicks", "Versa", "Frontier", "Sentra"],
-  Peugeot: ["208", "2008", "3008", "5008"],
-  Citroën: ["C3", "C4 Cactus"],
-  Outros: [],
-};
+// Marcas e modelos agora são obtidos via API FIPE ou fallback JSON no VehicleFipeSelector
 
 const CORES = [
   "Preto",
