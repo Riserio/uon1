@@ -147,7 +147,7 @@ export default function VistoriaDigital() {
         if (statusError) throw statusError;
 
         if (statusList && statusList.length > 0) {
-          // Criar atendimento com dados sincronizados
+          // Criar atendimento com dados sincronizados - usando o mesmo numero da vistoria
           const { data: atendimento, error: atendimentoError } = await supabase.from("atendimentos").insert({
             user_id: user.id,
             corretora_id: selectedCorretora && selectedCorretora.trim() !== "" ? selectedCorretora : null,
@@ -156,15 +156,22 @@ export default function VistoriaDigital() {
             status: statusList[0].nome,
             fluxo_id: fluxoId,
             tipo_atendimento: "sinistro",
+            numero: vistoria.numero, // Sincronizar número
             observacoes: `Vistoria digital criada - Aguardando envio de fotos pelo cliente.\nLink Token: ${vistoria.link_token}`,
           }).select().single();
 
-          if (!atendimentoError && atendimento) {
+          if (atendimentoError) {
+            console.error("Erro ao criar atendimento:", atendimentoError);
+          } else if (atendimento) {
             // Vincular vistoria ao atendimento para sincronização bidirecional
-            await supabase
+            const { error: updateError } = await supabase
               .from("vistorias")
               .update({ atendimento_id: atendimento.id })
               .eq("id", vistoria.id);
+            
+            if (updateError) {
+              console.error("Erro ao vincular vistoria ao atendimento:", updateError);
+            }
           }
         }
       }
