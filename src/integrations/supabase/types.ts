@@ -135,6 +135,53 @@ export type Database = {
           },
         ]
       }
+      anexos_ponto: {
+        Row: {
+          arquivo_nome: string
+          arquivo_url: string
+          created_at: string
+          data_referencia: string | null
+          dias_abonados: number | null
+          funcionario_id: string
+          id: string
+          observacao: string | null
+          tipo: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          arquivo_nome: string
+          arquivo_url: string
+          created_at?: string
+          data_referencia?: string | null
+          dias_abonados?: number | null
+          funcionario_id: string
+          id?: string
+          observacao?: string | null
+          tipo: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          arquivo_nome?: string
+          arquivo_url?: string
+          created_at?: string
+          data_referencia?: string | null
+          dias_abonados?: number | null
+          funcionario_id?: string
+          id?: string
+          observacao?: string | null
+          tipo?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anexos_ponto_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_integrations: {
         Row: {
           ambiente: string
@@ -1397,6 +1444,86 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      fechamentos_ponto: {
+        Row: {
+          ano: number
+          assinado_em: string | null
+          assinatura_funcionario_url: string | null
+          atrasos: number | null
+          created_at: string
+          dias_atestado: number | null
+          dias_trabalhados: number | null
+          dias_uteis: number | null
+          documento_url: string | null
+          fechado_em: string | null
+          fechado_por: string | null
+          funcionario_id: string
+          horas_esperadas: number | null
+          horas_trabalhadas: number | null
+          id: string
+          ip_assinatura: string | null
+          mes: number
+          observacoes: string | null
+          saldo_horas: number | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          ano: number
+          assinado_em?: string | null
+          assinatura_funcionario_url?: string | null
+          atrasos?: number | null
+          created_at?: string
+          dias_atestado?: number | null
+          dias_trabalhados?: number | null
+          dias_uteis?: number | null
+          documento_url?: string | null
+          fechado_em?: string | null
+          fechado_por?: string | null
+          funcionario_id: string
+          horas_esperadas?: number | null
+          horas_trabalhadas?: number | null
+          id?: string
+          ip_assinatura?: string | null
+          mes: number
+          observacoes?: string | null
+          saldo_horas?: number | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ano?: number
+          assinado_em?: string | null
+          assinatura_funcionario_url?: string | null
+          atrasos?: number | null
+          created_at?: string
+          dias_atestado?: number | null
+          dias_trabalhados?: number | null
+          dias_uteis?: number | null
+          documento_url?: string | null
+          fechado_em?: string | null
+          fechado_por?: string | null
+          funcionario_id?: string
+          horas_esperadas?: number | null
+          horas_trabalhadas?: number | null
+          id?: string
+          ip_assinatura?: string | null
+          mes?: number
+          observacoes?: string | null
+          saldo_horas?: number | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fechamentos_ponto_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: false
+            referencedRelation: "funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       fluxos: {
         Row: {
