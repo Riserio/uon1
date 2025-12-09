@@ -884,7 +884,7 @@ export default function GestaoJornada() {
                   <CardHeader className="pb-2">
                     <CardDescription className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      Horas Extras (+10min)
+                      Horas Excedentes (+10min)
                     </CardDescription>
                     <CardTitle className={`text-2xl ${detailedStats?.overtimeCount ? "text-green-600" : ""}`}>
                       {detailedStats?.overtimeCount || 0} ({detailedStats?.totalOvertimeMinutes ? formatHoursMinutes(detailedStats.totalOvertimeMinutes / 60) : "0h00m"})
