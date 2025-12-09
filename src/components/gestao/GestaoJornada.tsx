@@ -314,13 +314,19 @@ export default function GestaoJornada() {
       hoursWorked: number;
       isLate: boolean;
       lateMinutes: number;
+      hasOvertime: boolean;
+      overtimeMinutes: number;
       entrada?: string;
       saida?: string;
     }> = [];
     let totalMinutesWorked = 0;
     let lateCount = 0;
+    let overtimeCount = 0;
+    let totalOvertimeMinutes = 0;
     const expectedEntrada = funcionarioSelecionado.horario_entrada || "08:00";
+    const expectedSaida = funcionarioSelecionado.horario_saida || "18:00";
     const [expectedHour, expectedMinute] = expectedEntrada.split(":").map(Number);
+    const [expectedSaidaHour, expectedSaidaMinute] = expectedSaida.split(":").map(Number);
     Object.entries(registrosPorDia).forEach(([dia, regs]) => {
       const entrada = regs.find((r: any) => r.tipo === "entrada");
       const saida = regs.find((r: any) => r.tipo === "saida");
@@ -329,6 +335,8 @@ export default function GestaoJornada() {
       let hoursWorked = 0;
       let isLate = false;
       let lateMinutes = 0;
+      let hasOvertime = false;
+      let overtimeMinutes = 0;
       if (entrada) {
         const entradaDate = new Date(entrada.data_hora);
         const expectedDate = new Date(entradaDate);
@@ -338,6 +346,18 @@ export default function GestaoJornada() {
           isLate = true;
           lateMinutes = diffMinutes;
           lateCount++;
+        }
+      }
+      if (saida) {
+        const saidaDate = new Date(saida.data_hora);
+        const expectedSaidaDate = new Date(saidaDate);
+        expectedSaidaDate.setHours(expectedSaidaHour, expectedSaidaMinute, 0, 0);
+        const diffMinutesSaida = differenceInMinutes(saidaDate, expectedSaidaDate);
+        if (diffMinutesSaida > 10) {
+          hasOvertime = true;
+          overtimeMinutes = diffMinutesSaida;
+          overtimeCount++;
+          totalOvertimeMinutes += diffMinutesSaida;
         }
       }
       if (entrada && saida) {
@@ -361,6 +381,8 @@ export default function GestaoJornada() {
         hoursWorked,
         isLate,
         lateMinutes,
+        hasOvertime,
+        overtimeMinutes,
         entrada: entrada ? format(new Date(entrada.data_hora), "HH:mm") : undefined,
         saida: saida ? format(new Date(saida.data_hora), "HH:mm") : undefined
       });
@@ -370,7 +392,9 @@ export default function GestaoJornada() {
       workedDaysCount: workedDays.length,
       workedDays: workedDays.sort((a, b) => b.date.localeCompare(a.date)),
       totalHoursWorked: totalMinutesWorked / 60,
-      lateCount
+      lateCount,
+      overtimeCount,
+      totalOvertimeMinutes
     };
   }, [registros, funcionarioSelecionado, ano, mes]);
 
@@ -818,7 +842,7 @@ export default function GestaoJornada() {
           <TabsContent value="relatorio">
             <div className="space-y-6">
               {/* Stats Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardDescription>Dias Trabalhados</CardDescription>
@@ -853,6 +877,17 @@ export default function GestaoJornada() {
                     </CardDescription>
                     <CardTitle className={`text-2xl ${detailedStats?.lateCount ? "text-red-600" : ""}`}>
                       {detailedStats?.lateCount || 0}
+                    </CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card className={detailedStats?.overtimeCount ? "border-green-200 bg-green-50/50 dark:bg-green-950/20" : ""}>
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      Horas Extras (+10min)
+                    </CardDescription>
+                    <CardTitle className={`text-2xl ${detailedStats?.overtimeCount ? "text-green-600" : ""}`}>
+                      {detailedStats?.overtimeCount || 0} ({detailedStats?.totalOvertimeMinutes ? formatHoursMinutes(detailedStats.totalOvertimeMinutes / 60) : "0h00m"})
                     </CardTitle>
                   </CardHeader>
                 </Card>
@@ -898,7 +933,7 @@ export default function GestaoJornada() {
                 </CardHeader>
                 <CardContent>
                   {detailedStats?.workedDays && detailedStats.workedDays.length > 0 ? <div className="space-y-2">
-                      {detailedStats.workedDays.map(day => <div key={day.date} className={`flex items-center justify-between p-3 rounded-lg border ${day.isLate ? "border-red-200 bg-red-50/50 dark:bg-red-950/20" : "bg-muted/30"}`}>
+                      {detailedStats.workedDays.map(day => <div key={day.date} className={`flex items-center justify-between p-3 rounded-lg border ${day.isLate ? "border-red-200 bg-red-50/50 dark:bg-red-950/20" : day.hasOvertime ? "border-green-200 bg-green-50/50 dark:bg-green-950/20" : "bg-muted/30"}`}>
                           <div className="flex items-center gap-4">
                             <div className="flex flex-col">
                               <span className="font-medium capitalize">{day.dayName}</span>
@@ -920,7 +955,10 @@ export default function GestaoJornada() {
                               <span className="font-medium">{formatHoursMinutes(day.hoursWorked)}</span>
                             </div>
                             {day.isLate && <Badge variant="destructive" className="text-xs">
-                                +{day.lateMinutes}min
+                                +{day.lateMinutes}min atraso
+                              </Badge>}
+                            {day.hasOvertime && <Badge className="text-xs bg-green-600 hover:bg-green-700">
+                                +{day.overtimeMinutes}min extra
                               </Badge>}
                           </div>
                         </div>)}
