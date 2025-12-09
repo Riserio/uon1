@@ -48,16 +48,51 @@ export function useFipeVeiculos() {
   const [marcaCodigo, setMarcaCodigo] = useState<number | null>(null);
   const [modeloCodigo, setModeloCodigo] = useState<number | null>(null);
 
-  // Fallback para marcas do JSON local
-  // IMPORTANTE: Preservar nomes originais do JSON para distinguir "Ford" (carros) de "FORD" (caminhões)
+  // Helper para categorizar marcas por tipo de veículo
+  const getBrandCategory = useCallback((brand: string): string[] => {
+    // Marcas exclusivas de motos (comparação uppercase)
+    const motorcycleBrands = [
+      "ADLY", "APRILIA", "AVELLOZ", "AMAZONAS", "ATALA", "BAJAJ", "BEE", "BENELLI",
+      "BETA", "BIMOTA", "BRANDY", "BRAVA", "BRAVAX", "BUELL", "BUENO", "BULL",
+      "CAGIVA", "CALOI", "CASAL", "DAELIM", "DAFRA", "DAYUN", "DERBI", "DUCATI",
+      "EMME", "FYM", "GARELLI", "GAS GAS", "HARLEY-DAVIDSON", "HARTFORD", "HONDA",
+      "HUSABERG", "HUSQVARNA", "HYOSUNG", "IROS", "JIALING", "JOHNNYPAG", "KAHENA",
+      "KASINSKI", "KAWASAKI", "KEEWAY", "KTM", "KYMCO", "LAVRALE", "LERIVO", "LIFAN",
+      "MALAGUTI", "MIZA", "MOBILETE", "MOTO GUZZI", "MRX", "MV AGUSTA", "ORCA",
+      "PEUGEOT", "PIAGGIO", "SANYANG", "SHINERAY", "SUNDOWN", "SUZUKI", "TRAXX",
+      "TRIUMPH", "VENTO", "VESPA", "YAMAHA", "YUMBO", "ZONGSHEN", "ZONTES",
+    ];
+
+    // Marcas de caminhões/ônibus - comparação exata
+    const truckBrandsExact = [
+      "AGRALE", "BEPOBUS", "FORD", "FORD CARGO", "FOTON", "IVECO", "MAN",
+      "MERCEDES-BENZ", "NAVISTAR", "SAAB-SCANIA", "SCANIA", "SHACMAN", "SIAMOTO",
+      "SINOTRUCK", "VOLKSWAGEN", "VOLVO", "WALKBUS", "DAF", "FREIGHTLINER",
+      "INTERNATIONAL", "KENWORTH", "MACK", "PETERBILT", "STERLING", "WESTERN STAR",
+    ];
+
+    const categories: string[] = [];
+    if (motorcycleBrands.includes(brand.toUpperCase())) categories.push("moto");
+    if (truckBrandsExact.includes(brand)) categories.push("caminhao");
+    if (categories.length === 0) categories.push("carro");
+    return categories;
+  }, []);
+
+  // Fallback para marcas do JSON local com filtro por tipo de veículo
   const getMarcasFromJSON = useCallback((tipoVeiculo: string) => {
     const allMarcas = Object.keys(marcasModelosData as VeiculosData).sort();
     
-    return allMarcas.map((name, index) => ({
+    // Filtrar por tipo de veículo usando getBrandCategory
+    const filteredMarcas = allMarcas.filter(name => {
+      const categories = getBrandCategory(name);
+      return categories.includes(tipoVeiculo);
+    });
+    
+    return filteredMarcas.map((name, index) => ({
       code: index,
-      name: name, // Manter nome original do JSON sem transformação
+      name: name,
     }));
-  }, []);
+  }, [getBrandCategory]);
 
   // Fallback para modelos do JSON local
   // IMPORTANTE: Preservar nomes originais do JSON
