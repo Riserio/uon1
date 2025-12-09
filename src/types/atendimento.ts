@@ -21,6 +21,7 @@ export interface Atendimento {
   fluxoId?: string;
   createdAt: string;
   updatedAt: string;
+  regressou?: boolean;
 }
 
 export interface Corretora {

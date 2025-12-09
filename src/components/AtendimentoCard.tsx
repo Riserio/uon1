@@ -1,13 +1,14 @@
 import { Atendimento } from '@/types/atendimento';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, Archive, Eye, Send, Clock, ExternalLink, FileText, Camera, Truck, MessageCircle } from 'lucide-react';
+import { Pencil, Trash2, Archive, Eye, Send, Clock, ExternalLink, FileText, Camera, Truck, MessageCircle, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useEffect } from 'react';
 import { EnviarEmailDialog } from './EnviarEmailDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface AtendimentoCardProps {
   atendimento: Atendimento;
@@ -310,6 +311,26 @@ export function AtendimentoCard({
           >
             {atendimento.prioridade}
           </Badge>
+
+          {/* Tag de Regressão/Atenção Especial */}
+          {atendimento.regressou && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge 
+                    variant="outline"
+                    className="text-[10px] h-4 px-1.5 rounded bg-orange-500/10 text-orange-600 border-orange-500/20 flex items-center gap-0.5"
+                  >
+                    <AlertTriangle className="w-2.5 h-2.5" />
+                    Atenção
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Este card regrediu no fluxo e necessita atenção especial</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           
           {!isConcluido && hoursRemaining !== null && hoursRemaining <= 8 && (
             <Badge 
