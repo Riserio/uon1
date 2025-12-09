@@ -65,11 +65,9 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
 
     // Build offscreen container with the content plus signatures
     const container = document.createElement("div");
-    container.style.position = "absolute";
-    container.style.left = "-99999px";
-    container.style.top = "-99999px";
-    container.style.visibility = "hidden";
-    container.style.pointerEvents = "none";
+    container.style.position = "fixed";
+    container.style.left = "-9999px";
+    container.style.top = "0";
     container.style.background = "#ffffff";
     container.style.color = "#222";
     container.style.padding = "24px";
@@ -250,15 +248,29 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
       if (pageIndex > 0) {
         pdf.addPage();
         
-        // Repeated header only on pages 2+ - text only (no logo)
-        pdf.setFontSize(12);
-        pdf.setFont("helvetica", "bold");
-        pdf.setTextColor(30, 30, 30);
-        pdf.text("Vangard Gestora", pageMarginMm, 12);
-        pdf.setFontSize(9);
-        pdf.setFont("helvetica", "normal");
-        pdf.setTextColor(100, 100, 100);
-        pdf.text("vangardgestora.com.br", pageMarginMm, 17);
+        // Repeated header only on pages 2+ - text left, logo right
+        try {
+          pdf.setFontSize(12);
+          pdf.setFont("helvetica", "bold");
+          pdf.setTextColor(30, 30, 30);
+          pdf.text("Vangard Gestora", pageMarginMm, 12);
+          pdf.setFontSize(9);
+          pdf.setFont("helvetica", "normal");
+          pdf.setTextColor(100, 100, 100);
+          pdf.text("vangardgestora.com.br", pageMarginMm, 17);
+          
+          if (logoData) {
+            const logoWidthMm = 36;
+            const logoHeightMm = 12;
+            const logoX = pdfWidthMm - pageMarginMm - logoWidthMm;
+            pdf.addImage(logoData, "PNG", logoX, 6, logoWidthMm, logoHeightMm);
+          }
+        } catch (err) {
+          pdf.setFontSize(12);
+          pdf.setFont("helvetica", "bold");
+          pdf.setTextColor(30, 30, 30);
+          pdf.text("Vangard Gestora", pageMarginMm, 12);
+        }
       }
 
       // Draw slice image under header
