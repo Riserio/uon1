@@ -27,6 +27,7 @@ import { WorkflowConfigDialog } from "@/components/WorkflowConfigDialog";
 import { FluxoVisualizationDialog } from "@/components/FluxoVisualizationDialog";
 import { AcompanhamentoLinkDialog } from "@/components/AcompanhamentoLinkDialog";
 import { NovoAtendimentoDialog } from "@/components/NovoAtendimentoDialog";
+import { ConcluirFluxoManualDialog } from "@/components/ConcluirFluxoManualDialog";
 
 const Index = () => {
   const isMobile = useIsMobile();
@@ -49,6 +50,12 @@ const Index = () => {
   const [fluxoVisualizationOpen, setFluxoVisualizationOpen] = useState(false);
   const [acompanhamentoLinkOpen, setAcompanhamentoLinkOpen] = useState(false);
   const [novoAtendimentoDialogOpen, setNovoAtendimentoDialogOpen] = useState(false);
+  const [concluirFluxoDialogOpen, setConcluirFluxoDialogOpen] = useState(false);
+  const [pendingConcluirData, setPendingConcluirData] = useState<{
+    atendimentoId: string;
+    currentFluxoId: string;
+    currentStatus: string;
+  } | null>(null);
   const [selectedFluxoId, setSelectedFluxoId] = useState<string | null>(null);
   const [statusPrazo, setStatusPrazo] = useState<Record<string, number>>({});
   const [userRole, setUserRole] = useState<string>("");
@@ -519,6 +526,27 @@ const Index = () => {
 
           // Atualiza o fluxo selecionado na UI para acompanhar o card
           setSelectedFluxoId(fluxoParaSalvar);
+        } else {
+          // Não tem encadeamento automático - mostrar dialog para escolha manual
+          // Primeiro salva o status atual
+          const updateData: any = {
+            status: statusParaSalvar,
+            updated_at: new Date().toISOString(),
+            status_changed_at: new Date().toISOString(),
+            fluxo_id: fluxoParaSalvar,
+          };
+          
+          await supabase.from("atendimentos").update(updateData).eq("id", id);
+          await loadAtendimentos(fluxoParaSalvar);
+          
+          // Abre o dialog perguntando se quer mover para outro fluxo
+          setPendingConcluirData({
+            atendimentoId: id,
+            currentFluxoId: fluxoAtualId,
+            currentStatus: newStatus,
+          });
+          setConcluirFluxoDialogOpen(true);
+          return;
         }
       }
 
@@ -618,6 +646,38 @@ const Index = () => {
 
   const handleNewAtendimento = () => {
     setNovoAtendimentoDialogOpen(true);
+  };
+
+  const handleConcluirFluxoManual = async (fluxoId: string | null, status: string | null) => {
+    if (!pendingConcluirData) return;
+    
+    if (fluxoId && status) {
+      try {
+        // Mover para o novo fluxo e status
+        const { error } = await supabase
+          .from("atendimentos")
+          .update({
+            fluxo_id: fluxoId,
+            status: status,
+            updated_at: new Date().toISOString(),
+            status_changed_at: new Date().toISOString(),
+          })
+          .eq("id", pendingConcluirData.atendimentoId);
+        
+        if (error) throw error;
+        
+        setSelectedFluxoId(fluxoId);
+        await loadAtendimentos(fluxoId);
+        sonnerToast.success("Card movido para o fluxo selecionado!");
+      } catch (error) {
+        console.error("Erro ao mover card:", error);
+        sonnerToast.error("Erro ao mover card para o novo fluxo");
+      }
+    } else {
+      sonnerToast.success("Card finalizado com sucesso!");
+    }
+    
+    setPendingConcluirData(null);
   };
 
   const handleExportJSON = () => {
@@ -868,6 +928,17 @@ const Index = () => {
       <AcompanhamentoLinkDialog open={acompanhamentoLinkOpen} onOpenChange={setAcompanhamentoLinkOpen} />
 
       <NovoAtendimentoDialog open={novoAtendimentoDialogOpen} onOpenChange={setNovoAtendimentoDialogOpen} />
+
+      {pendingConcluirData && (
+        <ConcluirFluxoManualDialog
+          open={concluirFluxoDialogOpen}
+          onOpenChange={setConcluirFluxoDialogOpen}
+          atendimentoId={pendingConcluirData.atendimentoId}
+          currentFluxoId={pendingConcluirData.currentFluxoId}
+          currentStatus={pendingConcluirData.currentStatus}
+          onConfirm={handleConcluirFluxoManual}
+        />
+      )}
     </div>
   );
 };
