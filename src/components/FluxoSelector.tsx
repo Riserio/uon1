@@ -17,9 +17,10 @@ interface FluxoSelectorProps {
   selectedFluxoId: string | null;
   onFluxoSelect: (fluxoId: string | null) => void;
   onConfigureFluxos: () => void;
+  cardCounts?: Record<string, number>;
 }
 
-export function FluxoSelector({ selectedFluxoId, onFluxoSelect, onConfigureFluxos }: FluxoSelectorProps) {
+export function FluxoSelector({ selectedFluxoId, onFluxoSelect, onConfigureFluxos, cardCounts = {} }: FluxoSelectorProps) {
   const [fluxos, setFluxos] = useState<Fluxo[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -185,6 +186,22 @@ export function FluxoSelector({ selectedFluxoId, onFluxoSelect, onConfigureFluxo
                       }}
                     />
                     {fluxo.nome}
+                    {cardCounts[fluxo.id] !== undefined && cardCounts[fluxo.id] > 0 && (
+                      <span 
+                        className={cn(
+                          "ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold min-w-[18px] text-center",
+                          isActive 
+                            ? "bg-white/25 text-white" 
+                            : "bg-primary/15 text-primary"
+                        )}
+                        style={{
+                          backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : `${fluxo.cor}20`,
+                          color: isActive ? '#ffffff' : fluxo.cor
+                        }}
+                      >
+                        {cardCounts[fluxo.id]}
+                      </span>
+                    )}
                   </span>
                 </Button>
               </div>

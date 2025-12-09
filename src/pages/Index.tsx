@@ -58,6 +58,7 @@ const Index = () => {
   } | null>(null);
   const [selectedFluxoId, setSelectedFluxoId] = useState<string | null>(null);
   const [statusPrazo, setStatusPrazo] = useState<Record<string, number>>({});
+  const [fluxoCardCounts, setFluxoCardCounts] = useState<Record<string, number>>({});
   const [userRole, setUserRole] = useState<string>("");
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -75,6 +76,7 @@ const Index = () => {
     loadCorretoras();
     loadStatusPrazo();
     loadUserRole();
+    loadFluxoCardCounts();
 
     // Subscribe to realtime changes - with debounce to avoid constant reloads
     const atendimentosChannel = supabase
@@ -90,6 +92,7 @@ const Index = () => {
           // Only reload if dialog is not open to avoid losing user input
           if (!dialogOpen) {
             loadAtendimentos();
+            loadFluxoCardCounts();
           }
         },
       )
@@ -218,6 +221,27 @@ const Index = () => {
       setUserRole(data?.role || "");
     } catch (error: any) {
       console.error("Erro ao carregar role do usuário:", error);
+    }
+  };
+
+  const loadFluxoCardCounts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("atendimentos")
+        .select("fluxo_id")
+        .eq("arquivado", false);
+      
+      if (error) throw error;
+      
+      const counts: Record<string, number> = {};
+      data?.forEach((item) => {
+        if (item.fluxo_id) {
+          counts[item.fluxo_id] = (counts[item.fluxo_id] || 0) + 1;
+        }
+      });
+      setFluxoCardCounts(counts);
+    } catch (error: any) {
+      console.error("Erro ao carregar contagens de fluxos:", error);
     }
   };
 
@@ -882,6 +906,7 @@ const Index = () => {
             selectedFluxoId={selectedFluxoId}
             onFluxoSelect={setSelectedFluxoId}
             onConfigureFluxos={() => setWorkflowConfigOpen(true)}
+            cardCounts={fluxoCardCounts}
           />
         </div>
       </div>
