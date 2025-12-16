@@ -27,6 +27,7 @@ interface Vistoria {
   created_at: string;
   link_token: string;
   corretora_id?: string;
+  corretora_nome?: string;
   tipo_sinistro?: string;
   custo_oficina?: number;
   custo_reparo?: number;
@@ -105,11 +106,19 @@ export default function Sinistros() {
       const {
         data,
         error
-      } = await supabase.from("vistorias").select("*").order("created_at", {
+      } = await supabase.from("vistorias").select(`
+        *,
+        corretoras(nome)
+      `).order("created_at", {
         ascending: false
       });
       if (error) throw error;
-      setVistorias(data || []);
+      // Map to include corretora_nome
+      const vistoriasWithCorretora = (data || []).map((v: any) => ({
+        ...v,
+        corretora_nome: v.corretoras?.nome || null
+      }));
+      setVistorias(vistoriasWithCorretora);
     } catch (error) {
       console.error("Erro ao carregar vistorias:", error);
       toast.error("Erro ao carregar vistorias");
@@ -167,7 +176,8 @@ export default function Sinistros() {
           custo_perda_total,
           custo_perda_parcial,
           valor_franquia,
-          valor_indenizacao
+          valor_indenizacao,
+          tipo_sinistro
         `).in("atendimento_id", atendimentoIds);
       const {
         data: historicoData
@@ -240,6 +250,7 @@ export default function Sinistros() {
           vistoria_id: vistoria?.id,
           vistoria_numero: vistoria?.numero,
           corretora_id: atendimento.corretora_id,
+          tipo_sinistro: vistoria?.tipo_sinistro,
           timeline,
           corretoraInfo: atendimento.corretoras
         } as any;
@@ -751,6 +762,26 @@ export default function Sinistros() {
               <div className="grid gap-4">
                 {filteredVistorias.map(vistoria => <Card key={vistoria.id} className="hover:shadow-lg transition-shadow border border-border/70 bg-gradient-to-br from-background to-muted/40">
                      <CardContent className="p-6">
+                      {/* Associação em destaque */}
+                      <div className="flex items-center gap-2 flex-wrap mb-3">
+                        {vistoria.corretora_nome ? (
+                          <Badge variant="secondary" className="text-sm h-6 px-3 font-semibold bg-primary/10 text-primary border-primary/20">
+                            <Building2 className="h-3.5 w-3.5 mr-1.5" />
+                            {vistoria.corretora_nome}
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-sm h-6 px-3 font-semibold">
+                            <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+                            Sem associação
+                          </Badge>
+                        )}
+                        {vistoria.tipo_sinistro && (
+                          <Badge variant="outline" className="text-sm h-6 px-3 bg-secondary/50">
+                            {vistoria.tipo_sinistro}
+                          </Badge>
+                        )}
+                      </div>
+
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2 flex-wrap">

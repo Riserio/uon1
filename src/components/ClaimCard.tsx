@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, FileText, Calendar, DollarSign, Camera, ClipboardList } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, Calendar, DollarSign, Camera, ClipboardList, Building2, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 export interface ClaimTimeline {
@@ -35,6 +35,7 @@ export interface Claim {
   vistoria_id?: string | null;
   vistoria_numero?: number | null;
   corretora_id?: string | null;
+  tipo_sinistro?: string | null;
 }
 interface ClaimCardProps {
   claim: Claim;
@@ -57,6 +58,26 @@ export function ClaimCard({
   const total = calculateTotal();
   return <Card className="overflow-hidden transition-all hover:shadow-md">
       <CardContent className="p-6">
+        {/* Associação em destaque */}
+        <div className="flex items-center gap-2 flex-wrap mb-3">
+          {claim.corretoraInfo?.nome ? (
+            <Badge variant="secondary" className="text-sm h-6 px-3 font-semibold bg-primary/10 text-primary border-primary/20">
+              <Building2 className="h-3.5 w-3.5 mr-1.5" />
+              {claim.corretoraInfo.nome}
+            </Badge>
+          ) : (
+            <Badge variant="destructive" className="text-sm h-6 px-3 font-semibold">
+              <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+              Sem associação
+            </Badge>
+          )}
+          {claim.tipo_sinistro && (
+            <Badge variant="outline" className="text-sm h-6 px-3 bg-secondary/50">
+              {claim.tipo_sinistro}
+            </Badge>
+          )}
+        </div>
+
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3 flex-wrap">
             <h3 className="text-xl font-bold text-foreground">

@@ -1,7 +1,7 @@
 import { Atendimento } from '@/types/atendimento';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, Archive, Eye, Send, Clock, ExternalLink, FileText, Camera, Truck, MessageCircle, AlertTriangle } from 'lucide-react';
+import { Pencil, Trash2, Archive, Eye, Send, Clock, ExternalLink, FileText, Camera, Truck, MessageCircle, AlertTriangle, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useEffect } from 'react';
 import { EnviarEmailDialog } from './EnviarEmailDialog';
@@ -274,16 +274,30 @@ export function AtendimentoCard({
           </div>
         )}
 
-        {/* Meta info - incluindo corretora e responsável */}
+        {/* Associação em destaque */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {corretoraNome ? (
+            <Badge variant="secondary" className="text-[10px] h-5 px-2 font-semibold bg-primary/10 text-primary border-primary/20">
+              <Building2 className="w-3 h-3 mr-1" />
+              {corretoraNome}
+            </Badge>
+          ) : (
+            <Badge variant="destructive" className="text-[10px] h-5 px-2 font-semibold">
+              <AlertTriangle className="w-3 h-3 mr-1" />
+              Sem associação
+            </Badge>
+          )}
+          {vistoria?.tipo_sinistro && (
+            <Badge variant="outline" className="text-[10px] h-5 px-2 bg-secondary/50">
+              {vistoria.tipo_sinistro}
+            </Badge>
+          )}
+        </div>
+
+        {/* Meta info */}
         <div className="flex flex-col gap-1 text-[11px] text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <span className="font-mono opacity-60">#{atendimento.numero}</span>
-            {corretoraNome && (
-              <>
-                <span className="opacity-40">•</span>
-                <span className="truncate max-w-[120px]" title={corretoraNome}>{corretoraNome}</span>
-              </>
-            )}
           </div>
           {responsavelNome && (
             <div className="flex items-center gap-1.5">
