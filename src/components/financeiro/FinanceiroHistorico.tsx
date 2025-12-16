@@ -54,31 +54,62 @@ export default function FinanceiroHistorico({ corretoraId }: Props) {
   const fetchHistorico = async () => {
     setLoading(true);
     
-    // Buscar histórico com dados do lançamento
-    let query = supabase
-      .from("lancamentos_financeiros_historico")
-      .select(`
-        *,
-        lancamentos_financeiros!lancamentos_financeiros_historico_lancamento_id_fkey (
-          numero_lancamento,
-          descricao,
-          corretora_id
-        )
-      `)
-      .order("created_at", { ascending: false })
-      .limit(500);
+    try {
+      // Buscar histórico
+      const { data: historicoData, error: historicoError } = await supabase
+        .from("lancamentos_financeiros_historico")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(500);
 
-    const { data, error } = await query;
+      if (historicoError) {
+        console.error("Erro ao buscar histórico:", historicoError);
+        setHistorico([]);
+        setLoading(false);
+        return;
+      }
 
-    if (!error && data) {
-      // Filtrar por corretora
-      const filtered = data.filter(h => {
-        if (corretoraId === "administradora") {
-          return !h.lancamentos_financeiros?.corretora_id;
+      if (!historicoData || historicoData.length === 0) {
+        setHistorico([]);
+        setLoading(false);
+        return;
+      }
+
+      // Buscar lançamentos relacionados
+      const lancamentoIds = [...new Set(historicoData.map(h => h.lancamento_id).filter(Boolean))];
+      
+      let lancamentosMap: Record<string, any> = {};
+      
+      if (lancamentoIds.length > 0) {
+        const { data: lancamentosData } = await supabase
+          .from("lancamentos_financeiros")
+          .select("id, numero_lancamento, descricao, corretora_id")
+          .in("id", lancamentoIds);
+
+        if (lancamentosData) {
+          lancamentosMap = lancamentosData.reduce((acc, l) => {
+            acc[l.id] = l;
+            return acc;
+          }, {} as Record<string, any>);
         }
-        return h.lancamentos_financeiros?.corretora_id === corretoraId;
+      }
+
+      // Combinar dados e filtrar por corretora
+      const combined = historicoData.map(h => ({
+        ...h,
+        lancamento: h.lancamento_id ? lancamentosMap[h.lancamento_id] : null,
+      })).filter(h => {
+        if (!h.lancamento) return true; // Manter registros sem lançamento associado
+        if (corretoraId === "administradora") {
+          return !h.lancamento.corretora_id;
+        }
+        return h.lancamento.corretora_id === corretoraId;
       });
-      setHistorico(filtered);
+
+      setHistorico(combined);
+    } catch (err) {
+      console.error("Erro ao buscar histórico:", err);
+      setHistorico([]);
     }
     setLoading(false);
   };
@@ -90,8 +121,8 @@ export default function FinanceiroHistorico({ corretoraId }: Props) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(h => 
         h.user_nome?.toLowerCase().includes(term) ||
-        h.lancamentos_financeiros?.descricao?.toLowerCase().includes(term) ||
-        h.lancamentos_financeiros?.numero_lancamento?.toLowerCase().includes(term) ||
+        h.lancamento?.descricao?.toLowerCase().includes(term) ||
+        h.lancamento?.numero_lancamento?.toLowerCase().includes(term) ||
         h.campo_alterado?.toLowerCase().includes(term)
       );
     }
@@ -196,9 +227,9 @@ export default function FinanceiroHistorico({ corretoraId }: Props) {
                               <Badge variant="outline" className="font-medium">
                                 {acaoDisplay.label}
                               </Badge>
-                              {item.lancamentos_financeiros?.numero_lancamento && (
+                              {item.lancamento?.numero_lancamento && (
                                 <span className="text-sm font-mono text-muted-foreground">
-                                  {item.lancamentos_financeiros.numero_lancamento}
+                                  {item.lancamento.numero_lancamento}
                                 </span>
                               )}
                             </div>
@@ -213,9 +244,9 @@ export default function FinanceiroHistorico({ corretoraId }: Props) {
                             <span className="text-sm font-medium">{item.user_nome}</span>
                           </div>
 
-                          {item.lancamentos_financeiros?.descricao && (
+                          {item.lancamento?.descricao && (
                             <p className="text-sm text-muted-foreground mb-2">
-                              {item.lancamentos_financeiros.descricao}
+                              {item.lancamento.descricao}
                             </p>
                           )}
 

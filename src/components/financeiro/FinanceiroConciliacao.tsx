@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,11 @@ import {
   RefreshCw,
   TrendingUp,
   TrendingDown,
-  Filter
+  Filter,
+  Upload,
+  FileText,
+  X,
+  AlertCircle
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { registrarHistoricoFinanceiro } from "@/lib/financeiroHistorico";
@@ -22,19 +26,37 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Props {
   corretoraId: string;
 }
 
+interface OFXTransaction {
+  id: string;
+  date: Date;
+  amount: number;
+  description: string;
+  type: "credit" | "debit";
+  matched?: boolean;
+  matchedLancamentoId?: string;
+}
+
 export default function FinanceiroConciliacao({ corretoraId }: Props) {
   const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [lancamentos, setLancamentos] = useState<any[]>([]);
   const [filteredLancamentos, setFilteredLancamentos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [conciliadoFilter, setConciliadoFilter] = useState("todos");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  
+  // OFX states
+  const [ofxTransactions, setOfxTransactions] = useState<OFXTransaction[]>([]);
+  const [showOfxDialog, setShowOfxDialog] = useState(false);
+  const [ofxFileName, setOfxFileName] = useState("");
 
   useEffect(() => {
     if (corretoraId) fetchLancamentos();
@@ -89,6 +111,15 @@ export default function FinanceiroConciliacao({ corretoraId }: Props) {
     if (!user || ids.length === 0) return;
 
     try {
+      // Get user name for history
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("nome")
+        .eq("id", user.id)
+        .single();
+      
+      const userName = profile?.nome || user.email || "Usuário";
+
       const { error } = await supabase
         .from("lancamentos_financeiros")
         .update({
@@ -99,6 +130,19 @@ export default function FinanceiroConciliacao({ corretoraId }: Props) {
         .in("id", ids);
 
       if (error) throw error;
+
+      // Register history for each conciliation
+      for (const id of ids) {
+        await registrarHistoricoFinanceiro({
+          lancamentoId: id,
+          userId: user.id,
+          userNome: userName,
+          acao: "conciliacao",
+          campoAlterado: "conciliado",
+          valorAnterior: "false",
+          valorNovo: "true",
+        });
+      }
       
       toast.success(`${ids.length} lançamento(s) conciliado(s)!`);
       setSelectedIds([]);
@@ -112,6 +156,15 @@ export default function FinanceiroConciliacao({ corretoraId }: Props) {
     if (!user) return;
 
     try {
+      // Get user name for history
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("nome")
+        .eq("id", user.id)
+        .single();
+      
+      const userName = profile?.nome || user.email || "Usuário";
+
       const { error } = await supabase
         .from("lancamentos_financeiros")
         .update({
@@ -122,6 +175,17 @@ export default function FinanceiroConciliacao({ corretoraId }: Props) {
         .eq("id", id);
 
       if (error) throw error;
+
+      // Register history
+      await registrarHistoricoFinanceiro({
+        lancamentoId: id,
+        userId: user.id,
+        userNome: userName,
+        acao: "conciliacao",
+        campoAlterado: "conciliado",
+        valorAnterior: "true",
+        valorNovo: "false (desfeita)",
+      });
       
       toast.success("Conciliação desfeita!");
       fetchLancamentos();
@@ -145,6 +209,131 @@ export default function FinanceiroConciliacao({ corretoraId }: Props) {
     } else {
       setSelectedIds(pendentes);
     }
+  };
+
+  // OFX Parsing Functions
+  const parseOFX = (content: string): OFXTransaction[] => {
+    const transactions: OFXTransaction[] = [];
+    
+    // Parse OFX/QFX format - looking for STMTTRN blocks
+    const transactionRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
+    const matches = content.matchAll(transactionRegex);
+    
+    for (const match of matches) {
+      const block = match[1];
+      
+      // Extract fields
+      const trnTypeMatch = block.match(/<TRNTYPE>([^<\n]+)/i);
+      const dateMatch = block.match(/<DTPOSTED>(\d{8})/i);
+      const amountMatch = block.match(/<TRNAMT>([^<\n]+)/i);
+      const memoMatch = block.match(/<MEMO>([^<\n]+)/i);
+      const nameMatch = block.match(/<NAME>([^<\n]+)/i);
+      const fitidMatch = block.match(/<FITID>([^<\n]+)/i);
+      
+      if (dateMatch && amountMatch) {
+        const dateStr = dateMatch[1];
+        const amount = parseFloat(amountMatch[1].replace(",", "."));
+        const description = memoMatch?.[1] || nameMatch?.[1] || "Sem descrição";
+        const fitid = fitidMatch?.[1] || Math.random().toString(36).substring(7);
+        
+        // Parse date YYYYMMDD
+        const year = parseInt(dateStr.substring(0, 4));
+        const month = parseInt(dateStr.substring(4, 6)) - 1;
+        const day = parseInt(dateStr.substring(6, 8));
+        const date = new Date(year, month, day);
+        
+        transactions.push({
+          id: fitid,
+          date,
+          amount: Math.abs(amount),
+          description: description.trim(),
+          type: amount >= 0 ? "credit" : "debit",
+          matched: false,
+        });
+      }
+    }
+    
+    return transactions.sort((a, b) => b.date.getTime() - a.date.getTime());
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.name.toLowerCase().endsWith('.ofx') && !file.name.toLowerCase().endsWith('.qfx')) {
+      toast.error("Por favor, selecione um arquivo OFX ou QFX");
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      const transactions = parseOFX(content);
+      
+      if (transactions.length === 0) {
+        toast.error("Nenhuma transação encontrada no arquivo");
+        return;
+      }
+      
+      // Auto-match transactions
+      const matchedTransactions = autoMatchTransactions(transactions);
+      
+      setOfxTransactions(matchedTransactions);
+      setOfxFileName(file.name);
+      setShowOfxDialog(true);
+      toast.success(`${transactions.length} transações importadas`);
+    };
+    
+    reader.onerror = () => {
+      toast.error("Erro ao ler o arquivo");
+    };
+    
+    reader.readAsText(file, 'latin1'); // OFX often uses latin1 encoding
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const autoMatchTransactions = (transactions: OFXTransaction[]): OFXTransaction[] => {
+    return transactions.map(tx => {
+      // Find potential match in lancamentos
+      const match = lancamentos.find(l => {
+        // Match by amount and approximate date (same day)
+        const lancamentoDate = new Date(l.data_lancamento);
+        const sameDay = 
+          lancamentoDate.getFullYear() === tx.date.getFullYear() &&
+          lancamentoDate.getMonth() === tx.date.getMonth() &&
+          lancamentoDate.getDate() === tx.date.getDate();
+        
+        const sameAmount = Math.abs(l.valor_liquido - tx.amount) < 0.01;
+        const sameType = 
+          (tx.type === "credit" && l.tipo_lancamento === "receita") ||
+          (tx.type === "debit" && l.tipo_lancamento === "despesa");
+        
+        return sameDay && sameAmount && sameType && !l.conciliado;
+      });
+      
+      if (match) {
+        return { ...tx, matched: true, matchedLancamentoId: match.id };
+      }
+      return tx;
+    });
+  };
+
+  const handleConciliarFromOFX = async () => {
+    const matchedTransactions = ofxTransactions.filter(tx => tx.matched && tx.matchedLancamentoId);
+    const ids = matchedTransactions.map(tx => tx.matchedLancamentoId!);
+    
+    if (ids.length === 0) {
+      toast.error("Nenhuma transação correspondente para conciliar");
+      return;
+    }
+    
+    await handleConciliar(ids);
+    setShowOfxDialog(false);
+    setOfxTransactions([]);
   };
 
   const stats = {
@@ -225,6 +414,20 @@ export default function FinanceiroConciliacao({ corretoraId }: Props) {
         </div>
 
         <div className="flex gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".ofx,.qfx"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <Button 
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Importar OFX
+          </Button>
           <Button 
             variant="outline" 
             onClick={fetchLancamentos}
@@ -343,11 +546,116 @@ export default function FinanceiroConciliacao({ corretoraId }: Props) {
         <CardContent className="p-4">
           <p className="text-sm text-muted-foreground">
             <strong>Conciliação Bancária:</strong> Compare os lançamentos do sistema com o extrato bancário 
-            e marque como conciliados aqueles que foram confirmados. Isso ajuda a garantir que todas as 
-            movimentações financeiras estejam corretamente registradas.
+            e marque como conciliados aqueles que foram confirmados. Você pode importar arquivos OFX/QFX 
+            do seu banco para fazer a conciliação automática.
           </p>
         </CardContent>
       </Card>
+
+      {/* OFX Import Dialog */}
+      <Dialog open={showOfxDialog} onOpenChange={setShowOfxDialog}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Conciliação via OFX
+            </DialogTitle>
+            <DialogDescription>
+              Arquivo: {ofxFileName} - {ofxTransactions.length} transações encontradas
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Summary */}
+            <div className="grid grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Total de Transações</p>
+                  <p className="text-lg font-bold">{ofxTransactions.length}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-green-500/30">
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Correspondências</p>
+                  <p className="text-lg font-bold text-green-600">
+                    {ofxTransactions.filter(t => t.matched).length}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="border-yellow-500/30">
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Sem Correspondência</p>
+                  <p className="text-lg font-bold text-yellow-600">
+                    {ofxTransactions.filter(t => !t.matched).length}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Transactions Table */}
+            <ScrollArea className="h-[400px] border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">Status</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ofxTransactions.map((tx) => (
+                    <TableRow 
+                      key={tx.id}
+                      className={tx.matched ? "bg-green-50/50 dark:bg-green-950/20" : ""}
+                    >
+                      <TableCell>
+                        {tx.matched ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-yellow-600" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {format(tx.date, "dd/MM/yyyy", { locale: ptBR })}
+                      </TableCell>
+                      <TableCell className="max-w-[300px] truncate">
+                        {tx.description}
+                      </TableCell>
+                      <TableCell className={`text-right font-bold ${tx.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+                        {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+
+            {/* Actions */}
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">
+                {ofxTransactions.filter(t => t.matched).length > 0 
+                  ? `${ofxTransactions.filter(t => t.matched).length} transações serão conciliadas automaticamente`
+                  : "Nenhuma correspondência automática encontrada"
+                }
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowOfxDialog(false)}>
+                  <X className="h-4 w-4 mr-2" />
+                  Fechar
+                </Button>
+                <Button 
+                  onClick={handleConciliarFromOFX}
+                  disabled={ofxTransactions.filter(t => t.matched).length === 0}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Conciliar Correspondências ({ofxTransactions.filter(t => t.matched).length})
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
