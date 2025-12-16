@@ -327,10 +327,13 @@ export default function FinanceiroContasPagar({ corretoraId }: Props) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="sinistro">Sinistro</SelectItem>
-                      <SelectItem value="oficina">Oficina</SelectItem>
                       <SelectItem value="indenizacao">Indenização</SelectItem>
-                      <SelectItem value="reparo">Reparo</SelectItem>
-                      <SelectItem value="administrativo">Administrativo</SelectItem>
+                      <SelectItem value="salvados">Salvados</SelectItem>
+                      <SelectItem value="ressarcimento">Ressarcimento</SelectItem>
+                      <SelectItem value="custo_operacional">Custo Operacional</SelectItem>
+                      <SelectItem value="taxa_administrativa">Taxa Administrativa</SelectItem>
+                      <SelectItem value="ajuste_tecnico">Ajuste Técnico</SelectItem>
+                      <SelectItem value="estorno">Estorno</SelectItem>
                       <SelectItem value="outros">Outros</SelectItem>
                     </SelectContent>
                   </Select>
