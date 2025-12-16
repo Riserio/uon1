@@ -53,6 +53,28 @@ export default function FinanceiroContasReceber({ corretoraId }: Props) {
     if (corretoraId) fetchLancamentos();
   }, [corretoraId]);
 
+  // Realtime subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel('contas-receber-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lancamentos_financeiros'
+        },
+        () => {
+          fetchLancamentos();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [corretoraId]);
+
   useEffect(() => {
     filterLancamentos();
   }, [lancamentos, searchTerm, statusFilter]);

@@ -111,12 +111,13 @@ export default function Financeiro() {
       const { data: lancamentos } = await query;
 
       if (lancamentos) {
+        // Saldo = receitas recebidas (pago) - despesas pagas (pago)
         const receitas = lancamentos
-          .filter(l => l.tipo_lancamento === "receita" && l.status === "aprovado")
+          .filter(l => l.tipo_lancamento === "receita" && l.status === "pago")
           .reduce((sum, l) => sum + (l.valor_liquido || 0), 0);
 
         const despesas = lancamentos
-          .filter(l => l.tipo_lancamento === "despesa" && l.status === "aprovado")
+          .filter(l => l.tipo_lancamento === "despesa" && l.status === "pago")
           .reduce((sum, l) => sum + (l.valor_liquido || 0), 0);
 
         const aReceber = lancamentos
@@ -147,6 +148,29 @@ export default function Financeiro() {
       console.error("Erro ao carregar resumo:", error);
     }
   };
+
+  // Realtime subscription for automatic updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('financeiro-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lancamentos_financeiros'
+        },
+        () => {
+          // Refresh summary when any change occurs
+          fetchSummary();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedCorretora]);
 
   if (loading) {
     return (
