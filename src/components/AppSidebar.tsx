@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, Mail, TrendingUp, DollarSign, Settings } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, Mail, TrendingUp, DollarSign, Settings, Megaphone, FileSignature } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -258,6 +258,26 @@ export function AppSidebar() {
                       <NavLink to="/pid" activeClassName="bg-primary text-primary-foreground">
                         <TrendingUp className="h-4 w-4" />
                         {!collapsed && <span>BI - Indicadores</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>}
+
+                {/* Uon1Sign */}
+                {canView("contratos") && <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/gestao?tab=contratos" activeClassName="bg-primary text-primary-foreground">
+                        <FileSignature className="h-4 w-4" />
+                        {!collapsed && <span>Uon1Sign</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>}
+
+                {/* Comunicados */}
+                {canView("comunicados") && <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/comunicados" activeClassName="bg-primary text-primary-foreground">
+                        <Megaphone className="h-4 w-4" />
+                        {!collapsed && <span>Comunicados</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
