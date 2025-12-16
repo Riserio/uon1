@@ -58,12 +58,19 @@ export default function FinanceiroContasReceber({ corretoraId }: Props) {
 
   const fetchLancamentos = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from("lancamentos_financeiros")
       .select("*")
-      .eq("corretora_id", corretoraId)
       .eq("tipo_lancamento", "receita")
       .order("data_vencimento", { ascending: true });
+    
+    if (corretoraId === "administradora") {
+      query = query.is("corretora_id", null);
+    } else {
+      query = query.eq("corretora_id", corretoraId);
+    }
+    
+    const { data, error } = await query;
 
     if (!error && data) {
       setLancamentos(data);
@@ -109,7 +116,7 @@ export default function FinanceiroContasReceber({ corretoraId }: Props) {
         data_lancamento: format(new Date(), "yyyy-MM-dd"),
         categoria: formData.categoria,
         observacoes: formData.observacoes || null,
-        corretora_id: corretoraId,
+        corretora_id: corretoraId === "administradora" ? null : corretoraId,
         created_by: user.id,
         status: "pendente",
       }]);

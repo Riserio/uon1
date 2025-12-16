@@ -45,12 +45,19 @@ export default function FinanceiroConciliacao({ corretoraId }: Props) {
 
   const fetchLancamentos = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from("lancamentos_financeiros")
       .select("*")
-      .eq("corretora_id", corretoraId)
       .in("status", ["aprovado", "pago"])
       .order("data_lancamento", { ascending: false });
+    
+    if (corretoraId === "administradora") {
+      query = query.is("corretora_id", null);
+    } else {
+      query = query.eq("corretora_id", corretoraId);
+    }
+    
+    const { data, error } = await query;
 
     if (!error && data) {
       setLancamentos(data);
