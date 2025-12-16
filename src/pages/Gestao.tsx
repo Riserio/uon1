@@ -31,8 +31,8 @@ export default function Gestao() {
   ].filter(tab => tab.visible);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 max-w-7xl">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto py-6 px-6">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
