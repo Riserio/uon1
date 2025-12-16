@@ -1939,6 +1939,56 @@ export type Database = {
           },
         ]
       }
+      lancamentos_financeiros_historico: {
+        Row: {
+          acao: string
+          campo_alterado: string | null
+          created_at: string
+          dados_completos: Json | null
+          id: string
+          ip_address: string | null
+          lancamento_id: string | null
+          user_id: string
+          user_nome: string
+          valor_anterior: string | null
+          valor_novo: string | null
+        }
+        Insert: {
+          acao: string
+          campo_alterado?: string | null
+          created_at?: string
+          dados_completos?: Json | null
+          id?: string
+          ip_address?: string | null
+          lancamento_id?: string | null
+          user_id: string
+          user_nome: string
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Update: {
+          acao?: string
+          campo_alterado?: string | null
+          created_at?: string
+          dados_completos?: Json | null
+          id?: string
+          ip_address?: string | null
+          lancamento_id?: string | null
+          user_id?: string
+          user_nome?: string
+          valor_anterior?: string | null
+          valor_novo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lancamentos_financeiros_historico_lancamento_id_fkey"
+            columns: ["lancamento_id"]
+            isOneToOne: false
+            referencedRelation: "lancamentos_financeiros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lembretes_disparados: {
         Row: {
           created_at: string | null

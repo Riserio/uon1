@@ -26,6 +26,7 @@ import {
   Clock
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { registrarHistoricoFinanceiro } from "@/lib/financeiroHistorico";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
@@ -50,6 +51,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [userNome, setUserNome] = useState("");
   const [formData, setFormData] = useState({
     tipo_lancamento: "receita",
     descricao: "",
@@ -60,6 +62,13 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
     categoria: "premio",
     observacoes: "",
   });
+
+  useEffect(() => {
+    if (user) {
+      supabase.from("profiles").select("nome").eq("id", user.id).single()
+        .then(({ data }) => setUserNome(data?.nome || user.email || ""));
+    }
+  }, [user]);
 
   useEffect(() => {
     if (corretoraId) fetchLancamentos();
@@ -142,16 +151,34 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
           .eq("id", editingId);
 
         if (error) throw error;
+        
+        await registrarHistoricoFinanceiro({
+          lancamentoId: editingId,
+          userId: user.id,
+          userNome: userNome,
+          acao: "edicao",
+          dadosCompletos: data,
+        });
+        
         toast.success("Lançamento atualizado!");
       } else {
-        const { error } = await supabase.from("lancamentos_financeiros").insert([{
+        const { data: inserted, error } = await supabase.from("lancamentos_financeiros").insert([{
           ...data,
           numero_lancamento: '',
           created_by: user.id,
           status: "pendente",
-        }]);
+        }]).select().single();
 
         if (error) throw error;
+        
+        await registrarHistoricoFinanceiro({
+          lancamentoId: inserted?.id,
+          userId: user.id,
+          userNome: userNome,
+          acao: "criacao",
+          dadosCompletos: { ...data, status: "pendente" },
+        });
+        
         toast.success("Lançamento criado!");
       }
 
@@ -181,8 +208,19 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Tem certeza que deseja excluir este lançamento?")) return;
+    if (!user) return;
 
     try {
+      // Registrar histórico antes de deletar
+      const lancamento = lancamentos.find(l => l.id === id);
+      await registrarHistoricoFinanceiro({
+        lancamentoId: id,
+        userId: user.id,
+        userNome: userNome,
+        acao: "exclusao",
+        dadosCompletos: lancamento,
+      });
+
       const { error } = await supabase
         .from("lancamentos_financeiros")
         .delete()
@@ -210,6 +248,17 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
         .eq("id", id);
 
       if (error) throw error;
+      
+      await registrarHistoricoFinanceiro({
+        lancamentoId: id,
+        userId: user.id,
+        userNome: userNome,
+        acao: "aprovacao",
+        campoAlterado: "status",
+        valorAnterior: "pendente",
+        valorNovo: "aprovado",
+      });
+      
       toast.success("Lançamento aprovado!");
       fetchLancamentos();
     } catch (error) {
