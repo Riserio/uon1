@@ -5,13 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { 
   TrendingUp, 
   TrendingDown, 
-  DollarSign, 
   BarChart3,
-  Clock,
-  CheckCircle,
-  XCircle,
+  PieChart as PieChartIcon,
+  Target,
+  Wallet,
   FileText,
-  Calendar
+  ArrowUpRight,
+  ArrowDownLeft
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { 
@@ -27,9 +27,11 @@ import {
   CartesianGrid, 
   Tooltip, 
   Legend, 
-  ResponsiveContainer 
+  ResponsiveContainer,
+  ComposedChart,
+  Line
 } from "recharts";
-import { format, subMonths } from "date-fns";
+import { format, subMonths, eachMonthOfInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface Props {
@@ -38,19 +40,24 @@ interface Props {
 
 export default function FinanceiroVisaoGeral({ corretoraId }: Props) {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalReceitas: 0,
-    totalDespesas: 0,
-    receitasMes: 0,
-    despesasMes: 0,
-    pendentes: 0,
-    aprovados: 0,
-    rejeitados: 0,
-  });
-  const [chartData, setChartData] = useState<any[]>([]);
+  const [monthlyData, setMonthlyData] = useState<any[]>([]);
   const [categoryData, setCategoryData] = useState<any[]>([]);
   const [statusData, setStatusData] = useState<any[]>([]);
+  const [balanceData, setBalanceData] = useState<any[]>([]);
   const [recentLancamentos, setRecentLancamentos] = useState<any[]>([]);
+  const [kpis, setKpis] = useState({
+    receitaTotal: 0,
+    despesaTotal: 0,
+    saldoTotal: 0,
+    receitasMes: 0,
+    despesasMes: 0,
+    ticketMedioReceita: 0,
+    ticketMedioDespesa: 0,
+    totalLancamentos: 0,
+    taxaPendente: 0,
+    maiorReceita: 0,
+    maiorDespesa: 0,
+  });
 
   useEffect(() => {
     if (corretoraId) {
@@ -67,19 +74,17 @@ export default function FinanceiroVisaoGeral({ corretoraId }: Props) {
         .eq("corretora_id", corretoraId)
         .order("data_lancamento", { ascending: false });
 
-      if (lancamentos) {
-        // Calculate stats
+      if (lancamentos && lancamentos.length > 0) {
         const now = new Date();
         const currentMonth = now.getMonth();
         const currentYear = now.getFullYear();
-
-        const receitas = lancamentos
-          .filter(l => l.tipo_lancamento === "receita")
-          .reduce((sum, l) => sum + (l.valor_liquido || 0), 0);
-
-        const despesas = lancamentos
-          .filter(l => l.tipo_lancamento === "despesa")
-          .reduce((sum, l) => sum + (l.valor_liquido || 0), 0);
+        
+        const receitas = lancamentos.filter(l => l.tipo_lancamento === "receita");
+        const despesas = lancamentos.filter(l => l.tipo_lancamento === "despesa");
+        
+        const receitaTotal = receitas.reduce((sum, l) => sum + (l.valor_liquido || 0), 0);
+        const despesaTotal = despesas.reduce((sum, l) => sum + (l.valor_liquido || 0), 0);
+        const pendentes = lancamentos.filter(l => l.status === "pendente").length;
 
         const receitasMes = lancamentos
           .filter(l => {
@@ -99,68 +104,97 @@ export default function FinanceiroVisaoGeral({ corretoraId }: Props) {
           })
           .reduce((sum, l) => sum + (l.valor_liquido || 0), 0);
 
-        setStats({
-          totalReceitas: receitas,
-          totalDespesas: despesas,
+        setKpis({
+          receitaTotal,
+          despesaTotal,
+          saldoTotal: receitaTotal - despesaTotal,
           receitasMes,
           despesasMes,
-          pendentes: lancamentos.filter(l => l.status === "pendente").length,
-          aprovados: lancamentos.filter(l => l.status === "aprovado").length,
-          rejeitados: lancamentos.filter(l => l.status === "rejeitado").length,
+          ticketMedioReceita: receitas.length > 0 ? receitaTotal / receitas.length : 0,
+          ticketMedioDespesa: despesas.length > 0 ? despesaTotal / despesas.length : 0,
+          totalLancamentos: lancamentos.length,
+          taxaPendente: lancamentos.length > 0 ? (pendentes / lancamentos.length) * 100 : 0,
+          maiorReceita: receitas.length > 0 ? Math.max(...receitas.map(l => l.valor_liquido || 0)) : 0,
+          maiorDespesa: despesas.length > 0 ? Math.max(...despesas.map(l => l.valor_liquido || 0)) : 0,
         });
 
-        // Chart data - last 6 months
-        const monthlyData: Record<string, { receitas: number; despesas: number }> = {};
-        for (let i = 5; i >= 0; i--) {
-          const date = subMonths(now, i);
-          const key = format(date, "MMM/yy", { locale: ptBR });
-          monthlyData[key] = { receitas: 0, despesas: 0 };
-        }
+        // Monthly data - last 12 months
+        const months = eachMonthOfInterval({
+          start: subMonths(now, 11),
+          end: now,
+        });
+
+        const monthlyMap: Record<string, { receitas: number; despesas: number; saldo: number }> = {};
+        months.forEach(m => {
+          const key = format(m, "MMM/yy", { locale: ptBR });
+          monthlyMap[key] = { receitas: 0, despesas: 0, saldo: 0 };
+        });
 
         lancamentos.forEach(l => {
           const date = new Date(l.data_lancamento);
           const key = format(date, "MMM/yy", { locale: ptBR });
-          if (monthlyData[key]) {
+          if (monthlyMap[key]) {
             if (l.tipo_lancamento === "receita") {
-              monthlyData[key].receitas += l.valor_liquido || 0;
+              monthlyMap[key].receitas += l.valor_liquido || 0;
             } else {
-              monthlyData[key].despesas += l.valor_liquido || 0;
+              monthlyMap[key].despesas += l.valor_liquido || 0;
             }
+            monthlyMap[key].saldo = monthlyMap[key].receitas - monthlyMap[key].despesas;
           }
         });
 
-        setChartData(
-          Object.entries(monthlyData).map(([name, values]) => ({
+        setMonthlyData(
+          Object.entries(monthlyMap).map(([name, values]) => ({
             name,
             ...values,
           }))
         );
 
-        // Category data
-        const categories: Record<string, number> = {};
+        // Category breakdown
+        const categories: Record<string, { receitas: number; despesas: number }> = {};
         lancamentos.forEach(l => {
           const cat = l.categoria || "Outros";
-          categories[cat] = (categories[cat] || 0) + Math.abs(l.valor_liquido || 0);
+          if (!categories[cat]) categories[cat] = { receitas: 0, despesas: 0 };
+          if (l.tipo_lancamento === "receita") {
+            categories[cat].receitas += l.valor_liquido || 0;
+          } else {
+            categories[cat].despesas += l.valor_liquido || 0;
+          }
         });
 
         setCategoryData(
           Object.entries(categories)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 5)
+            .map(([name, values]) => ({ 
+              name: name.charAt(0).toUpperCase() + name.slice(1), 
+              ...values,
+              total: values.receitas + values.despesas
+            }))
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 6)
         );
 
-        // Status data
+        // Status distribution
         const statusCounts = {
-          Pendente: { value: stats.pendentes, color: "#eab308" },
-          Aprovado: { value: stats.aprovados, color: "#16a34a" },
-          Rejeitado: { value: stats.rejeitados, color: "#dc2626" },
+          pendente: lancamentos.filter(l => l.status === "pendente").length,
+          aprovado: lancamentos.filter(l => l.status === "aprovado").length,
+          pago: lancamentos.filter(l => l.status === "pago").length,
+          rejeitado: lancamentos.filter(l => l.status === "rejeitado").length,
         };
 
-        setStatusData(
-          Object.entries(statusCounts)
-            .filter(([_, data]) => data.value > 0)
-            .map(([name, data]) => ({ name, ...data }))
+        setStatusData([
+          { name: "Pendente", value: statusCounts.pendente, fill: "#eab308" },
+          { name: "Aprovado", value: statusCounts.aprovado, fill: "#3b82f6" },
+          { name: "Pago", value: statusCounts.pago, fill: "#16a34a" },
+          { name: "Rejeitado", value: statusCounts.rejeitado, fill: "#dc2626" },
+        ].filter(s => s.value > 0));
+
+        // Balance evolution
+        let runningBalance = 0;
+        setBalanceData(
+          Object.entries(monthlyMap).map(([name, values]) => {
+            runningBalance += values.saldo;
+            return { name, saldo: runningBalance };
+          })
         );
 
         // Recent transactions
@@ -173,8 +207,6 @@ export default function FinanceiroVisaoGeral({ corretoraId }: Props) {
     }
   };
 
-  const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -185,194 +217,345 @@ export default function FinanceiroVisaoGeral({ corretoraId }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Main Stats */}
+      {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-green-500">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Receitas</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(stats.totalReceitas)}
+        <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Receita Total</p>
+                <p className="text-2xl font-bold text-green-600 mt-1">
+                  {formatCurrency(kpis.receitaTotal)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Mês atual: {formatCurrency(kpis.receitasMes)}
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-green-500/20">
+                <ArrowDownLeft className="h-6 w-6 text-green-600" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Mês atual: {formatCurrency(stats.receitasMes)}
-            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-red-500">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Despesas</CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {formatCurrency(stats.totalDespesas)}
+        <Card className="bg-gradient-to-br from-red-500/10 to-red-500/5 border-red-500/20">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Despesa Total</p>
+                <p className="text-2xl font-bold text-red-600 mt-1">
+                  {formatCurrency(kpis.despesaTotal)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Mês atual: {formatCurrency(kpis.despesasMes)}
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-red-500/20">
+                <ArrowUpRight className="h-6 w-6 text-red-600" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Mês atual: {formatCurrency(stats.despesasMes)}
-            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-blue-500">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Saldo</CardTitle>
-            <DollarSign className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${stats.totalReceitas - stats.totalDespesas >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(stats.totalReceitas - stats.totalDespesas)}
+        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Saldo Total</p>
+                <p className={`text-2xl font-bold mt-1 ${kpis.saldoTotal >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                  {formatCurrency(kpis.saldoTotal)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {kpis.totalLancamentos} lançamentos
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-blue-500/20">
+                <Wallet className="h-6 w-6 text-blue-600" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Mês atual: {formatCurrency(stats.receitasMes - stats.despesasMes)}
-            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-yellow-500">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pendentes}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Aguardando aprovação
-            </p>
+        <Card className="bg-gradient-to-br from-yellow-500/10 to-yellow-500/5 border-yellow-500/20">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Taxa Pendente</p>
+                <p className="text-2xl font-bold text-yellow-600 mt-1">
+                  {kpis.taxaPendente.toFixed(1)}%
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Aguardando aprovação
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-yellow-500/20">
+                <Target className="h-6 w-6 text-yellow-600" />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts */}
+      {/* Main Composed Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            Receitas vs Despesas (Últimos 12 meses)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={350}>
+            <ComposedChart data={monthlyData}>
+              <defs>
+                <linearGradient id="gradientReceitas" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#16a34a" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#16a34a" stopOpacity={0.1}/>
+                </linearGradient>
+                <linearGradient id="gradientDespesas" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#dc2626" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#dc2626" stopOpacity={0.1}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="name" className="text-xs" />
+              <YAxis className="text-xs" tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
+              <Tooltip 
+                formatter={(value: number) => formatCurrency(value)}
+                contentStyle={{ 
+                  backgroundColor: 'hsl(var(--background))', 
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px'
+                }}
+              />
+              <Legend />
+              <Bar dataKey="receitas" fill="url(#gradientReceitas)" name="Receitas" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="despesas" fill="url(#gradientDespesas)" name="Despesas" radius={[4, 4, 0, 0]} />
+              <Line type="monotone" dataKey="saldo" stroke="#3b82f6" strokeWidth={2} name="Saldo" dot={{ fill: '#3b82f6' }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Secondary Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Area Chart - Monthly Evolution */}
+        {/* Balance Evolution */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              Evolução Mensal
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Evolução do Saldo Acumulado
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={chartData}>
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={balanceData}>
                 <defs>
-                  <linearGradient id="colorReceitas" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#16a34a" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorDespesas" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#dc2626" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#dc2626" stopOpacity={0}/>
+                  <linearGradient id="colorSaldo" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="name" className="text-xs" />
                 <YAxis className="text-xs" tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                <Legend />
-                <Area 
-                  type="monotone" 
-                  dataKey="receitas" 
-                  stroke="#16a34a" 
-                  fillOpacity={1}
-                  fill="url(#colorReceitas)"
-                  name="Receitas"
+                <Tooltip 
+                  formatter={(value: number) => formatCurrency(value)}
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--background))', 
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }}
                 />
                 <Area 
                   type="monotone" 
-                  dataKey="despesas" 
-                  stroke="#dc2626" 
+                  dataKey="saldo" 
+                  stroke="hsl(var(--primary))" 
                   fillOpacity={1}
-                  fill="url(#colorDespesas)"
-                  name="Despesas"
+                  fill="url(#colorSaldo)"
+                  name="Saldo Acumulado"
+                  strokeWidth={2}
                 />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Bar Chart - Top Categories */}
+        {/* Status Pie Chart */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              Top Categorias
+              <PieChartIcon className="h-5 w-5 text-primary" />
+              Distribuição por Status
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={categoryData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis type="number" tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
-                <YAxis dataKey="name" type="category" width={100} className="text-xs" />
-                <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                  {categoryData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={statusData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={2}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                >
+                  {statusData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
-                </Bar>
-              </BarChart>
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--background))', 
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }}
+                />
+              </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Transactions */}
+      {/* Category Breakdown */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <FileText className="h-5 w-5 text-primary" />
-            Últimos Lançamentos
+            <BarChart3 className="h-5 w-5 text-primary" />
+            Receitas e Despesas por Categoria
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {recentLancamentos.map((l) => (
-              <div 
-                key={l.id} 
-                className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${l.tipo_lancamento === 'receita' ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                    {l.tipo_lancamento === 'receita' ? (
-                      <TrendingUp className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <TrendingDown className="h-4 w-4 text-red-600" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">{l.descricao}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(l.data_lancamento), "dd/MM/yyyy", { locale: ptBR })}
-                      {l.categoria && ` • ${l.categoria}`}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className={`font-bold ${l.tipo_lancamento === 'receita' ? 'text-green-600' : 'text-red-600'}`}>
-                    {l.tipo_lancamento === 'receita' ? '+' : '-'}{formatCurrency(l.valor_liquido)}
-                  </p>
-                  <Badge 
-                    variant={l.status === 'aprovado' ? 'default' : l.status === 'pendente' ? 'secondary' : 'destructive'}
-                    className="text-xs"
-                  >
-                    {l.status}
-                  </Badge>
-                </div>
-              </div>
-            ))}
-            {recentLancamentos.length === 0 && (
-              <p className="text-center text-muted-foreground py-8">
-                Nenhum lançamento encontrado
-              </p>
-            )}
-          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={categoryData} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis type="number" tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} className="text-xs" />
+              <YAxis dataKey="name" type="category" width={100} className="text-xs" />
+              <Tooltip 
+                formatter={(value: number) => formatCurrency(value)}
+                contentStyle={{ 
+                  backgroundColor: 'hsl(var(--background))', 
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px'
+                }}
+              />
+              <Legend />
+              <Bar dataKey="receitas" fill="#16a34a" name="Receitas" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="despesas" fill="#dc2626" name="Despesas" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
+
+      {/* Recent Transactions & Summary */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Recent Transactions */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="h-5 w-5 text-primary" />
+              Últimos Lançamentos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {recentLancamentos.map((l) => (
+                <div 
+                  key={l.id} 
+                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${l.tipo_lancamento === 'receita' ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                      {l.tipo_lancamento === 'receita' ? (
+                        <TrendingUp className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4 text-red-600" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{l.descricao}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(l.data_lancamento), "dd/MM/yyyy", { locale: ptBR })}
+                        {l.categoria && ` • ${l.categoria}`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-bold ${l.tipo_lancamento === 'receita' ? 'text-green-600' : 'text-red-600'}`}>
+                      {l.tipo_lancamento === 'receita' ? '+' : '-'}{formatCurrency(l.valor_liquido)}
+                    </p>
+                    <Badge 
+                      variant={l.status === 'aprovado' || l.status === 'pago' ? 'default' : l.status === 'pendente' ? 'secondary' : 'destructive'}
+                      className="text-xs"
+                    >
+                      {l.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+              {recentLancamentos.length === 0 && (
+                <p className="text-center text-muted-foreground py-8">
+                  Nenhum lançamento encontrado
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Summary Cards */}
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Maior Receita Única
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold text-green-600">
+                {formatCurrency(kpis.maiorReceita)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Maior Despesa Única
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold text-red-600">
+                {formatCurrency(kpis.maiorDespesa)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Ticket Médio Receita
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold text-green-600">
+                {formatCurrency(kpis.ticketMedioReceita)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Ticket Médio Despesa
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold text-red-600">
+                {formatCurrency(kpis.ticketMedioDespesa)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
