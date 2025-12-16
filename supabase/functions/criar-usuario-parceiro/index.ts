@@ -19,110 +19,183 @@ serve(async (req) => {
 
     const { email, password, nome, corretoraId } = await req.json();
 
-    console.log('Creating partner user:', { email, corretoraId });
+    console.log('Creating/linking partner user:', { email, corretoraId });
 
-    if (!email || !password || !corretoraId) {
-      throw new Error('Email, password e corretoraId são obrigatórios');
+    if (!email || !corretoraId) {
+      throw new Error('Email e corretoraId são obrigatórios');
     }
 
-    // 1. Criar usuário no auth
-    const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // Auto-confirma email
-      user_metadata: {
-        nome: nome || email,
-      },
-    });
-
-    if (authError) {
-      console.error('Auth error:', authError);
-      throw authError;
-    }
-
-    console.log('Auth user created:', authData.user.id);
-
-    // 2. Aguardar um momento para o trigger criar o profile
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Verificar se o profile foi criado pelo trigger
-    const { data: existingProfile } = await supabaseClient
-      .from('profiles')
-      .select('id')
-      .eq('id', authData.user.id)
+    // Verificar se já existe vínculo com esta corretora
+    const { data: existingLink } = await supabaseClient
+      .from('corretora_usuarios')
+      .select('id, profile_id, ativo')
+      .eq('corretora_id', corretoraId)
+      .eq('email', email)
       .single();
 
-    if (!existingProfile) {
-      // Se o trigger não criou, criar manualmente
-      const { error: profileInsertError } = await supabaseClient
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
-          email,
-          nome: nome || email,
-          ativo: true,
-          status: 'ativo',
-        });
-
-      if (profileInsertError) {
-        console.error('Profile insert error:', profileInsertError);
-        await supabaseClient.auth.admin.deleteUser(authData.user.id);
-        throw profileInsertError;
+    if (existingLink) {
+      // Já existe vínculo - reativar se inativo
+      if (!existingLink.ativo) {
+        await supabaseClient
+          .from('corretora_usuarios')
+          .update({ ativo: true })
+          .eq('id', existingLink.id);
+        
+        console.log('Reactivated existing link');
       }
-      console.log('Profile created manually');
-    } else {
-      // Profile já existe, apenas atualizar status
-      const { error: profileError } = await supabaseClient
-        .from('profiles')
-        .update({
-          status: 'ativo',
-        })
-        .eq('id', authData.user.id);
-
-      if (profileError) {
-        console.error('Profile update error:', profileError);
-        await supabaseClient.auth.admin.deleteUser(authData.user.id);
-        throw profileError;
-      }
-      console.log('Profile updated with active status');
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          userId: existingLink.profile_id,
+          message: 'Usuário já vinculado a esta associação',
+          alreadyLinked: true
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200 
+        }
+      );
     }
 
-    // 3. Adicionar role parceiro
-    const { error: roleError } = await supabaseClient
-      .from('user_roles')
-      .insert({
-        user_id: authData.user.id,
-        role: 'parceiro',
+    // Verificar se o usuário já existe no auth
+    const { data: existingUsers } = await supabaseClient.auth.admin.listUsers();
+    const existingUser = existingUsers?.users?.find(u => u.email === email);
+
+    let userId: string;
+
+    if (existingUser) {
+      // Usuário já existe - usar ID existente
+      console.log('User already exists in auth:', existingUser.id);
+      userId = existingUser.id;
+
+      // Verificar/atualizar profile
+      const { data: existingProfile } = await supabaseClient
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .single();
+
+      if (!existingProfile) {
+        // Criar profile se não existe
+        await supabaseClient
+          .from('profiles')
+          .insert({
+            id: userId,
+            email,
+            nome: nome || email,
+            ativo: true,
+            status: 'ativo',
+          });
+        console.log('Profile created for existing user');
+      }
+
+      // Verificar/adicionar role parceiro
+      const { data: existingRole } = await supabaseClient
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .single();
+
+      if (!existingRole) {
+        await supabaseClient
+          .from('user_roles')
+          .insert({
+            user_id: userId,
+            role: 'parceiro',
+          });
+        console.log('Parceiro role added to existing user');
+      }
+
+    } else {
+      // Criar novo usuário
+      if (!password) {
+        throw new Error('Senha é obrigatória para novos usuários');
+      }
+
+      const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          nome: nome || email,
+        },
       });
 
-    if (roleError) {
-      console.error('Role error:', roleError);
-      // Se falhou, deletar profile e usuário
-      await supabaseClient.from('profiles').delete().eq('id', authData.user.id);
-      await supabaseClient.auth.admin.deleteUser(authData.user.id);
-      throw roleError;
+      if (authError) {
+        console.error('Auth error:', authError);
+        throw authError;
+      }
+
+      console.log('Auth user created:', authData.user.id);
+      userId = authData.user.id;
+
+      // Aguardar trigger criar profile
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Verificar se o profile foi criado
+      const { data: existingProfile } = await supabaseClient
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .single();
+
+      if (!existingProfile) {
+        const { error: profileInsertError } = await supabaseClient
+          .from('profiles')
+          .insert({
+            id: userId,
+            email,
+            nome: nome || email,
+            ativo: true,
+            status: 'ativo',
+          });
+
+        if (profileInsertError) {
+          console.error('Profile insert error:', profileInsertError);
+          await supabaseClient.auth.admin.deleteUser(userId);
+          throw profileInsertError;
+        }
+        console.log('Profile created manually');
+      } else {
+        await supabaseClient
+          .from('profiles')
+          .update({ status: 'ativo' })
+          .eq('id', userId);
+        console.log('Profile updated with active status');
+      }
+
+      // Adicionar role parceiro
+      const { error: roleError } = await supabaseClient
+        .from('user_roles')
+        .insert({
+          user_id: userId,
+          role: 'parceiro',
+        });
+
+      if (roleError) {
+        console.error('Role error:', roleError);
+        await supabaseClient.from('profiles').delete().eq('id', userId);
+        await supabaseClient.auth.admin.deleteUser(userId);
+        throw roleError;
+      }
+      console.log('Role assigned');
     }
 
-    console.log('Role assigned');
-
-    // 4. Vincular à corretora
+    // Vincular à corretora
     const { error: corretoraError } = await supabaseClient
       .from('corretora_usuarios')
       .insert({
         corretora_id: corretoraId,
         email,
-        senha_hash: 'managed_by_supabase_auth', // Placeholder, senha gerenciada pelo Supabase
-        profile_id: authData.user.id,
+        senha_hash: 'managed_by_supabase_auth',
+        profile_id: userId,
         ativo: true,
         acesso_exclusivo_pid: true,
       });
 
     if (corretoraError) {
       console.error('Corretora link error:', corretoraError);
-      // Se falhou, limpar tudo
-      await supabaseClient.from('user_roles').delete().eq('user_id', authData.user.id);
-      await supabaseClient.from('profiles').delete().eq('id', authData.user.id);
-      await supabaseClient.auth.admin.deleteUser(authData.user.id);
       throw corretoraError;
     }
 
@@ -131,8 +204,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        userId: authData.user.id,
-        message: 'Usuário parceiro criado com sucesso'
+        userId,
+        message: existingUser ? 'Usuário existente vinculado à associação' : 'Usuário parceiro criado com sucesso'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -140,24 +213,25 @@ serve(async (req) => {
       }
     );
 
-    } catch (error: any) {
-      console.error('Error creating partner user:', error);
-      
-      // Mensagens específicas para o usuário
-      let errorMessage = error.message || 'Erro ao criar usuário parceiro';
-      
-      if (error.message?.includes('already been registered')) {
-        errorMessage = 'Este email já está cadastrado. Por favor, use outro email.';
-      } else if (error.code === '23503') {
-        errorMessage = 'Erro ao vincular usuário à corretora. Tente novamente.';
-      }
-      
-      return new Response(
-        JSON.stringify({ error: errorMessage }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400 
-        }
-      );
+  } catch (error: any) {
+    console.error('Error creating partner user:', error);
+    
+    let errorMessage = error.message || 'Erro ao criar usuário parceiro';
+    
+    if (error.message?.includes('already been registered')) {
+      errorMessage = 'Este email já está cadastrado no sistema.';
+    } else if (error.code === '23505') {
+      errorMessage = 'Este usuário já está vinculado a esta associação.';
+    } else if (error.code === '23503') {
+      errorMessage = 'Erro ao vincular usuário. Tente novamente.';
     }
+    
+    return new Response(
+      JSON.stringify({ error: errorMessage }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400 
+      }
+    );
+  }
 });
