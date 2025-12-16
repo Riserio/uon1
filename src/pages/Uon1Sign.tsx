@@ -24,6 +24,7 @@ import {
   MoreHorizontal,
   ArrowRight,
 } from "lucide-react";
+import { openWhatsApp } from "@/utils/whatsapp";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -152,14 +153,10 @@ export default function Uon1Sign() {
       return;
     }
     const link = `${window.location.origin}/contrato/${contrato.link_token}`;
-    const phone = contrato.contratante_telefone?.replace(/\D/g, "") || "";
-    const message = encodeURIComponent(
-      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`,
-    );
-    const whatsappUrl = phone
-      ? `https://web.whatsapp.com/send?phone=55${phone}&text=${message}`
-      : `https://web.whatsapp.com/send?text=${message}`;
-    window.open(whatsappUrl, "_blank");
+    openWhatsApp({
+      phone: contrato.contratante_telefone,
+      message: `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`
+    });
   };
 
   const sendEmail = (contrato: any) => {

@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, Link as LinkIcon, Mail, MessageCircle, Copy } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { openWhatsApp } from "@/utils/whatsapp";
 
 export default function VistoriaDigital() {
   const navigate = useNavigate();
@@ -208,12 +209,11 @@ export default function VistoriaDigital() {
 
   const sendWhatsApp = () => {
     if (!telefone) return toast.error("Por favor, insira um telefone");
-    const cleanPhone = telefone.replace(/\D/g, "");
-    const message = encodeURIComponent(
-      `Olá! Segue o link para realizar a vistoria digital do seu veículo:\n\n${getVistoriaLink()}\n\nPor favor, siga as instruções na tela para fotografar seu veículo.`,
-    );
-    window.open(`https://wa.me/${cleanPhone}?text=${message}`, "_blank");
-    toast.success("Redirecionando para WhatsApp Web...");
+    openWhatsApp({
+      phone: telefone,
+      message: `Olá! Segue o link para realizar a vistoria digital do seu veículo:\n\n${getVistoriaLink()}\n\nPor favor, siga as instruções na tela para fotografar seu veículo.`
+    });
+    toast.success("Redirecionando para WhatsApp...");
   };
 
   return (

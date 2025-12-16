@@ -17,6 +17,7 @@ import { useFluxoPermissions } from "@/hooks/useFluxoPermissions";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from "recharts";
+import { openWhatsApp } from "@/utils/whatsapp";
 const COLORS = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6"];
 interface Vistoria {
   id: string;
@@ -430,9 +431,9 @@ export default function Sinistros() {
       toast.error("Esta vistoria não possui um link de acesso público gerado.");
       return;
     }
-    const text = `Olá, segue o link para continuar a vistoria do veículo ${vistoria.veiculo_placa}:\n${link}`;
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+    openWhatsApp({
+      message: `Olá, segue o link para continuar a vistoria do veículo ${vistoria.veiculo_placa}:\n${link}`
+    });
   };
   const handleShareEmail = (vistoria: Vistoria) => {
     const link = getVistoriaPublicLink(vistoria);

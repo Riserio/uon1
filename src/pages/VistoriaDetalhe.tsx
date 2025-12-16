@@ -16,6 +16,7 @@ import { generateVistoriaPDF } from "@/components/VistoriaPDF";
 import { useAuth } from "@/hooks/useAuth";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { openWhatsApp } from "@/utils/whatsapp";
 export default function VistoriaDetalhe() {
   const {
     id
@@ -308,8 +309,7 @@ export default function VistoriaDetalhe() {
       const link = `${window.location.origin}/vistoria/${vistoria.link_token}`;
       const listaFotos = fotosNecessarias.length > 0 ? `Fotos necessárias:\n- ${fotosNecessarias.join("\n- ")}\n\n` : "";
       const mensagem = `Olá! Precisamos de fotos adicionais da sua vistoria referente ao sinistro #${vistoria.numero}.\n\nMotivo: ${motivoFotos || "Conforme análise da equipe"}\n\n${listaFotos}Envie as fotos pelo link abaixo:\n${link}`;
-      const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
-      window.open(url, "_blank");
+      openWhatsApp({ message: mensagem });
       toast.success("Status atualizado! Mensagem pronta para envio via WhatsApp");
 
       // Fecha o dialog e limpa os campos

@@ -20,6 +20,7 @@ import ConfigurarAlertasDialog from "./ConfigurarAlertasDialog";
 import AjusteManualPontoDialog from "./AjusteManualPontoDialog";
 import AnexosPontoDialog from "./AnexosPontoDialog";
 import FechamentoMensalDialog from "./FechamentoMensalDialog";
+import { openWhatsApp } from "@/utils/whatsapp";
 const tiposPonto = [{
   value: "entrada",
   label: "Entrada",
@@ -591,9 +592,10 @@ export default function GestaoJornada() {
       return `• ${tipo?.label}: ${format(new Date(r.data_hora), "HH:mm")}`;
     }).join("\n");
     const mensagem = `*RECIBO DE PONTO*\n📋 Protocolo: ${protocolo}\n\nColaborador: ${funcionarioSelecionado.nome}\nData: ${format(new Date(), "dd/MM/yyyy")}\n\n${registrosTexto}\n\n_Registro gerado automaticamente pelo sistema._`;
-    const phone = funcionarioSelecionado.telefone?.replace(/\D/g, "") || "";
-    const whatsappUrl = phone ? `https://web.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(mensagem)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
-    window.open(whatsappUrl, "_blank");
+    openWhatsApp({
+      phone: funcionarioSelecionado.telefone,
+      message: mensagem
+    });
     toast.success(`Abrindo WhatsApp... Protocolo: ${protocolo}`);
   };
 

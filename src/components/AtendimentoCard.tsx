@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { openWhatsApp } from '@/utils/whatsapp';
 
 interface AtendimentoCardProps {
   atendimento: Atendimento;
@@ -422,8 +423,7 @@ export function AtendimentoCard({
             variant="ghost"
             size="sm"
             onClick={() => {
-              const telefone = vistoria.cliente_telefone.replace(/\D/g, '');
-              window.open(`https://wa.me/55${telefone}`, '_blank');
+              openWhatsApp({ phone: vistoria.cliente_telefone, message: '' });
             }}
             className="h-6 w-6 p-0 hover:bg-muted/50 rounded"
             title="WhatsApp"

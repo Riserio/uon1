@@ -17,6 +17,7 @@ import { Link } from 'react-router-dom';
 import { EnviarEmailSMTPDialog } from '@/components/EnviarEmailSMTPDialog';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
+import { openWhatsApp } from '@/utils/whatsapp';
 
 interface Contato {
   id: string;
@@ -422,7 +423,7 @@ export default function Contatos() {
                         <Badge 
                           variant="outline" 
                           className="cursor-pointer hover:bg-accent"
-                          onClick={() => window.open(`https://wa.me/55${item.whatsapp?.replace(/\D/g, '')}`, '_blank')}
+                          onClick={() => openWhatsApp({ phone: item.whatsapp, message: '' })}
                         >
                           <MessageCircle className="h-3 w-3 mr-1" />
                           WhatsApp
