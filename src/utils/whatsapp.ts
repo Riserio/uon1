@@ -1,21 +1,13 @@
 /**
  * Utilitário centralizado para abertura do WhatsApp
- * Tenta abrir o app nativo primeiro, fallback para WhatsApp Web
+ * Usa api.whatsapp.com que detecta automaticamente se o app está instalado
+ * e oferece a opção de abrir no app ou no WhatsApp Web
  */
 
 interface WhatsAppOptions {
   phone?: string;
   message: string;
 }
-
-/**
- * Detecta se o usuário está em um dispositivo móvel
- */
-const isMobileDevice = (): boolean => {
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  );
-};
 
 /**
  * Formata o número de telefone para o padrão internacional
@@ -27,31 +19,24 @@ const formatPhoneNumber = (phone: string): string => {
 };
 
 /**
- * Abre o WhatsApp com a mensagem especificada
- * - Em dispositivos móveis: tenta abrir o app nativo
- * - Em desktop: abre WhatsApp Web
+ * Abre o WhatsApp usando a API oficial que:
+ * - Detecta se o app está instalado
+ * - Oferece opções de abrir no app ou WhatsApp Web
+ * - Funciona em desktop e mobile
  */
 export const openWhatsApp = ({ phone, message }: WhatsAppOptions): void => {
   const encodedMessage = encodeURIComponent(message);
   
-  if (isMobileDevice()) {
-    // Em mobile, usa o deep link universal do WhatsApp
-    // Este link tenta abrir o app nativo primeiro
-    if (phone) {
-      const formattedPhone = formatPhoneNumber(phone);
-      window.open(`https://wa.me/${formattedPhone}?text=${encodedMessage}`, "_blank");
-    } else {
-      window.open(`https://wa.me/?text=${encodedMessage}`, "_blank");
-    }
-  } else {
-    // Em desktop, usa WhatsApp Web
-    if (phone) {
-      const formattedPhone = formatPhoneNumber(phone);
-      window.open(`https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedMessage}`, "_blank");
-    } else {
-      window.open(`https://web.whatsapp.com/send?text=${encodedMessage}`, "_blank");
-    }
+  let url = "https://api.whatsapp.com/send?";
+  
+  if (phone) {
+    const formattedPhone = formatPhoneNumber(phone);
+    url += `phone=${formattedPhone}&`;
   }
+  
+  url += `text=${encodedMessage}`;
+  
+  window.open(url, "_blank");
 };
 
 /**
@@ -60,17 +45,14 @@ export const openWhatsApp = ({ phone, message }: WhatsAppOptions): void => {
 export const getWhatsAppUrl = ({ phone, message }: WhatsAppOptions): string => {
   const encodedMessage = encodeURIComponent(message);
   
-  if (isMobileDevice()) {
-    if (phone) {
-      const formattedPhone = formatPhoneNumber(phone);
-      return `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
-    }
-    return `https://wa.me/?text=${encodedMessage}`;
-  } else {
-    if (phone) {
-      const formattedPhone = formatPhoneNumber(phone);
-      return `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedMessage}`;
-    }
-    return `https://web.whatsapp.com/send?text=${encodedMessage}`;
+  let url = "https://api.whatsapp.com/send?";
+  
+  if (phone) {
+    const formattedPhone = formatPhoneNumber(phone);
+    url += `phone=${formattedPhone}&`;
   }
+  
+  url += `text=${encodedMessage}`;
+  
+  return url;
 };
