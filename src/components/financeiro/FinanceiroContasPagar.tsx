@@ -272,14 +272,14 @@ export default function FinanceiroContasPagar({ corretoraId }: Props) {
               Nova Despesa
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <ArrowUpRight className="h-5 w-5 text-red-600" />
                 Nova Conta a Pagar
               </DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-4 pr-2">
               <div>
                 <Label>Descrição *</Label>
                 <Input 
@@ -377,9 +377,10 @@ export default function FinanceiroContasPagar({ corretoraId }: Props) {
                 <Textarea 
                   value={formData.observacoes}
                   onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                  rows={2}
                 />
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-2 border-t sticky bottom-0 bg-background pb-1">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancelar
                 </Button>

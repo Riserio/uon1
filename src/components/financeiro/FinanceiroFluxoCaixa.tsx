@@ -69,47 +69,76 @@ export default function FinanceiroFluxoCaixa({ corretoraId }: Props) {
 
       if (viewMode === "mensal") {
         // Monthly view - show 12 months
+        const monthKeys: string[] = [];
         const months: Record<string, { entradas: number; saidas: number; saldo: number }> = {};
         
         for (let i = 11; i >= 0; i--) {
           const date = subMonths(currentDate, i);
           const key = format(date, "MMM/yy", { locale: ptBR });
+          monthKeys.push(key);
           months[key] = { entradas: 0, saidas: 0, saldo: 0 };
         }
 
-        let runningBalance = 0;
-        lancamentos.forEach(l => {
-          const date = new Date(l.data_lancamento);
-          const key = format(date, "MMM/yy", { locale: ptBR });
-          
-          if (months[key]) {
+        // Calculate initial balance (before the 12-month window)
+        const windowStart = startOfMonth(subMonths(currentDate, 11));
+        let saldoInicial = 0;
+        
+        lancamentos
+          .filter(l => new Date(l.data_lancamento) < windowStart)
+          .forEach(l => {
             if (l.tipo_lancamento === "receita") {
-              months[key].entradas += l.valor_liquido || 0;
-              runningBalance += l.valor_liquido || 0;
+              saldoInicial += l.valor_liquido || 0;
             } else {
-              months[key].saidas += l.valor_liquido || 0;
-              runningBalance -= l.valor_liquido || 0;
+              saldoInicial -= l.valor_liquido || 0;
             }
-            months[key].saldo = runningBalance;
-          }
+          });
+
+        let runningBalance = saldoInicial;
+        
+        // Calculate each month's data
+        lancamentos
+          .filter(l => new Date(l.data_lancamento) >= windowStart)
+          .forEach(l => {
+            const date = new Date(l.data_lancamento);
+            const key = format(date, "MMM/yy", { locale: ptBR });
+            
+            if (months[key]) {
+              if (l.tipo_lancamento === "receita") {
+                months[key].entradas += l.valor_liquido || 0;
+              } else {
+                months[key].saidas += l.valor_liquido || 0;
+              }
+            }
+          });
+
+        // Calculate running balance for each month
+        monthKeys.forEach(key => {
+          runningBalance += months[key].entradas - months[key].saidas;
+          months[key].saldo = runningBalance;
         });
 
-        const data = Object.entries(months).map(([name, values]) => ({
+        const data = monthKeys.map(name => ({
           name,
-          ...values,
+          ...months[name],
         }));
 
         setChartData(data);
 
         // Calculate summary for current month
         const currentMonthKey = format(currentDate, "MMM/yy", { locale: ptBR });
-        const currentMonthData = months[currentMonthKey] || { entradas: 0, saidas: 0 };
+        const currentMonthData = months[currentMonthKey] || { entradas: 0, saidas: 0, saldo: 0 };
+        
+        // Find saldo before current month
+        const currentMonthIndex = monthKeys.indexOf(currentMonthKey);
+        const saldoAntesMes = currentMonthIndex > 0 
+          ? months[monthKeys[currentMonthIndex - 1]]?.saldo || saldoInicial
+          : saldoInicial;
         
         setSummary({
           entradas: currentMonthData.entradas,
           saidas: currentMonthData.saidas,
-          saldoInicial: runningBalance - (currentMonthData.entradas - currentMonthData.saidas),
-          saldoFinal: runningBalance,
+          saldoInicial: saldoAntesMes,
+          saldoFinal: currentMonthData.saldo,
         });
 
       } else {
