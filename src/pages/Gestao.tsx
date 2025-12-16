@@ -14,7 +14,7 @@ export default function Gestao() {
   const isAdmin = userRole === "admin" || userRole === "superintendente";
   const canManageUsers = userRole === "admin" || userRole === "administrativo" || userRole === "superintendente";
 
-  const defaultTab = isAdmin ? "funcionarios" : "jornada";
+  const defaultTab = canManageUsers ? "usuarios" : "jornada";
   const [activeTab, setActiveTab] = useState(defaultTab);
 
   useEffect(() => {
@@ -24,9 +24,9 @@ export default function Gestao() {
   }, [isAdmin, activeTab]);
 
   const tabs = [
+    { id: "usuarios", label: "Usuários", shortLabel: "Usuários", icon: UserCircle, visible: canManageUsers },
     { id: "funcionarios", label: "Funcionários", shortLabel: "RH", icon: Users, visible: isAdmin },
     { id: "jornada", label: "Jornada", shortLabel: "Jornada", icon: Clock, visible: true },
-    { id: "usuarios", label: "Usuários", shortLabel: "Usuários", icon: UserCircle, visible: canManageUsers },
     { id: "configuracoes", label: "Configurações", shortLabel: "Config", icon: Settings, visible: isAdmin },
   ].filter(tab => tab.visible);
 
