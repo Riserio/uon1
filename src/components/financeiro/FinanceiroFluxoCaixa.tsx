@@ -54,7 +54,7 @@ export default function FinanceiroFluxoCaixa({ corretoraId }: Props) {
       let query = supabase
         .from("lancamentos_financeiros")
         .select("*")
-        .eq("status", "aprovado")
+        .in("status", ["aprovado", "pago"])
         .order("data_lancamento", { ascending: true });
       
       if (corretoraId === "administradora") {
