@@ -22,6 +22,7 @@ import {
   Filter
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { registrarHistoricoFinanceiro } from "@/lib/financeiroHistorico";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";

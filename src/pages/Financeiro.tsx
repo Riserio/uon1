@@ -26,7 +26,8 @@ import {
   CreditCard,
   Banknote,
   Receipt,
-  RefreshCw
+  RefreshCw,
+  History
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { 
@@ -56,6 +57,7 @@ import FinanceiroContasPagar from "@/components/financeiro/FinanceiroContasPagar
 import FinanceiroFluxoCaixa from "@/components/financeiro/FinanceiroFluxoCaixa";
 import FinanceiroLancamentos from "@/components/financeiro/FinanceiroLancamentos";
 import FinanceiroConciliacao from "@/components/financeiro/FinanceiroConciliacao";
+import FinanceiroHistorico from "@/components/financeiro/FinanceiroHistorico";
 
 export default function Financeiro() {
   const [activeTab, setActiveTab] = useState("visao-geral");
@@ -334,6 +336,13 @@ export default function Financeiro() {
               <CreditCard className="h-4 w-4" />
               Conciliação
             </TabsTrigger>
+            <TabsTrigger 
+              value="historico" 
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm gap-2"
+            >
+              <History className="h-4 w-4" />
+              Histórico
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="visao-geral" className="space-y-4">
@@ -358,6 +367,10 @@ export default function Financeiro() {
 
           <TabsContent value="conciliacao" className="space-y-4">
             <FinanceiroConciliacao corretoraId={selectedCorretora} />
+          </TabsContent>
+
+          <TabsContent value="historico" className="space-y-4">
+            <FinanceiroHistorico corretoraId={selectedCorretora} />
           </TabsContent>
         </Tabs>
       </div>
