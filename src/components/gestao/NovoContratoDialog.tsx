@@ -21,8 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, FileText, Download, Eye } from "lucide-react";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 
@@ -59,6 +62,8 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
   const [corretoraId, setCorretoraId] = useState<string>("");
   const [conteudoHtml, setConteudoHtml] = useState("");
   const [signatarios, setSignatarios] = useState<Signatario[]>([]);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
 
   // Fetch contratos anteriores para reaproveitar dados
   const { data: contratosAnteriores } = useQuery({
@@ -107,14 +112,22 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
     if (templateId) {
       const template = templates.find((t) => t.id === templateId);
       if (template) {
-        setConteudoHtml(template.conteudo_html);
+        setSelectedTemplate(template);
+        setConteudoHtml(template.conteudo_html || "");
         setTitulo(template.titulo);
       }
+    } else {
+      setSelectedTemplate(null);
     }
   }, [templateId, templates]);
 
-  // Substituir variáveis no conteúdo
+  // Substituir variáveis no conteúdo (apenas para templates HTML)
   const processarConteudo = (html: string) => {
+    // Se o template é Word ou PDF, não processa variáveis
+    if (selectedTemplate?.tipo_template === "word" || selectedTemplate?.tipo_template === "pdf") {
+      return html;
+    }
+    
     return html
       .replace(/\{\{nome\}\}/gi, contratanteNome)
       .replace(/\{\{cpf\}\}/gi, contratanteCpf)
@@ -304,7 +317,120 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
     setCorretoraId("");
     setConteudoHtml("");
     setSignatarios([]);
+    setShowReceipt(false);
+    setSelectedTemplate(null);
   };
+
+  // Formatar valor para exibição
+  const formatCurrency = (value: string) => {
+    if (!value) return "-";
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(parseFloat(value));
+  };
+
+  // Componente de Resumo/Recibo
+  const ReceiptSummary = () => (
+    <Card className="border-2 border-primary/20 bg-primary/5">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Resumo do Contrato
+          </CardTitle>
+          <Badge variant="outline">Pré-visualização</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-muted-foreground">Título</p>
+            <p className="font-medium">{titulo || "-"}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Template</p>
+            <p className="font-medium flex items-center gap-2">
+              {selectedTemplate?.titulo || "Sem template"}
+              {selectedTemplate?.tipo_template && (
+                <Badge variant="secondary" className="text-xs">
+                  {selectedTemplate.tipo_template.toUpperCase()}
+                </Badge>
+              )}
+            </p>
+          </div>
+        </div>
+        
+        <Separator />
+        
+        <div>
+          <p className="text-muted-foreground text-sm mb-2">Contratante</p>
+          <div className="grid grid-cols-2 gap-3 text-sm bg-background/50 p-3 rounded-lg">
+            <div>
+              <p className="text-muted-foreground text-xs">Nome</p>
+              <p className="font-medium">{contratanteNome || "-"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">E-mail</p>
+              <p className="font-medium">{contratanteEmail || "-"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">{contratanteTipo === "pf" ? "CPF" : "CNPJ"}</p>
+              <p className="font-medium">{contratanteTipo === "pf" ? contratanteCpf || "-" : contratanteCnpj || "-"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Telefone</p>
+              <p className="font-medium">{contratanteTelefone || "-"}</p>
+            </div>
+          </div>
+        </div>
+        
+        <Separator />
+        
+        <div className="grid grid-cols-3 gap-4 text-sm">
+          <div>
+            <p className="text-muted-foreground">Valor</p>
+            <p className="font-bold text-lg text-primary">{formatCurrency(valorContrato)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Data Início</p>
+            <p className="font-medium">{dataInicio ? new Date(dataInicio).toLocaleDateString("pt-BR") : "-"}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Data Fim</p>
+            <p className="font-medium">{dataFim ? new Date(dataFim).toLocaleDateString("pt-BR") : "-"}</p>
+          </div>
+        </div>
+
+        {signatarios.length > 0 && (
+          <>
+            <Separator />
+            <div>
+              <p className="text-muted-foreground text-sm mb-2">Signatários Adicionais ({signatarios.length})</p>
+              <div className="space-y-2">
+                {signatarios.map((sig, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    <Badge variant="outline" className="text-xs">{sig.tipo}</Badge>
+                    <span>{sig.nome || "Sem nome"}</span>
+                    <span className="text-muted-foreground">({sig.email || "sem email"})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {selectedTemplate?.tipo_template !== "html" && selectedTemplate?.arquivo_url && (
+          <>
+            <Separator />
+            <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <Download className="h-4 w-4 text-amber-600" />
+              <span className="text-sm text-amber-700">
+                Este contrato usa um documento {selectedTemplate.tipo_template?.toUpperCase()} pré-definido sem substituição de variáveis.
+              </span>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -541,19 +667,61 @@ export default function NovoContratoDialog({ open, onOpenChange, templates }: No
             ))}
           </div>
 
-          {/* Conteúdo do Contrato */}
-          <div className="space-y-2">
-            <Label>Conteúdo do Contrato</Label>
-            <p className="text-xs text-muted-foreground">
-              Use variáveis: {"{{nome}}"}, {"{{cpf}}"}, {"{{email}}"}, {"{{valor}}"}, {"{{data_inicio}}"}, {"{{data_fim}}"}, {"{{data_atual}}"}
-            </p>
-            <Textarea
-              value={conteudoHtml}
-              onChange={(e) => setConteudoHtml(e.target.value)}
-              placeholder="Digite o conteúdo do contrato..."
-              rows={10}
-            />
-          </div>
+          {/* Conteúdo do Contrato - apenas para HTML ou sem template */}
+          {(!selectedTemplate || selectedTemplate?.tipo_template === "html") && (
+            <div className="space-y-2">
+              <Label>Conteúdo do Contrato</Label>
+              <p className="text-xs text-muted-foreground">
+                Use variáveis: {"{{nome}}"}, {"{{cpf}}"}, {"{{email}}"}, {"{{valor}}"}, {"{{data_inicio}}"}, {"{{data_fim}}"}, {"{{data_atual}}"}
+              </p>
+              <Textarea
+                value={conteudoHtml}
+                onChange={(e) => setConteudoHtml(e.target.value)}
+                placeholder="Digite o conteúdo do contrato..."
+                rows={10}
+              />
+            </div>
+          )}
+
+          {/* Aviso para templates Word/PDF */}
+          {selectedTemplate?.tipo_template && selectedTemplate.tipo_template !== "html" && (
+            <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <FileText className="h-4 w-4 text-amber-600" />
+              <span className="text-sm text-amber-700">
+                Este template usa um documento {selectedTemplate.tipo_template.toUpperCase()} pré-definido.
+                As variáveis não serão substituídas automaticamente.
+              </span>
+              {selectedTemplate.arquivo_url && (
+                <a 
+                  href={selectedTemplate.arquivo_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="ml-auto"
+                >
+                  <Button variant="outline" size="sm">
+                    <Eye className="h-4 w-4 mr-1" />
+                    Ver
+                  </Button>
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Resumo do Contrato */}
+          {(contratanteNome || valorContrato || dataInicio) && (
+            <div className="space-y-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowReceipt(!showReceipt)}
+                className="w-full justify-start text-muted-foreground hover:text-foreground"
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                {showReceipt ? "Ocultar Resumo" : "Ver Resumo do Contrato"}
+              </Button>
+              {showReceipt && <ReceiptSummary />}
+            </div>
+          )}
         </div>
 
         <DialogFooter>

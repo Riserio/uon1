@@ -801,6 +801,8 @@ export type Database = {
       }
       contrato_templates: {
         Row: {
+          arquivo_nome: string | null
+          arquivo_url: string | null
           ativo: boolean | null
           categoria: string | null
           conteudo_html: string
@@ -809,11 +811,14 @@ export type Database = {
           descricao: string | null
           id: string
           logo_url: string | null
+          tipo_template: string | null
           titulo: string
           updated_at: string
           variaveis_disponiveis: Json | null
         }
         Insert: {
+          arquivo_nome?: string | null
+          arquivo_url?: string | null
           ativo?: boolean | null
           categoria?: string | null
           conteudo_html: string
@@ -822,11 +827,14 @@ export type Database = {
           descricao?: string | null
           id?: string
           logo_url?: string | null
+          tipo_template?: string | null
           titulo: string
           updated_at?: string
           variaveis_disponiveis?: Json | null
         }
         Update: {
+          arquivo_nome?: string | null
+          arquivo_url?: string | null
           ativo?: boolean | null
           categoria?: string | null
           conteudo_html?: string
@@ -835,6 +843,7 @@ export type Database = {
           descricao?: string | null
           id?: string
           logo_url?: string | null
+          tipo_template?: string | null
           titulo?: string
           updated_at?: string
           variaveis_disponiveis?: Json | null
