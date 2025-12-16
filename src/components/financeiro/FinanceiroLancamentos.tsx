@@ -71,11 +71,18 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
 
   const fetchLancamentos = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from("lancamentos_financeiros")
       .select("*")
-      .eq("corretora_id", corretoraId)
       .order("data_lancamento", { ascending: false });
+    
+    if (corretoraId === "administradora") {
+      query = query.is("corretora_id", null);
+    } else {
+      query = query.eq("corretora_id", corretoraId);
+    }
+    
+    const { data, error } = await query;
 
     if (!error && data) {
       setLancamentos(data);
@@ -125,7 +132,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
         data_lancamento: format(new Date(), "yyyy-MM-dd"),
         categoria: formData.categoria,
         observacoes: formData.observacoes || null,
-        corretora_id: corretoraId,
+        corretora_id: corretoraId === "administradora" ? null : corretoraId,
       };
 
       if (editingId) {

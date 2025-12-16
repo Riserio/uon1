@@ -68,11 +68,18 @@ export default function FinanceiroVisaoGeral({ corretoraId }: Props) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: lancamentos } = await supabase
+      let query = supabase
         .from("lancamentos_financeiros")
         .select("*")
-        .eq("corretora_id", corretoraId)
         .order("data_lancamento", { ascending: false });
+      
+      if (corretoraId === "administradora") {
+        query = query.is("corretora_id", null);
+      } else {
+        query = query.eq("corretora_id", corretoraId);
+      }
+      
+      const { data: lancamentos } = await query;
 
       if (lancamentos && lancamentos.length > 0) {
         const now = new Date();

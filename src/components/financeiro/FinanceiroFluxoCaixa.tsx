@@ -51,12 +51,19 @@ export default function FinanceiroFluxoCaixa({ corretoraId }: Props) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: lancamentos } = await supabase
+      let query = supabase
         .from("lancamentos_financeiros")
         .select("*")
-        .eq("corretora_id", corretoraId)
         .eq("status", "aprovado")
         .order("data_lancamento", { ascending: true });
+      
+      if (corretoraId === "administradora") {
+        query = query.is("corretora_id", null);
+      } else {
+        query = query.eq("corretora_id", corretoraId);
+      }
+      
+      const { data: lancamentos } = await query;
 
       if (!lancamentos) return;
 

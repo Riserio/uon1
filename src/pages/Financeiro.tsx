@@ -60,7 +60,7 @@ import FinanceiroConciliacao from "@/components/financeiro/FinanceiroConciliacao
 export default function Financeiro() {
   const [activeTab, setActiveTab] = useState("visao-geral");
   const [corretoras, setCorretoras] = useState<any[]>([]);
-  const [selectedCorretora, setSelectedCorretora] = useState<string>("");
+  const [selectedCorretora, setSelectedCorretora] = useState<string>("administradora");
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState({
     saldo: 0,
@@ -88,9 +88,6 @@ export default function Financeiro() {
     
     if (!error && data) {
       setCorretoras(data);
-      if (data.length > 0) {
-        setSelectedCorretora(data[0].id);
-      }
     }
     setLoading(false);
   };
@@ -99,10 +96,17 @@ export default function Financeiro() {
     try {
       const today = new Date().toISOString().split('T')[0];
       
-      const { data: lancamentos } = await supabase
+      let query = supabase
         .from("lancamentos_financeiros")
-        .select("tipo_lancamento, valor_liquido, status, data_vencimento")
-        .eq("corretora_id", selectedCorretora);
+        .select("tipo_lancamento, valor_liquido, status, data_vencimento");
+      
+      if (selectedCorretora === "administradora") {
+        query = query.is("corretora_id", null);
+      } else {
+        query = query.eq("corretora_id", selectedCorretora);
+      }
+      
+      const { data: lancamentos } = await query;
 
       if (lancamentos) {
         const receitas = lancamentos
@@ -178,6 +182,9 @@ export default function Financeiro() {
                   <SelectValue placeholder="Selecione uma associação" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="administradora" className="font-semibold">
+                    ADMINISTRADORA
+                  </SelectItem>
                   {corretoras.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.nome}

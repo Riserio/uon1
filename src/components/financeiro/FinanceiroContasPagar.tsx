@@ -62,12 +62,19 @@ export default function FinanceiroContasPagar({ corretoraId }: Props) {
 
   const fetchLancamentos = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from("lancamentos_financeiros")
       .select("*")
-      .eq("corretora_id", corretoraId)
       .eq("tipo_lancamento", "despesa")
       .order("data_vencimento", { ascending: true });
+    
+    if (corretoraId === "administradora") {
+      query = query.is("corretora_id", null);
+    } else {
+      query = query.eq("corretora_id", corretoraId);
+    }
+    
+    const { data, error } = await query;
 
     if (!error && data) {
       setLancamentos(data);
@@ -118,7 +125,7 @@ export default function FinanceiroContasPagar({ corretoraId }: Props) {
         banco_codigo: formData.banco_codigo || null,
         banco_agencia: formData.banco_agencia || null,
         banco_conta: formData.banco_conta || null,
-        corretora_id: corretoraId,
+        corretora_id: corretoraId === "administradora" ? null : corretoraId,
         created_by: user.id,
         status: "pendente",
       }]);
