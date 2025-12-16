@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { toast } from "sonner";
 import { 
   Plus, 
@@ -335,21 +336,19 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Valor *</Label>
-                  <Input 
-                    type="number"
-                    step="0.01"
+                  <CurrencyInput 
                     required
                     value={formData.valor_bruto}
-                    onChange={(e) => setFormData({ ...formData, valor_bruto: e.target.value })}
+                    onValueChange={(values) => setFormData({ ...formData, valor_bruto: values.value || "" })}
+                    placeholder="R$ 0,00"
                   />
                 </div>
                 <div>
                   <Label>Desconto</Label>
-                  <Input 
-                    type="number"
-                    step="0.01"
+                  <CurrencyInput 
                     value={formData.valor_desconto}
-                    onChange={(e) => setFormData({ ...formData, valor_desconto: e.target.value })}
+                    onValueChange={(values) => setFormData({ ...formData, valor_desconto: values.value || "0" })}
+                    placeholder="R$ 0,00"
                   />
                 </div>
               </div>
