@@ -6,12 +6,31 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { 
-  Plus, Search, FileText, Send, Eye, CheckCircle2, Clock, XCircle, 
-  FileSignature, Filter, Download, Copy, MessageCircle, Mail, 
-  MoreHorizontal, ArrowRight
+import {
+  Plus,
+  Search,
+  FileText,
+  Send,
+  Eye,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  FileSignature,
+  Filter,
+  Download,
+  Copy,
+  MessageCircle,
+  Mail,
+  MoreHorizontal,
+  ArrowRight,
 } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -26,32 +45,32 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
     label: "Rascunho",
     color: "text-muted-foreground",
     bgClass: "bg-muted/50",
-    icon: <FileText className="h-4 w-4" />
+    icon: <FileText className="h-4 w-4" />,
   },
   aguardando_assinatura: {
     label: "Aguardando",
     color: "text-amber-600 dark:text-amber-400",
     bgClass: "bg-amber-500/10",
-    icon: <Clock className="h-4 w-4" />
+    icon: <Clock className="h-4 w-4" />,
   },
   assinado: {
     label: "Assinado",
     color: "text-emerald-600 dark:text-emerald-400",
     bgClass: "bg-emerald-500/10",
-    icon: <CheckCircle2 className="h-4 w-4" />
+    icon: <CheckCircle2 className="h-4 w-4" />,
   },
   cancelado: {
     label: "Cancelado",
     color: "text-red-600 dark:text-red-400",
     bgClass: "bg-red-500/10",
-    icon: <XCircle className="h-4 w-4" />
+    icon: <XCircle className="h-4 w-4" />,
   },
   expirado: {
     label: "Expirado",
     color: "text-gray-600 dark:text-gray-400",
     bgClass: "bg-gray-500/10",
-    icon: <XCircle className="h-4 w-4" />
-  }
+    icon: <XCircle className="h-4 w-4" />,
+  },
 };
 
 export default function Uon1Sign() {
@@ -70,28 +89,24 @@ export default function Uon1Sign() {
         .from("contratos")
         .select(`*, contrato_assinaturas(*), contrato_templates:template_id(logo_url)`)
         .order("created_at", { ascending: false });
-      
+
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
       }
-      
+
       const { data, error } = await query;
       if (error) throw error;
       return data;
-    }
+    },
   });
 
   const { data: templates } = useQuery({
     queryKey: ["contrato_templates"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contrato_templates")
-        .select("*")
-        .eq("ativo", true)
-        .order("titulo");
+      const { data, error } = await supabase.from("contrato_templates").select("*").eq("ativo", true).order("titulo");
       if (error) throw error;
       return data;
-    }
+    },
   });
 
   const enviarParaAssinatura = useMutation({
@@ -100,7 +115,7 @@ export default function Uon1Sign() {
         .from("contratos")
         .update({
           status: "aguardando_assinatura",
-          link_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          link_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         })
         .eq("id", contratoId);
       if (error) throw error;
@@ -109,7 +124,7 @@ export default function Uon1Sign() {
         contrato_id: contratoId,
         acao: "enviado",
         descricao: "Contrato enviado para assinatura",
-        user_id: user?.id
+        user_id: user?.id,
       });
     },
     onSuccess: () => {
@@ -118,7 +133,7 @@ export default function Uon1Sign() {
     },
     onError: (error) => {
       toast.error("Erro ao enviar contrato: " + error.message);
-    }
+    },
   });
 
   const copyLink = (contrato: any) => {
@@ -139,10 +154,10 @@ export default function Uon1Sign() {
     const link = `${window.location.origin}/contrato/${contrato.link_token}`;
     const phone = contrato.contratante_telefone?.replace(/\D/g, "") || "";
     const message = encodeURIComponent(
-      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`
+      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`,
     );
-    const whatsappUrl = phone 
-      ? `https://web.whatsapp.com/send?phone=55${phone}&text=${message}` 
+    const whatsappUrl = phone
+      ? `https://web.whatsapp.com/send?phone=55${phone}&text=${message}`
       : `https://web.whatsapp.com/send?text=${message}`;
     window.open(whatsappUrl, "_blank");
   };
@@ -155,7 +170,7 @@ export default function Uon1Sign() {
     const link = `${window.location.origin}/contrato/${contrato.link_token}`;
     const subject = encodeURIComponent(`Contrato para assinatura: ${contrato.titulo}`);
     const body = encodeURIComponent(
-      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`
+      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`,
     );
     const mailtoUrl = `mailto:${contrato.contratante_email || ""}?subject=${subject}&body=${body}`;
     window.open(mailtoUrl, "_blank");
@@ -175,7 +190,7 @@ export default function Uon1Sign() {
     total: contratos?.length || 0,
     rascunho: contratos?.filter((c) => c.status === "rascunho").length || 0,
     aguardando: contratos?.filter((c) => c.status === "aguardando_assinatura").length || 0,
-    assinados: contratos?.filter((c) => c.status === "assinado").length || 0
+    assinados: contratos?.filter((c) => c.status === "assinado").length || 0,
   };
 
   return (
@@ -209,7 +224,7 @@ export default function Uon1Sign() {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
@@ -223,7 +238,7 @@ export default function Uon1Sign() {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
@@ -237,7 +252,7 @@ export default function Uon1Sign() {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
@@ -322,14 +337,16 @@ export default function Uon1Sign() {
               const hasLink = contrato.status === "aguardando_assinatura" || contrato.link_token;
 
               return (
-                <Card 
-                  key={contrato.id} 
+                <Card
+                  key={contrato.id}
                   className="group hover:shadow-md transition-all duration-200 border-border/50 bg-card/80 backdrop-blur-sm"
                 >
                   <CardContent className="p-5">
                     <div className="flex items-start gap-4">
                       {/* Status Icon */}
-                      <div className={`h-10 w-10 rounded-lg ${status.bgClass} flex items-center justify-center shrink-0`}>
+                      <div
+                        className={`h-10 w-10 rounded-lg ${status.bgClass} flex items-center justify-center shrink-0`}
+                      >
                         <span className={status.color}>{status.icon}</span>
                       </div>
 
@@ -343,11 +360,9 @@ export default function Uon1Sign() {
                             {status.label}
                           </Badge>
                         </div>
-                        
-                        <h3 className="font-semibold text-foreground truncate mb-2">
-                          {contrato.titulo}
-                        </h3>
-                        
+
+                        <h3 className="font-semibold text-foreground truncate mb-2">{contrato.titulo}</h3>
+
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                           {contrato.contratante_nome && (
                             <span className="flex items-center gap-1">
@@ -359,17 +374,18 @@ export default function Uon1Sign() {
                               <span className="font-medium">Valor:</span>{" "}
                               {new Intl.NumberFormat("pt-BR", {
                                 style: "currency",
-                                currency: "BRL"
+                                currency: "BRL",
                               }).format(contrato.valor_contrato)}
                             </span>
                           )}
                           {assinaturas.length > 0 && (
                             <span className="flex items-center gap-1">
-                              <span className="font-medium">Assinaturas:</span> {assinaturasCompletas}/{assinaturas.length}
+                              <span className="font-medium">Assinaturas:</span> {assinaturasCompletas}/
+                              {assinaturas.length}
                             </span>
                           )}
                         </div>
-                        
+
                         <p className="text-xs text-muted-foreground mt-2">
                           Criado em {format(new Date(contrato.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                         </p>
@@ -385,14 +401,14 @@ export default function Uon1Sign() {
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        
+
                         {contrato.status === "rascunho" && (
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => enviarParaAssinatura.mutate(contrato.id)}
                             disabled={enviarParaAssinatura.isPending}
-                            title="Enviar para Assinatura"
+                            title="Liberar para Assinatura"
                             className="text-primary hover:text-primary"
                           >
                             <Send className="h-4 w-4" />
