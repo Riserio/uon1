@@ -169,6 +169,14 @@ serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
+
+        // Also reset corretora_usuarios totp status if forceReset
+        if (forceReset) {
+          await supabaseAdmin
+            .from("corretora_usuarios")
+            .update({ totp_configurado: false, totp_secret: secret })
+            .eq("email", email);
+        }
       } else {
         // Use existing secret
         secret = existingTotp.secret;
@@ -232,6 +240,27 @@ serve(async (req) => {
     }
     
     const isValid = await verifyTOTP(totpData.secret, code, 1);
+    
+    // If valid and not yet enabled, enable TOTP and update corretora_usuarios
+    if (isValid && !totpData.enabled) {
+      // Update user_totp table
+      await supabaseAdmin
+        .from("user_totp")
+        .update({ enabled: true })
+        .eq("user_id", profile.id);
+
+      // Update corretora_usuarios table to mark TOTP as configured
+      const { error: corretoraError } = await supabaseAdmin
+        .from("corretora_usuarios")
+        .update({ totp_configurado: true })
+        .eq("profile_id", profile.id);
+
+      if (corretoraError) {
+        console.error("Error updating corretora_usuarios:", corretoraError);
+      } else {
+        console.log("TOTP enabled and corretora_usuarios updated for user:", profile.id);
+      }
+    }
     
     console.log("TOTP verification for user:", profile.id, "result:", isValid);
     return new Response(JSON.stringify({ success: true, valid: isValid }), {
