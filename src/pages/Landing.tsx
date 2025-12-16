@@ -13,6 +13,8 @@ import {
   Lock,
   TrendingUp,
   Sparkles,
+  PenTool,
+  Clock,
 } from "lucide-react";
 
 const Landing = () => {
@@ -24,6 +26,18 @@ const Landing = () => {
       title: "Gestão de Sinistros",
       description: "Controle completo do ciclo de vida dos sinistros, desde abertura até conclusão.",
       gradient: "from-[#362c89] to-[#5a4fcf]",
+    },
+    {
+      icon: PenTool,
+      title: "UON1SIGN",
+      description: "Assinatura digital de contratos com validade jurídica e rastreabilidade completa.",
+      gradient: "from-[#059669] to-[#34d399]",
+    },
+    {
+      icon: Clock,
+      title: "Controle de Jornada",
+      description: "Gestão completa de ponto, banco de horas e relatórios de funcionários.",
+      gradient: "from-[#ea580c] to-[#fb923c]",
     },
     {
       icon: BarChart3,
@@ -148,7 +162,7 @@ const Landing = () => {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((feature, index) => (
               <div
                 key={index}
