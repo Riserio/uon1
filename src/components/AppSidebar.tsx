@@ -265,7 +265,7 @@ export function AppSidebar() {
                 {/* Uon1Sign */}
                 {canView("contratos") && <SidebarMenuItem>
                     <SidebarMenuButton asChild>
-                      <NavLink to="/gestao?tab=contratos" activeClassName="bg-primary text-primary-foreground">
+                      <NavLink to="/uon1sign" activeClassName="bg-primary text-primary-foreground">
                         <FileSignature className="h-4 w-4" />
                         {!collapsed && <span>Uon1Sign</span>}
                       </NavLink>
