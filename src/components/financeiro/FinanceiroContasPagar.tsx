@@ -57,6 +57,28 @@ export default function FinanceiroContasPagar({ corretoraId }: Props) {
     if (corretoraId) fetchLancamentos();
   }, [corretoraId]);
 
+  // Realtime subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel('contas-pagar-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lancamentos_financeiros'
+        },
+        () => {
+          fetchLancamentos();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [corretoraId]);
+
   useEffect(() => {
     filterLancamentos();
   }, [lancamentos, searchTerm, statusFilter]);
