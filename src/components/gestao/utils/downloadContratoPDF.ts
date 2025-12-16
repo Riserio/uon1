@@ -77,23 +77,18 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
     container.style.fontSize = "12px";
     container.className = "pdf-offscreen-container";
 
-    // Header (first page visual) - logo on right
+    // Header (first page visual) - logo on top right only
     const header = document.createElement("div");
     header.style.display = "flex";
-    header.style.justifyContent = "space-between";
+    header.style.justifyContent = "flex-end";
     header.style.alignItems = "flex-start";
-    header.style.gap = "12px";
-    header.style.marginBottom = "8px";
-
-    // Left side text
-    const leftText = document.createElement("div");
-    leftText.innerHTML = `<div style="font-weight:700;font-size:16px">Vangard Gestora</div><div style="color:#666;font-size:11px">vangardgestora.com.br</div>`;
+    header.style.marginBottom = "16px";
 
     // Create logo img with dataUrl if available - on the right
     const logoImg = document.createElement("img");
     logoImg.alt = "Logo";
-    logoImg.style.maxWidth = "180px";
-    logoImg.style.maxHeight = "60px";
+    logoImg.style.maxWidth = "200px";
+    logoImg.style.maxHeight = "70px";
     logoImg.style.height = "auto";
     logoImg.style.objectFit = "contain";
     logoImg.style.display = "block";
@@ -105,7 +100,6 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
       logoImg.crossOrigin = "anonymous";
     }
 
-    header.appendChild(leftText);
     header.appendChild(logoImg);
     container.appendChild(header);
 
@@ -248,28 +242,16 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
       if (pageIndex > 0) {
         pdf.addPage();
         
-        // Repeated header only on pages 2+ - text left, logo right
+        // Repeated header only on pages 2+ - logo on right only
         try {
-          pdf.setFontSize(12);
-          pdf.setFont("helvetica", "bold");
-          pdf.setTextColor(30, 30, 30);
-          pdf.text("Vangard Gestora", pageMarginMm, 12);
-          pdf.setFontSize(9);
-          pdf.setFont("helvetica", "normal");
-          pdf.setTextColor(100, 100, 100);
-          pdf.text("vangardgestora.com.br", pageMarginMm, 17);
-          
           if (logoData) {
-            const logoWidthMm = 36;
-            const logoHeightMm = 12;
+            const logoWidthMm = 40;
+            const logoHeightMm = 14;
             const logoX = pdfWidthMm - pageMarginMm - logoWidthMm;
             pdf.addImage(logoData, "PNG", logoX, 6, logoWidthMm, logoHeightMm);
           }
         } catch (err) {
-          pdf.setFontSize(12);
-          pdf.setFont("helvetica", "bold");
-          pdf.setTextColor(30, 30, 30);
-          pdf.text("Vangard Gestora", pageMarginMm, 12);
+          console.warn("Erro ao adicionar logo na página", pageIndex + 1);
         }
       }
 
