@@ -1,22 +1,24 @@
-// components/gestao/VisualizarContratoDialog.tsx
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CheckCircle2, Clock, XCircle, Copy, User, MessageCircle, Download, Mail } from "lucide-react";
+import { 
+  CheckCircle2, Clock, XCircle, Copy, User, MessageCircle, Download, Mail, 
+  FileText, History, Users, Calendar, DollarSign, MapPin, Globe, Hash,
+  X
+} from "lucide-react";
 import { toast } from "sonner";
 import { downloadContratoPDF } from "./utils/downloadContratoPDF";
 
@@ -26,22 +28,33 @@ interface VisualizarContratoDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+const statusConfig: Record<string, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
   pendente: {
     label: "Pendente",
-    color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-    icon: <Clock className="h-3 w-3" />,
+    color: "text-amber-600 dark:text-amber-400",
+    bgColor: "bg-amber-500/10",
+    icon: <Clock className="h-4 w-4" />,
   },
   assinado: {
     label: "Assinado",
-    color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-    icon: <CheckCircle2 className="h-3 w-3" />,
+    color: "text-emerald-600 dark:text-emerald-400",
+    bgColor: "bg-emerald-500/10",
+    icon: <CheckCircle2 className="h-4 w-4" />,
   },
   recusado: {
     label: "Recusado",
-    color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-    icon: <XCircle className="h-3 w-3" />,
+    color: "text-red-600 dark:text-red-400",
+    bgColor: "bg-red-500/10",
+    icon: <XCircle className="h-4 w-4" />,
   },
+};
+
+const contratoStatusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
+  rascunho: { label: "Rascunho", color: "text-muted-foreground", bgColor: "bg-muted" },
+  aguardando_assinatura: { label: "Aguardando Assinatura", color: "text-amber-600", bgColor: "bg-amber-500/10" },
+  assinado: { label: "Assinado", color: "text-emerald-600", bgColor: "bg-emerald-500/10" },
+  cancelado: { label: "Cancelado", color: "text-red-600", bgColor: "bg-red-500/10" },
+  expirado: { label: "Expirado", color: "text-gray-600", bgColor: "bg-gray-500/10" },
 };
 
 export default function VisualizarContratoDialog({ contrato, open, onOpenChange }: VisualizarContratoDialogProps) {
@@ -60,7 +73,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
   });
 
   const assinaturas = contrato?.contrato_assinaturas || [];
-  
+  const contratoStatus = contratoStatusConfig[contrato?.status] || contratoStatusConfig.rascunho;
 
   const copyLink = () => {
     if (!contrato.link_token) {
@@ -102,161 +115,201 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
     window.open(mailtoUrl, "_blank");
   };
 
-  // PDF download uses shared utility
   const handleDownloadPDF = () => {
     downloadContratoPDF({ ...contrato, contrato_assinaturas: assinaturas }, contrato?.contrato_templates?.logo_url);
   };
 
+  const hasLink = contrato?.status === "aguardando_assinatura" || contrato?.link_token;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center gap-2">
-            <DialogTitle>{contrato?.titulo}</DialogTitle>
-            <Badge variant="outline">{contrato?.numero}</Badge>
+      <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden">
+        {/* Header */}
+        <DialogHeader className="p-6 pb-4 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent border-b">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-semibold">{contrato?.titulo}</DialogTitle>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {contrato?.numero}
+                    </Badge>
+                    <Badge className={`${contratoStatus.bgColor} ${contratoStatus.color} border-0`}>
+                      {contratoStatus.label}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full"
+              onClick={() => onOpenChange(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-          <DialogDescription>
-            Criado em{" "}
-            {contrato?.created_at
-              ? format(new Date(contrato.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
-              : "-"}
-          </DialogDescription>
+          
+          {/* Quick Actions */}
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
+            <Button variant="outline" size="sm" onClick={handleDownloadPDF} className="h-8">
+              <Download className="h-3.5 w-3.5 mr-1.5" /> PDF
+            </Button>
+            {hasLink && (
+              <>
+                <Button variant="outline" size="sm" onClick={copyLink} className="h-8">
+                  <Copy className="h-3.5 w-3.5 mr-1.5" /> Link
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={sendWhatsApp} 
+                  className="h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                >
+                  <MessageCircle className="h-3.5 w-3.5 mr-1.5" /> WhatsApp
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={sendEmail} 
+                  className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
+                >
+                  <Mail className="h-3.5 w-3.5 mr-1.5" /> E-mail
+                </Button>
+              </>
+            )}
+          </div>
         </DialogHeader>
 
+        {/* Content */}
         <Tabs defaultValue="documento" className="w-full">
-          <TabsList>
-            <TabsTrigger value="documento">Documento</TabsTrigger>
-            <TabsTrigger value="assinaturas">Assinaturas ({assinaturas.length})</TabsTrigger>
-            <TabsTrigger value="historico">Histórico</TabsTrigger>
-          </TabsList>
+          <div className="px-6 pt-4 border-b bg-muted/30">
+            <TabsList className="h-10 w-full justify-start bg-transparent p-0 gap-4">
+              <TabsTrigger 
+                value="documento" 
+                className="h-10 px-0 pb-3 pt-0 data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-primary rounded-none"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Documento
+              </TabsTrigger>
+              <TabsTrigger 
+                value="assinaturas"
+                className="h-10 px-0 pb-3 pt-0 data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-primary rounded-none"
+              >
+                <Users className="h-4 w-4 mr-2" />
+                Assinaturas
+                <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                  {assinaturas.length}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="historico"
+                className="h-10 px-0 pb-3 pt-0 data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-primary rounded-none"
+              >
+                <History className="h-4 w-4 mr-2" />
+                Histórico
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-          <TabsContent value="documento" className="mt-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">Dados do Contrato</CardTitle>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
-                      <Download className="h-4 w-4 mr-2" /> Baixar PDF
-                    </Button>
+          <ScrollArea className="h-[60vh]">
+            <TabsContent value="documento" className="m-0 p-6 animate-in fade-in-50 duration-200">
+              {/* Info Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                <InfoCard 
+                  icon={<User className="h-4 w-4" />}
+                  label="Contratante"
+                  value={contrato?.contratante_nome || "-"}
+                />
+                <InfoCard 
+                  icon={<Mail className="h-4 w-4" />}
+                  label="E-mail"
+                  value={contrato?.contratante_email || "-"}
+                />
+                <InfoCard 
+                  icon={<Hash className="h-4 w-4" />}
+                  label="CPF/CNPJ"
+                  value={contrato?.contratante_cpf || contrato?.contratante_cnpj || "-"}
+                />
+                <InfoCard 
+                  icon={<DollarSign className="h-4 w-4" />}
+                  label="Valor"
+                  value={contrato?.valor_contrato
+                    ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(contrato.valor_contrato)
+                    : "-"
+                  }
+                />
+                <InfoCard 
+                  icon={<Calendar className="h-4 w-4" />}
+                  label="Início"
+                  value={contrato?.data_inicio ? format(new Date(contrato.data_inicio), "dd/MM/yyyy") : "-"}
+                />
+                <InfoCard 
+                  icon={<Calendar className="h-4 w-4" />}
+                  label="Fim"
+                  value={contrato?.data_fim ? format(new Date(contrato.data_fim), "dd/MM/yyyy") : "-"}
+                />
+              </div>
 
-                    {(contrato?.status === "aguardando_assinatura" || contrato?.link_token) && (
-                      <>
-                        <Button variant="outline" size="sm" onClick={copyLink}>
-                          <Copy className="h-4 w-4 mr-2" /> Copiar Link
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={sendWhatsApp}
-                          className="text-green-600 hover:text-green-700"
-                        >
-                          <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={sendEmail}
-                          className="text-blue-600 hover:text-blue-700"
-                        >
-                          <Mail className="h-4 w-4 mr-2" /> E-mail
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
+              {/* Document Preview */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Prévia do Documento
+                </h4>
+                <div
+                  className="prose prose-sm max-w-none border rounded-xl p-6 bg-white text-black shadow-sm"
+                  style={{ background: "#ffffff", color: "#222", fontFamily: "inherit", lineHeight: 1.5 }}
+                  dangerouslySetInnerHTML={{ __html: contrato?.conteudo_html || "" }}
+                />
+              </div>
+            </TabsContent>
 
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Contratante:</span>
-                    <p className="font-medium">{contrato?.contratante_nome || "-"}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">E-mail:</span>
-                    <p className="font-medium">{contrato?.contratante_email || "-"}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">CPF/CNPJ:</span>
-                    <p className="font-medium">{contrato?.contratante_cpf || contrato?.contratante_cnpj || "-"}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Valor:</span>
-                    <p className="font-medium">
-                      {contrato?.valor_contrato
-                        ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                            contrato.valor_contrato,
-                          )
-                        : "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Início:</span>
-                    <p className="font-medium">
-                      {contrato?.data_inicio ? format(new Date(contrato.data_inicio), "dd/MM/yyyy") : "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Fim:</span>
-                    <p className="font-medium">
-                      {contrato?.data_fim ? format(new Date(contrato.data_fim), "dd/MM/yyyy") : "-"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4">
-                  <h4 className="font-medium mb-2">Prévia do Documento</h4>
-
-                  {/* Preview do conteúdo do contrato */}
-                  <div
-                    className="prose prose-sm max-w-none border rounded-lg p-6 bg-white text-black"
-                    style={{ background: "#ffffff", color: "#222", fontFamily: "inherit", lineHeight: 1.35 }}
-                    dangerouslySetInnerHTML={{ __html: contrato?.conteudo_html || "" }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="assinaturas" className="mt-4">
-            <div className="space-y-3">
+            <TabsContent value="assinaturas" className="m-0 p-6 animate-in fade-in-50 duration-200">
               {assinaturas.length === 0 ? (
-                <Card>
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    Nenhum signatário cadastrado
-                  </CardContent>
-                </Card>
+                <EmptyState 
+                  icon={<Users className="h-8 w-8" />}
+                  title="Nenhum signatário"
+                  description="Este contrato ainda não possui signatários cadastrados"
+                />
               ) : (
-                assinaturas.map((assinatura: any) => {
-                  const status = statusConfig[assinatura.status] || statusConfig.pendente;
-                  return (
-                    <Card key={assinatura.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
+                <div className="space-y-3">
+                  {assinaturas.map((assinatura: any, index: number) => {
+                    const status = statusConfig[assinatura.status] || statusConfig.pendente;
+                    return (
+                      <div 
+                        key={assinatura.id} 
+                        className="group border rounded-xl p-4 hover:shadow-md transition-all duration-200 bg-card"
+                      >
+                        <div className="flex items-start justify-between gap-4">
                           <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                              <User className="h-5 w-5 text-muted-foreground" />
+                            <div className={`h-12 w-12 rounded-full ${status.bgColor} flex items-center justify-center shrink-0`}>
+                              <span className={status.color}>{status.icon}</span>
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">{assinatura.nome}</span>
-                                <Badge variant="outline" className="text-xs">
+                                <Badge variant="outline" className="text-xs capitalize">
                                   {assinatura.tipo}
                                 </Badge>
                               </div>
                               <p className="text-sm text-muted-foreground">{assinatura.email}</p>
+                              {assinatura.cpf && (
+                                <p className="text-xs text-muted-foreground mt-0.5">CPF: {assinatura.cpf}</p>
+                              )}
                             </div>
                           </div>
                           <div className="text-right">
-                            <Badge className={`${status.color} flex items-center gap-1`}>
-                              {status.icon}
+                            <Badge className={`${status.bgColor} ${status.color} border-0`}>
                               {status.label}
                             </Badge>
                             {assinatura.assinado_em && (
-                              <p className="text-xs text-muted-foreground mt-1">
+                              <p className="text-xs text-muted-foreground mt-1.5">
                                 {format(new Date(assinatura.assinado_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                               </p>
                             )}
@@ -264,69 +317,112 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
                         </div>
 
                         {assinatura.assinatura_url && (
-                          <div className="mt-3 border-t pt-3">
-                            <p className="text-xs text-muted-foreground mb-2">Assinatura:</p>
-                            <img src={assinatura.assinatura_url} alt="Assinatura" className="max-h-16 border rounded" />
+                          <div className="mt-4 pt-4 border-t">
+                            <p className="text-xs font-medium text-muted-foreground mb-2">Assinatura Digital</p>
+                            <div className="inline-block bg-white border rounded-lg p-2">
+                              <img 
+                                src={assinatura.assinatura_url} 
+                                alt="Assinatura" 
+                                className="max-h-16 object-contain" 
+                              />
+                            </div>
                           </div>
                         )}
 
                         {assinatura.status === "assinado" && (
-                          <div className="mt-2 text-xs text-muted-foreground">
-                            <p>IP: {assinatura.ip_assinatura || "N/A"}</p>
-                            <p>Hash: {assinatura.hash_documento?.substring(0, 20)}...</p>
+                          <div className="mt-3 pt-3 border-t grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                            {assinatura.ip_assinatura && (
+                              <div className="flex items-center gap-1.5 text-muted-foreground">
+                                <Globe className="h-3 w-3" />
+                                <span>IP: {assinatura.ip_assinatura}</span>
+                              </div>
+                            )}
+                            {assinatura.hash_documento && (
+                              <div className="flex items-center gap-1.5 text-muted-foreground">
+                                <Hash className="h-3 w-3" />
+                                <span className="truncate">Hash: {assinatura.hash_documento.substring(0, 16)}...</span>
+                              </div>
+                            )}
                             {assinatura.latitude && assinatura.longitude && (
-                              <p>
-                                Localização: {assinatura.latitude.toFixed(4)}, {assinatura.longitude.toFixed(4)}
-                              </p>
+                              <div className="flex items-center gap-1.5 text-muted-foreground">
+                                <MapPin className="h-3 w-3" />
+                                <span>{assinatura.latitude.toFixed(4)}, {assinatura.longitude.toFixed(4)}</span>
+                              </div>
                             )}
                           </div>
                         )}
-                      </CardContent>
-                    </Card>
-                  );
-                })
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="historico" className="mt-4">
-            <div className="space-y-3">
-              {historico?.length === 0 ? (
-                <Card>
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    Nenhum registro no histórico
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="relative">
-                  <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
-                  {historico?.map((item: any) => (
-                    <div key={item.id} className="relative pl-10 pb-4">
-                      <div className="absolute left-2.5 w-3 h-3 rounded-full bg-primary border-2 border-background" />
-                      <div className="bg-card border rounded-lg p-3">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium capitalize">{item.acao}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {format(new Date(item.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                          </span>
-                        </div>
-                        {item.descricao && <p className="text-sm text-muted-foreground mt-1">{item.descricao}</p>}
-                        {item.ip && <p className="text-xs text-muted-foreground mt-1">IP: {item.ip}</p>}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
-            </div>
-          </TabsContent>
-        </Tabs>
+            </TabsContent>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Fechar
-          </Button>
-        </DialogFooter>
+            <TabsContent value="historico" className="m-0 p-6 animate-in fade-in-50 duration-200">
+              {!historico || historico.length === 0 ? (
+                <EmptyState 
+                  icon={<History className="h-8 w-8" />}
+                  title="Nenhum registro"
+                  description="O histórico de ações deste contrato aparecerá aqui"
+                />
+              ) : (
+                <div className="relative">
+                  <div className="absolute left-[19px] top-2 bottom-2 w-px bg-border" />
+                  <div className="space-y-4">
+                    {historico.map((item: any, index: number) => (
+                      <div key={item.id} className="relative pl-10">
+                        <div className="absolute left-2 top-1.5 w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-background" />
+                        <div className="bg-muted/50 rounded-lg p-4 hover:bg-muted/70 transition-colors">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium capitalize text-sm">{item.acao}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(item.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            </span>
+                          </div>
+                          {item.descricao && (
+                            <p className="text-sm text-muted-foreground">{item.descricao}</p>
+                          )}
+                          {item.ip && (
+                            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                              <Globe className="h-3 w-3" /> {item.ip}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+          </ScrollArea>
+        </Tabs>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+      <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center shrink-0 text-muted-foreground">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="font-medium text-sm truncate">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center text-muted-foreground mb-4">
+        {icon}
+      </div>
+      <h3 className="font-medium text-foreground">{title}</h3>
+      <p className="text-sm text-muted-foreground mt-1">{description}</p>
+    </div>
   );
 }
