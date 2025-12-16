@@ -87,8 +87,8 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
     // Create logo img with dataUrl if available - on the right
     const logoImg = document.createElement("img");
     logoImg.alt = "Logo";
-    logoImg.style.maxWidth = "200px";
-    logoImg.style.maxHeight = "70px";
+    logoImg.style.maxWidth = "140px";
+    logoImg.style.maxHeight = "50px";
     logoImg.style.height = "auto";
     logoImg.style.objectFit = "contain";
     logoImg.style.display = "block";
@@ -241,18 +241,7 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
 
       if (pageIndex > 0) {
         pdf.addPage();
-        
-        // Repeated header only on pages 2+ - logo on right only
-        try {
-          if (logoData) {
-            const logoWidthMm = 40;
-            const logoHeightMm = 14;
-            const logoX = pdfWidthMm - pageMarginMm - logoWidthMm;
-            pdf.addImage(logoData, "PNG", logoX, 6, logoWidthMm, logoHeightMm);
-          }
-        } catch (err) {
-          console.warn("Erro ao adicionar logo na página", pageIndex + 1);
-        }
+        // Páginas 2+ sem logo no cabeçalho
       }
 
       // Draw slice image under header
