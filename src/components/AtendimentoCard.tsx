@@ -300,9 +300,9 @@ export function AtendimentoCard({
               <span className="truncate max-w-[120px]" title={responsavelNome}>{responsavelNome}</span>
             </div>
           )}
-          {atendimento.tags && atendimento.tags.length > 0 && (
+          {atendimento.tags && atendimento.tags.filter(t => t !== 'pendente_vistoria').length > 0 && (
             <div className="flex items-center gap-1 flex-wrap">
-              {atendimento.tags.slice(0, 2).map((tag, idx) => (
+              {atendimento.tags.filter(t => t !== 'pendente_vistoria').slice(0, 2).map((tag, idx) => (
                 <span key={idx} className="truncate px-1 py-0.5 rounded bg-muted/50 text-[10px]">{tag}</span>
               ))}
             </div>
