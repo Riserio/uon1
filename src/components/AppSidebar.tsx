@@ -195,12 +195,12 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
 
-                {/* Lançamentos Financeiros */}
+                {/* Financeiro */}
                 {canView("lancamentos_financeiros") && <SidebarMenuItem>
                     <SidebarMenuButton asChild>
-                      <NavLink to="/lancamentos-financeiros" activeClassName="bg-primary text-primary-foreground">
+                      <NavLink to="/financeiro" activeClassName="bg-primary text-primary-foreground">
                         <DollarSign className="h-4 w-4" />
-                        {!collapsed && <span>Lançamentos Financeiros</span>}
+                        {!collapsed && <span>Financeiro</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>}

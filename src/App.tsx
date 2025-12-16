@@ -20,7 +20,7 @@ import Contatos from "./pages/Contatos";
 import Termos from "./pages/Termos";
 import Usuarios from "./pages/Usuarios";
 import Equipes from "./pages/Equipes";
-import LancamentosFinanceiros from "./pages/LancamentosFinanceiros";
+import Financeiro from "./pages/Financeiro";
 import Agenda from "./pages/Agenda";
 import Comunicados from "./pages/Comunicados";
 import Documentos from "./pages/Documentos";
@@ -195,7 +195,7 @@ const App = () => (
               <Route path="/contatos" element={<ProtectedRoute><Contatos /></ProtectedRoute>} />
               <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
               <Route path="/equipes" element={<ProtectedRoute><Equipes /></ProtectedRoute>} />
-              <Route path="/lancamentos-financeiros" element={<ProtectedRoute><LancamentosFinanceiros /></ProtectedRoute>} />
+              <Route path="/financeiro" element={<ProtectedRoute><Financeiro /></ProtectedRoute>} />
                 <Route path="/dashboard-financeiro" element={<ProtectedRoute><DashboardFinanceiro /></ProtectedRoute>} />
                 <Route path="/custos-sinistros" element={<ProtectedRoute><CustosSinistros /></ProtectedRoute>} />
               
