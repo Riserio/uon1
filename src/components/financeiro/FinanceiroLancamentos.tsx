@@ -430,10 +430,13 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
                       <SelectItem value="premio">Prêmio</SelectItem>
                       <SelectItem value="comissao">Comissão</SelectItem>
                       <SelectItem value="sinistro">Sinistro</SelectItem>
-                      <SelectItem value="oficina">Oficina</SelectItem>
                       <SelectItem value="indenizacao">Indenização</SelectItem>
-                      <SelectItem value="administrativo">Administrativo</SelectItem>
-                      <SelectItem value="taxa">Taxa</SelectItem>
+                      <SelectItem value="salvados">Salvados</SelectItem>
+                      <SelectItem value="ressarcimento">Ressarcimento</SelectItem>
+                      <SelectItem value="taxa_administrativa">Taxa Administrativa</SelectItem>
+                      <SelectItem value="custo_operacional">Custo Operacional</SelectItem>
+                      <SelectItem value="ajuste_tecnico">Ajuste Técnico</SelectItem>
+                      <SelectItem value="estorno">Estorno</SelectItem>
                       <SelectItem value="outros">Outros</SelectItem>
                     </SelectContent>
                   </Select>
