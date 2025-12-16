@@ -55,6 +55,7 @@ import SinistroConfiguracoes from "@/pages/SinistroConfiguracoes";
 import SGAInsights from "@/pages/SGAInsights";
 import Landing from "./pages/Landing";
 import Gestao from "./pages/Gestao";
+import Uon1Sign from "./pages/Uon1Sign";
 import ContratoAssinatura from "./pages/ContratoAssinatura";
 
 const queryClient = new QueryClient({
@@ -206,6 +207,7 @@ const App = () => (
               <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
               <Route path="/pid" element={<ProtectedRoute><PID /></ProtectedRoute>} />
               <Route path="/gestao" element={<ProtectedRoute><Gestao /></ProtectedRoute>} />
+              <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
               <Route path="/sga-insights" element={<ProtectedRoute><SGAInsights /></ProtectedRoute>} />
               <Route path="/portal/sga-insights" element={<PortalRoute><SGAInsights /></PortalRoute>} />
               <Route path="/portal" element={<PortalRoute><Portal /></PortalRoute>} />

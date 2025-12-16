@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileSignature, Users, Clock, Settings, UserCircle } from "lucide-react";
-import GestaoContratos from "@/components/gestao/GestaoContratos";
+import { Card, CardContent } from "@/components/ui/card";
+import { Users, Clock, Settings, UserCircle, Briefcase, Shield } from "lucide-react";
 import GestaoFuncionarios from "@/components/gestao/GestaoFuncionarios";
 import GestaoJornada from "@/components/gestao/GestaoJornada";
 import Usuarios from "@/pages/Usuarios";
@@ -11,95 +10,125 @@ import { useAuth } from "@/hooks/useAuth";
 
 export default function Gestao() {
   const { userRole } = useAuth();
-  const [searchParams] = useSearchParams();
 
   const isAdmin = userRole === "admin" || userRole === "superintendente";
   const canManageUsers = userRole === "admin" || userRole === "administrativo" || userRole === "superintendente";
 
-  // Check for tab query param (for direct navigation to Uon1Sign)
-  const tabFromUrl = searchParams.get("tab");
-  const defaultTab = tabFromUrl === "contratos" && isAdmin ? "contratos" : (isAdmin ? "funcionarios" : "jornada");
+  const defaultTab = isAdmin ? "funcionarios" : "jornada";
   const [activeTab, setActiveTab] = useState(defaultTab);
 
-  // Update tab when role changes or URL param changes
   useEffect(() => {
-    if (tabFromUrl === "contratos" && isAdmin) {
-      setActiveTab("contratos");
-    } else if (!isAdmin && activeTab !== "jornada") {
+    if (!isAdmin && activeTab !== "jornada" && activeTab !== "usuarios") {
       setActiveTab("jornada");
     }
-  }, [isAdmin, tabFromUrl]);
+  }, [isAdmin, activeTab]);
+
+  const tabs = [
+    { id: "funcionarios", label: "Funcionários", shortLabel: "RH", icon: Users, visible: isAdmin },
+    { id: "jornada", label: "Jornada", shortLabel: "Jornada", icon: Clock, visible: true },
+    { id: "usuarios", label: "Usuários", shortLabel: "Usuários", icon: UserCircle, visible: canManageUsers },
+    { id: "configuracoes", label: "Configurações", shortLabel: "Config", icon: Settings, visible: isAdmin },
+  ].filter(tab => tab.visible);
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-foreground">Gestão</h1>
-          <p className="text-muted-foreground mt-1">
-            Central de gerenciamento do sistema
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 max-w-7xl">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Briefcase className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Gestão</h1>
+              <p className="text-muted-foreground">Central de gerenciamento do sistema</p>
+            </div>
+          </div>
         </div>
 
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <Card 
+                key={tab.id}
+                className={`cursor-pointer transition-all duration-200 hover:shadow-md border-border/50 ${
+                  isActive ? 'ring-2 ring-primary/50 bg-primary/5' : 'bg-card/50 backdrop-blur-sm'
+                }`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-3">
+                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                      isActive ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                    }`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className={`font-medium ${isActive ? 'text-primary' : 'text-foreground'}`}>
+                        {tab.label}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {tab.id === 'funcionarios' && 'Cadastro de funcionários'}
+                        {tab.id === 'jornada' && 'Controle de ponto'}
+                        {tab.id === 'usuarios' && 'Gerenciar usuários'}
+                        {tab.id === 'configuracoes' && 'Ajustes do sistema'}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="flex flex-wrap h-auto gap-1 w-full lg:w-auto lg:inline-flex bg-muted/50 p-1">
-            {isAdmin && (
-              <TabsTrigger value="contratos" className="flex items-center gap-2 data-[state=active]:bg-background">
-                <FileSignature className="h-4 w-4" />
-                <span className="hidden sm:inline">Uon1Sign</span>
-                <span className="sm:hidden">Sign</span>
+          <TabsList className="hidden">
+            {tabs.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id}>
+                {tab.label}
               </TabsTrigger>
-            )}
-            {isAdmin && (
-              <TabsTrigger value="funcionarios" className="flex items-center gap-2 data-[state=active]:bg-background">
-                <Users className="h-4 w-4" />
-                <span className="hidden sm:inline">Funcionários</span>
-                <span className="sm:hidden">RH</span>
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="jornada" className="flex items-center gap-2 data-[state=active]:bg-background">
-              <Clock className="h-4 w-4" />
-              <span>Jornada</span>
-            </TabsTrigger>
-            {canManageUsers && (
-              <TabsTrigger value="usuarios" className="flex items-center gap-2 data-[state=active]:bg-background">
-                <UserCircle className="h-4 w-4" />
-                <span>Usuários</span>
-              </TabsTrigger>
-            )}
-            {isAdmin && (
-              <TabsTrigger value="configuracoes" className="flex items-center gap-2 data-[state=active]:bg-background">
-                <Settings className="h-4 w-4" />
-                <span className="hidden sm:inline">Configurações</span>
-                <span className="sm:hidden">Config</span>
-              </TabsTrigger>
-            )}
+            ))}
           </TabsList>
 
           {isAdmin && (
-            <TabsContent value="contratos" className="mt-6">
-              <GestaoContratos />
+            <TabsContent value="funcionarios" className="mt-0 animate-in fade-in-50 duration-300">
+              <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
+                <CardContent className="p-6">
+                  <GestaoFuncionarios />
+                </CardContent>
+              </Card>
             </TabsContent>
           )}
 
-          {isAdmin && (
-            <TabsContent value="funcionarios" className="mt-6">
-              <GestaoFuncionarios />
-            </TabsContent>
-          )}
-
-          <TabsContent value="jornada" className="mt-6">
-            <GestaoJornada />
+          <TabsContent value="jornada" className="mt-0 animate-in fade-in-50 duration-300">
+            <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
+              <CardContent className="p-6">
+                <GestaoJornada />
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {canManageUsers && (
-            <TabsContent value="usuarios" className="mt-6">
-              <Usuarios />
+            <TabsContent value="usuarios" className="mt-0 animate-in fade-in-50 duration-300">
+              <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
+                <CardContent className="p-6">
+                  <Usuarios />
+                </CardContent>
+              </Card>
             </TabsContent>
           )}
 
           {isAdmin && (
-            <TabsContent value="configuracoes" className="mt-6">
-              <Configuracoes />
+            <TabsContent value="configuracoes" className="mt-0 animate-in fade-in-50 duration-300">
+              <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
+                <CardContent className="p-6">
+                  <Configuracoes />
+                </CardContent>
+              </Card>
             </TabsContent>
           )}
         </Tabs>
