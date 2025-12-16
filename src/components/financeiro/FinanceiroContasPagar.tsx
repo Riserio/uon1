@@ -102,6 +102,7 @@ export default function FinanceiroContasPagar({ corretoraId }: Props) {
       const valorDesconto = parseFloat(formData.valor_desconto) || 0;
 
       const { error } = await supabase.from("lancamentos_financeiros").insert([{
+        numero_lancamento: '',
         tipo_lancamento: "despesa",
         descricao: formData.descricao,
         valor_bruto: valorBruto,

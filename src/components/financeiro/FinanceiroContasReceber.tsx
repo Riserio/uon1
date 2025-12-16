@@ -97,6 +97,7 @@ export default function FinanceiroContasReceber({ corretoraId }: Props) {
       const valorDesconto = parseFloat(formData.valor_desconto) || 0;
 
       const { error } = await supabase.from("lancamentos_financeiros").insert([{
+        numero_lancamento: '',
         tipo_lancamento: "receita",
         descricao: formData.descricao,
         valor_bruto: valorBruto,

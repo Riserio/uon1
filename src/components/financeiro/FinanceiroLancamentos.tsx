@@ -138,6 +138,7 @@ export default function FinanceiroLancamentos({ corretoraId }: Props) {
       } else {
         const { error } = await supabase.from("lancamentos_financeiros").insert([{
           ...data,
+          numero_lancamento: '',
           created_by: user.id,
           status: "pendente",
         }]);
