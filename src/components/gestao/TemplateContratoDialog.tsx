@@ -16,8 +16,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Edit, Trash2, FileText, Upload, X, Image } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, FileText, Upload, X, Image, File } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,13 +48,18 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
 
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [categoria, setCategoria] = useState("");
   const [conteudoHtml, setConteudoHtml] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
+  const [tipoTemplate, setTipoTemplate] = useState<"html" | "word" | "pdf">("html");
+  const [arquivoUrl, setArquivoUrl] = useState("");
+  const [arquivoNome, setArquivoNome] = useState("");
 
   // Fetch templates
   const { data: templates, isLoading } = useQuery({
@@ -69,6 +81,9 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
     setCategoria("");
     setConteudoHtml("");
     setLogoUrl("");
+    setTipoTemplate("html");
+    setArquivoUrl("");
+    setArquivoNome("");
     setIsCreating(false);
     setEditingTemplate(null);
   };
@@ -112,12 +127,69 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
     }
   };
 
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Por favor, selecione um arquivo Word (.doc, .docx) ou PDF.");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("O arquivo deve ter no máximo 10MB.");
+      return;
+    }
+
+    setUploadingFile(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      const fileName = `template-documents/${Date.now()}.${ext}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("documentos")
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("documentos")
+        .getPublicUrl(fileName);
+
+      setArquivoUrl(publicUrl);
+      setArquivoNome(file.name);
+      
+      // Auto-detect type
+      if (ext === "pdf") {
+        setTipoTemplate("pdf");
+      } else if (ext === "doc" || ext === "docx") {
+        setTipoTemplate("word");
+      }
+      
+      toast.success("Documento carregado com sucesso!");
+    } catch (err: any) {
+      console.error("Erro ao fazer upload:", err);
+      toast.error("Erro ao carregar documento: " + err.message);
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
   const startEdit = (template: any) => {
     setTitulo(template.titulo);
     setDescricao(template.descricao || "");
     setCategoria(template.categoria || "");
     setConteudoHtml(template.conteudo_html);
     setLogoUrl(template.logo_url || "");
+    setTipoTemplate(template.tipo_template || "html");
+    setArquivoUrl(template.arquivo_url || "");
+    setArquivoNome(template.arquivo_nome || "");
     setEditingTemplate(template);
     setIsCreating(true);
   };
@@ -125,7 +197,15 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
   const salvarTemplate = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error("Usuário não autenticado");
-      if (!titulo || !conteudoHtml) throw new Error("Título e conteúdo são obrigatórios");
+      if (!titulo) throw new Error("Título é obrigatório");
+      
+      // Para HTML, conteúdo é obrigatório; para Word/PDF, arquivo é obrigatório
+      if (tipoTemplate === "html" && !conteudoHtml) {
+        throw new Error("Conteúdo HTML é obrigatório");
+      }
+      if ((tipoTemplate === "word" || tipoTemplate === "pdf") && !arquivoUrl) {
+        throw new Error("Arquivo é obrigatório para templates Word/PDF");
+      }
 
       if (editingTemplate) {
         const { error } = await supabase
@@ -134,8 +214,11 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
             titulo,
             descricao,
             categoria,
-            conteudo_html: conteudoHtml,
+            conteudo_html: conteudoHtml || "",
             logo_url: logoUrl || null,
+            tipo_template: tipoTemplate,
+            arquivo_url: arquivoUrl || null,
+            arquivo_nome: arquivoNome || null,
             updated_at: new Date().toISOString(),
           })
           .eq("id", editingTemplate.id);
@@ -145,8 +228,11 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
           titulo,
           descricao,
           categoria,
-          conteudo_html: conteudoHtml,
+          conteudo_html: conteudoHtml || "",
           logo_url: logoUrl || null,
+          tipo_template: tipoTemplate,
+          arquivo_url: arquivoUrl || null,
+          arquivo_nome: arquivoNome || null,
           created_by: user.id,
         });
         if (error) throw error;
@@ -253,6 +339,26 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
                 />
               </div>
 
+              {/* Tipo de Template */}
+              <div className="space-y-2">
+                <Label>Tipo de Template *</Label>
+                <Select value={tipoTemplate} onValueChange={(v: "html" | "word" | "pdf") => setTipoTemplate(v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="html">HTML (com variáveis)</SelectItem>
+                    <SelectItem value="word">Word (.doc, .docx)</SelectItem>
+                    <SelectItem value="pdf">PDF</SelectItem>
+                  </SelectContent>
+                </Select>
+                {tipoTemplate !== "html" && (
+                  <p className="text-xs text-amber-600">
+                    Documentos Word/PDF não terão substituição de variáveis - o documento será enviado como está.
+                  </p>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label>Logo do PDF (canto superior esquerdo)</Label>
                 <div className="flex items-center gap-4">
@@ -301,27 +407,83 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Conteúdo (HTML) *</Label>
-                <p className="text-xs text-muted-foreground">
-                  Variáveis disponíveis: {"{{nome}}"}, {"{{cpf}}"}, {"{{email}}"}, {"{{telefone}}"}, {"{{valor}}"}, {"{{data_inicio}}"}, {"{{data_fim}}"}, {"{{data_atual}}"}
-                </p>
-                <Textarea
-                  value={conteudoHtml}
-                  onChange={(e) => setConteudoHtml(e.target.value)}
-                  placeholder="Digite o HTML do template..."
-                  rows={15}
-                  className="font-mono text-sm"
-                />
-              </div>
+              {/* Upload de documento Word/PDF */}
+              {tipoTemplate !== "html" && (
+                <div className="space-y-2">
+                  <Label>Documento {tipoTemplate === "word" ? "Word" : "PDF"} *</Label>
+                  <div className="flex items-center gap-4">
+                    {arquivoUrl ? (
+                      <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/50">
+                        <File className="h-5 w-5 text-primary" />
+                        <span className="text-sm">{arquivoNome}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => {
+                            setArquivoUrl("");
+                            setArquivoNome("");
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input
+                          ref={documentInputRef}
+                          type="file"
+                          accept={tipoTemplate === "pdf" ? ".pdf" : ".doc,.docx"}
+                          className="hidden"
+                          onChange={handleDocumentUpload}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => documentInputRef.current?.click()}
+                          disabled={uploadingFile}
+                        >
+                          {uploadingFile ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4 mr-2" />
+                          )}
+                          Carregar {tipoTemplate === "word" ? "Word" : "PDF"}
+                        </Button>
+                        <span className="text-xs text-muted-foreground">Max: 10MB</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
+              {/* Conteúdo HTML (apenas para tipo HTML) */}
+              {tipoTemplate === "html" && (
+                <div className="space-y-2">
+                  <Label>Conteúdo (HTML) *</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Variáveis disponíveis: {"{{nome}}"}, {"{{cpf}}"}, {"{{email}}"}, {"{{telefone}}"}, {"{{valor}}"}, {"{{data_inicio}}"}, {"{{data_fim}}"}, {"{{data_atual}}"}
+                  </p>
+                  <Textarea
+                    value={conteudoHtml}
+                    onChange={(e) => setConteudoHtml(e.target.value)}
+                    placeholder="Digite o HTML do template..."
+                    rows={15}
+                    className="font-mono text-sm"
+                  />
+                </div>
+              )}
               <div className="flex justify-between">
-                <Button
-                  variant="outline"
-                  onClick={() => setConteudoHtml(defaultTemplate)}
-                >
-                  Usar Modelo Padrão
-                </Button>
+                {tipoTemplate === "html" && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setConteudoHtml(defaultTemplate)}
+                  >
+                    Usar Modelo Padrão
+                  </Button>
+                )}
+                {tipoTemplate !== "html" && <div />}
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={resetForm}>
                     Cancelar
@@ -361,6 +523,9 @@ export default function TemplateContratoDialog({ open, onOpenChange }: TemplateC
                             {template.categoria && (
                               <Badge variant="secondary">{template.categoria}</Badge>
                             )}
+                            <Badge variant={template.tipo_template === "html" ? "outline" : "default"}>
+                              {template.tipo_template === "html" ? "HTML" : template.tipo_template === "word" ? "Word" : "PDF"}
+                            </Badge>
                           </div>
                           {template.descricao && (
                             <p className="text-sm text-muted-foreground mt-1">
