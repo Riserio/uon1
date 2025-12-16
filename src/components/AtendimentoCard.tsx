@@ -357,21 +357,27 @@ export function AtendimentoCard({
             </Badge>
           )}
 
-          {/* Ícone de status de vistoria */}
-          {fotosStatus && fotosStatus.total > 0 && (
+          {/* Status de vistoria baseado no status real */}
+          {vistoria && (
             <Badge 
               variant="outline"
               className={cn(
                 "text-[10px] h-4 px-1.5 rounded flex items-center gap-0.5",
-                fotosStatus.aprovadas === fotosStatus.total ? "bg-green-500/10 text-green-600 border-green-500/20" :
-                fotosStatus.reprovadas > 0 ? "bg-orange-500/10 text-orange-600 border-orange-500/20" :
+                vistoria.status === 'concluida' ? "bg-green-500/10 text-green-600 border-green-500/20" :
+                vistoria.status === 'em_analise' ? "bg-purple-500/10 text-purple-600 border-purple-500/20" :
+                vistoria.status === 'cancelada' ? "bg-red-500/10 text-red-600 border-red-500/20" :
+                vistoria.status === 'pendente' || vistoria.status === 'pendente_novas_fotos' ? "bg-orange-500/10 text-orange-600 border-orange-500/20" :
                 "bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
               )}
-              title={`${fotosStatus.aprovadas}/${fotosStatus.total} aprovadas`}
+              title={`Status da vistoria: ${vistoria.status}`}
             >
               <Truck className="w-2.5 h-2.5" />
-              {fotosStatus.aprovadas === fotosStatus.total ? 'Aprovada' : 
-               fotosStatus.reprovadas > 0 ? 'Pendente' : 'Aguardando'}
+              {vistoria.status === 'concluida' ? 'Concluída' : 
+               vistoria.status === 'em_analise' ? 'Em Análise' :
+               vistoria.status === 'cancelada' ? 'Cancelada' :
+               vistoria.status === 'pendente' || vistoria.status === 'pendente_novas_fotos' ? 'Pendente Fotos' :
+               vistoria.status === 'aguardando_fotos' ? 'Aguardando Fotos' : 
+               vistoria.status}
             </Badge>
           )}
         </div>
