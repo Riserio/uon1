@@ -426,7 +426,7 @@ export default function Uon1Sign() {
                               <Eye className="h-4 w-4 mr-2" />
                               Visualizar
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => downloadContratoPDF(contrato)}>
+                            <DropdownMenuItem onClick={() => downloadContratoPDF(contrato, contrato?.contrato_templates?.logo_url)}>
                               <Download className="h-4 w-4 mr-2" />
                               Baixar PDF
                             </DropdownMenuItem>
