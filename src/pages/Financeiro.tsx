@@ -56,9 +56,10 @@ import FinanceiroContasPagar from "@/components/financeiro/FinanceiroContasPagar
 import FinanceiroFluxoCaixa from "@/components/financeiro/FinanceiroFluxoCaixa";
 import FinanceiroLancamentos from "@/components/financeiro/FinanceiroLancamentos";
 import FinanceiroConciliacao from "@/components/financeiro/FinanceiroConciliacao";
+import FinanceiroDashboard from "@/components/financeiro/FinanceiroDashboard";
 
 export default function Financeiro() {
-  const [activeTab, setActiveTab] = useState("visao-geral");
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [corretoras, setCorretoras] = useState<any[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -286,48 +287,59 @@ export default function Financeiro() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="bg-muted/50 p-1 h-auto flex-wrap">
             <TabsTrigger 
+              value="dashboard" 
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm gap-2"
+            >
+              <PieChart className="h-4 w-4" />
+              Dashboard
+            </TabsTrigger>
+            <TabsTrigger 
               value="visao-geral" 
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm gap-2"
             >
               <BarChart3 className="h-4 w-4" />
               Visão Geral
             </TabsTrigger>
             <TabsTrigger 
               value="a-receber" 
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm gap-2"
             >
               <ArrowDownLeft className="h-4 w-4" />
               A Receber
             </TabsTrigger>
             <TabsTrigger 
               value="a-pagar" 
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm gap-2"
             >
               <ArrowUpRight className="h-4 w-4" />
               A Pagar
             </TabsTrigger>
             <TabsTrigger 
               value="fluxo-caixa" 
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm gap-2"
             >
               <TrendingUp className="h-4 w-4" />
               Fluxo de Caixa
             </TabsTrigger>
             <TabsTrigger 
               value="lancamentos" 
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm gap-2"
             >
               <Receipt className="h-4 w-4" />
               Lançamentos
             </TabsTrigger>
             <TabsTrigger 
               value="conciliacao" 
-              className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm gap-2"
             >
               <CreditCard className="h-4 w-4" />
               Conciliação
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="dashboard" className="space-y-4">
+            <FinanceiroDashboard corretoraId={selectedCorretora} />
+          </TabsContent>
 
           <TabsContent value="visao-geral" className="space-y-4">
             <FinanceiroVisaoGeral corretoraId={selectedCorretora} />
