@@ -366,18 +366,18 @@ export function AtendimentoCard({
                 vistoria.status === 'concluida' ? "bg-green-500/10 text-green-600 border-green-500/20" :
                 vistoria.status === 'em_analise' ? "bg-purple-500/10 text-purple-600 border-purple-500/20" :
                 vistoria.status === 'cancelada' ? "bg-red-500/10 text-red-600 border-red-500/20" :
-                vistoria.status === 'pendente' || vistoria.status === 'pendente_novas_fotos' ? "bg-orange-500/10 text-orange-600 border-orange-500/20" :
+                (vistoria.status === 'pendente' || vistoria.status === 'pendente_novas_fotos' || vistoria.status === 'pendente_vistoria') ? "bg-orange-500/10 text-orange-600 border-orange-500/20" :
                 "bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
               )}
               title={`Status da vistoria: ${vistoria.status}`}
             >
-              <Truck className="w-2.5 h-2.5" />
+              <Camera className="w-2.5 h-2.5" />
               {vistoria.status === 'concluida' ? 'Concluída' : 
                vistoria.status === 'em_analise' ? 'Em Análise' :
                vistoria.status === 'cancelada' ? 'Cancelada' :
-               vistoria.status === 'pendente' || vistoria.status === 'pendente_novas_fotos' ? 'Pendente Fotos' :
+               (vistoria.status === 'pendente' || vistoria.status === 'pendente_novas_fotos' || vistoria.status === 'pendente_vistoria') ? 'Pendente' :
                vistoria.status === 'aguardando_fotos' ? 'Aguardando Fotos' : 
-               vistoria.status}
+               'Vistoria'}
             </Badge>
           )}
         </div>
