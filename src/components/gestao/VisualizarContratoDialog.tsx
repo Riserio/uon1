@@ -16,8 +16,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { 
   CheckCircle2, Clock, XCircle, Copy, User, MessageCircle, Download, Mail, 
-  FileText, History, Users, Calendar, DollarSign, MapPin, Globe, Hash,
-  X
+  FileText, History, Users, Calendar, DollarSign, MapPin, Globe, Hash
 } from "lucide-react";
 import { toast } from "sonner";
 import { downloadContratoPDF } from "./utils/downloadContratoPDF";
@@ -126,33 +125,21 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
       <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden">
         {/* Header */}
         <DialogHeader className="p-6 pb-4 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent border-b">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <FileText className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <DialogTitle className="text-xl font-semibold">{contrato?.titulo}</DialogTitle>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="outline" className="font-mono text-xs">
-                      {contrato?.numero}
-                    </Badge>
-                    <Badge className={`${contratoStatus.bgColor} ${contratoStatus.color} border-0`}>
-                      {contratoStatus.label}
-                    </Badge>
-                  </div>
-                </div>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <FileText className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-semibold">{contrato?.titulo}</DialogTitle>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant="outline" className="font-mono text-xs">
+                  {contrato?.numero}
+                </Badge>
+                <Badge className={`${contratoStatus.bgColor} ${contratoStatus.color} border-0`}>
+                  {contratoStatus.label}
+                </Badge>
               </div>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full"
-              onClick={() => onOpenChange(false)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
           </div>
           
           {/* Quick Actions */}
