@@ -58,6 +58,7 @@ import FinanceiroFluxoCaixa from "@/components/financeiro/FinanceiroFluxoCaixa";
 import FinanceiroLancamentos from "@/components/financeiro/FinanceiroLancamentos";
 import FinanceiroConciliacao from "@/components/financeiro/FinanceiroConciliacao";
 import FinanceiroHistorico from "@/components/financeiro/FinanceiroHistorico";
+import FinanceiroNotasFiscais from "@/components/financeiro/FinanceiroNotasFiscais";
 
 export default function Financeiro() {
   const [activeTab, setActiveTab] = useState("visao-geral");
@@ -367,6 +368,13 @@ export default function Financeiro() {
               <History className="h-4 w-4" />
               Histórico
             </TabsTrigger>
+            <TabsTrigger 
+              value="notas-fiscais" 
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              Nota Fiscal
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="visao-geral" className="space-y-4">
@@ -395,6 +403,10 @@ export default function Financeiro() {
 
           <TabsContent value="historico" className="space-y-4">
             <FinanceiroHistorico corretoraId={selectedCorretora} />
+          </TabsContent>
+
+          <TabsContent value="notas-fiscais" className="space-y-4">
+            <FinanceiroNotasFiscais corretoraId={selectedCorretora} />
           </TabsContent>
         </Tabs>
       </div>

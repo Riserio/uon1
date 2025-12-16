@@ -2113,6 +2113,186 @@ export type Database = {
           },
         ]
       }
+      notas_fiscais: {
+        Row: {
+          aliquota_iss: number | null
+          arquivo_url: string | null
+          cancelada_em: string | null
+          cancelada_por: string | null
+          codigo_servico: string | null
+          codigo_verificacao: string | null
+          corretora_id: string | null
+          created_at: string
+          created_by: string
+          data_competencia: string | null
+          data_emissao: string
+          discriminacao: string | null
+          id: string
+          lancamento_id: string | null
+          link_pdf: string | null
+          link_xml: string | null
+          lote_rps: string | null
+          motivo_cancelamento: string | null
+          natureza_operacao: string | null
+          numero: string
+          numero_rps: string | null
+          prestador_cep: string | null
+          prestador_cidade: string | null
+          prestador_cnpj: string | null
+          prestador_endereco: string | null
+          prestador_inscricao_municipal: string | null
+          prestador_nome_fantasia: string | null
+          prestador_razao_social: string | null
+          prestador_uf: string | null
+          protocolo_prefeitura: string | null
+          serie: string | null
+          status: string
+          tipo: string
+          tomador_cep: string | null
+          tomador_cidade: string | null
+          tomador_cpf_cnpj: string | null
+          tomador_email: string | null
+          tomador_endereco: string | null
+          tomador_nome_fantasia: string | null
+          tomador_razao_social: string | null
+          tomador_telefone: string | null
+          tomador_uf: string | null
+          updated_at: string
+          valor_cofins: number | null
+          valor_csll: number | null
+          valor_deducoes: number | null
+          valor_inss: number | null
+          valor_ir: number | null
+          valor_iss: number | null
+          valor_liquido: number
+          valor_pis: number | null
+          valor_servicos: number
+        }
+        Insert: {
+          aliquota_iss?: number | null
+          arquivo_url?: string | null
+          cancelada_em?: string | null
+          cancelada_por?: string | null
+          codigo_servico?: string | null
+          codigo_verificacao?: string | null
+          corretora_id?: string | null
+          created_at?: string
+          created_by: string
+          data_competencia?: string | null
+          data_emissao?: string
+          discriminacao?: string | null
+          id?: string
+          lancamento_id?: string | null
+          link_pdf?: string | null
+          link_xml?: string | null
+          lote_rps?: string | null
+          motivo_cancelamento?: string | null
+          natureza_operacao?: string | null
+          numero: string
+          numero_rps?: string | null
+          prestador_cep?: string | null
+          prestador_cidade?: string | null
+          prestador_cnpj?: string | null
+          prestador_endereco?: string | null
+          prestador_inscricao_municipal?: string | null
+          prestador_nome_fantasia?: string | null
+          prestador_razao_social?: string | null
+          prestador_uf?: string | null
+          protocolo_prefeitura?: string | null
+          serie?: string | null
+          status?: string
+          tipo?: string
+          tomador_cep?: string | null
+          tomador_cidade?: string | null
+          tomador_cpf_cnpj?: string | null
+          tomador_email?: string | null
+          tomador_endereco?: string | null
+          tomador_nome_fantasia?: string | null
+          tomador_razao_social?: string | null
+          tomador_telefone?: string | null
+          tomador_uf?: string | null
+          updated_at?: string
+          valor_cofins?: number | null
+          valor_csll?: number | null
+          valor_deducoes?: number | null
+          valor_inss?: number | null
+          valor_ir?: number | null
+          valor_iss?: number | null
+          valor_liquido?: number
+          valor_pis?: number | null
+          valor_servicos?: number
+        }
+        Update: {
+          aliquota_iss?: number | null
+          arquivo_url?: string | null
+          cancelada_em?: string | null
+          cancelada_por?: string | null
+          codigo_servico?: string | null
+          codigo_verificacao?: string | null
+          corretora_id?: string | null
+          created_at?: string
+          created_by?: string
+          data_competencia?: string | null
+          data_emissao?: string
+          discriminacao?: string | null
+          id?: string
+          lancamento_id?: string | null
+          link_pdf?: string | null
+          link_xml?: string | null
+          lote_rps?: string | null
+          motivo_cancelamento?: string | null
+          natureza_operacao?: string | null
+          numero?: string
+          numero_rps?: string | null
+          prestador_cep?: string | null
+          prestador_cidade?: string | null
+          prestador_cnpj?: string | null
+          prestador_endereco?: string | null
+          prestador_inscricao_municipal?: string | null
+          prestador_nome_fantasia?: string | null
+          prestador_razao_social?: string | null
+          prestador_uf?: string | null
+          protocolo_prefeitura?: string | null
+          serie?: string | null
+          status?: string
+          tipo?: string
+          tomador_cep?: string | null
+          tomador_cidade?: string | null
+          tomador_cpf_cnpj?: string | null
+          tomador_email?: string | null
+          tomador_endereco?: string | null
+          tomador_nome_fantasia?: string | null
+          tomador_razao_social?: string | null
+          tomador_telefone?: string | null
+          tomador_uf?: string | null
+          updated_at?: string
+          valor_cofins?: number | null
+          valor_csll?: number | null
+          valor_deducoes?: number | null
+          valor_inss?: number | null
+          valor_ir?: number | null
+          valor_iss?: number | null
+          valor_liquido?: number
+          valor_pis?: number | null
+          valor_servicos?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notas_fiscais_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notas_fiscais_lancamento_id_fkey"
+            columns: ["lancamento_id"]
+            isOneToOne: false
+            referencedRelation: "lancamentos_financeiros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       performance_alertas: {
         Row: {
           created_at: string
