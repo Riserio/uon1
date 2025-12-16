@@ -1,31 +1,34 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileSignature, Users, Clock, Megaphone, Settings, UserCircle } from "lucide-react";
+import { FileSignature, Users, Clock, Settings, UserCircle } from "lucide-react";
 import GestaoContratos from "@/components/gestao/GestaoContratos";
 import GestaoFuncionarios from "@/components/gestao/GestaoFuncionarios";
 import GestaoJornada from "@/components/gestao/GestaoJornada";
 import Usuarios from "@/pages/Usuarios";
-import Comunicados from "@/pages/Comunicados";
 import Configuracoes from "@/pages/Configuracoes";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function Gestao() {
   const { userRole } = useAuth();
+  const [searchParams] = useSearchParams();
 
   const isAdmin = userRole === "admin" || userRole === "superintendente";
   const canManageUsers = userRole === "admin" || userRole === "administrativo" || userRole === "superintendente";
-  const canViewJornada = isAdmin || userRole === "administrativo" || userRole === "lider" || userRole === "comercial";
 
-  // For non-admin users, default to jornada tab
-  const defaultTab = isAdmin ? "contratos" : "jornada";
+  // Check for tab query param (for direct navigation to Uon1Sign)
+  const tabFromUrl = searchParams.get("tab");
+  const defaultTab = tabFromUrl === "contratos" && isAdmin ? "contratos" : (isAdmin ? "funcionarios" : "jornada");
   const [activeTab, setActiveTab] = useState(defaultTab);
 
-  // Update tab when role changes
+  // Update tab when role changes or URL param changes
   useEffect(() => {
-    if (!isAdmin && activeTab !== "jornada") {
+    if (tabFromUrl === "contratos" && isAdmin) {
+      setActiveTab("contratos");
+    } else if (!isAdmin && activeTab !== "jornada") {
       setActiveTab("jornada");
     }
-  }, [isAdmin]);
+  }, [isAdmin, tabFromUrl]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -64,13 +67,6 @@ export default function Gestao() {
               </TabsTrigger>
             )}
             {isAdmin && (
-              <TabsTrigger value="comunicados" className="flex items-center gap-2 data-[state=active]:bg-background">
-                <Megaphone className="h-4 w-4" />
-                <span className="hidden sm:inline">Comunicados</span>
-                <span className="sm:hidden">Com.</span>
-              </TabsTrigger>
-            )}
-            {isAdmin && (
               <TabsTrigger value="configuracoes" className="flex items-center gap-2 data-[state=active]:bg-background">
                 <Settings className="h-4 w-4" />
                 <span className="hidden sm:inline">Configurações</span>
@@ -98,12 +94,6 @@ export default function Gestao() {
           {canManageUsers && (
             <TabsContent value="usuarios" className="mt-6">
               <Usuarios />
-            </TabsContent>
-          )}
-
-          {isAdmin && (
-            <TabsContent value="comunicados" className="mt-6">
-              <Comunicados />
             </TabsContent>
           )}
 
