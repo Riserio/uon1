@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Copy, Mail, MessageCircle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
+import { openWhatsApp } from '@/utils/whatsapp';
 
 interface AcompanhamentoLinkDialogProps {
   open: boolean;
@@ -39,10 +40,9 @@ export function AcompanhamentoLinkDialog({
   };
 
   const handleShareWhatsApp = () => {
-    const text = encodeURIComponent(
-      `Olá! Você pode acompanhar o status do seu sinistro através deste link: ${link}\n\nDigite a placa do seu veículo ou CPF para consultar.`
-    );
-    window.open(`https://web.whatsapp.com/send?text=${text}`, '_blank');
+    openWhatsApp({
+      message: `Olá! Você pode acompanhar o status do seu sinistro através deste link: ${link}\n\nDigite a placa do seu veículo ou CPF para consultar.`
+    });
   };
 
   return (
