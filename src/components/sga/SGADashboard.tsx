@@ -208,8 +208,7 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
         eventos: data.eventos,
         custo: data.custo
       }))
-      .sort((a, b) => a.mes.localeCompare(b.mes))
-      .slice(-12); // Últimos 12 meses
+      .sort((a, b) => a.mes.localeCompare(b.mes));
 
     // Timeline por dia
     const porDia = eventos.reduce((acc: any, e) => {
@@ -229,8 +228,7 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
         eventos: data.eventos,
         custo: data.custo
       }))
-      .sort((a, b) => a.dia.localeCompare(b.dia))
-      .slice(-30); // Últimos 30 dias
+      .sort((a, b) => a.dia.localeCompare(b.dia));
 
     // Custos por Regional
     const custosPorRegional = eventos.reduce((acc: any, e) => {
@@ -385,8 +383,17 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <div style={{ minWidth: evolucaoView === 'mes' ? '800px' : '1200px' }}>
+          <div 
+            className="overflow-x-auto"
+            ref={(el) => {
+              if (el) el.scrollLeft = el.scrollWidth;
+            }}
+          >
+            <div style={{ 
+              minWidth: evolucaoView === 'mes' 
+                ? Math.max(800, stats.timelineData.length * 70) + 'px'
+                : Math.max(800, stats.timelineDiaData.length * 45) + 'px'
+            }}>
               <ResponsiveContainer width="100%" height={300}>
                 <AreaChart data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
