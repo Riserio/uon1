@@ -391,8 +391,20 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis 
                 dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} 
-                tick={{ fontSize: 11 }}
+                tick={({ x, y, payload, index }) => (
+                  <text 
+                    x={x} 
+                    y={y + (index % 2 === 0 ? 0 : 14)} 
+                    textAnchor="middle" 
+                    fontSize={11} 
+                    fill="currentColor"
+                    className="fill-muted-foreground"
+                  >
+                    {payload.value}
+                  </text>
+                )}
                 interval={evolucaoView === 'dia' ? 'preserveStartEnd' : 0}
+                height={45}
               />
               <YAxis 
                 yAxisId="left" 
