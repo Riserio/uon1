@@ -202,16 +202,14 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
       return acc;
     }, {});
     const timelineData = Object.entries(porMes)
-      .map(([mes, data]: [string, any]) => {
-        const [year, month] = mes.split('-');
-        return {
-          mes,
-          mesLabel: `${month}/${year.slice(2)}`,
-          eventos: data.eventos,
-          custo: data.custo
-        };
-      })
-      .sort((a, b) => a.mes.localeCompare(b.mes));
+      .map(([mes, data]: [string, any]) => ({
+        mes,
+        mesLabel: new Date(mes + "-01").toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+        eventos: data.eventos,
+        custo: data.custo
+      }))
+      .sort((a, b) => a.mes.localeCompare(b.mes))
+      .slice(-12); // Últimos 12 meses
 
     // Timeline por dia
     const porDia = eventos.reduce((acc: any, e) => {
@@ -386,44 +384,36 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           </div>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis 
-                dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} 
-                tick={({ x, y, payload, index }) => (
-                  <text 
-                    x={x} 
-                    y={y + (index % 2 === 0 ? 0 : 14)} 
-                    textAnchor="middle" 
-                    fontSize={11} 
-                    fill="currentColor"
-                    className="fill-muted-foreground"
-                  >
-                    {payload.value}
-                  </text>
-                )}
-                interval={evolucaoView === 'dia' ? 'preserveStartEnd' : 0}
-                height={45}
-              />
-              <YAxis 
-                yAxisId="left" 
-                tick={{ fontSize: 11 }}
-                width={50}
-              />
-              <YAxis 
-                yAxisId="right" 
-                orientation="right" 
-                tick={{ fontSize: 11 }}
-                tickFormatter={(v) => formatCompactCurrency(v)}
-                width={70}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Area yAxisId="left" type="monotone" dataKey="eventos" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="Eventos" />
-              <Line yAxisId="right" type="monotone" dataKey="custo" stroke="#ef4444" name="Custo (R$)" dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+          <div className="overflow-x-auto">
+            <div style={{ minWidth: evolucaoView === 'mes' ? '800px' : '1200px' }}>
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} 
+                    tick={{ fontSize: 11 }}
+                    interval={0}
+                  />
+                  <YAxis 
+                    yAxisId="left" 
+                    tick={{ fontSize: 11 }}
+                    width={50}
+                  />
+                  <YAxis 
+                    yAxisId="right" 
+                    orientation="right" 
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(v) => formatCompactCurrency(v)}
+                    width={70}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Area yAxisId="left" type="monotone" dataKey="eventos" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="Eventos" />
+                  <Line yAxisId="right" type="monotone" dataKey="custo" stroke="#ef4444" name="Custo (R$)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
