@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Database, Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Database, Search, Download, ChevronLeft, ChevronRight, Filter } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface MGFTabelaProps {
@@ -15,69 +16,110 @@ interface MGFTabelaProps {
 
 const PAGE_SIZE = 50;
 
+// Todas as 38 colunas
+const ALL_COLUMNS = [
+  { key: "operacao", label: "Operação" },
+  { key: "sub_operacao", label: "SubOperação" },
+  { key: "descricao", label: "Descrição" },
+  { key: "nota_fiscal", label: "Nota Fiscal" },
+  { key: "valor", label: "Valor" },
+  { key: "valor_total_lancamento", label: "Valor Total Lançamento" },
+  { key: "valor_pagamento", label: "Valor Pagamento" },
+  { key: "data_nota_fiscal", label: "Data Nota Fiscal" },
+  { key: "data_vencimento", label: "Data Vencimento" },
+  { key: "situacao_pagamento", label: "Situação" },
+  { key: "quantidade_parcela", label: "Qtd Parcela" },
+  { key: "forma_pagamento", label: "Forma Pagamento" },
+  { key: "data_vencimento_original", label: "Data Venc. Original" },
+  { key: "data_pagamento", label: "Data Pagamento" },
+  { key: "controle_interno", label: "Controle Interno" },
+  { key: "veiculo_lancamento", label: "Veículo Lançamento" },
+  { key: "tipo_veiculo", label: "Tipo de Veículo" },
+  { key: "classificacao_veiculo", label: "Classificação Veículo" },
+  { key: "associado", label: "Associado" },
+  { key: "cnpj_fornecedor", label: "CNPJ Fornecedor" },
+  { key: "cpf_cnpj_cliente", label: "CPF/CNPJ Cliente" },
+  { key: "fornecedor", label: "Fornecedor" },
+  { key: "nome_fantasia_fornecedor", label: "Nome Fantasia Fornecedor" },
+  { key: "voluntario", label: "Voluntário" },
+  { key: "cooperativa", label: "Cooperativa" },
+  { key: "centro_custo", label: "Centro de Custo" },
+  { key: "multa", label: "Multa" },
+  { key: "juros", label: "Juros" },
+  { key: "mes_referente", label: "Mês Referente" },
+  { key: "regional", label: "Regional" },
+  { key: "categoria_veiculo", label: "Categoria Veículo" },
+  { key: "impostos", label: "Impostos" },
+  { key: "protocolo_evento", label: "Protocolo Evento" },
+  { key: "veiculo_evento", label: "Veículo Evento" },
+  { key: "motivo_evento", label: "Motivo Evento" },
+  { key: "terceiro_evento", label: "Terceiro (Evento)" },
+  { key: "data_evento", label: "Data Evento" },
+  { key: "regional_evento", label: "Regional Evento" },
+  { key: "placa_terceiro_evento", label: "Placa Terceiro (Evento)" },
+];
+
 export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const [situacaoFilter, setSituacaoFilter] = useState<string>("all");
+  const [operacaoFilter, setOperacaoFilter] = useState<string>("all");
+
+  // Extrair opções únicas para filtros
+  const filterOptions = useMemo(() => {
+    const situacoes = new Set<string>();
+    const operacoes = new Set<string>();
+    
+    dados.forEach(d => {
+      if (d.situacao_pagamento) situacoes.add(d.situacao_pagamento);
+      if (d.operacao) operacoes.add(d.operacao);
+    });
+    
+    return {
+      situacoes: Array.from(situacoes).sort(),
+      operacoes: Array.from(operacoes).sort()
+    };
+  }, [dados]);
 
   // Filtrar dados
   const filteredDados = useMemo(() => {
-    if (!search.trim()) return dados;
-    const searchLower = search.toLowerCase();
-    return dados.filter((d) => {
-      // Buscar em todos os campos principais
-      const mainFields = [
-        d.tipo_evento,
-        d.situacao,
-        d.placa,
-        d.modelo_veiculo,
-        d.cooperativa,
-        d.regional,
-        d.classificacao,
-        d.status,
-      ];
-      
-      // Buscar também em dados_extras
-      const extrasValues = d.dados_extras ? Object.values(d.dados_extras) : [];
-      
-      return [...mainFields, ...extrasValues].some(
-        (val) => val && String(val).toLowerCase().includes(searchLower)
-      );
-    });
-  }, [dados, search]);
+    let result = dados;
+    
+    // Filtro por situação
+    if (situacaoFilter !== "all") {
+      result = result.filter(d => d.situacao_pagamento === situacaoFilter);
+    }
+    
+    // Filtro por operação
+    if (operacaoFilter !== "all") {
+      result = result.filter(d => d.operacao === operacaoFilter);
+    }
+    
+    // Filtro por busca
+    if (search.trim()) {
+      const searchLower = search.toLowerCase();
+      result = result.filter((d) => {
+        return ALL_COLUMNS.some(col => {
+          const val = d[col.key];
+          return val && String(val).toLowerCase().includes(searchLower);
+        });
+      });
+    }
+    
+    return result;
+  }, [dados, search, situacaoFilter, operacaoFilter]);
 
   // Paginação
   const totalPages = Math.ceil(filteredDados.length / PAGE_SIZE);
   const paginatedDados = filteredDados.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-  // Colunas a exibir
-  const displayColumns = useMemo(() => {
-    const mainCols = [
-      { key: "data_evento", label: "Data Evento" },
-      { key: "tipo_evento", label: "Tipo" },
-      { key: "situacao", label: "Situação" },
-      { key: "placa", label: "Placa" },
-      { key: "modelo_veiculo", label: "Modelo" },
-      { key: "cooperativa", label: "Cooperativa" },
-      { key: "regional", label: "Regional" },
-      { key: "valor", label: "Valor" },
-      { key: "custo", label: "Custo" },
-    ];
-    return mainCols;
-  }, []);
-
   // Exportar para Excel
   const handleExport = () => {
     const exportData = filteredDados.map((d) => {
       const row: any = {};
-      displayColumns.forEach((col) => {
-        row[col.label] = d[col.key] || "";
+      ALL_COLUMNS.forEach((col) => {
+        row[col.label] = d[col.key] ?? "";
       });
-      // Adicionar dados extras
-      if (d.dados_extras) {
-        Object.entries(d.dados_extras).forEach(([key, value]) => {
-          row[key] = value;
-        });
-      }
       return row;
     });
 
@@ -90,14 +132,17 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
   const formatCellValue = (value: any, key: string) => {
     if (value === null || value === undefined) return "-";
     
-    if (key === "data_evento" || key === "data_cadastro") {
-      if (value) {
+    // Datas
+    if (key.includes("data_") && value) {
+      try {
         return new Date(value).toLocaleDateString("pt-BR");
+      } catch {
+        return String(value);
       }
-      return "-";
     }
     
-    if (key === "valor" || key === "custo") {
+    // Valores monetários
+    if (["valor", "valor_total_lancamento", "valor_pagamento", "multa", "juros", "impostos"].includes(key)) {
       return new Intl.NumberFormat("pt-BR", {
         style: "currency",
         currency: "BRL",
@@ -134,38 +179,72 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-orange-500" />
-            Dados Completos ({filteredDados.length.toLocaleString()} registros)
-          </CardTitle>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:flex-initial">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar..."
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(0);
-                }}
-                className="pl-9 w-full sm:w-64"
-              />
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-orange-500" />
+              Dados Completos ({filteredDados.length.toLocaleString()} registros)
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(0);
+                  }}
+                  className="pl-9 w-64"
+                />
+              </div>
+              <Button variant="outline" size="icon" onClick={handleExport} title="Exportar Excel">
+                <Download className="h-4 w-4" />
+              </Button>
             </div>
-            <Button variant="outline" size="icon" onClick={handleExport} title="Exportar Excel">
-              <Download className="h-4 w-4" />
-            </Button>
+          </div>
+          
+          {/* Filtros */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Filtros:</span>
+            </div>
+            
+            <Select value={situacaoFilter} onValueChange={(v) => { setSituacaoFilter(v); setPage(0); }}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Situação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas Situações</SelectItem>
+                {filterOptions.situacoes.map(s => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={operacaoFilter} onValueChange={(v) => { setOperacaoFilter(v); setPage(0); }}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Operação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas Operações</SelectItem>
+                {filterOptions.operacoes.map(o => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </CardHeader>
       <CardContent>
         <div className="border rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[600px]">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
-                  {displayColumns.map((col) => (
-                    <TableHead key={col.key} className="whitespace-nowrap">
+                  {ALL_COLUMNS.map((col) => (
+                    <TableHead key={col.key} className="whitespace-nowrap text-xs">
                       {col.label}
                     </TableHead>
                   ))}
@@ -174,8 +253,8 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
               <TableBody>
                 {paginatedDados.map((d, i) => (
                   <TableRow key={d.id || i}>
-                    {displayColumns.map((col) => (
-                      <TableCell key={col.key} className="whitespace-nowrap">
+                    {ALL_COLUMNS.map((col) => (
+                      <TableCell key={col.key} className="whitespace-nowrap text-xs">
                         {formatCellValue(d[col.key], col.key)}
                       </TableCell>
                     ))}
