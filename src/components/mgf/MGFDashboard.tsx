@@ -102,6 +102,12 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
     hoje.setHours(0, 0, 0, 0);
     const em7Dias = new Date(hoje);
     em7Dias.setDate(em7Dias.getDate() + 7);
+    const em30Dias = new Date(hoje);
+    em30Dias.setDate(em30Dias.getDate() + 30);
+    const em60Dias = new Date(hoje);
+    em60Dias.setDate(em60Dias.getDate() + 60);
+    const em90Dias = new Date(hoje);
+    em90Dias.setDate(em90Dias.getDate() + 90);
 
     // KPIs Financeiros
     const totalRegistros = dados.length;
@@ -128,14 +134,38 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
     const qtdVencidos = vencidos.length;
     
     // A vencer em 7 dias
-    const aVencer7 = dados.filter(d => {
-      if (d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento) return false;
-      if (!d.data_vencimento) return false;
-      const venc = new Date(d.data_vencimento);
-      return venc >= hoje && venc <= em7Dias;
-    });
+    const filterAVencer = (diasInicio: number, diasFim: number) => {
+      const inicio = new Date(hoje);
+      inicio.setDate(inicio.getDate() + diasInicio);
+      const fim = new Date(hoje);
+      fim.setDate(fim.getDate() + diasFim);
+      
+      return dados.filter(d => {
+        if (d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento) return false;
+        if (!d.data_vencimento) return false;
+        const venc = new Date(d.data_vencimento);
+        return venc >= inicio && venc <= fim;
+      });
+    };
+    
+    const aVencer7 = filterAVencer(0, 7);
     const valorAVencer7Dias = aVencer7.reduce((acc, d) => acc + (d.valor || 0), 0);
     const qtdAVencer7 = aVencer7.length;
+    
+    // A vencer em 30 dias (8-30)
+    const aVencer30 = filterAVencer(0, 30);
+    const valorAVencer30Dias = aVencer30.reduce((acc, d) => acc + (d.valor || 0), 0);
+    const qtdAVencer30 = aVencer30.length;
+    
+    // A vencer em 60 dias (31-60)
+    const aVencer60 = filterAVencer(0, 60);
+    const valorAVencer60Dias = aVencer60.reduce((acc, d) => acc + (d.valor || 0), 0);
+    const qtdAVencer60 = aVencer60.length;
+    
+    // A vencer em 90 dias (61-90)
+    const aVencer90 = filterAVencer(0, 90);
+    const valorAVencer90Dias = aVencer90.reduce((acc, d) => acc + (d.valor || 0), 0);
+    const qtdAVencer90 = aVencer90.length;
 
     // Total multa e juros
     const totalMulta = dados.reduce((acc, d) => acc + (d.multa || 0), 0);
@@ -377,6 +407,12 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       qtdVencidos,
       valorAVencer7Dias,
       qtdAVencer7,
+      valorAVencer30Dias,
+      qtdAVencer30,
+      valorAVencer60Dias,
+      qtdAVencer60,
+      valorAVencer90Dias,
+      qtdAVencer90,
       totalMulta,
       totalJuros,
       totalImpostos,
@@ -432,116 +468,134 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
 
   return (
     <div className="space-y-6">
-      {/* KPIs Principais */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
+      {/* KPIs Principais - Row 1 */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-5">
         <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-blue-500/20">
                 <Banknote className="h-4 w-4 text-blue-500" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground truncate">Valor Total</p>
-                <p className="text-sm font-bold truncate">{formatCurrency(stats.valorTotal)}</p>
+                <p className="text-[10px] text-muted-foreground">Valor Total</p>
+                <p className="text-base font-bold text-blue-600">{formatFullCurrency(stats.valorTotal)}</p>
+                <p className="text-[10px] text-muted-foreground">{stats.totalRegistros.toLocaleString()} registros</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-green-500/20">
                 <CheckCircle className="h-4 w-4 text-green-500" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground truncate">Pago ({stats.qtdPagos})</p>
-                <p className="text-sm font-bold truncate">{formatCurrency(stats.valorPago)}</p>
+                <p className="text-[10px] text-muted-foreground">Pago</p>
+                <p className="text-base font-bold text-green-600">{formatFullCurrency(stats.valorPago)}</p>
+                <p className="text-[10px] text-muted-foreground">{stats.qtdPagos.toLocaleString()} registros</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-orange-500/10 to-orange-500/5 border-orange-500/20">
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-orange-500/20">
                 <Clock className="h-4 w-4 text-orange-500" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground truncate">A Pagar ({stats.qtdAPagar})</p>
-                <p className="text-sm font-bold truncate">{formatCurrency(stats.valorAPagar)}</p>
+                <p className="text-[10px] text-muted-foreground">A Pagar</p>
+                <p className="text-base font-bold text-orange-600">{formatFullCurrency(stats.valorAPagar)}</p>
+                <p className="text-[10px] text-muted-foreground">{stats.qtdAPagar.toLocaleString()} registros</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-red-500/10 to-red-500/5 border-red-500/20">
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-red-500/20">
                 <AlertTriangle className="h-4 w-4 text-red-500" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground truncate">Vencido ({stats.qtdVencidos})</p>
-                <p className="text-sm font-bold truncate">{formatCurrency(stats.valorVencido)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-yellow-500/10 to-yellow-500/5 border-yellow-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-yellow-500/20">
-                <Calendar className="h-4 w-4 text-yellow-500" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground truncate">Vence 7d ({stats.qtdAVencer7})</p>
-                <p className="text-sm font-bold truncate">{formatCurrency(stats.valorAVencer7Dias)}</p>
+                <p className="text-[10px] text-muted-foreground">Vencido</p>
+                <p className="text-base font-bold text-red-600">{formatFullCurrency(stats.valorVencido)}</p>
+                <p className="text-[10px] text-muted-foreground">{stats.qtdVencidos.toLocaleString()} registros</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-purple-500/20">
-          <CardContent className="p-4">
+          <CardContent className="p-3">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-purple-500/20">
                 <TrendingUp className="h-4 w-4 text-purple-500" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground truncate">Multa + Juros</p>
-                <p className="text-sm font-bold truncate">{formatCurrency(stats.totalMulta + stats.totalJuros)}</p>
+                <p className="text-[10px] text-muted-foreground">Multa + Juros</p>
+                <p className="text-base font-bold text-purple-600">{formatFullCurrency(stats.totalMulta + stats.totalJuros)}</p>
+                <p className="text-[10px] text-muted-foreground">Ticket médio: {formatCurrency(stats.ticketMedio)}</p>
               </div>
             </div>
           </CardContent>
         </Card>
+      </div>
 
-        <Card className="bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 border-cyan-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-cyan-500/20">
-                <DollarSign className="h-4 w-4 text-cyan-500" />
+      {/* KPIs Previsão Vencimentos */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        <Card className="border-l-4 border-l-yellow-500">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Vence em 7 dias</p>
+                <p className="text-lg font-bold text-yellow-600">{formatFullCurrency(stats.valorAVencer7Dias)}</p>
+                <p className="text-[10px] text-muted-foreground">{stats.qtdAVencer7} registro(s)</p>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground truncate">Ticket Médio</p>
-                <p className="text-sm font-bold truncate">{formatCurrency(stats.ticketMedio)}</p>
-              </div>
+              <Calendar className="h-8 w-8 text-yellow-500/30" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-indigo-500/10 to-indigo-500/5 border-indigo-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-indigo-500/20">
-                <Users className="h-4 w-4 text-indigo-500" />
+        <Card className="border-l-4 border-l-amber-500">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Vence em 30 dias</p>
+                <p className="text-lg font-bold text-amber-600">{formatFullCurrency(stats.valorAVencer30Dias)}</p>
+                <p className="text-[10px] text-muted-foreground">{stats.qtdAVencer30} registro(s)</p>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground truncate">Fornecedores</p>
-                <p className="text-sm font-bold truncate">{stats.fornecedoresUnicos}</p>
+              <Calendar className="h-8 w-8 text-amber-500/30" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-orange-500">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Vence em 60 dias</p>
+                <p className="text-lg font-bold text-orange-600">{formatFullCurrency(stats.valorAVencer60Dias)}</p>
+                <p className="text-[10px] text-muted-foreground">{stats.qtdAVencer60} registro(s)</p>
               </div>
+              <Calendar className="h-8 w-8 text-orange-500/30" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-cyan-500">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Vence em 90 dias</p>
+                <p className="text-lg font-bold text-cyan-600">{formatFullCurrency(stats.valorAVencer90Dias)}</p>
+                <p className="text-[10px] text-muted-foreground">{stats.qtdAVencer90} registro(s)</p>
+              </div>
+              <Calendar className="h-8 w-8 text-cyan-500/30" />
             </div>
           </CardContent>
         </Card>
