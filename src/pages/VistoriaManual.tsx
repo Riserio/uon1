@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { VehicleFipeSelector } from "@/components/VehicleFipeSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Camera, Upload, X, Save } from "lucide-react";
+import { ArrowLeft, Camera, Upload, X, Save, AlertTriangle } from "lucide-react";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { useAuth } from "@/hooks/useAuth";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 // Marcas e modelos agora são obtidos via API FIPE ou fallback JSON no VehicleFipeSelector
 
@@ -185,8 +186,59 @@ export default function VistoriaManual() {
     setPreviewsAdicionais((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Estado para confirmação de duplicata
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [existingVistoria, setExistingVistoria] = useState<any>(null);
+  const [pendingSubmitEvent, setPendingSubmitEvent] = useState<React.FormEvent | null>(null);
+
+  const checkDuplicate = async (): Promise<boolean> => {
+    const cpf = formData.cliente_cpf?.replace(/\D/g, "");
+    const placa = formData.veiculo_placa?.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const nome = formData.cliente_nome?.trim().toUpperCase();
+
+    if (!cpf && !placa && !nome) return false;
+
+    let query = supabase
+      .from("vistorias")
+      .select("id, numero, cliente_nome, veiculo_placa, status, created_at")
+      .not("status", "eq", "concluida")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    // Verificar por CPF, placa ou nome
+    if (cpf) {
+      query = query.eq("cliente_cpf", cpf);
+    } else if (placa) {
+      query = query.eq("veiculo_placa", placa);
+    } else if (nome) {
+      query = query.ilike("cliente_nome", `%${nome}%`);
+    }
+
+    const { data: existing } = await query;
+
+    if (existing && existing.length > 0) {
+      setExistingVistoria(existing[0]);
+      return true;
+    }
+    return false;
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loading) return; // Evitar cliques múltiplos
+
+    const hasDuplicate = await checkDuplicate();
+    if (hasDuplicate) {
+      setPendingSubmitEvent(e);
+      setShowDuplicateDialog(true);
+    } else {
+      handleSubmit(e);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return; // Evitar cliques múltiplos
 
     if (!fotoFrontal || !fotoTraseira || !fotoLateralEsq || !fotoLateralDir) {
       toast.error("São necessárias as 4 fotos obrigatórias do veículo");
@@ -509,7 +561,7 @@ export default function VistoriaManual() {
         </Button>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleFormSubmit}>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -1765,6 +1817,40 @@ export default function VistoriaManual() {
           </CardContent>
         </Card>
       </form>
+
+      {/* Dialog de confirmação de duplicata */}
+      <AlertDialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Vistoria já existente
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Já existe uma vistoria aberta com dados similares:</p>
+              {existingVistoria && (
+                <div className="bg-muted p-3 rounded-lg text-sm">
+                  <p><strong>Número:</strong> #{existingVistoria.numero}</p>
+                  <p><strong>Cliente:</strong> {existingVistoria.cliente_nome || "Não informado"}</p>
+                  <p><strong>Placa:</strong> {existingVistoria.veiculo_placa || "Não informada"}</p>
+                  <p><strong>Status:</strong> {existingVistoria.status}</p>
+                  <p><strong>Criada em:</strong> {new Date(existingVistoria.created_at).toLocaleDateString("pt-BR")}</p>
+                </div>
+              )}
+              <p className="text-yellow-600 font-medium">Deseja criar outra vistoria mesmo assim?</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { 
+              setShowDuplicateDialog(false); 
+              if (pendingSubmitEvent) handleSubmit(pendingSubmitEvent); 
+            }}>
+              Criar mesmo assim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

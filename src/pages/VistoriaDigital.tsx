@@ -8,7 +8,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Link as LinkIcon, Mail, MessageCircle, Copy } from "lucide-react";
+import { ArrowLeft, Link as LinkIcon, Mail, MessageCircle, Copy, AlertTriangle } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { openWhatsApp } from "@/utils/whatsapp";
 
@@ -93,7 +94,43 @@ export default function VistoriaDigital() {
     return { prazoValidade: null, prazoManual: false };
   };
 
+  // Estado para confirmação de duplicata
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [existingVistoria, setExistingVistoria] = useState<any>(null);
+
+  const checkDuplicate = async (): Promise<boolean> => {
+    if (!clienteCpf || clienteCpf.trim() === "") return false;
+
+    const cpfClean = clienteCpf.replace(/\D/g, "");
+    
+    const { data: existing } = await supabase
+      .from("vistorias")
+      .select("id, numero, cliente_nome, veiculo_placa, status, created_at")
+      .eq("cliente_cpf", cpfClean)
+      .not("status", "eq", "concluida")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      setExistingVistoria(existing[0]);
+      return true;
+    }
+    return false;
+  };
+
+  const handleCreateClick = async () => {
+    if (creating) return; // Evitar cliques múltiplos
+    
+    const hasDuplicate = await checkDuplicate();
+    if (hasDuplicate) {
+      setShowDuplicateDialog(true);
+    } else {
+      createVistoria();
+    }
+  };
+
   const createVistoria = async () => {
+    if (creating) return; // Evitar cliques múltiplos
     setCreating(true);
     try {
       const {
@@ -376,7 +413,7 @@ export default function VistoriaDigital() {
               </div>
 
               <Button
-                onClick={createVistoria}
+                onClick={handleCreateClick}
                 disabled={creating}
                 className="w-full bg-gradient-to-r from-primary to-primary/80"
                 size="lg"
@@ -477,6 +514,37 @@ export default function VistoriaDigital() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de confirmação de duplicata */}
+      <AlertDialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Vistoria já existente
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Já existe uma vistoria aberta para este CPF:</p>
+              {existingVistoria && (
+                <div className="bg-muted p-3 rounded-lg text-sm">
+                  <p><strong>Número:</strong> #{existingVistoria.numero}</p>
+                  <p><strong>Cliente:</strong> {existingVistoria.cliente_nome || "Não informado"}</p>
+                  <p><strong>Placa:</strong> {existingVistoria.veiculo_placa || "Não informada"}</p>
+                  <p><strong>Status:</strong> {existingVistoria.status}</p>
+                  <p><strong>Criada em:</strong> {new Date(existingVistoria.created_at).toLocaleDateString("pt-BR")}</p>
+                </div>
+              )}
+              <p className="text-yellow-600 font-medium">Deseja criar outra vistoria mesmo assim?</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setShowDuplicateDialog(false); createVistoria(); }}>
+              Criar mesmo assim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
