@@ -2113,6 +2113,112 @@ export type Database = {
           },
         ]
       }
+      mgf_dados: {
+        Row: {
+          classificacao: string | null
+          cooperativa: string | null
+          created_at: string
+          custo: number | null
+          dados_extras: Json | null
+          data_cadastro: string | null
+          data_evento: string | null
+          id: string
+          importacao_id: string
+          modelo_veiculo: string | null
+          placa: string | null
+          regional: string | null
+          situacao: string | null
+          status: string | null
+          tipo_evento: string | null
+          valor: number | null
+        }
+        Insert: {
+          classificacao?: string | null
+          cooperativa?: string | null
+          created_at?: string
+          custo?: number | null
+          dados_extras?: Json | null
+          data_cadastro?: string | null
+          data_evento?: string | null
+          id?: string
+          importacao_id: string
+          modelo_veiculo?: string | null
+          placa?: string | null
+          regional?: string | null
+          situacao?: string | null
+          status?: string | null
+          tipo_evento?: string | null
+          valor?: number | null
+        }
+        Update: {
+          classificacao?: string | null
+          cooperativa?: string | null
+          created_at?: string
+          custo?: number | null
+          dados_extras?: Json | null
+          data_cadastro?: string | null
+          data_evento?: string | null
+          id?: string
+          importacao_id?: string
+          modelo_veiculo?: string | null
+          placa?: string | null
+          regional?: string | null
+          situacao?: string | null
+          status?: string | null
+          tipo_evento?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mgf_dados_importacao_id_fkey"
+            columns: ["importacao_id"]
+            isOneToOne: false
+            referencedRelation: "mgf_importacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mgf_importacoes: {
+        Row: {
+          ativo: boolean | null
+          colunas_detectadas: Json | null
+          corretora_id: string | null
+          created_at: string
+          id: string
+          nome_arquivo: string
+          total_registros: number | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          colunas_detectadas?: Json | null
+          corretora_id?: string | null
+          created_at?: string
+          id?: string
+          nome_arquivo: string
+          total_registros?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          colunas_detectadas?: Json | null
+          corretora_id?: string | null
+          created_at?: string
+          id?: string
+          nome_arquivo?: string
+          total_registros?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mgf_importacoes_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notas_fiscais: {
         Row: {
           aliquota_iss: number | null

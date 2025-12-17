@@ -53,6 +53,7 @@ import DashboardFinanceiro from "@/pages/DashboardFinanceiro";
 import CustosSinistros from "@/pages/CustosSinistros";
 import SinistroConfiguracoes from "@/pages/SinistroConfiguracoes";
 import SGAInsights from "@/pages/SGAInsights";
+import MGFInsights from "@/pages/MGFInsights";
 import Landing from "./pages/Landing";
 import Gestao from "./pages/Gestao";
 import Uon1Sign from "./pages/Uon1Sign";
@@ -209,6 +210,7 @@ const App = () => (
               <Route path="/gestao" element={<ProtectedRoute><Gestao /></ProtectedRoute>} />
               <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
               <Route path="/sga-insights" element={<ProtectedRoute><SGAInsights /></ProtectedRoute>} />
+              <Route path="/mgf-insights" element={<ProtectedRoute><MGFInsights /></ProtectedRoute>} />
               <Route path="/portal/sga-insights" element={<PortalRoute><SGAInsights /></PortalRoute>} />
               <Route path="/portal" element={<PortalRoute><Portal /></PortalRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

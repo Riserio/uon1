@@ -75,12 +75,17 @@ export default function PID() {
 
   const handleNavigateToSGA = () => {
     if (selectedAssociacao) {
-      navigate({
-        pathname: "/sga-insights",
-        search: `?associacao=${selectedAssociacao}`
-      });
+      navigate(`/sga-insights?associacao=${selectedAssociacao}`);
     } else {
       navigate("/sga-insights");
+    }
+  };
+
+  const handleNavigateToMGF = () => {
+    if (selectedAssociacao) {
+      navigate(`/mgf-insights?associacao=${selectedAssociacao}`);
+    } else {
+      navigate("/mgf-insights");
     }
   };
 
@@ -118,7 +123,16 @@ export default function PID() {
                 className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg"
               >
                 <Database className="h-4 w-4" />
-                <span>SGA Insights</span>
+                <span className="hidden sm:inline">SGA</span>
+              </Button>
+              
+              {/* Botão MGF Insights */}
+              <Button
+                onClick={handleNavigateToMGF}
+                className="gap-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-lg text-white"
+              >
+                <Database className="h-4 w-4" />
+                <span className="hidden sm:inline">MGF</span>
               </Button>
             </div>
           </div>

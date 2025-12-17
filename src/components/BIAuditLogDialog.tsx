@@ -24,7 +24,7 @@ interface BIAuditLog {
 interface BIAuditLogDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  modulo: "bi_indicadores" | "sga_insights";
+  modulo: "bi_indicadores" | "sga_insights" | "mgf_insights";
   corretoraId?: string;
 }
 
@@ -93,7 +93,7 @@ export function BIAuditLogDialog({ open, onOpenChange, modulo, corretoraId }: BI
     }
   };
 
-  const moduloLabel = modulo === "bi_indicadores" ? "BI - Indicadores" : "SGA Insights";
+  const moduloLabel = modulo === "bi_indicadores" ? "BI - Indicadores" : modulo === "sga_insights" ? "SGA Insights" : "MGF Insights";
 
   const formatValue = (value: any): string => {
     if (value === null || value === undefined) return "-";
