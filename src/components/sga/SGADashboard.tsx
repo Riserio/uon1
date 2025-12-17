@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area 
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle, Building2, Truck } from "lucide-react";
 
 interface SGADashboardProps {
@@ -74,6 +75,8 @@ const getTipoVeiculo = (modelo: string): string => {
 };
 
 export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
+  const [evolucaoView, setEvolucaoView] = useState<'mes' | 'dia'>('mes');
+  
   const stats = useMemo(() => {
     if (!eventos.length) return null;
 
@@ -207,6 +210,26 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
       }))
       .sort((a, b) => a.mes.localeCompare(b.mes));
 
+    // Timeline por dia
+    const porDia = eventos.reduce((acc: any, e) => {
+      if (e.data_evento) {
+        const date = new Date(e.data_evento);
+        const diaKey = date.toISOString().split('T')[0];
+        acc[diaKey] = acc[diaKey] || { eventos: 0, custo: 0 };
+        acc[diaKey].eventos += 1;
+        acc[diaKey].custo += e.custo_evento || 0;
+      }
+      return acc;
+    }, {});
+    const timelineDiaData = Object.entries(porDia)
+      .map(([dia, data]: [string, any]) => ({
+        dia,
+        diaLabel: new Date(dia + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        eventos: data.eventos,
+        custo: data.custo
+      }))
+      .sort((a, b) => a.dia.localeCompare(b.dia));
+
     // Custos por Regional
     const custosPorRegional = eventos.reduce((acc: any, e) => {
       const regional = e.regional || "";
@@ -242,6 +265,7 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
       tipoVeiculoData,
       custosTipoVeiculoData,
       timelineData,
+      timelineDiaData,
       custosRegionalData,
       envolvimentoData,
       totalCusto: eventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0),
@@ -335,19 +359,37 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
       {/* Timeline Chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-primary" />
-            Evolução Mensal de Eventos
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              Evolução de Eventos
+            </CardTitle>
+            <div className="flex gap-1">
+              <Button
+                variant={evolucaoView === 'mes' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setEvolucaoView('mes')}
+              >
+                Mês
+              </Button>
+              <Button
+                variant={evolucaoView === 'dia' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setEvolucaoView('dia')}
+              >
+                Dia
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={stats.timelineData}>
+            <AreaChart data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis 
-                dataKey="mesLabel" 
+                dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} 
                 tick={{ fontSize: 11 }}
-                interval="preserveStartEnd"
+                interval={evolucaoView === 'dia' ? 'preserveStartEnd' : 0}
               />
               <YAxis 
                 yAxisId="left" 
