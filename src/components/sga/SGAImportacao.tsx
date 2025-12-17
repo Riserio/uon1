@@ -5,11 +5,62 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import SGAHistoricoImportacoes from "./SGAHistoricoImportacoes";
 import { useBIAuditLog } from "@/hooks/useBIAuditLog";
+
+// Template columns for SGA
+const SGA_TEMPLATE_COLUMNS = [
+  "EVENTO ESTADO",
+  "DATA CADASTRO ITEM",
+  "DATA EVENTO",
+  "MOTIVO EVENTO",
+  "TIPO EVENTO",
+  "SITUACAO EVENTO",
+  "MODELO VEICULO",
+  "MODELO VEICULO TERCEIRO",
+  "PLACA",
+  "PLACA TERCEIRO",
+  "DATA ULTIMA ALTERACAO SITUACAO",
+  "VALOR REPARO",
+  "DATA CONCLUSAO",
+  "CUSTO EVENTO",
+  "DATA ALTERACAO",
+  "DATA PREVISAO ENTREGA",
+  "SOLICITOU CARRO RESERVA",
+  "ENVOLVIMENTO TERCEIRO",
+  "PASSIVEL RESSARCIMENTO",
+  "VALOR MAO DE OBRA",
+  "CLASSIFICACAO",
+  "PARTICIPACAO",
+  "ENVOLVIMENTO",
+  "PREVISAO VALOR REPARO",
+  "USUARIO ALTERACAO",
+  "DATA CADASTRO EVENTO",
+  "COOPERATIVA",
+  "VALOR PROTEGIDO VEICULO",
+  "SITUACAO ANALISE EVENTO",
+  "REGIONAL",
+  "ANO FABRICACAO",
+  "VOLUNTARIO",
+  "REGIONAL VEICULO",
+  "ASSOCIADO ESTADO",
+  "EVENTO CIDADE"
+];
+
+const downloadSGATemplate = () => {
+  const ws = XLSX.utils.aoa_to_sheet([
+    SGA_TEMPLATE_COLUMNS,
+    ["MG", "01/01/2024", "15/01/2024", "Colisão", "Sinistro", "Em Análise", "FIAT ARGO", "", "ABC1234", "", "20/01/2024", "5000.00", "", "3500.00", "20/01/2024", "30/01/2024", "Não", "Sim", "Não", "1500.00", "Parcial", "500.00", "Condutor", "6000.00", "admin", "01/01/2024", "Cooperativa A", "45000.00", "Aprovado", "Regional Sul", "2022", "Não", "Regional Sul", "MG", "Belo Horizonte"]
+  ]);
+  
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Modelo SGA");
+  XLSX.writeFile(wb, "modelo_sga_importacao.xlsx");
+  toast.success("Modelo baixado com sucesso!");
+};
 
 interface SGAImportacaoProps {
   onImportSuccess: () => void;
@@ -333,10 +384,16 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
       {/* Upload Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5 text-primary" />
-            Importar Planilha do SGA
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-primary" />
+              Importar Planilha do SGA
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={downloadSGATemplate}>
+              <Download className="h-4 w-4 mr-2" />
+              Baixar Modelo
+            </Button>
+          </div>
           <CardDescription>
             Importando dados para: <span className="font-semibold text-foreground">{corretoraNome}</span>
             <br />

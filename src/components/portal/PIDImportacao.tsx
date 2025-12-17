@@ -24,7 +24,46 @@ import {
   History,
   Trash2,
   Calendar,
+  Download,
 } from "lucide-react";
+
+// Template download functions for PID
+const downloadPlacasTemplate = () => {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ["PLACA", "STATUS", "COTAS"],
+    ["ABC1234", "Ativo", "1"],
+    ["DEF5678", "Ativo", "2"],
+    ["GHI9012", "Inativo", "1"],
+  ]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Placas e Cotas");
+  XLSX.writeFile(wb, "modelo_placas_cotas.xlsx");
+  toast.success("Modelo baixado com sucesso!");
+};
+
+const downloadAssociadosTemplate = () => {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ["NOME", "CPF", "STATUS"],
+    ["João Silva", "123.456.789-00", "Ativo"],
+    ["Maria Santos", "987.654.321-00", "Ativo"],
+  ]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Associados");
+  XLSX.writeFile(wb, "modelo_associados.xlsx");
+  toast.success("Modelo baixado com sucesso!");
+};
+
+const downloadCadastrosTemplate = () => {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ["DATA CADASTRO", "NOME", "CPF", "PLACA"],
+    ["01/01/2024", "João Silva", "123.456.789-00", "ABC1234"],
+    ["15/01/2024", "Maria Santos", "987.654.321-00", "DEF5678"],
+  ]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Cadastros");
+  XLSX.writeFile(wb, "modelo_cadastros.xlsx");
+  toast.success("Modelo baixado com sucesso!");
+};
 
 interface PIDImportacaoProps {
   corretoraId?: string;
@@ -659,10 +698,16 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
         {/* Placas Ativas e Total de Cotas */}
         <Card className="border-blue-500/20">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Car className="h-4 w-4 text-blue-500" />
-              Placas Ativas e Total de Cotas
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Car className="h-4 w-4 text-blue-500" />
+                Placas Ativas e Total de Cotas
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={downloadPlacasTemplate} className="h-7 text-xs">
+                <Download className="h-3 w-3 mr-1" />
+                Modelo
+              </Button>
+            </div>
             <CardDescription className="text-xs">
               Arquivo de relatório de veículos fotografia
             </CardDescription>
@@ -702,10 +747,16 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
         {/* Associados */}
         <Card className="border-green-500/20">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Users className="h-4 w-4 text-green-500" />
-              Associados
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Users className="h-4 w-4 text-green-500" />
+                Associados
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={downloadAssociadosTemplate} className="h-7 text-xs">
+                <Download className="h-3 w-3 mr-1" />
+                Modelo
+              </Button>
+            </div>
             <CardDescription className="text-xs">
               Arquivo de relatório de associados ativos
             </CardDescription>
@@ -744,10 +795,16 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
         {/* Cadastros Realizados */}
         <Card className="border-purple-500/20">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <UserPlus className="h-4 w-4 text-purple-500" />
-              Cadastros Realizados
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <UserPlus className="h-4 w-4 text-purple-500" />
+                Cadastros Realizados
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={downloadCadastrosTemplate} className="h-7 text-xs">
+                <Download className="h-3 w-3 mr-1" />
+                Modelo
+              </Button>
+            </div>
             <CardDescription className="text-xs">
               Arquivo de novos cadastros do período
             </CardDescription>
