@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   BarChart,
   Bar,
@@ -30,7 +31,13 @@ import {
   Clock,
   Banknote,
   CreditCard,
-  Truck
+  Truck,
+  FileText,
+  Users,
+  Package,
+  Percent,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
 
 interface MGFDashboardProps {
@@ -40,7 +47,7 @@ interface MGFDashboardProps {
   associacaoNome: string;
 }
 
-const COLORS = ["#f97316", "#fb923c", "#fdba74", "#fed7aa", "#ffedd5", "#0ea5e9", "#06b6d4", "#14b8a6", "#22c55e", "#84cc16"];
+const COLORS = ["#f97316", "#fb923c", "#fdba74", "#0ea5e9", "#06b6d4", "#14b8a6", "#22c55e", "#84cc16", "#eab308", "#ef4444"];
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("pt-BR", {
@@ -48,6 +55,13 @@ const formatCurrency = (value: number) => {
     currency: "BRL",
     notation: "compact",
     maximumFractionDigits: 1,
+  }).format(value);
+};
+
+const formatFullCurrency = (value: number) => {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
   }).format(value);
 };
 
@@ -64,7 +78,7 @@ const CustomTooltip = ({ active, payload, label, isCurrency = false }: any) => {
         <p className="font-medium mb-1">{label}</p>
         {payload.map((entry: any, index: number) => (
           <p key={index} style={{ color: entry.color }}>
-            {entry.name}: {isCurrency ? formatCurrency(entry.value) : entry.value?.toLocaleString()}
+            {entry.name}: {isCurrency ? formatFullCurrency(entry.value) : entry.value?.toLocaleString()}
           </p>
         ))}
       </div>
@@ -73,7 +87,14 @@ const CustomTooltip = ({ active, payload, label, isCurrency = false }: any) => {
   return null;
 };
 
+const truncateText = (text: string, maxLength: number = 18) => {
+  if (!text) return "-";
+  return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
+};
+
 export default function MGFDashboard({ dados, colunas, loading, associacaoNome }: MGFDashboardProps) {
+  const [evolucaoView, setEvolucaoView] = useState<'mes' | 'dia'>('mes');
+
   const stats = useMemo(() => {
     if (!dados.length) return null;
 
@@ -88,37 +109,74 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
     const valorTotalLancamento = dados.reduce((acc, d) => acc + (d.valor_total_lancamento || 0), 0);
     
     // Pagos vs A Pagar
-    const valorPago = dados
-      .filter(d => d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento)
-      .reduce((acc, d) => acc + (d.valor_pagamento || d.valor || 0), 0);
+    const pagos = dados.filter(d => d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento);
+    const valorPago = pagos.reduce((acc, d) => acc + (d.valor_pagamento || d.valor || 0), 0);
+    const qtdPagos = pagos.length;
     
-    const valorAPagar = dados
-      .filter(d => !d.situacao_pagamento?.toLowerCase().includes('pago') && !d.data_pagamento)
-      .reduce((acc, d) => acc + (d.valor || 0), 0);
+    const aPagar = dados.filter(d => !d.situacao_pagamento?.toLowerCase().includes('pago') && !d.data_pagamento);
+    const valorAPagar = aPagar.reduce((acc, d) => acc + (d.valor || 0), 0);
+    const qtdAPagar = aPagar.length;
     
     // Vencidos
-    const valorVencido = dados
-      .filter(d => {
-        if (d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento) return false;
-        if (!d.data_vencimento) return false;
-        const venc = new Date(d.data_vencimento);
-        return venc < hoje;
-      })
-      .reduce((acc, d) => acc + (d.valor || 0), 0);
+    const vencidos = dados.filter(d => {
+      if (d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento) return false;
+      if (!d.data_vencimento) return false;
+      const venc = new Date(d.data_vencimento);
+      return venc < hoje;
+    });
+    const valorVencido = vencidos.reduce((acc, d) => acc + (d.valor || 0), 0);
+    const qtdVencidos = vencidos.length;
     
     // A vencer em 7 dias
-    const valorAVencer7Dias = dados
-      .filter(d => {
-        if (d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento) return false;
-        if (!d.data_vencimento) return false;
-        const venc = new Date(d.data_vencimento);
-        return venc >= hoje && venc <= em7Dias;
-      })
-      .reduce((acc, d) => acc + (d.valor || 0), 0);
+    const aVencer7 = dados.filter(d => {
+      if (d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento) return false;
+      if (!d.data_vencimento) return false;
+      const venc = new Date(d.data_vencimento);
+      return venc >= hoje && venc <= em7Dias;
+    });
+    const valorAVencer7Dias = aVencer7.reduce((acc, d) => acc + (d.valor || 0), 0);
+    const qtdAVencer7 = aVencer7.length;
 
     // Total multa e juros
     const totalMulta = dados.reduce((acc, d) => acc + (d.multa || 0), 0);
     const totalJuros = dados.reduce((acc, d) => acc + (d.juros || 0), 0);
+    const totalImpostos = dados.reduce((acc, d) => acc + (d.impostos || 0), 0);
+
+    // Ticket médio
+    const ticketMedio = valorTotal / totalRegistros;
+
+    // Fornecedores únicos
+    const fornecedoresUnicos = new Set(dados.filter(d => d.fornecedor || d.nome_fantasia_fornecedor).map(d => d.fornecedor || d.nome_fantasia_fornecedor)).size;
+
+    // Por Operação
+    const porOperacao = dados.reduce((acc: any, d) => {
+      const op = d.operacao || "Não informado";
+      if (op !== "Não informado") {
+        acc[op] = acc[op] || { count: 0, valor: 0 };
+        acc[op].count += 1;
+        acc[op].valor += d.valor || 0;
+      }
+      return acc;
+    }, {});
+    const operacaoData = Object.entries(porOperacao)
+      .map(([name, data]: [string, any]) => ({ name, count: data.count, valor: data.valor }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 10);
+
+    // Por SubOperação
+    const porSubOperacao = dados.reduce((acc: any, d) => {
+      const subOp = d.sub_operacao || "Não informado";
+      if (subOp !== "Não informado") {
+        acc[subOp] = acc[subOp] || { count: 0, valor: 0 };
+        acc[subOp].count += 1;
+        acc[subOp].valor += d.valor || 0;
+      }
+      return acc;
+    }, {});
+    const subOperacaoData = Object.entries(porSubOperacao)
+      .map(([name, data]: [string, any]) => ({ name, count: data.count, valor: data.valor }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 10);
 
     // Por Situação de Pagamento
     const porSituacao = dados.reduce((acc: any, d) => {
@@ -132,19 +190,6 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       .map(([name, data]: [string, any]) => ({ name, count: data.count, valor: data.valor }))
       .sort((a, b) => b.valor - a.valor)
       .slice(0, 8);
-
-    // Por Operação
-    const porOperacao = dados.reduce((acc: any, d) => {
-      const op = d.operacao || "Não informado";
-      acc[op] = acc[op] || { count: 0, valor: 0 };
-      acc[op].count += 1;
-      acc[op].valor += d.valor || 0;
-      return acc;
-    }, {});
-    const operacaoData = Object.entries(porOperacao)
-      .map(([name, data]: [string, any]) => ({ name, count: data.count, valor: data.valor }))
-      .sort((a, b) => b.valor - a.valor)
-      .slice(0, 10);
 
     // Por Fornecedor
     const porFornecedor = dados.reduce((acc: any, d) => {
@@ -251,7 +296,22 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       .sort((a, b) => b.valor - a.valor)
       .slice(0, 10);
 
-    // Timeline por mês (data_vencimento ou data_evento)
+    // Por Associado
+    const porAssociado = dados.reduce((acc: any, d) => {
+      const assoc = d.associado || "Não informado";
+      if (assoc !== "Não informado") {
+        acc[assoc] = acc[assoc] || { count: 0, valor: 0 };
+        acc[assoc].count += 1;
+        acc[assoc].valor += d.valor || 0;
+      }
+      return acc;
+    }, {});
+    const associadoData = Object.entries(porAssociado)
+      .map(([name, data]: [string, any]) => ({ name, count: data.count, valor: data.valor }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 10);
+
+    // Timeline por mês
     const porMes = dados.reduce((acc: any, d) => {
       const dataRef = d.data_vencimento || d.data_evento || d.data_nota_fiscal;
       if (dataRef) {
@@ -278,18 +338,53 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       }))
       .sort((a, b) => a.mes.localeCompare(b.mes));
 
+    // Timeline por dia
+    const porDia = dados.reduce((acc: any, d) => {
+      const dataRef = d.data_vencimento || d.data_evento || d.data_nota_fiscal;
+      if (dataRef) {
+        const date = new Date(dataRef);
+        if (!isNaN(date.getTime())) {
+          const diaKey = date.toISOString().split('T')[0];
+          acc[diaKey] = acc[diaKey] || { count: 0, valor: 0, pago: 0 };
+          acc[diaKey].count += 1;
+          acc[diaKey].valor += d.valor || 0;
+          if (d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento) {
+            acc[diaKey].pago += d.valor_pagamento || d.valor || 0;
+          }
+        }
+      }
+      return acc;
+    }, {});
+    const timelineDiaData = Object.entries(porDia)
+      .map(([dia, data]: [string, any]) => ({
+        dia,
+        diaLabel: new Date(dia + 'T12:00:00').toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit' }),
+        count: data.count,
+        valor: data.valor,
+        pago: data.pago,
+      }))
+      .sort((a, b) => a.dia.localeCompare(b.dia));
+
     return {
       totalRegistros,
       valorTotal,
       valorTotalLancamento,
       valorPago,
+      qtdPagos,
       valorAPagar,
+      qtdAPagar,
       valorVencido,
+      qtdVencidos,
       valorAVencer7Dias,
+      qtdAVencer7,
       totalMulta,
       totalJuros,
-      situacaoData,
+      totalImpostos,
+      ticketMedio,
+      fornecedoresUnicos,
       operacaoData,
+      subOperacaoData,
+      situacaoData,
       fornecedorData,
       cooperativaData,
       formaPagamentoData,
@@ -297,7 +392,9 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       tipoVeiculoData,
       centroCustoData,
       motivoEventoData,
+      associadoData,
       timelineData,
+      timelineDiaData,
     };
   }, [dados]);
 
@@ -305,7 +402,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
     return (
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-6">
-          {[...Array(6)].map((_, i) => (
+          {[...Array(8)].map((_, i) => (
             <Card key={i}>
               <CardContent className="p-6">
                 <Skeleton className="h-16 w-full" />
@@ -335,17 +432,17 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
 
   return (
     <div className="space-y-6">
-      {/* KPIs Financeiros */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+      {/* KPIs Principais */}
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
         <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-blue-500/20">
-                <Banknote className="h-5 w-5 text-blue-500" />
+                <Banknote className="h-4 w-4 text-blue-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Valor Total</p>
-                <p className="text-lg font-bold">{formatCurrency(stats.valorTotal)}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground truncate">Valor Total</p>
+                <p className="text-sm font-bold truncate">{formatCurrency(stats.valorTotal)}</p>
               </div>
             </div>
           </CardContent>
@@ -353,13 +450,13 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
 
         <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-green-500/20">
-                <CheckCircle className="h-5 w-5 text-green-500" />
+                <CheckCircle className="h-4 w-4 text-green-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Pago</p>
-                <p className="text-lg font-bold">{formatCurrency(stats.valorPago)}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground truncate">Pago ({stats.qtdPagos})</p>
+                <p className="text-sm font-bold truncate">{formatCurrency(stats.valorPago)}</p>
               </div>
             </div>
           </CardContent>
@@ -367,13 +464,13 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
 
         <Card className="bg-gradient-to-br from-orange-500/10 to-orange-500/5 border-orange-500/20">
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-orange-500/20">
-                <Clock className="h-5 w-5 text-orange-500" />
+                <Clock className="h-4 w-4 text-orange-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">A Pagar</p>
-                <p className="text-lg font-bold">{formatCurrency(stats.valorAPagar)}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground truncate">A Pagar ({stats.qtdAPagar})</p>
+                <p className="text-sm font-bold truncate">{formatCurrency(stats.valorAPagar)}</p>
               </div>
             </div>
           </CardContent>
@@ -381,13 +478,13 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
 
         <Card className="bg-gradient-to-br from-red-500/10 to-red-500/5 border-red-500/20">
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-red-500/20">
-                <AlertTriangle className="h-5 w-5 text-red-500" />
+                <AlertTriangle className="h-4 w-4 text-red-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Vencido</p>
-                <p className="text-lg font-bold">{formatCurrency(stats.valorVencido)}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground truncate">Vencido ({stats.qtdVencidos})</p>
+                <p className="text-sm font-bold truncate">{formatCurrency(stats.valorVencido)}</p>
               </div>
             </div>
           </CardContent>
@@ -395,13 +492,13 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
 
         <Card className="bg-gradient-to-br from-yellow-500/10 to-yellow-500/5 border-yellow-500/20">
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-yellow-500/20">
-                <Calendar className="h-5 w-5 text-yellow-500" />
+                <Calendar className="h-4 w-4 text-yellow-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Vence em 7 dias</p>
-                <p className="text-lg font-bold">{formatCurrency(stats.valorAVencer7Dias)}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground truncate">Vence 7d ({stats.qtdAVencer7})</p>
+                <p className="text-sm font-bold truncate">{formatCurrency(stats.valorAVencer7Dias)}</p>
               </div>
             </div>
           </CardContent>
@@ -409,13 +506,41 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
 
         <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-purple-500/20">
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-purple-500/20">
-                <TrendingUp className="h-5 w-5 text-purple-500" />
+                <TrendingUp className="h-4 w-4 text-purple-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Multa + Juros</p>
-                <p className="text-lg font-bold">{formatCurrency(stats.totalMulta + stats.totalJuros)}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground truncate">Multa + Juros</p>
+                <p className="text-sm font-bold truncate">{formatCurrency(stats.totalMulta + stats.totalJuros)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 border-cyan-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-cyan-500/20">
+                <DollarSign className="h-4 w-4 text-cyan-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground truncate">Ticket Médio</p>
+                <p className="text-sm font-bold truncate">{formatCurrency(stats.ticketMedio)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-indigo-500/10 to-indigo-500/5 border-indigo-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-indigo-500/20">
+                <Users className="h-4 w-4 text-indigo-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground truncate">Fornecedores</p>
+                <p className="text-sm font-bold truncate">{stats.fornecedoresUnicos}</p>
               </div>
             </div>
           </CardContent>
@@ -426,18 +551,44 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       {stats.timelineData.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Calendar className="h-5 w-5 text-orange-500" />
-              Evolução Temporal
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Calendar className="h-5 w-5 text-orange-500" />
+                Evolução Temporal
+              </CardTitle>
+              <div className="flex gap-1">
+                <Button
+                  variant={evolucaoView === 'mes' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setEvolucaoView('mes')}
+                >
+                  Mês
+                </Button>
+                <Button
+                  variant={evolucaoView === 'dia' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setEvolucaoView('dia')}
+                >
+                  Dia
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto" ref={(el) => { if (el) el.scrollLeft = el.scrollWidth; }}>
-              <div style={{ minWidth: Math.max(800, stats.timelineData.length * 70) + "px" }}>
+              <div style={{ 
+                minWidth: evolucaoView === 'mes' 
+                  ? Math.max(800, stats.timelineData.length * 70) + "px"
+                  : Math.max(800, stats.timelineDiaData.length * 45) + "px"
+              }}>
                 <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={stats.timelineData}>
+                  <AreaChart data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="mesLabel" tick={{ fontSize: 11 }} interval={0} />
+                    <XAxis 
+                      dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} 
+                      tick={{ fontSize: 11 }} 
+                      interval={0} 
+                    />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompactCurrency(v)} />
                     <Tooltip content={<CustomTooltip isCurrency />} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -451,82 +602,117 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
         </Card>
       )}
 
-      {/* Charts Grid */}
+      {/* Charts Grid - Row 1 */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Por Situação */}
-        {stats.situacaoData.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <PieChartIcon className="h-4 w-4 text-orange-500" />
-                Por Situação
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={stats.situacaoData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    dataKey="valor"
-                    nameKey="name"
-                  >
-                    {stats.situacaoData.map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Por Operação */}
         {stats.operacaoData.length > 0 && (
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
-                <BarChart3 className="h-4 w-4 text-orange-500" />
+                <Package className="h-4 w-4 text-orange-500" />
                 Por Operação
               </CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={stats.operacaoData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatCompactCurrency(v)} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={80} tickFormatter={(v) => v.length > 12 ? v.substring(0, 12) + "..." : v} />
+                <BarChart data={stats.operacaoData} layout="vertical" margin={{ left: 0, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" tickFormatter={(v) => formatCompactCurrency(v)} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10 }} tickFormatter={(v) => truncateText(v, 15)} />
                   <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Bar dataKey="valor" fill="#f97316" radius={[0, 4, 4, 0]} name="Valor" />
+                  <Bar dataKey="valor" fill="#f97316" name="Valor" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
         )}
 
-        {/* Por Fornecedor */}
-        {stats.fornecedorData.length > 0 && (
+        {/* Por SubOperação */}
+        {stats.subOperacaoData.length > 0 && (
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
-                <Building2 className="h-4 w-4 text-orange-500" />
-                Por Fornecedor (Top 10)
+                <FileText className="h-4 w-4 text-orange-500" />
+                Por SubOperação
               </CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={stats.fornecedorData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatCompactCurrency(v)} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={80} tickFormatter={(v) => v.length > 12 ? v.substring(0, 12) + "..." : v} />
+                <BarChart data={stats.subOperacaoData} layout="vertical" margin={{ left: 0, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" tickFormatter={(v) => formatCompactCurrency(v)} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10 }} tickFormatter={(v) => truncateText(v, 15)} />
                   <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Bar dataKey="valor" fill="#06b6d4" radius={[0, 4, 4, 0]} name="Valor" />
+                  <Bar dataKey="valor" fill="#fb923c" name="Valor" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Por Situação */}
+        {stats.situacaoData.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <PieChartIcon className="h-4 w-4 text-orange-500" />
+                Por Situação
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center">
+                <ResponsiveContainer width="50%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={stats.situacaoData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={70}
+                      paddingAngle={2}
+                      dataKey="valor"
+                    >
+                      {stats.situacaoData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => [formatFullCurrency(value), 'Valor']} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex-1 space-y-1">
+                  {stats.situacaoData.slice(0, 5).map((item, index) => (
+                    <div key={item.name} className="flex items-center gap-2 text-xs">
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                      <span className="truncate flex-1">{truncateText(item.name, 12)}</span>
+                      <span className="font-medium">{formatCurrency(item.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Charts Grid - Row 2 */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Por Fornecedor */}
+        {stats.fornecedorData.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Building2 className="h-4 w-4 text-orange-500" />
+                Por Fornecedor
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={stats.fornecedorData} layout="vertical" margin={{ left: 0, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" tickFormatter={(v) => formatCompactCurrency(v)} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10 }} tickFormatter={(v) => truncateText(v, 15)} />
+                  <Tooltip content={<CustomTooltip isCurrency />} />
+                  <Bar dataKey="valor" fill="#0ea5e9" name="Valor" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -536,20 +722,20 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
         {/* Por Cooperativa */}
         {stats.cooperativaData.length > 0 && (
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
-                <Building2 className="h-4 w-4 text-orange-500" />
-                Por Cooperativa (Top 10)
+                <Users className="h-4 w-4 text-orange-500" />
+                Por Cooperativa
               </CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={stats.cooperativaData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatCompactCurrency(v)} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={80} tickFormatter={(v) => v.length > 12 ? v.substring(0, 12) + "..." : v} />
+                <BarChart data={stats.cooperativaData} layout="vertical" margin={{ left: 0, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" tickFormatter={(v) => formatCompactCurrency(v)} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10 }} tickFormatter={(v) => truncateText(v, 15)} />
                   <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Bar dataKey="valor" fill="#22c55e" radius={[0, 4, 4, 0]} name="Valor" />
+                  <Bar dataKey="valor" fill="#06b6d4" name="Valor" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -559,54 +745,66 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
         {/* Por Forma de Pagamento */}
         {stats.formaPagamentoData.length > 0 && (
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <CreditCard className="h-4 w-4 text-orange-500" />
                 Por Forma de Pagamento
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={stats.formaPagamentoData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    dataKey="valor"
-                    nameKey="name"
-                  >
-                    {stats.formaPagamentoData.map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="flex items-center">
+                <ResponsiveContainer width="50%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={stats.formaPagamentoData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={70}
+                      paddingAngle={2}
+                      dataKey="valor"
+                    >
+                      {stats.formaPagamentoData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => [formatFullCurrency(value), 'Valor']} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex-1 space-y-1">
+                  {stats.formaPagamentoData.slice(0, 5).map((item, index) => (
+                    <div key={item.name} className="flex items-center gap-2 text-xs">
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                      <span className="truncate flex-1">{truncateText(item.name, 12)}</span>
+                      <span className="font-medium">{formatCurrency(item.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
+      </div>
 
+      {/* Charts Grid - Row 3 */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Por Regional */}
         {stats.regionalData.length > 0 && (
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <MapPin className="h-4 w-4 text-orange-500" />
-                Por Regional (Top 10)
+                Por Regional
               </CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={stats.regionalData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatCompactCurrency(v)} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={80} tickFormatter={(v) => v.length > 12 ? v.substring(0, 12) + "..." : v} />
+                <BarChart data={stats.regionalData} layout="vertical" margin={{ left: 0, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" tickFormatter={(v) => formatCompactCurrency(v)} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10 }} tickFormatter={(v) => truncateText(v, 15)} />
                   <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Bar dataKey="valor" fill="#8b5cf6" radius={[0, 4, 4, 0]} name="Valor" />
+                  <Bar dataKey="valor" fill="#14b8a6" name="Valor" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -616,33 +814,42 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
         {/* Por Tipo de Veículo */}
         {stats.tipoVeiculoData.length > 0 && (
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <Truck className="h-4 w-4 text-orange-500" />
                 Por Tipo de Veículo
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={stats.tipoVeiculoData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    dataKey="valor"
-                    nameKey="name"
-                  >
-                    {stats.tipoVeiculoData.map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="flex items-center">
+                <ResponsiveContainer width="50%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={stats.tipoVeiculoData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={70}
+                      paddingAngle={2}
+                      dataKey="valor"
+                    >
+                      {stats.tipoVeiculoData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => [formatFullCurrency(value), 'Valor']} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex-1 space-y-1">
+                  {stats.tipoVeiculoData.slice(0, 5).map((item, index) => (
+                    <div key={item.name} className="flex items-center gap-2 text-xs">
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                      <span className="truncate flex-1">{truncateText(item.name, 12)}</span>
+                      <span className="font-medium">{formatCurrency(item.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -650,43 +857,69 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
         {/* Por Centro de Custo */}
         {stats.centroCustoData.length > 0 && (
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
-                <DollarSign className="h-4 w-4 text-orange-500" />
-                Por Centro de Custo (Top 10)
+                <BarChart3 className="h-4 w-4 text-orange-500" />
+                Por Centro de Custo
               </CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={stats.centroCustoData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatCompactCurrency(v)} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={80} tickFormatter={(v) => v.length > 12 ? v.substring(0, 12) + "..." : v} />
+                <BarChart data={stats.centroCustoData} layout="vertical" margin={{ left: 0, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" tickFormatter={(v) => formatCompactCurrency(v)} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10 }} tickFormatter={(v) => truncateText(v, 15)} />
                   <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Bar dataKey="valor" fill="#ec4899" radius={[0, 4, 4, 0]} name="Valor" />
+                  <Bar dataKey="valor" fill="#22c55e" name="Valor" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Charts Grid - Row 4 */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Por Motivo Evento */}
+        {stats.motivoEventoData.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <AlertTriangle className="h-4 w-4 text-orange-500" />
+                Por Motivo Evento
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={stats.motivoEventoData} layout="vertical" margin={{ left: 0, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" tickFormatter={(v) => formatCompactCurrency(v)} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 10 }} tickFormatter={(v) => truncateText(v, 18)} />
+                  <Tooltip content={<CustomTooltip isCurrency />} />
+                  <Bar dataKey="valor" fill="#ef4444" name="Valor" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
         )}
 
-        {/* Por Motivo Evento */}
-        {stats.motivoEventoData.length > 0 && (
+        {/* Por Associado */}
+        {stats.associadoData.length > 0 && (
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
-                <AlertTriangle className="h-4 w-4 text-orange-500" />
-                Por Motivo Evento (Top 10)
+                <Users className="h-4 w-4 text-orange-500" />
+                Por Associado
               </CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={stats.motivoEventoData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatCompactCurrency(v)} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} width={80} tickFormatter={(v) => v.length > 12 ? v.substring(0, 12) + "..." : v} />
+                <BarChart data={stats.associadoData} layout="vertical" margin={{ left: 0, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" tickFormatter={(v) => formatCompactCurrency(v)} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 10 }} tickFormatter={(v) => truncateText(v, 18)} />
                   <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Bar dataKey="valor" fill="#14b8a6" radius={[0, 4, 4, 0]} name="Valor" />
+                  <Bar dataKey="valor" fill="#8b5cf6" name="Valor" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

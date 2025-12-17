@@ -4,8 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Database, Search, Download, ChevronLeft, ChevronRight, Filter } from "lucide-react";
+import { Database, Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface MGFTabelaProps {
@@ -16,7 +15,7 @@ interface MGFTabelaProps {
 
 const PAGE_SIZE = 50;
 
-// Todas as 38 colunas
+// Todas as colunas na ordem correta
 const ALL_COLUMNS = [
   { key: "operacao", label: "Operação" },
   { key: "sub_operacao", label: "SubOperação" },
@@ -62,52 +61,19 @@ const ALL_COLUMNS = [
 export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  const [situacaoFilter, setSituacaoFilter] = useState<string>("all");
-  const [operacaoFilter, setOperacaoFilter] = useState<string>("all");
 
-  // Extrair opções únicas para filtros
-  const filterOptions = useMemo(() => {
-    const situacoes = new Set<string>();
-    const operacoes = new Set<string>();
-    
-    dados.forEach(d => {
-      if (d.situacao_pagamento) situacoes.add(d.situacao_pagamento);
-      if (d.operacao) operacoes.add(d.operacao);
-    });
-    
-    return {
-      situacoes: Array.from(situacoes).sort(),
-      operacoes: Array.from(operacoes).sort()
-    };
-  }, [dados]);
-
-  // Filtrar dados
+  // Filtrar dados por busca
   const filteredDados = useMemo(() => {
-    let result = dados;
+    if (!search.trim()) return dados;
     
-    // Filtro por situação
-    if (situacaoFilter !== "all") {
-      result = result.filter(d => d.situacao_pagamento === situacaoFilter);
-    }
-    
-    // Filtro por operação
-    if (operacaoFilter !== "all") {
-      result = result.filter(d => d.operacao === operacaoFilter);
-    }
-    
-    // Filtro por busca
-    if (search.trim()) {
-      const searchLower = search.toLowerCase();
-      result = result.filter((d) => {
-        return ALL_COLUMNS.some(col => {
-          const val = d[col.key];
-          return val && String(val).toLowerCase().includes(searchLower);
-        });
+    const searchLower = search.toLowerCase();
+    return dados.filter((d) => {
+      return ALL_COLUMNS.some(col => {
+        const val = d[col.key];
+        return val && String(val).toLowerCase().includes(searchLower);
       });
-    }
-    
-    return result;
-  }, [dados, search, situacaoFilter, operacaoFilter]);
+    });
+  }, [dados, search]);
 
   // Paginação
   const totalPages = Math.ceil(filteredDados.length / PAGE_SIZE);
@@ -179,61 +145,27 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <CardTitle className="flex items-center gap-2">
-              <Database className="h-5 w-5 text-orange-500" />
-              Dados Completos ({filteredDados.length.toLocaleString()} registros)
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar..."
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(0);
-                  }}
-                  className="pl-9 w-64"
-                />
-              </div>
-              <Button variant="outline" size="icon" onClick={handleExport} title="Exportar Excel">
-                <Download className="h-4 w-4" />
-              </Button>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5 text-orange-500" />
+            Dados Completos ({filteredDados.length.toLocaleString()} registros)
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar em todos os campos..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(0);
+                }}
+                className="pl-9 w-64"
+              />
             </div>
-          </div>
-          
-          {/* Filtros */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Filtros:</span>
-            </div>
-            
-            <Select value={situacaoFilter} onValueChange={(v) => { setSituacaoFilter(v); setPage(0); }}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Situação" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas Situações</SelectItem>
-                {filterOptions.situacoes.map(s => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            <Select value={operacaoFilter} onValueChange={(v) => { setOperacaoFilter(v); setPage(0); }}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Operação" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas Operações</SelectItem>
-                {filterOptions.operacoes.map(o => (
-                  <SelectItem key={o} value={o}>{o}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Button variant="outline" size="icon" onClick={handleExport} title="Exportar Excel">
+              <Download className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -244,7 +176,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
               <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
                   {ALL_COLUMNS.map((col) => (
-                    <TableHead key={col.key} className="whitespace-nowrap text-xs">
+                    <TableHead key={col.key} className="whitespace-nowrap text-xs font-semibold">
                       {col.label}
                     </TableHead>
                   ))}
@@ -252,7 +184,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
               </TableHeader>
               <TableBody>
                 {paginatedDados.map((d, i) => (
-                  <TableRow key={d.id || i}>
+                  <TableRow key={d.id || i} className="hover:bg-muted/50">
                     {ALL_COLUMNS.map((col) => (
                       <TableCell key={col.key} className="whitespace-nowrap text-xs">
                         {formatCellValue(d[col.key], col.key)}
@@ -269,9 +201,17 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
         {totalPages > 1 && (
           <div className="flex items-center justify-between mt-4">
             <p className="text-sm text-muted-foreground">
-              Página {page + 1} de {totalPages}
+              Mostrando {page * PAGE_SIZE + 1} - {Math.min((page + 1) * PAGE_SIZE, filteredDados.length)} de {filteredDados.length.toLocaleString()} registros
             </p>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(0)}
+                disabled={page === 0}
+              >
+                Primeira
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -280,6 +220,9 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
+              <span className="text-sm px-2">
+                Página {page + 1} de {totalPages}
+              </span>
               <Button
                 variant="outline"
                 size="sm"
@@ -287,6 +230,14 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
                 disabled={page >= totalPages - 1}
               >
                 <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(totalPages - 1)}
+                disabled={page >= totalPages - 1}
+              >
+                Última
               </Button>
             </div>
           </div>
