@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter } from "lucide-react";
 import { toast } from "sonner";
 import SGADashboard from "@/components/sga/SGADashboard";
 import SGAImportacao from "@/components/sga/SGAImportacao";
@@ -14,6 +15,14 @@ import SGAMapa from "@/components/sga/SGAMapa";
 import SGATabela from "@/components/sga/SGATabela";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
+
+export interface SGAFilters {
+  dataInicio: string;
+  dataFim: string;
+  regional: string;
+  cooperativa: string;
+  tipoVeiculo: string;
+}
 
 export default function SGAInsights() {
   const navigate = useNavigate();
@@ -26,6 +35,15 @@ export default function SGAInsights() {
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   
+  // Filtros globais
+  const [filters, setFilters] = useState<SGAFilters>({
+    dataInicio: "",
+    dataFim: "",
+    regional: "todos",
+    cooperativa: "todos",
+    tipoVeiculo: "todos",
+  });
+  
   // Detectar se é acesso via portal (parceiro)
   const isPortalAccess = location.pathname.startsWith('/portal');
   
@@ -36,6 +54,51 @@ export default function SGAInsights() {
   const [associacoes, setAssociacoes] = useState<any[]>([]);
   const [selectedAssociacao, setSelectedAssociacao] = useState<string>("");
   const [loadingAssociacoes, setLoadingAssociacoes] = useState(true);
+
+  // Extrair opções únicas para filtros
+  const filterOptions = useMemo(() => {
+    const regionais = [...new Set(eventos.map(e => e.regional).filter(Boolean))].sort();
+    const cooperativas = [...new Set(eventos.map(e => e.cooperativa).filter(Boolean))].sort();
+    const tiposVeiculo = [...new Set(eventos.map(e => {
+      const modelo = e.modelo_veiculo || "";
+      if (modelo.toLowerCase().includes("moto") || modelo.toLowerCase().includes("honda") || modelo.toLowerCase().includes("yamaha")) return "Motocicleta";
+      if (modelo.toLowerCase().includes("caminhao") || modelo.toLowerCase().includes("caminhão") || modelo.toLowerCase().includes("truck")) return "Caminhão";
+      return "Passeio";
+    }))].sort();
+    return { regionais, cooperativas, tiposVeiculo };
+  }, [eventos]);
+
+  // Eventos filtrados
+  const filteredEventos = useMemo(() => {
+    let result = [...eventos];
+    
+    if (filters.dataInicio) {
+      result = result.filter(e => e.data_evento && e.data_evento >= filters.dataInicio);
+    }
+    if (filters.dataFim) {
+      result = result.filter(e => e.data_evento && e.data_evento <= filters.dataFim);
+    }
+    if (filters.regional !== "todos") {
+      result = result.filter(e => e.regional === filters.regional);
+    }
+    if (filters.cooperativa !== "todos") {
+      result = result.filter(e => e.cooperativa === filters.cooperativa);
+    }
+    if (filters.tipoVeiculo !== "todos") {
+      result = result.filter(e => {
+        const modelo = e.modelo_veiculo || "";
+        if (filters.tipoVeiculo === "Motocicleta") {
+          return modelo.toLowerCase().includes("moto") || modelo.toLowerCase().includes("honda") || modelo.toLowerCase().includes("yamaha");
+        }
+        if (filters.tipoVeiculo === "Caminhão") {
+          return modelo.toLowerCase().includes("caminhao") || modelo.toLowerCase().includes("caminhão") || modelo.toLowerCase().includes("truck");
+        }
+        return !modelo.toLowerCase().includes("moto") && !modelo.toLowerCase().includes("caminhao") && !modelo.toLowerCase().includes("caminhão");
+      });
+    }
+    
+    return result;
+  }, [eventos, filters]);
 
   // Carregar associações
   useEffect(() => {
@@ -147,6 +210,18 @@ export default function SGAInsights() {
 
   const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome || "";
 
+  const clearFilters = () => {
+    setFilters({
+      dataInicio: "",
+      dataFim: "",
+      regional: "todos",
+      cooperativa: "todos",
+      tipoVeiculo: "todos",
+    });
+  };
+
+  const hasActiveFilters = filters.dataInicio || filters.dataFim || filters.regional !== "todos" || filters.cooperativa !== "todos" || filters.tipoVeiculo !== "todos";
+
   // Tabs - esconder importação para parceiros
   const tabs = isPortalAccess 
     ? [
@@ -198,7 +273,8 @@ export default function SGAInsights() {
             {importacaoAtiva && (
               <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
                 <Database className="h-4 w-4" />
-                <span>{eventos.length.toLocaleString()} registros</span>
+                <span>{filteredEventos.length.toLocaleString()} registros</span>
+                {hasActiveFilters && <span className="text-primary">(filtrados)</span>}
                 <span className="text-muted-foreground/50">|</span>
                 <span>{importacaoAtiva.nome_arquivo}</span>
               </div>
@@ -251,8 +327,87 @@ export default function SGAInsights() {
             </Card>
           )}
 
-          {/* Quick Stats */}
+          {/* Filtros Globais */}
           {eventos.length > 0 && (
+            <Card className="border-primary/20 bg-card/50 backdrop-blur mb-4">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Filter className="h-4 w-4 text-primary" />
+                  <span className="font-semibold text-sm">Filtros</span>
+                  {hasActiveFilters && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-2 text-xs">
+                      Limpar filtros
+                    </Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Data Início</Label>
+                    <Input
+                      type="date"
+                      value={filters.dataInicio}
+                      onChange={(e) => setFilters(f => ({ ...f, dataInicio: e.target.value }))}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Data Fim</Label>
+                    <Input
+                      type="date"
+                      value={filters.dataFim}
+                      onChange={(e) => setFilters(f => ({ ...f, dataFim: e.target.value }))}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Regional</Label>
+                    <Select value={filters.regional} onValueChange={(v) => setFilters(f => ({ ...f, regional: v }))}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Todas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todas Regionais</SelectItem>
+                        {filterOptions.regionais.map(r => (
+                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Cooperativa</Label>
+                    <Select value={filters.cooperativa} onValueChange={(v) => setFilters(f => ({ ...f, cooperativa: v }))}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Todas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todas Cooperativas</SelectItem>
+                        {filterOptions.cooperativas.map(c => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Tipo Veículo</Label>
+                    <Select value={filters.tipoVeiculo} onValueChange={(v) => setFilters(f => ({ ...f, tipoVeiculo: v }))}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos Tipos</SelectItem>
+                        <SelectItem value="Passeio">Passeio</SelectItem>
+                        <SelectItem value="Motocicleta">Motocicleta</SelectItem>
+                        <SelectItem value="Caminhão">Caminhão</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Quick Stats */}
+          {filteredEventos.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
               <Card className="bg-card/50 backdrop-blur border-primary/20">
                 <CardContent className="p-4">
@@ -261,7 +416,7 @@ export default function SGAInsights() {
                       <Car className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <p className="text-2xl font-bold">{eventos.length.toLocaleString()}</p>
+                      <p className="text-2xl font-bold">{filteredEventos.length.toLocaleString()}</p>
                       <p className="text-xs text-muted-foreground">Total Eventos</p>
                     </div>
                   </div>
@@ -275,7 +430,7 @@ export default function SGAInsights() {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">
-                        {eventos.filter(e => e.situacao_evento === "FINALIZADO").length.toLocaleString()}
+                        {filteredEventos.filter(e => e.situacao_evento === "FINALIZADO").length.toLocaleString()}
                       </p>
                       <p className="text-xs text-muted-foreground">Finalizados</p>
                     </div>
@@ -290,7 +445,7 @@ export default function SGAInsights() {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">
-                        {eventos.filter(e => e.situacao_evento === "EM ANALISE" || e.situacao_evento === "ABERTO").length.toLocaleString()}
+                        {filteredEventos.filter(e => e.situacao_evento === "EM ANALISE" || e.situacao_evento === "ABERTO").length.toLocaleString()}
                       </p>
                       <p className="text-xs text-muted-foreground">Em Análise</p>
                     </div>
@@ -306,7 +461,7 @@ export default function SGAInsights() {
                     <div>
                       <p className="text-2xl font-bold">
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' })
-                          .format(eventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0))}
+                          .format(filteredEventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0))}
                       </p>
                       <p className="text-xs text-muted-foreground">Custo Total</p>
                     </div>
@@ -335,15 +490,15 @@ export default function SGAInsights() {
           </TabsList>
 
           <TabsContent value="dashboard">
-            <SGADashboard eventos={eventos} loading={loading} />
+            <SGADashboard eventos={filteredEventos} loading={loading} />
           </TabsContent>
 
           <TabsContent value="mapa">
-            <SGAMapa eventos={eventos} loading={loading} />
+            <SGAMapa eventos={filteredEventos} loading={loading} />
           </TabsContent>
 
           <TabsContent value="tabela">
-            <SGATabela eventos={eventos} loading={loading} />
+            <SGATabela eventos={filteredEventos} loading={loading} />
           </TabsContent>
 
           {!isPortalAccess && (
