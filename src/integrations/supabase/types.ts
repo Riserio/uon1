@@ -2115,58 +2115,163 @@ export type Database = {
       }
       mgf_dados: {
         Row: {
+          associado: string | null
+          categoria_veiculo: string | null
+          centro_custo: string | null
           classificacao: string | null
+          classificacao_veiculo: string | null
+          cnpj_fornecedor: string | null
+          controle_interno: string | null
           cooperativa: string | null
+          cpf_cnpj_cliente: string | null
           created_at: string
           custo: number | null
           dados_extras: Json | null
           data_cadastro: string | null
           data_evento: string | null
+          data_nota_fiscal: string | null
+          data_pagamento: string | null
+          data_vencimento: string | null
+          data_vencimento_original: string | null
+          descricao: string | null
+          forma_pagamento: string | null
+          fornecedor: string | null
           id: string
           importacao_id: string
+          impostos: number | null
+          juros: number | null
+          mes_referente: string | null
           modelo_veiculo: string | null
+          motivo_evento: string | null
+          multa: number | null
+          nome_fantasia_fornecedor: string | null
+          nota_fiscal: string | null
+          operacao: string | null
           placa: string | null
+          placa_terceiro_evento: string | null
+          protocolo_evento: string | null
+          quantidade_parcela: number | null
           regional: string | null
+          regional_evento: string | null
           situacao: string | null
+          situacao_pagamento: string | null
           status: string | null
+          sub_operacao: string | null
+          terceiro_evento: string | null
           tipo_evento: string | null
+          tipo_veiculo: string | null
           valor: number | null
+          valor_pagamento: number | null
+          valor_total_lancamento: number | null
+          veiculo_evento: string | null
+          veiculo_lancamento: string | null
+          voluntario: string | null
         }
         Insert: {
+          associado?: string | null
+          categoria_veiculo?: string | null
+          centro_custo?: string | null
           classificacao?: string | null
+          classificacao_veiculo?: string | null
+          cnpj_fornecedor?: string | null
+          controle_interno?: string | null
           cooperativa?: string | null
+          cpf_cnpj_cliente?: string | null
           created_at?: string
           custo?: number | null
           dados_extras?: Json | null
           data_cadastro?: string | null
           data_evento?: string | null
+          data_nota_fiscal?: string | null
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          data_vencimento_original?: string | null
+          descricao?: string | null
+          forma_pagamento?: string | null
+          fornecedor?: string | null
           id?: string
           importacao_id: string
+          impostos?: number | null
+          juros?: number | null
+          mes_referente?: string | null
           modelo_veiculo?: string | null
+          motivo_evento?: string | null
+          multa?: number | null
+          nome_fantasia_fornecedor?: string | null
+          nota_fiscal?: string | null
+          operacao?: string | null
           placa?: string | null
+          placa_terceiro_evento?: string | null
+          protocolo_evento?: string | null
+          quantidade_parcela?: number | null
           regional?: string | null
+          regional_evento?: string | null
           situacao?: string | null
+          situacao_pagamento?: string | null
           status?: string | null
+          sub_operacao?: string | null
+          terceiro_evento?: string | null
           tipo_evento?: string | null
+          tipo_veiculo?: string | null
           valor?: number | null
+          valor_pagamento?: number | null
+          valor_total_lancamento?: number | null
+          veiculo_evento?: string | null
+          veiculo_lancamento?: string | null
+          voluntario?: string | null
         }
         Update: {
+          associado?: string | null
+          categoria_veiculo?: string | null
+          centro_custo?: string | null
           classificacao?: string | null
+          classificacao_veiculo?: string | null
+          cnpj_fornecedor?: string | null
+          controle_interno?: string | null
           cooperativa?: string | null
+          cpf_cnpj_cliente?: string | null
           created_at?: string
           custo?: number | null
           dados_extras?: Json | null
           data_cadastro?: string | null
           data_evento?: string | null
+          data_nota_fiscal?: string | null
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          data_vencimento_original?: string | null
+          descricao?: string | null
+          forma_pagamento?: string | null
+          fornecedor?: string | null
           id?: string
           importacao_id?: string
+          impostos?: number | null
+          juros?: number | null
+          mes_referente?: string | null
           modelo_veiculo?: string | null
+          motivo_evento?: string | null
+          multa?: number | null
+          nome_fantasia_fornecedor?: string | null
+          nota_fiscal?: string | null
+          operacao?: string | null
           placa?: string | null
+          placa_terceiro_evento?: string | null
+          protocolo_evento?: string | null
+          quantidade_parcela?: number | null
           regional?: string | null
+          regional_evento?: string | null
           situacao?: string | null
+          situacao_pagamento?: string | null
           status?: string | null
+          sub_operacao?: string | null
+          terceiro_evento?: string | null
           tipo_evento?: string | null
+          tipo_veiculo?: string | null
           valor?: number | null
+          valor_pagamento?: number | null
+          valor_total_lancamento?: number | null
+          veiculo_evento?: string | null
+          veiculo_lancamento?: string | null
+          voluntario?: string | null
         }
         Relationships: [
           {

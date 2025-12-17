@@ -11,63 +11,170 @@ import * as XLSX from "xlsx";
 import MGFHistoricoImportacoes from "./MGFHistoricoImportacoes";
 import { useBIAuditLog } from "@/hooks/useBIAuditLog";
 
-// Template columns for MGF
-const MGF_TEMPLATE_COLUMNS = [
-  "DATA EVENTO",
-  "DATA CADASTRO",
-  "TIPO EVENTO",
-  "SITUACAO",
-  "STATUS",
-  "VALOR",
-  "CUSTO",
-  "PLACA",
-  "MODELO VEICULO",
-  "COOPERATIVA",
-  "REGIONAL",
-  "CLASSIFICACAO"
-];
-
-const downloadMGFTemplate = () => {
-  const ws = XLSX.utils.aoa_to_sheet([
-    MGF_TEMPLATE_COLUMNS,
-    ["15/01/2024", "01/01/2024", "Sinistro", "Em Análise", "Ativo", "5000.00", "3500.00", "ABC1234", "FIAT ARGO", "Cooperativa A", "Regional Sul", "Parcial"]
-  ]);
-  
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Modelo MGF");
-  XLSX.writeFile(wb, "modelo_mgf_importacao.xlsx");
-  toast.success("Modelo baixado com sucesso!");
-};
-
 interface MGFImportacaoProps {
   onImportSuccess: () => void;
   corretoraId: string;
   corretoraNome: string;
 }
 
-// Mapeamento de colunas do Excel para campos do banco
+// Mapeamento completo de colunas do Excel para campos do banco
 const COLUMN_MAP: { [key: string]: string } = {
-  "DATA EVENTO": "data_evento",
-  "DATA_EVENTO": "data_evento",
-  "DATA CADASTRO": "data_cadastro",
-  "DATA_CADASTRO": "data_cadastro",
-  "TIPO EVENTO": "tipo_evento",
-  "TIPO_EVENTO": "tipo_evento",
-  "TIPO": "tipo_evento",
-  "SITUACAO": "situacao",
-  "SITUAÇÃO": "situacao",
-  "STATUS": "status",
+  // Colunas principais
+  "OPERACAO": "operacao",
+  "OPERAÇÃO": "operacao",
+  "SUBOPERACAO": "sub_operacao",
+  "SUBOPERAÇÃO": "sub_operacao",
+  "SUB OPERACAO": "sub_operacao",
+  "SUB OPERAÇÃO": "sub_operacao",
+  "DESCRICAO": "descricao",
+  "DESCRIÇÃO": "descricao",
+  "NOTA FISCAL": "nota_fiscal",
+  "NOTAFISCAL": "nota_fiscal",
   "VALOR": "valor",
+  "VALOR TOTAL LANCAMENTO": "valor_total_lancamento",
+  "VALOR TOTAL LANÇAMENTO": "valor_total_lancamento",
+  "VALORTOTALLANCAMENTO": "valor_total_lancamento",
+  "VALOR PAGAMENTO": "valor_pagamento",
+  "VALORPAGAMENTO": "valor_pagamento",
+  "DATA NOTA FISCAL": "data_nota_fiscal",
+  "DATANOTAFISCAL": "data_nota_fiscal",
+  "DATA VENCIMENTO": "data_vencimento",
+  "DATAVENCIMENTO": "data_vencimento",
+  "SITUACAO": "situacao_pagamento",
+  "SITUAÇÃO": "situacao_pagamento",
+  "QUANTIDADE PARCELA": "quantidade_parcela",
+  "QUANTIDADEPARCELA": "quantidade_parcela",
+  "FORMA PAGAMENTO": "forma_pagamento",
+  "FORMAPAGAMENTO": "forma_pagamento",
+  "DATA VENCIMENTO ORIGINAL": "data_vencimento_original",
+  "DATAVENCIMENTOORIGINAL": "data_vencimento_original",
+  "DATA PAGAMENTO": "data_pagamento",
+  "DATAPAGAMENTO": "data_pagamento",
+  "CONTROLE INTERNO": "controle_interno",
+  "CONTROLEINTERNO": "controle_interno",
+  "VEICULO LANCAMENTO": "veiculo_lancamento",
+  "VEICULOLANCAMENTO": "veiculo_lancamento",
+  "VEÍCULO LANÇAMENTO": "veiculo_lancamento",
+  "TIPO DE VEICULO": "tipo_veiculo",
+  "TIPO DE VEÍCULO": "tipo_veiculo",
+  "TIPOVEICULO": "tipo_veiculo",
+  "CLASSIFICACAO VEICULO LANCAMENTO": "classificacao_veiculo",
+  "CLASSIFICAÇÃO VEICULO LANÇAMENTO": "classificacao_veiculo",
+  "CLASSIFICAÇÃO VEÍCULO LANÇAMENTO": "classificacao_veiculo",
+  "ASSOCIADO": "associado",
+  "CNPJ FORNECEDOR": "cnpj_fornecedor",
+  "CNPJFORNECEDOR": "cnpj_fornecedor",
+  "CPF/CNPJ CLIENTE": "cpf_cnpj_cliente",
+  "CPFCNPJCLIENTE": "cpf_cnpj_cliente",
+  "CPF CNPJ CLIENTE": "cpf_cnpj_cliente",
+  "FORNECEDOR": "fornecedor",
+  "NOME FANTASIA FORNECEDOR": "nome_fantasia_fornecedor",
+  "NOMEFANTASIAFORNECEDOR": "nome_fantasia_fornecedor",
+  "VOLUNTARIO": "voluntario",
+  "VOLUNTÁRIO": "voluntario",
+  "COOPERATIVA": "cooperativa",
+  "CENTRO DE CUSTO/DEPARTAMENTO": "centro_custo",
+  "CENTRO DE CUSTO DEPARTAMENTO": "centro_custo",
+  "CENTROCUSTO": "centro_custo",
+  "MULTA": "multa",
+  "JUROS": "juros",
+  "MES REFERENTE": "mes_referente",
+  "MÊS REFERENTE": "mes_referente",
+  "MESREFERENTE": "mes_referente",
+  "REGIONAL": "regional",
+  "CATEGORIA VEICULO": "categoria_veiculo",
+  "CATEGORIA VEÍCULO": "categoria_veiculo",
+  "CATEGORIAVEICULO": "categoria_veiculo",
+  "IMPOSTOS": "impostos",
+  "PROTOCOLO EVENTO": "protocolo_evento",
+  "PROTOCOLOEVENTO": "protocolo_evento",
+  "VEICULO EVENTO": "veiculo_evento",
+  "VEÍCULO EVENTO": "veiculo_evento",
+  "VEICULOEVENTO": "veiculo_evento",
+  "MOTIVO EVENTO": "motivo_evento",
+  "MOTIVOEVENTO": "motivo_evento",
+  "TERCEIRO (EVENTO)": "terceiro_evento",
+  "TERCEIRO EVENTO": "terceiro_evento",
+  "TERCEIROEVENTO": "terceiro_evento",
+  "DATA EVENTO": "data_evento",
+  "DATAEVENTO": "data_evento",
+  "REGIONAL EVENTO": "regional_evento",
+  "REGIONALEVENTO": "regional_evento",
+  "PLACA TERCEIRO (EVENTO)": "placa_terceiro_evento",
+  "PLACA TERCEIRO EVENTO": "placa_terceiro_evento",
+  "PLACATERCEIROEVENTO": "placa_terceiro_evento",
+  // Campos legados
+  "DATA CADASTRO": "data_cadastro",
+  "TIPO EVENTO": "tipo_evento",
+  "STATUS": "status",
   "CUSTO": "custo",
-  "CUSTO EVENTO": "custo",
   "PLACA": "placa",
   "MODELO": "modelo_veiculo",
   "MODELO VEICULO": "modelo_veiculo",
-  "MODELO_VEICULO": "modelo_veiculo",
-  "COOPERATIVA": "cooperativa",
-  "REGIONAL": "regional",
   "CLASSIFICACAO": "classificacao",
   "CLASSIFICAÇÃO": "classificacao",
+};
+
+// Template columns for MGF
+const MGF_TEMPLATE_COLUMNS = [
+  "Operação",
+  "SubOperação",
+  "Descrição",
+  "Nota Fiscal",
+  "Valor",
+  "Valor Total Lançamento",
+  "Valor Pagamento",
+  "Data Nota Fiscal",
+  "Data Vencimento",
+  "Situacao",
+  "Quantidade Parcela",
+  "Forma Pagamento",
+  "Data Vencimento Original",
+  "Data Pagamento",
+  "Controle Interno",
+  "Veiculo Lancamento",
+  "Tipo de Veículo",
+  "Classificação Veiculo Lancamento",
+  "Associado",
+  "CNPJ Fornecedor",
+  "Cpf/Cnpj Cliente",
+  "Fornecedor",
+  "Nome Fantasia Fornecedor",
+  "Voluntario",
+  "Cooperativa",
+  "Centro de Custo/Departamento",
+  "Multa",
+  "Juros",
+  "Mês Referente",
+  "Regional",
+  "Categoria Veículo",
+  "Impostos",
+  "Protocolo Evento",
+  "Veiculo Evento",
+  "Motivo Evento",
+  "Terceiro (Evento)",
+  "Data Evento",
+  "Regional Evento",
+  "Placa Terceiro (Evento)"
+];
+
+const downloadMGFTemplate = () => {
+  const ws = XLSX.utils.aoa_to_sheet([
+    MGF_TEMPLATE_COLUMNS,
+    [
+      "Despesa", "Manutenção", "Reparo veículo ABC", "NF-001", "1500.00", "1500.00", "1500.00",
+      "01/01/2024", "15/01/2024", "Pago", "1", "PIX", "15/01/2024", "14/01/2024",
+      "CTRL-001", "ABC1234", "Passeio", "Frota", "João Silva", "12.345.678/0001-90",
+      "123.456.789-00", "Oficina Central", "Oficina Central Ltda", "Não", "Cooperativa A",
+      "Manutenção", "0", "0", "Janeiro", "Sul", "Passeio", "0", "EVT-001",
+      "ABC1234", "Colisão", "Não", "01/01/2024", "Sul", ""
+    ]
+  ]);
+  
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Modelo MGF");
+  XLSX.writeFile(wb, "modelo_mgf_importacao.xlsx");
+  toast.success("Modelo baixado com sucesso!");
 };
 
 const normalizeHeader = (header: string): string => {
@@ -83,16 +190,27 @@ const parseExcelDate = (value: any): string | null => {
   }
   
   if (typeof value === "string") {
-    const parts = value.split("/");
+    // Try DD/MM/YYYY format first (Brazilian)
+    let parts = value.split("/");
     if (parts.length === 3) {
-      const [p1, p2, p3] = parts;
-      const month = parseInt(p1);
-      const day = parseInt(p2);
-      let year = parseInt(p3);
-      if (year < 100) year += 2000;
+      let day = parseInt(parts[0]);
+      let month = parseInt(parts[1]);
+      let year = parseInt(parts[2]);
       
-      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      // If first part > 12, assume DD/MM/YYYY
+      if (day > 12) {
+        if (year < 100) year += 2000;
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        }
+      } else {
+        // Could be MM/DD/YYYY or DD/MM/YYYY, assume MM/DD/YYYY
+        const m = parseInt(parts[0]);
+        const d = parseInt(parts[1]);
+        if (year < 100) year += 2000;
+        if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+          return `${year}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        }
       }
     }
   }
@@ -207,6 +325,18 @@ export default function MGFImportacao({ onImportSuccess, corretoraId, corretoraN
       // Processar e inserir dados em batches
       const batchSize = 100;
       const totalBatches = Math.ceil(jsonData.length / batchSize);
+      
+      // Lista de campos de data
+      const dateFields = [
+        "data_nota_fiscal", "data_vencimento", "data_vencimento_original", 
+        "data_pagamento", "data_evento", "data_cadastro"
+      ];
+      
+      // Lista de campos monetários
+      const moneyFields = [
+        "valor", "valor_total_lancamento", "valor_pagamento", 
+        "multa", "juros", "impostos", "custo"
+      ];
 
       for (let i = 0; i < totalBatches; i++) {
         const batch = jsonData.slice(i * batchSize, (i + 1) * batchSize);
@@ -227,10 +357,12 @@ export default function MGFImportacao({ onImportSuccess, corretoraId, corretoraN
             if (dbCol && !processedDbCols.has(dbCol)) {
               processedDbCols.add(dbCol);
               
-              if (dbCol.startsWith("data_")) {
+              if (dateFields.includes(dbCol)) {
                 record[dbCol] = parseExcelDate(value);
-              } else if (["valor", "custo"].includes(dbCol)) {
+              } else if (moneyFields.includes(dbCol)) {
                 record[dbCol] = parseMoneyValue(value);
+              } else if (dbCol === "quantidade_parcela") {
+                record[dbCol] = value ? parseInt(String(value)) || null : null;
               } else {
                 record[dbCol] = value || null;
               }
