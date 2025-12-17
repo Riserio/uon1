@@ -229,7 +229,8 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
         eventos: data.eventos,
         custo: data.custo
       }))
-      .sort((a, b) => a.dia.localeCompare(b.dia));
+      .sort((a, b) => a.dia.localeCompare(b.dia))
+      .slice(-30); // Últimos 30 dias
 
     // Custos por Regional
     const custosPorRegional = eventos.reduce((acc: any, e) => {
