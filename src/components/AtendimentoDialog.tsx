@@ -1200,7 +1200,7 @@ export function AtendimentoDialog({ open, onOpenChange, atendimento, onSave, cor
                                           .single();
 
                                         if (data) {
-                                          setFormData({ ...formData, corretora: data.id });
+                                          setFormData(prev => ({ ...prev, corretora: data.id }));
                                           setCorretoraDisplay(c);
                                         }
                                         setCorretoraSearchOpen(false);
