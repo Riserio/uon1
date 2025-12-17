@@ -4,8 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { Database, Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import * as XLSX from "xlsx";
+import { cn } from "@/lib/utils";
 
 interface MGFTabelaProps {
   dados: any[];
@@ -58,6 +60,33 @@ const ALL_COLUMNS = [
   { key: "placa_terceiro_evento", label: "Placa Terceiro (Evento)" },
 ];
 
+// Função para determinar status de vencimento
+const getVencimentoStatus = (dataVencimento: string | null, situacao: string | null, dataPagamento: string | null) => {
+  if (!dataVencimento) return null;
+  if (situacao?.toLowerCase().includes('pago') || dataPagamento) return 'pago';
+  
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const venc = new Date(dataVencimento);
+  
+  if (venc < hoje) return 'vencido';
+  
+  const diffDias = Math.ceil((venc.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDias <= 7) return 'vence_7';
+  if (diffDias <= 30) return 'vence_30';
+  return 'futuro';
+};
+
+// Função para cor da situação
+const getSituacaoColor = (situacao: string | null) => {
+  if (!situacao) return "";
+  const s = situacao.toLowerCase();
+  if (s.includes('pago')) return "bg-green-500/20 text-green-700 border-green-500/30";
+  if (s.includes('pendente') || s.includes('aberto')) return "bg-yellow-500/20 text-yellow-700 border-yellow-500/30";
+  if (s.includes('cancel') || s.includes('vencid')) return "bg-red-500/20 text-red-700 border-red-500/30";
+  return "bg-blue-500/20 text-blue-700 border-blue-500/30";
+};
+
 export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -95,10 +124,39 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
     XLSX.writeFile(wb, "mgf_dados_exportados.xlsx");
   };
 
-  const formatCellValue = (value: any, key: string) => {
+  const formatCellValue = (value: any, key: string, row: any) => {
     if (value === null || value === undefined) return "-";
     
-    // Datas
+    // Situação com badge colorido
+    if (key === "situacao_pagamento" && value) {
+      return (
+        <Badge variant="outline" className={cn("text-[10px] font-medium", getSituacaoColor(value))}>
+          {value}
+        </Badge>
+      );
+    }
+    
+    // Data de vencimento com destaque de cor
+    if (key === "data_vencimento" && value) {
+      const status = getVencimentoStatus(value, row.situacao_pagamento, row.data_pagamento);
+      const formattedDate = new Date(value).toLocaleDateString("pt-BR");
+      
+      if (status === 'vencido') {
+        return <span className="text-red-600 font-semibold">{formattedDate}</span>;
+      }
+      if (status === 'vence_7') {
+        return <span className="text-orange-600 font-semibold">{formattedDate}</span>;
+      }
+      if (status === 'vence_30') {
+        return <span className="text-yellow-600 font-medium">{formattedDate}</span>;
+      }
+      if (status === 'pago') {
+        return <span className="text-green-600">{formattedDate}</span>;
+      }
+      return formattedDate;
+    }
+    
+    // Outras datas
     if (key.includes("data_") && value) {
       try {
         return new Date(value).toLocaleDateString("pt-BR");
@@ -107,8 +165,26 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
       }
     }
     
-    // Valores monetários
-    if (["valor", "valor_total_lancamento", "valor_pagamento", "multa", "juros", "impostos"].includes(key)) {
+    // Valores monetários com destaque
+    if (["valor", "valor_total_lancamento", "valor_pagamento"].includes(key)) {
+      const formatted = new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+      }).format(value || 0);
+      return <span className="font-medium text-blue-600">{formatted}</span>;
+    }
+    
+    // Multa e juros em vermelho se > 0
+    if (["multa", "juros"].includes(key)) {
+      const formatted = new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+      }).format(value || 0);
+      return value > 0 ? <span className="text-red-600">{formatted}</span> : formatted;
+    }
+    
+    // Impostos
+    if (key === "impostos") {
       return new Intl.NumberFormat("pt-BR", {
         style: "currency",
         currency: "BRL",
@@ -116,6 +192,15 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
     }
     
     return String(value);
+  };
+
+  // Row background based on status
+  const getRowClassName = (row: any) => {
+    const status = getVencimentoStatus(row.data_vencimento, row.situacao_pagamento, row.data_pagamento);
+    if (status === 'vencido') return "bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30";
+    if (status === 'vence_7') return "bg-orange-50 dark:bg-orange-950/20 hover:bg-orange-100 dark:hover:bg-orange-950/30";
+    if (status === 'pago') return "bg-green-50 dark:bg-green-950/10 hover:bg-green-100 dark:hover:bg-green-950/20";
+    return "hover:bg-muted/50";
   };
 
   if (loading) {
@@ -184,10 +269,10 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
               </TableHeader>
               <TableBody>
                 {paginatedDados.map((d, i) => (
-                  <TableRow key={d.id || i} className="hover:bg-muted/50">
+                  <TableRow key={d.id || i} className={getRowClassName(d)}>
                     {ALL_COLUMNS.map((col) => (
                       <TableCell key={col.key} className="whitespace-nowrap text-xs">
-                        {formatCellValue(d[col.key], col.key)}
+                        {formatCellValue(d[col.key], col.key, d)}
                       </TableCell>
                     ))}
                   </TableRow>
