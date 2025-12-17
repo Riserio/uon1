@@ -202,12 +202,15 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
       return acc;
     }, {});
     const timelineData = Object.entries(porMes)
-      .map(([mes, data]: [string, any]) => ({
-        mes,
-        mesLabel: new Date(mes + "-01").toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-        eventos: data.eventos,
-        custo: data.custo
-      }))
+      .map(([mes, data]: [string, any]) => {
+        const [year, month] = mes.split('-');
+        return {
+          mes,
+          mesLabel: `${month}/${year.slice(2)}`,
+          eventos: data.eventos,
+          custo: data.custo
+        };
+      })
       .sort((a, b) => a.mes.localeCompare(b.mes));
 
     // Timeline por dia
