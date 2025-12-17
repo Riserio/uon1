@@ -2,17 +2,34 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Upload, Database, BarChart3, History, Filter } from "lucide-react";
+import { ArrowLeft, Upload, Database, BarChart3, History, Filter, X, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import MGFDashboard from "@/components/mgf/MGFDashboard";
 import MGFImportacao from "@/components/mgf/MGFImportacao";
 import MGFTabela from "@/components/mgf/MGFTabela";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { DateRange } from "react-day-picker";
+
+export interface MGFFilters {
+  operacao: string;
+  subOperacao: string;
+  situacao: string;
+  cooperativa: string;
+  regional: string;
+  formaPagamento: string;
+  tipoVeiculo: string;
+  dateRange: DateRange | undefined;
+}
 
 export default function MGFInsights() {
   const navigate = useNavigate();
@@ -30,6 +47,18 @@ export default function MGFInsights() {
   const [selectedAssociacao, setSelectedAssociacao] = useState<string>("");
   const [loadingAssociacoes, setLoadingAssociacoes] = useState(true);
 
+  // Filtros globais (estilo SGA)
+  const [filters, setFilters] = useState<MGFFilters>({
+    operacao: "all",
+    subOperacao: "all",
+    situacao: "all",
+    cooperativa: "all",
+    regional: "all",
+    formaPagamento: "all",
+    tipoVeiculo: "all",
+    dateRange: undefined,
+  });
+
   // Verifica se pode ver histórico (superintendente ou admin)
   const canViewHistorico = userRole === "superintendente" || userRole === "admin";
 
@@ -46,7 +75,6 @@ export default function MGFInsights() {
 
         setAssociacoes(data || []);
         
-        // Pegar associação da URL ou usar a primeira
         const associacaoParam = searchParams.get("associacao");
         if (associacaoParam && data?.some(c => c.id === associacaoParam)) {
           setSelectedAssociacao(associacaoParam);
@@ -75,7 +103,6 @@ export default function MGFInsights() {
 
     setLoading(true);
     try {
-      // Buscar importação ativa para a associação selecionada
       const { data: importacao, error: impError } = await supabase
         .from("mgf_importacoes")
         .select("*")
@@ -93,7 +120,6 @@ export default function MGFInsights() {
         setImportacaoAtiva(importacao);
         setColunas(Array.isArray(importacao.colunas_detectadas) ? importacao.colunas_detectadas as string[] : []);
         
-        // Buscar dados em lotes
         const BATCH_SIZE = 1000;
         let allDados: any[] = [];
         let hasMore = true;
@@ -142,6 +168,103 @@ export default function MGFInsights() {
     }
   }, [selectedAssociacao]);
 
+  // Extrair opções únicas para filtros
+  const filterOptions = useMemo(() => {
+    const operacoes = new Set<string>();
+    const subOperacoes = new Set<string>();
+    const situacoes = new Set<string>();
+    const cooperativas = new Set<string>();
+    const regionais = new Set<string>();
+    const formasPagamento = new Set<string>();
+    const tiposVeiculo = new Set<string>();
+
+    dados.forEach(d => {
+      if (d.operacao) operacoes.add(d.operacao);
+      if (d.sub_operacao) subOperacoes.add(d.sub_operacao);
+      if (d.situacao_pagamento) situacoes.add(d.situacao_pagamento);
+      if (d.cooperativa) cooperativas.add(d.cooperativa);
+      if (d.regional || d.regional_evento) regionais.add(d.regional || d.regional_evento);
+      if (d.forma_pagamento) formasPagamento.add(d.forma_pagamento);
+      if (d.tipo_veiculo || d.categoria_veiculo) tiposVeiculo.add(d.tipo_veiculo || d.categoria_veiculo);
+    });
+
+    return {
+      operacoes: Array.from(operacoes).sort(),
+      subOperacoes: Array.from(subOperacoes).sort(),
+      situacoes: Array.from(situacoes).sort(),
+      cooperativas: Array.from(cooperativas).sort(),
+      regionais: Array.from(regionais).sort(),
+      formasPagamento: Array.from(formasPagamento).sort(),
+      tiposVeiculo: Array.from(tiposVeiculo).sort(),
+    };
+  }, [dados]);
+
+  // Aplicar filtros
+  const filteredDados = useMemo(() => {
+    let result = dados;
+
+    if (filters.operacao !== "all") {
+      result = result.filter(d => d.operacao === filters.operacao);
+    }
+    if (filters.subOperacao !== "all") {
+      result = result.filter(d => d.sub_operacao === filters.subOperacao);
+    }
+    if (filters.situacao !== "all") {
+      result = result.filter(d => d.situacao_pagamento === filters.situacao);
+    }
+    if (filters.cooperativa !== "all") {
+      result = result.filter(d => d.cooperativa === filters.cooperativa);
+    }
+    if (filters.regional !== "all") {
+      result = result.filter(d => (d.regional || d.regional_evento) === filters.regional);
+    }
+    if (filters.formaPagamento !== "all") {
+      result = result.filter(d => d.forma_pagamento === filters.formaPagamento);
+    }
+    if (filters.tipoVeiculo !== "all") {
+      result = result.filter(d => (d.tipo_veiculo || d.categoria_veiculo) === filters.tipoVeiculo);
+    }
+    if (filters.dateRange?.from) {
+      result = result.filter(d => {
+        const dataRef = d.data_vencimento || d.data_evento || d.data_nota_fiscal;
+        if (!dataRef) return false;
+        const date = new Date(dataRef);
+        if (filters.dateRange?.from && date < filters.dateRange.from) return false;
+        if (filters.dateRange?.to && date > filters.dateRange.to) return false;
+        return true;
+      });
+    }
+
+    return result;
+  }, [dados, filters]);
+
+  // Contar filtros ativos
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.operacao !== "all") count++;
+    if (filters.subOperacao !== "all") count++;
+    if (filters.situacao !== "all") count++;
+    if (filters.cooperativa !== "all") count++;
+    if (filters.regional !== "all") count++;
+    if (filters.formaPagamento !== "all") count++;
+    if (filters.tipoVeiculo !== "all") count++;
+    if (filters.dateRange?.from) count++;
+    return count;
+  }, [filters]);
+
+  const clearFilters = () => {
+    setFilters({
+      operacao: "all",
+      subOperacao: "all",
+      situacao: "all",
+      cooperativa: "all",
+      regional: "all",
+      formaPagamento: "all",
+      tipoVeiculo: "all",
+      dateRange: undefined,
+    });
+  };
+
   const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome || "";
 
   const tabs = [
@@ -186,7 +309,7 @@ export default function MGFInsights() {
             {importacaoAtiva && (
               <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
                 <Database className="h-4 w-4" />
-                <span>{dados.length.toLocaleString()} registros</span>
+                <span>{filteredDados.length.toLocaleString()} registros</span>
                 <span className="text-muted-foreground/50">|</span>
                 <span>{importacaoAtiva.nome_arquivo}</span>
               </div>
@@ -222,6 +345,153 @@ export default function MGFInsights() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Filtros Globais (estilo SGA) */}
+          {dados.length > 0 && (
+            <Card className="border-orange-500/20 bg-card/50 backdrop-blur">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Filter className="h-4 w-4 text-orange-500" />
+                  <span className="font-semibold text-sm">Filtros Globais</span>
+                  {activeFiltersCount > 0 && (
+                    <>
+                      <Badge variant="secondary" className="ml-2">
+                        {activeFiltersCount} ativo{activeFiltersCount > 1 ? "s" : ""}
+                      </Badge>
+                      <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-2 text-xs">
+                        <X className="h-3 w-3 mr-1" />
+                        Limpar
+                      </Button>
+                    </>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2">
+                  {/* Operação */}
+                  <Select value={filters.operacao} onValueChange={(v) => setFilters(f => ({ ...f, operacao: v }))}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Operação" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Operações</SelectItem>
+                      {filterOptions.operacoes.map(o => (
+                        <SelectItem key={o} value={o}>{o}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* SubOperação */}
+                  <Select value={filters.subOperacao} onValueChange={(v) => setFilters(f => ({ ...f, subOperacao: v }))}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="SubOperação" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas SubOp.</SelectItem>
+                      {filterOptions.subOperacoes.map(o => (
+                        <SelectItem key={o} value={o}>{o}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Situação */}
+                  <Select value={filters.situacao} onValueChange={(v) => setFilters(f => ({ ...f, situacao: v }))}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Situação" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Situações</SelectItem>
+                      {filterOptions.situacoes.map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Cooperativa */}
+                  <Select value={filters.cooperativa} onValueChange={(v) => setFilters(f => ({ ...f, cooperativa: v }))}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Cooperativa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Cooperativas</SelectItem>
+                      {filterOptions.cooperativas.map(c => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Regional */}
+                  <Select value={filters.regional} onValueChange={(v) => setFilters(f => ({ ...f, regional: v }))}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Regional" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Regionais</SelectItem>
+                      {filterOptions.regionais.map(r => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Forma Pagamento */}
+                  <Select value={filters.formaPagamento} onValueChange={(v) => setFilters(f => ({ ...f, formaPagamento: v }))}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Forma Pgto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Formas</SelectItem>
+                      {filterOptions.formasPagamento.map(f => (
+                        <SelectItem key={f} value={f}>{f}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Tipo Veículo */}
+                  <Select value={filters.tipoVeiculo} onValueChange={(v) => setFilters(f => ({ ...f, tipoVeiculo: v }))}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Tipo Veículo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos Tipos</SelectItem>
+                      {filterOptions.tiposVeiculo.map(t => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Período */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="h-9 text-xs justify-start gap-1 px-2">
+                        <Calendar className="h-3 w-3" />
+                        {filters.dateRange?.from ? (
+                          filters.dateRange.to ? (
+                            <span className="truncate">
+                              {format(filters.dateRange.from, "dd/MM", { locale: ptBR })} - {format(filters.dateRange.to, "dd/MM", { locale: ptBR })}
+                            </span>
+                          ) : (
+                            format(filters.dateRange.from, "dd/MM/yy", { locale: ptBR })
+                          )
+                        ) : (
+                          "Período"
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        initialFocus
+                        mode="range"
+                        defaultMonth={filters.dateRange?.from}
+                        selected={filters.dateRange}
+                        onSelect={(range) => setFilters(f => ({ ...f, dateRange: range }))}
+                        numberOfMonths={2}
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
@@ -239,7 +509,7 @@ export default function MGFInsights() {
 
           <TabsContent value="dashboard">
             <MGFDashboard 
-              dados={dados} 
+              dados={filteredDados} 
               colunas={colunas}
               loading={loading} 
               associacaoNome={selectedAssociacaoNome}
@@ -248,7 +518,7 @@ export default function MGFInsights() {
 
           <TabsContent value="tabela">
             <MGFTabela 
-              dados={dados} 
+              dados={filteredDados} 
               colunas={colunas}
               loading={loading} 
             />
