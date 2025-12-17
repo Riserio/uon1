@@ -5,11 +5,39 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import MGFHistoricoImportacoes from "./MGFHistoricoImportacoes";
 import { useBIAuditLog } from "@/hooks/useBIAuditLog";
+
+// Template columns for MGF
+const MGF_TEMPLATE_COLUMNS = [
+  "DATA EVENTO",
+  "DATA CADASTRO",
+  "TIPO EVENTO",
+  "SITUACAO",
+  "STATUS",
+  "VALOR",
+  "CUSTO",
+  "PLACA",
+  "MODELO VEICULO",
+  "COOPERATIVA",
+  "REGIONAL",
+  "CLASSIFICACAO"
+];
+
+const downloadMGFTemplate = () => {
+  const ws = XLSX.utils.aoa_to_sheet([
+    MGF_TEMPLATE_COLUMNS,
+    ["15/01/2024", "01/01/2024", "Sinistro", "Em Análise", "Ativo", "5000.00", "3500.00", "ABC1234", "FIAT ARGO", "Cooperativa A", "Regional Sul", "Parcial"]
+  ]);
+  
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Modelo MGF");
+  XLSX.writeFile(wb, "modelo_mgf_importacao.xlsx");
+  toast.success("Modelo baixado com sucesso!");
+};
 
 interface MGFImportacaoProps {
   onImportSuccess: () => void;
@@ -279,10 +307,16 @@ export default function MGFImportacao({ onImportSuccess, corretoraId, corretoraN
       {/* Upload Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5 text-orange-500" />
-            Importar Planilha MGF
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-orange-500" />
+              Importar Planilha MGF
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={downloadMGFTemplate}>
+              <Download className="h-4 w-4 mr-2" />
+              Baixar Modelo
+            </Button>
+          </div>
           <CardDescription>
             Importando dados para: <span className="font-semibold text-foreground">{corretoraNome}</span>
             <br />
