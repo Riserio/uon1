@@ -5,14 +5,14 @@ import {
   PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area 
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle } from "lucide-react";
+import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle, Building2, Truck } from "lucide-react";
 
 interface SGADashboardProps {
   eventos: any[];
   loading: boolean;
 }
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#14b8a6'];
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -61,6 +61,16 @@ const CustomTooltip = ({ active, payload, label, isCurrency = false }: any) => {
     );
   }
   return null;
+};
+
+// Detectar tipo de veículo baseado no modelo
+const getTipoVeiculo = (modelo: string): string => {
+  if (!modelo) return "Não Informado";
+  const m = modelo.toLowerCase();
+  if (m.includes("moto") || m.includes("honda") || m.includes("yamaha") || m.includes("suzuki") || m.includes("kawasaki")) return "Motocicleta";
+  if (m.includes("caminhao") || m.includes("caminhão") || m.includes("truck") || m.includes("scania") || m.includes("volvo") || m.includes("mercedes")) return "Caminhão";
+  if (m.includes("van") || m.includes("furgao") || m.includes("furgão") || m.includes("sprinter")) return "Van/Utilitário";
+  return "Passeio";
 };
 
 export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
@@ -131,6 +141,52 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
       .map(([name, value]) => ({ name, value }))
       .sort((a: any, b: any) => b.value - a.value);
 
+    // Por Cooperativa
+    const porCooperativa = eventos.reduce((acc: any, e) => {
+      const cooperativa = e.cooperativa || "";
+      if (cooperativa && cooperativa !== "N/I" && cooperativa !== "NAO INFORMADO") {
+        acc[cooperativa] = (acc[cooperativa] || 0) + 1;
+      }
+      return acc;
+    }, {});
+    const cooperativaData = Object.entries(porCooperativa)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a: any, b: any) => b.value - a.value)
+      .slice(0, 10);
+
+    // Custos por Cooperativa
+    const custosPorCooperativa = eventos.reduce((acc: any, e) => {
+      const cooperativa = e.cooperativa || "";
+      if (cooperativa && cooperativa !== "N/I" && cooperativa !== "NAO INFORMADO") {
+        acc[cooperativa] = (acc[cooperativa] || 0) + (e.custo_evento || 0);
+      }
+      return acc;
+    }, {});
+    const custosCooperativaData = Object.entries(custosPorCooperativa)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a: any, b: any) => b.value - a.value)
+      .slice(0, 10);
+
+    // Por Tipo de Veículo
+    const porTipoVeiculo = eventos.reduce((acc: any, e) => {
+      const tipo = getTipoVeiculo(e.modelo_veiculo);
+      acc[tipo] = (acc[tipo] || 0) + 1;
+      return acc;
+    }, {});
+    const tipoVeiculoData = Object.entries(porTipoVeiculo)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a: any, b: any) => b.value - a.value);
+
+    // Custos por Tipo de Veículo
+    const custosPorTipoVeiculo = eventos.reduce((acc: any, e) => {
+      const tipo = getTipoVeiculo(e.modelo_veiculo);
+      acc[tipo] = (acc[tipo] || 0) + (e.custo_evento || 0);
+      return acc;
+    }, {});
+    const custosTipoVeiculoData = Object.entries(custosPorTipoVeiculo)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a: any, b: any) => b.value - a.value);
+
     // Timeline por mês
     const porMes = eventos.reduce((acc: any, e) => {
       if (e.data_evento) {
@@ -181,6 +237,10 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
       situacaoData,
       regionalData,
       tipoData,
+      cooperativaData,
+      custosCooperativaData,
+      tipoVeiculoData,
+      custosTipoVeiculoData,
       timelineData,
       custosRegionalData,
       envolvimentoData,
@@ -309,6 +369,134 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+
+      {/* Por Tipo de Veículo */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Truck className="h-5 w-5 text-primary" />
+              Eventos por Tipo de Veículo
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <ResponsiveContainer width="50%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={stats.tipoVeiculoData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={70}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {stats.tipoVeiculoData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: number) => [value.toLocaleString('pt-BR'), 'Quantidade']} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex-1 space-y-2">
+                {stats.tipoVeiculoData.map((item, index) => (
+                  <div key={item.name} className="flex items-center gap-2 text-sm">
+                    <div 
+                      className="w-3 h-3 rounded-full shrink-0" 
+                      style={{ backgroundColor: COLORS[index % COLORS.length] }} 
+                    />
+                    <span className="truncate flex-1">{item.name}</span>
+                    <span className="font-medium text-muted-foreground">{String(item.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Custos por Tipo de Veículo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={stats.custosTipoVeiculoData} layout="vertical" margin={{ left: 10, right: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                <XAxis 
+                  type="number" 
+                  tick={{ fontSize: 10 }} 
+                  tickFormatter={(v) => formatCompactCurrency(v)}
+                />
+                <YAxis 
+                  type="category" 
+                  dataKey="name" 
+                  tick={{ fontSize: 10 }} 
+                  width={80}
+                />
+                <Tooltip content={<CustomTooltip isCurrency />} />
+                <Bar dataKey="value" fill="#f59e0b" radius={[0, 4, 4, 0]} name="Custo" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Por Cooperativa */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Building2 className="h-5 w-5 text-primary" />
+              Eventos por Cooperativa (Top 10)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={stats.cooperativaData} layout="vertical" margin={{ left: 20, right: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis 
+                  type="category" 
+                  dataKey="name" 
+                  tick={{ fontSize: 10 }} 
+                  width={140}
+                  tickFormatter={(v) => truncateText(v, 20)}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="value" fill="#06b6d4" radius={[0, 4, 4, 0]} name="Eventos" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Custos por Cooperativa (Top 10)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={stats.custosCooperativaData} layout="vertical" margin={{ left: 20, right: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                <XAxis 
+                  type="number" 
+                  tick={{ fontSize: 10 }} 
+                  tickFormatter={(v) => formatCompactCurrency(v)}
+                />
+                <YAxis 
+                  type="category" 
+                  dataKey="name" 
+                  tick={{ fontSize: 10 }} 
+                  width={140}
+                  tickFormatter={(v) => truncateText(v, 20)}
+                />
+                <Tooltip content={<CustomTooltip isCurrency />} />
+                <Bar dataKey="value" fill="#ec4899" radius={[0, 4, 4, 0]} name="Custo" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Por Situação - Full Width */}
       <Card>
@@ -463,10 +651,13 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                   {stats.tipoData.map((item, i) => (
                     <div key={item.name} className="flex items-center justify-between py-1">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                        <span className="text-sm truncate" title={item.name}>{item.name}</span>
+                        <div 
+                          className="w-2.5 h-2.5 rounded-full" 
+                          style={{ backgroundColor: COLORS[i % COLORS.length] }} 
+                        />
+                        <span className="text-sm truncate max-w-[120px]" title={item.name}>{item.name}</span>
                       </div>
-                      <span className="text-sm font-medium ml-2">{String(item.value)}</span>
+                      <span className="text-sm font-medium">{String(item.value)}</span>
                     </div>
                   ))}
                 </div>
@@ -477,10 +668,13 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                   {stats.envolvimentoData.map((item, i) => (
                     <div key={item.name} className="flex items-center justify-between py-1">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[(i + 3) % COLORS.length] }} />
-                        <span className="text-sm truncate" title={item.name}>{item.name}</span>
+                        <div 
+                          className="w-2.5 h-2.5 rounded-full" 
+                          style={{ backgroundColor: COLORS[(i + 4) % COLORS.length] }} 
+                        />
+                        <span className="text-sm truncate max-w-[120px]" title={item.name}>{item.name}</span>
                       </div>
-                      <span className="text-sm font-medium ml-2">{String(item.value)}</span>
+                      <span className="text-sm font-medium">{String(item.value)}</span>
                     </div>
                   ))}
                 </div>
