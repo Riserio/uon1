@@ -46,7 +46,7 @@ export default function PID() {
 
         setAssociacoes(data || []);
         
-        const associacaoParam = searchParams.get("corretora");
+        const associacaoParam = searchParams.get("associacao") || searchParams.get("corretora");
         if (associacaoParam && data?.some(c => c.id === associacaoParam)) {
           setSelectedAssociacao(associacaoParam);
         } else if (data && data.length > 0) {
