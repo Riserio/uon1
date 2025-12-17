@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter } from "lucide-react";
+import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import SGADashboard from "@/components/sga/SGADashboard";
 import SGAImportacao from "@/components/sga/SGAImportacao";
@@ -258,6 +258,15 @@ export default function SGAInsights() {
                 Business Intelligence de Eventos do SGA
               </p>
             </div>
+            
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/mgf-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+              className="gap-2 border-orange-500/30 hover:bg-orange-500/10"
+            >
+              <DollarSign className="h-4 w-4" />
+              <span className="hidden sm:inline">MGF Insights</span>
+            </Button>
             
             {/* Botão Histórico - só para superintendente e admin */}
             {canViewHistorico && (
