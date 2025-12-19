@@ -42,6 +42,7 @@ export default function Portal() {
   const navigate = useNavigate();
   const [corretora, setCorretora] = useState<Corretora | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notLinked, setNotLinked] = useState(false);
 
   useEffect(() => {
     async function loadCorretoraData() {
@@ -61,24 +62,18 @@ export default function Portal() {
           .eq("ativo", true)
           .single<CorretoraUsuarioResult>();
 
-        if (error) {
-          // erro típico de "nenhuma linha" no .single()
-          console.error("Erro ao buscar corretora_usuarios:", error);
-          toast.error("Você não está vinculado a nenhuma corretora");
-          navigate("/", { replace: true });
+        if (error || !data?.corretoras) {
+          // Usuário não está vinculado a nenhuma corretora
+          console.error("Usuário não vinculado a corretora:", error);
+          setNotLinked(true);
+          setLoading(false);
           return;
         }
 
-        if (data?.corretoras) {
-          setCorretora(data.corretoras);
-        } else {
-          toast.error("Você não está vinculado a nenhuma corretora");
-          navigate("/", { replace: true });
-        }
+        setCorretora(data.corretoras);
       } catch (error) {
         console.error("Erro ao carregar dados da corretora:", error);
-        toast.error("Erro ao carregar dados da corretora");
-        navigate("/", { replace: true });
+        setNotLinked(true);
       } finally {
         setLoading(false);
       }
@@ -103,9 +98,32 @@ export default function Portal() {
     );
   }
 
-  if (!corretora) {
-    // já tratamos com toast + navigate no efeito; aqui só evita quebrar render
-    return null;
+  // Usuário não está vinculado a nenhuma associação - mostrar mensagem informativa
+  if (notLinked || !corretora) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
+        <Card className="max-w-md w-full shadow-lg">
+          <CardContent className="p-8 text-center space-y-6">
+            <div className="mx-auto h-16 w-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+              <Building2 className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold">Vinculação Necessária</h2>
+              <p className="text-muted-foreground text-sm">
+                Sua conta ainda não está vinculada a nenhuma associação.
+              </p>
+              <p className="text-muted-foreground text-sm">
+                Por favor, entre em contato com o administrador do sistema para solicitar a vinculação à sua associação.
+              </p>
+            </div>
+            <Button onClick={handleLogout} variant="outline" className="w-full gap-2">
+              <LogOut className="h-4 w-4" />
+              Sair
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const tabs = [
