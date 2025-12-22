@@ -266,14 +266,19 @@ export default function Portal() {
               )}
               <Button 
                 variant="outline" 
-                onClick={() => navigate({
-                  pathname: "/portal/sga-insights",
-                  search: `?associacao=${corretora.id}`
-                })}
+                onClick={() => navigate(`/portal/sga-insights?associacao=${corretora.id}`)}
                 className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
               >
                 <TrendingUp className="h-4 w-4" />
-                <span className="hidden sm:inline">SGA Insights</span>
+                <span className="hidden sm:inline">SGA</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => navigate(`/portal/mgf-insights?associacao=${corretora.id}`)}
+                className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
+              >
+                <Activity className="h-4 w-4" />
+                <span className="hidden sm:inline">MGF</span>
               </Button>
               <Button variant="outline" onClick={handleLogout} className="gap-2 px-3 sm:px-4 text-xs sm:text-sm">
                 <LogOut className="h-4 w-4" />
