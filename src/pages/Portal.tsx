@@ -11,7 +11,7 @@ import PortalSinistros from "@/components/portal/PortalSinistros";
 import PortalComite from "@/components/portal/PortalComite";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare, TrendingUp } from "lucide-react";
+import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare, TrendingUp, ArrowLeftRight } from "lucide-react";
 import { toast } from "sonner";
 
 /**
@@ -41,6 +41,8 @@ export default function Portal() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [corretora, setCorretora] = useState<Corretora | null>(null);
+  const [corretorasDisponiveis, setCorretorasDisponiveis] = useState<Corretora[]>([]);
+  const [showSelection, setShowSelection] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notLinked, setNotLinked] = useState(false);
 
@@ -55,14 +57,14 @@ export default function Portal() {
       }
 
       try {
+        // Busca TODAS as corretoras vinculadas ao usuário
         const { data, error } = await supabase
           .from("corretora_usuarios")
           .select("corretora_id, corretoras(id, nome, logo_url)")
           .eq("profile_id", user.id)
-          .eq("ativo", true)
-          .limit(1);
+          .eq("ativo", true);
 
-        if (error || !data || data.length === 0 || !data[0]?.corretoras) {
+        if (error || !data || data.length === 0) {
           // Usuário não está vinculado a nenhuma corretora
           console.error("Usuário não vinculado a corretora:", error);
           setNotLinked(true);
@@ -70,7 +72,25 @@ export default function Portal() {
           return;
         }
 
-        setCorretora(data[0].corretoras as Corretora);
+        // Filtrar resultados válidos (com corretoras)
+        const corretorasValidas = data
+          .filter(item => item.corretoras)
+          .map(item => item.corretoras as Corretora);
+
+        if (corretorasValidas.length === 0) {
+          setNotLinked(true);
+          setLoading(false);
+          return;
+        }
+
+        // Se tem apenas uma corretora, seleciona automaticamente
+        if (corretorasValidas.length === 1) {
+          setCorretora(corretorasValidas[0]);
+        } else {
+          // Se tem múltiplas, mostra tela de seleção
+          setCorretorasDisponiveis(corretorasValidas);
+          setShowSelection(true);
+        }
       } catch (error) {
         console.error("Erro ao carregar dados da corretora:", error);
         setNotLinked(true);
@@ -81,6 +101,16 @@ export default function Portal() {
 
     loadCorretoraData();
   }, [user, authLoading, navigate]);
+
+  const handleSelectCorretora = (selectedCorretora: Corretora) => {
+    setCorretora(selectedCorretora);
+    setShowSelection(false);
+  };
+
+  const handleChangeCorretora = () => {
+    setCorretora(null);
+    setShowSelection(true);
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -99,7 +129,7 @@ export default function Portal() {
   }
 
   // Usuário não está vinculado a nenhuma associação - mostrar mensagem informativa
-  if (notLinked || !corretora) {
+  if (notLinked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
         <Card className="max-w-md w-full shadow-lg">
@@ -122,6 +152,70 @@ export default function Portal() {
             </Button>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  // Mostrar tela de seleção quando vinculado a múltiplas associações
+  if (showSelection && corretorasDisponiveis.length > 1) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
+        <Card className="max-w-lg w-full shadow-lg">
+          <CardContent className="p-8 space-y-6">
+            <div className="text-center space-y-2">
+              <div className="mx-auto h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <Building2 className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-xl font-bold">Selecione a Associação</h2>
+              <p className="text-muted-foreground text-sm">
+                Você está vinculado a múltiplas associações. Selecione qual deseja visualizar.
+              </p>
+            </div>
+            
+            <div className="space-y-3">
+              {corretorasDisponiveis.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleSelectCorretora(item)}
+                  className="w-full flex items-center gap-4 p-4 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 transition-all duration-200 text-left"
+                >
+                  {item.logo_url ? (
+                    <img
+                      src={item.logo_url}
+                      alt={item.nome}
+                      className="h-12 w-12 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                      <Building2 className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{item.nome}</p>
+                    <p className="text-sm text-muted-foreground">Clique para acessar</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <Button onClick={handleLogout} variant="outline" className="w-full gap-2">
+              <LogOut className="h-4 w-4" />
+              Sair
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Se não tem corretora selecionada (não deveria acontecer), mostrar loading
+  if (!corretora) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
       </div>
     );
   }
@@ -159,6 +253,17 @@ export default function Portal() {
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3 justify-end">
+              {corretorasDisponiveis.length > 1 && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleChangeCorretora}
+                  className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
+                  title="Trocar associação"
+                >
+                  <ArrowLeftRight className="h-4 w-4" />
+                  <span className="hidden sm:inline">Trocar</span>
+                </Button>
+              )}
               <Button 
                 variant="outline" 
                 onClick={() => navigate({
