@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ type CorretoraUsuarioResult = {
 export default function Portal() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [corretora, setCorretora] = useState<Corretora | null>(null);
   const [corretorasDisponiveis, setCorretorasDisponiveis] = useState<Corretora[]>([]);
   const [showSelection, setShowSelection] = useState(false);
@@ -81,6 +82,18 @@ export default function Portal() {
           setNotLinked(true);
           setLoading(false);
           return;
+        }
+
+        // Verificar se tem associação na URL (vindo do MGF/SGA)
+        const associacaoParam = searchParams.get("associacao");
+        if (associacaoParam) {
+          const associacaoSelecionada = corretorasValidas.find(c => c.id === associacaoParam);
+          if (associacaoSelecionada) {
+            setCorretora(associacaoSelecionada);
+            setCorretorasDisponiveis(corretorasValidas);
+            setLoading(false);
+            return;
+          }
         }
 
         // Se tem apenas uma corretora, seleciona automaticamente
