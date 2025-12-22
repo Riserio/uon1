@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,8 +33,12 @@ export interface MGFFilters {
 
 export default function MGFInsights() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { userRole } = useAuth();
+  
+  // Detectar se é acesso via portal (parceiro)
+  const isPortalAccess = location.pathname.startsWith('/portal');
   const [activeTab, setActiveTab] = useState("dashboard");
   const [dados, setDados] = useState<any[]>([]);
   const [colunas, setColunas] = useState<string[]>([]);
@@ -66,20 +70,40 @@ export default function MGFInsights() {
   useEffect(() => {
     async function fetchAssociacoes() {
       try {
-        const { data, error } = await supabase
-          .from("corretoras")
-          .select("id, nome")
-          .order("nome");
-
-        if (error) throw error;
-
-        setAssociacoes(data || []);
-        
+        // Se é acesso via portal, usar apenas a associação da URL
         const associacaoParam = searchParams.get("associacao");
-        if (associacaoParam && data?.some(c => c.id === associacaoParam)) {
-          setSelectedAssociacao(associacaoParam);
-        } else if (data && data.length > 0) {
-          setSelectedAssociacao(data[0].id);
+        
+        if (isPortalAccess && associacaoParam) {
+          // Para parceiros, buscar apenas a associação específica
+          const { data, error } = await supabase
+            .from("corretoras")
+            .select("id, nome")
+            .eq("id", associacaoParam)
+            .single();
+
+          if (error) throw error;
+
+          if (data) {
+            setAssociacoes([data]);
+            setSelectedAssociacao(data.id);
+          }
+        } else {
+          // Para acesso interno, buscar todas as associações
+          const { data, error } = await supabase
+            .from("corretoras")
+            .select("id, nome")
+            .order("nome");
+
+          if (error) throw error;
+
+          setAssociacoes(data || []);
+          
+          const associacaoParamFallback = searchParams.get("associacao");
+          if (associacaoParamFallback && data?.some(c => c.id === associacaoParamFallback)) {
+            setSelectedAssociacao(associacaoParamFallback);
+          } else if (data && data.length > 0) {
+            setSelectedAssociacao(data[0].id);
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar associações:", error);
@@ -90,7 +114,7 @@ export default function MGFInsights() {
     }
 
     fetchAssociacoes();
-  }, [searchParams]);
+  }, [searchParams, isPortalAccess]);
 
   const fetchDados = async () => {
     if (!selectedAssociacao) {
@@ -267,11 +291,17 @@ export default function MGFInsights() {
 
   const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome || "";
 
-  const tabs = [
-    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-    { id: "tabela", label: "Dados Completos", icon: Database },
-    { id: "importar", label: "Importar Dados", icon: Upload },
-  ];
+  // Tabs - esconder importação para parceiros
+  const tabs = isPortalAccess 
+    ? [
+        { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+        { id: "tabela", label: "Dados Completos", icon: Database },
+      ]
+    : [
+        { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+        { id: "tabela", label: "Dados Completos", icon: Database },
+        { id: "importar", label: "Importar Dados", icon: Upload },
+      ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -282,7 +312,10 @@ export default function MGFInsights() {
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={() => navigate(`/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+              onClick={() => navigate(isPortalAccess 
+                ? `/portal?associacao=${selectedAssociacao}` 
+                : `/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
+              )}
               className="shrink-0"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -298,7 +331,10 @@ export default function MGFInsights() {
             
             <Button
               variant="outline"
-              onClick={() => navigate(`/sga-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+              onClick={() => navigate(isPortalAccess 
+                ? `/portal/sga-insights?associacao=${selectedAssociacao}` 
+                : `/sga-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
+              )}
               className="gap-2 border-primary/30 hover:bg-primary/10"
             >
               <MapPin className="h-4 w-4" />
@@ -325,35 +361,51 @@ export default function MGFInsights() {
             )}
           </div>
 
-          {/* Seletor de Associação */}
-          <Card className="border-orange-500/20 bg-card/50 backdrop-blur mb-4">
-            <CardContent className="p-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-                <Label htmlFor="associacao-select-mgf" className="text-base font-semibold whitespace-nowrap">
-                  Associação:
-                </Label>
-                <Select 
-                  value={selectedAssociacao} 
-                  onValueChange={setSelectedAssociacao} 
-                  disabled={loadingAssociacoes}
-                >
-                  <SelectTrigger
-                    id="associacao-select-mgf"
-                    className="w-full sm:max-w-md h-10 border-2"
+          {/* Seletor de Associação - apenas para acesso interno */}
+          {!isPortalAccess && (
+            <Card className="border-orange-500/20 bg-card/50 backdrop-blur mb-4">
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
+                  <Label htmlFor="associacao-select-mgf" className="text-base font-semibold whitespace-nowrap">
+                    Associação:
+                  </Label>
+                  <Select 
+                    value={selectedAssociacao} 
+                    onValueChange={setSelectedAssociacao} 
+                    disabled={loadingAssociacoes}
                   >
-                    <SelectValue placeholder="Selecione uma associação..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {associacoes.map((associacao) => (
-                      <SelectItem key={associacao.id} value={associacao.id}>
-                        {associacao.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
+                    <SelectTrigger
+                      id="associacao-select-mgf"
+                      className="w-full sm:max-w-md h-10 border-2"
+                    >
+                      <SelectValue placeholder="Selecione uma associação..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {associacoes.map((associacao) => (
+                        <SelectItem key={associacao.id} value={associacao.id}>
+                          {associacao.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Nome da Associação para parceiros */}
+          {isPortalAccess && selectedAssociacaoNome && (
+            <Card className="border-orange-500/20 bg-card/50 backdrop-blur mb-4">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <Label className="text-base font-semibold whitespace-nowrap">
+                    Associação:
+                  </Label>
+                  <span className="text-lg font-medium">{selectedAssociacaoNome}</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Filtros Globais (estilo SGA) */}
           {dados.length > 0 && (

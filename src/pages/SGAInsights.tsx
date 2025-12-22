@@ -104,21 +104,40 @@ export default function SGAInsights() {
   useEffect(() => {
     async function fetchAssociacoes() {
       try {
-        const { data, error } = await supabase
-          .from("corretoras")
-          .select("id, nome")
-          .order("nome");
-
-        if (error) throw error;
-
-        setAssociacoes(data || []);
-        
-        // Pegar associação da URL ou usar a primeira
+        // Se é acesso via portal, usar apenas a associação da URL
         const associacaoParam = searchParams.get("associacao");
-        if (associacaoParam && data?.some(c => c.id === associacaoParam)) {
-          setSelectedAssociacao(associacaoParam);
-        } else if (data && data.length > 0) {
-          setSelectedAssociacao(data[0].id);
+        
+        if (isPortalAccess && associacaoParam) {
+          // Para parceiros, buscar apenas a associação específica
+          const { data, error } = await supabase
+            .from("corretoras")
+            .select("id, nome")
+            .eq("id", associacaoParam)
+            .single();
+
+          if (error) throw error;
+
+          if (data) {
+            setAssociacoes([data]);
+            setSelectedAssociacao(data.id);
+          }
+        } else {
+          // Para acesso interno, buscar todas as associações
+          const { data, error } = await supabase
+            .from("corretoras")
+            .select("id, nome")
+            .order("nome");
+
+          if (error) throw error;
+
+          setAssociacoes(data || []);
+          
+          // Pegar associação da URL ou usar a primeira
+          if (associacaoParam && data?.some(c => c.id === associacaoParam)) {
+            setSelectedAssociacao(associacaoParam);
+          } else if (data && data.length > 0) {
+            setSelectedAssociacao(data[0].id);
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar associações:", error);
@@ -129,7 +148,7 @@ export default function SGAInsights() {
     }
 
     fetchAssociacoes();
-  }, [searchParams]);
+  }, [searchParams, isPortalAccess]);
 
   const fetchEventos = async () => {
     if (!selectedAssociacao) {
@@ -245,7 +264,10 @@ export default function SGAInsights() {
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={() => navigate(`/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+              onClick={() => navigate(isPortalAccess 
+                ? `/portal?associacao=${selectedAssociacao}` 
+                : `/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
+              )}
               className="shrink-0"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -261,7 +283,10 @@ export default function SGAInsights() {
             
             <Button
               variant="outline"
-              onClick={() => navigate(`/mgf-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+              onClick={() => navigate(isPortalAccess 
+                ? `/portal/mgf-insights?associacao=${selectedAssociacao}` 
+                : `/mgf-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
+              )}
               className="gap-2 border-orange-500/30 hover:bg-orange-500/10"
             >
               <DollarSign className="h-4 w-4" />
