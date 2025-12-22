@@ -777,8 +777,7 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
                 <InputField label="Baixado com Pendência" value={data?.baixado_pendencia || 0} onChange={(v) => updateField("baixado_pendencia", v)} disabled={!canEdit} type="currency" />
                 <InputField label="Valor Boletos em Aberto" value={data?.valor_boletos_abertos || 0} onChange={(v) => updateField("valor_boletos_abertos", v)} disabled={!canEdit} type="currency" />
                 <InputField label="Valor Boletos Cancelados" value={data?.valor_boletos_cancelados || 0} onChange={(v) => updateField("valor_boletos_cancelados", v)} disabled={!canEdit} type="currency" />
-                <InputField label="Recebimento Operacional" value={data?.recebimento_operacional || 0} onChange={(v) => updateField("recebimento_operacional", v)} disabled={!canEdit} type="currency" />
-                <InputField label="Arrecadamento Juros" value={data?.arrecadamento_juros || 0} onChange={(v) => updateField("arrecadamento_juros", v)} disabled={!canEdit} type="currency" />
+                <InputField label="Arrecadação Juros" value={data?.arrecadamento_juros || 0} onChange={(v) => updateField("arrecadamento_juros", v)} disabled={!canEdit} type="currency" />
                 <InputField label="Descontado Banco" value={data?.descontado_banco || 0} onChange={(v) => updateField("descontado_banco", v)} disabled={!canEdit} type="currency" />
                 <PercentDisplayField label="% Emissão Boleto" value={calculatedData.percentual_emissao_boleto} />
                 <PercentDisplayField label="% Inadimplência Boletos" value={calculatedData.percentual_inadimplencia_boletos} />

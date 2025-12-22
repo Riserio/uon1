@@ -75,6 +75,17 @@ interface ImportResult {
   total_cotas: number | null;
   total_associados: number | null;
   cadastros_realizados: number | null;
+  // Dados de Faturamento
+  boletos_emitidos: number | null;
+  boletos_liquidados: number | null;
+  boletos_abertos: number | null;
+  boletos_cancelados: number | null;
+  faturamento_operacional: number | null;
+  total_recebido: number | null;
+  valor_boletos_abertos: number | null;
+  valor_boletos_cancelados: number | null;
+  arrecadacao_juros: number | null;
+  descontado_banco: number | null;
 }
 
 interface FileStatus {
@@ -141,6 +152,22 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
     total_cotas: null,
     total_associados: null,
     cadastros_realizados: null,
+    boletos_emitidos: null,
+    boletos_liquidados: null,
+    boletos_abertos: null,
+    boletos_cancelados: null,
+    faturamento_operacional: null,
+    total_recebido: null,
+    valor_boletos_abertos: null,
+    valor_boletos_cancelados: null,
+    arrecadacao_juros: null,
+    descontado_banco: null,
+  });
+
+  const [faturamentoFile, setFaturamentoFile] = useState<FileStatus>({
+    file: null,
+    status: "idle",
+    result: null,
   });
 
   // Anos: próximo ano + atuais (inclui 2026)
@@ -447,6 +474,86 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
     });
   };
 
+  // Processar arquivo de Faturamento (boletos)
+  const processFaturamentoFile = async (file: File): Promise<{
+    boletos_emitidos: number;
+    boletos_liquidados: number;
+    boletos_abertos: number;
+    boletos_cancelados: number;
+    faturamento_operacional: number;
+    total_recebido: number;
+    valor_boletos_abertos: number;
+    valor_boletos_cancelados: number;
+    arrecadacao_juros: number;
+    descontado_banco: number;
+  }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          const workbook = XLSX.read(data, { type: "binary", cellDates: false, cellNF: false, cellText: true });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+          
+          let result = {
+            boletos_emitidos: 0,
+            boletos_liquidados: 0,
+            boletos_abertos: 0,
+            boletos_cancelados: 0,
+            faturamento_operacional: 0,
+            total_recebido: 0,
+            valor_boletos_abertos: 0,
+            valor_boletos_cancelados: 0,
+            arrecadacao_juros: 0,
+            descontado_banco: 0,
+          };
+
+          for (const row of jsonData) {
+            const firstCell = (row[0]?.toString() || "").toUpperCase().trim();
+            
+            // TOTAL DE BOLETOS ENCONTRADOS
+            if (firstCell.includes("TOTAL DE BOLETOS ENCONTRADOS")) {
+              result.boletos_emitidos = parseNumber(row[1]); // QTDE BOLETOS
+              result.faturamento_operacional = parseNumber(row[3]); // VALOR TOTAL
+            }
+            // BOLETO BAIXADO
+            else if (firstCell === "BOLETO BAIXADO") {
+              result.boletos_liquidados = parseNumber(row[1]); // QTDE BOLETOS
+              result.total_recebido = parseNumber(row[3]); // VALOR TOTAL
+            }
+            // BOLETO ABERTO
+            else if (firstCell === "BOLETO ABERTO") {
+              result.boletos_abertos = parseNumber(row[1]); // QTDE BOLETOS
+              result.valor_boletos_abertos = parseNumber(row[3]); // VALOR TOTAL
+            }
+            // BOLETO CANCELADO
+            else if (firstCell === "BOLETO CANCELADO") {
+              result.boletos_cancelados = parseNumber(row[1]); // QTDE BOLETOS
+              result.valor_boletos_cancelados = parseNumber(row[3]); // VALOR TOTAL
+            }
+            // VALOR ADICIONAL RECEBIDO (JUROS)
+            else if (firstCell.includes("VALOR ADICIONAL RECEBIDO") && firstCell.includes("JUROS")) {
+              result.arrecadacao_juros = parseNumber(row[1]); // Valor
+            }
+            // VALOR TOTAL DESCONTADO PELO BANCO
+            else if (firstCell.includes("VALOR TOTAL DESCONTADO PELO BANCO")) {
+              result.descontado_banco = parseNumber(row[1]); // Valor
+            }
+          }
+
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsBinaryString(file);
+    });
+  };
+
   const handlePlacasUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -604,11 +711,22 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
       setPlacasFile({ file: null, status: "idle", result: null });
       setAssociadosFile({ file: null, status: "idle", result: null });
       setCadastrosFile({ file: null, status: "idle", result: null });
+      setFaturamentoFile({ file: null, status: "idle", result: null });
       setImportResult({
         placas_ativas: null,
         total_cotas: null,
         total_associados: null,
         cadastros_realizados: null,
+        boletos_emitidos: null,
+        boletos_liquidados: null,
+        boletos_abertos: null,
+        boletos_cancelados: null,
+        faturamento_operacional: null,
+        total_recebido: null,
+        valor_boletos_abertos: null,
+        valor_boletos_cancelados: null,
+        arrecadacao_juros: null,
+        descontado_banco: null,
       });
 
       fetchHistory();
