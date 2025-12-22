@@ -60,9 +60,9 @@ export default function Portal() {
           .select("corretora_id, corretoras(id, nome, logo_url)")
           .eq("profile_id", user.id)
           .eq("ativo", true)
-          .single<CorretoraUsuarioResult>();
+          .limit(1);
 
-        if (error || !data?.corretoras) {
+        if (error || !data || data.length === 0 || !data[0]?.corretoras) {
           // Usuário não está vinculado a nenhuma corretora
           console.error("Usuário não vinculado a corretora:", error);
           setNotLinked(true);
@@ -70,7 +70,7 @@ export default function Portal() {
           return;
         }
 
-        setCorretora(data.corretoras);
+        setCorretora(data[0].corretoras as Corretora);
       } catch (error) {
         console.error("Erro ao carregar dados da corretora:", error);
         setNotLinked(true);
