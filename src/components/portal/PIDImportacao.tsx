@@ -25,6 +25,7 @@ import {
   Trash2,
   Calendar,
   Download,
+  DollarSign,
 } from "lucide-react";
 
 // Template download functions for PID
@@ -617,6 +618,39 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
     }
   };
 
+  const handleFaturamentoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFaturamentoFile({ file, status: "processing", result: null });
+
+    try {
+      const result = await processFaturamentoFile(file);
+      setFaturamentoFile({
+        file,
+        status: "success",
+        result: `Boletos: ${result.boletos_emitidos.toLocaleString("pt-BR")} | Faturamento: R$ ${result.faturamento_operacional.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      });
+      setImportResult((prev) => ({
+        ...prev,
+        boletos_emitidos: result.boletos_emitidos,
+        boletos_liquidados: result.boletos_liquidados,
+        boletos_abertos: result.boletos_abertos,
+        boletos_cancelados: result.boletos_cancelados,
+        faturamento_operacional: result.faturamento_operacional,
+        total_recebido: result.total_recebido,
+        valor_boletos_abertos: result.valor_boletos_abertos,
+        valor_boletos_cancelados: result.valor_boletos_cancelados,
+        arrecadacao_juros: result.arrecadacao_juros,
+        descontado_banco: result.descontado_banco,
+      }));
+    } catch (error) {
+      console.error("Erro ao processar arquivo de faturamento:", error);
+      setFaturamentoFile({ file, status: "error", result: "Erro ao processar arquivo" });
+      toast.error("Erro ao processar arquivo de faturamento");
+    }
+  };
+
   const handleImport = async () => {
     if (!corretoraId || !user) {
       toast.error("Selecione uma associação");
@@ -628,7 +662,8 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
       importResult.placas_ativas !== null ||
       importResult.total_cotas !== null ||
       importResult.total_associados !== null ||
-      importResult.cadastros_realizados !== null;
+      importResult.cadastros_realizados !== null ||
+      importResult.boletos_emitidos !== null;
 
     if (!hasData) {
       toast.error("Envie pelo menos um arquivo para importar");
@@ -668,6 +703,37 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
       }
       if (importResult.cadastros_realizados !== null) {
         updateFields.cadastros_realizados = importResult.cadastros_realizados;
+      }
+      // Campos de Faturamento
+      if (importResult.boletos_emitidos !== null) {
+        updateFields.boletos_emitidos = importResult.boletos_emitidos;
+      }
+      if (importResult.boletos_liquidados !== null) {
+        updateFields.boletos_liquidados = importResult.boletos_liquidados;
+      }
+      if (importResult.boletos_abertos !== null) {
+        updateFields.boletos_abertos = importResult.boletos_abertos;
+      }
+      if (importResult.boletos_cancelados !== null) {
+        updateFields.boletos_cancelados = importResult.boletos_cancelados;
+      }
+      if (importResult.faturamento_operacional !== null) {
+        updateFields.faturamento_operacional = importResult.faturamento_operacional;
+      }
+      if (importResult.total_recebido !== null) {
+        updateFields.total_recebido = importResult.total_recebido;
+      }
+      if (importResult.valor_boletos_abertos !== null) {
+        updateFields.valor_boletos_abertos = importResult.valor_boletos_abertos;
+      }
+      if (importResult.valor_boletos_cancelados !== null) {
+        updateFields.valor_boletos_cancelados = importResult.valor_boletos_cancelados;
+      }
+      if (importResult.arrecadacao_juros !== null) {
+        updateFields.arrecadamento_juros = importResult.arrecadacao_juros;
+      }
+      if (importResult.descontado_banco !== null) {
+        updateFields.descontado_banco = importResult.descontado_banco;
       }
 
       if (existing) {
@@ -957,12 +1023,66 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
             </div>
           </CardContent>
         </Card>
+
+        {/* Faturamento (Boletos) */}
+        <Card className="border-amber-500/20 md:col-span-3">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <DollarSign className="h-4 w-4 text-amber-500" />
+                Faturamento (Relatório de Boletos)
+              </CardTitle>
+            </div>
+            <CardDescription className="text-xs">
+              Relatório de boletos do SGA para importar dados financeiros
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Input
+                type="file"
+                accept=".xls,.xlsx"
+                onChange={handleFaturamentoUpload}
+                className="text-xs"
+                disabled={faturamentoFile.status === "processing"}
+              />
+              {getStatusIcon(faturamentoFile.status)}
+            </div>
+            {faturamentoFile.result && (
+              <div
+                className={`text-xs p-2 rounded ${
+                  faturamentoFile.status === "success"
+                    ? "bg-green-500/10 text-green-600"
+                    : "bg-destructive/10 text-destructive"
+                }`}
+              >
+                {faturamentoFile.result}
+              </div>
+            )}
+            <div className="text-xs text-muted-foreground">
+              <strong>Campos mapeados:</strong>
+              <ul className="mt-1 ml-4 list-disc grid grid-cols-2 gap-x-4">
+                <li>Boletos Emitidos</li>
+                <li>Boletos Liquidados</li>
+                <li>Boletos em Aberto</li>
+                <li>Boletos Cancelados</li>
+                <li>Faturamento Operacional</li>
+                <li>Total Recebido</li>
+                <li>Valor Boletos em Aberto</li>
+                <li>Valor Boletos Cancelados</li>
+                <li>Arrecadação Juros</li>
+                <li>Descontado Banco</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Resumo e Botão de Importar */}
       {(importResult.placas_ativas !== null ||
         importResult.total_associados !== null ||
-        importResult.cadastros_realizados !== null) && (
+        importResult.cadastros_realizados !== null ||
+        importResult.boletos_emitidos !== null) && (
         <Card className="border-primary/20 bg-primary/5">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -1001,6 +1121,30 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
                   <span className="text-xs text-muted-foreground">Cadastros Realizados</span>
                   <span className="text-lg font-bold">
                     {importResult.cadastros_realizados.toLocaleString("pt-BR")}
+                  </span>
+                </div>
+              )}
+              {importResult.boletos_emitidos !== null && (
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Boletos Emitidos</span>
+                  <span className="text-lg font-bold">
+                    {importResult.boletos_emitidos.toLocaleString("pt-BR")}
+                  </span>
+                </div>
+              )}
+              {importResult.faturamento_operacional !== null && (
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Faturamento Operacional</span>
+                  <span className="text-lg font-bold">
+                    R$ {importResult.faturamento_operacional.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              )}
+              {importResult.total_recebido !== null && (
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">Total Recebido</span>
+                  <span className="text-lg font-bold">
+                    R$ {importResult.total_recebido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               )}
