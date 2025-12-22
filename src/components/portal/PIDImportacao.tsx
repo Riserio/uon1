@@ -66,6 +66,41 @@ const downloadCadastrosTemplate = () => {
   toast.success("Modelo baixado com sucesso!");
 };
 
+const downloadFaturamentoTemplate = () => {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ["RELATÓRIO DE BOLETOS"],
+    [],
+    ["ASSOCIAÇÃO XYZ"],
+    [],
+    ["Nome", "", "", "", "", "Nosso Numero", "Situacao", "Data Vencimento"],
+    [],
+    ["JOÃO DA SILVA", "", "", "", "", "131006336-", "BAIXADO", "10/15/25"],
+    ["MARIA SANTOS", "", "", "", "", "131009932-", "ABERTO", "10/22/25"],
+    ["PEDRO SOUZA", "", "", "", "", "131011827-", "CANCELADO", "10/06/25"],
+    [],
+    ["Resumo"],
+    ["", "QTDE BOLETOS", "PORCENTAGEM SOBRE QTDE BOLETOS", "VALOR TOTAL", "VALOR TOTAL PAGO"],
+    ["BOLETO BAIXADO", 6014, "79.8%", "R$ 969,002.96", "R$ 969,002.96"],
+    ["BOLETO CANCELADO", 1197, "15.88%", "R$ 39,628.93", "R$ 0.00"],
+    ["BOLETO ABERTO", 325, "4.31%", "R$ 53,266.69", "R$ 0.00"],
+    ["TOTAL DE BOLETOS ENCONTRADOS", 7536, "100%", "R$ 1,061,898.58", "R$ 969,002.96"],
+    ["TOTAL DE BOLETOS PAGOS EM DIA", 5981, "", "R$ 963,941.36", "R$ 963,941.36"],
+    ["TOTAL DE BOLETOS PAGOS EM ATRASO", 33, "", "R$ 5,061.60", "R$ 5,061.60"],
+    [],
+    ["TOTAL DE VEÍCULOS ENCONTRADOS", 6725],
+    ["TOTAL DE ASSOCIADOS ENCONTRADOS", 5989],
+    ["VALOR TAXA HINOVA COBRANÇA", "R$ 0.00"],
+    ["VALOR TOTAL DESCONTADO PELO BANCO", "R$ 7,931.90"],
+    ["VALOR RECEBIDO", "R$ 961,071.06"],
+    ["DIFERENÇA (Valor Pagamento - Valor)", "R$ 0.00"],
+    ["VALOR ADICIONAL RECEBIDO (JUROS)", "R$ 0.00"],
+  ]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Faturamento");
+  XLSX.writeFile(wb, "modelo_faturamento.xlsx");
+  toast.success("Modelo baixado com sucesso!");
+};
+
 interface PIDImportacaoProps {
   corretoraId?: string;
   onImportSuccess?: () => void;
@@ -1032,6 +1067,10 @@ export default function PIDImportacao({ corretoraId, onImportSuccess }: PIDImpor
                 <DollarSign className="h-4 w-4 text-amber-500" />
                 Faturamento (Relatório de Boletos)
               </CardTitle>
+              <Button variant="ghost" size="sm" onClick={downloadFaturamentoTemplate} className="h-7 text-xs">
+                <Download className="h-3 w-3 mr-1" />
+                Modelo
+              </Button>
             </div>
             <CardDescription className="text-xs">
               Relatório de boletos do SGA para importar dados financeiros
