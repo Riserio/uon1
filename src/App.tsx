@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { usePontoAlertas } from "@/hooks/usePontoAlertas";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -68,6 +68,20 @@ const queryClient = new QueryClient({
   },
 });
 
+function MainContent({ children }: { children: React.ReactNode }) {
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+  
+  return (
+    <main 
+      className="flex-1 overflow-auto transition-[margin] duration-200 ease-linear"
+      style={{ marginLeft: isCollapsed ? '3rem' : '14rem' }}
+    >
+      {children}
+    </main>
+  );
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isParceiro } = useAuth();
   usePushNotifications();
@@ -91,9 +105,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     <SidebarProvider defaultOpen={false}>
       <div className="min-h-screen w-full flex">
         <AppSidebar />
-        <main className="flex-1 overflow-auto">
+        <MainContent>
           {children}
-        </main>
+        </MainContent>
       </div>
     </SidebarProvider>
   );
