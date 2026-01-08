@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, Mail, TrendingUp, DollarSign, Settings, Megaphone, FileSignature } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, Mail, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -100,12 +100,8 @@ export function AppSidebar() {
         </SidebarHeader>
 
         {/* Botão de toggle */}
-        <button onClick={toggleSidebar} aria-label="Alternar sidebar" className="absolute -right-3 top-4 z-[70] h-7 w-7 rounded-full bg-sidebar-accent border border-border items-center justify-center hover:bg-sidebar-accent/80 transition-colors shadow-md flex flex-row">
-          {collapsed ? <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-sidebar-foreground">
-              <path d="M4 2L8 6L4 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg> : <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-sidebar-foreground">
-              <path d="M8 2L4 6L8 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>}
+        <button onClick={toggleSidebar} aria-label="Alternar sidebar" className="absolute -right-3 top-4 z-[70] h-6 w-6 rounded-full bg-background border border-border items-center justify-center hover:bg-accent transition-colors shadow-sm flex">
+          {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5 text-muted-foreground" /> : <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />}
         </button>
 
         <SidebarContent>
