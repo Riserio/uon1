@@ -75,7 +75,7 @@ function MainContent({ children }: { children: React.ReactNode }) {
   return (
     <main 
       className="flex-1 overflow-auto transition-[margin] duration-200 ease-linear"
-      style={{ marginLeft: isCollapsed ? '3rem' : '14rem' }}
+      style={{ marginLeft: isCollapsed ? '3.5rem' : '16rem' }}
     >
       {children}
     </main>
