@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter, DollarSign } from "lucide-react";
+import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter, DollarSign, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import SGADashboard from "@/components/sga/SGADashboard";
 import SGAImportacao from "@/components/sga/SGAImportacao";
@@ -291,6 +291,18 @@ export default function SGAInsights() {
             >
               <DollarSign className="h-4 w-4" />
               <span className="hidden sm:inline">MGF</span>
+            </Button>
+            
+            <Button
+              variant="outline"
+              onClick={() => navigate(isPortalAccess 
+                ? `/portal/cobranca-insights?associacao=${selectedAssociacao}` 
+                : `/cobranca-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
+              )}
+              className="gap-2 border-emerald-500/30 hover:bg-emerald-500/10"
+            >
+              <CreditCard className="h-4 w-4" />
+              <span className="hidden sm:inline">Cobrança</span>
             </Button>
             
             {/* Botão Histórico - só para superintendente e admin */}
