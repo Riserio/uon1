@@ -129,7 +129,7 @@ export default function MGFInsights() {
     try {
       const { data: importacao, error: impError } = await supabase
         .from("mgf_importacoes")
-        .select("*")
+        .select("id, nome_arquivo, colunas_detectadas, total_registros, created_at")
         .eq("ativo", true)
         .eq("corretora_id", selectedAssociacao)
         .order("created_at", { ascending: false })
@@ -144,36 +144,19 @@ export default function MGFInsights() {
         setImportacaoAtiva(importacao);
         setColunas(Array.isArray(importacao.colunas_detectadas) ? importacao.colunas_detectadas as string[] : []);
         
-        const BATCH_SIZE = 1000;
-        let allDados: any[] = [];
-        let hasMore = true;
-        let offset = 0;
+        // Buscar apenas colunas necessárias para melhor performance
+        const { data: allData, error: dataError } = await supabase
+          .from("mgf_dados")
+          .select("id, operacao, sub_operacao, descricao, fornecedor, centro_custo, valor, valor_pagamento, data_vencimento, data_vencimento_original, situacao_pagamento, data_pagamento, controle_interno, veiculo_evento, cooperativa, regional, regional_evento, forma_pagamento, tipo_veiculo, categoria_veiculo, multa, juros, nota_fiscal, valor_total_lancamento, data_nota_fiscal, quantidade_parcela, veiculo_lancamento, classificacao_veiculo, associado, cnpj_fornecedor, cpf_cnpj_cliente, nome_fantasia_fornecedor, voluntario, mes_referente, impostos, protocolo_evento, motivo_evento, terceiro_evento, data_evento, placa_terceiro_evento")
+          .eq("importacao_id", importacao.id);
 
-        while (hasMore) {
-          const { data: batch, error: dataError } = await supabase
-            .from("mgf_dados")
-            .select("*")
-            .eq("importacao_id", importacao.id)
-            .range(offset, offset + BATCH_SIZE - 1);
-
-          if (dataError) {
-            console.error("Erro ao buscar dados:", dataError);
-            break;
-          }
-
-          if (batch && batch.length > 0) {
-            allDados = [...allDados, ...batch];
-            offset += BATCH_SIZE;
-            hasMore = batch.length === BATCH_SIZE;
-          } else {
-            hasMore = false;
-          }
-
-          if (offset >= 100000) break;
+        if (dataError) {
+          console.error("Erro ao buscar dados:", dataError);
+          setDados([]);
+        } else {
+          console.log(`Total de dados MGF carregados: ${allData?.length || 0}`);
+          setDados(allData || []);
         }
-
-        console.log(`Total de dados MGF carregados: ${allDados.length}`);
-        setDados(allDados);
       } else {
         setDados([]);
         setImportacaoAtiva(null);

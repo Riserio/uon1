@@ -5,7 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Database, Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Database, Search, Download, ChevronLeft, ChevronRight, Filter, X, Calendar } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { DateRange } from "react-day-picker";
 import * as XLSX from "xlsx";
 import { cn } from "@/lib/utils";
 
@@ -15,9 +21,36 @@ interface MGFTabelaProps {
   loading: boolean;
 }
 
+interface TabelaFilters {
+  placaEvento: string;
+  fornecedor: string;
+  operacao: string;
+  subOperacao: string;
+  centroCusto: string;
+  dataVencimento: DateRange | undefined;
+  dataPagamento: DateRange | undefined;
+}
+
 const PAGE_SIZE = 50;
 
-// Todas as colunas na ordem correta
+// Colunas visíveis conforme solicitado
+const VISIBLE_COLUMNS = [
+  { key: "operacao", label: "Operação" },
+  { key: "sub_operacao", label: "SubOperação" },
+  { key: "descricao", label: "Descrição" },
+  { key: "fornecedor", label: "Fornecedor" },
+  { key: "centro_custo", label: "Centro de Custo" },
+  { key: "valor", label: "Valor" },
+  { key: "valor_pagamento", label: "Valor Pagamento" },
+  { key: "data_vencimento", label: "Data Vencimento" },
+  { key: "data_vencimento_original", label: "Data Venc. Original" },
+  { key: "situacao_pagamento", label: "Situação" },
+  { key: "data_pagamento", label: "Data Pagamento" },
+  { key: "controle_interno", label: "Controle Interno" },
+  { key: "veiculo_evento", label: "Veículo Evento" },
+];
+
+// Todas as colunas para exportação
 const ALL_COLUMNS = [
   { key: "operacao", label: "Operação" },
   { key: "sub_operacao", label: "SubOperação" },
@@ -90,19 +123,133 @@ const getSituacaoColor = (situacao: string | null) => {
 export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  
+  // Filtros da tabela
+  const [filters, setFilters] = useState<TabelaFilters>({
+    placaEvento: "",
+    fornecedor: "all",
+    operacao: "all",
+    subOperacao: "all",
+    centroCusto: "all",
+    dataVencimento: undefined,
+    dataPagamento: undefined,
+  });
 
-  // Filtrar dados por busca
-  const filteredDados = useMemo(() => {
-    if (!search.trim()) return dados;
-    
-    const searchLower = search.toLowerCase();
-    return dados.filter((d) => {
-      return ALL_COLUMNS.some(col => {
-        const val = d[col.key];
-        return val && String(val).toLowerCase().includes(searchLower);
-      });
+  // Extrair opções únicas para filtros
+  const filterOptions = useMemo(() => {
+    const fornecedores = new Set<string>();
+    const operacoes = new Set<string>();
+    const subOperacoes = new Set<string>();
+    const centrosCusto = new Set<string>();
+
+    dados.forEach(d => {
+      if (d.fornecedor) fornecedores.add(d.fornecedor);
+      if (d.operacao) operacoes.add(d.operacao);
+      if (d.sub_operacao) subOperacoes.add(d.sub_operacao);
+      if (d.centro_custo) centrosCusto.add(d.centro_custo);
     });
-  }, [dados, search]);
+
+    return {
+      fornecedores: Array.from(fornecedores).sort(),
+      operacoes: Array.from(operacoes).sort(),
+      subOperacoes: Array.from(subOperacoes).sort(),
+      centrosCusto: Array.from(centrosCusto).sort(),
+    };
+  }, [dados]);
+
+  // Filtrar dados
+  const filteredDados = useMemo(() => {
+    let result = dados;
+
+    // Busca geral
+    if (search.trim()) {
+      const searchLower = search.toLowerCase();
+      result = result.filter((d) => {
+        return VISIBLE_COLUMNS.some(col => {
+          const val = d[col.key];
+          return val && String(val).toLowerCase().includes(searchLower);
+        });
+      });
+    }
+
+    // Filtro Placa Evento
+    if (filters.placaEvento.trim()) {
+      const placaLower = filters.placaEvento.toLowerCase();
+      result = result.filter(d => 
+        d.veiculo_evento && String(d.veiculo_evento).toLowerCase().includes(placaLower)
+      );
+    }
+
+    // Filtro Fornecedor
+    if (filters.fornecedor !== "all") {
+      result = result.filter(d => d.fornecedor === filters.fornecedor);
+    }
+
+    // Filtro Operação
+    if (filters.operacao !== "all") {
+      result = result.filter(d => d.operacao === filters.operacao);
+    }
+
+    // Filtro SubOperação
+    if (filters.subOperacao !== "all") {
+      result = result.filter(d => d.sub_operacao === filters.subOperacao);
+    }
+
+    // Filtro Centro de Custo
+    if (filters.centroCusto !== "all") {
+      result = result.filter(d => d.centro_custo === filters.centroCusto);
+    }
+
+    // Filtro Data Vencimento
+    if (filters.dataVencimento?.from) {
+      result = result.filter(d => {
+        if (!d.data_vencimento) return false;
+        const date = new Date(d.data_vencimento);
+        if (filters.dataVencimento?.from && date < filters.dataVencimento.from) return false;
+        if (filters.dataVencimento?.to && date > filters.dataVencimento.to) return false;
+        return true;
+      });
+    }
+
+    // Filtro Data Pagamento
+    if (filters.dataPagamento?.from) {
+      result = result.filter(d => {
+        if (!d.data_pagamento) return false;
+        const date = new Date(d.data_pagamento);
+        if (filters.dataPagamento?.from && date < filters.dataPagamento.from) return false;
+        if (filters.dataPagamento?.to && date > filters.dataPagamento.to) return false;
+        return true;
+      });
+    }
+
+    return result;
+  }, [dados, search, filters]);
+
+  // Contar filtros ativos
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.placaEvento.trim()) count++;
+    if (filters.fornecedor !== "all") count++;
+    if (filters.operacao !== "all") count++;
+    if (filters.subOperacao !== "all") count++;
+    if (filters.centroCusto !== "all") count++;
+    if (filters.dataVencimento?.from) count++;
+    if (filters.dataPagamento?.from) count++;
+    return count;
+  }, [filters]);
+
+  const clearFilters = () => {
+    setFilters({
+      placaEvento: "",
+      fornecedor: "all",
+      operacao: "all",
+      subOperacao: "all",
+      centroCusto: "all",
+      dataVencimento: undefined,
+      dataPagamento: undefined,
+    });
+    setPage(0);
+  };
 
   // Paginação
   const totalPages = Math.ceil(filteredDados.length / PAGE_SIZE);
@@ -166,29 +313,12 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
     }
     
     // Valores monetários com destaque
-    if (["valor", "valor_total_lancamento", "valor_pagamento"].includes(key)) {
+    if (["valor", "valor_pagamento"].includes(key)) {
       const formatted = new Intl.NumberFormat("pt-BR", {
         style: "currency",
         currency: "BRL",
       }).format(value || 0);
       return <span className="font-medium text-blue-600">{formatted}</span>;
-    }
-    
-    // Multa e juros em vermelho se > 0
-    if (["multa", "juros"].includes(key)) {
-      const formatted = new Intl.NumberFormat("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-      }).format(value || 0);
-      return value > 0 ? <span className="text-red-600">{formatted}</span> : formatted;
-    }
-    
-    // Impostos
-    if (key === "impostos") {
-      return new Intl.NumberFormat("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-      }).format(value || 0);
     }
     
     return String(value);
@@ -230,27 +360,174 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-orange-500" />
-            Dados Completos ({filteredDados.length.toLocaleString()} registros)
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar em todos os campos..."
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(0);
-                }}
-                className="pl-9 w-64"
-              />
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-orange-500" />
+              Dados Completos ({filteredDados.length.toLocaleString()} registros)
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(0);
+                  }}
+                  className="pl-9 w-48"
+                />
+              </div>
+              <Button variant="outline" size="icon" onClick={handleExport} title="Exportar Excel">
+                <Download className="h-4 w-4" />
+              </Button>
             </div>
-            <Button variant="outline" size="icon" onClick={handleExport} title="Exportar Excel">
-              <Download className="h-4 w-4" />
-            </Button>
+          </div>
+
+          {/* Filtros */}
+          <div className="border rounded-lg p-3 bg-muted/30">
+            <div className="flex items-center gap-2 mb-3">
+              <Filter className="h-4 w-4 text-orange-500" />
+              <span className="font-semibold text-sm">Filtros</span>
+              {activeFiltersCount > 0 && (
+                <>
+                  <Badge variant="secondary" className="ml-2">
+                    {activeFiltersCount} ativo{activeFiltersCount > 1 ? "s" : ""}
+                  </Badge>
+                  <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-2 text-xs">
+                    <X className="h-3 w-3 mr-1" />
+                    Limpar
+                  </Button>
+                </>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
+              {/* Placa Evento */}
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                <Input
+                  placeholder="Placa Evento"
+                  value={filters.placaEvento}
+                  onChange={(e) => {
+                    setFilters(f => ({ ...f, placaEvento: e.target.value }));
+                    setPage(0);
+                  }}
+                  className="h-9 text-xs pl-7"
+                />
+              </div>
+
+              {/* Fornecedor */}
+              <Select value={filters.fornecedor} onValueChange={(v) => { setFilters(f => ({ ...f, fornecedor: v })); setPage(0); }}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Fornecedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos Fornecedores</SelectItem>
+                  {filterOptions.fornecedores.map(f => (
+                    <SelectItem key={f} value={f}>{f}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Operação */}
+              <Select value={filters.operacao} onValueChange={(v) => { setFilters(f => ({ ...f, operacao: v })); setPage(0); }}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Operação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas Operações</SelectItem>
+                  {filterOptions.operacoes.map(o => (
+                    <SelectItem key={o} value={o}>{o}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* SubOperação */}
+              <Select value={filters.subOperacao} onValueChange={(v) => { setFilters(f => ({ ...f, subOperacao: v })); setPage(0); }}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="SubOperação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas SubOperações</SelectItem>
+                  {filterOptions.subOperacoes.map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Centro de Custo */}
+              <Select value={filters.centroCusto} onValueChange={(v) => { setFilters(f => ({ ...f, centroCusto: v })); setPage(0); }}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Centro de Custo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos Centros de Custo</SelectItem>
+                  {filterOptions.centrosCusto.map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Data Vencimento */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("h-9 text-xs justify-start", filters.dataVencimento?.from && "text-foreground")}>
+                    <Calendar className="h-3 w-3 mr-1" />
+                    {filters.dataVencimento?.from ? (
+                      filters.dataVencimento.to ? (
+                        `${format(filters.dataVencimento.from, "dd/MM", { locale: ptBR })} - ${format(filters.dataVencimento.to, "dd/MM", { locale: ptBR })}`
+                      ) : (
+                        format(filters.dataVencimento.from, "dd/MM/yy", { locale: ptBR })
+                      )
+                    ) : (
+                      "Dt. Venc."
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    initialFocus
+                    mode="range"
+                    defaultMonth={filters.dataVencimento?.from}
+                    selected={filters.dataVencimento}
+                    onSelect={(range) => { setFilters(f => ({ ...f, dataVencimento: range })); setPage(0); }}
+                    numberOfMonths={2}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+
+              {/* Data Pagamento */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("h-9 text-xs justify-start", filters.dataPagamento?.from && "text-foreground")}>
+                    <Calendar className="h-3 w-3 mr-1" />
+                    {filters.dataPagamento?.from ? (
+                      filters.dataPagamento.to ? (
+                        `${format(filters.dataPagamento.from, "dd/MM", { locale: ptBR })} - ${format(filters.dataPagamento.to, "dd/MM", { locale: ptBR })}`
+                      ) : (
+                        format(filters.dataPagamento.from, "dd/MM/yy", { locale: ptBR })
+                      )
+                    ) : (
+                      "Dt. Pgto."
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    initialFocus
+                    mode="range"
+                    defaultMonth={filters.dataPagamento?.from}
+                    selected={filters.dataPagamento}
+                    onSelect={(range) => { setFilters(f => ({ ...f, dataPagamento: range })); setPage(0); }}
+                    numberOfMonths={2}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -260,7 +537,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
             <Table>
               <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
-                  {ALL_COLUMNS.map((col) => (
+                  {VISIBLE_COLUMNS.map((col) => (
                     <TableHead key={col.key} className="whitespace-nowrap text-xs font-semibold">
                       {col.label}
                     </TableHead>
@@ -270,7 +547,7 @@ export default function MGFTabela({ dados, colunas, loading }: MGFTabelaProps) {
               <TableBody>
                 {paginatedDados.map((d, i) => (
                   <TableRow key={d.id || i} className={getRowClassName(d)}>
-                    {ALL_COLUMNS.map((col) => (
+                    {VISIBLE_COLUMNS.map((col) => (
                       <TableCell key={col.key} className="whitespace-nowrap text-xs">
                         {formatCellValue(d[col.key], col.key, d)}
                       </TableCell>
