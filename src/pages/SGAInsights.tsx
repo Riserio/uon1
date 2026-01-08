@@ -274,7 +274,7 @@ export default function SGAInsights() {
             </Button>
             <div className="flex-1">
               <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                Eventos Insights
+                Eventos
               </h1>
               <p className="text-muted-foreground mt-1">
                 Business Intelligence de Eventos
@@ -290,7 +290,7 @@ export default function SGAInsights() {
               className="gap-2 border-orange-500/30 hover:bg-orange-500/10"
             >
               <DollarSign className="h-4 w-4" />
-              <span className="hidden sm:inline">MGF Insights</span>
+              <span className="hidden sm:inline">MGF</span>
             </Button>
             
             {/* Botão Histórico - só para superintendente e admin */}
