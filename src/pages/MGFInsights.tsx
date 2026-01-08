@@ -322,7 +322,7 @@ export default function MGFInsights() {
             </Button>
             <div className="flex-1">
               <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent">
-                MGF Insights
+                MGF
               </h1>
               <p className="text-muted-foreground mt-1">
                 Business Intelligence de Dados MGF
@@ -338,7 +338,7 @@ export default function MGFInsights() {
               className="gap-2 border-primary/30 hover:bg-primary/10"
             >
               <MapPin className="h-4 w-4" />
-              <span className="hidden sm:inline">SGA Insights</span>
+              <span className="hidden sm:inline">Eventos</span>
             </Button>
             
             {canViewHistorico && (
