@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Upload, Database, BarChart3, History, Filter, X, Calendar, MapPin } from "lucide-react";
+import { ArrowLeft, Upload, Database, BarChart3, History, Filter, X, Calendar, MapPin, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import MGFDashboard from "@/components/mgf/MGFDashboard";
 import MGFImportacao from "@/components/mgf/MGFImportacao";
@@ -339,6 +339,18 @@ export default function MGFInsights() {
             >
               <MapPin className="h-4 w-4" />
               <span className="hidden sm:inline">Eventos</span>
+            </Button>
+            
+            <Button
+              variant="outline"
+              onClick={() => navigate(isPortalAccess 
+                ? `/portal/cobranca-insights?associacao=${selectedAssociacao}` 
+                : `/cobranca-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
+              )}
+              className="gap-2 border-emerald-500/30 hover:bg-emerald-500/10"
+            >
+              <CreditCard className="h-4 w-4" />
+              <span className="hidden sm:inline">Cobrança</span>
             </Button>
             
             {canViewHistorico && (

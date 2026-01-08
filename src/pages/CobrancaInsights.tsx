@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Upload, Database, BarChart3, History, Filter, Calendar, CreditCard } from "lucide-react";
+import { ArrowLeft, Upload, Database, BarChart3, History, Filter, Calendar, CreditCard, MapPin, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import CobrancaDashboard from "@/components/cobranca/CobrancaDashboard";
 import CobrancaImportacao from "@/components/cobranca/CobrancaImportacao";
@@ -261,6 +261,30 @@ export default function CobrancaInsights() {
                 Business Intelligence de Cobrança e Inadimplência
               </p>
             </div>
+            
+            <Button
+              variant="outline"
+              onClick={() => navigate(isPortalAccess 
+                ? `/portal/sga-insights?associacao=${selectedAssociacao}` 
+                : `/sga-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
+              )}
+              className="gap-2 border-primary/30 hover:bg-primary/10"
+            >
+              <MapPin className="h-4 w-4" />
+              <span className="hidden sm:inline">Eventos</span>
+            </Button>
+            
+            <Button
+              variant="outline"
+              onClick={() => navigate(isPortalAccess 
+                ? `/portal/mgf-insights?associacao=${selectedAssociacao}` 
+                : `/mgf-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
+              )}
+              className="gap-2 border-orange-500/30 hover:bg-orange-500/10"
+            >
+              <DollarSign className="h-4 w-4" />
+              <span className="hidden sm:inline">MGF</span>
+            </Button>
             
             {/* Botão Histórico - só para superintendente e admin */}
             {canViewHistorico && (
