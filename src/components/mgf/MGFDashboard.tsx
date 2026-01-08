@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,8 @@ import {
   Percent,
   ArrowUpRight,
   ArrowDownRight,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface MGFDashboardProps {
@@ -94,6 +96,27 @@ const truncateText = (text: string, maxLength: number = 18) => {
 
 export default function MGFDashboard({ dados, colunas, loading, associacaoNome }: MGFDashboardProps) {
   const [evolucaoView, setEvolucaoView] = useState<'mes' | 'dia'>('mes');
+  const evolucaoScrollRef = useRef<HTMLDivElement>(null);
+  const [showScrollIndicators, setShowScrollIndicators] = useState({ left: false, right: false });
+
+  // Function to update scroll indicators
+  const updateScrollIndicators = () => {
+    const el = evolucaoScrollRef.current;
+    if (el) {
+      const canScrollLeft = el.scrollLeft > 10;
+      const canScrollRight = el.scrollLeft < el.scrollWidth - el.clientWidth - 10;
+      setShowScrollIndicators({ left: canScrollLeft, right: canScrollRight });
+    }
+  };
+
+  // Handle manual scroll
+  const handleScroll = (direction: 'left' | 'right') => {
+    const el = evolucaoScrollRef.current;
+    if (el) {
+      const scrollAmount = 300;
+      el.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+    }
+  };
 
   const stats = useMemo(() => {
     if (!dados.length) return null;
@@ -434,6 +457,42 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
     };
   }, [dados]);
 
+  // Center on current month when data loads or view changes
+  useEffect(() => {
+    const el = evolucaoScrollRef.current;
+    if (!el || !stats) return;
+
+    const now = new Date();
+    const currentMesAno = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const currentDia = now.toISOString().split('T')[0];
+
+    let targetIndex = -1;
+    
+    if (evolucaoView === 'mes' && stats.timelineData.length > 0) {
+      targetIndex = stats.timelineData.findIndex(d => d.mes === currentMesAno);
+      if (targetIndex === -1) {
+        // Find closest month
+        targetIndex = stats.timelineData.findIndex(d => d.mes >= currentMesAno);
+        if (targetIndex === -1) targetIndex = stats.timelineData.length - 1;
+      }
+      const itemWidth = 70;
+      const targetScroll = Math.max(0, (targetIndex * itemWidth) - (el.clientWidth / 2) + (itemWidth / 2));
+      el.scrollTo({ left: targetScroll, behavior: 'auto' });
+    } else if (evolucaoView === 'dia' && stats.timelineDiaData.length > 0) {
+      targetIndex = stats.timelineDiaData.findIndex(d => d.dia === currentDia);
+      if (targetIndex === -1) {
+        targetIndex = stats.timelineDiaData.findIndex(d => d.dia >= currentDia);
+        if (targetIndex === -1) targetIndex = stats.timelineDiaData.length - 1;
+      }
+      const itemWidth = 45;
+      const targetScroll = Math.max(0, (targetIndex * itemWidth) - (el.clientWidth / 2) + (itemWidth / 2));
+      el.scrollTo({ left: targetScroll, behavior: 'auto' });
+    }
+
+    // Update indicators after scroll
+    setTimeout(updateScrollIndicators, 100);
+  }, [stats?.timelineData, stats?.timelineDiaData, evolucaoView]);
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -629,28 +688,61 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto" ref={(el) => { if (el) el.scrollLeft = el.scrollWidth; }}>
-              <div style={{ 
-                minWidth: evolucaoView === 'mes' 
-                  ? Math.max(800, stats.timelineData.length * 70) + "px"
-                  : Math.max(800, stats.timelineDiaData.length * 45) + "px"
-              }}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis 
-                      dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} 
-                      tick={{ fontSize: 11 }} 
-                      interval={0} 
-                    />
-                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompactCurrency(v)} />
-                    <Tooltip content={<CustomTooltip isCurrency />} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Area type="monotone" dataKey="valor" stroke="#f97316" fill="#f97316" fillOpacity={0.3} name="Valor Total" />
-                    <Line type="monotone" dataKey="pago" stroke="#22c55e" name="Pago" dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
+            <div className="relative">
+              {/* Scroll Indicator Left */}
+              {showScrollIndicators.left && (
+                <button
+                  onClick={() => handleScroll('left')}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-background/90 hover:bg-background border shadow-lg rounded-full p-2 transition-all"
+                  aria-label="Scroll para esquerda"
+                >
+                  <ChevronLeft className="h-5 w-5 text-muted-foreground" />
+                </button>
+              )}
+              
+              {/* Scroll Indicator Right */}
+              {showScrollIndicators.right && (
+                <button
+                  onClick={() => handleScroll('right')}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-background/90 hover:bg-background border shadow-lg rounded-full p-2 transition-all"
+                  aria-label="Scroll para direita"
+                >
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </button>
+              )}
+
+              <div 
+                className="overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent" 
+                ref={evolucaoScrollRef}
+                onScroll={updateScrollIndicators}
+              >
+                <div style={{ 
+                  minWidth: evolucaoView === 'mes' 
+                    ? Math.max(800, stats.timelineData.length * 70) + "px"
+                    : Math.max(800, stats.timelineDiaData.length * 45) + "px"
+                }}>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis 
+                        dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} 
+                        tick={{ fontSize: 11 }} 
+                        interval={0} 
+                      />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompactCurrency(v)} />
+                      <Tooltip content={<CustomTooltip isCurrency />} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Area type="monotone" dataKey="valor" stroke="#f97316" fill="#f97316" fillOpacity={0.3} name="Valor Total" />
+                      <Line type="monotone" dataKey="pago" stroke="#22c55e" name="Pago" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
+              
+              {/* Scroll hint text */}
+              <p className="text-[10px] text-muted-foreground text-center mt-2">
+                ← Arraste para ver mais meses →
+              </p>
             </div>
           </CardContent>
         </Card>
