@@ -92,7 +92,7 @@ export function AppSidebar() {
     canView
   } = useMenuPermissionsForRole(userRole);
   return <>
-      <Sidebar collapsible="icon" className={collapsed ? "border-r sticky top-0 h-screen z-[60] overflow-x-hidden" : "border-r sticky top-0 h-screen z-[60] w-56"}>
+      <Sidebar collapsible="icon" className="border-r sticky top-0 h-screen z-[60] overflow-hidden">
         <SidebarHeader className="border-b p-4">
           <div className="flex items-center justify-center">
             {collapsed ? <img src="/images/logo-collapsed.png" alt="Logo" className="h-8 w-8 object-contain" /> : <img src="/images/logo-full.png" alt="Logo" className="h-10 w-auto max-w-[150px] object-contain" />}
