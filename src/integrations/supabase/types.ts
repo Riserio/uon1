@@ -583,6 +583,109 @@ export type Database = {
           },
         ]
       }
+      cobranca_boletos: {
+        Row: {
+          cooperativa: string | null
+          created_at: string
+          dados_extras: Json | null
+          data_pagamento: string | null
+          data_vencimento: string | null
+          data_vencimento_original: string | null
+          dia_vencimento_veiculo: number | null
+          id: string
+          importacao_id: string
+          nome: string | null
+          placas: string | null
+          qtde_dias_atraso_vencimento_original: number | null
+          regional_boleto: string | null
+          situacao: string | null
+          valor: number | null
+          voluntario: string | null
+        }
+        Insert: {
+          cooperativa?: string | null
+          created_at?: string
+          dados_extras?: Json | null
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          data_vencimento_original?: string | null
+          dia_vencimento_veiculo?: number | null
+          id?: string
+          importacao_id: string
+          nome?: string | null
+          placas?: string | null
+          qtde_dias_atraso_vencimento_original?: number | null
+          regional_boleto?: string | null
+          situacao?: string | null
+          valor?: number | null
+          voluntario?: string | null
+        }
+        Update: {
+          cooperativa?: string | null
+          created_at?: string
+          dados_extras?: Json | null
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          data_vencimento_original?: string | null
+          dia_vencimento_veiculo?: number | null
+          id?: string
+          importacao_id?: string
+          nome?: string | null
+          placas?: string | null
+          qtde_dias_atraso_vencimento_original?: number | null
+          regional_boleto?: string | null
+          situacao?: string | null
+          valor?: number | null
+          voluntario?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobranca_boletos_importacao_id_fkey"
+            columns: ["importacao_id"]
+            isOneToOne: false
+            referencedRelation: "cobranca_importacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cobranca_importacoes: {
+        Row: {
+          ativo: boolean | null
+          corretora_id: string | null
+          created_at: string
+          id: string
+          nome_arquivo: string
+          total_registros: number | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          corretora_id?: string | null
+          created_at?: string
+          id?: string
+          nome_arquivo: string
+          total_registros?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          corretora_id?: string | null
+          created_at?: string
+          id?: string
+          nome_arquivo?: string
+          total_registros?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobranca_importacoes_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comunicados: {
         Row: {
           ativo: boolean
