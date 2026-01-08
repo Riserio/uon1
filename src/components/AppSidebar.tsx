@@ -91,18 +91,18 @@ export function AppSidebar() {
   const {
     canView
   } = useMenuPermissionsForRole(userRole);
-  return <>
+  return <div className="relative">
+      {/* Botão de toggle - fora do sidebar para não ser cortado */}
+      <button onClick={toggleSidebar} aria-label="Alternar sidebar" className="fixed top-6 z-[80] h-6 w-6 rounded-full bg-background border border-border items-center justify-center hover:bg-accent transition-all shadow-sm flex" style={{ left: collapsed ? 'calc(var(--sidebar-width-icon) - 12px)' : 'calc(14rem - 12px)' }}>
+        {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5 text-muted-foreground" /> : <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />}
+      </button>
+
       <Sidebar collapsible="icon" className="border-r sticky top-0 h-screen z-[60] overflow-hidden">
         <SidebarHeader className="border-b p-4">
           <div className="flex items-center justify-center">
             {collapsed ? <img src="/images/logo-collapsed.png" alt="Logo" className="h-8 w-8 object-contain" /> : <img src="/images/logo-full.png" alt="Logo" className="h-10 w-auto max-w-[150px] object-contain" />}
           </div>
         </SidebarHeader>
-
-        {/* Botão de toggle */}
-        <button onClick={toggleSidebar} aria-label="Alternar sidebar" className="absolute -right-3 top-4 z-[70] h-6 w-6 rounded-full bg-background border border-border items-center justify-center hover:bg-accent transition-colors shadow-sm flex">
-          {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5 text-muted-foreground" /> : <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />}
-        </button>
 
         <SidebarContent>
           {/* NAVIGAÇÃO */}
@@ -303,5 +303,5 @@ export function AppSidebar() {
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
-    </>;
+    </div>;
 }
