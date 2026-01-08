@@ -370,12 +370,61 @@ export default function CobrancaInsights() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Mês Referência</Label>
-                    <Input
-                      type="month"
-                      value={filters.mesReferencia}
-                      onChange={(e) => setFilters(f => ({ ...f, mesReferencia: e.target.value }))}
-                      className="h-9"
-                    />
+                    <div className="flex gap-2">
+                      <Select 
+                        value={filters.mesReferencia ? filters.mesReferencia.split('-')[0] : ""}
+                        onValueChange={(ano) => {
+                          const mes = filters.mesReferencia ? filters.mesReferencia.split('-')[1] : "01";
+                          if (ano) {
+                            setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
+                          } else {
+                            setFilters(f => ({ ...f, mesReferencia: "" }));
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-9 flex-1">
+                          <SelectValue placeholder="Ano" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Todos</SelectItem>
+                          {[2024, 2025, 2026].map(ano => (
+                            <SelectItem key={ano} value={String(ano)}>{ano}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select 
+                        value={filters.mesReferencia ? filters.mesReferencia.split('-')[1] : ""}
+                        onValueChange={(mes) => {
+                          const ano = filters.mesReferencia ? filters.mesReferencia.split('-')[0] : new Date().getFullYear().toString();
+                          if (mes && filters.mesReferencia) {
+                            setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
+                          }
+                        }}
+                        disabled={!filters.mesReferencia}
+                      >
+                        <SelectTrigger className="h-9 flex-1">
+                          <SelectValue placeholder="Mês" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[
+                            { value: "01", label: "Janeiro" },
+                            { value: "02", label: "Fevereiro" },
+                            { value: "03", label: "Março" },
+                            { value: "04", label: "Abril" },
+                            { value: "05", label: "Maio" },
+                            { value: "06", label: "Junho" },
+                            { value: "07", label: "Julho" },
+                            { value: "08", label: "Agosto" },
+                            { value: "09", label: "Setembro" },
+                            { value: "10", label: "Outubro" },
+                            { value: "11", label: "Novembro" },
+                            { value: "12", label: "Dezembro" },
+                          ].map(m => (
+                            <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Situação</Label>

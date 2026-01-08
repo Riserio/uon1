@@ -135,14 +135,24 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
       }))
       .sort((a, b) => a.diaNum - b.diaNum);
 
-    // Gráfico de Inadimplência por Dia do Mês (dias corridos)
+    // Gráfico de Inadimplência por Dia do Mês (dias corridos) - com duas linhas
     const hoje = new Date();
     const diasDoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
     const inadimplenciaPorDia = [];
     
+    // Calcular a inadimplência total esperada (referência) ao final do mês
+    const totalBoletosVencidosMes = boletosFiltrados.filter(b => {
+      if (!b.data_vencimento_original) return false;
+      const venc = new Date(b.data_vencimento_original);
+      return venc.getMonth() === hoje.getMonth() && venc.getFullYear() === hoje.getFullYear();
+    });
+    
+    const inadimplenciaReferencia = totalBoletosVencidosMes.length > 0 
+      ? (totalBoletosVencidosMes.filter(b => b.situacao?.toUpperCase() === 'ABERTO').length / totalBoletosVencidosMes.length) * 100 
+      : 0;
+    
     for (let dia = 1; dia <= diasDoMes; dia++) {
       const dataRef = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
-      const dataStr = dataRef.toISOString().split('T')[0];
       
       // Boletos que deveriam ter vencido até este dia
       const boletosVencidosAteDia = boletosFiltrados.filter(b => {
@@ -155,14 +165,19 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
         b.situacao && b.situacao.toUpperCase() === 'ABERTO'
       );
       
-      const percentInadimplencia = boletosVencidosAteDia.length > 0 
+      const percentInadimplenciaReal = boletosVencidosAteDia.length > 0 
         ? (boletosEmAbertoAteDia.length / boletosVencidosAteDia.length) * 100 
         : 0;
+      
+      // Curva de referência decrescente (simulação de meta de inadimplência esperada)
+      // Começa em ~100% e vai decaindo conforme os dias passam
+      const percentInadimplenciaRef = 100 - ((dia / diasDoMes) * (100 - inadimplenciaReferencia));
       
       inadimplenciaPorDia.push({
         dia,
         diaLabel: `${dia}`,
-        percentual: percentInadimplencia,
+        inadimplenciaReal: percentInadimplenciaReal,
+        inadimplenciaReferencia: percentInadimplenciaRef,
         qtdeAberto: boletosEmAbertoAteDia.length,
         qtdeTotal: boletosVencidosAteDia.length
       });
@@ -456,35 +471,69 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
         </Card>
       </div>
 
-      {/* Gráfico de Inadimplência */}
+      {/* Gráfico de Inadimplência com duas linhas */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
-            Gráfico da Referência de Inadimplência
+            Inadimplência
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <div style={{ minWidth: Math.max(800, stats.inadimplenciaPorDia.length * 30) + 'px' }}>
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={350}>
                 <LineChart data={stats.inadimplenciaPorDia}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="diaLabel" tick={{ fontSize: 11 }} />
+                  <XAxis 
+                    dataKey="diaLabel" 
+                    tick={{ fontSize: 10 }} 
+                    interval={0}
+                    angle={-45}
+                    textAnchor="end"
+                    height={50}
+                  />
                   <YAxis 
                     tick={{ fontSize: 11 }} 
                     tickFormatter={(v) => `${v.toFixed(0)}%`}
                     domain={[0, 100]}
                   />
-                  <Tooltip content={<CustomTooltip isPercent />} />
+                  <Tooltip 
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="bg-background border rounded-lg shadow-lg p-3 text-sm">
+                            <p className="font-medium mb-1">Dia {label}</p>
+                            {payload.map((entry: any, index: number) => (
+                              <p key={index} style={{ color: entry.color }}>
+                                {entry.name}: {formatPercent(entry.value)}
+                              </p>
+                            ))}
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
                   <Legend />
                   <Line 
                     type="monotone" 
-                    dataKey="percentual" 
+                    dataKey="inadimplenciaReal" 
+                    stroke="#3b82f6" 
+                    strokeWidth={2}
+                    name="Inadimplência Real Boleto" 
+                    dot={{ fill: '#3b82f6', r: 2 }}
+                    connectNulls
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="inadimplenciaReferencia" 
                     stroke="#ef4444" 
                     strokeWidth={2}
-                    name="% Inadimplência" 
-                    dot={{ fill: '#ef4444', r: 3 }}
+                    name="Inadimplência Referência" 
+                    dot={{ fill: '#ef4444', r: 2 }}
+                    strokeDasharray="5 5"
+                    connectNulls
                   />
                 </LineChart>
               </ResponsiveContainer>
