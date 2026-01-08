@@ -24,7 +24,7 @@ interface BIAuditLog {
 interface BIAuditLogDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  modulo: "bi_indicadores" | "sga_insights" | "mgf_insights";
+  modulo: "bi_indicadores" | "sga_insights" | "mgf_insights" | "cobranca_insights";
   corretoraId?: string;
 }
 

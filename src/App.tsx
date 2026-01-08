@@ -54,6 +54,7 @@ import CustosSinistros from "@/pages/CustosSinistros";
 import SinistroConfiguracoes from "@/pages/SinistroConfiguracoes";
 import SGAInsights from "@/pages/SGAInsights";
 import MGFInsights from "@/pages/MGFInsights";
+import CobrancaInsights from "@/pages/CobrancaInsights";
 import Landing from "./pages/Landing";
 import Gestao from "./pages/Gestao";
 import Uon1Sign from "./pages/Uon1Sign";
@@ -225,8 +226,10 @@ const App = () => (
               <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
               <Route path="/sga-insights" element={<ProtectedRoute><SGAInsights /></ProtectedRoute>} />
               <Route path="/mgf-insights" element={<ProtectedRoute><MGFInsights /></ProtectedRoute>} />
+              <Route path="/cobranca-insights" element={<ProtectedRoute><CobrancaInsights /></ProtectedRoute>} />
               <Route path="/portal/sga-insights" element={<PortalRoute><SGAInsights /></PortalRoute>} />
               <Route path="/portal/mgf-insights" element={<PortalRoute><MGFInsights /></PortalRoute>} />
+              <Route path="/portal/cobranca-insights" element={<PortalRoute><CobrancaInsights /></PortalRoute>} />
               <Route path="/portal" element={<PortalRoute><Portal /></PortalRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
