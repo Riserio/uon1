@@ -17,7 +17,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
-  Users, BarChart3, Car, ShieldCheck, MessageSquare, Calendar, Activity, Database, Upload, History
+  Users, BarChart3, Car, ShieldCheck, MessageSquare, Calendar, Activity, Database, Upload, History, CreditCard
 } from "lucide-react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 
@@ -89,6 +89,14 @@ export default function PID() {
     }
   };
 
+  const handleNavigateToCobranca = () => {
+    if (selectedAssociacao) {
+      navigate(`/cobranca-insights?associacao=${selectedAssociacao}`);
+    } else {
+      navigate("/cobranca-insights");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -117,13 +125,13 @@ export default function PID() {
                 </Button>
               )}
               
-              {/* Botão SGA Insights */}
+              {/* Botão Eventos (antigo SGA) */}
               <Button
                 onClick={handleNavigateToSGA}
                 className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg"
               >
                 <Database className="h-4 w-4" />
-                <span className="hidden sm:inline">SGA</span>
+                <span className="hidden sm:inline">Eventos</span>
               </Button>
               
               {/* Botão MGF Insights */}
@@ -133,6 +141,15 @@ export default function PID() {
               >
                 <Database className="h-4 w-4" />
                 <span className="hidden sm:inline">MGF</span>
+              </Button>
+              
+              {/* Botão Cobrança */}
+              <Button
+                onClick={handleNavigateToCobranca}
+                className="gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg text-white"
+              >
+                <CreditCard className="h-4 w-4" />
+                <span className="hidden sm:inline">Cobrança</span>
               </Button>
             </div>
           </div>

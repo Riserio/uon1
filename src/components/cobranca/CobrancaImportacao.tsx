@@ -11,6 +11,8 @@ import * as XLSX from "xlsx";
 import CobrancaHistoricoImportacoes from "./CobrancaHistoricoImportacoes";
 import { useBIAuditLog } from "@/hooks/useBIAuditLog";
 
+type CobrancaModulo = "cobranca_insights";
+
 // Template columns for Cobrança
 const COBRANCA_TEMPLATE_COLUMNS = [
   "Data Pagamento",
@@ -42,7 +44,7 @@ const downloadCobrancaTemplate = () => {
 interface CobrancaImportacaoProps {
   onImportSuccess: () => void;
   corretoraId: string;
-  corretoraNome: string;
+  corretoraNome?: string;
 }
 
 // Mapeamento de colunas do Excel para campos do banco

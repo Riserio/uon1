@@ -2,46 +2,45 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter, DollarSign } from "lucide-react";
+import { ArrowLeft, Upload, Database, BarChart3, History, Filter, Calendar, CreditCard } from "lucide-react";
 import { toast } from "sonner";
-import SGADashboard from "@/components/sga/SGADashboard";
-import SGAImportacao from "@/components/sga/SGAImportacao";
-import SGAMapa from "@/components/sga/SGAMapa";
-import SGATabela from "@/components/sga/SGATabela";
+import CobrancaDashboard from "@/components/cobranca/CobrancaDashboard";
+import CobrancaImportacao from "@/components/cobranca/CobrancaImportacao";
+import CobrancaTabela from "@/components/cobranca/CobrancaTabela";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
 
-export interface SGAFilters {
-  dataInicio: string;
-  dataFim: string;
+export interface CobrancaFilters {
+  mesReferencia: string;
+  situacao: string;
   regional: string;
   cooperativa: string;
-  tipoVeiculo: string;
+  diaVencimento: string;
 }
 
-export default function SGAInsights() {
+export default function CobrancaInsights() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { userRole } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [eventos, setEventos] = useState<any[]>([]);
+  const [boletos, setBoletos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   
   // Filtros globais
-  const [filters, setFilters] = useState<SGAFilters>({
-    dataInicio: "",
-    dataFim: "",
+  const [filters, setFilters] = useState<CobrancaFilters>({
+    mesReferencia: "",
+    situacao: "todos",
     regional: "todos",
     cooperativa: "todos",
-    tipoVeiculo: "todos",
+    diaVencimento: "todos",
   });
   
   // Detectar se é acesso via portal (parceiro)
@@ -57,58 +56,47 @@ export default function SGAInsights() {
 
   // Extrair opções únicas para filtros
   const filterOptions = useMemo(() => {
-    const regionais = [...new Set(eventos.map(e => e.regional).filter(Boolean))].sort();
-    const cooperativas = [...new Set(eventos.map(e => e.cooperativa).filter(Boolean))].sort();
-    const tiposVeiculo = [...new Set(eventos.map(e => {
-      const modelo = e.modelo_veiculo || "";
-      if (modelo.toLowerCase().includes("moto") || modelo.toLowerCase().includes("honda") || modelo.toLowerCase().includes("yamaha")) return "Motocicleta";
-      if (modelo.toLowerCase().includes("caminhao") || modelo.toLowerCase().includes("caminhão") || modelo.toLowerCase().includes("truck")) return "Caminhão";
-      return "Passeio";
-    }))].sort();
-    return { regionais, cooperativas, tiposVeiculo };
-  }, [eventos]);
+    const regionais = [...new Set(boletos.map(b => b.regional_boleto).filter(Boolean))].sort();
+    const cooperativas = [...new Set(boletos.map(b => b.cooperativa).filter(Boolean))].sort();
+    const diasVencimento = [...new Set(boletos.map(b => b.dia_vencimento_veiculo).filter(v => v !== null))].sort((a, b) => a - b);
+    const situacoes = [...new Set(boletos.map(b => b.situacao).filter(Boolean))].sort();
+    return { regionais, cooperativas, diasVencimento, situacoes };
+  }, [boletos]);
 
-  // Eventos filtrados
-  const filteredEventos = useMemo(() => {
-    let result = [...eventos];
+  // Boletos filtrados (excluir cancelados por padrão)
+  const filteredBoletos = useMemo(() => {
+    let result = boletos.filter(b => b.situacao?.toUpperCase() !== 'CANCELADO');
     
-    if (filters.dataInicio) {
-      result = result.filter(e => e.data_evento && e.data_evento >= filters.dataInicio);
+    if (filters.mesReferencia) {
+      result = result.filter(b => {
+        if (!b.data_vencimento_original) return false;
+        const mes = b.data_vencimento_original.substring(0, 7);
+        return mes === filters.mesReferencia;
+      });
     }
-    if (filters.dataFim) {
-      result = result.filter(e => e.data_evento && e.data_evento <= filters.dataFim);
+    if (filters.situacao !== "todos") {
+      result = result.filter(b => b.situacao?.toUpperCase() === filters.situacao.toUpperCase());
     }
     if (filters.regional !== "todos") {
-      result = result.filter(e => e.regional === filters.regional);
+      result = result.filter(b => b.regional_boleto === filters.regional);
     }
     if (filters.cooperativa !== "todos") {
-      result = result.filter(e => e.cooperativa === filters.cooperativa);
+      result = result.filter(b => b.cooperativa === filters.cooperativa);
     }
-    if (filters.tipoVeiculo !== "todos") {
-      result = result.filter(e => {
-        const modelo = e.modelo_veiculo || "";
-        if (filters.tipoVeiculo === "Motocicleta") {
-          return modelo.toLowerCase().includes("moto") || modelo.toLowerCase().includes("honda") || modelo.toLowerCase().includes("yamaha");
-        }
-        if (filters.tipoVeiculo === "Caminhão") {
-          return modelo.toLowerCase().includes("caminhao") || modelo.toLowerCase().includes("caminhão") || modelo.toLowerCase().includes("truck");
-        }
-        return !modelo.toLowerCase().includes("moto") && !modelo.toLowerCase().includes("caminhao") && !modelo.toLowerCase().includes("caminhão");
-      });
+    if (filters.diaVencimento !== "todos") {
+      result = result.filter(b => String(b.dia_vencimento_veiculo) === filters.diaVencimento);
     }
     
     return result;
-  }, [eventos, filters]);
+  }, [boletos, filters]);
 
   // Carregar associações
   useEffect(() => {
     async function fetchAssociacoes() {
       try {
-        // Se é acesso via portal, usar apenas a associação da URL
         const associacaoParam = searchParams.get("associacao");
         
         if (isPortalAccess && associacaoParam) {
-          // Para parceiros, buscar apenas a associação específica
           const { data, error } = await supabase
             .from("corretoras")
             .select("id, nome")
@@ -122,7 +110,6 @@ export default function SGAInsights() {
             setSelectedAssociacao(data.id);
           }
         } else {
-          // Para acesso interno, buscar todas as associações
           const { data, error } = await supabase
             .from("corretoras")
             .select("id, nome")
@@ -132,7 +119,6 @@ export default function SGAInsights() {
 
           setAssociacoes(data || []);
           
-          // Pegar associação da URL ou usar a primeira
           if (associacaoParam && data?.some(c => c.id === associacaoParam)) {
             setSelectedAssociacao(associacaoParam);
           } else if (data && data.length > 0) {
@@ -150,9 +136,9 @@ export default function SGAInsights() {
     fetchAssociacoes();
   }, [searchParams, isPortalAccess]);
 
-  const fetchEventos = async () => {
+  const fetchBoletos = async () => {
     if (!selectedAssociacao) {
-      setEventos([]);
+      setBoletos([]);
       setImportacaoAtiva(null);
       setLoading(false);
       return;
@@ -162,7 +148,7 @@ export default function SGAInsights() {
     try {
       // Buscar importação ativa para a associação selecionada
       const { data: importacao, error: impError } = await supabase
-        .from("sga_importacoes")
+        .from("cobranca_importacoes")
         .select("*")
         .eq("ativo", true)
         .eq("corretora_id", selectedAssociacao)
@@ -177,40 +163,39 @@ export default function SGAInsights() {
       if (importacao) {
         setImportacaoAtiva(importacao);
         
-        // Buscar eventos em lotes para ultrapassar limite de 1000 do Supabase
+        // Buscar boletos em lotes
         const BATCH_SIZE = 1000;
-        let allEventos: any[] = [];
+        let allBoletos: any[] = [];
         let hasMore = true;
         let offset = 0;
 
         while (hasMore) {
-          const { data: batch, error: evError } = await supabase
-            .from("sga_eventos")
+          const { data: batch, error: bError } = await supabase
+            .from("cobranca_boletos")
             .select("*")
             .eq("importacao_id", importacao.id)
             .range(offset, offset + BATCH_SIZE - 1);
 
-          if (evError) {
-            console.error("Erro ao buscar eventos:", evError);
+          if (bError) {
+            console.error("Erro ao buscar boletos:", bError);
             break;
           }
 
           if (batch && batch.length > 0) {
-            allEventos = [...allEventos, ...batch];
+            allBoletos = [...allBoletos, ...batch];
             offset += BATCH_SIZE;
             hasMore = batch.length === BATCH_SIZE;
           } else {
             hasMore = false;
           }
 
-          // Segurança: máximo 100 lotes (100k registros)
           if (offset >= 100000) break;
         }
 
-        console.log(`Total de eventos carregados: ${allEventos.length}`);
-        setEventos(allEventos);
+        console.log(`Total de boletos carregados: ${allBoletos.length}`);
+        setBoletos(allBoletos);
       } else {
-        setEventos([]);
+        setBoletos([]);
         setImportacaoAtiva(null);
       }
     } catch (error) {
@@ -220,10 +205,9 @@ export default function SGAInsights() {
     }
   };
 
-  // Recarregar eventos quando associação mudar
   useEffect(() => {
     if (selectedAssociacao) {
-      fetchEventos();
+      fetchBoletos();
     }
   }, [selectedAssociacao]);
 
@@ -231,26 +215,23 @@ export default function SGAInsights() {
 
   const clearFilters = () => {
     setFilters({
-      dataInicio: "",
-      dataFim: "",
+      mesReferencia: "",
+      situacao: "todos",
       regional: "todos",
       cooperativa: "todos",
-      tipoVeiculo: "todos",
+      diaVencimento: "todos",
     });
   };
 
-  const hasActiveFilters = filters.dataInicio || filters.dataFim || filters.regional !== "todos" || filters.cooperativa !== "todos" || filters.tipoVeiculo !== "todos";
+  const hasActiveFilters = filters.mesReferencia || filters.situacao !== "todos" || filters.regional !== "todos" || filters.cooperativa !== "todos" || filters.diaVencimento !== "todos";
 
-  // Tabs - esconder importação para parceiros
   const tabs = isPortalAccess 
     ? [
         { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-        { id: "mapa", label: "Mapa Geográfico", icon: Map },
         { id: "tabela", label: "Dados Completos", icon: Database },
       ]
     : [
         { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-        { id: "mapa", label: "Mapa Geográfico", icon: Map },
         { id: "tabela", label: "Dados Completos", icon: Database },
         { id: "importar", label: "Importar Dados", icon: Upload },
       ];
@@ -258,7 +239,7 @@ export default function SGAInsights() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b">
+      <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-b">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center gap-4 mb-4">
             <Button 
@@ -273,25 +254,13 @@ export default function SGAInsights() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex-1">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                Eventos Insights
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-400 bg-clip-text text-transparent">
+                Cobrança Insights
               </h1>
               <p className="text-muted-foreground mt-1">
-                Business Intelligence de Eventos
+                Business Intelligence de Cobrança e Inadimplência
               </p>
             </div>
-            
-            <Button
-              variant="outline"
-              onClick={() => navigate(isPortalAccess 
-                ? `/portal/mgf-insights?associacao=${selectedAssociacao}` 
-                : `/mgf-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
-              )}
-              className="gap-2 border-orange-500/30 hover:bg-orange-500/10"
-            >
-              <DollarSign className="h-4 w-4" />
-              <span className="hidden sm:inline">MGF Insights</span>
-            </Button>
             
             {/* Botão Histórico - só para superintendente e admin */}
             {canViewHistorico && (
@@ -307,20 +276,20 @@ export default function SGAInsights() {
             {importacaoAtiva && (
               <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
                 <Database className="h-4 w-4" />
-                <span>{filteredEventos.length.toLocaleString()} registros</span>
-                {hasActiveFilters && <span className="text-primary">(filtrados)</span>}
+                <span>{filteredBoletos.length.toLocaleString()} registros</span>
+                {hasActiveFilters && <span className="text-emerald-600">(filtrados)</span>}
                 <span className="text-muted-foreground/50">|</span>
                 <span>{importacaoAtiva.nome_arquivo}</span>
               </div>
             )}
           </div>
 
-          {/* Seletor de Associação - apenas para acesso interno */}
+          {/* Seletor de Associação */}
           {!isPortalAccess && (
-            <Card className="border-primary/20 bg-card/50 backdrop-blur mb-4">
+            <Card className="border-emerald-500/20 bg-card/50 backdrop-blur mb-4">
               <CardContent className="p-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-                  <Label htmlFor="associacao-select-sga" className="text-base font-semibold whitespace-nowrap">
+                  <Label htmlFor="associacao-select-cobranca" className="text-base font-semibold whitespace-nowrap">
                     Associação:
                   </Label>
                   <Select 
@@ -329,7 +298,7 @@ export default function SGAInsights() {
                     disabled={loadingAssociacoes}
                   >
                     <SelectTrigger
-                      id="associacao-select-sga"
+                      id="associacao-select-cobranca"
                       className="w-full sm:max-w-md h-10 border-2"
                     >
                       <SelectValue placeholder="Selecione uma associação..." />
@@ -349,7 +318,7 @@ export default function SGAInsights() {
           
           {/* Nome da Associação para parceiros */}
           {isPortalAccess && selectedAssociacaoNome && (
-            <Card className="border-primary/20 bg-card/50 backdrop-blur mb-4">
+            <Card className="border-emerald-500/20 bg-card/50 backdrop-blur mb-4">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2">
                   <Label className="text-base font-semibold whitespace-nowrap">
@@ -362,11 +331,11 @@ export default function SGAInsights() {
           )}
 
           {/* Filtros Globais */}
-          {eventos.length > 0 && (
-            <Card className="border-primary/20 bg-card/50 backdrop-blur mb-4">
+          {boletos.length > 0 && (
+            <Card className="border-emerald-500/20 bg-card/50 backdrop-blur mb-4">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <Filter className="h-4 w-4 text-primary" />
+                  <Filter className="h-4 w-4 text-emerald-600" />
                   <span className="font-semibold text-sm">Filtros</span>
                   {hasActiveFilters && (
                     <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-2 text-xs">
@@ -376,22 +345,27 @@ export default function SGAInsights() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Data Início</Label>
+                    <Label className="text-xs text-muted-foreground">Mês Referência</Label>
                     <Input
-                      type="date"
-                      value={filters.dataInicio}
-                      onChange={(e) => setFilters(f => ({ ...f, dataInicio: e.target.value }))}
+                      type="month"
+                      value={filters.mesReferencia}
+                      onChange={(e) => setFilters(f => ({ ...f, mesReferencia: e.target.value }))}
                       className="h-9"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Data Fim</Label>
-                    <Input
-                      type="date"
-                      value={filters.dataFim}
-                      onChange={(e) => setFilters(f => ({ ...f, dataFim: e.target.value }))}
-                      className="h-9"
-                    />
+                    <Label className="text-xs text-muted-foreground">Situação</Label>
+                    <Select value={filters.situacao} onValueChange={(v) => setFilters(f => ({ ...f, situacao: v }))}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Todas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todas</SelectItem>
+                        {filterOptions.situacoes.map(s => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Regional</Label>
@@ -422,16 +396,16 @@ export default function SGAInsights() {
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Tipo Veículo</Label>
-                    <Select value={filters.tipoVeiculo} onValueChange={(v) => setFilters(f => ({ ...f, tipoVeiculo: v }))}>
+                    <Label className="text-xs text-muted-foreground">Dia Vencimento</Label>
+                    <Select value={filters.diaVencimento} onValueChange={(v) => setFilters(f => ({ ...f, diaVencimento: v }))}>
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="Todos" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="todos">Todos Tipos</SelectItem>
-                        <SelectItem value="Passeio">Passeio</SelectItem>
-                        <SelectItem value="Motocicleta">Motocicleta</SelectItem>
-                        <SelectItem value="Caminhão">Caminhão</SelectItem>
+                        <SelectItem value="todos">Todos</SelectItem>
+                        {filterOptions.diasVencimento.map(d => (
+                          <SelectItem key={d} value={String(d)}>Dia {d}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -439,119 +413,54 @@ export default function SGAInsights() {
               </CardContent>
             </Card>
           )}
-
-          {/* Quick Stats */}
-          {filteredEventos.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-              <Card className="bg-card/50 backdrop-blur border-primary/20">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <Car className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold">{filteredEventos.length.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">Total Eventos</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-card/50 backdrop-blur border-green-500/20">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-green-500/10">
-                      <TrendingUp className="h-5 w-5 text-green-500" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold">
-                        {filteredEventos.filter(e => e.situacao_evento === "FINALIZADO").length.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Finalizados</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-card/50 backdrop-blur border-yellow-500/20">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-yellow-500/10">
-                      <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold">
-                        {filteredEventos.filter(e => e.situacao_evento === "EM ANALISE" || e.situacao_evento === "ABERTO").length.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Em Análise</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-card/50 backdrop-blur border-red-500/20">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-red-500/10">
-                      <AlertTriangle className="h-5 w-5 text-red-500" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' })
-                          .format(filteredEventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0))}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Custo Total</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Content */}
+      {/* Tabs */}
       <div className="container mx-auto px-4 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className={`grid w-full max-w-3xl mx-auto bg-muted/50 ${isPortalAccess ? 'grid-cols-3' : 'grid-cols-4'}`}>
-            {tabs.map((tab) => (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id}
-                className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                <tab.icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
-              </TabsTrigger>
-            ))}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-6">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
 
           <TabsContent value="dashboard">
-            <SGADashboard eventos={filteredEventos} loading={loading} />
-          </TabsContent>
-
-          <TabsContent value="mapa">
-            <SGAMapa eventos={filteredEventos} loading={loading} />
+            <CobrancaDashboard 
+              boletos={filteredBoletos} 
+              loading={loading} 
+            />
           </TabsContent>
 
           <TabsContent value="tabela">
-            <SGATabela eventos={filteredEventos} loading={loading} />
+            <CobrancaTabela 
+              boletos={filteredBoletos} 
+              loading={loading}
+            />
           </TabsContent>
 
           {!isPortalAccess && (
             <TabsContent value="importar">
-              <SGAImportacao 
-                onImportSuccess={fetchEventos} 
+              <CobrancaImportacao 
                 corretoraId={selectedAssociacao}
-                corretoraNome={selectedAssociacaoNome}
+                onImportSuccess={fetchBoletos}
               />
             </TabsContent>
           )}
         </Tabs>
       </div>
 
-      {/* Modal Histórico de Alterações */}
+      {/* Modal Histórico */}
       <BIAuditLogDialog
         open={historicoDialogOpen}
         onOpenChange={setHistoricoDialogOpen}
-        modulo="sga_insights"
+        modulo="cobranca_insights"
         corretoraId={selectedAssociacao}
       />
     </div>
