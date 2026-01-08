@@ -97,7 +97,7 @@ export function AppSidebar() {
         {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5 text-muted-foreground" /> : <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />}
       </button>
 
-      <Sidebar collapsible="icon" className="border-r sticky top-0 h-screen z-[60] overflow-hidden">
+      <Sidebar collapsible="icon" className="border-r fixed top-0 left-0 h-screen z-[60] overflow-hidden">
         <SidebarHeader className="border-b p-4">
           <div className="flex items-center justify-center">
             {collapsed ? <img src="/images/logo-collapsed.png" alt="Logo" className="h-8 w-8 object-contain" /> : <img src="/images/logo-full.png" alt="Logo" className="h-10 w-auto max-w-[150px] object-contain" />}
