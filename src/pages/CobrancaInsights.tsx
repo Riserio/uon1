@@ -372,13 +372,13 @@ export default function CobrancaInsights() {
                     <Label className="text-xs text-muted-foreground">Mês Referência</Label>
                     <div className="flex gap-2">
                       <Select 
-                        value={filters.mesReferencia ? filters.mesReferencia.split('-')[0] : ""}
+                        value={filters.mesReferencia ? filters.mesReferencia.split('-')[0] : "todos"}
                         onValueChange={(ano) => {
-                          const mes = filters.mesReferencia ? filters.mesReferencia.split('-')[1] : "01";
-                          if (ano) {
-                            setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
-                          } else {
+                          if (ano === "todos") {
                             setFilters(f => ({ ...f, mesReferencia: "" }));
+                          } else {
+                            const mes = filters.mesReferencia ? filters.mesReferencia.split('-')[1] : "01";
+                            setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
                           }
                         }}
                       >
@@ -386,17 +386,18 @@ export default function CobrancaInsights() {
                           <SelectValue placeholder="Ano" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Todos</SelectItem>
+                          <SelectItem value="todos">Todos</SelectItem>
                           {[2024, 2025, 2026].map(ano => (
                             <SelectItem key={ano} value={String(ano)}>{ano}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       <Select 
-                        value={filters.mesReferencia ? filters.mesReferencia.split('-')[1] : ""}
+                        value={filters.mesReferencia ? filters.mesReferencia.split('-')[1] : "todos"}
                         onValueChange={(mes) => {
+                          if (mes === "todos") return;
                           const ano = filters.mesReferencia ? filters.mesReferencia.split('-')[0] : new Date().getFullYear().toString();
-                          if (mes && filters.mesReferencia) {
+                          if (ano !== "todos") {
                             setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
                           }
                         }}
