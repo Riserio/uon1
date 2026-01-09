@@ -174,15 +174,12 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
         ? (boletosEmAbertoNoDia.length / boletosVencidosNoDia.length) * 100 
         : 0;
       
-      // Curva de referência decrescente
-      const percentInadimplenciaRef = 100 - ((dia / diasDoMes) * (100 - inadimplenciaReferencia));
-      
       inadimplenciaPorDia.push({
         dia,
         diaLabel: `${dia}`,
         inadimplenciaAcumulado: percentInadimplenciaAcumulado,
         inadimplenciaPontual: percentInadimplenciaPontual,
-        inadimplenciaReferencia: percentInadimplenciaRef,
+        inadimplenciaReferencia: inadimplenciaReferencia, // Linha reta horizontal
         qtdeAbertoAcumulado: boletosEmAbertoAteDia.length,
         qtdeTotalAcumulado: boletosVencidosAteDia.length,
         qtdeAbertoPontual: boletosEmAbertoNoDia.length,
