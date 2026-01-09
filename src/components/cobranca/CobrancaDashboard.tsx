@@ -52,6 +52,7 @@ const CustomTooltip = ({ active, payload, label, isCurrency = false, isPercent =
 
 export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboardProps) {
   const [evolucaoView, setEvolucaoView] = useState<'mes' | 'dia'>('dia');
+  const [modoInadimplencia, setModoInadimplencia] = useState<'acumulado' | 'pontual'>('acumulado');
   
   const stats = useMemo(() => {
     if (!boletos.length) return null;
@@ -154,7 +155,7 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
     for (let dia = 1; dia <= diasDoMes; dia++) {
       const dataRef = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
       
-      // Boletos que deveriam ter vencido até este dia
+      // ACUMULADO: Boletos que deveriam ter vencido ATÉ este dia
       const boletosVencidosAteDia = boletosFiltrados.filter(b => {
         if (!b.data_vencimento_original) return false;
         const venc = new Date(b.data_vencimento_original);
@@ -165,8 +166,25 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
         b.situacao && b.situacao.toUpperCase() === 'ABERTO'
       );
       
-      const percentInadimplenciaReal = boletosVencidosAteDia.length > 0 
+      const percentInadimplenciaAcumulado = boletosVencidosAteDia.length > 0 
         ? (boletosEmAbertoAteDia.length / boletosVencidosAteDia.length) * 100 
+        : 0;
+      
+      // PONTUAL: Boletos que vencem EXATAMENTE neste dia
+      const boletosVencidosNoDia = boletosFiltrados.filter(b => {
+        if (!b.data_vencimento_original) return false;
+        const venc = new Date(b.data_vencimento_original);
+        return venc.getDate() === dia && 
+               venc.getMonth() === hoje.getMonth() && 
+               venc.getFullYear() === hoje.getFullYear();
+      });
+      
+      const boletosEmAbertoNoDia = boletosVencidosNoDia.filter(b => 
+        b.situacao && b.situacao.toUpperCase() === 'ABERTO'
+      );
+      
+      const percentInadimplenciaPontual = boletosVencidosNoDia.length > 0 
+        ? (boletosEmAbertoNoDia.length / boletosVencidosNoDia.length) * 100 
         : 0;
       
       // Curva de referência decrescente (simulação de meta de inadimplência esperada)
@@ -176,10 +194,13 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
       inadimplenciaPorDia.push({
         dia,
         diaLabel: `${dia}`,
-        inadimplenciaReal: percentInadimplenciaReal,
+        inadimplenciaAcumulado: percentInadimplenciaAcumulado,
+        inadimplenciaPontual: percentInadimplenciaPontual,
         inadimplenciaReferencia: percentInadimplenciaRef,
-        qtdeAberto: boletosEmAbertoAteDia.length,
-        qtdeTotal: boletosVencidosAteDia.length
+        qtdeAbertoAcumulado: boletosEmAbertoAteDia.length,
+        qtdeTotalAcumulado: boletosVencidosAteDia.length,
+        qtdeAbertoPontual: boletosEmAbertoNoDia.length,
+        qtdeTotalPontual: boletosVencidosNoDia.length
       });
     }
 
@@ -474,10 +495,28 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
       {/* Gráfico de Inadimplência com duas linhas */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            Inadimplência
-          </CardTitle>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Inadimplência
+            </CardTitle>
+            <div className="flex gap-1">
+              <Button 
+                variant={modoInadimplencia === 'acumulado' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setModoInadimplencia('acumulado')}
+              >
+                Acumulado
+              </Button>
+              <Button 
+                variant={modoInadimplencia === 'pontual' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setModoInadimplencia('pontual')}
+              >
+                Pontual
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -501,6 +540,7 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
                   <Tooltip 
                     content={({ active, payload, label }) => {
                       if (active && payload && payload.length) {
+                        const dataPoint = stats.inadimplenciaPorDia.find(d => d.diaLabel === label);
                         return (
                           <div className="bg-background border rounded-lg shadow-lg p-3 text-sm">
                             <p className="font-medium mb-1">Dia {label}</p>
@@ -509,6 +549,14 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
                                 {entry.name}: {formatPercent(entry.value)}
                               </p>
                             ))}
+                            {dataPoint && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {modoInadimplencia === 'acumulado' 
+                                  ? `${dataPoint.qtdeAbertoAcumulado} abertos de ${dataPoint.qtdeTotalAcumulado} vencidos`
+                                  : `${dataPoint.qtdeAbertoPontual} abertos de ${dataPoint.qtdeTotalPontual} no dia`
+                                }
+                              </p>
+                            )}
                           </div>
                         );
                       }
@@ -518,10 +566,10 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
                   <Legend />
                   <Line 
                     type="monotone" 
-                    dataKey="inadimplenciaReal" 
+                    dataKey={modoInadimplencia === 'acumulado' ? 'inadimplenciaAcumulado' : 'inadimplenciaPontual'}
                     stroke="#3b82f6" 
                     strokeWidth={2}
-                    name="Inadimplência Real Boleto" 
+                    name={modoInadimplencia === 'acumulado' ? 'Inadimplência Real (Acumulada)' : 'Inadimplência Real (Pontual)'} 
                     dot={{ fill: '#3b82f6', r: 2 }}
                     connectNulls
                   />
