@@ -51,8 +51,6 @@ const CustomTooltip = ({ active, payload, label, isCurrency = false, isPercent =
 };
 
 export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboardProps) {
-  const [evolucaoView, setEvolucaoView] = useState<'mes' | 'dia'>('dia');
-  const [modoInadimplencia, setModoInadimplencia] = useState<'acumulado' | 'pontual'>('acumulado');
   const [metaInadimplencia, setMetaInadimplencia] = useState<number>(30);
   
   const stats = useMemo(() => {
@@ -505,35 +503,17 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
               <TrendingUp className="h-5 w-5 text-primary" />
               Inadimplência
             </CardTitle>
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Meta:</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={metaInadimplencia}
-                  onChange={(e) => setMetaInadimplencia(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
-                  className="w-16 h-8 text-center text-sm border rounded-md bg-background"
-                />
-                <span className="text-sm text-muted-foreground">%</span>
-              </div>
-              <div className="flex gap-1">
-                <Button 
-                  variant={modoInadimplencia === 'acumulado' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setModoInadimplencia('acumulado')}
-                >
-                  Acumulado
-                </Button>
-                <Button 
-                  variant={modoInadimplencia === 'pontual' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setModoInadimplencia('pontual')}
-                >
-                  Pontual
-                </Button>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Referência:</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={metaInadimplencia}
+                onChange={(e) => setMetaInadimplencia(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                className="w-16 h-8 text-center text-sm border rounded-md bg-background"
+              />
+              <span className="text-sm text-muted-foreground">%</span>
             </div>
           </div>
         </CardHeader>
@@ -586,7 +566,7 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
                     strokeWidth={2}
                     strokeDasharray="5 5"
                     label={{ 
-                      value: `Meta ${metaInadimplencia}%`, 
+                      value: `Referência ${metaInadimplencia}%`, 
                       position: 'right',
                       fill: '#10b981',
                       fontSize: 11
