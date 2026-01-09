@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area, ComposedChart
+  PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area, ComposedChart, ReferenceLine
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,7 @@ const CustomTooltip = ({ active, payload, label, isCurrency = false, isPercent =
 export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboardProps) {
   const [evolucaoView, setEvolucaoView] = useState<'mes' | 'dia'>('dia');
   const [modoInadimplencia, setModoInadimplencia] = useState<'acumulado' | 'pontual'>('acumulado');
+  const [metaInadimplencia, setMetaInadimplencia] = useState<number>(30);
   
   const stats = useMemo(() => {
     if (!boletos.length) return null;
@@ -174,7 +175,7 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
         ? (boletosEmAbertoNoDia.length / boletosVencidosNoDia.length) * 100 
         : 0;
       
-      // REFERÊNCIA HISTÓRICA: Como estava a inadimplência NAQUELE DIA
+      // INADIMPLÊNCIA REAL (histórica): Como estava a inadimplência NAQUELE DIA
       // Um boleto estava "em aberto" no dia X se: ainda não foi pago OU foi pago depois do dia X
       const boletosEmAbertoNaquelaData = boletosVencidosAteDia.filter(b => {
         // Se está aberto agora, estava aberto naquela data também
@@ -190,7 +191,7 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
         return false;
       });
       
-      const percentInadimplenciaReferencia = boletosVencidosAteDia.length > 0 
+      const percentInadimplenciaReal = boletosVencidosAteDia.length > 0 
         ? (boletosEmAbertoNaquelaData.length / boletosVencidosAteDia.length) * 100 
         : 0;
       
@@ -199,12 +200,12 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
         diaLabel: `${dia}`,
         inadimplenciaAcumulado: percentInadimplenciaAcumulado,
         inadimplenciaPontual: percentInadimplenciaPontual,
-        inadimplenciaReferencia: percentInadimplenciaReferencia,
+        inadimplenciaReal: percentInadimplenciaReal,
         qtdeAbertoAcumulado: boletosEmAbertoAteDia.length,
         qtdeTotalAcumulado: boletosVencidosAteDia.length,
         qtdeAbertoPontual: boletosEmAbertoNoDia.length,
         qtdeTotalPontual: boletosVencidosNoDia.length,
-        qtdeAbertoReferencia: boletosEmAbertoNaquelaData.length
+        qtdeAbertoReal: boletosEmAbertoNaquelaData.length
       });
     }
 
@@ -499,26 +500,40 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
       {/* Gráfico de Inadimplência com duas linhas */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
               Inadimplência
             </CardTitle>
-            <div className="flex gap-1">
-              <Button 
-                variant={modoInadimplencia === 'acumulado' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setModoInadimplencia('acumulado')}
-              >
-                Acumulado
-              </Button>
-              <Button 
-                variant={modoInadimplencia === 'pontual' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setModoInadimplencia('pontual')}
-              >
-                Pontual
-              </Button>
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Meta:</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={metaInadimplencia}
+                  onChange={(e) => setMetaInadimplencia(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                  className="w-16 h-8 text-center text-sm border rounded-md bg-background"
+                />
+                <span className="text-sm text-muted-foreground">%</span>
+              </div>
+              <div className="flex gap-1">
+                <Button 
+                  variant={modoInadimplencia === 'acumulado' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setModoInadimplencia('acumulado')}
+                >
+                  Acumulado
+                </Button>
+                <Button 
+                  variant={modoInadimplencia === 'pontual' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setModoInadimplencia('pontual')}
+                >
+                  Pontual
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -555,10 +570,7 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
                             ))}
                             {dataPoint && (
                               <p className="text-xs text-muted-foreground mt-1">
-                                {modoInadimplencia === 'acumulado' 
-                                  ? `${dataPoint.qtdeAbertoAcumulado} abertos de ${dataPoint.qtdeTotalAcumulado} vencidos`
-                                  : `${dataPoint.qtdeAbertoPontual} abertos de ${dataPoint.qtdeTotalPontual} no dia`
-                                }
+                                {`${dataPoint.qtdeAbertoReal} abertos de ${dataPoint.qtdeTotalAcumulado} vencidos`}
                               </p>
                             )}
                           </div>
@@ -568,23 +580,25 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
                     }}
                   />
                   <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey={modoInadimplencia === 'acumulado' ? 'inadimplenciaAcumulado' : 'inadimplenciaPontual'}
-                    stroke="#3b82f6" 
+                  <ReferenceLine 
+                    y={metaInadimplencia} 
+                    stroke="#10b981" 
                     strokeWidth={2}
-                    name={modoInadimplencia === 'acumulado' ? 'Inadimplência Real (Acumulada)' : 'Inadimplência Real (Pontual)'} 
-                    dot={{ fill: '#3b82f6', r: 2 }}
-                    connectNulls
+                    strokeDasharray="5 5"
+                    label={{ 
+                      value: `Meta ${metaInadimplencia}%`, 
+                      position: 'right',
+                      fill: '#10b981',
+                      fontSize: 11
+                    }}
                   />
                   <Line 
                     type="monotone" 
-                    dataKey="inadimplenciaReferencia" 
-                    stroke="#ef4444" 
+                    dataKey="inadimplenciaReal"
+                    stroke="#3b82f6" 
                     strokeWidth={2}
-                    name="Inadimplência Referência" 
-                    dot={{ fill: '#ef4444', r: 2 }}
-                    strokeDasharray="5 5"
+                    name="Inadimplência Real" 
+                    dot={{ fill: '#3b82f6', r: 2 }}
                     connectNulls
                   />
                 </LineChart>
