@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, DollarSign, AlertCircle, Calendar, FileText, CheckCircle2, Clock, Building2 } from "lucide-react";
+import { TrendingUp, DollarSign, AlertCircle, Calendar, FileText, CheckCircle2, Clock, Building2, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface CobrancaDashboardProps {
   boletos: any[];
@@ -52,6 +52,27 @@ const CustomTooltip = ({ active, payload, label, isCurrency = false, isPercent =
 
 export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboardProps) {
   const [metaInadimplencia, setMetaInadimplencia] = useState<number>(30);
+  const inadimplenciaScrollRef = useRef<HTMLDivElement>(null);
+  const [showScrollIndicators, setShowScrollIndicators] = useState({ left: false, right: false });
+
+  // Function to update scroll indicators
+  const updateScrollIndicators = () => {
+    const el = inadimplenciaScrollRef.current;
+    if (el) {
+      const canScrollLeft = el.scrollLeft > 10;
+      const canScrollRight = el.scrollLeft < el.scrollWidth - el.clientWidth - 10;
+      setShowScrollIndicators({ left: canScrollLeft, right: canScrollRight });
+    }
+  };
+
+  // Handle manual scroll
+  const handleScroll = (direction: 'left' | 'right') => {
+    const el = inadimplenciaScrollRef.current;
+    if (el) {
+      const scrollAmount = 300;
+      el.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+    }
+  };
   
   const stats = useMemo(() => {
     if (!boletos.length) return null;
@@ -192,6 +213,7 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
         dia,
         diaLabel: `${dia}`,
         inadimplenciaReal: percentInadimplenciaReal,
+        inadimplenciaReferencia: metaInadimplencia,
         qtdeAbertoReal: qtdeAbertoReal,
         qtdeTotalAcumulado: boletosVencidosAteDia.length
       });
@@ -309,7 +331,26 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
       cooperativasAbertosData,
       percentualInadimplencia: totalBoletos > 0 ? (boletosAbertos.length / totalBoletos) * 100 : 0
     };
-  }, [boletos]);
+  }, [boletos, metaInadimplencia]);
+
+  // Center on current day when data loads
+  useEffect(() => {
+    const el = inadimplenciaScrollRef.current;
+    if (!el || !stats) return;
+
+    const hoje = new Date();
+    const diaHoje = hoje.getDate();
+    
+    // Find index of today in the data
+    const targetIndex = stats.inadimplenciaPorDia.findIndex(d => d.dia === diaHoje);
+    if (targetIndex !== -1) {
+      const itemWidth = 30;
+      const targetScroll = Math.max(0, (targetIndex * itemWidth) - (el.clientWidth / 2) + (itemWidth / 2));
+      el.scrollTo({ left: targetScroll, behavior: 'auto' });
+    }
+
+    setTimeout(updateScrollIndicators, 100);
+  }, [stats?.inadimplenciaPorDia]);
 
   if (loading) {
     return (
@@ -508,72 +549,103 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <div style={{ minWidth: Math.max(800, stats.inadimplenciaPorDia.length * 30) + 'px' }}>
-              <ResponsiveContainer width="100%" height={350}>
-                <LineChart data={stats.inadimplenciaPorDia}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis 
-                    dataKey="diaLabel" 
-                    tick={{ fontSize: 10 }} 
-                    interval={0}
-                    angle={-45}
-                    textAnchor="end"
-                    height={50}
-                  />
-                  <YAxis 
-                    tick={{ fontSize: 11 }} 
-                    tickFormatter={(v) => `${v.toFixed(0)}%`}
-                    domain={[0, 100]}
-                  />
-                  <Tooltip 
-                    content={({ active, payload, label }) => {
-                      if (active && payload && payload.length) {
-                        const dataPoint = stats.inadimplenciaPorDia.find(d => d.diaLabel === label);
-                        return (
-                          <div className="bg-background border rounded-lg shadow-lg p-3 text-sm">
-                            <p className="font-medium mb-1">Dia {label}</p>
-                            {payload.map((entry: any, index: number) => (
-                              <p key={index} style={{ color: entry.color }}>
-                                {entry.name}: {formatPercent(entry.value)}
-                              </p>
-                            ))}
-                            {dataPoint && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {`${dataPoint.qtdeAbertoReal} abertos de ${dataPoint.qtdeTotalAcumulado} vencidos`}
-                              </p>
-                            )}
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Legend />
-                  <ReferenceLine 
-                    y={metaInadimplencia} 
-                    stroke="#10b981" 
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    label={{ 
-                      value: `Referência ${metaInadimplencia}%`, 
-                      position: 'right',
-                      fill: '#10b981',
-                      fontSize: 11
-                    }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="inadimplenciaReal"
-                    stroke="#3b82f6" 
-                    strokeWidth={2}
-                    name="Inadimplência Real" 
-                    dot={{ fill: '#3b82f6', r: 2 }}
-                    connectNulls
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+          <div className="relative">
+            {/* Scroll Indicator Left */}
+            {showScrollIndicators.left && (
+              <button
+                onClick={() => handleScroll('left')}
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-background/90 hover:bg-background border shadow-lg rounded-full p-2 transition-all"
+                aria-label="Scroll para esquerda"
+              >
+                <ChevronLeft className="h-5 w-5 text-muted-foreground" />
+              </button>
+            )}
+            
+            {/* Scroll Indicator Right */}
+            {showScrollIndicators.right && (
+              <button
+                onClick={() => handleScroll('right')}
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-background/90 hover:bg-background border shadow-lg rounded-full p-2 transition-all"
+                aria-label="Scroll para direita"
+              >
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </button>
+            )}
+
+            <div 
+              className="overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent"
+              ref={inadimplenciaScrollRef}
+              onScroll={updateScrollIndicators}
+            >
+              <div style={{ minWidth: Math.max(800, stats.inadimplenciaPorDia.length * 30) + 'px' }}>
+                <ResponsiveContainer width="100%" height={350}>
+                  <LineChart data={stats.inadimplenciaPorDia}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis 
+                      dataKey="diaLabel" 
+                      tick={{ fontSize: 10 }} 
+                      interval={0}
+                      angle={-45}
+                      textAnchor="end"
+                      height={50}
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 11 }} 
+                      tickFormatter={(v) => `${v.toFixed(0)}%`}
+                      domain={[0, 100]}
+                    />
+                    <Tooltip 
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          const dataPoint = stats.inadimplenciaPorDia.find(d => d.diaLabel === label);
+                          return (
+                            <div className="bg-background border rounded-lg shadow-lg p-3 text-sm">
+                              <p className="font-medium mb-1">Dia {label}</p>
+                              {payload.map((entry: any, index: number) => (
+                                <p key={index} style={{ color: entry.color }}>
+                                  {entry.name}: {formatPercent(entry.value)}
+                                </p>
+                              ))}
+                              {dataPoint && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {`${dataPoint.qtdeAbertoReal} abertos de ${dataPoint.qtdeTotalAcumulado} vencidos`}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Legend />
+                    <Line 
+                      type="monotone" 
+                      dataKey="inadimplenciaReal"
+                      stroke="#3b82f6" 
+                      strokeWidth={2}
+                      name="Inadimplência Real" 
+                      dot={{ fill: '#3b82f6', r: 2 }}
+                      connectNulls
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="inadimplenciaReferencia"
+                      stroke="#10b981" 
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      name="Inadimplência Referência" 
+                      dot={false}
+                      connectNulls
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
+            
+            {/* Scroll hint text */}
+            <p className="text-[10px] text-muted-foreground text-center mt-2">
+              ← Arraste para ver mais dias →
+            </p>
           </div>
         </CardContent>
       </Card>
