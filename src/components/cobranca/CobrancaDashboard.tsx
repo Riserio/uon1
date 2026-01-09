@@ -6,11 +6,16 @@ import {
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, DollarSign, AlertCircle, Calendar, FileText, CheckCircle2, Clock, Building2, ChevronLeft, ChevronRight } from "lucide-react";
+import { TrendingUp, DollarSign, AlertCircle, Calendar, FileText, CheckCircle2, Clock, Building2, ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { InadimplenciaReferenciaConfigDialog } from "./InadimplenciaReferenciaConfigDialog";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CobrancaDashboardProps {
   boletos: any[];
   loading: boolean;
+  corretoraId?: string;
+  mesReferencia?: string;
+  isPortalAccess?: boolean;
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#14b8a6'];
@@ -50,10 +55,38 @@ const CustomTooltip = ({ active, payload, label, isCurrency = false, isPercent =
   return null;
 };
 
-export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboardProps) {
-  const [metaInadimplencia, setMetaInadimplencia] = useState<number>(30);
+export default function CobrancaDashboard({ boletos, loading, corretoraId, mesReferencia, isPortalAccess }: CobrancaDashboardProps) {
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [inadimplenciaConfig, setInadimplenciaConfig] = useState<Map<number, number>>(new Map());
   const inadimplenciaScrollRef = useRef<HTMLDivElement>(null);
   const [showScrollIndicators, setShowScrollIndicators] = useState({ left: false, right: false });
+
+  // Carregar configuração de inadimplência do banco
+  const loadInadimplenciaConfig = async () => {
+    if (!corretoraId || !mesReferencia) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from("cobranca_inadimplencia_config")
+        .select("dia, percentual_referencia")
+        .eq("corretora_id", corretoraId)
+        .eq("mes_referencia", mesReferencia);
+
+      if (error) throw error;
+
+      const configMap = new Map<number, number>();
+      data?.forEach(d => {
+        configMap.set(d.dia, Number(d.percentual_referencia));
+      });
+      setInadimplenciaConfig(configMap);
+    } catch (error) {
+      console.error("Erro ao carregar config inadimplência:", error);
+    }
+  };
+
+  useEffect(() => {
+    loadInadimplenciaConfig();
+  }, [corretoraId, mesReferencia]);
 
   // Function to update scroll indicators
   const updateScrollIndicators = () => {
@@ -215,11 +248,14 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
           : 0;
       }
       
+      // Pegar referência do config ou usar 30% padrão
+      const referenciaParaDia = inadimplenciaConfig.get(dia) ?? 30;
+      
       inadimplenciaPorDia.push({
         dia,
         diaLabel: `${dia}`,
         inadimplenciaReal: percentInadimplenciaReal,
-        inadimplenciaReferencia: metaInadimplencia,
+        inadimplenciaReferencia: referenciaParaDia,
         qtdeVencidos: qtdeVencidos,
         qtdePagos: dia >= diaHoje ? boletosPagosAteDia.length : boletosPagosAteDia.length,
         qtdeEmitidos: boletosEmitidosAteDia.length
@@ -338,7 +374,7 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
       cooperativasAbertosData,
       percentualInadimplencia: totalBoletos > 0 ? (boletosAbertos.length / totalBoletos) * 100 : 0
     };
-  }, [boletos, metaInadimplencia]);
+  }, [boletos, inadimplenciaConfig]);
 
   // Center on current day when data loads
   useEffect(() => {
@@ -541,18 +577,18 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
               <TrendingUp className="h-5 w-5 text-primary" />
               Inadimplência
             </CardTitle>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Referência:</span>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={metaInadimplencia}
-                onChange={(e) => setMetaInadimplencia(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
-                className="w-16 h-8 text-center text-sm border rounded-md bg-background"
-              />
-              <span className="text-sm text-muted-foreground">%</span>
-            </div>
+            {/* Botão de configuração - oculto para parceiros */}
+            {!isPortalAccess && corretoraId && mesReferencia && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfigDialogOpen(true)}
+                className="gap-2"
+              >
+                <Settings className="h-4 w-4" />
+                Configurar Referência
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -810,6 +846,17 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialog de configuração de inadimplência */}
+      {corretoraId && mesReferencia && (
+        <InadimplenciaReferenciaConfigDialog
+          open={configDialogOpen}
+          onOpenChange={setConfigDialogOpen}
+          corretoraId={corretoraId}
+          mesReferencia={mesReferencia}
+          onSave={loadInadimplenciaConfig}
+        />
+      )}
     </div>
   );
 }

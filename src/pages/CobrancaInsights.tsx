@@ -9,8 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Upload, Database, BarChart3, History, Filter, Calendar as CalendarIcon, CreditCard, MapPin, DollarSign } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { format, parse, startOfMonth } from "date-fns";
+import { format, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -388,43 +387,84 @@ export default function CobrancaInsights() {
                           {filters.mesReferencia ? (
                             format(parse(filters.mesReferencia, "yyyy-MM", new Date()), "MMMM 'de' yyyy", { locale: ptBR })
                           ) : (
-                            <span>dd/mm/aaaa</span>
+                            <span>Selecione o mês</span>
                           )}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={filters.mesReferencia ? parse(filters.mesReferencia, "yyyy-MM", new Date()) : undefined}
-                          onSelect={(date) => {
-                            if (date) {
-                              setFilters(f => ({ ...f, mesReferencia: format(date, "yyyy-MM") }));
-                            }
-                          }}
-                          defaultMonth={filters.mesReferencia ? parse(filters.mesReferencia, "yyyy-MM", new Date()) : new Date()}
-                          locale={ptBR}
-                          className={cn("p-3 pointer-events-auto")}
-                          footer={
-                            <div className="flex justify-between px-4 pb-2 pt-2">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="text-emerald-600 hover:text-emerald-700"
-                                onClick={() => setFilters(f => ({ ...f, mesReferencia: "" }))}
+                      <PopoverContent className="w-auto p-4" align="start">
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Mês</Label>
+                              <Select
+                                value={filters.mesReferencia ? filters.mesReferencia.split("-")[1] : ""}
+                                onValueChange={(mes) => {
+                                  const ano = filters.mesReferencia ? filters.mesReferencia.split("-")[0] : String(new Date().getFullYear());
+                                  setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
+                                }}
                               >
-                                Limpar
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="text-emerald-600 hover:text-emerald-700"
-                                onClick={() => setFilters(f => ({ ...f, mesReferencia: format(new Date(), "yyyy-MM") }))}
-                              >
-                                Hoje
-                              </Button>
+                                <SelectTrigger className="h-9">
+                                  <SelectValue placeholder="Mês" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[
+                                    { value: "01", label: "Janeiro" },
+                                    { value: "02", label: "Fevereiro" },
+                                    { value: "03", label: "Março" },
+                                    { value: "04", label: "Abril" },
+                                    { value: "05", label: "Maio" },
+                                    { value: "06", label: "Junho" },
+                                    { value: "07", label: "Julho" },
+                                    { value: "08", label: "Agosto" },
+                                    { value: "09", label: "Setembro" },
+                                    { value: "10", label: "Outubro" },
+                                    { value: "11", label: "Novembro" },
+                                    { value: "12", label: "Dezembro" },
+                                  ].map((m) => (
+                                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
-                          }
-                        />
+                            <div className="space-y-1">
+                              <Label className="text-xs">Ano</Label>
+                              <Select
+                                value={filters.mesReferencia ? filters.mesReferencia.split("-")[0] : ""}
+                                onValueChange={(ano) => {
+                                  const mes = filters.mesReferencia ? filters.mesReferencia.split("-")[1] : "01";
+                                  setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
+                                }}
+                              >
+                                <SelectTrigger className="h-9">
+                                  <SelectValue placeholder="Ano" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((ano) => (
+                                    <SelectItem key={ano} value={String(ano)}>{ano}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="flex justify-between pt-2 border-t">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-emerald-600 hover:text-emerald-700"
+                              onClick={() => setFilters(f => ({ ...f, mesReferencia: "" }))}
+                            >
+                              Limpar
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-emerald-600 hover:text-emerald-700"
+                              onClick={() => setFilters(f => ({ ...f, mesReferencia: format(new Date(), "yyyy-MM") }))}
+                            >
+                              Mês Atual
+                            </Button>
+                          </div>
+                        </div>
                       </PopoverContent>
                     </Popover>
                   </div>
@@ -509,7 +549,10 @@ export default function CobrancaInsights() {
           <TabsContent value="dashboard">
             <CobrancaDashboard 
               boletos={filteredBoletos} 
-              loading={loading} 
+              loading={loading}
+              corretoraId={selectedAssociacao}
+              mesReferencia={filters.mesReferencia}
+              isPortalAccess={isPortalAccess}
             />
           </TabsContent>
 
