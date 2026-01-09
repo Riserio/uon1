@@ -686,6 +686,44 @@ export type Database = {
           },
         ]
       }
+      cobranca_inadimplencia_config: {
+        Row: {
+          corretora_id: string
+          created_at: string
+          dia: number
+          id: string
+          mes_referencia: string
+          percentual_referencia: number
+          updated_at: string
+        }
+        Insert: {
+          corretora_id: string
+          created_at?: string
+          dia: number
+          id?: string
+          mes_referencia: string
+          percentual_referencia?: number
+          updated_at?: string
+        }
+        Update: {
+          corretora_id?: string
+          created_at?: string
+          dia?: number
+          id?: string
+          mes_referencia?: string
+          percentual_referencia?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobranca_inadimplencia_config_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comunicados: {
         Row: {
           ativo: boolean
