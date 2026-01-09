@@ -615,7 +615,7 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
                               ))}
                               {dataPoint && (
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  {`${dataPoint.qtdeVencidos} vencidos de ${dataPoint.qtdeEmitidos} emitidos`}
+                                  {`${dataPoint.qtdeVencidos} abertos de ${dataPoint.qtdeEmitidos} emitidos`}
                                 </p>
                               )}
                             </div>
