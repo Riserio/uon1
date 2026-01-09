@@ -139,71 +139,61 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
     const hoje = new Date();
     const mesAtual = hoje.getMonth();
     const anoAtual = hoje.getFullYear();
+    const diaHoje = hoje.getDate();
     const diasDoMes = new Date(anoAtual, mesAtual + 1, 0).getDate();
     const inadimplenciaPorDia = [];
+    
+    // Calcular a inadimplência atual (valor do card) - usado para dias >= hoje
+    const inadimplenciaAtual = totalBoletos > 0 
+      ? (boletosAbertos.length / totalBoletos) * 100 
+      : 0;
     
     for (let dia = 1; dia <= diasDoMes; dia++) {
       // Data de referência para este dia do mês
       const dataRef = new Date(anoAtual, mesAtual, dia);
       
-      // ACUMULADO ATUAL: Boletos com dia_vencimento_veiculo ATÉ este dia (estado atual)
+      // Boletos com dia_vencimento_veiculo ATÉ este dia
       const boletosVencidosAteDia = boletosFiltrados.filter(b => {
         const diaVenc = b.dia_vencimento_veiculo;
         return diaVenc != null && diaVenc <= dia;
       });
       
-      const boletosEmAbertoAteDia = boletosVencidosAteDia.filter(b => 
-        b.situacao && b.situacao.toUpperCase() === 'ABERTO'
-      );
+      let percentInadimplenciaReal: number;
+      let qtdeAbertoReal: number;
       
-      const percentInadimplenciaAcumulado = boletosVencidosAteDia.length > 0 
-        ? (boletosEmAbertoAteDia.length / boletosVencidosAteDia.length) * 100 
-        : 0;
-      
-      // PONTUAL ATUAL: Boletos com dia_vencimento_veiculo EXATAMENTE neste dia
-      const boletosVencidosNoDia = boletosFiltrados.filter(b => {
-        return b.dia_vencimento_veiculo === dia;
-      });
-      
-      const boletosEmAbertoNoDia = boletosVencidosNoDia.filter(b => 
-        b.situacao && b.situacao.toUpperCase() === 'ABERTO'
-      );
-      
-      const percentInadimplenciaPontual = boletosVencidosNoDia.length > 0 
-        ? (boletosEmAbertoNoDia.length / boletosVencidosNoDia.length) * 100 
-        : 0;
-      
-      // INADIMPLÊNCIA REAL (histórica): Como estava a inadimplência NAQUELE DIA
-      // Um boleto estava "em aberto" no dia X se: ainda não foi pago OU foi pago depois do dia X
-      const boletosEmAbertoNaquelaData = boletosVencidosAteDia.filter(b => {
-        // Se está aberto agora, estava aberto naquela data também
-        if (b.situacao && b.situacao.toUpperCase() === 'ABERTO') return true;
+      if (dia >= diaHoje) {
+        // Para hoje e dias futuros: usar a inadimplência atual (linha reta)
+        percentInadimplenciaReal = inadimplenciaAtual;
+        qtdeAbertoReal = boletosAbertos.length;
+      } else {
+        // Para dias passados: calcular histórico baseado em data_pagamento
+        // Um boleto estava "em aberto" no dia X se: ainda não foi pago OU foi pago depois do dia X
+        const boletosEmAbertoNaquelaData = boletosVencidosAteDia.filter(b => {
+          // Se está aberto agora, estava aberto naquela data também
+          if (b.situacao && b.situacao.toUpperCase() === 'ABERTO') return true;
+          
+          // Se foi pago, verificar se foi pago DEPOIS desta data
+          if (b.data_pagamento) {
+            const dataPagamento = new Date(b.data_pagamento);
+            return dataPagamento > dataRef;
+          }
+          
+          // Se não tem data de pagamento mas está baixado, considerar pago no vencimento
+          return false;
+        });
         
-        // Se foi pago, verificar se foi pago DEPOIS desta data
-        if (b.data_pagamento) {
-          const dataPagamento = new Date(b.data_pagamento);
-          return dataPagamento > dataRef;
-        }
-        
-        // Se não tem data de pagamento mas está baixado, considerar pago no vencimento
-        return false;
-      });
-      
-      const percentInadimplenciaReal = boletosVencidosAteDia.length > 0 
-        ? (boletosEmAbertoNaquelaData.length / boletosVencidosAteDia.length) * 100 
-        : 0;
+        percentInadimplenciaReal = boletosVencidosAteDia.length > 0 
+          ? (boletosEmAbertoNaquelaData.length / boletosVencidosAteDia.length) * 100 
+          : 0;
+        qtdeAbertoReal = boletosEmAbertoNaquelaData.length;
+      }
       
       inadimplenciaPorDia.push({
         dia,
         diaLabel: `${dia}`,
-        inadimplenciaAcumulado: percentInadimplenciaAcumulado,
-        inadimplenciaPontual: percentInadimplenciaPontual,
         inadimplenciaReal: percentInadimplenciaReal,
-        qtdeAbertoAcumulado: boletosEmAbertoAteDia.length,
-        qtdeTotalAcumulado: boletosVencidosAteDia.length,
-        qtdeAbertoPontual: boletosEmAbertoNoDia.length,
-        qtdeTotalPontual: boletosVencidosNoDia.length,
-        qtdeAbertoReal: boletosEmAbertoNaquelaData.length
+        qtdeAbertoReal: qtdeAbertoReal,
+        qtdeTotalAcumulado: boletosVencidosAteDia.length
       });
     }
 
