@@ -138,16 +138,16 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
 
     // Gráfico de Inadimplência por Dia do Mês (usando dia_vencimento_veiculo)
     const hoje = new Date();
-    const diasDoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+    const mesAtual = hoje.getMonth();
+    const anoAtual = hoje.getFullYear();
+    const diasDoMes = new Date(anoAtual, mesAtual + 1, 0).getDate();
     const inadimplenciaPorDia = [];
     
-    // Calcular a inadimplência total (referência) - mesmo cálculo do card
-    const inadimplenciaReferencia = totalBoletos > 0 
-      ? (boletosAbertos.length / totalBoletos) * 100 
-      : 0;
-    
     for (let dia = 1; dia <= diasDoMes; dia++) {
-      // ACUMULADO: Boletos com dia_vencimento_veiculo ATÉ este dia
+      // Data de referência para este dia do mês
+      const dataRef = new Date(anoAtual, mesAtual, dia);
+      
+      // ACUMULADO ATUAL: Boletos com dia_vencimento_veiculo ATÉ este dia (estado atual)
       const boletosVencidosAteDia = boletosFiltrados.filter(b => {
         const diaVenc = b.dia_vencimento_veiculo;
         return diaVenc != null && diaVenc <= dia;
@@ -161,7 +161,7 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
         ? (boletosEmAbertoAteDia.length / boletosVencidosAteDia.length) * 100 
         : 0;
       
-      // PONTUAL: Boletos com dia_vencimento_veiculo EXATAMENTE neste dia
+      // PONTUAL ATUAL: Boletos com dia_vencimento_veiculo EXATAMENTE neste dia
       const boletosVencidosNoDia = boletosFiltrados.filter(b => {
         return b.dia_vencimento_veiculo === dia;
       });
@@ -174,16 +174,37 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
         ? (boletosEmAbertoNoDia.length / boletosVencidosNoDia.length) * 100 
         : 0;
       
+      // REFERÊNCIA HISTÓRICA: Como estava a inadimplência NAQUELE DIA
+      // Um boleto estava "em aberto" no dia X se: ainda não foi pago OU foi pago depois do dia X
+      const boletosEmAbertoNaquelaData = boletosVencidosAteDia.filter(b => {
+        // Se está aberto agora, estava aberto naquela data também
+        if (b.situacao && b.situacao.toUpperCase() === 'ABERTO') return true;
+        
+        // Se foi pago, verificar se foi pago DEPOIS desta data
+        if (b.data_pagamento) {
+          const dataPagamento = new Date(b.data_pagamento);
+          return dataPagamento > dataRef;
+        }
+        
+        // Se não tem data de pagamento mas está baixado, considerar pago no vencimento
+        return false;
+      });
+      
+      const percentInadimplenciaReferencia = boletosVencidosAteDia.length > 0 
+        ? (boletosEmAbertoNaquelaData.length / boletosVencidosAteDia.length) * 100 
+        : 0;
+      
       inadimplenciaPorDia.push({
         dia,
         diaLabel: `${dia}`,
         inadimplenciaAcumulado: percentInadimplenciaAcumulado,
         inadimplenciaPontual: percentInadimplenciaPontual,
-        inadimplenciaReferencia: inadimplenciaReferencia, // Linha reta horizontal
+        inadimplenciaReferencia: percentInadimplenciaReferencia,
         qtdeAbertoAcumulado: boletosEmAbertoAteDia.length,
         qtdeTotalAcumulado: boletosVencidosAteDia.length,
         qtdeAbertoPontual: boletosEmAbertoNoDia.length,
-        qtdeTotalPontual: boletosVencidosNoDia.length
+        qtdeTotalPontual: boletosVencidosNoDia.length,
+        qtdeAbertoReferencia: boletosEmAbertoNaquelaData.length
       });
     }
 
