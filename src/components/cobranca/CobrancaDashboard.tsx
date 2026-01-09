@@ -136,30 +136,21 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
       }))
       .sort((a, b) => a.diaNum - b.diaNum);
 
-    // Gráfico de Inadimplência por Dia do Mês (dias corridos) - com duas linhas
+    // Gráfico de Inadimplência por Dia do Mês (usando dia_vencimento_veiculo)
     const hoje = new Date();
     const diasDoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
     const inadimplenciaPorDia = [];
     
-    // Calcular a inadimplência total esperada (referência) ao final do mês
-    const totalBoletosVencidosMes = boletosFiltrados.filter(b => {
-      if (!b.data_vencimento_original) return false;
-      const venc = new Date(b.data_vencimento_original);
-      return venc.getMonth() === hoje.getMonth() && venc.getFullYear() === hoje.getFullYear();
-    });
-    
-    const inadimplenciaReferencia = totalBoletosVencidosMes.length > 0 
-      ? (totalBoletosVencidosMes.filter(b => b.situacao?.toUpperCase() === 'ABERTO').length / totalBoletosVencidosMes.length) * 100 
+    // Calcular a inadimplência total (referência) - mesmo cálculo do card
+    const inadimplenciaReferencia = totalBoletos > 0 
+      ? (boletosAbertos.length / totalBoletos) * 100 
       : 0;
     
     for (let dia = 1; dia <= diasDoMes; dia++) {
-      const dataRef = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
-      
-      // ACUMULADO: Boletos que deveriam ter vencido ATÉ este dia
+      // ACUMULADO: Boletos com dia_vencimento_veiculo ATÉ este dia
       const boletosVencidosAteDia = boletosFiltrados.filter(b => {
-        if (!b.data_vencimento_original) return false;
-        const venc = new Date(b.data_vencimento_original);
-        return venc <= dataRef;
+        const diaVenc = b.dia_vencimento_veiculo;
+        return diaVenc != null && diaVenc <= dia;
       });
       
       const boletosEmAbertoAteDia = boletosVencidosAteDia.filter(b => 
@@ -170,13 +161,9 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
         ? (boletosEmAbertoAteDia.length / boletosVencidosAteDia.length) * 100 
         : 0;
       
-      // PONTUAL: Boletos que vencem EXATAMENTE neste dia
+      // PONTUAL: Boletos com dia_vencimento_veiculo EXATAMENTE neste dia
       const boletosVencidosNoDia = boletosFiltrados.filter(b => {
-        if (!b.data_vencimento_original) return false;
-        const venc = new Date(b.data_vencimento_original);
-        return venc.getDate() === dia && 
-               venc.getMonth() === hoje.getMonth() && 
-               venc.getFullYear() === hoje.getFullYear();
+        return b.dia_vencimento_veiculo === dia;
       });
       
       const boletosEmAbertoNoDia = boletosVencidosNoDia.filter(b => 
@@ -187,8 +174,7 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
         ? (boletosEmAbertoNoDia.length / boletosVencidosNoDia.length) * 100 
         : 0;
       
-      // Curva de referência decrescente (simulação de meta de inadimplência esperada)
-      // Começa em ~100% e vai decaindo conforme os dias passam
+      // Curva de referência decrescente
       const percentInadimplenciaRef = 100 - ((dia / diasDoMes) * (100 - inadimplenciaReferencia));
       
       inadimplenciaPorDia.push({
