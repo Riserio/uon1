@@ -173,40 +173,46 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
       // Data de referência para este dia do mês
       const dataRef = new Date(anoAtual, mesAtual, dia);
       
-      // Boletos com dia_vencimento_veiculo ATÉ este dia
-      const boletosVencidosAteDia = boletosFiltrados.filter(b => {
+      // Boletos com dia_vencimento_veiculo ATÉ este dia (emitidos até este dia)
+      const boletosEmitidosAteDia = boletosFiltrados.filter(b => {
         const diaVenc = b.dia_vencimento_veiculo;
         return diaVenc != null && diaVenc <= dia;
       });
       
+      // Boletos pagos até este dia
+      const boletosPagosAteDia = boletosEmitidosAteDia.filter(b => {
+        if (b.situacao && b.situacao.toUpperCase() === 'BAIXADO') {
+          // Se tem data de pagamento, verificar se foi pago até esta data
+          if (b.data_pagamento) {
+            const dataPagamento = new Date(b.data_pagamento);
+            return dataPagamento <= dataRef;
+          }
+          // Se não tem data de pagamento mas está baixado, considerar pago
+          return true;
+        }
+        return false;
+      });
+      
+      // Boletos vencidos = Boletos em aberto (emitidos - pagos)
+      // Ou seja: boletos que deveriam ter sido pagos mas não foram
       let percentInadimplenciaReal: number;
-      let qtdeAbertoReal: number;
+      let qtdeVencidos: number;
       
       if (dia >= diaHoje) {
         // Para hoje e dias futuros: usar a inadimplência atual (linha reta)
         percentInadimplenciaReal = inadimplenciaAtual;
-        qtdeAbertoReal = boletosAbertos.length;
+        // Vencidos = boletos em aberto cujo dia de vencimento já passou
+        qtdeVencidos = boletosAbertos.filter(b => {
+          const diaVenc = b.dia_vencimento_veiculo;
+          return diaVenc != null && diaVenc <= dia;
+        }).length;
       } else {
-        // Para dias passados: calcular histórico baseado em data_pagamento
-        // Um boleto estava "em aberto" no dia X se: ainda não foi pago OU foi pago depois do dia X
-        const boletosEmAbertoNaquelaData = boletosVencidosAteDia.filter(b => {
-          // Se está aberto agora, estava aberto naquela data também
-          if (b.situacao && b.situacao.toUpperCase() === 'ABERTO') return true;
-          
-          // Se foi pago, verificar se foi pago DEPOIS desta data
-          if (b.data_pagamento) {
-            const dataPagamento = new Date(b.data_pagamento);
-            return dataPagamento > dataRef;
-          }
-          
-          // Se não tem data de pagamento mas está baixado, considerar pago no vencimento
-          return false;
-        });
+        // Para dias passados: Vencidos = Emitidos até dia - Pagos até dia
+        qtdeVencidos = boletosEmitidosAteDia.length - boletosPagosAteDia.length;
         
-        percentInadimplenciaReal = boletosVencidosAteDia.length > 0 
-          ? (boletosEmAbertoNaquelaData.length / boletosVencidosAteDia.length) * 100 
+        percentInadimplenciaReal = boletosEmitidosAteDia.length > 0 
+          ? (qtdeVencidos / boletosEmitidosAteDia.length) * 100 
           : 0;
-        qtdeAbertoReal = boletosEmAbertoNaquelaData.length;
       }
       
       inadimplenciaPorDia.push({
@@ -214,8 +220,9 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
         diaLabel: `${dia}`,
         inadimplenciaReal: percentInadimplenciaReal,
         inadimplenciaReferencia: metaInadimplencia,
-        qtdeAbertoReal: qtdeAbertoReal,
-        qtdeTotalAcumulado: boletosVencidosAteDia.length
+        qtdeVencidos: qtdeVencidos,
+        qtdePagos: dia >= diaHoje ? boletosPagosAteDia.length : boletosPagosAteDia.length,
+        qtdeEmitidos: boletosEmitidosAteDia.length
       });
     }
 
@@ -608,7 +615,7 @@ export default function CobrancaDashboard({ boletos, loading }: CobrancaDashboar
                               ))}
                               {dataPoint && (
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  {`${dataPoint.qtdeAbertoReal} abertos de ${dataPoint.qtdeTotalAcumulado} vencidos`}
+                                  {`${dataPoint.qtdeVencidos} vencidos de ${dataPoint.qtdeEmitidos} emitidos`}
                                 </p>
                               )}
                             </div>
