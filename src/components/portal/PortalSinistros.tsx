@@ -34,6 +34,49 @@ interface Andamento {
   created_by: string;
 }
 
+// Helper function to safely format dates
+const safeFormatDate = (date: string | Date | null | undefined): string => {
+  if (!date) return 'N/A';
+  
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Verificar se a data é válida e está em um range razoável
+    if (isNaN(dateObj.getTime())) return 'N/A';
+    
+    const year = dateObj.getFullYear();
+    if (year < 1900 || year > 2100) return 'N/A';
+    
+    return dateObj.toLocaleDateString('pt-BR');
+  } catch {
+    return 'N/A';
+  }
+};
+
+const safeFormatDateTime = (date: string | Date | null | undefined): string => {
+  if (!date) return 'N/A';
+  
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Verificar se a data é válida e está em um range razoável
+    if (isNaN(dateObj.getTime())) return 'N/A';
+    
+    const year = dateObj.getFullYear();
+    if (year < 1900 || year > 2100) return 'N/A';
+    
+    return dateObj.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return 'N/A';
+  }
+};
+
 export default function PortalSinistros({ corretoraId }: PortalSinistrosProps) {
   const { user } = useAuth();
   const { canEditMenu } = useMenuPermissions(user?.id);
@@ -482,9 +525,7 @@ export default function PortalSinistros({ corretoraId }: PortalSinistrosProps) {
                             <div className="space-y-1">
                               <p className="text-sm text-muted-foreground">Data do Incidente</p>
                               <p className="font-medium">
-                                {sinistro.data_incidente 
-                                  ? new Date(sinistro.data_incidente).toLocaleDateString('pt-BR') 
-                                  : 'N/A'}
+                                {safeFormatDate(sinistro.data_incidente)}
                               </p>
                             </div>
                             <div className="space-y-1">
@@ -613,8 +654,7 @@ export default function PortalSinistros({ corretoraId }: PortalSinistrosProps) {
                               <div className="pb-4">
                                 <p className="font-medium">Sinistro Criado</p>
                                 <p className="text-sm text-muted-foreground">
-                                  {new Date(sinistro.created_at).toLocaleDateString('pt-BR')} às{' '}
-                                  {new Date(sinistro.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                  {safeFormatDateTime(sinistro.created_at)}
                                 </p>
                               </div>
                             </div>
@@ -628,8 +668,7 @@ export default function PortalSinistros({ corretoraId }: PortalSinistrosProps) {
                                 <div className="pb-4">
                                   <p className="text-sm">{and.descricao}</p>
                                   <p className="text-xs text-muted-foreground">
-                                    {new Date(and.created_at).toLocaleDateString('pt-BR')} às{' '}
-                                    {new Date(and.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                    {safeFormatDateTime(and.created_at)}
                                   </p>
                                 </div>
                               </div>
