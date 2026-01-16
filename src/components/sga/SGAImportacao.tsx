@@ -130,28 +130,42 @@ const getValueFromRow = (row: any, targetHeader: string): any => {
   return undefined;
 };
 
-// Função para converter data do Excel
+// Função para converter data do Excel - retorna null para banco
 const parseExcelDate = (value: any): string | null => {
   if (!value) return null;
   
   // Se for número (serial date do Excel)
   if (typeof value === "number") {
-    const date = new Date((value - 25569) * 86400 * 1000);
-    return date.toISOString().split("T")[0];
+    // Validar range razoável (1900-2100 corresponde a serial 1-73050)
+    if (value < 1 || value > 100000) {
+      console.warn("Serial date fora do range:", value);
+      return null;
+    }
+    try {
+      const date = new Date((value - 25569) * 86400 * 1000);
+      // Validar se a data resultante é válida
+      if (isNaN(date.getTime()) || date.getFullYear() < 1900 || date.getFullYear() > 2100) {
+        return null;
+      }
+      return date.toISOString().split("T")[0];
+    } catch {
+      return null;
+    }
   }
   
-  // Se for string no formato MM/DD/YY ou DD/MM/YY
+  // Se for string no formato DD/MM/YYYY ou DD/MM/YY (brasileiro)
   if (typeof value === "string") {
+    // Tentar formato DD/MM/YYYY ou DD/MM/YY
     const parts = value.split("/");
     if (parts.length === 3) {
       const [p1, p2, p3] = parts;
-      // Assumir formato M/D/YY (americano)
-      const month = parseInt(p1);
-      const day = parseInt(p2);
+      // Assumir formato DD/MM/YYYY (brasileiro)
+      const day = parseInt(p1);
+      const month = parseInt(p2);
       let year = parseInt(p3);
       if (year < 100) year += 2000;
       
-      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1900 && year <= 2100) {
         return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       }
     }
@@ -159,6 +173,41 @@ const parseExcelDate = (value: any): string | null => {
   
   return null;
 };
+
+// Função para formatar data do Excel para exibição no preview
+const formatExcelDateForPreview = (value: any): string => {
+  if (!value) return "";
+  
+  // Se for número (serial date do Excel)
+  if (typeof value === "number") {
+    // Validar range razoável
+    if (value < 1 || value > 100000) {
+      return String(value);
+    }
+    try {
+      const date = new Date((value - 25569) * 86400 * 1000);
+      if (isNaN(date.getTime()) || date.getFullYear() < 1900 || date.getFullYear() > 2100) {
+        return String(value);
+      }
+      return date.toLocaleDateString("pt-BR");
+    } catch {
+      return String(value);
+    }
+  }
+  
+  return String(value);
+};
+
+// Colunas que são datas (para formatar no preview)
+const DATE_COLUMNS = [
+  "DATA CADASTRO ITEM",
+  "DATA EVENTO",
+  "DATA ULTIMA ALTERACAO SITUACAO",
+  "DATA CONCLUSAO",
+  "DATA ALTERACAO",
+  "DATA PREVISAO ENTREGA",
+  "DATA CADASTRO EVENTO"
+];
 
 // Função para converter valor monetário
 const parseMoneyValue = (value: any): number => {
@@ -480,16 +529,27 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.map((row, i) => (
-                    <tr key={i} className="border-b">
-                      {Object.values(row).slice(0, 8).map((val: any, j) => (
-                        <td key={j} className="p-2 truncate max-w-[150px]">
-                          {String(val)}
-                        </td>
-                      ))}
-                      <td className="p-2 text-muted-foreground">...</td>
-                    </tr>
-                  ))}
+                  {preview.map((row, i) => {
+                    const keys = Object.keys(row);
+                    return (
+                      <tr key={i} className="border-b">
+                        {keys.slice(0, 8).map((key, j) => {
+                          const val = row[key];
+                          // Formatar datas no preview
+                          const isDateColumn = DATE_COLUMNS.some(dc => 
+                            normalizeHeader(key) === normalizeHeader(dc)
+                          );
+                          const displayVal = isDateColumn ? formatExcelDateForPreview(val) : String(val);
+                          return (
+                            <td key={j} className="p-2 truncate max-w-[150px]">
+                              {displayVal}
+                            </td>
+                          );
+                        })}
+                        <td className="p-2 text-muted-foreground">...</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
