@@ -62,7 +62,7 @@ const Index = () => {
   const [userRole, setUserRole] = useState<string>("");
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { overdueCount, refresh: refreshOverdue } = useOverdueAtendimentos();
+  const { overdueCount, overdueList, refresh: refreshOverdue } = useOverdueAtendimentos();
   const { canViewFluxo, canEditFluxo } = useFluxoPermissions(user?.id);
 
   // Capitalize user name
@@ -827,7 +827,7 @@ const Index = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <AlertasDialog overdueCount={overdueCount} />
+              <AlertasDialog overdueCount={overdueCount} overdueList={overdueList} />
 
               {canManageStatus && (
                 <>
