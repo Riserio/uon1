@@ -19,7 +19,7 @@ Edite as variáveis abaixo ou use variáveis de ambiente:
 - HINOVA_PASS: Senha de login
 - WEBHOOK_URL: URL do webhook (Edge Function)
 - WEBHOOK_SECRET: Secret do webhook (opcional)
-- CORRETORA_SLUG: Slug da corretora (ex: "valecar")
+- CORRETORA_ID: ID da corretora (UUID)
 
 EXECUÇÃO:
 ---------
@@ -46,11 +46,11 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 # ============================================
 
 HINOVA_URL = os.getenv("HINOVA_URL", "https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php")
-HINOVA_USER = os.getenv("HINOVA_USER", "miriam soares")
-HINOVA_PASS = os.getenv("HINOVA_PASS", "Claura2021")
+HINOVA_USER = os.getenv("HINOVA_USER", "")
+HINOVA_PASS = os.getenv("HINOVA_PASS", "")
 
-# URL do webhook - SUBSTITUA pelo seu projeto
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://mnoczwmqgignmylbvpgp.supabase.co/functions/v1/webhook-cobranca-hinova")
+# URL do webhook
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")  # Opcional
 
 # Identificador da corretora - USE O ID DIRETO
@@ -141,6 +141,11 @@ def enviar_webhook(dados, nome_arquivo):
 
 def rodar_robo():
     """Executa o robô de automação"""
+    if not HINOVA_USER or not HINOVA_PASS:
+        raise ValueError("HINOVA_USER e HINOVA_PASS são obrigatórios (configure via variáveis de ambiente)")
+    if not WEBHOOK_URL:
+        raise ValueError("WEBHOOK_URL é obrigatório (configure via variáveis de ambiente)")
+
     log("=" * 50)
     log("INICIANDO ROBÔ DE COBRANÇA HINOVA")
     log("=" * 50)

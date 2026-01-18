@@ -26,11 +26,11 @@ const axios = require('axios');
 
 const CONFIG = {
   HINOVA_URL: process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php',
-  HINOVA_USER: process.env.HINOVA_USER || 'miriam soares',
-  HINOVA_PASS: process.env.HINOVA_PASS || 'Claura2021',
+  HINOVA_USER: process.env.HINOVA_USER || '',
+  HINOVA_PASS: process.env.HINOVA_PASS || '',
   
   // URL do webhook
-  WEBHOOK_URL: process.env.WEBHOOK_URL || 'https://mnoczwmqgignmylbvpgp.supabase.co/functions/v1/webhook-cobranca-hinova',
+  WEBHOOK_URL: process.env.WEBHOOK_URL || '',
   WEBHOOK_SECRET: process.env.WEBHOOK_SECRET || '',
   
   // Identificador da corretora - USE O ID DIRETO
@@ -138,6 +138,13 @@ async function enviarWebhook(dados, nomeArquivo) {
 // ============================================
 
 async function rodarRobo() {
+  if (!CONFIG.HINOVA_USER || !CONFIG.HINOVA_PASS) {
+    throw new Error('HINOVA_USER e HINOVA_PASS são obrigatórios (configure como secrets/variáveis de ambiente)');
+  }
+  if (!CONFIG.WEBHOOK_URL) {
+    throw new Error('WEBHOOK_URL é obrigatório (configure como secret/variável de ambiente)');
+  }
+
   log('='.repeat(50));
   log('INICIANDO ROBÔ DE COBRANÇA HINOVA');
   log('='.repeat(50));
