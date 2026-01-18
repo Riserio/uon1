@@ -217,6 +217,50 @@ export default function CobrancaInsights() {
     }
   }, [selectedAssociacao]);
 
+  // Realtime: atualizar dashboard quando nova importação for detectada
+  useEffect(() => {
+    if (!selectedAssociacao) return;
+
+    const channel = supabase
+      .channel(`cobranca-importacoes-${selectedAssociacao}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'cobranca_importacoes',
+          filter: `corretora_id=eq.${selectedAssociacao}`,
+        },
+        (payload) => {
+          console.log('Nova importação detectada via realtime:', payload);
+          toast.info('Nova importação detectada! Atualizando dashboard...');
+          fetchBoletos();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'cobranca_importacoes',
+          filter: `corretora_id=eq.${selectedAssociacao}`,
+        },
+        (payload) => {
+          console.log('Importação atualizada via realtime:', payload);
+          // Se a importação foi ativada, atualizar
+          if (payload.new && (payload.new as any).ativo === true) {
+            toast.info('Importação atualizada! Atualizando dashboard...');
+            fetchBoletos();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedAssociacao]);
+
   const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome || "";
 
   const clearFilters = () => {
