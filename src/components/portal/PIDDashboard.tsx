@@ -908,7 +908,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Total Placas Ativas no Período</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
@@ -955,7 +955,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Total de Associados no Período</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
@@ -999,7 +999,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Índice de Veículos por Associado</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
@@ -1043,7 +1043,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Cadastros Realizados</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
@@ -1078,7 +1078,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Índice de Novos Cadastros (%)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
@@ -1122,7 +1122,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Índice de Crescimento Bruto (%)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
@@ -1165,7 +1165,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Crescimento Líquido</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
@@ -1201,7 +1201,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Volume de Cancelamentos</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
@@ -1236,7 +1236,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Volume de Veículos Inadimplentes</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
@@ -1272,7 +1272,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Volume de Reativações</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
@@ -1307,7 +1307,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Churn (%)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
@@ -1351,7 +1351,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Permanência (Crescimento de Cadastros)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
@@ -1386,7 +1386,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Índice de Permanência (%)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
@@ -1550,7 +1550,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Inadimplência de Boletos (%)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
@@ -1593,7 +1593,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Cancelamento de Boletos (%)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
@@ -1636,7 +1636,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Inadimplência Financeira (%)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
@@ -1679,7 +1679,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Ticket Médio Geral por Boleto (R$)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
@@ -1720,7 +1720,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Arrecadação Juros (%)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
@@ -1763,7 +1763,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Descontado Banco (%)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
@@ -1806,7 +1806,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Crescimento de Faturamento (%)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
@@ -1849,7 +1849,7 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium">Crescimento de Valor Recebido (%)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[260px]">
+                <CardContent className="h-[300px]">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
