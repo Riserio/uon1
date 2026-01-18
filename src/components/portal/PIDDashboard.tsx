@@ -440,12 +440,10 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       const inadimplenciaBoletos = d.percentual_inadimplencia_boletos || calcPercent(d.boletos_abertos, d.boletos_emitidos);
       const cancelamentoBoletos = d.percentual_cancelamento_boletos || calcPercent(d.boletos_cancelados, d.boletos_emitidos);
       const inadimplenciaFinanceira = d.percentual_inadimplencia_financeira || calcPercent(d.valor_boletos_abertos, d.faturamento_operacional);
-      // Para Arrecadação Juros e Descontado Banco: sempre calcular dinamicamente se valor salvo for 0
-      // calcPercent retorna fração (0.007 = 0.7%), então multiplicamos por 100 para exibir como %
-      const arrecadacaoJurosCalc = d.arrecadamento_juros && d.total_recebido ? (d.arrecadamento_juros / d.total_recebido) * 100 : 0;
-      const descontadoBancoCalc = d.descontado_banco && d.total_recebido ? (d.descontado_banco / d.total_recebido) * 100 : 0;
-      const arrecadacaoJuros = (d.percentual_arrecadacao_juros && d.percentual_arrecadacao_juros > 0.001) ? d.percentual_arrecadacao_juros : arrecadacaoJurosCalc;
-      const descontadoBanco = (d.percentual_descontado_banco && d.percentual_descontado_banco > 0.001) ? d.percentual_descontado_banco : descontadoBancoCalc;
+      // Para Arrecadação Juros e Descontado Banco: SEMPRE calcular dinamicamente
+      // Os valores salvos no banco estão em formato inconsistente, então usamos os valores brutos
+      const arrecadacaoJuros = d.arrecadamento_juros && d.total_recebido ? (d.arrecadamento_juros / d.total_recebido) * 100 : 0;
+      const descontadoBanco = d.descontado_banco && d.total_recebido ? (d.descontado_banco / d.total_recebido) * 100 : 0;
 
       // Sinistralidade - usar valores do banco se disponíveis, senão calcular
       const custoTotalEventos = d.custo_total_eventos ?? (
