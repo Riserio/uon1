@@ -41,7 +41,7 @@ Edite o arquivo `scripts/robo-cobranca-hinova.py`:
 HINOVA_URL = "https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php"
 HINOVA_USER = "seu_usuario"
 HINOVA_PASS = "sua_senha"
-CORRETORA_SLUG = "valecar"
+CORRETORA_ID = "a4931643-8bf1-4153-97b1-c64925f536eb"
 ```
 
 Ou use variáveis de ambiente:
@@ -49,7 +49,7 @@ Ou use variáveis de ambiente:
 ```bash
 export HINOVA_USER="seu_usuario"
 export HINOVA_PASS="sua_senha"
-export CORRETORA_SLUG="valecar"
+export CORRETORA_ID="a4931643-8bf1-4153-97b1-c64925f536eb"
 ```
 
 #### Execução Manual
@@ -92,7 +92,7 @@ npx playwright install chromium
 #### Execução
 
 ```bash
-node scripts/robo-cobranca-hinova.js
+node scripts/robo-cobranca-hinova.cjs
 ```
 
 ---
@@ -122,7 +122,7 @@ POST https://mnoczwmqgignmylbvpgp.supabase.co/functions/v1/webhook-cobranca-hino
 
 ```json
 {
-  "corretora_slug": "valecar",
+  "corretora_id": "a4931643-8bf1-4153-97b1-c64925f536eb",
   "dados": [
     {
       "nome": "João Silva",

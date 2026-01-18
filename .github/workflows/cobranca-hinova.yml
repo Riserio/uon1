@@ -35,7 +35,7 @@ jobs:
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
           WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
           CORRETORA_ID: ${{ secrets.CORRETORA_ID }}
-        run: node scripts/robo-cobranca-hinova.js
+        run: node scripts/robo-cobranca-hinova.cjs
       
       - name: Upload screenshot de erro (se houver)
         if: failure()
