@@ -6,11 +6,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Upload, Database, BarChart3, History, Filter, X, Calendar, MapPin, CreditCard } from "lucide-react";
+import { ArrowLeft, Upload, Database, BarChart3, History, Filter, X, Calendar, MapPin, CreditCard, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import MGFDashboard from "@/components/mgf/MGFDashboard";
 import MGFImportacao from "@/components/mgf/MGFImportacao";
 import MGFTabela from "@/components/mgf/MGFTabela";
+import MGFRelatorioEventos from "@/components/mgf/MGFRelatorioEventos";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -303,10 +304,12 @@ export default function MGFInsights() {
   const tabs = isPortalAccess 
     ? [
         { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+        { id: "eventos", label: "Relatório Eventos", icon: FileSpreadsheet },
         { id: "tabela", label: "Dados Completos", icon: Database },
       ]
     : [
         { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+        { id: "eventos", label: "Relatório Eventos", icon: FileSpreadsheet },
         { id: "tabela", label: "Dados Completos", icon: Database },
         { id: "importar", label: "Importar Dados", icon: Upload },
       ];
@@ -579,7 +582,7 @@ export default function MGFInsights() {
       {/* Tabs */}
       <div className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-md grid-cols-3 mb-6">
+          <TabsList className={`grid w-full max-w-xl mb-6 ${isPortalAccess ? 'grid-cols-3' : 'grid-cols-4'}`}>
             {tabs.map((tab) => (
               <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
                 <tab.icon className="h-4 w-4" />
@@ -594,6 +597,13 @@ export default function MGFInsights() {
               colunas={colunas}
               loading={loading} 
               associacaoNome={selectedAssociacaoNome}
+            />
+          </TabsContent>
+
+          <TabsContent value="eventos">
+            <MGFRelatorioEventos 
+              dados={filteredDados} 
+              loading={loading} 
             />
           </TabsContent>
 
