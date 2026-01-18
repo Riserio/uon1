@@ -1,0 +1,49 @@
+name: Cobrança Hinova - Importação Automática
+
+on:
+  # Agendamento diário às 09:00 (horário de Brasília = 12:00 UTC)
+  schedule:
+    - cron: '0 12 * * *'
+  
+  # Permite execução manual pelo GitHub
+  workflow_dispatch:
+
+jobs:
+  importar-cobranca:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Instalar dependências
+        run: |
+          npm install playwright axios
+          npx playwright install chromium --with-deps
+      
+      - name: Executar robô de cobrança
+        env:
+          HINOVA_URL: ${{ secrets.HINOVA_URL }}
+          HINOVA_USER: ${{ secrets.HINOVA_USER }}
+          HINOVA_PASS: ${{ secrets.HINOVA_PASS }}
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+          CORRETORA_ID: ${{ secrets.CORRETORA_ID }}
+        run: node scripts/robo-cobranca-hinova.js
+      
+      - name: Upload screenshot de erro (se houver)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-screenshots
+          path: |
+            erro_hinova.png
+            debug_hinova.png
+          if-no-files-found: ignore
+          retention-days: 7
