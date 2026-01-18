@@ -80,10 +80,15 @@ export function InadimplenciaReferenciaConfigDialog({
   };
 
   const handlePercentualChange = (dia: number, value: string) => {
-    const numValue = Math.min(100, Math.max(0, Number(value) || 0));
+    // Permitir valores com 2 casas decimais (ex: 12,34%)
+    const numValue = Math.min(100, Math.max(0, parseFloat(value.replace(",", ".")) || 0));
     setDiasConfig(prev => 
       prev.map(d => d.dia === dia ? { ...d, percentual: numValue } : d)
     );
+  };
+
+  const formatPercentualDisplay = (value: number) => {
+    return value.toFixed(2).replace(".", ",");
   };
 
   const handleSave = async () => {
@@ -129,7 +134,7 @@ export function InadimplenciaReferenciaConfigDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Configurar Inadimplência Referência</DialogTitle>
         </DialogHeader>
@@ -145,28 +150,32 @@ export function InadimplenciaReferenciaConfigDialog({
             </div>
 
             {/* Aplicar a todos */}
-            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
-              <Label className="text-sm whitespace-nowrap">Aplicar a todos:</Label>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                defaultValue={30}
-                className="w-20 h-8"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    aplicarValorATodos(Number((e.target as HTMLInputElement).value) || 30);
-                  }
-                }}
-              />
-              <span className="text-sm text-muted-foreground">%</span>
+            <div className="flex items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+              <Label className="text-sm font-medium whitespace-nowrap">Aplicar a todos:</Label>
+              <div className="flex items-center gap-1">
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  defaultValue="30,00"
+                  className="w-24 h-9 text-center font-mono text-base"
+                  placeholder="00,00"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const val = parseFloat((e.target as HTMLInputElement).value.replace(",", ".")) || 30;
+                      aplicarValorATodos(val);
+                    }
+                  }}
+                />
+                <span className="text-sm text-muted-foreground font-medium">%</span>
+              </div>
               <Button
                 size="sm"
-                variant="secondary"
+                variant="default"
                 onClick={(e) => {
-                  const input = (e.target as HTMLElement).parentElement?.querySelector("input");
+                  const input = (e.target as HTMLElement).parentElement?.parentElement?.querySelector("input");
                   if (input) {
-                    aplicarValorATodos(Number(input.value) || 30);
+                    const val = parseFloat(input.value.replace(",", ".")) || 30;
+                    aplicarValorATodos(val);
                   }
                 }}
               >
@@ -174,23 +183,25 @@ export function InadimplenciaReferenciaConfigDialog({
               </Button>
             </div>
 
-            <ScrollArea className="h-[300px] pr-4">
-              <div className="grid grid-cols-2 gap-2">
+            <ScrollArea className="h-[350px] pr-4">
+              <div className="grid grid-cols-2 gap-3">
                 {diasConfig.map((config) => (
                   <div
                     key={config.dia}
-                    className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg"
+                    className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border/50"
                   >
-                    <span className="text-sm font-medium w-12">Dia {config.dia}</span>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={config.percentual}
-                      onChange={(e) => handlePercentualChange(config.dia, e.target.value)}
-                      className="w-16 h-8 text-center"
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
+                    <span className="text-sm font-medium w-14 shrink-0">Dia {String(config.dia).padStart(2, '0')}</span>
+                    <div className="flex items-center gap-1 flex-1">
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={formatPercentualDisplay(config.percentual)}
+                        onChange={(e) => handlePercentualChange(config.dia, e.target.value)}
+                        className="w-20 h-9 text-center font-mono text-base"
+                        placeholder="00,00"
+                      />
+                      <span className="text-sm text-muted-foreground font-medium">%</span>
+                    </div>
                   </div>
                 ))}
               </div>
