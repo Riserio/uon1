@@ -599,6 +599,21 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
     };
   }, [todoPeriodo, dadosAno]);
 
+  // Label do mês atual para exibição nos cards
+  const mesAtualLabel = useMemo(() => {
+    if (todoPeriodo) {
+      // Em "Todo Período", mostrar o mês do dado mais recente
+      if (dadosAtual) {
+        return mesesNome[dadosAtual.mes - 1];
+      }
+      return "";
+    } else {
+      // Quando um mês específico é selecionado, mostrar o mês selecionado
+      const mesIndex = parseInt(mes) - 1;
+      return mesesNome[mesIndex] || "";
+    }
+  }, [todoPeriodo, mes, dadosAtual]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -676,9 +691,11 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <Car className="h-5 w-5 text-blue-500" />
-                  <Badge variant="outline" className="text-[10px]">
-                    {mesesNome[dadosAtual.mes - 1]}
-                  </Badge>
+                  {mesAtualLabel && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {mesAtualLabel}
+                    </Badge>
+                  )}
                 </div>
                 <div className="mt-2">
                   <div className="text-2xl font-bold">{dadosAtual.placas_ativas?.toLocaleString("pt-BR")}</div>
