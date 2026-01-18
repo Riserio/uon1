@@ -340,23 +340,31 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     };
   }, [data]);
 
-  // Fetch most recent period with data on initial load
+  // Fetch most recent period with meaningful data on initial load
   const fetchMostRecentPeriod = async () => {
     if (!corretoraId) return;
     setLoading(true);
     try {
-      const { data: result, error } = await supabase
+      // Buscar registros ordenados por data, filtrando por registros com dados significativos
+      const { data: results, error } = await supabase
         .from("pid_operacional")
-        .select("ano, mes")
+        .select("ano, mes, placas_ativas, faturamento_operacional, total_recebido")
         .eq("corretora_id", corretoraId)
         .order("ano", { ascending: false })
         .order("mes", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(12);
 
       if (error) throw error;
       
-      if (result) {
+      if (results && results.length > 0) {
+        // Encontrar o primeiro registro com dados significativos
+        const registroComDados = results.find(r => 
+          (r.placas_ativas && r.placas_ativas > 0) || 
+          (r.faturamento_operacional && r.faturamento_operacional > 0) ||
+          (r.total_recebido && r.total_recebido > 0)
+        );
+        
+        const result = registroComDados || results[0];
         setAno(result.ano.toString());
         setMes(result.mes.toString().padStart(2, "0"));
       } else {
