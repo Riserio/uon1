@@ -176,22 +176,71 @@ async function rodarRobo() {
     // 2. Fazer login (sem código de autenticação - usuário dispensado)
     log('Realizando login...');
     
-    // Preencher código cliente se existir
-    const codigoCliente = await page.$('input[name="codigo_cliente"], input[name="codigo"], input[placeholder*="cliente"]');
-    if (codigoCliente) {
-      await codigoCliente.fill('2363');
+    // Tirar screenshot para debug
+    await page.screenshot({ path: 'debug_antes_login.png' });
+    
+    // Listar todos os inputs da página para debug
+    const inputs = await page.$$eval('input', els => els.map(el => ({
+      name: el.name,
+      id: el.id,
+      type: el.type,
+      placeholder: el.placeholder
+    })));
+    log(`Inputs encontrados: ${JSON.stringify(inputs)}`);
+    
+    // Preencher campos usando seletores mais genéricos
+    // Campo 1: Código cliente (primeiro input text)
+    const allInputs = await page.$$('input[type="text"], input:not([type])');
+    if (allInputs.length >= 1) {
+      await allInputs[0].fill('2363');
+      log('Código cliente preenchido');
     }
     
-    await page.fill('input[name="login"], input[name="usuario"], input[type="text"]:nth-of-type(2)', CONFIG.HINOVA_USER);
-    await page.fill('input[name="senha"], input[type="password"]', CONFIG.HINOVA_PASS);
+    // Campo 2: Usuário (segundo input text)
+    if (allInputs.length >= 2) {
+      await allInputs[1].fill(CONFIG.HINOVA_USER);
+      log('Usuário preenchido');
+    }
+    
+    // Campo 3: Senha
+    const senhaInput = await page.$('input[type="password"]');
+    if (senhaInput) {
+      await senhaInput.fill(CONFIG.HINOVA_PASS);
+      log('Senha preenchida');
+    }
     
     // NÃO preencher código de autenticação - usuário está dispensado
-    // O campo fica vazio e o login procede normalmente
     
-    await page.click('input[type="submit"], button[type="submit"], .btn-login, #btn-login, button:has-text("Entrar")');
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: 'debug_campos_preenchidos.png' });
     
+    // Clicar no botão Entrar
+    const btnEntrar = await page.$('button:has-text("Entrar"), input[value="Entrar"], .btn-primary, button.btn');
+    if (btnEntrar) {
+      log('Clicando no botão Entrar...');
+      await btnEntrar.click();
+    } else {
+      // Fallback: tentar form submit
+      await page.keyboard.press('Enter');
+      log('Pressionando Enter para submeter');
+    }
+    
+    await page.waitForTimeout(5000);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000);
+    
+    // Tirar screenshot após tentativa de login
+    await page.screenshot({ path: 'debug_apos_login.png' });
+    
+    // Verificar se ainda está na página de login (login falhou)
+    const aindaNaLogin = await page.$('input[type="password"]');
+    if (aindaNaLogin) {
+      log('AVISO: Ainda na página de login - verificando erros...');
+      const erroMsg = await page.$eval('.alert-danger, .error, .erro', el => el.textContent).catch(() => null);
+      if (erroMsg) {
+        log(`Erro de login: ${erroMsg}`);
+      }
+      throw new Error('Login falhou - ainda na página de login');
+    }
     
     // Verificar se apareceu outro modal após login e fechar
     try {
@@ -205,7 +254,7 @@ async function rodarRobo() {
       // Modal não apareceu
     }
     
-    log('Login realizado!');
+    log('Login realizado com sucesso!');
     
     // 3. Navegar até Relatório de Boletos
     log('Navegando para Relatório de Boletos...');
