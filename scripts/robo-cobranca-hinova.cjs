@@ -792,61 +792,129 @@ async function rodarRobo() {
       log(`Data fim preenchida: ${fim}`);
     }
     
-    // Situação de Boleto - Desmarcar CANCELADO, manter outras marcadas
-    log('Configurando situação de boleto...');
-    const situacaoBoletoCheckboxes = await page.$$('input[name*="situacao_boleto"], input[name*="situacao[]"]');
-    for (const checkbox of situacaoBoletoCheckboxes) {
-      const value = await checkbox.getAttribute('value');
-      const labelText = await checkbox.evaluate(el => {
-        const label = el.closest('label') || el.parentElement;
-        return label?.textContent?.trim() || '';
-      });
-      
-      if (value?.toUpperCase() === 'CANCELADO' || labelText?.toLowerCase().includes('cancelado')) {
-        if (await checkbox.isChecked()) {
-          await checkbox.uncheck();
-          log('Desmarcado: Cancelado');
+    // ============================================
+    // SEÇÃO: BOLETOS ANTERIORES (conforme imagem de referência)
+    // ============================================
+    
+    // 1) Boletos Anteriores - Selecionar "NÃO POSSUI"
+    log('Configurando Boletos Anteriores: NÃO POSSUI...');
+    await page.evaluate(() => {
+      const selects = document.querySelectorAll('select');
+      for (const select of selects) {
+        // Procurar pelo select de "Boletos Anteriores"
+        const parent = select.closest('tr, div, td');
+        const parentText = parent?.textContent?.toLowerCase() || '';
+        const options = Array.from(select.querySelectorAll('option'));
+        
+        if (parentText.includes('boletos anteriores') || parentText.includes('boleto anterior')) {
+          for (const option of options) {
+            const texto = option.textContent?.toUpperCase().trim() || '';
+            if (texto === 'NÃO POSSUI' || texto === 'NAO POSSUI') {
+              select.value = option.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              console.log('Boletos Anteriores: NÃO POSSUI selecionado');
+              break;
+            }
+          }
         }
       }
-    }
+    });
+    log('Boletos Anteriores configurado!');
     
-    // Boletos Anteriores - Selecionar "Não possui"
-    log('Configurando boletos anteriores...');
-    const boletosAnteriores = await page.$('select[name*="anteriores"], select[name*="boletos_ant"], select[name*="boleto_anterior"]');
-    if (boletosAnteriores) {
-      await boletosAnteriores.selectOption({ label: 'Não possui' }).catch(async () => {
-        // Tentar por value se label não funcionar
-        await boletosAnteriores.selectOption({ value: 'nao_possui' }).catch(() => {});
-      });
-      log('Boletos anteriores: Não possui');
-    }
-    
-    // Referência Original / Situação do Boleto - Desmarcar TODOS e marcar SOMENTE "Aberto"
-    log('Configurando situação do boleto (referência original)...');
-    const situacaoRefCheckboxes = await page.$$('input[name*="situacao_ref"], input[name*="sit_boleto"], input[type="checkbox"][name*="situacao"]');
-    for (const checkbox of situacaoRefCheckboxes) {
-      const value = await checkbox.getAttribute('value');
-      const labelText = await checkbox.evaluate(el => {
-        const label = el.closest('label') || el.parentElement;
-        return label?.textContent?.trim().toLowerCase() || '';
-      });
-      
-      const isAberto = value?.toUpperCase() === 'ABERTO' || labelText.includes('aberto');
-      
-      if (isAberto) {
-        // Marcar "Aberto"
-        if (!(await checkbox.isChecked())) {
-          await checkbox.check();
-          log('Marcado: Aberto');
-        }
-      } else {
-        // Desmarcar todos os outros
-        if (await checkbox.isChecked()) {
-          await checkbox.uncheck();
-          log(`Desmarcado: ${value || labelText}`);
+    // 2) Referência - Selecionar "VENCIMENTO ORIGINAL"
+    log('Configurando Referência: VENCIMENTO ORIGINAL...');
+    await page.evaluate(() => {
+      const selects = document.querySelectorAll('select');
+      for (const select of selects) {
+        const parent = select.closest('tr, div, td');
+        const parentText = parent?.textContent?.toLowerCase() || '';
+        const options = Array.from(select.querySelectorAll('option'));
+        
+        // Procurar pelo select de "Referência"
+        if (parentText.includes('referência') || parentText.includes('referencia')) {
+          for (const option of options) {
+            const texto = option.textContent?.toUpperCase().trim() || '';
+            if (texto === 'VENCIMENTO ORIGINAL' || texto.includes('VENCIMENTO ORIGINAL')) {
+              select.value = option.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              console.log('Referência: VENCIMENTO ORIGINAL selecionado');
+              break;
+            }
+          }
         }
       }
-    }
+    });
+    log('Referência configurado!');
+    
+    // Aguardar possível reload de opções
+    await page.waitForTimeout(1000);
+    
+    // 3) Situação Boleto - Desmarcar TODOS, marcar SOMENTE "ABERTO"
+    log('Configurando Situação Boleto: somente ABERTO...');
+    await page.evaluate(() => {
+      // Primeiro desmarcar checkbox "TODOS" se existir
+      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+      
+      for (const cb of checkboxes) {
+        const label = cb.closest('label') || cb.parentElement;
+        const labelText = label?.textContent?.trim().toUpperCase() || '';
+        const value = cb.value?.toUpperCase() || '';
+        
+        // Verificar se está na seção de Situação Boleto
+        const section = cb.closest('tr, div, fieldset');
+        const sectionText = section?.textContent?.toLowerCase() || '';
+        
+        if (sectionText.includes('situação boleto') || sectionText.includes('situacao boleto')) {
+          if (labelText === 'TODOS' || value === 'TODOS') {
+            // Desmarcar "TODOS"
+            if (cb.checked) {
+              cb.click();
+              console.log('Desmarcado: TODOS');
+            }
+          }
+        }
+      }
+    });
+    
+    await page.waitForTimeout(500);
+    
+    // Agora desmarcar todos os outros e marcar apenas ABERTO
+    await page.evaluate(() => {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+      
+      for (const cb of checkboxes) {
+        const label = cb.closest('label') || cb.parentElement;
+        const labelText = label?.textContent?.trim().toUpperCase() || '';
+        const value = cb.value?.toUpperCase() || '';
+        
+        // Verificar se está na seção de Situação Boleto
+        const section = cb.closest('tr, div, fieldset');
+        const sectionText = section?.textContent?.toLowerCase() || '';
+        
+        if (sectionText.includes('situação boleto') || sectionText.includes('situacao boleto')) {
+          const isAberto = labelText === 'ABERTO' || value === 'ABERTO';
+          
+          if (isAberto) {
+            // Marcar ABERTO
+            if (!cb.checked) {
+              cb.click();
+              console.log('Marcado: ABERTO');
+            }
+          } else if (labelText !== 'TODOS' && value !== 'TODOS') {
+            // Desmarcar todos os outros (exceto TODOS que já tratamos)
+            if (cb.checked) {
+              cb.click();
+              console.log('Desmarcado: ' + (labelText || value));
+            }
+          }
+        }
+      }
+    });
+    log('Situação Boleto: somente ABERTO marcado!');
+    
+    // ============================================
+    // FIM SEÇÃO BOLETOS ANTERIORES
+    // ============================================
     
     // Dados Visualizados - Selecionar layout "BI - Vangard Cobrança"
     log('Configurando layout...');
