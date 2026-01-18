@@ -5,7 +5,7 @@
  * 
  * REQUISITOS:
  * -----------
- * npm install playwright axios xlsx
+ * npm install playwright axios
  * npx playwright install chromium
  * 
  * CONFIGURAÇÃO:
@@ -19,7 +19,6 @@
 
 const { chromium } = require('playwright');
 const axios = require('axios');
-const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
 
@@ -203,8 +202,8 @@ function getDateRange() {
   };
 }
 
-// Colunas esperadas do layout "BI - Vangard Cobrança"
-const COLUNAS_ESPERADAS = [
+// Colunas esperadas do layout "BI - Vangard Cobrança" (baseado na imagem)
+const COLUNAS_TABELA = [
   "Data Pagamento",
   "Data Vencimento Original",
   "Dia Vencimento Veiculo",
@@ -219,46 +218,11 @@ const COLUNAS_ESPERADAS = [
   "Situacao"
 ];
 
-// Mapeamento de colunas do Excel para campos padronizados
-const COLUMN_MAP = {
-  "DATA PAGAMENTO": "Data Pagamento",
-  "DATA VENCIMENTO ORIGINAL": "Data Vencimento Original",
-  "DIA VENCIMENTO VEICULO": "Dia Vencimento Veiculo",
-  "REGIONAL BOLETO": "Regional Boleto",
-  "REGIONAL": "Regional Boleto",
-  "COOPERATIVA": "Cooperativa",
-  "VOLUNTÁRIO": "Voluntário",
-  "VOLUNTARIO": "Voluntário",
-  "NOME": "Nome",
-  "PLACAS": "Placas",
-  "PLACA": "Placas",
-  "VALOR": "Valor",
-  "DATA VENCIMENTO": "Data Vencimento",
-  "VENCIMENTO": "Data Vencimento",
-  "QTDE DIAS EM ATRASO VENCIMENTO ORIGINAL": "Qtde Dias em Atraso Vencimento Original",
-  "DIAS ATRASO": "Qtde Dias em Atraso Vencimento Original",
-  "SITUACAO": "Situacao",
-  "SITUAÇÃO": "Situacao",
-  "SITUAÇÃO BOLETO": "Situacao",
-};
-
-function normalizeHeader(header) {
-  return String(header).trim().toUpperCase().replace(/\s+/g, ' ');
-}
-
-function parseExcelDate(value) {
+/**
+ * Converte data DD/MM/YYYY para YYYY-MM-DD
+ */
+function parseDate(value) {
   if (!value) return null;
-  
-  // Se for número (serial Excel)
-  if (typeof value === 'number') {
-    const date = XLSX.SSF.parse_date_code(value);
-    if (date) {
-      const month = String(date.m).padStart(2, '0');
-      const day = String(date.d).padStart(2, '0');
-      return `${date.y}-${month}-${day}`;
-    }
-  }
-  
   const strValue = String(value).trim();
   
   // Formato DD/MM/YYYY
@@ -275,6 +239,9 @@ function parseExcelDate(value) {
   return null;
 }
 
+/**
+ * Converte valor monetário brasileiro para número
+ */
 function parseMoneyValue(value) {
   if (!value) return 0;
   const strValue = String(value).trim();
@@ -287,81 +254,245 @@ function parseMoneyValue(value) {
   return isNaN(parsed) ? 0 : parsed;
 }
 
-function processarExcel(filePath) {
-  log(`Processando arquivo Excel: ${filePath}`);
+/**
+ * Extrai dados de uma tabela HTML via scraping
+ */
+async function extrairDadosTabela(page) {
+  log('Extraindo dados da tabela HTML...');
   
-  const workbook = XLSX.readFile(filePath);
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
+  // Aguardar tabela carregar
+  try {
+    await page.waitForSelector('table', { timeout: 60000 });
+    log('Tabela encontrada!');
+  } catch (e) {
+    log('Tabela não encontrada, tentando localizar por outros meios...');
+  }
   
-  // Converter para JSON com headers
-  const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+  // Tirar screenshot para debug
+  await page.screenshot({ path: 'debug_tabela.png', fullPage: true }).catch(() => {});
   
-  log(`Total de linhas brutas: ${rawData.length}`);
+  // Extrair dados via JavaScript no navegador
+  const dadosBrutos = await page.evaluate(() => {
+    const resultado = [];
+    
+    // Encontrar a tabela principal
+    const tabelas = document.querySelectorAll('table');
+    let tabelaDados = null;
+    
+    // Procurar a tabela que tem os dados (maior número de linhas ou com classe específica)
+    for (const tabela of tabelas) {
+      const rows = tabela.querySelectorAll('tbody tr, tr');
+      if (rows.length > 5) { // Tabela com dados deve ter mais de 5 linhas
+        tabelaDados = tabela;
+        break;
+      }
+    }
+    
+    if (!tabelaDados) {
+      tabelaDados = tabelas[0]; // Fallback para primeira tabela
+    }
+    
+    if (!tabelaDados) {
+      console.log('Nenhuma tabela encontrada');
+      return [];
+    }
+    
+    const rows = tabelaDados.querySelectorAll('tr');
+    console.log(`Total de linhas encontradas: ${rows.length}`);
+    
+    // Identificar headers (primeira linha ou thead)
+    let headers = [];
+    const thead = tabelaDados.querySelector('thead');
+    if (thead) {
+      const headerCells = thead.querySelectorAll('th, td');
+      headers = Array.from(headerCells).map(cell => cell.textContent.trim());
+    } else if (rows.length > 0) {
+      const firstRow = rows[0];
+      const cells = firstRow.querySelectorAll('th, td');
+      headers = Array.from(cells).map(cell => cell.textContent.trim());
+    }
+    
+    console.log(`Headers: ${headers.join(', ')}`);
+    
+    // Processar linhas de dados
+    const startIndex = thead ? 0 : 1; // Se tem thead, começa do 0, senão pula header
+    const tbody = tabelaDados.querySelector('tbody');
+    const dataRows = tbody ? tbody.querySelectorAll('tr') : Array.from(rows).slice(startIndex);
+    
+    for (const row of dataRows) {
+      const cells = row.querySelectorAll('td');
+      if (cells.length < 5) continue; // Pular linhas com poucas células
+      
+      const rowData = {};
+      cells.forEach((cell, index) => {
+        if (headers[index]) {
+          rowData[headers[index]] = cell.textContent.trim();
+        } else {
+          rowData[`col_${index}`] = cell.textContent.trim();
+        }
+      });
+      
+      // Só adicionar se tem dados válidos
+      const temDados = Object.values(rowData).some(v => v && v.length > 0);
+      if (temDados) {
+        resultado.push(rowData);
+      }
+    }
+    
+    return resultado;
+  });
   
-  if (rawData.length === 0) {
-    log('AVISO: Arquivo Excel vazio!');
+  log(`Total de linhas brutas extraídas: ${dadosBrutos.length}`);
+  
+  if (dadosBrutos.length === 0) {
+    log('AVISO: Nenhum dado encontrado na tabela!');
     return [];
   }
   
-  // Identificar headers
-  const primeiraLinha = rawData[0];
-  const headersOriginais = Object.keys(primeiraLinha);
-  log(`Colunas no Excel: ${headersOriginais.join(', ')}`);
-  
-  // Mapear colunas
-  const headerMapping = {};
-  for (const header of headersOriginais) {
-    const normalized = normalizeHeader(header);
-    if (COLUMN_MAP[normalized]) {
-      headerMapping[header] = COLUMN_MAP[normalized];
-    } else {
-      // Tentar match parcial
-      for (const [key, value] of Object.entries(COLUMN_MAP)) {
-        if (normalized.includes(key) || key.includes(normalized)) {
-          headerMapping[header] = value;
-          break;
-        }
-      }
-    }
+  // Log das colunas encontradas
+  if (dadosBrutos.length > 0) {
+    log(`Colunas encontradas: ${Object.keys(dadosBrutos[0]).join(', ')}`);
   }
   
-  log(`Mapeamento de colunas: ${JSON.stringify(headerMapping, null, 2)}`);
-  
-  // Processar dados
-  const dados = [];
-  for (const row of rawData) {
-    const rowData = {};
-    let temDados = false;
+  // Mapear e normalizar os dados
+  const dados = dadosBrutos.map(row => {
+    const normalized = {};
     
-    for (const [originalHeader, mappedHeader] of Object.entries(headerMapping)) {
-      let value = row[originalHeader];
+    // Mapeamento de colunas para nomes padronizados
+    const mapping = {
+      'data pagamento': 'Data Pagamento',
+      'data vencimento original': 'Data Vencimento Original',
+      'dia vencimento veiculo': 'Dia Vencimento Veiculo',
+      'dia vencimento veículo': 'Dia Vencimento Veiculo',
+      'regional boleto': 'Regional Boleto',
+      'regional': 'Regional Boleto',
+      'cooperativa': 'Cooperativa',
+      'voluntário': 'Voluntário',
+      'voluntario': 'Voluntário',
+      'nome': 'Nome',
+      'placas': 'Placas',
+      'placa': 'Placas',
+      'valor': 'Valor',
+      'data vencimento': 'Data Vencimento',
+      'vencimento': 'Data Vencimento',
+      'qtde dias em atraso vencimento original': 'Qtde Dias em Atraso Vencimento Original',
+      'dias atraso': 'Qtde Dias em Atraso Vencimento Original',
+      'situacao': 'Situacao',
+      'situação': 'Situacao',
+    };
+    
+    for (const [key, value] of Object.entries(row)) {
+      const keyLower = key.toLowerCase().trim();
+      const mappedKey = mapping[keyLower] || key;
       
       // Processar valores especiais
-      if (mappedHeader.includes('Data')) {
-        value = parseExcelDate(value);
-      } else if (mappedHeader === 'Valor') {
-        value = parseMoneyValue(value);
-      } else if (mappedHeader === 'Dia Vencimento Veiculo' || mappedHeader.includes('Dias')) {
-        value = parseInt(String(value)) || null;
+      let processedValue = value;
+      
+      if (mappedKey.includes('Data')) {
+        processedValue = parseDate(value);
+      } else if (mappedKey === 'Valor') {
+        processedValue = parseMoneyValue(value);
+      } else if (mappedKey === 'Dia Vencimento Veiculo' || mappedKey.includes('Dias')) {
+        processedValue = parseInt(String(value)) || null;
       } else {
-        value = value ? String(value).trim() : null;
+        processedValue = value ? String(value).trim() : null;
       }
       
-      if (value !== null && value !== '') {
-        rowData[mappedHeader] = value;
-        temDados = true;
+      if (processedValue !== null && processedValue !== '') {
+        normalized[mappedKey] = processedValue;
       }
     }
     
-    // Só adicionar se tem dados válidos (pelo menos Nome ou Placas)
-    if (temDados && (rowData['Nome'] || rowData['Placas'])) {
-      dados.push(rowData);
+    return normalized;
+  });
+  
+  // Filtrar registros válidos (deve ter Nome ou Placas)
+  const dadosValidos = dados.filter(row => row['Nome'] || row['Placas']);
+  
+  log(`Registros válidos processados: ${dadosValidos.length}`);
+  return dadosValidos;
+}
+
+/**
+ * Verifica se há paginação e extrai dados de todas as páginas
+ */
+async function extrairTodasPaginas(page) {
+  let todosOsDados = [];
+  let paginaAtual = 1;
+  
+  // Extrair primeira página
+  const dadosPrimeiraPagina = await extrairDadosTabela(page);
+  todosOsDados = todosOsDados.concat(dadosPrimeiraPagina);
+  
+  // Verificar se há paginação
+  const temPaginacao = await page.evaluate(() => {
+    const seletoresPaginacao = [
+      'a:has-text("Próxima")',
+      'a:has-text("Próximo")',
+      'a:has-text(">")',
+      '.pagination .next',
+      '[rel="next"]',
+      'button:has-text("Próxima")',
+    ];
+    
+    for (const sel of seletoresPaginacao) {
+      try {
+        const el = document.querySelector(sel);
+        if (el && window.getComputedStyle(el).display !== 'none') {
+          return sel;
+        }
+      } catch {}
+    }
+    return null;
+  });
+  
+  if (temPaginacao) {
+    log(`Paginação detectada, extraindo mais páginas...`);
+    
+    // Limite de segurança para evitar loop infinito
+    const MAX_PAGINAS = 100;
+    
+    while (paginaAtual < MAX_PAGINAS) {
+      try {
+        // Tentar clicar no botão próxima página
+        const clicouProxima = await page.evaluate((sel) => {
+          const el = document.querySelector(sel);
+          if (el && !el.classList.contains('disabled') && !el.hasAttribute('disabled')) {
+            el.click();
+            return true;
+          }
+          return false;
+        }, temPaginacao);
+        
+        if (!clicouProxima) {
+          log(`Fim da paginação na página ${paginaAtual}`);
+          break;
+        }
+        
+        paginaAtual++;
+        
+        // Aguardar carregamento
+        await page.waitForTimeout(2000);
+        await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+        
+        // Extrair dados da página atual
+        const dadosPagina = await extrairDadosTabela(page);
+        if (dadosPagina.length === 0) {
+          log(`Página ${paginaAtual} vazia, encerrando`);
+          break;
+        }
+        
+        todosOsDados = todosOsDados.concat(dadosPagina);
+        log(`Página ${paginaAtual}: +${dadosPagina.length} registros (total: ${todosOsDados.length})`);
+        
+      } catch (e) {
+        log(`Erro na paginação: ${e.message}`);
+        break;
+      }
     }
   }
   
-  log(`Registros válidos processados: ${dados.length}`);
-  return dados;
+  return todosOsDados;
 }
 
 async function enviarWebhook(dados, nomeArquivo) {
@@ -392,6 +523,9 @@ async function enviarWebhook(dados, nomeArquivo) {
     return true;
   } catch (error) {
     log(`Erro no webhook: ${error.response?.status || error.message}`);
+    if (error.response?.data) {
+      log(`Detalhes: ${JSON.stringify(error.response.data)}`);
+    }
     return false;
   }
 }
@@ -410,16 +544,14 @@ async function rodarRobo() {
 
   log('='.repeat(50));
   log('INICIANDO ROBÔ DE COBRANÇA HINOVA');
+  log('Modo: SCRAPING DE TABELA HTML');
   log('='.repeat(50));
   
   const { inicio, fim } = getDateRange();
   log(`Período: ${inicio} até ${fim}`);
   
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    // Importante: sem isso o Playwright pode não emitir evento de download em alguns ambientes
-    acceptDownloads: true,
-  });
+  const context = await browser.newContext();
   const page = await context.newPage();
   
   try {
@@ -453,9 +585,8 @@ async function rodarRobo() {
       log('Aviso: Não encontrou campos de login pelo seletor padrão, continuando...');
     }
     
-    // 1.1 Fechar qualquer popup/modal que aparecer
+    // Fechar qualquer popup/modal que aparecer
     await fecharPopups(page);
-    
     
     // 2. Fazer login (sem código de autenticação - usuário dispensado)
     log('Realizando login...');
@@ -480,10 +611,6 @@ async function rodarRobo() {
       className: el.className
     })));
     log(`Inputs encontrados: ${JSON.stringify(inputs)}`);
-    
-    // Usar placeholders para encontrar os campos corretos (baseado no screenshot)
-    // Campo "Usuário" tem placeholder "Usuário"
-    // Campo "Senha" tem placeholder "Senha"
     
     // Preencher código cliente primeiro
     await page.fill('input[placeholder=""]', '2363').catch(() => {});
@@ -580,10 +707,6 @@ async function rodarRobo() {
     await page.screenshot({ path: 'debug_campos_preenchidos.png' });
     
     // Helper: dispensar/validar o campo "Código de autenticação".
-    // Na prática, o portal às vezes só libera o login após:
-    // 1) clicar em Entrar (primeira validação)
-    // 2) focar/desfocar o campo de autenticação (dispensar)
-    // 3) clicar em Entrar novamente
     const dispensarCodigoAutenticacao = async () => {
       try {
         const selector =
@@ -592,7 +715,7 @@ async function rodarRobo() {
         const campoAuth = await page.$(selector);
         if (!campoAuth) return false;
 
-        // Garantir que está vazio (se o portal inseriu algo automaticamente)
+        // Garantir que está vazio
         await campoAuth
           .evaluate((el) => {
             el.value = '';
@@ -605,7 +728,7 @@ async function rodarRobo() {
         await campoAuth.click({ force: true }).catch(() => {});
         await page.waitForTimeout(200);
 
-        // Clicar fora (e ESC) ajuda em alguns fluxos (validação/fechamento de hint)
+        // Clicar fora e ESC
         await page.click('body', { position: { x: 20, y: 20 }, force: true }).catch(() => {});
         await page.keyboard.press('Escape').catch(() => {});
         await page.waitForTimeout(200);
@@ -633,7 +756,7 @@ async function rodarRobo() {
         .catch(() => false);
       if (relatorioVisible) return false;
 
-      // Heurística de tela de login: textos do formulário
+      // Heurística de tela de login
       const esqueceuVisible = await page
         .locator('text=Esqueci minha senha')
         .first()
@@ -678,32 +801,31 @@ async function rodarRobo() {
           }
         };
 
-        // Muitos logins na Hinova só completam após 2 cliques no botão.
-        // 1) Primeiro clique: valida credenciais e "marca" a dispensa do código
+        // Primeiro clique
         await clicarEntrar();
         await Promise.race([
           page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => null),
           page.waitForTimeout(1500),
         ]);
 
-        // 2) Dispensar (foco/blur) do campo de autenticação (quando aplicável)
+        // Dispensar código de autenticação
         await dispensarCodigoAutenticacao();
         await Promise.race([
           page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
           page.waitForTimeout(1200),
         ]);
 
-        // 3) Segundo clique: efetiva o login
+        // Segundo clique
         await clicarEntrar();
         await Promise.race([
           page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
           page.waitForTimeout(1200),
         ]);
 
-        // 4) Enter como fallback final
+        // Enter como fallback
         await page.keyboard.press('Enter').catch(() => {});
 
-        // Aguardar qualquer reação do app (navegação, requests, etc.)
+        // Aguardar reação
         await Promise.race([
           page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: ESPERA_POR_TENTATIVA_MS }).catch(() => null),
           page.waitForLoadState('networkidle', { timeout: ESPERA_POR_TENTATIVA_MS }).catch(() => null),
@@ -718,7 +840,7 @@ async function rodarRobo() {
           break;
         }
 
-        // Ainda na página de login, verificar se há mensagem de erro
+        // Verificar mensagem de erro
         const erroMsg = await page
           .$eval('.alert-danger, .error, .erro, .message-error', (el) => el.textContent)
           .catch(() => null);
@@ -740,46 +862,34 @@ async function rodarRobo() {
       throw new Error(`Login falhou após ${MAX_TENTATIVAS} tentativas`);
     }
     
-    // Fechar qualquer popup que apareça após login
+    // Fechar popups após login
     await fecharPopups(page);
-    
-    
     log('Login realizado com sucesso!');
     
-    // 3. Navegar DIRETAMENTE para a página de Relatório de Boletos (evita cliques em menu lento)
+    // 3. Navegar DIRETAMENTE para a página de Relatório de Boletos
     log('Navegando diretamente para Relatório de Boletos...');
-    
-    // Fechar popups antes de navegar
     await fecharPopups(page);
     
-    // Navegar diretamente para a URL do relatório
     await page.goto(CONFIG.HINOVA_RELATORIO_URL, { 
       waitUntil: 'domcontentloaded',
-      timeout: 90000  // Timeout maior para site lento
+      timeout: 90000
     });
     
-    // Aguardar carregamento (site é lento)
     log('Aguardando página de relatório carregar (site lento)...');
     await page.waitForTimeout(5000);
-    
-    // Fechar popups que aparecerem após navegação
     await fecharPopups(page);
     
-    // Aguardar mais se necessário
     await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {
       log('NetworkIdle timeout - continuando...');
     });
-    
-    // Fechar popups novamente
     await fecharPopups(page);
-    
     log('Página de relatório aberta!');
     
     // 4. Preencher filtros conforme instruções
     log('Preenchendo filtros...');
     log(`Data Vencimento Original: ${inicio} até ${fim}`);
     
-    // Data Vencimento Original - Início (dia 01 do mês atual)
+    // Data Vencimento Original - Início
     const dataInicioInput = await page.$('input[name*="data_inicio"], input[name*="vencimento_inicial"], input[name*="dt_vencimento_original_ini"]');
     if (dataInicioInput) {
       await dataInicioInput.fill('');
@@ -787,7 +897,7 @@ async function rodarRobo() {
       log(`Data início preenchida: ${inicio}`);
     }
     
-    // Data Vencimento Original - Fim (último dia do mês atual)
+    // Data Vencimento Original - Fim
     const dataFimInput = await page.$('input[name*="data_fim"], input[name*="vencimento_final"], input[name*="dt_vencimento_original_fim"]');
     if (dataFimInput) {
       await dataFimInput.fill('');
@@ -795,16 +905,11 @@ async function rodarRobo() {
       log(`Data fim preenchida: ${fim}`);
     }
     
-    // ============================================
-    // SEÇÃO: BOLETOS ANTERIORES (conforme imagem de referência)
-    // ============================================
-    
-    // 1) Boletos Anteriores - Selecionar "NÃO POSSUI"
+    // Boletos Anteriores - Selecionar "NÃO POSSUI"
     log('Configurando Boletos Anteriores: NÃO POSSUI...');
     await page.evaluate(() => {
       const selects = document.querySelectorAll('select');
       for (const select of selects) {
-        // Procurar pelo select de "Boletos Anteriores"
         const parent = select.closest('tr, div, td');
         const parentText = parent?.textContent?.toLowerCase() || '';
         const options = Array.from(select.querySelectorAll('option'));
@@ -824,7 +929,7 @@ async function rodarRobo() {
     });
     log('Boletos Anteriores configurado!');
     
-    // 2) Referência - Selecionar "VENCIMENTO ORIGINAL"
+    // Referência - Selecionar "VENCIMENTO ORIGINAL"
     log('Configurando Referência: VENCIMENTO ORIGINAL...');
     await page.evaluate(() => {
       const selects = document.querySelectorAll('select');
@@ -833,7 +938,6 @@ async function rodarRobo() {
         const parentText = parent?.textContent?.toLowerCase() || '';
         const options = Array.from(select.querySelectorAll('option'));
         
-        // Procurar pelo select de "Referência"
         if (parentText.includes('referência') || parentText.includes('referencia')) {
           for (const option of options) {
             const texto = option.textContent?.toUpperCase().trim() || '';
@@ -849,13 +953,11 @@ async function rodarRobo() {
     });
     log('Referência configurado!');
     
-    // Aguardar possível reload de opções
     await page.waitForTimeout(1000);
     
-    // 3) Situação Boleto - Desmarcar TODOS, marcar SOMENTE "ABERTO"
+    // Situação Boleto - Desmarcar TODOS, marcar SOMENTE "ABERTO"
     log('Configurando Situação Boleto: somente ABERTO...');
     await page.evaluate(() => {
-      // Primeiro desmarcar checkbox "TODOS" se existir
       const checkboxes = document.querySelectorAll('input[type="checkbox"]');
       
       for (const cb of checkboxes) {
@@ -863,13 +965,11 @@ async function rodarRobo() {
         const labelText = label?.textContent?.trim().toUpperCase() || '';
         const value = cb.value?.toUpperCase() || '';
         
-        // Verificar se está na seção de Situação Boleto
         const section = cb.closest('tr, div, fieldset');
         const sectionText = section?.textContent?.toLowerCase() || '';
         
         if (sectionText.includes('situação boleto') || sectionText.includes('situacao boleto')) {
           if (labelText === 'TODOS' || value === 'TODOS') {
-            // Desmarcar "TODOS"
             if (cb.checked) {
               cb.click();
               console.log('Desmarcado: TODOS');
@@ -881,7 +981,6 @@ async function rodarRobo() {
     
     await page.waitForTimeout(500);
     
-    // Agora desmarcar todos os outros e marcar apenas ABERTO
     await page.evaluate(() => {
       const checkboxes = document.querySelectorAll('input[type="checkbox"]');
       
@@ -890,7 +989,6 @@ async function rodarRobo() {
         const labelText = label?.textContent?.trim().toUpperCase() || '';
         const value = cb.value?.toUpperCase() || '';
         
-        // Verificar se está na seção de Situação Boleto
         const section = cb.closest('tr, div, fieldset');
         const sectionText = section?.textContent?.toLowerCase() || '';
         
@@ -898,13 +996,11 @@ async function rodarRobo() {
           const isAberto = labelText === 'ABERTO' || value === 'ABERTO';
           
           if (isAberto) {
-            // Marcar ABERTO
             if (!cb.checked) {
               cb.click();
               console.log('Marcado: ABERTO');
             }
           } else if (labelText !== 'TODOS' && value !== 'TODOS') {
-            // Desmarcar todos os outros (exceto TODOS que já tratamos)
             if (cb.checked) {
               cb.click();
               console.log('Desmarcado: ' + (labelText || value));
@@ -915,338 +1011,156 @@ async function rodarRobo() {
     });
     log('Situação Boleto: somente ABERTO marcado!');
     
-    // ============================================
-    // FIM SEÇÃO BOLETOS ANTERIORES
-    // ============================================
-    
-    // Dados Visualizados - Selecionar layout "BI - Vangard Cobrança"
+    // Layout "BI - Vangard Cobrança"
     log('Configurando layout...');
     const layoutSelect = await page.$('select[name*="layout"], select[name*="visualiza"], select[name*="dados_visualizados"]');
     if (layoutSelect) {
       await layoutSelect.selectOption({ label: 'BI - Vangard Cobrança' }).catch(async () => {
-        // Tentar variações do nome
         await layoutSelect.selectOption({ label: 'BI - Vangard' }).catch(() => {});
       });
       log('Layout: BI - Vangard Cobrança');
     }
     
-    // NOVO: Forma de Exibição - Selecionar "Em Excel"
-    log('Configurando forma de exibição para Excel...');
+    // ========================================
+    // FORMA DE EXIBIÇÃO: "EM TELA" (NOVO!)
+    // ========================================
+    log('Configurando forma de exibição para EM TELA...');
+    
     const formaExibicaoSelect = await page.$('select[name*="forma_exibicao"], select[name*="exibicao"], select[name*="formato"]');
     if (formaExibicaoSelect) {
-      await formaExibicaoSelect.selectOption({ label: 'Em Excel' }).catch(async () => {
-        await formaExibicaoSelect.selectOption({ value: 'excel' }).catch(async () => {
-          await formaExibicaoSelect.selectOption({ label: 'Excel' }).catch(() => {});
-        });
+      // Tentar selecionar "Em Tela"
+      await formaExibicaoSelect.selectOption({ label: 'Em Tela' }).catch(async () => {
+        log('Não conseguiu selecionar "Em Tela" por label, tentando por valor...');
       });
-      log('Forma de exibição: Em Excel');
+      log('Forma de exibição: Em Tela');
     } else {
-      // Tentar via JavaScript se não encontrar o select
+      // Tentar via JavaScript
       await page.evaluate(() => {
         const selects = document.querySelectorAll('select');
         for (const select of selects) {
-          const options = select.querySelectorAll('option');
+          const options = Array.from(select.querySelectorAll('option'));
           for (const option of options) {
-            const texto = option.textContent?.toLowerCase() || '';
-            if (texto.includes('excel') || texto === 'em excel') {
+            const texto = option.textContent?.toLowerCase().trim() || '';
+            if (texto.includes('tela') || texto === 'em tela') {
               select.value = option.value;
               select.dispatchEvent(new Event('change', { bubbles: true }));
-              return true;
+              console.log('Forma exibição: Em Tela (via JS)');
+              return;
             }
           }
         }
-        return false;
       });
-      log('Forma de exibição configurada via JS');
     }
     
     await page.waitForTimeout(1000);
     await page.screenshot({ path: 'debug_filtros.png' });
-    log('Filtros preenchidos!');
     
-    // 5. Configurar download de arquivo
-    log('Configurando download...');
-    const downloadPath = path.resolve('./downloads');
-    if (!fs.existsSync(downloadPath)) {
-      fs.mkdirSync(downloadPath, { recursive: true });
-    }
+    // 5. Clicar em Gerar e aguardar nova aba com tabela
+    log('Clicando em Gerar relatório...');
     
-    // Configurações de timeout para download
-    // - O evento de download deve aparecer rápido (mesmo que o arquivo demore para salvar)
-    // - O salvamento pode demorar (arquivo grande / portal lento)
-    const DOWNLOAD_EVENT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos para o evento de download aparecer
-    const DOWNLOAD_SAVE_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutos para salvar o arquivo (pior caso)
-    const DOWNLOAD_CHECK_INTERVAL_MS = 10000; // Verificar a cada 10 segundos
-    const MAX_DOWNLOAD_RETRIES = 3;
+    const botoesGerar = [
+      'input[type="submit"][value*="Gerar"]',
+      'button:has-text("Gerar")',
+      'input[type="button"][value*="Gerar"]',
+      '.btn-gerar',
+      'input[value="Gerar"]',
+      'input[value="Gerar Relatório"]',
+      'button:has-text("Gerar Relatório")',
+    ];
     
-    let dados = [];
-    let nomeArquivoFinal = '';
-    let downloadSucesso = false;
+    // Preparar para capturar nova aba
+    const newPagePromise = context.waitForEvent('page', { timeout: 120000 });
     
-    for (let tentativaDownload = 1; tentativaDownload <= MAX_DOWNLOAD_RETRIES && !downloadSucesso; tentativaDownload++) {
-      log(`Tentativa de download ${tentativaDownload}/${MAX_DOWNLOAD_RETRIES}...`);
-      
+    // Clicar no botão Gerar
+    let clicouBotao = false;
+    for (const seletor of botoesGerar) {
       try {
-        // ============================================
-        // CORREÇÃO: O portal Hinova abre uma NOVA ABA após clicar em "Gerar"
-        // O download acontece nessa nova aba, não na página original
-        // ============================================
-        
-        // 6. Gerar relatório (vai abrir nova aba e baixar Excel)
-        log('Clicando em Gerar relatório Excel...');
-        
-        // Tentar diferentes seletores para o botão Gerar
-        const botoesGerar = [
-          'input[type="submit"][value*="Gerar"]',
-          'button:has-text("Gerar")',
-          'input[type="button"][value*="Gerar"]',
-          '.btn-gerar',
-          'input[value="Gerar"]',
-          'input[value="Gerar Relatório"]',
-          'button:has-text("Gerar Relatório")',
-        ];
-        
-        // Promises precisam ser criadas ANTES do clique para não perder eventos rápidos
-        // - download: pode iniciar na nova aba instantaneamente
-        // - page: Hinova abre uma nova aba (geraRelatorioBoleto.php)
-        // Capturar o PRIMEIRO download após o clique.
-        // IMPORTANTE: o Hinova às vezes sugere um filename sem extensão/"relatorio".
-        // Se colocarmos predicate, podemos perder o evento e ficar esperando para sempre.
-        const downloadPromise = context.waitForEvent('download', {
-          timeout: DOWNLOAD_EVENT_TIMEOUT_MS,
-        });
-
-        // Log rápido caso o evento dispare (ajuda a ver o filename real no Actions)
-        context.once('download', (d) => {
-          try {
-            log(`📥 Evento de download detectado: ${d.suggestedFilename()}`);
-          } catch {
-            log('📥 Evento de download detectado');
-          }
-        });
-
-        // Não aguardamos aqui para não bloquear; é só para debug/screenshot e tentativa de “desencadear” download
-        const newPagePromise = context
-          .waitForEvent('page', { timeout: 60000 })
-          .then(async (newPage) => {
-            try {
-              await newPage.waitForLoadState('domcontentloaded', { timeout: 60000 }).catch(() => {});
-              log(`Nova aba detectada: ${newPage.url() || 'carregando...'}`);
-              await newPage.screenshot({ path: 'debug_nova_aba.png' }).catch(() => {});
-
-              // Em alguns cenários o Hinova abre a aba e só então “dispara” o download via botão/link.
-              await fecharPopups(newPage).catch(() => {});
-
-              const seletoresDisparoDownload = [
-                'a[href*=".xlsx"]',
-                'a[href*=".xls"]',
-                'a[href*="xlsx"]',
-                'a[href*="xls"]',
-                'button:has-text("Baixar")',
-                'button:has-text("Download")',
-                'button:has-text("Exportar")',
-                'a:has-text("Baixar")',
-                'a:has-text("Download")',
-                'a:has-text("Exportar")',
-                'input[value*="Baixar"]',
-                'input[value*="Download"]',
-                'input[value*="Exportar"]',
-              ];
-
-              for (const sel of seletoresDisparoDownload) {
-                try {
-                  const el = await newPage.$(sel);
-                  if (el && (await el.isVisible().catch(() => false))) {
-                    await el.click({ force: true }).catch(() => {});
-                    log(`Tentou disparar download na nova aba via: ${sel}`);
-                    break;
-                  }
-                } catch {
-                  // ignore
-                }
-              }
-            } catch {}
-            return newPage;
-          })
-          .catch(() => null);
-
-        // Clicar no botão Gerar
-        let clicouBotao = false;
-        for (const seletor of botoesGerar) {
-          try {
-            const botao = await page.$(seletor);
-            if (botao && await botao.isVisible()) {
-              await botao.click();
-              log(`Clicou no botão: ${seletor}`);
-              clicouBotao = true;
-              break;
-            }
-          } catch (e) {
-            // Continuar tentando
-          }
+        const botao = await page.$(seletor);
+        if (botao && await botao.isVisible()) {
+          await botao.click();
+          log(`Clicou no botão: ${seletor}`);
+          clicouBotao = true;
+          break;
         }
-        
-        if (!clicouBotao) {
-          // Fallback via JavaScript
-          await page.evaluate(() => {
-            const inputs = document.querySelectorAll('input[type="submit"], input[type="button"], button');
-            for (const el of inputs) {
-              const texto = (el.value || el.textContent || '').toLowerCase();
-              if (texto.includes('gerar')) {
-                el.click();
-                return true;
-              }
-            }
-            return false;
-          });
-          log('Clicou no botão via JavaScript');
-        }
-        
-        // Monitorar o download com feedback periódico
-        log('Aguardando download (pode demorar - nova aba será aberta)...');
-        
-        let tempoEsperado = 0;
-        const monitoramentoInterval = setInterval(() => {
-          tempoEsperado += DOWNLOAD_CHECK_INTERVAL_MS;
-          const minutos = Math.floor(tempoEsperado / 60000);
-          const segundos = Math.floor((tempoEsperado % 60000) / 1000);
-          log(`⏳ Aguardando download... ${minutos}m ${segundos}s`);
-        }, DOWNLOAD_CHECK_INTERVAL_MS);
-        
-        try {
-          // Aguardar download (independente da aba que iniciou)
-          const download = await downloadPromise;
-          clearInterval(monitoramentoInterval);
-
-          const suggested = (typeof download.suggestedFilename === 'function'
-            ? download.suggestedFilename()
-            : '') || '';
-
-          const suggestedLower = suggested.toLowerCase();
-          const suggestedOk = suggestedLower.endsWith('.xlsx') || suggestedLower.endsWith('.xls');
-
-          nomeArquivoFinal = suggestedOk
-            ? suggested
-            : `Hinova_${fim.replace(/\//g, '-')}.xlsx`;
-          const filePath = path.join(downloadPath, nomeArquivoFinal);
-          
-          log(`✅ Download capturado: ${nomeArquivoFinal}`);
-          
-          // Monitorar o progresso do salvamento
-          log('Salvando arquivo (pode demorar para arquivos grandes)...');
-          const saveStartTime = Date.now();
-          
-          await Promise.race([
-            download.saveAs(filePath),
-            new Promise((_, reject) =>
-              setTimeout(
-                () => reject(new Error('Timeout ao salvar o arquivo baixado')),
-                DOWNLOAD_SAVE_TIMEOUT_MS
-              )
-            ),
-          ]);
-          
-          const saveEndTime = Date.now();
-          const saveDuration = Math.round((saveEndTime - saveStartTime) / 1000);
-          log(`✅ Arquivo salvo em ${saveDuration}s: ${filePath}`);
-          
-          // Verificar se o arquivo foi salvo corretamente
-          if (fs.existsSync(filePath)) {
-            const stats = fs.statSync(filePath);
-            log(`Tamanho do arquivo: ${(stats.size / 1024).toFixed(2)} KB`);
-            
-            if (stats.size < 100) {
-              log('⚠️ Arquivo muito pequeno, pode estar vazio ou com erro');
-              throw new Error('Arquivo baixado está vazio ou corrompido');
-            }
-            
-            // Processar Excel
-            dados = processarExcel(filePath);
-            
-            // Limpar arquivo após processar
-            try {
-              fs.unlinkSync(filePath);
-              log('Arquivo temporário removido');
-            } catch (e) {
-              log('Aviso: não foi possível remover arquivo temporário');
-            }
-            
-            downloadSucesso = true;
-            
-            // Fechar novas abas abertas
-            const pages = context.pages();
-            for (const p of pages) {
-              if (p !== page) {
-                await p.close().catch(() => {});
-                log('Nova aba fechada');
-              }
-            }
-            
-          } else {
-            throw new Error('Arquivo não foi salvo corretamente');
-          }
-          
-        } catch (downloadError) {
-          clearInterval(monitoramentoInterval);
-          throw downloadError;
-        }
-        
-      } catch (downloadError) {
-        log(`❌ Erro no download (tentativa ${tentativaDownload}): ${downloadError.message}`);
-        
-        if (tentativaDownload < MAX_DOWNLOAD_RETRIES) {
-          log('Aguardando antes de tentar novamente...');
-          await page.waitForTimeout(5000);
-          
-          // Tirar screenshot para debug
-          await page.screenshot({ path: `debug_download_retry_${tentativaDownload}.png` });
-          
-          // Fechar popups que possam ter aparecido
-          await fecharPopups(page);
-          
-          // Recarregar a página e preencher filtros novamente se necessário
-          log('Verificando estado da página...');
-          const urlAtual = page.url();
-          if (!urlAtual.includes('relatorioBoleto')) {
-            log('Página mudou, recarregando relatório...');
-            await page.goto(CONFIG.HINOVA_RELATORIO_URL, { 
-              waitUntil: 'domcontentloaded',
-              timeout: 90000
-            });
-            await fecharPopups(page);
-            await page.waitForTimeout(3000);
-            
-            // Re-preencher filtros básicos
-            const dataInicioInput = await page.$('input[name*="data_inicio"], input[name*="vencimento_inicial"], input[name*="dt_vencimento_original_ini"]');
-            if (dataInicioInput) await dataInicioInput.fill(inicio);
-            
-            const dataFimInput = await page.$('input[name*="data_fim"], input[name*="vencimento_final"], input[name*="dt_vencimento_original_fim"]');
-            if (dataFimInput) await dataFimInput.fill(fim);
-          }
-        }
+      } catch (e) {
+        // Continuar tentando
       }
     }
     
-    if (!downloadSucesso) {
-      log('❌ Download falhou após todas as tentativas');
-      await page.screenshot({ path: 'debug_apos_gerar.png' });
-      
-      // Fallback: tentar extrair da tabela HTML se Excel falhar
-      log('AVISO: Download de Excel falhou. Verifique os screenshots para debug.');
-      return false;
+    if (!clicouBotao) {
+      // Fallback via JavaScript
+      await page.evaluate(() => {
+        const inputs = document.querySelectorAll('input[type="submit"], input[type="button"], button');
+        for (const el of inputs) {
+          const texto = (el.value || el.textContent || '').toLowerCase();
+          if (texto.includes('gerar')) {
+            el.click();
+            return true;
+          }
+        }
+        return false;
+      });
+      log('Clicou no botão via JavaScript');
     }
     
-    log(`Total de registros processados: ${dados.length}`);
+    // Aguardar nova aba abrir
+    log('Aguardando nova aba com relatório...');
+    let newPage;
+    try {
+      newPage = await newPagePromise;
+      log('Nova aba detectada!');
+    } catch (e) {
+      log('Nova aba não detectada, verificando se relatório carregou na mesma página...');
+      newPage = page; // Usar mesma página se não abriu nova aba
+    }
+    
+    // Aguardar carregamento da página com relatório
+    log('Aguardando carregamento do relatório...');
+    await newPage.waitForLoadState('domcontentloaded', { timeout: 120000 }).catch(() => {});
+    await newPage.waitForTimeout(5000);
+    await fecharPopups(newPage);
+    
+    // Tirar screenshot
+    await newPage.screenshot({ path: 'debug_relatorio.png', fullPage: true }).catch(() => {});
+    log(`URL do relatório: ${newPage.url()}`);
+    
+    // Aguardar tabela aparecer
+    log('Aguardando tabela de dados...');
+    await newPage.waitForSelector('table', { timeout: 120000 }).catch(() => {
+      log('Tabela não encontrada pelo seletor padrão, continuando...');
+    });
+    
+    // Aguardar mais um pouco para dados carregarem
+    await newPage.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {});
+    await newPage.waitForTimeout(3000);
+    
+    // 6. Extrair dados da tabela HTML
+    log('Iniciando extração de dados...');
+    const dados = await extrairTodasPaginas(newPage);
+    
+    log(`Total de registros extraídos: ${dados.length}`);
     
     if (dados.length === 0) {
-      log('AVISO: Nenhum dado encontrado no Excel!');
-      await page.screenshot({ path: 'debug_hinova.png' });
+      log('AVISO: Nenhum dado encontrado na tabela!');
+      await newPage.screenshot({ path: 'debug_sem_dados.png', fullPage: true });
+      
+      // Debug: mostrar HTML da página
+      const html = await newPage.content();
+      fs.writeFileSync('debug_html.html', html);
+      log('HTML salvo em debug_html.html para análise');
+      
       return false;
     }
     
     // 7. Enviar para webhook
-    const nomeArquivo = nomeArquivoFinal || `Hinova_Boletos_${fim.replace(/\//g, '-')}.xlsx`;
+    const nomeArquivo = `Hinova_Boletos_${fim.replace(/\//g, '-')}_scraping.json`;
     const sucesso = await enviarWebhook(dados, nomeArquivo);
+    
+    // Fechar nova aba se diferente da principal
+    if (newPage !== page) {
+      await newPage.close().catch(() => {});
+      log('Nova aba fechada');
+    }
     
     return sucesso;
     
