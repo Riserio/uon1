@@ -184,6 +184,8 @@ async function fecharPopups(page, maxTentativas = 10) {
 function getDateRange() {
   const hoje = new Date();
   const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  // Último dia do mês atual (dia 0 do próximo mês = último dia deste mês)
+  const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
   
   const formatDate = (d) => {
     const day = String(d.getDate()).padStart(2, '0');
@@ -194,7 +196,7 @@ function getDateRange() {
   
   return {
     inicio: formatDate(primeiroDia),
-    fim: formatDate(hoje),
+    fim: formatDate(ultimoDia),
   };
 }
 
@@ -644,37 +646,94 @@ async function rodarRobo() {
     
     log('Página de relatório aberta!');
     
-    // 4. Preencher filtros
+    // 4. Preencher filtros conforme instruções
     log('Preenchendo filtros...');
+    log(`Data Vencimento Original: ${inicio} até ${fim}`);
     
-    const dataInicioInput = await page.$('input[name*="data_inicio"], input[name*="vencimento_inicial"]');
+    // Data Vencimento Original - Início (dia 01 do mês atual)
+    const dataInicioInput = await page.$('input[name*="data_inicio"], input[name*="vencimento_inicial"], input[name*="dt_vencimento_original_ini"]');
     if (dataInicioInput) {
+      await dataInicioInput.fill('');
       await dataInicioInput.fill(inicio);
+      log(`Data início preenchida: ${inicio}`);
     }
     
-    const dataFimInput = await page.$('input[name*="data_fim"], input[name*="vencimento_final"]');
+    // Data Vencimento Original - Fim (último dia do mês atual)
+    const dataFimInput = await page.$('input[name*="data_fim"], input[name*="vencimento_final"], input[name*="dt_vencimento_original_fim"]');
     if (dataFimInput) {
+      await dataFimInput.fill('');
       await dataFimInput.fill(fim);
+      log(`Data fim preenchida: ${fim}`);
     }
     
-    // Desmarcar "Cancelado"
-    const canceladoCheckbox = await page.$('input[value="CANCELADO"], label:has-text("Cancelado") input');
-    if (canceladoCheckbox && await canceladoCheckbox.isChecked()) {
-      await canceladoCheckbox.uncheck();
+    // Situação de Boleto - Desmarcar CANCELADO, manter outras marcadas
+    log('Configurando situação de boleto...');
+    const situacaoBoletoCheckboxes = await page.$$('input[name*="situacao_boleto"], input[name*="situacao[]"]');
+    for (const checkbox of situacaoBoletoCheckboxes) {
+      const value = await checkbox.getAttribute('value');
+      const labelText = await checkbox.evaluate(el => {
+        const label = el.closest('label') || el.parentElement;
+        return label?.textContent?.trim() || '';
+      });
+      
+      if (value?.toUpperCase() === 'CANCELADO' || labelText?.toLowerCase().includes('cancelado')) {
+        if (await checkbox.isChecked()) {
+          await checkbox.uncheck();
+          log('Desmarcado: Cancelado');
+        }
+      }
     }
     
-    // Boletos Anteriores - "Não possui"
-    const boletosAnteriores = await page.$('select[name*="anteriores"], select[name*="boletos_ant"]');
+    // Boletos Anteriores - Selecionar "Não possui"
+    log('Configurando boletos anteriores...');
+    const boletosAnteriores = await page.$('select[name*="anteriores"], select[name*="boletos_ant"], select[name*="boleto_anterior"]');
     if (boletosAnteriores) {
-      await boletosAnteriores.selectOption({ label: 'Não possui' });
+      await boletosAnteriores.selectOption({ label: 'Não possui' }).catch(async () => {
+        // Tentar por value se label não funcionar
+        await boletosAnteriores.selectOption({ value: 'nao_possui' }).catch(() => {});
+      });
+      log('Boletos anteriores: Não possui');
     }
     
-    // Selecionar layout "BI - Vangard Cobrança"
-    const layoutSelect = await page.$('select[name*="layout"], select[name*="visualiza"]');
+    // Referência Original / Situação do Boleto - Desmarcar TODOS e marcar SOMENTE "Aberto"
+    log('Configurando situação do boleto (referência original)...');
+    const situacaoRefCheckboxes = await page.$$('input[name*="situacao_ref"], input[name*="sit_boleto"], input[type="checkbox"][name*="situacao"]');
+    for (const checkbox of situacaoRefCheckboxes) {
+      const value = await checkbox.getAttribute('value');
+      const labelText = await checkbox.evaluate(el => {
+        const label = el.closest('label') || el.parentElement;
+        return label?.textContent?.trim().toLowerCase() || '';
+      });
+      
+      const isAberto = value?.toUpperCase() === 'ABERTO' || labelText.includes('aberto');
+      
+      if (isAberto) {
+        // Marcar "Aberto"
+        if (!(await checkbox.isChecked())) {
+          await checkbox.check();
+          log('Marcado: Aberto');
+        }
+      } else {
+        // Desmarcar todos os outros
+        if (await checkbox.isChecked()) {
+          await checkbox.uncheck();
+          log(`Desmarcado: ${value || labelText}`);
+        }
+      }
+    }
+    
+    // Dados Visualizados - Selecionar layout "BI - Vangard Cobrança"
+    log('Configurando layout...');
+    const layoutSelect = await page.$('select[name*="layout"], select[name*="visualiza"], select[name*="dados_visualizados"]');
     if (layoutSelect) {
-      await layoutSelect.selectOption({ label: 'BI - Vangard Cobrança' });
+      await layoutSelect.selectOption({ label: 'BI - Vangard Cobrança' }).catch(async () => {
+        // Tentar variações do nome
+        await layoutSelect.selectOption({ label: 'BI - Vangard' }).catch(() => {});
+      });
+      log('Layout: BI - Vangard Cobrança');
     }
     
+    await page.waitForTimeout(1000);
     log('Filtros preenchidos!');
     
     // 5. Gerar relatório
