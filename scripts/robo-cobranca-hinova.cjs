@@ -184,50 +184,93 @@ async function rodarRobo() {
       name: el.name,
       id: el.id,
       type: el.type,
-      placeholder: el.placeholder
+      placeholder: el.placeholder,
+      className: el.className
     })));
     log(`Inputs encontrados: ${JSON.stringify(inputs)}`);
     
-    // Preencher campos usando seletores mais genéricos
-    // Campo 1: Código cliente (primeiro input text)
-    const allTextInputs = await page.$$('input[type="text"], input:not([type]):not([type="password"]):not([type="hidden"]):not([type="submit"])');
-    log(`Inputs de texto encontrados: ${allTextInputs.length}`);
-    
-    if (allTextInputs.length >= 1) {
-      await allTextInputs[0].click();
-      await allTextInputs[0].fill('2363');
-      log('Código cliente preenchido: 2363');
-    }
-    
-    // Campo 2: Usuário (segundo input text)
-    if (allTextInputs.length >= 2) {
-      await allTextInputs[1].click();
-      await allTextInputs[1].fill(CONFIG.HINOVA_USER);
-      log(`Usuário preenchido: ${CONFIG.HINOVA_USER}`);
-    }
-    
-    // Campo 3: Senha - buscar todos os inputs password
-    const senhaInputs = await page.$$('input[type="password"]');
-    log(`Inputs de senha encontrados: ${senhaInputs.length}`);
-    
-    if (senhaInputs.length >= 1) {
-      // Pegar o primeiro campo de senha (campo "Senha", não "Código de autenticação")
-      await senhaInputs[0].click();
-      await senhaInputs[0].fill(CONFIG.HINOVA_PASS);
-      log('Senha preenchida com sucesso');
+    // Preencher campos via JavaScript diretamente (mais confiável)
+    await page.evaluate((usuario, senha) => {
+      // Encontrar todos os inputs visíveis
+      const allInputs = Array.from(document.querySelectorAll('input')).filter(el => {
+        const style = window.getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden' && el.type !== 'hidden';
+      });
       
-      // Verificar se preencheu
-      const senhaPreenchida = await senhaInputs[0].inputValue();
-      log(`Senha tem ${senhaPreenchida.length} caracteres`);
-    } else {
-      // Fallback: tentar por nome ou id
-      log('Tentando fallback para senha...');
-      await page.fill('input[name="senha"]', CONFIG.HINOVA_PASS).catch(() => {});
-      await page.fill('input#senha', CONFIG.HINOVA_PASS).catch(() => {});
-      await page.fill('input[name="password"]', CONFIG.HINOVA_PASS).catch(() => {});
-    }
+      console.log('Inputs visíveis:', allInputs.length);
+      
+      // Separar por tipo
+      const textInputs = allInputs.filter(el => el.type === 'text' || !el.type);
+      const passwordInputs = allInputs.filter(el => el.type === 'password');
+      
+      console.log('Text inputs:', textInputs.length);
+      console.log('Password inputs:', passwordInputs.length);
+      
+      // Preencher código cliente (primeiro text)
+      if (textInputs[0]) {
+        textInputs[0].value = '2363';
+        textInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+        textInputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+        console.log('Código cliente preenchido');
+      }
+      
+      // Preencher usuário (segundo text)
+      if (textInputs[1]) {
+        textInputs[1].value = usuario;
+        textInputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+        textInputs[1].dispatchEvent(new Event('change', { bubbles: true }));
+        console.log('Usuário preenchido:', usuario);
+      }
+      
+      // Preencher senha (primeiro password)
+      if (passwordInputs[0]) {
+        passwordInputs[0].value = senha;
+        passwordInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+        passwordInputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+        console.log('Senha preenchida');
+      }
+      
+      return {
+        codigoPreenchido: textInputs[0]?.value === '2363',
+        usuarioPreenchido: textInputs[1]?.value === usuario,
+        senhaPreenchida: passwordInputs[0]?.value === senha
+      };
+    }, CONFIG.HINOVA_USER, CONFIG.HINOVA_PASS);
     
-    // NÃO preencher código de autenticação (segundo password) - usuário está dispensado
+    log('Campos preenchidos via JavaScript');
+    
+    // Aguardar um pouco e verificar se preencheu
+    await page.waitForTimeout(1000);
+    
+    // Verificar valores preenchidos
+    const valoresPreenchidos = await page.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll('input')).filter(el => {
+        const style = window.getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden' && el.type !== 'hidden';
+      });
+      const textInputs = inputs.filter(el => el.type === 'text' || !el.type);
+      const passwordInputs = inputs.filter(el => el.type === 'password');
+      
+      return {
+        codigo: textInputs[0]?.value || '(vazio)',
+        usuario: textInputs[1]?.value || '(vazio)',
+        senhaLength: passwordInputs[0]?.value?.length || 0
+      };
+    });
+    
+    log(`Verificação: Código=${valoresPreenchidos.codigo}, Usuário=${valoresPreenchidos.usuario}, Senha=${valoresPreenchidos.senhaLength} chars`);
+    
+    if (valoresPreenchidos.senhaLength === 0) {
+      log('AVISO: Senha não foi preenchida! Tentando método alternativo...');
+      
+      // Tentar com type() ao invés de fill()
+      const senhaInput = await page.$('input[type="password"]:first-of-type');
+      if (senhaInput) {
+        await senhaInput.click();
+        await senhaInput.type(CONFIG.HINOVA_PASS, { delay: 50 });
+        log('Senha digitada com type()');
+      }
+    }
     
     await page.waitForTimeout(500);
     await page.screenshot({ path: 'debug_campos_preenchidos.png' });
