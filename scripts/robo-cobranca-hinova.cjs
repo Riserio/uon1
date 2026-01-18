@@ -190,26 +190,44 @@ async function rodarRobo() {
     
     // Preencher campos usando seletores mais genéricos
     // Campo 1: Código cliente (primeiro input text)
-    const allInputs = await page.$$('input[type="text"], input:not([type])');
-    if (allInputs.length >= 1) {
-      await allInputs[0].fill('2363');
-      log('Código cliente preenchido');
+    const allTextInputs = await page.$$('input[type="text"], input:not([type]):not([type="password"]):not([type="hidden"]):not([type="submit"])');
+    log(`Inputs de texto encontrados: ${allTextInputs.length}`);
+    
+    if (allTextInputs.length >= 1) {
+      await allTextInputs[0].click();
+      await allTextInputs[0].fill('2363');
+      log('Código cliente preenchido: 2363');
     }
     
     // Campo 2: Usuário (segundo input text)
-    if (allInputs.length >= 2) {
-      await allInputs[1].fill(CONFIG.HINOVA_USER);
-      log('Usuário preenchido');
+    if (allTextInputs.length >= 2) {
+      await allTextInputs[1].click();
+      await allTextInputs[1].fill(CONFIG.HINOVA_USER);
+      log(`Usuário preenchido: ${CONFIG.HINOVA_USER}`);
     }
     
-    // Campo 3: Senha
-    const senhaInput = await page.$('input[type="password"]');
-    if (senhaInput) {
-      await senhaInput.fill(CONFIG.HINOVA_PASS);
-      log('Senha preenchida');
+    // Campo 3: Senha - buscar todos os inputs password
+    const senhaInputs = await page.$$('input[type="password"]');
+    log(`Inputs de senha encontrados: ${senhaInputs.length}`);
+    
+    if (senhaInputs.length >= 1) {
+      // Pegar o primeiro campo de senha (campo "Senha", não "Código de autenticação")
+      await senhaInputs[0].click();
+      await senhaInputs[0].fill(CONFIG.HINOVA_PASS);
+      log('Senha preenchida com sucesso');
+      
+      // Verificar se preencheu
+      const senhaPreenchida = await senhaInputs[0].inputValue();
+      log(`Senha tem ${senhaPreenchida.length} caracteres`);
+    } else {
+      // Fallback: tentar por nome ou id
+      log('Tentando fallback para senha...');
+      await page.fill('input[name="senha"]', CONFIG.HINOVA_PASS).catch(() => {});
+      await page.fill('input#senha', CONFIG.HINOVA_PASS).catch(() => {});
+      await page.fill('input[name="password"]', CONFIG.HINOVA_PASS).catch(() => {});
     }
     
-    // NÃO preencher código de autenticação - usuário está dispensado
+    // NÃO preencher código de autenticação (segundo password) - usuário está dispensado
     
     await page.waitForTimeout(500);
     await page.screenshot({ path: 'debug_campos_preenchidos.png' });
