@@ -436,12 +436,16 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       const indicePermanencia = d.placas_ativas > 0 ? calcPercent(permanencia, d.placas_ativas) : 0;
 
       // Usar valores salvos no banco para consistência com Operacional
-      // Fallback para cálculo apenas se não houver valor salvo
-      const inadimplenciaBoletos = d.percentual_inadimplencia_boletos ?? calcPercent(d.boletos_abertos, d.boletos_emitidos);
-      const cancelamentoBoletos = d.percentual_cancelamento_boletos ?? calcPercent(d.boletos_cancelados, d.boletos_emitidos);
-      const inadimplenciaFinanceira = d.percentual_inadimplencia_financeira ?? calcPercent(d.valor_boletos_abertos, d.faturamento_operacional);
-      const arrecadacaoJuros = d.percentual_arrecadacao_juros ?? calcPercent(d.arrecadamento_juros, d.total_recebido);
-      const descontadoBanco = d.percentual_descontado_banco ?? calcPercent(d.descontado_banco, d.total_recebido);
+      // Fallback para cálculo apenas se não houver valor salvo ou valor for 0
+      const inadimplenciaBoletos = d.percentual_inadimplencia_boletos || calcPercent(d.boletos_abertos, d.boletos_emitidos);
+      const cancelamentoBoletos = d.percentual_cancelamento_boletos || calcPercent(d.boletos_cancelados, d.boletos_emitidos);
+      const inadimplenciaFinanceira = d.percentual_inadimplencia_financeira || calcPercent(d.valor_boletos_abertos, d.faturamento_operacional);
+      // Para Arrecadação Juros e Descontado Banco: sempre calcular dinamicamente se valor salvo for 0
+      // calcPercent retorna fração (0.007 = 0.7%), então multiplicamos por 100 para exibir como %
+      const arrecadacaoJurosCalc = d.arrecadamento_juros && d.total_recebido ? (d.arrecadamento_juros / d.total_recebido) * 100 : 0;
+      const descontadoBancoCalc = d.descontado_banco && d.total_recebido ? (d.descontado_banco / d.total_recebido) * 100 : 0;
+      const arrecadacaoJuros = (d.percentual_arrecadacao_juros && d.percentual_arrecadacao_juros > 0.001) ? d.percentual_arrecadacao_juros : arrecadacaoJurosCalc;
+      const descontadoBanco = (d.percentual_descontado_banco && d.percentual_descontado_banco > 0.001) ? d.percentual_descontado_banco : descontadoBancoCalc;
 
       // Sinistralidade - usar valores do banco se disponíveis, senão calcular
       const custoTotalEventos = d.custo_total_eventos ?? (

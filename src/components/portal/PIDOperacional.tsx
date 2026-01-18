@@ -244,8 +244,12 @@ export default function PIDOperacional({ corretoraId }: { corretoraId?: string }
     const percentual_cancelamento_boletos = data.percentual_cancelamento_boletos || calcPercent(data.boletos_cancelados, boletosEmitidos);
     const ticket_medio_boleto = data.ticket_medio_boleto || (data.boletos_liquidados > 0 ? totalRecebido / data.boletos_liquidados : 0);
     const percentual_inadimplencia_financeira = data.percentual_inadimplencia_financeira || calcPercent(data.valor_boletos_abertos, faturamento);
-    const percentual_arrecadacao_juros = data.percentual_arrecadacao_juros || calcPercent(data.arrecadamento_juros, totalRecebido);
-    const percentual_descontado_banco = data.percentual_descontado_banco || calcPercent(data.descontado_banco, totalRecebido);
+    // Para Arrecadação Juros e Descontado Banco: calcular dinamicamente se valor salvo for 0/ausente
+    // calcPercent retorna fração (0.007 = 0.7%), então multiplicamos por 100 para exibir como %
+    const arrecadacaoJurosCalc = data.arrecadamento_juros && totalRecebido ? (data.arrecadamento_juros / totalRecebido) * 100 : 0;
+    const descontadoBancoCalc = data.descontado_banco && totalRecebido ? (data.descontado_banco / totalRecebido) * 100 : 0;
+    const percentual_arrecadacao_juros = (data.percentual_arrecadacao_juros && data.percentual_arrecadacao_juros > 0.001) ? data.percentual_arrecadacao_juros : arrecadacaoJurosCalc;
+    const percentual_descontado_banco = (data.percentual_descontado_banco && data.percentual_descontado_banco > 0.001) ? data.percentual_descontado_banco : descontadoBancoCalc;
 
     // Eventos - Total automático
     const abertura_total_eventos = 
