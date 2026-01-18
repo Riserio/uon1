@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2, FileSpreadsheet, Check, Clock, AlertCircle, Loader2, Power } from "lucide-react";
+import { Trash2, FileSpreadsheet, Check, Clock, AlertCircle, Loader2, Power, Download } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import * as XLSX from "xlsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +29,7 @@ export default function CobrancaHistoricoImportacoes({ corretoraId, onImportacao
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [activating, setActivating] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const fetchImportacoes = async () => {
     if (!corretoraId) return;
@@ -140,6 +142,87 @@ export default function CobrancaHistoricoImportacoes({ corretoraId, onImportacao
     }
   };
 
+  const handleDownload = async (importacaoId: string, nomeArquivo: string) => {
+    setDownloading(importacaoId);
+    try {
+      // Buscar todos os boletos desta importação
+      const allBoletos: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from("cobranca_boletos")
+          .select("*")
+          .eq("importacao_id", importacaoId)
+          .range(from, from + batchSize - 1);
+        
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allBoletos.push(...data);
+        from += batchSize;
+        
+        if (data.length < batchSize) break;
+      }
+      
+      if (allBoletos.length === 0) {
+        toast.error("Nenhum registro encontrado para download");
+        return;
+      }
+      
+      // Formatar dados para Excel
+      const dadosFormatados = allBoletos.map(boleto => ({
+        "Nome": boleto.nome || "",
+        "Voluntário": boleto.voluntario || "",
+        "Placas": boleto.placas || "",
+        "Cooperativa": boleto.cooperativa || "",
+        "Regional": boleto.regional_boleto || "",
+        "Situação": boleto.situacao || "",
+        "Valor": boleto.valor || 0,
+        "Data Vencimento": boleto.data_vencimento ? format(new Date(boleto.data_vencimento), "dd/MM/yyyy") : "",
+        "Data Vencimento Original": boleto.data_vencimento_original ? format(new Date(boleto.data_vencimento_original), "dd/MM/yyyy") : "",
+        "Data Pagamento": boleto.data_pagamento ? format(new Date(boleto.data_pagamento), "dd/MM/yyyy") : "",
+        "Dia Vencimento Veículo": boleto.dia_vencimento_veiculo || "",
+        "Dias Atraso": boleto.qtde_dias_atraso_vencimento_original || "",
+      }));
+      
+      // Criar workbook Excel
+      const ws = XLSX.utils.json_to_sheet(dadosFormatados);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Boletos");
+      
+      // Ajustar largura das colunas
+      const colWidths = [
+        { wch: 35 }, // Nome
+        { wch: 25 }, // Voluntário
+        { wch: 12 }, // Placas
+        { wch: 20 }, // Cooperativa
+        { wch: 25 }, // Regional
+        { wch: 12 }, // Situação
+        { wch: 12 }, // Valor
+        { wch: 15 }, // Data Vencimento
+        { wch: 20 }, // Data Vencimento Original
+        { wch: 15 }, // Data Pagamento
+        { wch: 20 }, // Dia Vencimento Veículo
+        { wch: 12 }, // Dias Atraso
+      ];
+      ws["!cols"] = colWidths;
+      
+      // Gerar nome do arquivo
+      const nomeExcel = nomeArquivo.replace(/\.(json|xlsx|csv)$/i, "") + "_export.xlsx";
+      
+      // Download
+      XLSX.writeFile(wb, nomeExcel);
+      toast.success(`Download concluído: ${allBoletos.length} registros`);
+    } catch (error: any) {
+      console.error("Erro ao baixar:", error);
+      toast.error("Erro ao baixar importação");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -209,6 +292,20 @@ export default function CobrancaHistoricoImportacoes({ corretoraId, onImportacao
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-300"
+                    onClick={() => handleDownload(imp.id, imp.nome_arquivo)}
+                    disabled={downloading === imp.id}
+                    title="Baixar como Excel"
+                  >
+                    {downloading === imp.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                  </Button>
                   {!imp.ativo && (
                     <Button
                       variant="outline"

@@ -204,38 +204,150 @@ async function extrairDadosTabela(page) {
   const dados = [];
   
   try {
-    await page.waitForSelector('table', { timeout: 30000 });
+    // Aguardar tabela de resultados (não a tabela de filtros)
+    await page.waitForSelector('table.table, table.dataTable, table#resultado, table.resultado, .tabela-resultado table', { timeout: 30000 });
   } catch {
-    log('Tabela não encontrada');
-    return dados;
-  }
-  
-  // Extrair cabeçalhos
-  const headers = await page.$$eval(
-    'table thead th, table tr:first-child th, table tr:first-child td',
-    (elements) => elements.map(el => el.innerText.trim()).filter(Boolean)
-  );
-  
-  log(`Colunas encontradas: ${headers.join(', ')}`);
-  
-  // Extrair linhas
-  const rows = await page.$$('table tbody tr, table tr:not(:first-child)');
-  
-  for (const row of rows) {
-    const cells = await row.$$('td');
-    if (cells.length >= headers.length) {
-      const rowData = {};
-      for (let i = 0; i < cells.length && i < headers.length; i++) {
-        const text = await cells[i].innerText();
-        rowData[headers[i]] = text.trim();
-      }
-      if (Object.keys(rowData).length > 0) {
-        dados.push(rowData);
-      }
+    log('Tabela de resultado não encontrada, tentando qualquer tabela...');
+    try {
+      await page.waitForSelector('table', { timeout: 10000 });
+    } catch {
+      log('Nenhuma tabela encontrada');
+      return dados;
     }
   }
   
-  return dados;
+  // Extrair dados via JavaScript para melhor controle
+  const resultado = await page.evaluate(() => {
+    const dados = [];
+    
+    // Encontrar a tabela de resultados (geralmente a maior tabela ou a com mais linhas)
+    const tabelas = Array.from(document.querySelectorAll('table'));
+    
+    // Filtrar tabelas que parecem ser de dados (não de formulário/filtros)
+    let tabelaDados = null;
+    let maxLinhas = 0;
+    
+    for (const tabela of tabelas) {
+      const rows = tabela.querySelectorAll('tbody tr');
+      // Ignorar tabelas com poucas linhas ou que parecem ser de formulário
+      if (rows.length > maxLinhas && rows.length > 2) {
+        // Verificar se não é tabela de filtros (geralmente tem inputs)
+        const temInputs = tabela.querySelectorAll('input, select, textarea').length;
+        const temDados = tabela.querySelectorAll('tbody td').length;
+        if (temDados > temInputs * 2) {
+          maxLinhas = rows.length;
+          tabelaDados = tabela;
+        }
+      }
+    }
+    
+    if (!tabelaDados) {
+      // Fallback: pegar a primeira tabela com tbody
+      tabelaDados = document.querySelector('table tbody')?.closest('table');
+    }
+    
+    if (!tabelaDados) {
+      return { headers: [], dados: [], erro: 'Nenhuma tabela de dados encontrada' };
+    }
+    
+    // Extrair cabeçalhos
+    const headerCells = tabelaDados.querySelectorAll('thead th, thead td');
+    let headers = Array.from(headerCells).map(th => {
+      // Pegar apenas texto, ignorar elementos filhos como inputs/selects
+      let texto = '';
+      for (const node of th.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          texto += node.textContent.trim();
+        }
+      }
+      // Se não tem texto direto, pegar innerText mas limpar
+      if (!texto) {
+        texto = th.innerText.split('\n')[0].trim();
+      }
+      return texto;
+    }).filter(h => h && h.length < 100); // Ignorar headers muito longos (provavelmente dropdowns)
+    
+    // Se não encontrou headers no thead, tentar primeira linha
+    if (headers.length === 0) {
+      const primeiraLinha = tabelaDados.querySelector('tr');
+      if (primeiraLinha) {
+        headers = Array.from(primeiraLinha.querySelectorAll('th, td')).map(cell => {
+          let texto = '';
+          for (const node of cell.childNodes) {
+            if (node.nodeType === Node.TEXT_NODE) {
+              texto += node.textContent.trim();
+            }
+          }
+          if (!texto) {
+            texto = cell.innerText.split('\n')[0].trim();
+          }
+          return texto;
+        }).filter(h => h && h.length < 100);
+      }
+    }
+    
+    // Colunas esperadas do layout "BI - Vangard Cobrança"
+    const colunasEsperadas = [
+      'Nome', 'Voluntário', 'Placa', 'Placas', 'Cooperativa', 'Regional', 
+      'Situação', 'Situação Boleto', 'Valor', 'Vencimento', 'Data Vencimento',
+      'Vencimento Original', 'Data Vencimento Original', 'Pagamento', 
+      'Data Pagamento', 'Dia Vencimento', 'Dias Atraso'
+    ];
+    
+    // Verificar se headers são válidos
+    const headersValidos = headers.filter(h => {
+      const hLower = h.toLowerCase();
+      return colunasEsperadas.some(col => 
+        hLower.includes(col.toLowerCase()) || col.toLowerCase().includes(hLower)
+      ) || hLower.length < 30;
+    });
+    
+    if (headersValidos.length < 3) {
+      // Headers inválidos, usar colunas padrão do layout
+      headers = ['Nome', 'Voluntário', 'Placas', 'Cooperativa', 'Regional', 'Situação', 'Valor', 'Data Vencimento', 'Data Vencimento Original', 'Data Pagamento', 'Dia Vencimento', 'Dias Atraso'];
+    }
+    
+    // Extrair linhas de dados
+    const linhas = tabelaDados.querySelectorAll('tbody tr');
+    
+    for (const linha of linhas) {
+      const celulas = linha.querySelectorAll('td');
+      if (celulas.length >= 3) { // Pelo menos 3 células para ser válido
+        const rowData = {};
+        let temDados = false;
+        
+        for (let i = 0; i < celulas.length && i < headers.length; i++) {
+          // Pegar texto limpo da célula
+          let texto = celulas[i].innerText.trim();
+          // Limpar quebras de linha e espaços extras
+          texto = texto.replace(/\s+/g, ' ').trim();
+          
+          if (texto && texto.length < 500) { // Ignorar textos muito longos
+            rowData[headers[i]] = texto;
+            if (texto.length > 0) temDados = true;
+          }
+        }
+        
+        // Só adicionar se tem dados válidos
+        if (temDados && Object.keys(rowData).length >= 3) {
+          dados.push(rowData);
+        }
+      }
+    }
+    
+    return { headers, dados, totalLinhas: linhas.length };
+  });
+  
+  log(`Colunas encontradas: ${resultado.headers?.join(', ') || 'nenhuma'}`);
+  
+  if (resultado.erro) {
+    log(`Erro na extração: ${resultado.erro}`);
+  }
+  
+  log(`Total linhas na tabela: ${resultado.totalLinhas || 0}`);
+  log(`Registros extraídos: ${resultado.dados?.length || 0}`);
+  
+  return resultado.dados || [];
 }
 
 async function enviarWebhook(dados, nomeArquivo) {

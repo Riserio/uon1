@@ -7,28 +7,54 @@ const corsHeaders = {
 };
 
 // Mapeamento de colunas do relatório Hinova para o banco
+// Inclui variações do layout "BI - Vangard Cobrança"
 const COLUMN_MAP: { [key: string]: string } = {
+  // Nome
   "nome": "nome",
+  "nome_associado": "nome",
+  "associado": "nome",
+  // Voluntário
   "voluntario": "voluntario",
+  "voluntário": "voluntario",
+  "vendedor": "voluntario",
+  // Placas
   "placas": "placas",
   "placa": "placas",
+  // Cooperativa
   "cooperativa": "cooperativa",
+  // Regional
   "regional": "regional_boleto",
   "regional_boleto": "regional_boleto",
+  // Situação
   "situacao": "situacao",
+  "situação": "situacao",
   "situacao_boleto": "situacao",
+  "situação_boleto": "situacao",
+  "sit_boleto": "situacao",
+  "status": "situacao",
+  // Valor
   "valor": "valor",
   "valor_boleto": "valor",
+  // Data Vencimento
   "data_vencimento": "data_vencimento",
   "vencimento": "data_vencimento",
+  "dt_vencimento": "data_vencimento",
+  // Data Vencimento Original
   "data_vencimento_original": "data_vencimento_original",
   "vencimento_original": "data_vencimento_original",
+  "dt_vencimento_original": "data_vencimento_original",
+  // Data Pagamento
   "data_pagamento": "data_pagamento",
   "pagamento": "data_pagamento",
+  "dt_pagamento": "data_pagamento",
+  // Dia Vencimento
   "dia_vencimento_veiculo": "dia_vencimento_veiculo",
   "dia_vencimento": "dia_vencimento_veiculo",
+  "dia_venc": "dia_vencimento_veiculo",
+  // Dias Atraso
   "qtde_dias_atraso_vencimento_original": "qtde_dias_atraso_vencimento_original",
   "dias_atraso": "qtde_dias_atraso_vencimento_original",
+  "atraso": "qtde_dias_atraso_vencimento_original",
 };
 
 // Parse de data no formato DD/MM/YYYY ou YYYY-MM-DD
