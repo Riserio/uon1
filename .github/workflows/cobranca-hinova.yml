@@ -48,5 +48,7 @@ jobs:
             debug_apos_login.png
             debug_filtros.png
             debug_apos_gerar.png
+            debug_nova_aba.png
+            debug_download_retry_*.png
           if-no-files-found: ignore
           retention-days: 7
