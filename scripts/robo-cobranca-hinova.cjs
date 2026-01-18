@@ -314,59 +314,82 @@ async function rodarRobo() {
       log(`Erro ao validar campo auth: ${e.message}`);
     }
     
-    // Clicar no botão Entrar - com retry de até 5 tentativas (bug conhecido)
+    // Clicar no botão Entrar - com retry até realmente sair da tela de login
     let loginSucesso = false;
-    const MAX_TENTATIVAS = 5;
-    
+
+    const MAX_TENTATIVAS = Number(process.env.HINOVA_LOGIN_MAX_TENTATIVAS || '20');
+    const ESPERA_POR_TENTATIVA_MS = Number(process.env.HINOVA_LOGIN_ESPERA_MS || '8000');
+
+    const isAindaNaLogin = async () => {
+      // Preferir visibilidade (algumas páginas mantêm o input no DOM mas escondem)
+      const pwdVisible = await page
+        .locator('input[type="password"]')
+        .first()
+        .isVisible()
+        .catch(() => false);
+
+      // Heurística adicional por URL (caso o input seja removido mas a URL continue)
+      const url = page.url?.() || '';
+      const urlPareceLogin = /login/i.test(url);
+
+      return pwdVisible || urlPareceLogin;
+    };
+
     for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
       log(`Tentativa ${tentativa}/${MAX_TENTATIVAS} - Clicando no botão Entrar...`);
-      
+
       try {
-        // Tentar múltiplos seletores e métodos de clique
-        const btnEntrar = await page.$('button:has-text("Entrar"), input[value="Entrar"], .btn-primary, button.btn, #btn-login');
-        
+        const btnSelector = 'button:has-text("Entrar"), input[value="Entrar"], .btn-primary, button.btn, #btn-login';
+
+        // Em alguns cenários o portal só reage após múltiplos cliques (ou clique + Enter).
+        // Então fazemos uma "rajada" curta de ações por tentativa.
+        const btnEntrar = await page.$(btnSelector);
+
         if (btnEntrar) {
-          // Forçar clique com JavaScript (bypass de qualquer overlay)
-          await btnEntrar.evaluate(el => el.click());
-          log('Clique forçado via JavaScript');
-          
-          // Também tentar clique normal
+          // 1) Clique via JS (bypass de overlay)
+          await btnEntrar.evaluate((el) => el.click()).catch(() => {});
+          // 2) Clique forçado Playwright
           await btnEntrar.click({ force: true }).catch(() => {});
         } else {
-          // Fallback: clicar por posição ou pressionar Enter
-          await page.click('button:has-text("Entrar")', { force: true }).catch(async () => {
-            await page.keyboard.press('Enter');
-            log('Pressionando Enter para submeter');
-          });
+          await page.click('button:has-text("Entrar")', { force: true, timeout: 1000 }).catch(() => {});
         }
-        
-        await page.waitForTimeout(3000);
-        await page.waitForLoadState('networkidle').catch(() => {});
-        
+
+        // 3) Enter como fallback final
+        await page.keyboard.press('Enter').catch(() => {});
+
+        // Aguardar qualquer reação do app (navegação, requests, etc.)
+        await Promise.race([
+          page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: ESPERA_POR_TENTATIVA_MS }).catch(() => null),
+          page.waitForLoadState('networkidle', { timeout: ESPERA_POR_TENTATIVA_MS }).catch(() => null),
+          page.waitForTimeout(ESPERA_POR_TENTATIVA_MS),
+        ]);
+
         // Verificar se saiu da página de login
-        const aindaNaLogin = await page.$('input[type="password"]');
+        const aindaNaLogin = await isAindaNaLogin();
         if (!aindaNaLogin) {
           loginSucesso = true;
           log(`Login bem sucedido na tentativa ${tentativa}!`);
           break;
         }
-        
+
         // Ainda na página de login, verificar se há mensagem de erro
-        const erroMsg = await page.$eval('.alert-danger, .error, .erro, .message-error', el => el.textContent).catch(() => null);
+        const erroMsg = await page
+          .$eval('.alert-danger, .error, .erro, .message-error', (el) => el.textContent)
+          .catch(() => null);
         if (erroMsg) {
-          log(`Erro detectado: ${erroMsg}`);
+          log(`Erro detectado: ${String(erroMsg).trim()}`);
         }
-        
+
         log(`Tentativa ${tentativa} falhou - ainda na página de login`);
-        await page.waitForTimeout(1000);
-        
+        await page.waitForTimeout(600);
       } catch (err) {
         log(`Erro na tentativa ${tentativa}: ${err.message}`);
+        await page.waitForTimeout(600);
       }
     }
-    
+
     await page.screenshot({ path: 'debug_apos_login.png' });
-    
+
     if (!loginSucesso) {
       throw new Error(`Login falhou após ${MAX_TENTATIVAS} tentativas`);
     }
