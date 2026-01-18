@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter, DollarSign, CreditCard } from "lucide-react";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import SGADashboard from "@/components/sga/SGADashboard";
 import SGAImportacao from "@/components/sga/SGAImportacao";
@@ -35,10 +36,19 @@ export default function SGAInsights() {
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   
-  // Filtros globais
+  // Filtros globais - padrão: últimos 12 meses
+  const getDefaultDateRange = () => {
+    const hoje = new Date();
+    const dataFim = format(hoje, "yyyy-MM-dd");
+    const dataInicio = format(new Date(hoje.getFullYear() - 1, hoje.getMonth(), hoje.getDate()), "yyyy-MM-dd");
+    return { dataInicio, dataFim };
+  };
+  
+  const defaultDates = getDefaultDateRange();
+  
   const [filters, setFilters] = useState<SGAFilters>({
-    dataInicio: "",
-    dataFim: "",
+    dataInicio: defaultDates.dataInicio,
+    dataFim: defaultDates.dataFim,
     regional: "todos",
     cooperativa: "todos",
     tipoVeiculo: "todos",
@@ -230,9 +240,10 @@ export default function SGAInsights() {
   const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome || "";
 
   const clearFilters = () => {
+    const defaultDates = getDefaultDateRange();
     setFilters({
-      dataInicio: "",
-      dataFim: "",
+      dataInicio: defaultDates.dataInicio,
+      dataFim: defaultDates.dataFim,
       regional: "todos",
       cooperativa: "todos",
       tipoVeiculo: "todos",
