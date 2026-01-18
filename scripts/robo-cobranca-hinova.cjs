@@ -1067,6 +1067,7 @@ async function rodarRobo() {
           log(`⏳ Aguardando download... ${minutos}m ${segundos}s`);
         }, DOWNLOAD_CHECK_INTERVAL_MS);
         
+        try {
           // Aguardar download (independente da aba que iniciou)
           const download = await downloadPromise;
           clearInterval(monitoramentoInterval);
