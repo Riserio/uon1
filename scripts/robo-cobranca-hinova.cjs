@@ -246,7 +246,7 @@ async function rodarRobo() {
     }
     
     // Fallback: preencher via JavaScript com seletores baseados em label
-    const resultado = await page.evaluate((usuario, senha) => {
+    const resultado = await page.evaluate(({ usuario, senha }) => {
       const logs = [];
       
       // Encontrar inputs pelo texto do label anterior
@@ -313,7 +313,7 @@ async function rodarRobo() {
       };
       
       return { logs, valores };
-    }, CONFIG.HINOVA_USER, CONFIG.HINOVA_PASS);
+    }, { usuario: CONFIG.HINOVA_USER, senha: CONFIG.HINOVA_PASS });
     
     resultado.logs.forEach(l => log(l));
     log(`Valores finais: Código=${resultado.valores.codigo}, Usuário=${resultado.valores.usuario}, Senha=${resultado.valores.senhaLen} chars`);
