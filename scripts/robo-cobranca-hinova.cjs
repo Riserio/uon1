@@ -341,14 +341,34 @@ async function rodarRobo() {
     const ESPERA_POR_TENTATIVA_MS = Number(process.env.HINOVA_LOGIN_ESPERA_MS || '8000');
 
     const isAindaNaLogin = async () => {
-      // Preferir visibilidade (algumas páginas mantêm o input no DOM mas escondem)
+      // Heurística principal: quando o menu aparece, o login já aconteceu
+      const relatorioVisible = await page
+        .locator('text=Relatório')
+        .first()
+        .isVisible()
+        .catch(() => false);
+      if (relatorioVisible) return false;
+
+      // Heurística de tela de login: textos do formulário
+      const esqueceuVisible = await page
+        .locator('text=Esqueci minha senha')
+        .first()
+        .isVisible()
+        .catch(() => false);
+      const codigoClienteVisible = await page
+        .locator('text=Código cliente')
+        .first()
+        .isVisible()
+        .catch(() => false);
+      if (esqueceuVisible || codigoClienteVisible) return true;
+
+      // Fallback: visibilidade do campo senha e/ou URL parecendo login
       const pwdVisible = await page
         .locator('input[type="password"]')
         .first()
         .isVisible()
         .catch(() => false);
 
-      // Heurística adicional por URL (caso o input seja removido mas a URL continue)
       const url = page.url?.() || '';
       const urlPareceLogin = /login/i.test(url);
 
@@ -377,15 +397,24 @@ async function rodarRobo() {
         // Muitos logins na Hinova só completam após 2 cliques no botão.
         // 1) Primeiro clique: valida credenciais e "marca" a dispensa do código
         await clicarEntrar();
-        await page.waitForTimeout(450);
+        await Promise.race([
+          page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => null),
+          page.waitForTimeout(1500),
+        ]);
 
         // 2) Dispensar (foco/blur) do campo de autenticação (quando aplicável)
         await dispensarCodigoAutenticacao();
-        await page.waitForTimeout(250);
+        await Promise.race([
+          page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
+          page.waitForTimeout(1200),
+        ]);
 
         // 3) Segundo clique: efetiva o login
         await clicarEntrar();
-        await page.waitForTimeout(250);
+        await Promise.race([
+          page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
+          page.waitForTimeout(1200),
+        ]);
 
         // 4) Enter como fallback final
         await page.keyboard.press('Enter').catch(() => {});
