@@ -24,7 +24,7 @@ jobs:
       
       - name: Instalar dependências
         run: |
-          npm install playwright axios
+          npm install playwright axios xlsx
           npx playwright install chromium --with-deps
       
       - name: Executar robô de cobrança
@@ -37,13 +37,16 @@ jobs:
           CORRETORA_ID: ${{ secrets.CORRETORA_ID }}
         run: node scripts/robo-cobranca-hinova.cjs
       
-      - name: Upload screenshot de erro (se houver)
-        if: failure()
+      - name: Upload screenshots de debug (se houver)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: error-screenshots
+          name: debug-screenshots
           path: |
             erro_hinova.png
             debug_hinova.png
+            debug_apos_login.png
+            debug_filtros.png
+            debug_apos_gerar.png
           if-no-files-found: ignore
           retention-days: 7
