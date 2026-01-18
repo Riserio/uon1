@@ -5,7 +5,7 @@
  * 
  * REQUISITOS:
  * -----------
- * npm install playwright axios
+ * npm install playwright axios xlsx
  * npx playwright install chromium
  * 
  * CONFIGURAÇÃO:
@@ -19,6 +19,9 @@
 
 const { chromium } = require('playwright');
 const axios = require('axios');
+const XLSX = require('xlsx');
+const fs = require('fs');
+const path = require('path');
 
 // ============================================
 // CONFIGURAÇÃO - EDITE AQUI OU USE ENV VARS
@@ -200,154 +203,165 @@ function getDateRange() {
   };
 }
 
-async function extrairDadosTabela(page) {
+// Colunas esperadas do layout "BI - Vangard Cobrança"
+const COLUNAS_ESPERADAS = [
+  "Data Pagamento",
+  "Data Vencimento Original",
+  "Dia Vencimento Veiculo",
+  "Regional Boleto",
+  "Cooperativa",
+  "Voluntário",
+  "Nome",
+  "Placas",
+  "Valor",
+  "Data Vencimento",
+  "Qtde Dias em Atraso Vencimento Original",
+  "Situacao"
+];
+
+// Mapeamento de colunas do Excel para campos padronizados
+const COLUMN_MAP = {
+  "DATA PAGAMENTO": "Data Pagamento",
+  "DATA VENCIMENTO ORIGINAL": "Data Vencimento Original",
+  "DIA VENCIMENTO VEICULO": "Dia Vencimento Veiculo",
+  "REGIONAL BOLETO": "Regional Boleto",
+  "REGIONAL": "Regional Boleto",
+  "COOPERATIVA": "Cooperativa",
+  "VOLUNTÁRIO": "Voluntário",
+  "VOLUNTARIO": "Voluntário",
+  "NOME": "Nome",
+  "PLACAS": "Placas",
+  "PLACA": "Placas",
+  "VALOR": "Valor",
+  "DATA VENCIMENTO": "Data Vencimento",
+  "VENCIMENTO": "Data Vencimento",
+  "QTDE DIAS EM ATRASO VENCIMENTO ORIGINAL": "Qtde Dias em Atraso Vencimento Original",
+  "DIAS ATRASO": "Qtde Dias em Atraso Vencimento Original",
+  "SITUACAO": "Situacao",
+  "SITUAÇÃO": "Situacao",
+  "SITUAÇÃO BOLETO": "Situacao",
+};
+
+function normalizeHeader(header) {
+  return String(header).trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+function parseExcelDate(value) {
+  if (!value) return null;
+  
+  // Se for número (serial Excel)
+  if (typeof value === 'number') {
+    const date = XLSX.SSF.parse_date_code(value);
+    if (date) {
+      const month = String(date.m).padStart(2, '0');
+      const day = String(date.d).padStart(2, '0');
+      return `${date.y}-${month}-${day}`;
+    }
+  }
+  
+  const strValue = String(value).trim();
+  
+  // Formato DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(strValue)) {
+    const [day, month, year] = strValue.split('/');
+    return `${year}-${month}-${day}`;
+  }
+  
+  // Formato YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(strValue)) {
+    return strValue;
+  }
+  
+  return null;
+}
+
+function parseMoneyValue(value) {
+  if (!value) return 0;
+  const strValue = String(value).trim();
+  const cleanValue = strValue
+    .replace(/R\$\s*/gi, '')
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .trim();
+  const parsed = parseFloat(cleanValue);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+function processarExcel(filePath) {
+  log(`Processando arquivo Excel: ${filePath}`);
+  
+  const workbook = XLSX.readFile(filePath);
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  
+  // Converter para JSON com headers
+  const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+  
+  log(`Total de linhas brutas: ${rawData.length}`);
+  
+  if (rawData.length === 0) {
+    log('AVISO: Arquivo Excel vazio!');
+    return [];
+  }
+  
+  // Identificar headers
+  const primeiraLinha = rawData[0];
+  const headersOriginais = Object.keys(primeiraLinha);
+  log(`Colunas no Excel: ${headersOriginais.join(', ')}`);
+  
+  // Mapear colunas
+  const headerMapping = {};
+  for (const header of headersOriginais) {
+    const normalized = normalizeHeader(header);
+    if (COLUMN_MAP[normalized]) {
+      headerMapping[header] = COLUMN_MAP[normalized];
+    } else {
+      // Tentar match parcial
+      for (const [key, value] of Object.entries(COLUMN_MAP)) {
+        if (normalized.includes(key) || key.includes(normalized)) {
+          headerMapping[header] = value;
+          break;
+        }
+      }
+    }
+  }
+  
+  log(`Mapeamento de colunas: ${JSON.stringify(headerMapping, null, 2)}`);
+  
+  // Processar dados
   const dados = [];
-  
-  try {
-    // Aguardar tabela de resultados (não a tabela de filtros)
-    await page.waitForSelector('table.table, table.dataTable, table#resultado, table.resultado, .tabela-resultado table', { timeout: 30000 });
-  } catch {
-    log('Tabela de resultado não encontrada, tentando qualquer tabela...');
-    try {
-      await page.waitForSelector('table', { timeout: 10000 });
-    } catch {
-      log('Nenhuma tabela encontrada');
-      return dados;
+  for (const row of rawData) {
+    const rowData = {};
+    let temDados = false;
+    
+    for (const [originalHeader, mappedHeader] of Object.entries(headerMapping)) {
+      let value = row[originalHeader];
+      
+      // Processar valores especiais
+      if (mappedHeader.includes('Data')) {
+        value = parseExcelDate(value);
+      } else if (mappedHeader === 'Valor') {
+        value = parseMoneyValue(value);
+      } else if (mappedHeader === 'Dia Vencimento Veiculo' || mappedHeader.includes('Dias')) {
+        value = parseInt(String(value)) || null;
+      } else {
+        value = value ? String(value).trim() : null;
+      }
+      
+      if (value !== null && value !== '') {
+        rowData[mappedHeader] = value;
+        temDados = true;
+      }
+    }
+    
+    // Só adicionar se tem dados válidos (pelo menos Nome ou Placas)
+    if (temDados && (rowData['Nome'] || rowData['Placas'])) {
+      dados.push(rowData);
     }
   }
   
-  // Extrair dados via JavaScript para melhor controle
-  const resultado = await page.evaluate(() => {
-    const dados = [];
-    
-    // Encontrar a tabela de resultados (geralmente a maior tabela ou a com mais linhas)
-    const tabelas = Array.from(document.querySelectorAll('table'));
-    
-    // Filtrar tabelas que parecem ser de dados (não de formulário/filtros)
-    let tabelaDados = null;
-    let maxLinhas = 0;
-    
-    for (const tabela of tabelas) {
-      const rows = tabela.querySelectorAll('tbody tr');
-      // Ignorar tabelas com poucas linhas ou que parecem ser de formulário
-      if (rows.length > maxLinhas && rows.length > 2) {
-        // Verificar se não é tabela de filtros (geralmente tem inputs)
-        const temInputs = tabela.querySelectorAll('input, select, textarea').length;
-        const temDados = tabela.querySelectorAll('tbody td').length;
-        if (temDados > temInputs * 2) {
-          maxLinhas = rows.length;
-          tabelaDados = tabela;
-        }
-      }
-    }
-    
-    if (!tabelaDados) {
-      // Fallback: pegar a primeira tabela com tbody
-      tabelaDados = document.querySelector('table tbody')?.closest('table');
-    }
-    
-    if (!tabelaDados) {
-      return { headers: [], dados: [], erro: 'Nenhuma tabela de dados encontrada' };
-    }
-    
-    // Extrair cabeçalhos
-    const headerCells = tabelaDados.querySelectorAll('thead th, thead td');
-    let headers = Array.from(headerCells).map(th => {
-      // Pegar apenas texto, ignorar elementos filhos como inputs/selects
-      let texto = '';
-      for (const node of th.childNodes) {
-        if (node.nodeType === Node.TEXT_NODE) {
-          texto += node.textContent.trim();
-        }
-      }
-      // Se não tem texto direto, pegar innerText mas limpar
-      if (!texto) {
-        texto = th.innerText.split('\n')[0].trim();
-      }
-      return texto;
-    }).filter(h => h && h.length < 100); // Ignorar headers muito longos (provavelmente dropdowns)
-    
-    // Se não encontrou headers no thead, tentar primeira linha
-    if (headers.length === 0) {
-      const primeiraLinha = tabelaDados.querySelector('tr');
-      if (primeiraLinha) {
-        headers = Array.from(primeiraLinha.querySelectorAll('th, td')).map(cell => {
-          let texto = '';
-          for (const node of cell.childNodes) {
-            if (node.nodeType === Node.TEXT_NODE) {
-              texto += node.textContent.trim();
-            }
-          }
-          if (!texto) {
-            texto = cell.innerText.split('\n')[0].trim();
-          }
-          return texto;
-        }).filter(h => h && h.length < 100);
-      }
-    }
-    
-    // Colunas esperadas do layout "BI - Vangard Cobrança"
-    const colunasEsperadas = [
-      'Nome', 'Voluntário', 'Placa', 'Placas', 'Cooperativa', 'Regional', 
-      'Situação', 'Situação Boleto', 'Valor', 'Vencimento', 'Data Vencimento',
-      'Vencimento Original', 'Data Vencimento Original', 'Pagamento', 
-      'Data Pagamento', 'Dia Vencimento', 'Dias Atraso'
-    ];
-    
-    // Verificar se headers são válidos
-    const headersValidos = headers.filter(h => {
-      const hLower = h.toLowerCase();
-      return colunasEsperadas.some(col => 
-        hLower.includes(col.toLowerCase()) || col.toLowerCase().includes(hLower)
-      ) || hLower.length < 30;
-    });
-    
-    if (headersValidos.length < 3) {
-      // Headers inválidos, usar colunas padrão do layout
-      headers = ['Nome', 'Voluntário', 'Placas', 'Cooperativa', 'Regional', 'Situação', 'Valor', 'Data Vencimento', 'Data Vencimento Original', 'Data Pagamento', 'Dia Vencimento', 'Dias Atraso'];
-    }
-    
-    // Extrair linhas de dados
-    const linhas = tabelaDados.querySelectorAll('tbody tr');
-    
-    for (const linha of linhas) {
-      const celulas = linha.querySelectorAll('td');
-      if (celulas.length >= 3) { // Pelo menos 3 células para ser válido
-        const rowData = {};
-        let temDados = false;
-        
-        for (let i = 0; i < celulas.length && i < headers.length; i++) {
-          // Pegar texto limpo da célula
-          let texto = celulas[i].innerText.trim();
-          // Limpar quebras de linha e espaços extras
-          texto = texto.replace(/\s+/g, ' ').trim();
-          
-          if (texto && texto.length < 500) { // Ignorar textos muito longos
-            rowData[headers[i]] = texto;
-            if (texto.length > 0) temDados = true;
-          }
-        }
-        
-        // Só adicionar se tem dados válidos
-        if (temDados && Object.keys(rowData).length >= 3) {
-          dados.push(rowData);
-        }
-      }
-    }
-    
-    return { headers, dados, totalLinhas: linhas.length };
-  });
-  
-  log(`Colunas encontradas: ${resultado.headers?.join(', ') || 'nenhuma'}`);
-  
-  if (resultado.erro) {
-    log(`Erro na extração: ${resultado.erro}`);
-  }
-  
-  log(`Total linhas na tabela: ${resultado.totalLinhas || 0}`);
-  log(`Registros extraídos: ${resultado.dados?.length || 0}`);
-  
-  return resultado.dados || [];
+  log(`Registros válidos processados: ${dados.length}`);
+  return dados;
 }
 
 async function enviarWebhook(dados, nomeArquivo) {
@@ -845,29 +859,101 @@ async function rodarRobo() {
       log('Layout: BI - Vangard Cobrança');
     }
     
+    // NOVO: Forma de Exibição - Selecionar "Em Excel"
+    log('Configurando forma de exibição para Excel...');
+    const formaExibicaoSelect = await page.$('select[name*="forma_exibicao"], select[name*="exibicao"], select[name*="formato"]');
+    if (formaExibicaoSelect) {
+      await formaExibicaoSelect.selectOption({ label: 'Em Excel' }).catch(async () => {
+        await formaExibicaoSelect.selectOption({ value: 'excel' }).catch(async () => {
+          await formaExibicaoSelect.selectOption({ label: 'Excel' }).catch(() => {});
+        });
+      });
+      log('Forma de exibição: Em Excel');
+    } else {
+      // Tentar via JavaScript se não encontrar o select
+      await page.evaluate(() => {
+        const selects = document.querySelectorAll('select');
+        for (const select of selects) {
+          const options = select.querySelectorAll('option');
+          for (const option of options) {
+            const texto = option.textContent?.toLowerCase() || '';
+            if (texto.includes('excel') || texto === 'em excel') {
+              select.value = option.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              return true;
+            }
+          }
+        }
+        return false;
+      });
+      log('Forma de exibição configurada via JS');
+    }
+    
     await page.waitForTimeout(1000);
+    await page.screenshot({ path: 'debug_filtros.png' });
     log('Filtros preenchidos!');
     
-    // 5. Gerar relatório
-    log('Gerando relatório...');
-    await page.click('input[type="submit"]:has-text("Gerar"), button:has-text("Gerar"), .btn-gerar');
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(5000);
+    // 5. Configurar download de arquivo
+    log('Configurando download...');
+    const downloadPath = path.resolve('./downloads');
+    if (!fs.existsSync(downloadPath)) {
+      fs.mkdirSync(downloadPath, { recursive: true });
+    }
     
-    // 6. Extrair dados
-    log('Extraindo dados...');
-    const dados = await extrairDadosTabela(page);
-    log(`Total de registros extraídos: ${dados.length}`);
+    // Esperar pelo download ao clicar em Gerar
+    const downloadPromise = page.waitForEvent('download', { timeout: 120000 });
+    
+    // 6. Gerar relatório (vai baixar Excel)
+    log('Gerando relatório Excel...');
+    await page.click('input[type="submit"]:has-text("Gerar"), button:has-text("Gerar"), .btn-gerar, input[value="Gerar"]');
+    
+    let dados = [];
+    let nomeArquivoFinal = '';
+    
+    try {
+      // Aguardar download
+      const download = await downloadPromise;
+      nomeArquivoFinal = download.suggestedFilename() || `Hinova_${fim.replace(/\//g, '-')}.xlsx`;
+      const filePath = path.join(downloadPath, nomeArquivoFinal);
+      
+      log(`Download iniciado: ${nomeArquivoFinal}`);
+      await download.saveAs(filePath);
+      log(`Arquivo salvo em: ${filePath}`);
+      
+      // Processar Excel
+      dados = processarExcel(filePath);
+      
+      // Limpar arquivo após processar
+      try {
+        fs.unlinkSync(filePath);
+        log('Arquivo temporário removido');
+      } catch (e) {
+        log('Aviso: não foi possível remover arquivo temporário');
+      }
+      
+    } catch (downloadError) {
+      log(`Download não iniciou ou falhou: ${downloadError.message}`);
+      log('Tentando extrair dados da página...');
+      
+      await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {});
+      await page.waitForTimeout(5000);
+      await page.screenshot({ path: 'debug_apos_gerar.png' });
+      
+      // Fallback: tentar extrair da tabela HTML se Excel falhar
+      log('AVISO: Fallback para extração HTML (não recomendado)');
+      return false;
+    }
+    
+    log(`Total de registros processados: ${dados.length}`);
     
     if (dados.length === 0) {
-      log('AVISO: Nenhum dado encontrado!');
+      log('AVISO: Nenhum dado encontrado no Excel!');
       await page.screenshot({ path: 'debug_hinova.png' });
-      log('Screenshot salvo: debug_hinova.png');
       return false;
     }
     
     // 7. Enviar para webhook
-    const nomeArquivo = `Hinova_Boletos_${fim.replace(/\//g, '-')}.json`;
+    const nomeArquivo = nomeArquivoFinal || `Hinova_Boletos_${fim.replace(/\//g, '-')}.xlsx`;
     const sucesso = await enviarWebhook(dados, nomeArquivo);
     
     return sucesso;
