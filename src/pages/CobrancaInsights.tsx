@@ -38,9 +38,11 @@ export default function CobrancaInsights() {
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   
-  // Filtros globais
+  // Filtros globais - padrão: mês atual
+  const getMesAtual = () => format(new Date(), "yyyy-MM");
+  
   const [filters, setFilters] = useState<CobrancaFilters>({
-    mesReferencia: "",
+    mesReferencia: getMesAtual(),
     situacao: "todos",
     regional: "todos",
     cooperativa: "todos",
@@ -219,7 +221,7 @@ export default function CobrancaInsights() {
 
   const clearFilters = () => {
     setFilters({
-      mesReferencia: "",
+      mesReferencia: getMesAtual(),
       situacao: "todos",
       regional: "todos",
       cooperativa: "todos",
