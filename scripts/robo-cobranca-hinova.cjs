@@ -1000,37 +1000,30 @@ async function rodarRobo() {
           'button:has-text("Gerar Relatório")',
         ];
         
-        // Configurar listener de download no CONTEXTO (captura de qualquer aba)
-        let downloadCapturado = null;
-        const downloadContextPromise = new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error(`Timeout aguardando download (${DOWNLOAD_TIMEOUT_MS / 60000} minutos)`));
-          }, DOWNLOAD_TIMEOUT_MS);
-          
-          // Listener no contexto para capturar downloads de qualquer aba
-          const onPage = async (newPage) => {
-            log(`Nova aba detectada: ${newPage.url() || 'carregando...'}`);
-            await newPage.screenshot({ path: 'debug_nova_aba.png' }).catch(() => {});
-            
-            newPage.on('download', (download) => {
-              log(`✅ Download iniciado na nova aba: ${download.suggestedFilename()}`);
-              clearTimeout(timeout);
-              downloadCapturado = download;
-              resolve(download);
-            });
-          };
-          
-          context.on('page', onPage);
-          
-          // Também ouvir na página atual (caso não abra nova aba)
-          page.on('download', (download) => {
-            log(`✅ Download iniciado na página atual: ${download.suggestedFilename()}`);
-            clearTimeout(timeout);
-            downloadCapturado = download;
-            resolve(download);
-          });
+        // Promises precisam ser criadas ANTES do clique para não perder eventos rápidos
+        // - download: pode iniciar na nova aba instantaneamente
+        // - page: Hinova abre uma nova aba (geraRelatorioBoleto.php)
+        const downloadPromise = context.waitForEvent('download', {
+          timeout: DOWNLOAD_TIMEOUT_MS,
+          predicate: (d) => {
+            const name = (d.suggestedFilename?.() || '').toLowerCase();
+            return name.endsWith('.xlsx') || name.endsWith('.xls') || name.includes('relatorio');
+          },
         });
-        
+
+        // Não aguardamos aqui para não bloquear; é só para debug/screenshot
+        const newPagePromise = context
+          .waitForEvent('page', { timeout: 60000 })
+          .then(async (newPage) => {
+            try {
+              await newPage.waitForLoadState('domcontentloaded', { timeout: 60000 }).catch(() => {});
+              log(`Nova aba detectada: ${newPage.url() || 'carregando...'}`);
+              await newPage.screenshot({ path: 'debug_nova_aba.png' }).catch(() => {});
+            } catch {}
+            return newPage;
+          })
+          .catch(() => null);
+
         // Clicar no botão Gerar
         let clicouBotao = false;
         for (const seletor of botoesGerar) {
@@ -1074,11 +1067,10 @@ async function rodarRobo() {
           log(`⏳ Aguardando download... ${minutos}m ${segundos}s`);
         }, DOWNLOAD_CHECK_INTERVAL_MS);
         
-        try {
-          // Aguardar download de qualquer aba
-          const download = await downloadContextPromise;
+          // Aguardar download (independente da aba que iniciou)
+          const download = await downloadPromise;
           clearInterval(monitoramentoInterval);
-          
+
           nomeArquivoFinal = download.suggestedFilename() || `Hinova_${fim.replace(/\//g, '-')}.xlsx`;
           const filePath = path.join(downloadPath, nomeArquivoFinal);
           
