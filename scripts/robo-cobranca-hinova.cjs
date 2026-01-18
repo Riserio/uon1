@@ -294,12 +294,6 @@ async function rodarRobo() {
     
     await page.waitForTimeout(500);
     await page.screenshot({ path: 'debug_campos_preenchidos.png' });
-        log('Senha digitada com type()');
-      }
-    }
-    
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: 'debug_campos_preenchidos.png' });
     
     // Clicar no botão Entrar - com retry de até 5 tentativas (bug conhecido)
     let loginSucesso = false;
