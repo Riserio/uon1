@@ -424,7 +424,18 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
 
   // Dados calculados automaticamente
   const chartData = useMemo(() => {
-    return dadosAno.map((d) => {
+    return dadosAno.map((d, index) => {
+      const prev = index > 0 ? dadosAno[index - 1] : null;
+
+      const currFaturamento = Number(d.faturamento_operacional ?? 0);
+      const currRecebido = Number(d.total_recebido ?? 0);
+      const prevFaturamento = Number(prev?.faturamento_operacional ?? 0);
+      const prevRecebido = Number(prev?.total_recebido ?? 0);
+
+      // Crescimento mês a mês (%): calculado dinamicamente pois o campo no banco está 0 em vários períodos
+      const crescimentoFaturamento = prev && prevFaturamento > 0 ? ((currFaturamento - prevFaturamento) / prevFaturamento) * 100 : 0;
+      const crescimentoRecebido = prev && prevRecebido > 0 ? ((currRecebido - prevRecebido) / prevRecebido) * 100 : 0;
+
       // Cálculos automáticos de percentuais
       const indiceVeiculosPorAssociado = d.total_associados > 0 ? (d.placas_ativas || 0) / d.total_associados : 0;
 
@@ -442,8 +453,8 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
       const inadimplenciaFinanceira = d.percentual_inadimplencia_financeira || calcPercent(d.valor_boletos_abertos, d.faturamento_operacional);
       // Para Arrecadação Juros e Descontado Banco: SEMPRE calcular dinamicamente
       // Os valores salvos no banco estão em formato inconsistente, então usamos os valores brutos
-      const arrecadacaoJuros = d.arrecadamento_juros && d.total_recebido ? (d.arrecadamento_juros / d.total_recebido) * 100 : 0;
-      const descontadoBanco = d.descontado_banco && d.total_recebido ? (d.descontado_banco / d.total_recebido) * 100 : 0;
+      const arrecadacaoJuros = d.arrecadamento_juros && currRecebido ? (Number(d.arrecadamento_juros || 0) / currRecebido) * 100 : 0;
+      const descontadoBanco = d.descontado_banco && currRecebido ? (Number(d.descontado_banco || 0) / currRecebido) * 100 : 0;
 
       // Sinistralidade - usar valores do banco se disponíveis, senão calcular
       const custoTotalEventos = d.custo_total_eventos ?? (
@@ -503,8 +514,9 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
         ticket_medio_boleto: d.ticket_medio_boleto || 0,
         percentual_arrecadacao_juros: arrecadacaoJuros,
         percentual_descontado_banco: descontadoBanco,
-        percentual_crescimento_faturamento: (d.percentual_crescimento_faturamento || 0) * 100,
-        percentual_crescimento_recebido: (d.percentual_crescimento_recebido || 0) * 100,
+        percentual_crescimento_faturamento: crescimentoFaturamento,
+        percentual_crescimento_recebido: crescimentoRecebido,
+
 
         // Eventos - Abertura
         abertura_parcial_associado: d.abertura_indenizacao_parcial_associado || 0,
