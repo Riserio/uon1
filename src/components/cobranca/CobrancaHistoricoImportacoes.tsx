@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2, FileSpreadsheet, Check, Clock, AlertCircle, Loader2 } from "lucide-react";
+import { Trash2, FileSpreadsheet, Check, Clock, AlertCircle, Loader2, Power } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -19,13 +19,15 @@ import {
 
 interface CobrancaHistoricoImportacoesProps {
   corretoraId: string;
+  onImportacaoAtivada?: () => void;
 }
 
-export default function CobrancaHistoricoImportacoes({ corretoraId }: CobrancaHistoricoImportacoesProps) {
+export default function CobrancaHistoricoImportacoes({ corretoraId, onImportacaoAtivada }: CobrancaHistoricoImportacoesProps) {
   const [importacoes, setImportacoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [activating, setActivating] = useState<string | null>(null);
 
   const fetchImportacoes = async () => {
     if (!corretoraId) return;
@@ -50,6 +52,61 @@ export default function CobrancaHistoricoImportacoes({ corretoraId }: CobrancaHi
     fetchImportacoes();
   }, [corretoraId]);
 
+  // Realtime para atualizar lista quando houver mudanças
+  useEffect(() => {
+    if (!corretoraId) return;
+
+    const channel = supabase
+      .channel(`historico-importacoes-${corretoraId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cobranca_importacoes',
+          filter: `corretora_id=eq.${corretoraId}`,
+        },
+        () => {
+          fetchImportacoes();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [corretoraId]);
+
+  const handleActivate = async (importacaoId: string) => {
+    setActivating(importacaoId);
+    try {
+      // Primeiro, desativar todas as importações desta corretora
+      const { error: deactivateError } = await supabase
+        .from("cobranca_importacoes")
+        .update({ ativo: false })
+        .eq("corretora_id", corretoraId);
+
+      if (deactivateError) throw deactivateError;
+
+      // Depois, ativar a importação selecionada
+      const { error: activateError } = await supabase
+        .from("cobranca_importacoes")
+        .update({ ativo: true, updated_at: new Date().toISOString() })
+        .eq("id", importacaoId);
+
+      if (activateError) throw activateError;
+
+      toast.success("Importação ativada com sucesso! Dashboard atualizado.");
+      fetchImportacoes();
+      onImportacaoAtivada?.();
+    } catch (error: any) {
+      console.error("Erro ao ativar:", error);
+      toast.error("Erro ao ativar importação");
+    } finally {
+      setActivating(null);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteId) return;
     
@@ -73,6 +130,7 @@ export default function CobrancaHistoricoImportacoes({ corretoraId }: CobrancaHi
 
       toast.success("Importação excluída com sucesso!");
       fetchImportacoes();
+      onImportacaoAtivada?.();
     } catch (error: any) {
       console.error("Erro ao excluir:", error);
       toast.error("Erro ao excluir importação");
@@ -150,14 +208,36 @@ export default function CobrancaHistoricoImportacoes({ corretoraId }: CobrancaHi
                     </div>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-red-500 hover:text-red-700 hover:bg-red-100"
-                  onClick={() => setDeleteId(imp.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  {!imp.ativo && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-green-600 hover:text-green-700 hover:bg-green-50 border-green-300"
+                      onClick={() => handleActivate(imp.id)}
+                      disabled={activating === imp.id}
+                    >
+                      {activating === imp.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Power className="h-4 w-4 mr-1" />
+                          Ativar
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-red-500 hover:text-red-700 hover:bg-red-100"
+                    onClick={() => setDeleteId(imp.id)}
+                    disabled={imp.ativo}
+                    title={imp.ativo ? "Não é possível excluir a importação ativa" : "Excluir importação"}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
