@@ -981,10 +981,12 @@ async function rodarRobo() {
       log(`Tentativa de download ${tentativaDownload}/${MAX_DOWNLOAD_RETRIES}...`);
       
       try {
-        // Criar promise de download com timeout estendido
-        const downloadPromise = page.waitForEvent('download', { timeout: DOWNLOAD_TIMEOUT_MS });
+        // ============================================
+        // CORREÇÃO: O portal Hinova abre uma NOVA ABA após clicar em "Gerar"
+        // O download acontece nessa nova aba, não na página original
+        // ============================================
         
-        // 6. Gerar relatório (vai baixar Excel)
+        // 6. Gerar relatório (vai abrir nova aba e baixar Excel)
         log('Clicando em Gerar relatório Excel...');
         
         // Tentar diferentes seletores para o botão Gerar
@@ -998,6 +1000,38 @@ async function rodarRobo() {
           'button:has-text("Gerar Relatório")',
         ];
         
+        // Configurar listener de download no CONTEXTO (captura de qualquer aba)
+        let downloadCapturado = null;
+        const downloadContextPromise = new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error(`Timeout aguardando download (${DOWNLOAD_TIMEOUT_MS / 60000} minutos)`));
+          }, DOWNLOAD_TIMEOUT_MS);
+          
+          // Listener no contexto para capturar downloads de qualquer aba
+          const onPage = async (newPage) => {
+            log(`Nova aba detectada: ${newPage.url() || 'carregando...'}`);
+            await newPage.screenshot({ path: 'debug_nova_aba.png' }).catch(() => {});
+            
+            newPage.on('download', (download) => {
+              log(`✅ Download iniciado na nova aba: ${download.suggestedFilename()}`);
+              clearTimeout(timeout);
+              downloadCapturado = download;
+              resolve(download);
+            });
+          };
+          
+          context.on('page', onPage);
+          
+          // Também ouvir na página atual (caso não abra nova aba)
+          page.on('download', (download) => {
+            log(`✅ Download iniciado na página atual: ${download.suggestedFilename()}`);
+            clearTimeout(timeout);
+            downloadCapturado = download;
+            resolve(download);
+          });
+        });
+        
+        // Clicar no botão Gerar
         let clicouBotao = false;
         for (const seletor of botoesGerar) {
           try {
@@ -1030,7 +1064,7 @@ async function rodarRobo() {
         }
         
         // Monitorar o download com feedback periódico
-        log('Aguardando download iniciar (isso pode demorar vários minutos)...');
+        log('Aguardando download (pode demorar - nova aba será aberta)...');
         
         let tempoEsperado = 0;
         const monitoramentoInterval = setInterval(() => {
@@ -1041,14 +1075,14 @@ async function rodarRobo() {
         }, DOWNLOAD_CHECK_INTERVAL_MS);
         
         try {
-          // Aguardar download com timeout estendido
-          const download = await downloadPromise;
+          // Aguardar download de qualquer aba
+          const download = await downloadContextPromise;
           clearInterval(monitoramentoInterval);
           
           nomeArquivoFinal = download.suggestedFilename() || `Hinova_${fim.replace(/\//g, '-')}.xlsx`;
           const filePath = path.join(downloadPath, nomeArquivoFinal);
           
-          log(`✅ Download iniciado: ${nomeArquivoFinal}`);
+          log(`✅ Download capturado: ${nomeArquivoFinal}`);
           
           // Monitorar o progresso do salvamento
           log('Salvando arquivo (pode demorar para arquivos grandes)...');
@@ -1082,6 +1116,15 @@ async function rodarRobo() {
             }
             
             downloadSucesso = true;
+            
+            // Fechar novas abas abertas
+            const pages = context.pages();
+            for (const p of pages) {
+              if (p !== page) {
+                await p.close().catch(() => {});
+                log('Nova aba fechada');
+              }
+            }
             
           } else {
             throw new Error('Arquivo não foi salvo corretamente');
