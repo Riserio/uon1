@@ -402,7 +402,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="flex items-center gap-2 md:gap-3">
-                <AlertasDialog overdueCount={overdueCount} />
+                <AlertasDialog overdueCount={overdueCount} overdueList={overdueList} />
                 <UserProfile />
               </div>
             </div>

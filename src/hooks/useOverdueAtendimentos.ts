@@ -6,6 +6,9 @@ export interface OverdueAtendimento {
   assunto: string;
   status: string;
   horasVencidas: number;
+  corretoraNome?: string;
+  tipoAtendimento?: string;
+  placa?: string;
 }
 
 export function useOverdueAtendimentos() {
@@ -32,10 +35,20 @@ export function useOverdueAtendimentos() {
         return;
       }
 
-      // Buscar atendimentos não arquivados
+      // Buscar atendimentos não arquivados com dados da corretora
       const { data: atendimentos, error: atendError } = await supabase
         .from('atendimentos')
-        .select('id, assunto, status, status_changed_at')
+        .select(`
+          id, 
+          assunto, 
+          status, 
+          status_changed_at,
+          tipo_atendimento,
+          veiculo_marca,
+          veiculo_modelo,
+          corretora_id,
+          corretoras (nome)
+        `)
         .eq('arquivado', false);
 
       if (atendError) throw atendError;
@@ -51,14 +64,24 @@ export function useOverdueAtendimentos() {
         const horasPassadas = (now.getTime() - statusChangedAt.getTime()) / (1000 * 60 * 60);
         
         if (horasPassadas > statusConfig.prazo_horas) {
+          // Extrair placa do assunto se existir (formato comum: "Sinistro - ABC1234")
+          const placaMatch = atendimento.assunto?.match(/[A-Z]{3}[-]?\d{4}|[A-Z]{3}\d[A-Z]\d{2}/i);
+          const placa = placaMatch ? placaMatch[0].toUpperCase() : undefined;
+
           overdue.push({
             id: atendimento.id,
             assunto: atendimento.assunto,
             status: atendimento.status,
             horasVencidas: Math.floor(horasPassadas - statusConfig.prazo_horas),
+            corretoraNome: (atendimento.corretoras as any)?.nome,
+            tipoAtendimento: atendimento.tipo_atendimento,
+            placa: placa,
           });
         }
       });
+
+      // Ordenar por horas vencidas (mais atrasados primeiro)
+      overdue.sort((a, b) => b.horasVencidas - a.horasVencidas);
 
       setOverdueCount(overdue.length);
       setOverdueList(overdue);

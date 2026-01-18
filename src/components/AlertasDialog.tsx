@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Bell, Clock, MapPin, Check, Users, CheckCircle2 } from 'lucide-react';
+import { Bell, Clock, MapPin, Check, Users, CheckCircle2, Car, Building2, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format, parseISO, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import { usePendingUsers } from '@/hooks/usePendingUsers';
+import { OverdueAtendimento } from '@/hooks/useOverdueAtendimentos';
 
 interface Evento {
   id: string;
@@ -46,7 +47,12 @@ interface CompromissoItem {
   originalData: Evento | Atendimento;
 }
 
-export function AlertasDialog({ overdueCount = 0 }: { overdueCount?: number }) {
+interface AlertasDialogProps {
+  overdueCount?: number;
+  overdueList?: OverdueAtendimento[];
+}
+
+export function AlertasDialog({ overdueCount = 0, overdueList = [] }: AlertasDialogProps) {
   const { user, userRole } = useAuth();
   const [compromissos, setCompromissos] = useState<CompromissoItem[]>([]);
   const [open, setOpen] = useState(false);
@@ -192,11 +198,11 @@ export function AlertasDialog({ overdueCount = 0 }: { overdueCount?: number }) {
           )}
 
           {overdueCount > 0 && (
-            <div className="p-4 border rounded-lg bg-destructive/5">
-              <div className="flex items-center justify-between">
+            <div className="space-y-3">
+              <div className="p-4 border rounded-lg bg-destructive/5">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
-                    <Clock className="h-5 w-5 text-destructive" />
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
                   </div>
                   <div>
                     <p className="font-medium text-destructive">Atendimentos com prazo vencido</p>
@@ -205,6 +211,57 @@ export function AlertasDialog({ overdueCount = 0 }: { overdueCount?: number }) {
                     </p>
                   </div>
                 </div>
+              </div>
+              
+              {/* Lista resumida dos atendimentos vencidos */}
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {overdueList.slice(0, 10).map((item) => (
+                  <div 
+                    key={item.id} 
+                    className="p-3 border rounded-lg bg-destructive/5 border-destructive/20 hover:bg-destructive/10 transition-colors cursor-pointer"
+                    onClick={() => window.location.href = `/atendimentos?id=${item.id}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          {item.corretoraNome && (
+                            <Badge variant="outline" className="text-xs flex items-center gap-1">
+                              <Building2 className="h-3 w-3" />
+                              {item.corretoraNome}
+                            </Badge>
+                          )}
+                          {item.tipoAtendimento && (
+                            <Badge variant="secondary" className="text-xs">
+                              {item.tipoAtendimento}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {item.placa && (
+                            <span className="text-sm font-mono font-medium flex items-center gap-1">
+                              <Car className="h-3 w-3" />
+                              {item.placa}
+                            </span>
+                          )}
+                          <Badge variant="outline" className="text-xs">
+                            {item.status}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs text-destructive font-medium flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {item.horasVencidas}h atraso
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {overdueList.length > 10 && (
+                  <p className="text-xs text-muted-foreground text-center py-2">
+                    + {overdueList.length - 10} outros atendimentos vencidos
+                  </p>
+                )}
               </div>
             </div>
           )}
