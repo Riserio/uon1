@@ -462,7 +462,10 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
       </Card>
 
       {/* Histórico de Importações */}
-      <CobrancaHistoricoImportacoes corretoraId={corretoraId} />
+      <CobrancaHistoricoImportacoes 
+        corretoraId={corretoraId} 
+        onImportacaoAtivada={onImportSuccess}
+      />
     </div>
   );
 }
