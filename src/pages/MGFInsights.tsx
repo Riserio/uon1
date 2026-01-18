@@ -304,12 +304,12 @@ export default function MGFInsights() {
   const tabs = isPortalAccess 
     ? [
         { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-        { id: "eventos", label: "Relatório Eventos", icon: FileSpreadsheet },
+        { id: "eventos", label: "Rateio Eventos", icon: FileSpreadsheet },
         { id: "tabela", label: "Dados Completos", icon: Database },
       ]
     : [
         { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-        { id: "eventos", label: "Relatório Eventos", icon: FileSpreadsheet },
+        { id: "eventos", label: "Rateio Eventos", icon: FileSpreadsheet },
         { id: "tabela", label: "Dados Completos", icon: Database },
         { id: "importar", label: "Importar Dados", icon: Upload },
       ];
