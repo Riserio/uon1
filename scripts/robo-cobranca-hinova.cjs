@@ -46,6 +46,73 @@ function log(msg) {
   console.log(`[${timestamp}] ${msg}`);
 }
 
+/**
+ * Fecha qualquer popup/modal que aparecer clicando em "Fechar", "X", ou botões similares
+ */
+async function fecharPopups(page, tentativas = 3) {
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      // Seletores comuns para botões de fechar
+      const seletoresFechar = [
+        'button:has-text("Fechar")',
+        'a:has-text("Fechar")',
+        '.btn:has-text("Fechar")',
+        'button:has-text("Continuar e Fechar")',
+        'a:has-text("Continuar e Fechar")',
+        'button:has-text("OK")',
+        '.modal button.close',
+        '.modal .btn-close',
+        'button.close',
+        '.close',
+        '[data-dismiss="modal"]',
+        '[aria-label="Close"]',
+        '.modal-header button',
+        '.swal2-confirm', // SweetAlert
+        '.swal2-close',
+      ];
+      
+      for (const seletor of seletoresFechar) {
+        try {
+          const botao = await page.$(seletor);
+          if (botao) {
+            const isVisible = await botao.isVisible().catch(() => false);
+            if (isVisible) {
+              log(`Popup detectado - fechando via: ${seletor}`);
+              await botao.click({ force: true }).catch(() => {});
+              await page.waitForTimeout(500);
+            }
+          }
+        } catch {
+          // Continuar tentando outros seletores
+        }
+      }
+      
+      // Também tentar via JavaScript para modais Bootstrap
+      await page.evaluate(() => {
+        // Fechar modais Bootstrap
+        const modals = document.querySelectorAll('.modal.show, .modal[style*="display: block"]');
+        modals.forEach(modal => {
+          const closeBtn = modal.querySelector('button.close, .btn-close, [data-dismiss="modal"], button:contains("Fechar")');
+          if (closeBtn) closeBtn.click();
+        });
+        
+        // Fechar SweetAlert
+        const swalClose = document.querySelector('.swal2-close, .swal2-confirm');
+        if (swalClose) swalClose.click();
+        
+        // Remover overlays
+        const overlays = document.querySelectorAll('.modal-backdrop');
+        overlays.forEach(o => o.remove());
+      }).catch(() => {});
+      
+      await page.waitForTimeout(300);
+      
+    } catch (e) {
+      // Silenciar erros - pode não haver popups
+    }
+  }
+}
+
 function getDateRange() {
   const hoje = new Date();
   const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -187,17 +254,9 @@ async function rodarRobo() {
       log('Aviso: Não encontrou campos de login pelo seletor padrão, continuando...');
     }
     
-    // 1.1 Fechar modal de "Comunicado Importante" se aparecer
-    try {
-      const modalButton = await page.$('button:has-text("Continuar e Fechar"), a:has-text("Continuar e Fechar"), .btn:has-text("Continuar")');
-      if (modalButton) {
-        log('Modal de comunicado detectado - fechando...');
-        await modalButton.click();
-        await page.waitForTimeout(1000);
-      }
-    } catch {
-      // Modal não apareceu, seguir normalmente
-    }
+    // 1.1 Fechar qualquer popup/modal que aparecer
+    await fecharPopups(page);
+    
     
     // 2. Fazer login (sem código de autenticação - usuário dispensado)
     log('Realizando login...');
@@ -482,32 +541,34 @@ async function rodarRobo() {
       throw new Error(`Login falhou após ${MAX_TENTATIVAS} tentativas`);
     }
     
-    // Verificar se apareceu outro modal após login e fechar
-    try {
-      const modalButton2 = await page.$('button:has-text("Continuar e Fechar"), a:has-text("Continuar e Fechar")');
-      if (modalButton2) {
-        log('Modal pós-login detectado - fechando...');
-        await modalButton2.click();
-        await page.waitForTimeout(1000);
-      }
-    } catch {
-      // Modal não apareceu
-    }
+    // Fechar qualquer popup que apareça após login
+    await fecharPopups(page);
+    
     
     log('Login realizado com sucesso!');
     
     // 3. Navegar até Relatório de Boletos
     log('Navegando para Relatório de Boletos...');
     
+    // Fechar popups antes de navegar
+    await fecharPopups(page);
+    
     await page.click('text=Relatório', { timeout: 10000 }).catch(() => {
       return page.click('text=Relatórios');
     });
     await page.waitForTimeout(1000);
     
+    // Fechar popups se aparecerem
+    await fecharPopups(page);
+    
     await page.click('text=11.3', { timeout: 10000 }).catch(() => {
       return page.click('text=Relatório Boletos');
     });
     await page.waitForLoadState('networkidle');
+    
+    // Fechar popups após carregar página de relatório
+    await fecharPopups(page);
+    
     log('Página de relatório aberta!');
     
     // 4. Preencher filtros
