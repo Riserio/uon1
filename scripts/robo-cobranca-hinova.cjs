@@ -26,6 +26,7 @@ const axios = require('axios');
 
 const CONFIG = {
   HINOVA_URL: process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php',
+  HINOVA_RELATORIO_URL: 'https://eris.hinova.com.br/sga/sgav4_valecar/relatorio/relatorioBoleto.php',
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
   
@@ -48,68 +49,135 @@ function log(msg) {
 
 /**
  * Fecha qualquer popup/modal que aparecer clicando em "Fechar", "X", ou botões similares
+ * Continua tentando até não encontrar mais popups
  */
-async function fecharPopups(page, tentativas = 3) {
-  for (let i = 0; i < tentativas; i++) {
+async function fecharPopups(page, maxTentativas = 10) {
+  let popupFechado = true;
+  let tentativas = 0;
+  
+  while (popupFechado && tentativas < maxTentativas) {
+    popupFechado = false;
+    tentativas++;
+    
     try {
-      // Seletores comuns para botões de fechar
+      // Aguardar um pouco para popups carregarem (site lento)
+      await page.waitForTimeout(800);
+      
+      // Seletores comuns para botões de fechar - ordem de prioridade
       const seletoresFechar = [
+        // Botões com texto "Fechar" - mais comuns
         'button:has-text("Fechar")',
         'a:has-text("Fechar")',
         '.btn:has-text("Fechar")',
+        'input[value="Fechar"]',
+        'input[type="button"][value="Fechar"]',
+        // Botões de comunicado
         'button:has-text("Continuar e Fechar")',
         'a:has-text("Continuar e Fechar")',
+        'button:has-text("Continuar")',
+        // Botões OK
         'button:has-text("OK")',
+        '.btn:has-text("OK")',
+        // Botões X de fechar modal
+        '.modal.show button.close',
+        '.modal.show .btn-close',
+        '.modal.show [data-dismiss="modal"]',
         '.modal button.close',
         '.modal .btn-close',
+        '.modal .close',
         'button.close',
         '.close',
         '[data-dismiss="modal"]',
+        '[data-bs-dismiss="modal"]',
         '[aria-label="Close"]',
         '.modal-header button',
-        '.swal2-confirm', // SweetAlert
+        // SweetAlert
+        '.swal2-confirm',
         '.swal2-close',
+        // Bootbox e outros
+        '.bootbox .btn-primary',
+        '.bootbox .btn-default',
       ];
       
       for (const seletor of seletoresFechar) {
         try {
-          const botao = await page.$(seletor);
-          if (botao) {
+          const botoes = await page.$$(seletor);
+          for (const botao of botoes) {
             const isVisible = await botao.isVisible().catch(() => false);
             if (isVisible) {
               log(`Popup detectado - fechando via: ${seletor}`);
               await botao.click({ force: true }).catch(() => {});
-              await page.waitForTimeout(500);
+              await page.waitForTimeout(1000);
+              popupFechado = true;
+              break;
             }
           }
+          if (popupFechado) break;
         } catch {
           // Continuar tentando outros seletores
         }
       }
       
-      // Também tentar via JavaScript para modais Bootstrap
-      await page.evaluate(() => {
-        // Fechar modais Bootstrap
-        const modals = document.querySelectorAll('.modal.show, .modal[style*="display: block"]');
-        modals.forEach(modal => {
-          const closeBtn = modal.querySelector('button.close, .btn-close, [data-dismiss="modal"], button:contains("Fechar")');
-          if (closeBtn) closeBtn.click();
-        });
+      // Também tentar via JavaScript para fechar modais
+      if (!popupFechado) {
+        const fechouViaJS = await page.evaluate(() => {
+          let fechou = false;
+          
+          // Procurar todos os botões com texto "Fechar"
+          const allElements = document.querySelectorAll('button, a, input[type="button"], input[type="submit"], .btn');
+          for (const el of allElements) {
+            const texto = (el.textContent || el.value || '').toLowerCase().trim();
+            if (texto === 'fechar' || texto.includes('fechar')) {
+              const style = window.getComputedStyle(el);
+              if (style.display !== 'none' && style.visibility !== 'hidden') {
+                el.click();
+                fechou = true;
+                break;
+              }
+            }
+          }
+          
+          // Fechar modais Bootstrap
+          if (!fechou) {
+            const modals = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"]');
+            modals.forEach(modal => {
+              const closeBtn = modal.querySelector('.close, button.close, .btn-close, [data-dismiss="modal"]');
+              if (closeBtn) {
+                closeBtn.click();
+                fechou = true;
+              }
+            });
+          }
+          
+          // Fechar SweetAlert
+          if (!fechou) {
+            const swalClose = document.querySelector('.swal2-close, .swal2-confirm');
+            if (swalClose) {
+              swalClose.click();
+              fechou = true;
+            }
+          }
+          
+          // Remover overlays de backdrop
+          const overlays = document.querySelectorAll('.modal-backdrop');
+          overlays.forEach(o => o.remove());
+          
+          return fechou;
+        }).catch(() => false);
         
-        // Fechar SweetAlert
-        const swalClose = document.querySelector('.swal2-close, .swal2-confirm');
-        if (swalClose) swalClose.click();
-        
-        // Remover overlays
-        const overlays = document.querySelectorAll('.modal-backdrop');
-        overlays.forEach(o => o.remove());
-      }).catch(() => {});
-      
-      await page.waitForTimeout(300);
+        if (fechouViaJS) {
+          popupFechado = true;
+          await page.waitForTimeout(1000);
+        }
+      }
       
     } catch (e) {
       // Silenciar erros - pode não haver popups
     }
+  }
+  
+  if (tentativas > 1) {
+    log(`Verificação de popups concluída (${tentativas} iterações)`);
   }
 }
 
@@ -547,26 +615,31 @@ async function rodarRobo() {
     
     log('Login realizado com sucesso!');
     
-    // 3. Navegar até Relatório de Boletos
-    log('Navegando para Relatório de Boletos...');
+    // 3. Navegar DIRETAMENTE para a página de Relatório de Boletos (evita cliques em menu lento)
+    log('Navegando diretamente para Relatório de Boletos...');
     
     // Fechar popups antes de navegar
     await fecharPopups(page);
     
-    await page.click('text=Relatório', { timeout: 10000 }).catch(() => {
-      return page.click('text=Relatórios');
+    // Navegar diretamente para a URL do relatório
+    await page.goto(CONFIG.HINOVA_RELATORIO_URL, { 
+      waitUntil: 'domcontentloaded',
+      timeout: 90000  // Timeout maior para site lento
     });
-    await page.waitForTimeout(1000);
     
-    // Fechar popups se aparecerem
+    // Aguardar carregamento (site é lento)
+    log('Aguardando página de relatório carregar (site lento)...');
+    await page.waitForTimeout(5000);
+    
+    // Fechar popups que aparecerem após navegação
     await fecharPopups(page);
     
-    await page.click('text=11.3', { timeout: 10000 }).catch(() => {
-      return page.click('text=Relatório Boletos');
+    // Aguardar mais se necessário
+    await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {
+      log('NetworkIdle timeout - continuando...');
     });
-    await page.waitForLoadState('networkidle');
     
-    // Fechar popups após carregar página de relatório
+    // Fechar popups novamente
     await fecharPopups(page);
     
     log('Página de relatório aberta!');
