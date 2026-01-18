@@ -1020,7 +1020,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="Veículos/Associado"
                           stroke="#0ea5e9"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          dot={{ r: 4, fill: "#0ea5e9" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="#0ea5e9">
+                                {Number(value).toFixed(2).replace(".", ",")}
+                              </text>
+                            );
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1044,7 +1052,20 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <YAxis tick={{ fontSize: 11 }} />
                         <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
-                        <Bar dataKey="cadastros_realizados" name="Cadastros" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                        <Bar 
+                          dataKey="cadastros_realizados" 
+                          name="Cadastros" 
+                          fill="#16a34a" 
+                          radius={[4, 4, 0, 0]}
+                          label={({ x, y, value, index, width }: { x: number; y: number; value: number; index: number; width: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x + width / 2} y={y - 8} textAnchor="middle" fontSize={10} fontWeight={500} fill="#16a34a">
+                                {value?.toLocaleString("pt-BR")}
+                              </text>
+                            );
+                          }}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -1078,7 +1099,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="% Novos Cadastros"
                           stroke="#f59e0b"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          dot={{ r: 4, fill: "#f59e0b" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="#f59e0b">
+                                {Number(value).toFixed(2).replace(".", ",")}%
+                              </text>
+                            );
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1114,7 +1143,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="Crescimento Bruto"
                           stroke="#8b5cf6"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          dot={{ r: 4, fill: "#8b5cf6" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="#8b5cf6">
+                                {Number(value).toFixed(2).replace(".", ",")}%
+                              </text>
+                            );
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1142,6 +1179,14 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="Crescimento Líquido"
                           fill="#16a34a"
                           radius={[4, 4, 0, 0]}
+                          label={({ x, y, value, index, width }: { x: number; y: number; value: number; index: number; width: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x + width / 2} y={y - 8} textAnchor="middle" fontSize={10} fontWeight={500} fill="#16a34a">
+                                {value?.toLocaleString("pt-BR")}
+                              </text>
+                            );
+                          }}
                         />
                       </BarChart>
                     </ResponsiveContainer>
@@ -1165,7 +1210,20 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <YAxis tick={{ fontSize: 11 }} />
                         <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
-                        <Bar dataKey="cancelamentos" name="Cancelamentos" fill="#dc2626" radius={[4, 4, 0, 0]} />
+                        <Bar 
+                          dataKey="cancelamentos" 
+                          name="Cancelamentos" 
+                          fill="#dc2626" 
+                          radius={[4, 4, 0, 0]}
+                          label={({ x, y, value, index, width }: { x: number; y: number; value: number; index: number; width: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x + width / 2} y={y - 8} textAnchor="middle" fontSize={10} fontWeight={500} fill="#dc2626">
+                                {value?.toLocaleString("pt-BR")}
+                              </text>
+                            );
+                          }}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -1187,7 +1245,20 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <YAxis tick={{ fontSize: 11 }} />
                         <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
-                        <Bar dataKey="inadimplentes" name="Inadimplentes" fill="#f97316" radius={[4, 4, 0, 0]} />
+                        <Bar 
+                          dataKey="inadimplentes" 
+                          name="Inadimplentes" 
+                          fill="#f97316" 
+                          radius={[4, 4, 0, 0]}
+                          label={({ x, y, value, index, width }: { x: number; y: number; value: number; index: number; width: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x + width / 2} y={y - 8} textAnchor="middle" fontSize={10} fontWeight={500} fill="#f97316">
+                                {value?.toLocaleString("pt-BR")}
+                              </text>
+                            );
+                          }}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -1210,7 +1281,20 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <YAxis tick={{ fontSize: 11 }} />
                         <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
-                        <Bar dataKey="reativacao" name="Reativações" fill="#14b8a6" radius={[4, 4, 0, 0]} />
+                        <Bar 
+                          dataKey="reativacao" 
+                          name="Reativações" 
+                          fill="#14b8a6" 
+                          radius={[4, 4, 0, 0]}
+                          label={({ x, y, value, index, width }: { x: number; y: number; value: number; index: number; width: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x + width / 2} y={y - 8} textAnchor="middle" fontSize={10} fontWeight={500} fill="#14b8a6">
+                                {value?.toLocaleString("pt-BR")}
+                              </text>
+                            );
+                          }}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -1244,7 +1328,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="Churn"
                           stroke="#dc2626"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          dot={{ r: 4, fill: "#dc2626" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="#dc2626">
+                                {Number(value).toFixed(2).replace(".", ",")}%
+                              </text>
+                            );
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1268,7 +1360,20 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <YAxis tick={{ fontSize: 11 }} />
                         <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
-                        <Bar dataKey="permanencia" name="Permanência" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                        <Bar 
+                          dataKey="permanencia" 
+                          name="Permanência" 
+                          fill="#8b5cf6" 
+                          radius={[4, 4, 0, 0]}
+                          label={({ x, y, value, index, width }: { x: number; y: number; value: number; index: number; width: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x + width / 2} y={y - 8} textAnchor="middle" fontSize={10} fontWeight={500} fill="#8b5cf6">
+                                {value?.toLocaleString("pt-BR")}
+                              </text>
+                            );
+                          }}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -1302,7 +1407,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="% Permanência"
                           stroke="#16a34a"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          dot={{ r: 4, fill: "#16a34a" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="#16a34a">
+                                {Number(value).toFixed(2).replace(".", ",")}%
+                              </text>
+                            );
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1458,7 +1571,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="% Inadimplência"
                           stroke="#dc2626"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          dot={{ r: 4, fill: "#dc2626" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="#dc2626">
+                                {Number(value).toFixed(2).replace(".", ",")}%
+                              </text>
+                            );
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1493,7 +1614,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="% Cancelamento"
                           stroke="#f97316"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          dot={{ r: 4, fill: "#f97316" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="#f97316">
+                                {Number(value).toFixed(2).replace(".", ",")}%
+                              </text>
+                            );
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1528,7 +1657,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="% Inadimpl. Financeira"
                           stroke="#dc2626"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          dot={{ r: 4, fill: "#dc2626" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="#dc2626">
+                                {Number(value).toFixed(2).replace(".", ",")}%
+                              </text>
+                            );
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1561,7 +1698,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="Ticket Médio"
                           stroke="#16a34a"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          dot={{ r: 4, fill: "#16a34a" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x} y={y - 10} textAnchor="middle" fontSize={9} fontWeight={500} fill="#16a34a">
+                                {formatCurrency(Number(value))}
+                              </text>
+                            );
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1596,7 +1741,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="% Juros"
                           stroke="#0ea5e9"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          dot={{ r: 4, fill: "#0ea5e9" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="#0ea5e9">
+                                {Number(value).toFixed(2).replace(".", ",")}%
+                              </text>
+                            );
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1631,7 +1784,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="% Descontado"
                           stroke="#ec4899"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          dot={{ r: 4, fill: "#ec4899" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="#ec4899">
+                                {Number(value).toFixed(2).replace(".", ",")}%
+                              </text>
+                            );
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1666,7 +1827,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="% Cresc. Faturamento"
                           stroke="#2563eb"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          dot={{ r: 4, fill: "#2563eb" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="#2563eb">
+                                {Number(value).toFixed(2).replace(".", ",")}%
+                              </text>
+                            );
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1701,7 +1870,15 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="% Cresc. Recebido"
                           stroke="#16a34a"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          dot={{ r: 4, fill: "#16a34a" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="#16a34a">
+                                {Number(value).toFixed(2).replace(".", ",")}%
+                              </text>
+                            );
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
