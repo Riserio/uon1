@@ -7,10 +7,18 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle, Building2, Truck, ChevronLeft, ChevronRight } from "lucide-react";
+import SGAEventosDetailDialog from "./SGAEventosDetailDialog";
 
 interface SGADashboardProps {
   eventos: any[];
   loading: boolean;
+}
+
+interface DetailDialogState {
+  open: boolean;
+  title: string;
+  filterType: string;
+  filterValue: string;
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#14b8a6'];
@@ -78,6 +86,16 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
   const [evolucaoView, setEvolucaoView] = useState<'mes' | 'dia'>('mes');
   const evolucaoScrollRef = useRef<HTMLDivElement>(null);
   const [showScrollIndicators, setShowScrollIndicators] = useState({ left: false, right: false });
+  const [detailDialog, setDetailDialog] = useState<DetailDialogState>({
+    open: false,
+    title: "",
+    filterType: "",
+    filterValue: "",
+  });
+
+  const openDetailDialog = (title: string, filterType: string, filterValue: string) => {
+    setDetailDialog({ open: true, title, filterType, filterValue });
+  };
 
   // Function to update scroll indicators
   const updateScrollIndicators = () => {
@@ -472,7 +490,20 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                   : Math.max(800, stats.timelineDiaData.length * 45) + 'px'
               }}>
                 <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData}>
+                  <AreaChart 
+                    data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData}
+                    onClick={(data) => {
+                      if (data && data.activePayload && data.activePayload[0]) {
+                        const payload = data.activePayload[0].payload;
+                        if (evolucaoView === 'mes') {
+                          openDetailDialog(`Eventos de ${payload.mesLabel}`, "mes", payload.mes);
+                        } else {
+                          openDetailDialog(`Eventos de ${payload.diaLabel}`, "dia", payload.dia);
+                        }
+                      }
+                    }}
+                    className="cursor-pointer"
+                  >
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis 
                       dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} 
@@ -529,9 +560,11 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                     outerRadius={70}
                     paddingAngle={2}
                     dataKey="value"
+                    onClick={(data) => openDetailDialog(`Eventos - ${data.name}`, "tipoVeiculo", data.name)}
+                    className="cursor-pointer"
                   >
                     {stats.tipoVeiculoData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="hover:opacity-80 transition-opacity" />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value: number) => [value.toLocaleString('pt-BR'), 'Quantidade']} />
@@ -539,7 +572,11 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
               </ResponsiveContainer>
               <div className="flex-1 space-y-2">
                 {stats.tipoVeiculoData.map((item, index) => (
-                  <div key={item.name} className="flex items-center gap-2 text-sm">
+                  <div 
+                    key={item.name} 
+                    className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded-md px-2 py-1 -mx-2 transition-colors"
+                    onClick={() => openDetailDialog(`Eventos - ${item.name}`, "tipoVeiculo", item.name)}
+                  >
                     <div 
                       className="w-3 h-3 rounded-full shrink-0" 
                       style={{ backgroundColor: COLORS[index % COLORS.length] }} 
@@ -573,7 +610,14 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                   width={80}
                 />
                 <Tooltip content={<CustomTooltip isCurrency />} />
-                <Bar dataKey="value" fill="#f59e0b" radius={[0, 4, 4, 0]} name="Custo" />
+                <Bar 
+                  dataKey="value" 
+                  fill="#f59e0b" 
+                  radius={[0, 4, 4, 0]} 
+                  name="Custo" 
+                  onClick={(data) => openDetailDialog(`Custos - ${data.name}`, "tipoVeiculo", data.name)}
+                  className="cursor-pointer"
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -602,7 +646,14 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                   tickFormatter={(v) => truncateText(v, 20)}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="value" fill="#06b6d4" radius={[0, 4, 4, 0]} name="Eventos" />
+                <Bar 
+                  dataKey="value" 
+                  fill="#06b6d4" 
+                  radius={[0, 4, 4, 0]} 
+                  name="Eventos" 
+                  onClick={(data) => openDetailDialog(`Cooperativa: ${data.name}`, "cooperativa", data.name)}
+                  className="cursor-pointer"
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -629,7 +680,14 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                   tickFormatter={(v) => truncateText(v, 20)}
                 />
                 <Tooltip content={<CustomTooltip isCurrency />} />
-                <Bar dataKey="value" fill="#ec4899" radius={[0, 4, 4, 0]} name="Custo" />
+                <Bar 
+                  dataKey="value" 
+                  fill="#ec4899" 
+                  radius={[0, 4, 4, 0]} 
+                  name="Custo" 
+                  onClick={(data) => openDetailDialog(`Custos Cooperativa: ${data.name}`, "cooperativa", data.name)}
+                  className="cursor-pointer"
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -653,7 +711,14 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                 width={150}
               />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="value" fill="#10b981" radius={[0, 4, 4, 0]} name="Eventos" />
+              <Bar 
+                dataKey="value" 
+                fill="#10b981" 
+                radius={[0, 4, 4, 0]} 
+                name="Eventos" 
+                onClick={(data) => openDetailDialog(`Situação: ${data.name}`, "situacao", data.name)}
+                className="cursor-pointer"
+              />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -678,7 +743,14 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                   tickFormatter={(v) => truncateText(v, 20)}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} name="Eventos" />
+                <Bar 
+                  dataKey="value" 
+                  fill="#8b5cf6" 
+                  radius={[0, 4, 4, 0]} 
+                  name="Eventos" 
+                  onClick={(data) => openDetailDialog(`Regional: ${data.name}`, "regional", data.name)}
+                  className="cursor-pointer"
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -705,7 +777,14 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                   tickFormatter={(v) => truncateText(v, 20)}
                 />
                 <Tooltip content={<CustomTooltip isCurrency />} />
-                <Bar dataKey="value" fill="#ef4444" radius={[0, 4, 4, 0]} name="Custo" />
+                <Bar 
+                  dataKey="value" 
+                  fill="#ef4444" 
+                  radius={[0, 4, 4, 0]} 
+                  name="Custo" 
+                  onClick={(data) => openDetailDialog(`Custos Regional: ${data.name}`, "regional", data.name)}
+                  className="cursor-pointer"
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -731,7 +810,14 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                   width={35}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Eventos" />
+                <Bar 
+                  dataKey="value" 
+                  fill="#3b82f6" 
+                  radius={[0, 4, 4, 0]} 
+                  name="Eventos" 
+                  onClick={(data) => openDetailDialog(`Estado: ${data.name}`, "estado", data.name)}
+                  className="cursor-pointer"
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -754,9 +840,11 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                     outerRadius={80}
                     paddingAngle={2}
                     dataKey="value"
+                    onClick={(data) => openDetailDialog(`Motivo: ${data.name}`, "motivo", data.name)}
+                    className="cursor-pointer"
                   >
                     {stats.motivoData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="hover:opacity-80 transition-opacity" />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value: number) => [value.toLocaleString('pt-BR'), 'Quantidade']} />
@@ -764,7 +852,11 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
               </ResponsiveContainer>
               <div className="flex-1 space-y-2 max-h-[250px] overflow-y-auto">
                 {stats.motivoData.map((item, index) => (
-                  <div key={item.name} className="flex items-center gap-2 text-sm">
+                  <div 
+                    key={item.name} 
+                    className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded-md px-2 py-1 -mx-2 transition-colors"
+                    onClick={() => openDetailDialog(`Motivo: ${item.name}`, "motivo", item.name)}
+                  >
                     <div 
                       className="w-3 h-3 rounded-full shrink-0" 
                       style={{ backgroundColor: COLORS[index % COLORS.length] }} 
@@ -789,7 +881,11 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                 <p className="text-sm text-muted-foreground mb-2 font-medium">Tipo de Evento</p>
                 <div className="space-y-1.5">
                   {stats.tipoData.map((item, i) => (
-                    <div key={item.name} className="flex items-center justify-between py-1">
+                    <div 
+                      key={item.name} 
+                      className="flex items-center justify-between py-1 cursor-pointer hover:bg-muted/50 rounded-md px-2 -mx-2 transition-colors"
+                      onClick={() => openDetailDialog(`Tipo: ${item.name}`, "tipoEvento", item.name)}
+                    >
                       <div className="flex items-center gap-2">
                         <div 
                           className="w-2.5 h-2.5 rounded-full" 
@@ -806,7 +902,11 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                 <p className="text-sm text-muted-foreground mb-2 font-medium">Envolvimento</p>
                 <div className="space-y-1.5">
                   {stats.envolvimentoData.map((item, i) => (
-                    <div key={item.name} className="flex items-center justify-between py-1">
+                    <div 
+                      key={item.name} 
+                      className="flex items-center justify-between py-1 cursor-pointer hover:bg-muted/50 rounded-md px-2 -mx-2 transition-colors"
+                      onClick={() => openDetailDialog(`Envolvimento: ${item.name}`, "envolvimento", item.name)}
+                    >
                       <div className="flex items-center gap-2">
                         <div 
                           className="w-2.5 h-2.5 rounded-full" 
@@ -823,6 +923,16 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Detail Dialog */}
+      <SGAEventosDetailDialog
+        open={detailDialog.open}
+        onOpenChange={(open) => setDetailDialog((prev) => ({ ...prev, open }))}
+        title={detailDialog.title}
+        filterType={detailDialog.filterType}
+        filterValue={detailDialog.filterValue}
+        eventos={eventos}
+      />
     </div>
   );
 }
