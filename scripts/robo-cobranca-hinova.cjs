@@ -176,6 +176,14 @@ async function rodarRobo() {
     // 2. Fazer login (sem código de autenticação - usuário dispensado)
     log('Realizando login...');
     
+    // Debug: verificar se as credenciais chegaram
+    log(`DEBUG: HINOVA_USER tem ${CONFIG.HINOVA_USER?.length || 0} caracteres`);
+    log(`DEBUG: HINOVA_PASS tem ${CONFIG.HINOVA_PASS?.length || 0} caracteres`);
+    
+    if (!CONFIG.HINOVA_USER || !CONFIG.HINOVA_PASS) {
+      throw new Error('ERRO CRÍTICO: Credenciais não foram passadas. Verifique os secrets no GitHub.');
+    }
+    
     // Tirar screenshot para debug
     await page.screenshot({ path: 'debug_antes_login.png' });
     
@@ -189,85 +197,103 @@ async function rodarRobo() {
     })));
     log(`Inputs encontrados: ${JSON.stringify(inputs)}`);
     
-    // Preencher campos via JavaScript diretamente (mais confiável)
-    await page.evaluate((usuario, senha) => {
-      // Encontrar todos os inputs visíveis
-      const allInputs = Array.from(document.querySelectorAll('input')).filter(el => {
-        const style = window.getComputedStyle(el);
-        return style.display !== 'none' && style.visibility !== 'hidden' && el.type !== 'hidden';
+    // Usar placeholders para encontrar os campos corretos (baseado no screenshot)
+    // Campo "Usuário" tem placeholder "Usuário"
+    // Campo "Senha" tem placeholder "Senha"
+    
+    // Preencher código cliente primeiro
+    await page.fill('input[placeholder=""]', '2363').catch(() => {});
+    
+    // Tentar preencher por placeholder
+    try {
+      await page.fill('input[placeholder="Usuário"]', CONFIG.HINOVA_USER);
+      log(`Usuário preenchido por placeholder: ${CONFIG.HINOVA_USER}`);
+    } catch (e) {
+      log(`Erro ao preencher usuário por placeholder: ${e.message}`);
+    }
+    
+    try {
+      await page.fill('input[placeholder="Senha"]', CONFIG.HINOVA_PASS);
+      log('Senha preenchida por placeholder');
+    } catch (e) {
+      log(`Erro ao preencher senha por placeholder: ${e.message}`);
+    }
+    
+    // Fallback: preencher via JavaScript com seletores baseados em label
+    const resultado = await page.evaluate((usuario, senha) => {
+      const logs = [];
+      
+      // Encontrar inputs pelo texto do label anterior
+      const labels = document.querySelectorAll('label, .label, div');
+      
+      labels.forEach(label => {
+        const text = label.textContent?.trim().toLowerCase();
+        
+        // Encontrar o input seguinte ao label
+        let input = label.querySelector('input') || 
+                   label.nextElementSibling?.querySelector('input') ||
+                   label.nextElementSibling;
+        
+        if (input && input.tagName === 'INPUT') {
+          if (text === 'código cliente') {
+            input.value = '2363';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            logs.push('Código cliente preenchido via label');
+          } else if (text === 'usuário') {
+            input.value = usuario;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            logs.push('Usuário preenchido via label: ' + usuario);
+          } else if (text === 'senha') {
+            input.value = senha;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            logs.push('Senha preenchida via label');
+          }
+        }
       });
       
-      console.log('Inputs visíveis:', allInputs.length);
+      // Fallback final: preencher por ordem de aparição
+      const allInputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])'));
+      logs.push(`Total inputs encontrados: ${allInputs.length}`);
       
-      // Separar por tipo
-      const textInputs = allInputs.filter(el => el.type === 'text' || !el.type);
-      const passwordInputs = allInputs.filter(el => el.type === 'password');
-      
-      console.log('Text inputs:', textInputs.length);
-      console.log('Password inputs:', passwordInputs.length);
-      
-      // Preencher código cliente (primeiro text)
-      if (textInputs[0]) {
-        textInputs[0].value = '2363';
-        textInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
-        textInputs[0].dispatchEvent(new Event('change', { bubbles: true }));
-        console.log('Código cliente preenchido');
+      // Ordenar por posição no DOM
+      if (allInputs.length >= 3) {
+        // Input 0: Código cliente
+        if (!allInputs[0].value) {
+          allInputs[0].value = '2363';
+          allInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+          logs.push('Código preenchido por índice');
+        }
+        
+        // Input 1: Usuário
+        if (!allInputs[1].value || allInputs[1].value === allInputs[1].placeholder) {
+          allInputs[1].value = usuario;
+          allInputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+          logs.push('Usuário preenchido por índice: ' + usuario);
+        }
+        
+        // Input 2: Senha
+        if (!allInputs[2].value || allInputs[2].value === allInputs[2].placeholder) {
+          allInputs[2].value = senha;
+          allInputs[2].dispatchEvent(new Event('input', { bubbles: true }));
+          logs.push('Senha preenchida por índice');
+        }
       }
       
-      // Preencher usuário (segundo text)
-      if (textInputs[1]) {
-        textInputs[1].value = usuario;
-        textInputs[1].dispatchEvent(new Event('input', { bubbles: true }));
-        textInputs[1].dispatchEvent(new Event('change', { bubbles: true }));
-        console.log('Usuário preenchido:', usuario);
-      }
-      
-      // Preencher senha (primeiro password)
-      if (passwordInputs[0]) {
-        passwordInputs[0].value = senha;
-        passwordInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
-        passwordInputs[0].dispatchEvent(new Event('change', { bubbles: true }));
-        console.log('Senha preenchida');
-      }
-      
-      return {
-        codigoPreenchido: textInputs[0]?.value === '2363',
-        usuarioPreenchido: textInputs[1]?.value === usuario,
-        senhaPreenchida: passwordInputs[0]?.value === senha
+      // Verificar valores finais
+      const valores = {
+        codigo: allInputs[0]?.value,
+        usuario: allInputs[1]?.value,
+        senhaLen: allInputs[2]?.value?.length || 0
       };
+      
+      return { logs, valores };
     }, CONFIG.HINOVA_USER, CONFIG.HINOVA_PASS);
     
-    log('Campos preenchidos via JavaScript');
+    resultado.logs.forEach(l => log(l));
+    log(`Valores finais: Código=${resultado.valores.codigo}, Usuário=${resultado.valores.usuario}, Senha=${resultado.valores.senhaLen} chars`);
     
-    // Aguardar um pouco e verificar se preencheu
-    await page.waitForTimeout(1000);
-    
-    // Verificar valores preenchidos
-    const valoresPreenchidos = await page.evaluate(() => {
-      const inputs = Array.from(document.querySelectorAll('input')).filter(el => {
-        const style = window.getComputedStyle(el);
-        return style.display !== 'none' && style.visibility !== 'hidden' && el.type !== 'hidden';
-      });
-      const textInputs = inputs.filter(el => el.type === 'text' || !el.type);
-      const passwordInputs = inputs.filter(el => el.type === 'password');
-      
-      return {
-        codigo: textInputs[0]?.value || '(vazio)',
-        usuario: textInputs[1]?.value || '(vazio)',
-        senhaLength: passwordInputs[0]?.value?.length || 0
-      };
-    });
-    
-    log(`Verificação: Código=${valoresPreenchidos.codigo}, Usuário=${valoresPreenchidos.usuario}, Senha=${valoresPreenchidos.senhaLength} chars`);
-    
-    if (valoresPreenchidos.senhaLength === 0) {
-      log('AVISO: Senha não foi preenchida! Tentando método alternativo...');
-      
-      // Tentar com type() ao invés de fill()
-      const senhaInput = await page.$('input[type="password"]:first-of-type');
-      if (senhaInput) {
-        await senhaInput.click();
-        await senhaInput.type(CONFIG.HINOVA_PASS, { delay: 50 });
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: 'debug_campos_preenchidos.png' });
         log('Senha digitada com type()');
       }
     }
