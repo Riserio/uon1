@@ -56,6 +56,7 @@ export function AlertasDialog({ overdueCount = 0, overdueList = [] }: AlertasDia
   const { user, userRole } = useAuth();
   const [compromissos, setCompromissos] = useState<CompromissoItem[]>([]);
   const [open, setOpen] = useState(false);
+  const [showAllOverdue, setShowAllOverdue] = useState(false);
   const unreadMessages = useUnreadMessages();
   const pendingUsers = usePendingUsers();
 
@@ -215,7 +216,7 @@ export function AlertasDialog({ overdueCount = 0, overdueList = [] }: AlertasDia
               
               {/* Lista resumida dos atendimentos vencidos */}
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                {overdueList.slice(0, 10).map((item) => (
+                {(showAllOverdue ? overdueList : overdueList.slice(0, 10)).map((item) => (
                   <div 
                     key={item.id} 
                     className="p-3 border rounded-lg bg-destructive/5 border-destructive/20 hover:bg-destructive/10 transition-colors cursor-pointer"
@@ -257,10 +258,21 @@ export function AlertasDialog({ overdueCount = 0, overdueList = [] }: AlertasDia
                     </div>
                   </div>
                 ))}
-                {overdueList.length > 10 && (
-                  <p className="text-xs text-muted-foreground text-center py-2">
-                    + {overdueList.length - 10} outros atendimentos vencidos
-                  </p>
+                {overdueList.length > 10 && !showAllOverdue && (
+                  <button 
+                    onClick={() => setShowAllOverdue(true)}
+                    className="w-full text-xs text-primary hover:text-primary/80 text-center py-2 hover:bg-muted/50 rounded transition-colors"
+                  >
+                    + {overdueList.length - 10} outros atendimentos vencidos (clique para ver)
+                  </button>
+                )}
+                {showAllOverdue && overdueList.length > 10 && (
+                  <button 
+                    onClick={() => setShowAllOverdue(false)}
+                    className="w-full text-xs text-muted-foreground hover:text-foreground text-center py-2 hover:bg-muted/50 rounded transition-colors"
+                  >
+                    Mostrar menos
+                  </button>
                 )}
               </div>
             </div>
