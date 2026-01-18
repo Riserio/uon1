@@ -161,13 +161,50 @@ async function rodarRobo() {
     log('Acessando portal Hinova...');
     await page.goto(CONFIG.HINOVA_URL, { waitUntil: 'networkidle' });
     
-    // 2. Fazer login
+    // 1.1 Fechar modal de "Comunicado Importante" se aparecer
+    try {
+      const modalButton = await page.$('button:has-text("Continuar e Fechar"), a:has-text("Continuar e Fechar"), .btn:has-text("Continuar")');
+      if (modalButton) {
+        log('Modal de comunicado detectado - fechando...');
+        await modalButton.click();
+        await page.waitForTimeout(1000);
+      }
+    } catch {
+      // Modal não apareceu, seguir normalmente
+    }
+    
+    // 2. Fazer login (sem código de autenticação - usuário dispensado)
     log('Realizando login...');
-    await page.fill('input[name="login"], input[name="usuario"], input[type="text"]:first-of-type', CONFIG.HINOVA_USER);
+    
+    // Preencher código cliente se existir
+    const codigoCliente = await page.$('input[name="codigo_cliente"], input[name="codigo"], input[placeholder*="cliente"]');
+    if (codigoCliente) {
+      await codigoCliente.fill('2363');
+    }
+    
+    await page.fill('input[name="login"], input[name="usuario"], input[type="text"]:nth-of-type(2)', CONFIG.HINOVA_USER);
     await page.fill('input[name="senha"], input[type="password"]', CONFIG.HINOVA_PASS);
-    await page.click('input[type="submit"], button[type="submit"], .btn-login, #btn-login');
+    
+    // NÃO preencher código de autenticação - usuário está dispensado
+    // O campo fica vazio e o login procede normalmente
+    
+    await page.click('input[type="submit"], button[type="submit"], .btn-login, #btn-login, button:has-text("Entrar")');
     
     await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000);
+    
+    // Verificar se apareceu outro modal após login e fechar
+    try {
+      const modalButton2 = await page.$('button:has-text("Continuar e Fechar"), a:has-text("Continuar e Fechar")');
+      if (modalButton2) {
+        log('Modal pós-login detectado - fechando...');
+        await modalButton2.click();
+        await page.waitForTimeout(1000);
+      }
+    } catch {
+      // Modal não apareceu
+    }
+    
     log('Login realizado!');
     
     // 3. Navegar até Relatório de Boletos
