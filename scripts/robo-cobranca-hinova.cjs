@@ -295,25 +295,45 @@ async function rodarRobo() {
     await page.waitForTimeout(500);
     await page.screenshot({ path: 'debug_campos_preenchidos.png' });
     
-    // IMPORTANTE: Clicar no campo de autenticação e depois fora para validar que está vazio
-    log('Validando dispensa de código de autenticação...');
-    try {
-      // Clicar no campo de código de autenticação
-      const campoAuth = await page.$('input[placeholder*="Autenticação"], input[placeholder*="autenticação"]');
-      if (campoAuth) {
-        await campoAuth.click();
-        log('Clicou no campo de autenticação');
-        await page.waitForTimeout(300);
-        
-        // Clicar fora (no body ou em outro elemento) para validar
-        await page.click('body', { position: { x: 10, y: 10 } }).catch(() => {});
-        log('Clicou fora para validar dispensa');
-        await page.waitForTimeout(300);
+    // Helper: dispensar/validar o campo "Código de autenticação".
+    // Na prática, o portal às vezes só libera o login após:
+    // 1) clicar em Entrar (primeira validação)
+    // 2) focar/desfocar o campo de autenticação (dispensar)
+    // 3) clicar em Entrar novamente
+    const dispensarCodigoAutenticacao = async () => {
+      try {
+        const selector =
+          'input[placeholder*="Autenticação"], input[placeholder*="autenticação"], input[placeholder*="Código de Autenticação"], input[placeholder*="código de autenticação"]';
+
+        const campoAuth = await page.$(selector);
+        if (!campoAuth) return false;
+
+        // Garantir que está vazio (se o portal inseriu algo automaticamente)
+        await campoAuth
+          .evaluate((el) => {
+            el.value = '';
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          })
+          .catch(() => {});
+
+        // Foco e blur para o portal "entender" que o campo ficou vazio
+        await campoAuth.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(200);
+
+        // Clicar fora (e ESC) ajuda em alguns fluxos (validação/fechamento de hint)
+        await page.click('body', { position: { x: 20, y: 20 }, force: true }).catch(() => {});
+        await page.keyboard.press('Escape').catch(() => {});
+        await page.waitForTimeout(200);
+
+        log('Dispensa do código de autenticação executada (foco/blur no campo)');
+        return true;
+      } catch (e) {
+        log(`Erro ao dispensar código de autenticação: ${e.message}`);
+        return false;
       }
-    } catch (e) {
-      log(`Erro ao validar campo auth: ${e.message}`);
-    }
-    
+    };
+
     // Clicar no botão Entrar - com retry até realmente sair da tela de login
     let loginSucesso = false;
 
@@ -341,20 +361,33 @@ async function rodarRobo() {
       try {
         const btnSelector = 'button:has-text("Entrar"), input[value="Entrar"], .btn-primary, button.btn, #btn-login';
 
-        // Em alguns cenários o portal só reage após múltiplos cliques (ou clique + Enter).
-        // Então fazemos uma "rajada" curta de ações por tentativa.
-        const btnEntrar = await page.$(btnSelector);
+        const clicarEntrar = async () => {
+          const btnEntrar = await page.$(btnSelector);
 
-        if (btnEntrar) {
-          // 1) Clique via JS (bypass de overlay)
-          await btnEntrar.evaluate((el) => el.click()).catch(() => {});
-          // 2) Clique forçado Playwright
-          await btnEntrar.click({ force: true }).catch(() => {});
-        } else {
-          await page.click('button:has-text("Entrar")', { force: true, timeout: 1000 }).catch(() => {});
-        }
+          if (btnEntrar) {
+            // 1) Clique via JS (bypass de overlay)
+            await btnEntrar.evaluate((el) => el.click()).catch(() => {});
+            // 2) Clique forçado Playwright
+            await btnEntrar.click({ force: true }).catch(() => {});
+          } else {
+            await page.click('button:has-text("Entrar")', { force: true, timeout: 1000 }).catch(() => {});
+          }
+        };
 
-        // 3) Enter como fallback final
+        // Muitos logins na Hinova só completam após 2 cliques no botão.
+        // 1) Primeiro clique: valida credenciais e "marca" a dispensa do código
+        await clicarEntrar();
+        await page.waitForTimeout(450);
+
+        // 2) Dispensar (foco/blur) do campo de autenticação (quando aplicável)
+        await dispensarCodigoAutenticacao();
+        await page.waitForTimeout(250);
+
+        // 3) Segundo clique: efetiva o login
+        await clicarEntrar();
+        await page.waitForTimeout(250);
+
+        // 4) Enter como fallback final
         await page.keyboard.press('Enter').catch(() => {});
 
         // Aguardar qualquer reação do app (navegação, requests, etc.)
