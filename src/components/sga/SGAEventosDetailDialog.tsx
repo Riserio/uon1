@@ -163,7 +163,7 @@ export default function SGAEventosDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-4xl h-[85vh] flex flex-col overflow-hidden"> 
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Car className="h-5 w-5 text-primary" />
@@ -201,7 +201,7 @@ export default function SGAEventosDetailDialog({
           </div>
 
           {/* Vehicle List */}
-          <ScrollArea className="flex-1 min-h-0 pr-4">
+          <ScrollArea className="flex-1 min-h-0 h-full pr-4">
             {filteredEventos.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Car className="h-12 w-12 mx-auto mb-4 opacity-30" />
