@@ -157,9 +157,35 @@ async function rodarRobo() {
   const page = await context.newPage();
   
   try {
-    // 1. Acessar página de login
+    // 1. Acessar página de login com retry
     log('Acessando portal Hinova...');
-    await page.goto(CONFIG.HINOVA_URL, { waitUntil: 'networkidle' });
+    let navegacaoOk = false;
+    for (let tentativa = 1; tentativa <= 3 && !navegacaoOk; tentativa++) {
+      try {
+        log(`Tentativa ${tentativa} de acessar portal...`);
+        await page.goto(CONFIG.HINOVA_URL, { 
+          waitUntil: 'domcontentloaded',
+          timeout: 60000 
+        });
+        navegacaoOk = true;
+      } catch (e) {
+        log(`Erro na tentativa ${tentativa}: ${e.message}`);
+        if (tentativa === 3) throw e;
+        await page.waitForTimeout(5000);
+      }
+    }
+    
+    // Esperar formulário de login carregar
+    log('Aguardando formulário de login...');
+    await page.waitForTimeout(3000);
+    try {
+      await page.waitForSelector('input[placeholder="Usuário"], input[type="password"]', {
+        timeout: 30000
+      });
+      log('Formulário de login carregado');
+    } catch {
+      log('Aviso: Não encontrou campos de login pelo seletor padrão, continuando...');
+    }
     
     // 1.1 Fechar modal de "Comunicado Importante" se aparecer
     try {
