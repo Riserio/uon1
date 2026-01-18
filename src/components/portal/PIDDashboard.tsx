@@ -35,6 +35,7 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  LabelList,
   // PieChart,
   // Pie,
   // Cell,
@@ -923,7 +924,18 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           stroke="#2563eb"
                           strokeWidth={2.5}
                           dot={{ r: 3 }}
-                        />
+                        >
+                          <LabelList
+                            dataKey="placas_ativas"
+                            position="top"
+                            angle={-90}
+                            offset={12}
+                            fontSize={9}
+                            fill="#2563eb"
+                            formatter={(v: number) => v.toLocaleString("pt-BR")}
+                          />
+                        </Line>
+
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
@@ -946,7 +958,18 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <YAxis tick={{ fontSize: 11 }} />
                         <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
-                        <Bar dataKey="total_associados" name="Total Associados" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="total_associados" name="Total Associados" fill="#8b5cf6" radius={[4, 4, 0, 0]}>
+                          <LabelList
+                            dataKey="total_associados"
+                            position="top"
+                            angle={-90}
+                            offset={12}
+                            fontSize={9}
+                            fill="#8b5cf6"
+                            formatter={(v: number) => v.toLocaleString("pt-BR")}
+                          />
+                        </Bar>
+
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
