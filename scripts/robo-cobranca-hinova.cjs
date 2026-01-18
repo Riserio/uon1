@@ -900,9 +900,9 @@ async function rodarRobo() {
       fs.mkdirSync(downloadPath, { recursive: true });
     }
     
-    // Configurações de timeout para download (Excel pode demorar muito)
-    const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos
-    const DOWNLOAD_CHECK_INTERVAL_MS = 5000; // Verificar a cada 5 segundos
+    // Configurações de timeout para download (Excel pode demorar muito - sistema Hinova é lento)
+    const DOWNLOAD_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutos para downloads grandes
+    const DOWNLOAD_CHECK_INTERVAL_MS = 10000; // Verificar a cada 10 segundos
     const MAX_DOWNLOAD_RETRIES = 3;
     
     let dados = [];
