@@ -230,7 +230,7 @@ export function AlertasDialog({ overdueCount = 0 }: { overdueCount?: number }) {
             </div>
           )}
 
-          {compromissos.length === 0 && unreadMessages === 0 && (!(userRole === 'admin' || userRole === 'superintendente' || userRole === 'administrativo') || pendingUsers === 0) ? (
+          {compromissos.length === 0 && unreadMessages === 0 && overdueCount === 0 && (!(userRole === 'admin' || userRole === 'superintendente' || userRole === 'administrativo') || pendingUsers === 0) ? (
             <p className="text-muted-foreground text-center py-8">Nenhuma notificação</p>
           ) : null}
           
