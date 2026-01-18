@@ -214,32 +214,61 @@ async function rodarRobo() {
     await page.waitForTimeout(500);
     await page.screenshot({ path: 'debug_campos_preenchidos.png' });
     
-    // Clicar no botão Entrar
-    const btnEntrar = await page.$('button:has-text("Entrar"), input[value="Entrar"], .btn-primary, button.btn');
-    if (btnEntrar) {
-      log('Clicando no botão Entrar...');
-      await btnEntrar.click();
-    } else {
-      // Fallback: tentar form submit
-      await page.keyboard.press('Enter');
-      log('Pressionando Enter para submeter');
+    // Clicar no botão Entrar - com retry de até 5 tentativas (bug conhecido)
+    let loginSucesso = false;
+    const MAX_TENTATIVAS = 5;
+    
+    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+      log(`Tentativa ${tentativa}/${MAX_TENTATIVAS} - Clicando no botão Entrar...`);
+      
+      try {
+        // Tentar múltiplos seletores e métodos de clique
+        const btnEntrar = await page.$('button:has-text("Entrar"), input[value="Entrar"], .btn-primary, button.btn, #btn-login');
+        
+        if (btnEntrar) {
+          // Forçar clique com JavaScript (bypass de qualquer overlay)
+          await btnEntrar.evaluate(el => el.click());
+          log('Clique forçado via JavaScript');
+          
+          // Também tentar clique normal
+          await btnEntrar.click({ force: true }).catch(() => {});
+        } else {
+          // Fallback: clicar por posição ou pressionar Enter
+          await page.click('button:has-text("Entrar")', { force: true }).catch(async () => {
+            await page.keyboard.press('Enter');
+            log('Pressionando Enter para submeter');
+          });
+        }
+        
+        await page.waitForTimeout(3000);
+        await page.waitForLoadState('networkidle').catch(() => {});
+        
+        // Verificar se saiu da página de login
+        const aindaNaLogin = await page.$('input[type="password"]');
+        if (!aindaNaLogin) {
+          loginSucesso = true;
+          log(`Login bem sucedido na tentativa ${tentativa}!`);
+          break;
+        }
+        
+        // Ainda na página de login, verificar se há mensagem de erro
+        const erroMsg = await page.$eval('.alert-danger, .error, .erro, .message-error', el => el.textContent).catch(() => null);
+        if (erroMsg) {
+          log(`Erro detectado: ${erroMsg}`);
+        }
+        
+        log(`Tentativa ${tentativa} falhou - ainda na página de login`);
+        await page.waitForTimeout(1000);
+        
+      } catch (err) {
+        log(`Erro na tentativa ${tentativa}: ${err.message}`);
+      }
     }
     
-    await page.waitForTimeout(5000);
-    await page.waitForLoadState('networkidle');
-    
-    // Tirar screenshot após tentativa de login
     await page.screenshot({ path: 'debug_apos_login.png' });
     
-    // Verificar se ainda está na página de login (login falhou)
-    const aindaNaLogin = await page.$('input[type="password"]');
-    if (aindaNaLogin) {
-      log('AVISO: Ainda na página de login - verificando erros...');
-      const erroMsg = await page.$eval('.alert-danger, .error, .erro', el => el.textContent).catch(() => null);
-      if (erroMsg) {
-        log(`Erro de login: ${erroMsg}`);
-      }
-      throw new Error('Login falhou - ainda na página de login');
+    if (!loginSucesso) {
+      throw new Error(`Login falhou após ${MAX_TENTATIVAS} tentativas`);
     }
     
     // Verificar se apareceu outro modal após login e fechar
