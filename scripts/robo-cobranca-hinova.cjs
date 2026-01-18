@@ -900,47 +900,172 @@ async function rodarRobo() {
       fs.mkdirSync(downloadPath, { recursive: true });
     }
     
-    // Esperar pelo download ao clicar em Gerar
-    const downloadPromise = page.waitForEvent('download', { timeout: 120000 });
-    
-    // 6. Gerar relatório (vai baixar Excel)
-    log('Gerando relatório Excel...');
-    await page.click('input[type="submit"]:has-text("Gerar"), button:has-text("Gerar"), .btn-gerar, input[value="Gerar"]');
+    // Configurações de timeout para download (Excel pode demorar muito)
+    const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos
+    const DOWNLOAD_CHECK_INTERVAL_MS = 5000; // Verificar a cada 5 segundos
+    const MAX_DOWNLOAD_RETRIES = 3;
     
     let dados = [];
     let nomeArquivoFinal = '';
+    let downloadSucesso = false;
     
-    try {
-      // Aguardar download
-      const download = await downloadPromise;
-      nomeArquivoFinal = download.suggestedFilename() || `Hinova_${fim.replace(/\//g, '-')}.xlsx`;
-      const filePath = path.join(downloadPath, nomeArquivoFinal);
+    for (let tentativaDownload = 1; tentativaDownload <= MAX_DOWNLOAD_RETRIES && !downloadSucesso; tentativaDownload++) {
+      log(`Tentativa de download ${tentativaDownload}/${MAX_DOWNLOAD_RETRIES}...`);
       
-      log(`Download iniciado: ${nomeArquivoFinal}`);
-      await download.saveAs(filePath);
-      log(`Arquivo salvo em: ${filePath}`);
-      
-      // Processar Excel
-      dados = processarExcel(filePath);
-      
-      // Limpar arquivo após processar
       try {
-        fs.unlinkSync(filePath);
-        log('Arquivo temporário removido');
-      } catch (e) {
-        log('Aviso: não foi possível remover arquivo temporário');
+        // Criar promise de download com timeout estendido
+        const downloadPromise = page.waitForEvent('download', { timeout: DOWNLOAD_TIMEOUT_MS });
+        
+        // 6. Gerar relatório (vai baixar Excel)
+        log('Clicando em Gerar relatório Excel...');
+        
+        // Tentar diferentes seletores para o botão Gerar
+        const botoesGerar = [
+          'input[type="submit"][value*="Gerar"]',
+          'button:has-text("Gerar")',
+          'input[type="button"][value*="Gerar"]',
+          '.btn-gerar',
+          'input[value="Gerar"]',
+          'input[value="Gerar Relatório"]',
+          'button:has-text("Gerar Relatório")',
+        ];
+        
+        let clicouBotao = false;
+        for (const seletor of botoesGerar) {
+          try {
+            const botao = await page.$(seletor);
+            if (botao && await botao.isVisible()) {
+              await botao.click();
+              log(`Clicou no botão: ${seletor}`);
+              clicouBotao = true;
+              break;
+            }
+          } catch (e) {
+            // Continuar tentando
+          }
+        }
+        
+        if (!clicouBotao) {
+          // Fallback via JavaScript
+          await page.evaluate(() => {
+            const inputs = document.querySelectorAll('input[type="submit"], input[type="button"], button');
+            for (const el of inputs) {
+              const texto = (el.value || el.textContent || '').toLowerCase();
+              if (texto.includes('gerar')) {
+                el.click();
+                return true;
+              }
+            }
+            return false;
+          });
+          log('Clicou no botão via JavaScript');
+        }
+        
+        // Monitorar o download com feedback periódico
+        log('Aguardando download iniciar (isso pode demorar vários minutos)...');
+        
+        let tempoEsperado = 0;
+        const monitoramentoInterval = setInterval(() => {
+          tempoEsperado += DOWNLOAD_CHECK_INTERVAL_MS;
+          const minutos = Math.floor(tempoEsperado / 60000);
+          const segundos = Math.floor((tempoEsperado % 60000) / 1000);
+          log(`⏳ Aguardando download... ${minutos}m ${segundos}s`);
+        }, DOWNLOAD_CHECK_INTERVAL_MS);
+        
+        try {
+          // Aguardar download com timeout estendido
+          const download = await downloadPromise;
+          clearInterval(monitoramentoInterval);
+          
+          nomeArquivoFinal = download.suggestedFilename() || `Hinova_${fim.replace(/\//g, '-')}.xlsx`;
+          const filePath = path.join(downloadPath, nomeArquivoFinal);
+          
+          log(`✅ Download iniciado: ${nomeArquivoFinal}`);
+          
+          // Monitorar o progresso do salvamento
+          log('Salvando arquivo (pode demorar para arquivos grandes)...');
+          const saveStartTime = Date.now();
+          
+          await download.saveAs(filePath);
+          
+          const saveEndTime = Date.now();
+          const saveDuration = Math.round((saveEndTime - saveStartTime) / 1000);
+          log(`✅ Arquivo salvo em ${saveDuration}s: ${filePath}`);
+          
+          // Verificar se o arquivo foi salvo corretamente
+          if (fs.existsSync(filePath)) {
+            const stats = fs.statSync(filePath);
+            log(`Tamanho do arquivo: ${(stats.size / 1024).toFixed(2)} KB`);
+            
+            if (stats.size < 100) {
+              log('⚠️ Arquivo muito pequeno, pode estar vazio ou com erro');
+              throw new Error('Arquivo baixado está vazio ou corrompido');
+            }
+            
+            // Processar Excel
+            dados = processarExcel(filePath);
+            
+            // Limpar arquivo após processar
+            try {
+              fs.unlinkSync(filePath);
+              log('Arquivo temporário removido');
+            } catch (e) {
+              log('Aviso: não foi possível remover arquivo temporário');
+            }
+            
+            downloadSucesso = true;
+            
+          } else {
+            throw new Error('Arquivo não foi salvo corretamente');
+          }
+          
+        } catch (downloadError) {
+          clearInterval(monitoramentoInterval);
+          throw downloadError;
+        }
+        
+      } catch (downloadError) {
+        log(`❌ Erro no download (tentativa ${tentativaDownload}): ${downloadError.message}`);
+        
+        if (tentativaDownload < MAX_DOWNLOAD_RETRIES) {
+          log('Aguardando antes de tentar novamente...');
+          await page.waitForTimeout(5000);
+          
+          // Tirar screenshot para debug
+          await page.screenshot({ path: `debug_download_retry_${tentativaDownload}.png` });
+          
+          // Fechar popups que possam ter aparecido
+          await fecharPopups(page);
+          
+          // Recarregar a página e preencher filtros novamente se necessário
+          log('Verificando estado da página...');
+          const urlAtual = page.url();
+          if (!urlAtual.includes('relatorioBoleto')) {
+            log('Página mudou, recarregando relatório...');
+            await page.goto(CONFIG.HINOVA_RELATORIO_URL, { 
+              waitUntil: 'domcontentloaded',
+              timeout: 90000
+            });
+            await fecharPopups(page);
+            await page.waitForTimeout(3000);
+            
+            // Re-preencher filtros básicos
+            const dataInicioInput = await page.$('input[name*="data_inicio"], input[name*="vencimento_inicial"], input[name*="dt_vencimento_original_ini"]');
+            if (dataInicioInput) await dataInicioInput.fill(inicio);
+            
+            const dataFimInput = await page.$('input[name*="data_fim"], input[name*="vencimento_final"], input[name*="dt_vencimento_original_fim"]');
+            if (dataFimInput) await dataFimInput.fill(fim);
+          }
+        }
       }
-      
-    } catch (downloadError) {
-      log(`Download não iniciou ou falhou: ${downloadError.message}`);
-      log('Tentando extrair dados da página...');
-      
-      await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {});
-      await page.waitForTimeout(5000);
+    }
+    
+    if (!downloadSucesso) {
+      log('❌ Download falhou após todas as tentativas');
       await page.screenshot({ path: 'debug_apos_gerar.png' });
       
       // Fallback: tentar extrair da tabela HTML se Excel falhar
-      log('AVISO: Fallback para extração HTML (não recomendado)');
+      log('AVISO: Download de Excel falhou. Verifique os screenshots para debug.');
       return false;
     }
     
