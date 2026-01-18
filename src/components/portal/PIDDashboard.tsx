@@ -964,17 +964,28 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <YAxis tick={{ fontSize: 11 }} />
                         <Tooltip content={<DefaultTooltipContent />} />
                         <Legend />
-                        <Bar dataKey="total_associados" name="Total Associados" fill="#8b5cf6" radius={[4, 4, 0, 0]}>
-                          <LabelList
-                            dataKey="total_associados"
-                            position="insideTop"
-                            offset={8}
-                            fontSize={9}
-                            fontWeight={600}
-                            fill="#ffffff"
-                            formatter={(v: number) => v?.toLocaleString("pt-BR")}
-                          />
-                        </Bar>
+                        <Bar 
+                          dataKey="total_associados" 
+                          name="Total Associados" 
+                          fill="#8b5cf6" 
+                          radius={[4, 4, 0, 0]}
+                          label={({ x, y, value, index, width }: { x: number; y: number; value: number; index: number; width: number }) => {
+                            // Mostrar apenas a cada 2 pontos para evitar sobreposição
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text
+                                x={x + width / 2}
+                                y={y - 8}
+                                textAnchor="middle"
+                                fontSize={10}
+                                fontWeight={500}
+                                fill="#8b5cf6"
+                              >
+                                {value?.toLocaleString("pt-BR")}
+                              </text>
+                            );
+                          }}
+                        />
 
                       </BarChart>
                     </ResponsiveContainer>
