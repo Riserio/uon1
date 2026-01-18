@@ -295,6 +295,25 @@ async function rodarRobo() {
     await page.waitForTimeout(500);
     await page.screenshot({ path: 'debug_campos_preenchidos.png' });
     
+    // IMPORTANTE: Clicar no campo de autenticação e depois fora para validar que está vazio
+    log('Validando dispensa de código de autenticação...');
+    try {
+      // Clicar no campo de código de autenticação
+      const campoAuth = await page.$('input[placeholder*="Autenticação"], input[placeholder*="autenticação"]');
+      if (campoAuth) {
+        await campoAuth.click();
+        log('Clicou no campo de autenticação');
+        await page.waitForTimeout(300);
+        
+        // Clicar fora (no body ou em outro elemento) para validar
+        await page.click('body', { position: { x: 10, y: 10 } }).catch(() => {});
+        log('Clicou fora para validar dispensa');
+        await page.waitForTimeout(300);
+      }
+    } catch (e) {
+      log(`Erro ao validar campo auth: ${e.message}`);
+    }
+    
     // Clicar no botão Entrar - com retry de até 5 tentativas (bug conhecido)
     let loginSucesso = false;
     const MAX_TENTATIVAS = 5;
