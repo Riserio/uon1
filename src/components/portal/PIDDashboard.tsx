@@ -923,18 +923,24 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                           name="Placas Ativas"
                           stroke="#2563eb"
                           strokeWidth={2.5}
-                          dot={{ r: 3 }}
-                        >
-                          <LabelList
-                            dataKey="placas_ativas"
-                            position="top"
-                            angle={-90}
-                            offset={12}
-                            fontSize={9}
-                            fill="#2563eb"
-                            formatter={(v: number) => v.toLocaleString("pt-BR")}
-                          />
-                        </Line>
+                          dot={{ r: 4, fill: "#2563eb" }}
+                          label={({ x, y, value, index }: { x: number; y: number; value: number; index: number }) => {
+                            // Mostrar apenas a cada 2 pontos para evitar sobreposição
+                            if (index % 2 !== 0 && index !== chartData.length - 1) return null;
+                            return (
+                              <text
+                                x={x}
+                                y={y - 10}
+                                textAnchor="middle"
+                                fontSize={10}
+                                fontWeight={500}
+                                fill="#2563eb"
+                              >
+                                {value?.toLocaleString("pt-BR")}
+                              </text>
+                            );
+                          }}
+                        />
 
                       </LineChart>
                     </ResponsiveContainer>
@@ -961,12 +967,12 @@ export default function PIDDashboard({ corretoraId }: PIDDashboardProps) {
                         <Bar dataKey="total_associados" name="Total Associados" fill="#8b5cf6" radius={[4, 4, 0, 0]}>
                           <LabelList
                             dataKey="total_associados"
-                            position="top"
-                            angle={-90}
-                            offset={12}
+                            position="insideTop"
+                            offset={8}
                             fontSize={9}
-                            fill="#8b5cf6"
-                            formatter={(v: number) => v.toLocaleString("pt-BR")}
+                            fontWeight={600}
+                            fill="#ffffff"
+                            formatter={(v: number) => v?.toLocaleString("pt-BR")}
                           />
                         </Bar>
 
