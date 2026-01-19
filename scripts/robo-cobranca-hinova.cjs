@@ -416,8 +416,16 @@ async function rodarRobo() {
   log(`Período: ${inicio} até ${fim}`);
   
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ acceptDownloads: true });
   const page = await context.newPage();
+
+  // Debug: logar qualquer aba/pop-up criado pelo Hinova
+  context.on('page', async (p) => {
+    try {
+      await p.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+      log(`(debug) Nova aba/page criada: ${p.url() || 'carregando...'}`);
+    } catch {}
+  });
   
   try {
     // 1. Acessar página de login com retry
@@ -968,8 +976,11 @@ async function rodarRobo() {
       fs.mkdirSync(downloadPath, { recursive: true });
     }
     
-    // Configurações de timeout para download (Excel pode demorar muito - sistema Hinova é lento)
-    const DOWNLOAD_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutos para downloads grandes
+    // Configurações de timeout para download
+    // - Evento de download deve aparecer relativamente rápido; se não aparecer, geralmente é bloqueio/flow do Hinova
+    // - Salvamento do arquivo pode demorar se o relatório for grande
+    const DOWNLOAD_EVENT_TIMEOUT_MS = 6 * 60 * 1000; // 6 min para o evento de download aparecer
+    const DOWNLOAD_SAVE_TIMEOUT_MS = 20 * 60 * 1000; // 20 min para salvar arquivo grande
     const DOWNLOAD_CHECK_INTERVAL_MS = 10000; // Verificar a cada 10 segundos
     const MAX_DOWNLOAD_RETRIES = 3;
     
@@ -1003,15 +1014,46 @@ async function rodarRobo() {
         // Promises precisam ser criadas ANTES do clique para não perder eventos rápidos
         // - download: pode iniciar na nova aba instantaneamente
         // - page: Hinova abre uma nova aba (geraRelatorioBoleto.php)
-        const downloadPromise = context.waitForEvent('download', {
-          timeout: DOWNLOAD_TIMEOUT_MS,
-          predicate: (d) => {
-            const name = (d.suggestedFilename?.() || '').toLowerCase();
-            return name.endsWith('.xlsx') || name.endsWith('.xls') || name.includes('relatorio');
-          },
-        });
+        const downloadPromise = context
+          .waitForEvent('download', { timeout: DOWNLOAD_EVENT_TIMEOUT_MS })
+          .catch(() => null);
 
-        // Não aguardamos aqui para não bloquear; é só para debug/screenshot
+        // Popup costuma ser aberto a partir da página principal (window.open)
+        // Não aguardamos aqui para não bloquear; é só para debug/screenshot e para tentar forçar o start do download
+        const popupPromise = page
+          .waitForEvent('popup', { timeout: 60000 })
+          .then(async (popup) => {
+            try {
+              await popup.waitForLoadState('domcontentloaded', { timeout: 60000 }).catch(() => {});
+              log(`Popup detectado: ${popup.url() || 'carregando...'}`);
+              await popup.screenshot({ path: 'debug_nova_aba.png' }).catch(() => {});
+
+              // Alguns fluxos exigem um clique extra no popup para iniciar o download
+              const seletoresDownload = [
+                'a[href*=".xlsx"]',
+                'a[href*=".xls"]',
+                'a:has-text("Baixar")',
+                'button:has-text("Baixar")',
+                'a:has-text("Download")',
+                'button:has-text("Download")',
+                'a:has-text("Export")',
+                'button:has-text("Export")',
+              ];
+
+              for (const s of seletoresDownload) {
+                const el = await popup.$(s).catch(() => null);
+                if (el && (await el.isVisible().catch(() => false))) {
+                  await el.click({ timeout: 3000 }).catch(() => {});
+                  log(`(debug) Clique extra no popup para iniciar download: ${s}`);
+                  break;
+                }
+              }
+            } catch {}
+            return popup;
+          })
+          .catch(() => null);
+
+        // Alternativa: alguns casos abrem como uma nova page no contexto
         const newPagePromise = context
           .waitForEvent('page', { timeout: 60000 })
           .then(async (newPage) => {
@@ -1055,7 +1097,13 @@ async function rodarRobo() {
           });
           log('Clicou no botão via JavaScript');
         }
-        
+        // Dar um pequeno tempo para o Hinova abrir a nova aba/popup (sem bloquear o download)
+        await Promise.race([
+          popupPromise,
+          newPagePromise,
+          page.waitForTimeout(1500).then(() => null),
+        ]);
+
         // Monitorar o download com feedback periódico
         log('Aguardando download (pode demorar - nova aba será aberta)...');
         
@@ -1070,19 +1118,31 @@ async function rodarRobo() {
         try {
           // Aguardar download (independente da aba que iniciou)
           const download = await downloadPromise;
+          if (!download) {
+            throw new Error('Timeout aguardando evento de download do Excel (Hinova não iniciou o download)');
+          }
+
           clearInterval(monitoramentoInterval);
 
           nomeArquivoFinal = download.suggestedFilename() || `Hinova_${fim.replace(/\//g, '-')}.xlsx`;
           const filePath = path.join(downloadPath, nomeArquivoFinal);
-          
+
           log(`✅ Download capturado: ${nomeArquivoFinal}`);
-          
+
           // Monitorar o progresso do salvamento
           log('Salvando arquivo (pode demorar para arquivos grandes)...');
           const saveStartTime = Date.now();
-          
-          await download.saveAs(filePath);
-          
+
+          await Promise.race([
+            download.saveAs(filePath),
+            new Promise((_, reject) =>
+              setTimeout(
+                () => reject(new Error('Timeout ao salvar o arquivo de download')),
+                DOWNLOAD_SAVE_TIMEOUT_MS
+              )
+            ),
+          ]);
+
           const saveEndTime = Date.now();
           const saveDuration = Math.round((saveEndTime - saveStartTime) / 1000);
           log(`✅ Arquivo salvo em ${saveDuration}s: ${filePath}`);
