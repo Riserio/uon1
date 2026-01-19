@@ -30,16 +30,13 @@ jobs:
       - name: Executar robô de cobrança
         env:
           HINOVA_URL: ${{ secrets.HINOVA_URL }}
-          HINOVA_CLIENT_CODE: ${{ secrets.HINOVA_CLIENT_CODE }}
           HINOVA_USER: ${{ secrets.HINOVA_USER }}
           HINOVA_PASS: ${{ secrets.HINOVA_PASS }}
-          # Opcional (se o portal exigir 2FA):
-          HINOVA_TOTP_SECRET: ${{ secrets.HINOVA_TOTP_SECRET }}
-          HINOVA_MFA_CODE: ${{ secrets.HINOVA_MFA_CODE }}
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
           WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
           CORRETORA_ID: ${{ secrets.CORRETORA_ID }}
         run: node scripts/robo-cobranca-hinova.cjs
+      
       - name: Upload screenshots de debug (se houver)
         if: always()
         uses: actions/upload-artifact@v4
@@ -47,8 +44,11 @@ jobs:
           name: debug-screenshots
           path: |
             erro_hinova.png
-            debug_*.png
-            scripts/downloads/*.xlsx
-            scripts/downloads/*.xls
+            debug_hinova.png
+            debug_apos_login.png
+            debug_filtros.png
+            debug_apos_gerar.png
+            debug_nova_aba.png
+            debug_download_retry_*.png
           if-no-files-found: ignore
           retention-days: 7
