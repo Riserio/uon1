@@ -44,15 +44,8 @@ jobs:
           name: debug-screenshots
           path: |
             erro_hinova.png
-            debug_hinova.png
-            debug_apos_login.png
-            debug_filtros.png
-            debug_apos_gerar.png
-            debug_nova_aba.png
-            debug_relatorio.png
-            debug_tabela.png
-            debug_sem_dados.png
-            debug_html.html
-            debug_download_retry_*.png
+            debug_*.png
+            scripts/downloads/*.xlsx
+            scripts/downloads/*.xls
           if-no-files-found: ignore
           retention-days: 7
