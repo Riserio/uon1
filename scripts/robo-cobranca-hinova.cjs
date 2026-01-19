@@ -416,7 +416,10 @@ async function rodarRobo() {
   log(`Período: ${inicio} até ${fim}`);
   
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
+  const context = await browser.newContext({
+    // Importante: sem isso o Playwright pode não emitir evento de download em alguns ambientes
+    acceptDownloads: true,
+  });
   const page = await context.newPage();
   
   try {
@@ -968,8 +971,11 @@ async function rodarRobo() {
       fs.mkdirSync(downloadPath, { recursive: true });
     }
     
-    // Configurações de timeout para download (Excel pode demorar muito - sistema Hinova é lento)
-    const DOWNLOAD_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutos para downloads grandes
+    // Configurações de timeout para download
+    // - O evento de download deve aparecer rápido (mesmo que o arquivo demore para salvar)
+    // - O salvamento pode demorar (arquivo grande / portal lento)
+    const DOWNLOAD_EVENT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos para o evento de download aparecer
+    const DOWNLOAD_SAVE_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutos para salvar o arquivo (pior caso)
     const DOWNLOAD_CHECK_INTERVAL_MS = 10000; // Verificar a cada 10 segundos
     const MAX_DOWNLOAD_RETRIES = 3;
     
@@ -1003,15 +1009,23 @@ async function rodarRobo() {
         // Promises precisam ser criadas ANTES do clique para não perder eventos rápidos
         // - download: pode iniciar na nova aba instantaneamente
         // - page: Hinova abre uma nova aba (geraRelatorioBoleto.php)
+        // Capturar o PRIMEIRO download após o clique.
+        // IMPORTANTE: o Hinova às vezes sugere um filename sem extensão/"relatorio".
+        // Se colocarmos predicate, podemos perder o evento e ficar esperando para sempre.
         const downloadPromise = context.waitForEvent('download', {
-          timeout: DOWNLOAD_TIMEOUT_MS,
-          predicate: (d) => {
-            const name = (d.suggestedFilename?.() || '').toLowerCase();
-            return name.endsWith('.xlsx') || name.endsWith('.xls') || name.includes('relatorio');
-          },
+          timeout: DOWNLOAD_EVENT_TIMEOUT_MS,
         });
 
-        // Não aguardamos aqui para não bloquear; é só para debug/screenshot
+        // Log rápido caso o evento dispare (ajuda a ver o filename real no Actions)
+        context.once('download', (d) => {
+          try {
+            log(`📥 Evento de download detectado: ${d.suggestedFilename()}`);
+          } catch {
+            log('📥 Evento de download detectado');
+          }
+        });
+
+        // Não aguardamos aqui para não bloquear; é só para debug/screenshot e tentativa de “desencadear” download
         const newPagePromise = context
           .waitForEvent('page', { timeout: 60000 })
           .then(async (newPage) => {
@@ -1019,6 +1033,38 @@ async function rodarRobo() {
               await newPage.waitForLoadState('domcontentloaded', { timeout: 60000 }).catch(() => {});
               log(`Nova aba detectada: ${newPage.url() || 'carregando...'}`);
               await newPage.screenshot({ path: 'debug_nova_aba.png' }).catch(() => {});
+
+              // Em alguns cenários o Hinova abre a aba e só então “dispara” o download via botão/link.
+              await fecharPopups(newPage).catch(() => {});
+
+              const seletoresDisparoDownload = [
+                'a[href*=".xlsx"]',
+                'a[href*=".xls"]',
+                'a[href*="xlsx"]',
+                'a[href*="xls"]',
+                'button:has-text("Baixar")',
+                'button:has-text("Download")',
+                'button:has-text("Exportar")',
+                'a:has-text("Baixar")',
+                'a:has-text("Download")',
+                'a:has-text("Exportar")',
+                'input[value*="Baixar"]',
+                'input[value*="Download"]',
+                'input[value*="Exportar"]',
+              ];
+
+              for (const sel of seletoresDisparoDownload) {
+                try {
+                  const el = await newPage.$(sel);
+                  if (el && (await el.isVisible().catch(() => false))) {
+                    await el.click({ force: true }).catch(() => {});
+                    log(`Tentou disparar download na nova aba via: ${sel}`);
+                    break;
+                  }
+                } catch {
+                  // ignore
+                }
+              }
             } catch {}
             return newPage;
           })
@@ -1072,7 +1118,16 @@ async function rodarRobo() {
           const download = await downloadPromise;
           clearInterval(monitoramentoInterval);
 
-          nomeArquivoFinal = download.suggestedFilename() || `Hinova_${fim.replace(/\//g, '-')}.xlsx`;
+          const suggested = (typeof download.suggestedFilename === 'function'
+            ? download.suggestedFilename()
+            : '') || '';
+
+          const suggestedLower = suggested.toLowerCase();
+          const suggestedOk = suggestedLower.endsWith('.xlsx') || suggestedLower.endsWith('.xls');
+
+          nomeArquivoFinal = suggestedOk
+            ? suggested
+            : `Hinova_${fim.replace(/\//g, '-')}.xlsx`;
           const filePath = path.join(downloadPath, nomeArquivoFinal);
           
           log(`✅ Download capturado: ${nomeArquivoFinal}`);
@@ -1081,7 +1136,15 @@ async function rodarRobo() {
           log('Salvando arquivo (pode demorar para arquivos grandes)...');
           const saveStartTime = Date.now();
           
-          await download.saveAs(filePath);
+          await Promise.race([
+            download.saveAs(filePath),
+            new Promise((_, reject) =>
+              setTimeout(
+                () => reject(new Error('Timeout ao salvar o arquivo baixado')),
+                DOWNLOAD_SAVE_TIMEOUT_MS
+              )
+            ),
+          ]);
           
           const saveEndTime = Date.now();
           const saveDuration = Math.round((saveEndTime - saveStartTime) / 1000);
