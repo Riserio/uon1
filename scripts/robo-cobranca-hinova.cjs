@@ -415,9 +415,21 @@ async function rodarRobo() {
   const { inicio, fim } = getDateRange();
   log(`Período: ${inicio} até ${fim}`);
   
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--disable-popup-blocking'],
+  });
   const context = await browser.newContext({ acceptDownloads: true });
   const page = await context.newPage();
+
+  // Debug: qualquer download disparado em qualquer aba
+  context.on('download', (d) => {
+    try {
+      const name = d.suggestedFilename?.() || 'arquivo';
+      const url = (d.url?.() || '').slice(0, 180);
+      log(`(debug) Evento de download: ${name} | ${url}`);
+    } catch {}
+  });
 
   // Debug: logar qualquer aba/pop-up criado pelo Hinova
   context.on('page', async (p) => {
@@ -426,7 +438,7 @@ async function rodarRobo() {
       log(`(debug) Nova aba/page criada: ${p.url() || 'carregando...'}`);
     } catch {}
   });
-  
+
   try {
     // 1. Acessar página de login com retry
     log('Acessando portal Hinova...');
@@ -999,18 +1011,61 @@ async function rodarRobo() {
         
         // 6. Gerar relatório (vai abrir nova aba e baixar Excel)
         log('Clicando em Gerar relatório Excel...');
-        
-        // Tentar diferentes seletores para o botão Gerar
-        const botoesGerar = [
-          'input[type="submit"][value*="Gerar"]',
-          'button:has-text("Gerar")',
-          'input[type="button"][value*="Gerar"]',
-          '.btn-gerar',
-          'input[value="Gerar"]',
-          'input[value="Gerar Relatório"]',
-          'button:has-text("Gerar Relatório")',
-        ];
-        
+
+        // IMPORTANTE: no Hinova o botão pode estar dentro de iframe.
+        // Se a gente "clica via JS" (evaluate), o portal pode bloquear o window.open/download.
+        // Portanto, buscamos e clicamos com Playwright (clique "real") em qualquer frame.
+        const clicarGerarEmQualquerFrame = async () => {
+          const tentarNoFrame = async (frame) => {
+            // getByRole('button') cobre <button> e <input type=submit/button> usando o value como name
+            const byRole = frame.getByRole('button', { name: /gerar/i });
+            const count = await byRole.count().catch(() => 0);
+            for (let i = 0; i < count; i++) {
+              const el = byRole.nth(i);
+              const visible = await el.isVisible().catch(() => false);
+              if (!visible) continue;
+
+              const enabled = await el.isEnabled().catch(() => true);
+              if (!enabled) continue;
+
+              await el.click({ timeout: 15000, force: true });
+              return `role=button name~/gerar/i (frame: ${frame.url() || 'main'})`;
+            }
+
+            // Fallback: alguns portais usam input[type=image] ou value/alt diferentes
+            const inputs = frame.locator('input[type="submit"], input[type="button"], input[type="image"]');
+            const ic = await inputs.count().catch(() => 0);
+            for (let i = 0; i < ic; i++) {
+              const el = inputs.nth(i);
+              const visible = await el.isVisible().catch(() => false);
+              if (!visible) continue;
+
+              const value = (await el.getAttribute('value').catch(() => '')) || '';
+              const alt = (await el.getAttribute('alt').catch(() => '')) || '';
+              const label = `${value} ${alt}`.toLowerCase();
+              if (label.includes('gerar')) {
+                await el.click({ timeout: 15000, force: true });
+                return `input gerar (value="${value}", alt="${alt}") (frame: ${frame.url() || 'main'})`;
+              }
+            }
+
+            return null;
+          };
+
+          // primeiro tenta no frame principal
+          const mainClicked = await tentarNoFrame(page.mainFrame());
+          if (mainClicked) return mainClicked;
+
+          // depois varre iframes
+          for (const frame of page.frames()) {
+            if (frame === page.mainFrame()) continue;
+            const clicked = await tentarNoFrame(frame);
+            if (clicked) return clicked;
+          }
+
+          return null;
+        };
+
         // Promises precisam ser criadas ANTES do clique para não perder eventos rápidos
         // - download: pode iniciar na nova aba instantaneamente
         // - page: Hinova abre uma nova aba (geraRelatorioBoleto.php)
@@ -1066,37 +1121,38 @@ async function rodarRobo() {
           })
           .catch(() => null);
 
-        // Clicar no botão Gerar
-        let clicouBotao = false;
-        for (const seletor of botoesGerar) {
-          try {
-            const botao = await page.$(seletor);
-            if (botao && await botao.isVisible()) {
-              await botao.click();
-              log(`Clicou no botão: ${seletor}`);
-              clicouBotao = true;
-              break;
-            }
-          } catch (e) {
-            // Continuar tentando
-          }
+        // Clique "real" no botão Gerar
+        await page.screenshot({ path: 'debug_antes_gerar.png' }).catch(() => {});
+        const clickInfo = await clicarGerarEmQualquerFrame();
+        if (!clickInfo) {
+          await page.screenshot({ path: 'erro_hinova.png' }).catch(() => {});
+
+          // Log básico de diagnóstico (não depende de iframe)
+          const diag = await page
+            .evaluate(() => {
+              const els = Array.from(document.querySelectorAll('button, input, a'));
+              const mapped = els
+                .map((el) => {
+                  const tag = el.tagName.toLowerCase();
+                  const type = el.getAttribute('type') || '';
+                  const value = el.getAttribute('value') || '';
+                  const text = (el.textContent || '').trim();
+                  const alt = el.getAttribute('alt') || '';
+                  const label = `${value} ${text} ${alt}`.trim();
+                  return { tag, type, label: label.slice(0, 80) };
+                })
+                .filter((x) => x.label.toLowerCase().includes('gerar'))
+                .slice(0, 30);
+              return mapped;
+            })
+            .catch(() => []);
+
+          log(`(debug) Elementos com 'gerar' no DOM principal: ${JSON.stringify(diag)}`);
+          throw new Error('Botão "Gerar" não encontrado/clicável (provável iframe ou layout mudou).');
         }
-        
-        if (!clicouBotao) {
-          // Fallback via JavaScript
-          await page.evaluate(() => {
-            const inputs = document.querySelectorAll('input[type="submit"], input[type="button"], button');
-            for (const el of inputs) {
-              const texto = (el.value || el.textContent || '').toLowerCase();
-              if (texto.includes('gerar')) {
-                el.click();
-                return true;
-              }
-            }
-            return false;
-          });
-          log('Clicou no botão via JavaScript');
-        }
+
+        log(`Clicou no botão Gerar: ${clickInfo}`);
+
         // Dar um pequeno tempo para o Hinova abrir a nova aba/popup (sem bloquear o download)
         await Promise.race([
           popupPromise,
