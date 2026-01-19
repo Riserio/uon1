@@ -20,6 +20,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
+const crypto = require('crypto');
 
 // ============================================
 // CONFIGURAÇÃO
@@ -28,12 +29,20 @@ const XLSX = require('xlsx');
 const CONFIG = {
   HINOVA_URL: process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php',
   HINOVA_RELATORIO_URL: 'https://eris.hinova.com.br/sga/sgav4_valecar/relatorio/relatorioBoleto.php',
+  HINOVA_CLIENT_CODE: process.env.HINOVA_CLIENT_CODE || '2363',
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
+
+  // Se o portal exigir MFA/2FA, configure um destes:
+  // - HINOVA_MFA_CODE: código já pronto (6 dígitos)
+  // - HINOVA_TOTP_SECRET: segredo base32 para gerar TOTP automaticamente
+  HINOVA_MFA_CODE: process.env.HINOVA_MFA_CODE || '',
+  HINOVA_TOTP_SECRET: process.env.HINOVA_TOTP_SECRET || '',
+
   WEBHOOK_URL: process.env.WEBHOOK_URL || '',
   WEBHOOK_SECRET: process.env.WEBHOOK_SECRET || '',
   CORRETORA_ID: process.env.CORRETORA_ID || 'a4931643-8bf1-4153-97b1-c64925f536eb',
-  
+
   // Configurações de download
   DOWNLOAD_TIMEOUT_MS: 600000, // 10 minutos para arquivos grandes
   DOWNLOAD_POLL_INTERVAL_MS: 2000, // Verificar a cada 2 segundos
@@ -263,6 +272,51 @@ function parseNumber(value) {
   return isNaN(parsed) ? null : parsed;
 }
 
+// ============================================
+// MFA / TOTP (quando o portal exigir 2FA)
+// ============================================
+
+function base32ToBuffer(secret) {
+  if (!secret) return Buffer.alloc(0);
+
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const clean = secret.toUpperCase().replace(/[^A-Z2-7]/g, '');
+
+  let bits = 0;
+  let value = 0;
+  const output = [];
+
+  for (const char of clean) {
+    const idx = alphabet.indexOf(char);
+    if (idx === -1) continue;
+
+    value = (value << 5) | idx;
+    bits += 5;
+
+    if (bits >= 8) {
+      output.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+
+  return Buffer.from(output);
+}
+
+function gerarTotp(secretBase32, digits = 6, stepSeconds = 30) {
+  const key = base32ToBuffer(secretBase32);
+  if (!key || key.length === 0) return '';
+
+  const counter = Math.floor(Date.now() / 1000 / stepSeconds);
+  const buf = Buffer.alloc(8);
+  buf.writeBigUInt64BE(BigInt(counter));
+
+  const hmac = crypto.createHmac('sha1', key).update(buf).digest();
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const code = (hmac.readUInt32BE(offset) & 0x7fffffff) % (10 ** digits);
+
+  return String(code).padStart(digits, '0');
+}
+
 /**
  * Fecha qualquer popup/modal que aparecer
  */
@@ -460,42 +514,96 @@ async function rodarRobo() {
     log('Realizando login...');
     
     // Preencher campos de login
-    await page.evaluate(({ usuario, senha }) => {
-      const allInputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])'));
-      
-      if (allInputs.length >= 3) {
-        // Input 0: Código cliente
-        allInputs[0].value = '2363';
-        allInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
-        
-        // Input 1: Usuário
-        allInputs[1].value = usuario;
-        allInputs[1].dispatchEvent(new Event('input', { bubbles: true }));
-        
-        // Input 2: Senha
-        allInputs[2].value = senha;
-        allInputs[2].dispatchEvent(new Event('input', { bubbles: true }));
+    await page.evaluate(({ codigoCliente, usuario, senha }) => {
+      const isVisible = (el) => {
+        if (!el) return false;
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      };
+
+      const inputs = Array.from(document.querySelectorAll('input'))
+        .filter((i) => {
+          const type = (i.getAttribute('type') || 'text').toLowerCase();
+          if (type === 'hidden' || type === 'submit' || type === 'button') return false;
+          return isVisible(i);
+        });
+
+      const passwordInput = inputs.find((i) => (i.getAttribute('type') || '').toLowerCase() === 'password');
+      const textInputs = inputs.filter((i) => i !== passwordInput);
+
+      // Heurística: 1º campo visível (texto) costuma ser "Código cliente"
+      if (textInputs[0]) {
+        textInputs[0].value = codigoCliente;
+        textInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
       }
-    }, { usuario: CONFIG.HINOVA_USER, senha: CONFIG.HINOVA_PASS });
+
+      // Heurística: 2º campo visível (texto) costuma ser usuário
+      if (textInputs[1]) {
+        textInputs[1].value = usuario;
+        textInputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      if (passwordInput) {
+        passwordInput.value = senha;
+        passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }, { codigoCliente: CONFIG.HINOVA_CLIENT_CODE, usuario: CONFIG.HINOVA_USER, senha: CONFIG.HINOVA_PASS });
     
     await page.screenshot({ path: 'debug_antes_login.png' });
-    
-    // Helper para dispensar código de autenticação
-    const dispensarCodigoAutenticacao = async () => {
+
+    // Flags para detectar se o portal está exigindo 2FA
+    let campo2FADetectado = false;
+    let semCodigo2FA = false;
+    let avisou2FA = false;
+
+    // Se o portal solicitar "código de autenticação" (2FA), preencher automaticamente
+    const tratarCodigoAutenticacao = async () => {
       try {
-        const selector = 'input[placeholder*="Autenticação"], input[placeholder*="autenticação"]';
+        const selector = [
+          'input[placeholder*="Autenticação"]',
+          'input[placeholder*="autenticação"]',
+          'input[name*="autentic"]',
+          'input[id*="autentic"]',
+        ].join(', ');
+
         const campoAuth = await page.$(selector);
-        if (!campoAuth) return;
-        
-        await campoAuth.evaluate(el => {
-          el.value = '';
-          el.dispatchEvent(new Event('input', { bubbles: true }));
+        if (!campoAuth) return true;
+
+        const visivel = await campoAuth.isVisible().catch(() => false);
+        if (!visivel) return true;
+
+        campo2FADetectado = true;
+
+        let codigo = (CONFIG.HINOVA_MFA_CODE || '').trim();
+        if (!codigo && CONFIG.HINOVA_TOTP_SECRET) {
+          codigo = gerarTotp(CONFIG.HINOVA_TOTP_SECRET);
+        }
+
+        if (!codigo) {
+          semCodigo2FA = true;
+          if (!avisou2FA) {
+            log('⚠️ Campo de código de autenticação (2FA) detectado no login.');
+            log('   Vou tentar continuar SEM código (pode ser opcional).');
+            log('   Se falhar, configure HINOVA_TOTP_SECRET (base32) ou HINOVA_MFA_CODE (6 dígitos) nos secrets do workflow.');
+            avisou2FA = true;
+          }
+          return true;
+        }
+
+        await campoAuth.fill(String(codigo)).catch(async () => {
+          await campoAuth.evaluate((el, v) => {
+            el.value = v;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          }, String(codigo));
         });
-        await campoAuth.click({ force: true }).catch(() => {});
-        await page.click('body', { position: { x: 20, y: 20 }, force: true }).catch(() => {});
-        await page.keyboard.press('Escape').catch(() => {});
-        log('Código de autenticação dispensado');
-      } catch {}
+
+        log('Código de autenticação preenchido');
+        return true;
+      } catch {
+        return true;
+      }
     };
     
     // Clicar no botão Entrar com retry
@@ -515,7 +623,7 @@ async function rodarRobo() {
         }
         
         await page.waitForTimeout(1500);
-        await dispensarCodigoAutenticacao();
+        await tratarCodigoAutenticacao();
         await page.waitForTimeout(1000);
         
         // Segundo clique
@@ -549,6 +657,9 @@ async function rodarRobo() {
     await page.screenshot({ path: 'debug_apos_login.png' });
     
     if (!loginSucesso) {
+      if (campo2FADetectado && semCodigo2FA) {
+        throw new Error('Login falhou: o portal aparenta exigir 2FA. Configure HINOVA_TOTP_SECRET ou HINOVA_MFA_CODE.');
+      }
       throw new Error(`Login falhou após ${MAX_TENTATIVAS} tentativas`);
     }
     
