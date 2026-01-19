@@ -552,57 +552,43 @@ async function rodarRobo() {
     
     await page.screenshot({ path: 'debug_antes_login.png' });
 
-    // Flags para detectar se o portal está exigindo 2FA
-    let campo2FADetectado = false;
-    let semCodigo2FA = false;
-    let avisou2FA = false;
+    // Helper: detectar/limpar o campo de "código de autenticação" (quando aparecer)
+    const AUTH_FIELD_SELECTOR = [
+      'input[placeholder*="Autenticação"]',
+      'input[placeholder*="autenticação"]',
+      'input[name*="autentic"]',
+      'input[id*="autentic"]',
+    ].join(', ');
 
-    // Se o portal solicitar "código de autenticação" (2FA), preencher automaticamente
-    const tratarCodigoAutenticacao = async () => {
+    const getCampoAutenticacao = async () => {
+      const campo = await page.$(AUTH_FIELD_SELECTOR).catch(() => null);
+      if (!campo) return null;
+      const visivel = await campo.isVisible().catch(() => false);
+      return visivel ? campo : null;
+    };
+
+    // Regra solicitada: ao clicar em entrar, esse campo deve sumir; então limpamos e clicamos novamente.
+    const dispensarCodigoAutenticacao = async () => {
       try {
-        const selector = [
-          'input[placeholder*="Autenticação"]',
-          'input[placeholder*="autenticação"]',
-          'input[name*="autentic"]',
-          'input[id*="autentic"]',
-        ].join(', ');
+        const campo = await getCampoAutenticacao();
+        if (!campo) return false;
 
-        const campoAuth = await page.$(selector);
-        if (!campoAuth) return true;
-
-        const visivel = await campoAuth.isVisible().catch(() => false);
-        if (!visivel) return true;
-
-        campo2FADetectado = true;
-
-        let codigo = (CONFIG.HINOVA_MFA_CODE || '').trim();
-        if (!codigo && CONFIG.HINOVA_TOTP_SECRET) {
-          codigo = gerarTotp(CONFIG.HINOVA_TOTP_SECRET);
-        }
-
-        if (!codigo) {
-          semCodigo2FA = true;
-          if (!avisou2FA) {
-            log('⚠️ Campo de código de autenticação (2FA) detectado no login.');
-            log('   Vou tentar continuar SEM código (pode ser opcional).');
-            log('   Se falhar, configure HINOVA_TOTP_SECRET (base32) ou HINOVA_MFA_CODE (6 dígitos) nos secrets do workflow.');
-            avisou2FA = true;
-          }
-          return true;
-        }
-
-        await campoAuth.fill(String(codigo)).catch(async () => {
-          await campoAuth.evaluate((el, v) => {
-            el.value = v;
+        await campo.fill('').catch(async () => {
+          await campo.evaluate((el) => {
+            el.value = '';
             el.dispatchEvent(new Event('input', { bubbles: true }));
             el.dispatchEvent(new Event('change', { bubbles: true }));
-          }, String(codigo));
+          });
         });
 
-        log('Código de autenticação preenchido');
+        // Tirar foco e fechar eventuais overlays
+        await page.click('body', { position: { x: 20, y: 20 }, force: true }).catch(() => {});
+        await page.keyboard.press('Escape').catch(() => {});
+
+        log('Código de autenticação dispensado');
         return true;
       } catch {
-        return true;
+        return false;
       }
     };
     
@@ -614,17 +600,19 @@ async function rodarRobo() {
       log(`Tentativa ${tentativa}/${MAX_TENTATIVAS} - Clicando em Entrar...`);
       
       try {
-        const btnSelector = 'button:has-text("Entrar"), input[value="Entrar"], .btn-primary';
+        const btnSelector = 'button:has-text("Entrar"), input[type="submit"][value*="Entrar"], input[value="Entrar"], button[type="submit"], .btn-primary';
         const btnEntrar = await page.$(btnSelector);
         
         if (btnEntrar) {
-          await btnEntrar.evaluate(el => el.click());
+          await btnEntrar.evaluate(el => el.click()).catch(() => {});
           await btnEntrar.click({ force: true }).catch(() => {});
         }
         
-        await page.waitForTimeout(1500);
-        await tratarCodigoAutenticacao();
-        await page.waitForTimeout(1000);
+        // Após o primeiro clique, o portal costuma mostrar/limpar o campo de autenticação.
+        // Regra: dispensar (limpar) e clicar novamente até logar.
+        await page.waitForTimeout(1200);
+        const dispensado = await dispensarCodigoAutenticacao();
+        await page.waitForTimeout(dispensado ? 800 : 400);
         
         // Segundo clique
         const btn2 = await page.$(btnSelector);
@@ -657,9 +645,6 @@ async function rodarRobo() {
     await page.screenshot({ path: 'debug_apos_login.png' });
     
     if (!loginSucesso) {
-      if (campo2FADetectado && semCodigo2FA) {
-        throw new Error('Login falhou: o portal aparenta exigir 2FA. Configure HINOVA_TOTP_SECRET ou HINOVA_MFA_CODE.');
-      }
       throw new Error(`Login falhou após ${MAX_TENTATIVAS} tentativas`);
     }
     
