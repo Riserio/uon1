@@ -259,105 +259,187 @@ function parseMoneyValue(value) {
  */
 async function extrairDadosTabela(page) {
   log('Extraindo dados da tabela HTML...');
-  
-  // Aguardar tabela carregar
-  try {
-    await page.waitForSelector('table', { timeout: 60000 });
-    log('Tabela encontrada!');
-  } catch (e) {
-    log('Tabela não encontrada, tentando localizar por outros meios...');
-  }
-  
-  // Tirar screenshot para debug
-  await page.screenshot({ path: 'debug_tabela.png', fullPage: true }).catch(() => {});
-  
-  // Extrair dados via JavaScript no navegador
-  const dadosBrutos = await page.evaluate(() => {
-    const resultado = [];
-    
-    // Encontrar a tabela principal
-    const tabelas = document.querySelectorAll('table');
-    let tabelaDados = null;
-    
-    // Procurar a tabela que tem os dados (maior número de linhas ou com classe específica)
-    for (const tabela of tabelas) {
-      const rows = tabela.querySelectorAll('tbody tr, tr');
-      if (rows.length > 5) { // Tabela com dados deve ter mais de 5 linhas
-        tabelaDados = tabela;
-        break;
-      }
-    }
-    
-    if (!tabelaDados) {
-      tabelaDados = tabelas[0]; // Fallback para primeira tabela
-    }
-    
-    if (!tabelaDados) {
-      console.log('Nenhuma tabela encontrada');
-      return [];
-    }
-    
-    const rows = tabelaDados.querySelectorAll('tr');
-    console.log(`Total de linhas encontradas: ${rows.length}`);
-    
-    // Identificar headers (primeira linha ou thead)
-    let headers = [];
-    const thead = tabelaDados.querySelector('thead');
-    if (thead) {
-      const headerCells = thead.querySelectorAll('th, td');
-      headers = Array.from(headerCells).map(cell => cell.textContent.trim());
-    } else if (rows.length > 0) {
-      const firstRow = rows[0];
-      const cells = firstRow.querySelectorAll('th, td');
-      headers = Array.from(cells).map(cell => cell.textContent.trim());
-    }
-    
-    console.log(`Headers: ${headers.join(', ')}`);
-    
-    // Processar linhas de dados
-    const startIndex = thead ? 0 : 1; // Se tem thead, começa do 0, senão pula header
-    const tbody = tabelaDados.querySelector('tbody');
-    const dataRows = tbody ? tbody.querySelectorAll('tr') : Array.from(rows).slice(startIndex);
-    
-    for (const row of dataRows) {
-      const cells = row.querySelectorAll('td');
-      if (cells.length < 5) continue; // Pular linhas com poucas células
-      
-      const rowData = {};
-      cells.forEach((cell, index) => {
-        if (headers[index]) {
-          rowData[headers[index]] = cell.textContent.trim();
-        } else {
-          rowData[`col_${index}`] = cell.textContent.trim();
+
+  // Tentar aguardar pelo menos alguma tabela aparecer (pode estar dentro de iframe)
+  await page.waitForTimeout(1500);
+
+  // Screenshot para debug (não pode quebrar o robô)
+  await page
+    .screenshot({ path: 'debug_tabela.png', fullPage: true, timeout: 120000, animations: 'disabled' })
+    .catch(() => {});
+
+  /**
+   * Extrai linhas de uma tabela no contexto (documento) atual.
+   * Retorna um objeto com score e dados, para escolher a melhor tabela.
+   */
+  const extrairDoContexto = async (ctx) => {
+    try {
+      return await ctx.evaluate((colunasEsperadas) => {
+        const normalize = (s) =>
+          String(s || '')
+            .normalize('NFD')
+            .replace(/\p{Diacritic}/gu, '')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        const expected = colunasEsperadas.map(normalize);
+
+        const getHeaders = (table) => {
+          const thead = table.querySelector('thead');
+          const headerRow = thead?.querySelector('tr') || table.querySelector('tr');
+          if (!headerRow) return [];
+          return Array.from(headerRow.querySelectorAll('th, td')).map((c) => (c.textContent || '').trim());
+        };
+
+        const looksLikeHeaderRow = (cellsText) => {
+          const norm = cellsText.map(normalize);
+          const matched = expected.filter((e) => norm.some((h) => h === e || h.includes(e) || e.includes(h))).length;
+          return matched >= Math.min(3, expected.length);
+        };
+
+        const getDataRows = (table, headers) => {
+          const tbody = table.querySelector('tbody');
+          let rows = Array.from((tbody || table).querySelectorAll('tr'));
+
+          if (!rows.length) return [];
+
+          // Remover possíveis linhas de cabeçalho (primeira linha)
+          const firstRowCells = Array.from(rows[0].querySelectorAll('th, td'));
+          const firstRowText = firstRowCells.map((c) => (c.textContent || '').trim());
+          const hasTH = rows[0].querySelectorAll('th').length > 0;
+          if (hasTH || looksLikeHeaderRow(firstRowText)) {
+            rows = rows.slice(1);
+          }
+
+          // Remover linhas vazias ou de mensagem
+          rows = rows.filter((r) => {
+            const t = normalize(r.textContent || '');
+            if (!t) return false;
+            if (t.includes('nenhum') && (t.includes('registro') || t.includes('resultado'))) return false;
+            return true;
+          });
+
+          return rows;
+        };
+
+        const tables = Array.from(document.querySelectorAll('table'));
+        if (!tables.length) {
+          return {
+            score: 0,
+            tableIndex: -1,
+            headers: [],
+            rows: [],
+            debug: { tables: 0 },
+          };
         }
-      });
-      
-      // Só adicionar se tem dados válidos
-      const temDados = Object.values(rowData).some(v => v && v.length > 0);
-      if (temDados) {
-        resultado.push(rowData);
+
+        // Escolher a melhor tabela por score de colunas + volume
+        let best = {
+          score: -1,
+          tableIndex: -1,
+          headers: [],
+          rows: [],
+          debug: { tables: tables.length },
+        };
+
+        for (let i = 0; i < tables.length; i++) {
+          const table = tables[i];
+          const headers = getHeaders(table);
+          const headersNorm = headers.map(normalize);
+
+          const matched = expected.filter((e) => headersNorm.some((h) => h === e || h.includes(e) || e.includes(h))).length;
+
+          const dataRows = getDataRows(table, headers);
+          const colCount = headers.length || (dataRows[0]?.querySelectorAll('td').length || 0);
+
+          // Score prioriza match de colunas, depois quantidade de linhas
+          const score = matched * 1000 + dataRows.length * 10 + colCount;
+
+          if (score > best.score) {
+            best = {
+              score,
+              tableIndex: i,
+              headers,
+              rows: dataRows.map((row) => {
+                const cells = Array.from(row.querySelectorAll('td'));
+                const obj = {};
+                cells.forEach((cell, idx) => {
+                  const key = headers[idx] || `col_${idx}`;
+                  obj[key] = (cell.textContent || '').trim();
+                });
+                return obj;
+              }),
+              debug: {
+                tables: tables.length,
+                matched,
+                dataRows: dataRows.length,
+                colCount,
+              },
+            };
+          }
+        }
+
+        return best;
+      }, COLUNAS_TABELA);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // Importante: alguns relatórios abrem dentro de iframe, então buscamos em todos os frames
+  const tentarExtrair = async () => {
+    const frames = page.frames();
+    const contexts = [page.mainFrame(), ...frames.filter((f) => f !== page.mainFrame())];
+
+    log(`Frames detectados: ${contexts.length}`);
+
+    let melhor = { score: -1, rows: [], headers: [], debug: {}, frameUrl: page.url() };
+
+    for (const frame of contexts) {
+      const result = await extrairDoContexto(frame);
+      const frameUrl = frame.url();
+
+      if (result?.rows?.length) {
+        log(`Tabela candidata em frame: ${frameUrl} | linhas=${result.rows.length} | score=${result.score} | matched=${result.debug?.matched ?? 0}`);
+      }
+
+      if (result && result.score > melhor.score) {
+        melhor = { ...result, frameUrl };
       }
     }
-    
-    return resultado;
-  });
-  
+
+    return melhor;
+  };
+
+  // Polling: o Hinova às vezes renderiza a tabela depois
+  const deadline = Date.now() + 120000;
+  let melhorTabela = await tentarExtrair();
+
+  while (Date.now() < deadline && (!melhorTabela?.rows || melhorTabela.rows.length === 0)) {
+    await page.waitForTimeout(2500);
+    melhorTabela = await tentarExtrair();
+  }
+
+  const dadosBrutos = melhorTabela?.rows || [];
+
   log(`Total de linhas brutas extraídas: ${dadosBrutos.length}`);
-  
+  if (melhorTabela?.frameUrl) log(`Fonte selecionada: ${melhorTabela.frameUrl} | score=${melhorTabela.score}`);
+
   if (dadosBrutos.length === 0) {
     log('AVISO: Nenhum dado encontrado na tabela!');
     return [];
   }
-  
+
   // Log das colunas encontradas
   if (dadosBrutos.length > 0) {
     log(`Colunas encontradas: ${Object.keys(dadosBrutos[0]).join(', ')}`);
   }
-  
+
   // Mapear e normalizar os dados
-  const dados = dadosBrutos.map(row => {
+  const dados = dadosBrutos.map((row) => {
     const normalized = {};
-    
+
     // Mapeamento de colunas para nomes padronizados
     const mapping = {
       'data pagamento': 'Data Pagamento',
@@ -365,50 +447,51 @@ async function extrairDadosTabela(page) {
       'dia vencimento veiculo': 'Dia Vencimento Veiculo',
       'dia vencimento veículo': 'Dia Vencimento Veiculo',
       'regional boleto': 'Regional Boleto',
-      'regional': 'Regional Boleto',
-      'cooperativa': 'Cooperativa',
+      regional: 'Regional Boleto',
+      cooperativa: 'Cooperativa',
       'voluntário': 'Voluntário',
-      'voluntario': 'Voluntário',
-      'nome': 'Nome',
-      'placas': 'Placas',
-      'placa': 'Placas',
-      'valor': 'Valor',
+      voluntario: 'Voluntário',
+      nome: 'Nome',
+      placas: 'Placas',
+      placa: 'Placas',
+      valor: 'Valor',
       'data vencimento': 'Data Vencimento',
-      'vencimento': 'Data Vencimento',
+      vencimento: 'Data Vencimento',
       'qtde dias em atraso vencimento original': 'Qtde Dias em Atraso Vencimento Original',
       'dias atraso': 'Qtde Dias em Atraso Vencimento Original',
-      'situacao': 'Situacao',
+      situacao: 'Situacao',
       'situação': 'Situacao',
     };
-    
+
     for (const [key, value] of Object.entries(row)) {
       const keyLower = key.toLowerCase().trim();
       const mappedKey = mapping[keyLower] || key;
-      
+
       // Processar valores especiais
       let processedValue = value;
-      
+
       if (mappedKey.includes('Data')) {
         processedValue = parseDate(value);
       } else if (mappedKey === 'Valor') {
         processedValue = parseMoneyValue(value);
       } else if (mappedKey === 'Dia Vencimento Veiculo' || mappedKey.includes('Dias')) {
-        processedValue = parseInt(String(value)) || null;
+        processedValue = parseInt(String(value), 10);
+        if (Number.isNaN(processedValue)) processedValue = null;
       } else {
         processedValue = value ? String(value).trim() : null;
       }
-      
+
       if (processedValue !== null && processedValue !== '') {
         normalized[mappedKey] = processedValue;
       }
     }
-    
+
     return normalized;
   });
-  
+
   // Filtrar registros válidos (deve ter Nome ou Placas)
-  const dadosValidos = dados.filter(row => row['Nome'] || row['Placas']);
-  
+  const dadosValidos = dados.filter((row) => row['Nome'] || row['Placas']);
+
   log(`Registros válidos processados: ${dadosValidos.length}`);
   return dadosValidos;
 }
@@ -1142,7 +1225,9 @@ async function rodarRobo() {
     
     if (dados.length === 0) {
       log('AVISO: Nenhum dado encontrado na tabela!');
-      await newPage.screenshot({ path: 'debug_sem_dados.png', fullPage: true });
+      await newPage
+        .screenshot({ path: 'debug_sem_dados.png', fullPage: true, timeout: 120000, animations: 'disabled' })
+        .catch(() => {});
       
       // Debug: mostrar HTML da página
       const html = await newPage.content();
