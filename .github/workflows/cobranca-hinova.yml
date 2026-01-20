@@ -48,6 +48,7 @@ jobs:
             debug_antes_login.png
             debug_apos_login.png
             debug_filtros.png
+            debug_antes_excel.png
             debug_antes_gerar.png
             debug_apos_gerar.png
             debug_nova_aba.png
