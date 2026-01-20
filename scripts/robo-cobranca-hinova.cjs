@@ -184,6 +184,166 @@ async function fecharPopups(page, maxTentativas = 10) {
   }
 }
 
+/**
+ * Seleciona a opção "Em Excel" na seção "Forma de Exibição".
+ * No relatório do Hinova isso costuma ser RADIO (não select).
+ * Tenta no DOM principal e em iframes.
+ */
+async function selecionarFormaExibicaoEmExcel(page) {
+  const tryInFrame = async (frame) => {
+    // 1) Tentativa via JS (mais resiliente com markup antigo)
+    const ok = await frame
+      .evaluate((labelText) => {
+        const normalize = (s) =>
+          String(s || '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+
+        const target = normalize(labelText);
+
+        // varrer possíveis containers onde o Hinova renderiza as opções
+        const candidates = Array.from(
+          document.querySelectorAll('label, span, td, div, p')
+        );
+
+        for (const el of candidates) {
+          const txt = normalize(el.textContent);
+          if (!txt) continue;
+          if (!txt.includes(target)) continue;
+
+          // dentro do label
+          let radio = el.querySelector?.('input[type="radio"]') || null;
+
+          // no mesmo pai
+          if (!radio) {
+            radio = el.parentElement?.querySelector?.('input[type="radio"]') || null;
+          }
+
+          // como irmão anterior
+          if (!radio) {
+            const prev = el.previousElementSibling;
+            if (prev && prev.matches?.('input[type="radio"]')) radio = prev;
+          }
+
+          // como irmão próximo
+          if (!radio) {
+            const next = el.nextElementSibling;
+            if (next && next.matches?.('input[type="radio"]')) radio = next;
+          }
+
+          if (radio) {
+            radio.click();
+            return true;
+          }
+        }
+
+        return false;
+      }, 'Em Excel')
+      .catch(() => false);
+
+    if (ok) return true;
+
+    // 2) Tentativa via locator (quando o label está associado ao input)
+    const byLabel = frame.getByLabel(/Em\s*Excel/i);
+    const count = await byLabel.count().catch(() => 0);
+    if (count > 0) {
+      const el = byLabel.first();
+      await el.check({ force: true }).catch(async () => {
+        await el.click({ force: true });
+      });
+      return true;
+    }
+
+    return false;
+  };
+
+  // principal
+  if (await tryInFrame(page.mainFrame())) return true;
+
+  // iframes
+  for (const frame of page.frames()) {
+    if (frame === page.mainFrame()) continue;
+    if (await tryInFrame(frame)) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Fallback para casos em que o "download" não dispara evento no Playwright.
+ * Captura a resposta HTTP do Excel (Content-Type/Disposition) em qualquer aba.
+ */
+function criarWatcherRespostaExcel(context, timeoutMs) {
+  return new Promise((resolve) => {
+    let done = false;
+    const pagesAttached = new Set();
+
+    const matchesExcel = (resp) => {
+      try {
+        if (!resp) return false;
+        if (resp.status() !== 200) return false;
+        const h = resp.headers() || {};
+        const ct = String(h['content-type'] || '').toLowerCase();
+        const cd = String(h['content-disposition'] || '').toLowerCase();
+        const url = String(resp.url?.() || '').toLowerCase();
+
+        if (ct.includes('spreadsheet') || ct.includes('excel')) return true;
+        if (cd.includes('.xlsx') || cd.includes('.xls')) return true;
+        if (url.includes('.xlsx') || url.includes('.xls')) return true;
+        // alguns servidores retornam octet-stream com filename no header
+        if (ct.includes('octet-stream') && cd.includes('attachment') && (cd.includes('xls') || cd.includes('xlsx'))) {
+          return true;
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    };
+
+    const cleanup = (timer, onPage) => {
+      try {
+        clearTimeout(timer);
+      } catch {}
+      try {
+        context.removeListener('page', onPage);
+      } catch {}
+      for (const p of pagesAttached) {
+        try {
+          p.removeListener('response', onResponse);
+        } catch {}
+      }
+    };
+
+    const onResponse = async (resp) => {
+      if (done) return;
+      if (!matchesExcel(resp)) return;
+      done = true;
+      cleanup(timer, onPage);
+      resolve(resp);
+    };
+
+    const attachToPage = (p) => {
+      if (!p || pagesAttached.has(p)) return;
+      pagesAttached.add(p);
+      p.on('response', onResponse);
+    };
+
+    const onPage = (p) => attachToPage(p);
+    context.on('page', onPage);
+
+    // anexar páginas já abertas
+    for (const p of context.pages()) attachToPage(p);
+
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      cleanup(timer, onPage);
+      resolve(null);
+    }, timeoutMs);
+  });
+}
+
 function getDateRange() {
   const hoje = new Date();
   const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -947,34 +1107,30 @@ async function rodarRobo() {
       log('Layout: BI - Vangard Cobrança');
     }
     
-    // NOVO: Forma de Exibição - Selecionar "Em Excel"
+    // Forma de Exibição - Selecionar "Em Excel" (Hinova usa RADIO)
     log('Configurando forma de exibição para Excel...');
-    const formaExibicaoSelect = await page.$('select[name*="forma_exibicao"], select[name*="exibicao"], select[name*="formato"]');
-    if (formaExibicaoSelect) {
-      await formaExibicaoSelect.selectOption({ label: 'Em Excel' }).catch(async () => {
-        await formaExibicaoSelect.selectOption({ value: 'excel' }).catch(async () => {
-          await formaExibicaoSelect.selectOption({ label: 'Excel' }).catch(() => {});
-        });
-      });
-      log('Forma de exibição: Em Excel');
+    const excelSelecionado = await selecionarFormaExibicaoEmExcel(page);
+    if (excelSelecionado) {
+      log('Forma de exibição: Em Excel (radio)');
     } else {
-      // Tentar via JavaScript se não encontrar o select
-      await page.evaluate(() => {
-        const selects = document.querySelectorAll('select');
-        for (const select of selects) {
-          const options = select.querySelectorAll('option');
-          for (const option of options) {
-            const texto = option.textContent?.toLowerCase() || '';
-            if (texto.includes('excel') || texto === 'em excel') {
-              select.value = option.value;
-              select.dispatchEvent(new Event('change', { bubbles: true }));
-              return true;
-            }
-          }
-        }
-        return false;
-      });
-      log('Forma de exibição configurada via JS');
+      // fallback legado (se em algum ambiente for select)
+      const formaExibicaoSelect = await page.$(
+        'select[name*="forma_exibicao"], select[name*="exibicao"], select[name*="formato"]'
+      );
+      if (formaExibicaoSelect) {
+        await formaExibicaoSelect
+          .selectOption({ label: 'Em Excel' })
+          .catch(async () => {
+            await formaExibicaoSelect
+              .selectOption({ value: 'excel' })
+              .catch(async () => {
+                await formaExibicaoSelect.selectOption({ label: 'Excel' }).catch(() => {});
+              });
+          });
+        log('Forma de exibição: Em Excel (select)');
+      } else {
+        log('⚠️ Não foi possível selecionar "Em Excel" automaticamente (radio/select não localizado)');
+      }
     }
     
     await page.waitForTimeout(1000);
@@ -1072,6 +1228,12 @@ async function rodarRobo() {
         const downloadPromise = context
           .waitForEvent('download', { timeout: DOWNLOAD_EVENT_TIMEOUT_MS })
           .catch(() => null);
+
+        // fallback: capturar a RESPOSTA HTTP do Excel (quando o evento de download não dispara)
+        const excelResponsePromise = criarWatcherRespostaExcel(
+          context,
+          DOWNLOAD_EVENT_TIMEOUT_MS
+        ).catch(() => null);
 
         // Popup costuma ser aberto a partir da página principal (window.open)
         // Não aguardamos aqui para não bloquear; é só para debug/screenshot e para tentar forçar o start do download
@@ -1172,39 +1334,68 @@ async function rodarRobo() {
         }, DOWNLOAD_CHECK_INTERVAL_MS);
         
         try {
-          // Aguardar download (independente da aba que iniciou)
-          const download = await downloadPromise;
-          if (!download) {
-            throw new Error('Timeout aguardando evento de download do Excel (Hinova não iniciou o download)');
-          }
+           // Aguardar download OU resposta de Excel
+           const result = await Promise.race([
+             downloadPromise.then((d) => ({ type: 'download', download: d })),
+             excelResponsePromise.then((r) => ({ type: 'response', response: r })),
+           ]);
 
-          clearInterval(monitoramentoInterval);
+           if (!result || (!result.download && !result.response)) {
+             throw new Error('Timeout aguardando download/resposta do Excel (Hinova não iniciou o arquivo)');
+           }
 
-          nomeArquivoFinal = download.suggestedFilename() || `Hinova_${fim.replace(/\//g, '-')}.xlsx`;
-          const filePath = path.join(downloadPath, nomeArquivoFinal);
+           clearInterval(monitoramentoInterval);
 
-          log(`✅ Download capturado: ${nomeArquivoFinal}`);
+           // Definir nome/arquivo
+           const defaultName = `Hinova_${fim.replace(/\//g, '-')}.xlsx`;
+           let filePath = '';
 
-          // Monitorar o progresso do salvamento
-          log('Salvando arquivo (pode demorar para arquivos grandes)...');
-          const saveStartTime = Date.now();
+           if (result.type === 'download' && result.download) {
+             const download = result.download;
+             nomeArquivoFinal = download.suggestedFilename() || defaultName;
+             filePath = path.join(downloadPath, nomeArquivoFinal);
 
-          await Promise.race([
-            download.saveAs(filePath),
-            new Promise((_, reject) =>
-              setTimeout(
-                () => reject(new Error('Timeout ao salvar o arquivo de download')),
-                DOWNLOAD_SAVE_TIMEOUT_MS
-              )
-            ),
-          ]);
+             log(`✅ Download capturado: ${nomeArquivoFinal}`);
 
-          const saveEndTime = Date.now();
-          const saveDuration = Math.round((saveEndTime - saveStartTime) / 1000);
-          log(`✅ Arquivo salvo em ${saveDuration}s: ${filePath}`);
+             // Monitorar o progresso do salvamento
+             log('Salvando arquivo (pode demorar para arquivos grandes)...');
+             const saveStartTime = Date.now();
+
+             await Promise.race([
+               download.saveAs(filePath),
+               new Promise((_, reject) =>
+                 setTimeout(
+                   () => reject(new Error('Timeout ao salvar o arquivo de download')),
+                   DOWNLOAD_SAVE_TIMEOUT_MS
+                 )
+               ),
+             ]);
+
+             const saveEndTime = Date.now();
+             const saveDuration = Math.round((saveEndTime - saveStartTime) / 1000);
+             log(`✅ Arquivo salvo em ${saveDuration}s: ${filePath}`);
+           } else if (result.type === 'response' && result.response) {
+             const resp = result.response;
+             const headers = resp.headers() || {};
+             const cd = String(headers['content-disposition'] || '');
+             const match = cd.match(/filename\*?=(?:UTF-8''|\")?([^;\"\n\r]+)/i);
+             const suggested = match ? decodeURIComponent(match[1]).replace(/\"/g, '').trim() : '';
+
+             nomeArquivoFinal = suggested || defaultName;
+             // garantir extensão
+             if (!/\.(xlsx|xls)$/i.test(nomeArquivoFinal)) nomeArquivoFinal += '.xlsx';
+             filePath = path.join(downloadPath, nomeArquivoFinal);
+
+             log(`✅ Excel capturado via resposta HTTP: ${nomeArquivoFinal}`);
+
+             const buf = await resp.body();
+             fs.writeFileSync(filePath, buf);
+             const stats = fs.statSync(filePath);
+             log(`✅ Arquivo salvo via HTTP: ${(stats.size / 1024).toFixed(2)} KB`);
+           }
           
-          // Verificar se o arquivo foi salvo corretamente
-          if (fs.existsSync(filePath)) {
+           // Verificar se o arquivo foi salvo corretamente
+           if (filePath && fs.existsSync(filePath)) {
             const stats = fs.statSync(filePath);
             log(`Tamanho do arquivo: ${(stats.size / 1024).toFixed(2)} KB`);
             
