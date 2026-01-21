@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock, Play } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -45,6 +45,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [executing, setExecuting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
@@ -99,7 +100,6 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
       };
 
       if (config.id) {
-        // Atualizar
         const { error } = await supabase
           .from("cobranca_automacao_config")
           .update(dataToSave)
@@ -107,7 +107,6 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
 
         if (error) throw error;
       } else {
-        // Inserir
         const { data, error } = await supabase
           .from("cobranca_automacao_config")
           .insert(dataToSave)
@@ -124,6 +123,39 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
       toast.error("Erro ao salvar: " + (error.message || "Erro desconhecido"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleExecute = async () => {
+    if (!config.id) {
+      toast.error("Salve a configuração antes de executar");
+      return;
+    }
+
+    if (!config.hinova_user || !config.hinova_pass) {
+      toast.error("Configure usuário e senha antes de executar");
+      return;
+    }
+
+    setExecuting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('executar-cobranca-hinova', {
+        body: { corretora_id: corretoraId }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success("Execução iniciada! Acompanhe o status.");
+        loadConfig();
+      } else {
+        toast.error(data?.message || "Erro ao executar automação");
+      }
+    } catch (error: any) {
+      console.error("Erro ao executar automação:", error);
+      toast.error("Erro ao executar: " + (error.message || "Erro desconhecido"));
+    } finally {
+      setExecuting(false);
     }
   };
 
@@ -168,6 +200,8 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
               ? 'bg-green-500/10 border-green-500/30' 
               : config.ultimo_status === 'erro'
               ? 'bg-red-500/10 border-red-500/30'
+              : config.ultimo_status === 'executando'
+              ? 'bg-yellow-500/10 border-yellow-500/30'
               : 'bg-muted border-border'
           }`}>
             <div className="flex items-center gap-3">
@@ -175,12 +209,17 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                 <CheckCircle className="h-5 w-5 text-green-600" />
               ) : config.ultimo_status === 'erro' ? (
                 <XCircle className="h-5 w-5 text-red-600" />
+              ) : config.ultimo_status === 'executando' ? (
+                <Loader2 className="h-5 w-5 text-yellow-600 animate-spin" />
               ) : (
                 <Clock className="h-5 w-5 text-muted-foreground" />
               )}
               <div className="flex-1">
                 <p className="font-medium">
                   Última execução: {format(new Date(config.ultima_execucao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  {config.ultimo_status === 'executando' && (
+                    <span className="ml-2 text-yellow-600 text-sm">(em andamento)</span>
+                  )}
                 </p>
                 {config.ultimo_erro && (
                   <p className="text-sm text-red-600 mt-1">{config.ultimo_erro}</p>
@@ -280,13 +319,32 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
           </ul>
         </div>
 
-        {/* Botões */}
-        <div className="flex justify-end gap-3">
-          <Button variant="outline" onClick={loadConfig} disabled={saving}>
+        {/* Botões em linha */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" onClick={loadConfig} disabled={saving || executing}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Recarregar
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          
+          <Button 
+            variant="secondary" 
+            onClick={handleExecute} 
+            disabled={saving || executing || !config.id}
+          >
+            {executing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Executando...
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4 mr-2" />
+                Executar Agora
+              </>
+            )}
+          </Button>
+          
+          <Button onClick={handleSave} disabled={saving || executing}>
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
