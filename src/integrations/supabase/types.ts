@@ -639,6 +639,66 @@ export type Database = {
           },
         ]
       }
+      cobranca_automacao_execucoes: {
+        Row: {
+          config_id: string
+          corretora_id: string
+          created_at: string
+          duracao_segundos: number | null
+          erro: string | null
+          finalizado_at: string | null
+          id: string
+          iniciado_por: string | null
+          mensagem: string | null
+          nome_arquivo: string | null
+          registros_processados: number | null
+          status: string
+        }
+        Insert: {
+          config_id: string
+          corretora_id: string
+          created_at?: string
+          duracao_segundos?: number | null
+          erro?: string | null
+          finalizado_at?: string | null
+          id?: string
+          iniciado_por?: string | null
+          mensagem?: string | null
+          nome_arquivo?: string | null
+          registros_processados?: number | null
+          status?: string
+        }
+        Update: {
+          config_id?: string
+          corretora_id?: string
+          created_at?: string
+          duracao_segundos?: number | null
+          erro?: string | null
+          finalizado_at?: string | null
+          id?: string
+          iniciado_por?: string | null
+          mensagem?: string | null
+          nome_arquivo?: string | null
+          registros_processados?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobranca_automacao_execucoes_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "cobranca_automacao_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cobranca_automacao_execucoes_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cobranca_boletos: {
         Row: {
           cooperativa: string | null
