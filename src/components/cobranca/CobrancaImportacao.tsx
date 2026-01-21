@@ -337,20 +337,23 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
   return (
     <div className="space-y-6">
       <Tabs value={activeImportTab} onValueChange={setActiveImportTab}>
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 flex flex-wrap h-auto gap-1">
           <TabsTrigger value="upload" className="gap-2">
             <Upload className="h-4 w-4" />
-            Upload Manual
+            <span className="hidden sm:inline">Importar</span>
+            <span className="sm:hidden">Importar</span>
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="automacao" className="gap-2">
               <RefreshCw className="h-4 w-4" />
-              Automação Hinova
+              <span className="hidden sm:inline">Automação</span>
+              <span className="sm:hidden">Auto</span>
             </TabsTrigger>
           )}
           <TabsTrigger value="historico" className="gap-2">
             <FileSpreadsheet className="h-4 w-4" />
-            Histórico
+            <span className="hidden sm:inline">Histórico</span>
+            <span className="sm:hidden">Hist.</span>
           </TabsTrigger>
         </TabsList>
 
@@ -358,10 +361,10 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
           {/* Upload Card */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <CardTitle className="flex items-center gap-2">
                   <Upload className="h-5 w-5 text-primary" />
-                  Importar Planilha de Cobrança
+                  Importar Planilha
                 </CardTitle>
                 <Button variant="outline" size="sm" onClick={downloadCobrancaTemplate}>
                   <Download className="h-4 w-4 mr-2" />
@@ -369,9 +372,7 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
                 </Button>
               </div>
               <CardDescription>
-                Importando dados para: <span className="font-semibold text-foreground">{corretoraNome}</span>
-                <br />
-                Selecione um arquivo Excel (.xlsx) com relatório de boletos. A nova importação irá sobrepor os dados anteriores desta associação.
+                Importando para: <span className="font-semibold text-foreground">{corretoraNome}</span>
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -389,9 +390,9 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
 
               {file && (
                 <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                  <FileSpreadsheet className="h-8 w-8 text-green-600" />
-                  <div className="flex-1">
-                    <p className="font-medium">{file.name}</p>
+                  <FileSpreadsheet className="h-8 w-8 text-green-600 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{file.name}</p>
                     <p className="text-sm text-muted-foreground">
                       {(file.size / 1024 / 1024).toFixed(2)} MB
                     </p>
@@ -438,14 +439,14 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
           {preview.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Preview dos Dados (5 primeiras linhas)</CardTitle>
+                <CardTitle className="text-base">Preview (5 primeiras linhas)</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b">
-                        {Object.keys(preview[0]).slice(0, 8).map((col) => (
+                        {Object.keys(preview[0]).slice(0, 6).map((col) => (
                           <th key={col} className="p-2 text-left font-medium text-muted-foreground">
                             {col}
                           </th>
@@ -456,8 +457,8 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
                     <tbody>
                       {preview.map((row, i) => (
                         <tr key={i} className="border-b">
-                          {Object.values(row).slice(0, 8).map((val: any, j) => (
-                            <td key={j} className="p-2 truncate max-w-[150px]">
+                          {Object.values(row).slice(0, 6).map((val: any, j) => (
+                            <td key={j} className="p-2 truncate max-w-[120px]">
                               {String(val)}
                             </td>
                           ))}
@@ -471,7 +472,7 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
             </Card>
           )}
 
-          {/* Info */}
+          {/* Info - Colunas esperadas */}
           <Card className="border-blue-500/20 bg-blue-500/5">
             <CardContent className="p-4">
               <div className="space-y-2 text-sm">

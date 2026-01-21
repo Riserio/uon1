@@ -88,6 +88,25 @@ serve(async (req) => {
       })
       .eq("id", config.id);
 
+    // Criar registro de execução no histórico
+    const { data: execucao, error: execError } = await supabase
+      .from("cobranca_automacao_execucoes")
+      .insert({
+        config_id: config.id,
+        corretora_id: corretora_id,
+        status: 'executando',
+        mensagem: `Execução manual iniciada por ${user.email}`,
+        iniciado_por: user.id,
+      })
+      .select()
+      .single();
+
+    if (execError) {
+      console.error("Erro ao criar registro de execução:", execError);
+    } else {
+      console.log(`[Executar Cobrança Hinova] Registro de execução criado: ${execucao?.id}`);
+    }
+
     // Preparar dados para o GitHub Actions (via repository_dispatch)
     // Este endpoint prepara os dados, mas a execução real acontece via GitHub Actions
     // Por agora, retornamos as informações necessárias para execução manual
@@ -100,6 +119,7 @@ serve(async (req) => {
       corretora_id: corretora_id,
       corretora_slug: corretora?.slug,
       webhook_url: `${supabaseUrl}/functions/v1/webhook-cobranca-hinova`,
+      execucao_id: execucao?.id,
     };
 
     // Registrar log de auditoria
@@ -112,6 +132,7 @@ serve(async (req) => {
       user_nome: user.email || "Usuário",
       dados_novos: {
         config_id: config.id,
+        execucao_id: execucao?.id,
         hinova_url: config.hinova_url,
       },
     });
@@ -119,6 +140,7 @@ serve(async (req) => {
     console.log(`[Executar Cobrança Hinova] Dados de execução preparados:`, {
       corretora: corretora?.nome,
       url: config.hinova_url,
+      execucao_id: execucao?.id,
     });
 
     // Por ora, simular uma resposta de sucesso com instruções
@@ -132,6 +154,7 @@ serve(async (req) => {
           corretora_nome: corretora?.nome,
           hinova_url: config.hinova_url,
           layout: config.layout_relatorio,
+          execucao_id: execucao?.id,
         },
         instructions: "A automação será executada com as configurações salvas. Verifique o status em alguns minutos.",
       }),
