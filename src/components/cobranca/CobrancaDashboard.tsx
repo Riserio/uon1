@@ -174,10 +174,109 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     }
   };
 
+  // Gerar histórico retroativo para todos os dias passados do mês
+  const generateHistoricoRetroativo = async () => {
+    if (!corretoraId || !mesReferencia || isPortalAccess || !boletos.length) return;
+    
+    try {
+      const hoje = new Date();
+      const mesAtual = hoje.getMonth();
+      const anoAtual = hoje.getFullYear();
+      const diaHoje = hoje.getDate();
+      
+      // Verificar se já existe histórico para este mês
+      const { data: existingData, error: checkError } = await supabase
+        .from("cobranca_inadimplencia_historico")
+        .select("id")
+        .eq("corretora_id", corretoraId)
+        .eq("mes_referencia", mesReferencia)
+        .limit(1);
+      
+      if (checkError) throw checkError;
+      
+      // Se já existe histórico, não gerar novamente
+      if (existingData && existingData.length > 0) {
+        console.log("Histórico já existe para este mês");
+        return;
+      }
+      
+      // Filtrar boletos válidos
+      const boletosFiltrados = boletos.filter(b => 
+        b.situacao && b.situacao.toUpperCase() !== 'CANCELADO'
+      );
+      
+      const registrosHistorico: any[] = [];
+      
+      // Para cada dia passado do mês, calcular a inadimplência que existia naquele dia
+      for (let diaCalc = 1; diaCalc < diaHoje; diaCalc++) {
+        const dataRef = new Date(anoAtual, mesAtual, diaCalc);
+        const dataRefStr = dataRef.toISOString().split('T')[0];
+        
+        // Boletos emitidos até este dia (dia_vencimento_veiculo <= diaCalc)
+        const boletosEmitidosAteDia = boletosFiltrados.filter(b => {
+          const diaVenc = b.dia_vencimento_veiculo;
+          return diaVenc != null && diaVenc <= diaCalc;
+        });
+        
+        // Boletos que estavam pagos ATÉ aquela data específica
+        const boletosPagosAteDia = boletosEmitidosAteDia.filter(b => {
+          if (b.situacao && b.situacao.toUpperCase() === 'BAIXADO') {
+            if (b.data_pagamento) {
+              const dataPagamento = new Date(b.data_pagamento);
+              return dataPagamento <= dataRef;
+            }
+            return true;
+          }
+          return false;
+        });
+        
+        const qtdeEmitidos = boletosEmitidosAteDia.length;
+        const qtdeVencidos = qtdeEmitidos - boletosPagosAteDia.length;
+        const percentInadimplencia = qtdeEmitidos > 0 
+          ? (qtdeVencidos / qtdeEmitidos) * 100 
+          : 0;
+        
+        registrosHistorico.push({
+          corretora_id: corretoraId,
+          mes_referencia: mesReferencia,
+          dia: diaCalc,
+          data_registro: dataRefStr,
+          percentual_inadimplencia: percentInadimplencia,
+          qtde_abertos: qtdeVencidos,
+          qtde_emitidos: qtdeEmitidos
+        });
+      }
+      
+      if (registrosHistorico.length > 0) {
+        const { error } = await supabase
+          .from("cobranca_inadimplencia_historico")
+          .upsert(registrosHistorico, {
+            onConflict: "corretora_id,mes_referencia,dia,data_registro"
+          });
+        
+        if (error) {
+          console.error("Erro ao gerar histórico retroativo:", error);
+        } else {
+          console.log("Histórico retroativo gerado:", registrosHistorico.length, "dias");
+          loadInadimplenciaHistorico();
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao gerar histórico retroativo:", error);
+    }
+  };
+
   useEffect(() => {
     loadInadimplenciaConfig();
     loadInadimplenciaHistorico();
   }, [corretoraId, mesReferencia]);
+
+  // Gerar histórico retroativo quando os boletos carregam
+  useEffect(() => {
+    if (boletos.length > 0 && corretoraId && mesReferencia) {
+      generateHistoricoRetroativo();
+    }
+  }, [boletos.length, corretoraId, mesReferencia]);
 
   // Function to update scroll indicators
   const updateScrollIndicators = () => {
