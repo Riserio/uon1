@@ -724,6 +724,50 @@ export type Database = {
           },
         ]
       }
+      cobranca_inadimplencia_historico: {
+        Row: {
+          corretora_id: string
+          created_at: string
+          data_registro: string
+          dia: number
+          id: string
+          mes_referencia: string
+          percentual_inadimplencia: number
+          qtde_abertos: number
+          qtde_emitidos: number
+        }
+        Insert: {
+          corretora_id: string
+          created_at?: string
+          data_registro: string
+          dia: number
+          id?: string
+          mes_referencia: string
+          percentual_inadimplencia?: number
+          qtde_abertos?: number
+          qtde_emitidos?: number
+        }
+        Update: {
+          corretora_id?: string
+          created_at?: string
+          data_registro?: string
+          dia?: number
+          id?: string
+          mes_referencia?: string
+          percentual_inadimplencia?: number
+          qtde_abertos?: number
+          qtde_emitidos?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobranca_inadimplencia_historico_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comunicados: {
         Row: {
           ativo: boolean

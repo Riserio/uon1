@@ -58,6 +58,7 @@ const CustomTooltip = ({ active, payload, label, isCurrency = false, isPercent =
 export default function CobrancaDashboard({ boletos, loading, corretoraId, mesReferencia, isPortalAccess }: CobrancaDashboardProps) {
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [inadimplenciaConfig, setInadimplenciaConfig] = useState<Map<number, number>>(new Map());
+  const [inadimplenciaHistorico, setInadimplenciaHistorico] = useState<Map<number, number>>(new Map());
   const inadimplenciaScrollRef = useRef<HTMLDivElement>(null);
   const [showScrollIndicators, setShowScrollIndicators] = useState({ left: false, right: false });
 
@@ -84,8 +85,78 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     }
   };
 
+  // Carregar histórico de inadimplência (snapshot do dia anterior ou último disponível)
+  const loadInadimplenciaHistorico = async () => {
+    if (!corretoraId || !mesReferencia) return;
+    
+    try {
+      // Buscar o último registro disponível (diferente de hoje)
+      const hoje = new Date();
+      const hojeStr = hoje.toISOString().split('T')[0];
+      
+      const { data, error } = await supabase
+        .from("cobranca_inadimplencia_historico")
+        .select("dia, percentual_inadimplencia, data_registro")
+        .eq("corretora_id", corretoraId)
+        .eq("mes_referencia", mesReferencia)
+        .lt("data_registro", hojeStr)
+        .order("data_registro", { ascending: false })
+        .limit(31); // máximo de dias do mês
+
+      if (error) throw error;
+
+      // Pegar a data_registro mais recente (já que ordenamos DESC)
+      const historicoMap = new Map<number, number>();
+      const dataRegistroMaisRecente = data?.[0]?.data_registro;
+      
+      // Filtrar apenas os registros desta data mais recente
+      data?.filter(d => d.data_registro === dataRegistroMaisRecente).forEach(d => {
+        historicoMap.set(d.dia, Number(d.percentual_inadimplencia));
+      });
+      
+      setInadimplenciaHistorico(historicoMap);
+    } catch (error) {
+      console.error("Erro ao carregar histórico inadimplência:", error);
+    }
+  };
+
+  // Salvar snapshot diário de inadimplência
+  const saveInadimplenciaSnapshot = async (inadimplenciaPorDia: Array<{ dia: number; inadimplenciaReal: number; qtdeVencidos: number; qtdeEmitidos: number }>) => {
+    if (!corretoraId || !mesReferencia || isPortalAccess) return;
+    
+    try {
+      const hoje = new Date();
+      const hojeStr = hoje.toISOString().split('T')[0];
+      
+      // Preparar dados para upsert
+      const registros = inadimplenciaPorDia.map(item => ({
+        corretora_id: corretoraId,
+        mes_referencia: mesReferencia,
+        dia: item.dia,
+        data_registro: hojeStr,
+        percentual_inadimplencia: item.inadimplenciaReal,
+        qtde_abertos: item.qtdeVencidos,
+        qtde_emitidos: item.qtdeEmitidos
+      }));
+
+      // Upsert para evitar duplicatas
+      const { error } = await supabase
+        .from("cobranca_inadimplencia_historico")
+        .upsert(registros, {
+          onConflict: "corretora_id,mes_referencia,dia,data_registro"
+        });
+
+      if (error) {
+        console.error("Erro ao salvar histórico inadimplência:", error);
+      }
+    } catch (error) {
+      console.error("Erro ao salvar histórico inadimplência:", error);
+    }
+  };
+
   useEffect(() => {
     loadInadimplenciaConfig();
+    loadInadimplenciaHistorico();
   }, [corretoraId, mesReferencia]);
 
   // Function to update scroll indicators
@@ -266,11 +337,15 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       // Pegar referência do config ou usar 30% padrão
       const referenciaParaDia = inadimplenciaConfig.get(dia) ?? 30;
       
+      // Pegar histórico (dia anterior/último disponível)
+      const historicoParaDia = inadimplenciaHistorico.get(dia);
+      
       inadimplenciaPorDia.push({
         dia,
         diaLabel: `${dia}`,
         inadimplenciaReal: percentInadimplenciaReal,
         inadimplenciaReferencia: referenciaParaDia,
+        inadimplenciaHistorico: historicoParaDia,
         qtdeVencidos: qtdeVencidos,
         qtdePagos: dia >= diaHoje ? boletosPagosAteDia.length : boletosPagosAteDia.length,
         qtdeEmitidos: boletosEmitidosAteDia.length
@@ -389,7 +464,14 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       cooperativasAbertosData,
       percentualInadimplencia: totalBoletos > 0 ? (boletosAbertos.length / totalBoletos) * 100 : 0
     };
-  }, [boletos, inadimplenciaConfig]);
+  }, [boletos, inadimplenciaConfig, inadimplenciaHistorico]);
+
+  // Salvar snapshot diário quando os dados mudam
+  useEffect(() => {
+    if (stats?.inadimplenciaPorDia && corretoraId && mesReferencia && !isPortalAccess) {
+      saveInadimplenciaSnapshot(stats.inadimplenciaPorDia);
+    }
+  }, [stats?.inadimplenciaPorDia, corretoraId, mesReferencia, isPortalAccess]);
 
   // Center on current day when data loads
   useEffect(() => {
@@ -707,6 +789,18 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
                       dot={false}
                       connectNulls
                     />
+                    {inadimplenciaHistorico.size > 0 && (
+                      <Line 
+                        type="monotone" 
+                        dataKey="inadimplenciaHistorico"
+                        stroke="#f59e0b" 
+                        strokeWidth={2}
+                        strokeDasharray="3 3"
+                        name="Histórico (dia anterior)" 
+                        dot={{ fill: '#f59e0b', r: 1.5 }}
+                        connectNulls
+                      />
+                    )}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
