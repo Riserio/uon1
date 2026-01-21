@@ -297,8 +297,8 @@ export default function MenuNav() {
           </DropdownMenuItem>
         )}
 
-        {/* Comunicados */}
-        {(userRole === "admin" || userRole === "superintendente") && canView("comunicados") && (
+        {/* Comunicados - hidden for lider and gestao roles */}
+        {userRole && !["lider", "gestao"].includes(userRole) && canView("comunicados") && (
           <DropdownMenuItem asChild>
             <Link to="/comunicados" className="cursor-pointer">
               <Megaphone className="mr-2 h-4 w-4" />
