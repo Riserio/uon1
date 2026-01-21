@@ -195,6 +195,13 @@ async function selecionarFormaExibicaoEmExcel(page) {
   const tryInFrame = async (frame) => {
     const frameUrl = frame.url() || 'main';
     log(`Tentando selecionar Excel no frame: ${frameUrl}`);
+
+    // Garantir que a área está visível (Hinova usa tabelas e às vezes precisa de scroll)
+    await frame
+      .getByText(/em\s*excel/i)
+      .first()
+      .scrollIntoViewIfNeeded()
+      .catch(() => {});
     
     // 1) Listar todas as opções de radio disponíveis para debug
     const radioInfo = await frame.evaluate(() => {
@@ -213,26 +220,42 @@ async function selecionarFormaExibicaoEmExcel(page) {
       log(`Radios encontrados (${radioInfo.length}): ${JSON.stringify(radioInfo.slice(0, 5))}`);
     }
     
-    // 2) Tentativa específica: procurar radio com value="excel" ou texto "excel"
+    // 2) Tentativa específica: achar o radio da LINHA "Em Excel" (não depende de value/id)
+    // Em muitos layouts o value é numérico e o texto fica no TD ao lado.
     const okDirect = await frame.evaluate(() => {
+      const setChecked = (radio) => {
+        try {
+          // alguns sites só reagem se disparar eventos
+          radio.checked = true;
+          radio.dispatchEvent(new Event('click', { bubbles: true }));
+          radio.dispatchEvent(new Event('input', { bubbles: true }));
+          radio.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
       const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
       
       for (const radio of radios) {
         const value = (radio.value || '').toLowerCase();
         const name = (radio.name || '').toLowerCase();
         const id = (radio.id || '').toLowerCase();
-        const nearText = (radio.closest('tr, div, label, td')?.textContent || '').toLowerCase();
-        
-        // Verificar se é o radio de Excel
-        if (
-          value.includes('excel') ||
-          id.includes('excel') ||
-          (name.includes('exib') && nearText.includes('excel')) ||
-          (name.includes('forma') && nearText.includes('excel'))
-        ) {
-          radio.click();
-          console.log('Radio Excel selecionado via value/id/name');
-          return { success: true, method: 'direct', value, name };
+        const nearText = (radio.closest('tr, td, div, label, p')?.textContent || '').toLowerCase();
+
+        // Preferência absoluta: a linha/contêiner contém "Em Excel"
+        if (/\bem\s*excel\b/.test(nearText)) {
+          const ok = setChecked(radio);
+          console.log('Radio Excel selecionado via nearText (linha Em Excel):', { ok, name, value, id });
+          return { success: ok, method: 'direct_nearText', value, name, id };
+        }
+
+        // Fallback: casos onde o texto não contém "Em", mas contém Excel
+        if (nearText.includes('excel') || value.includes('excel') || id.includes('excel')) {
+          const ok = setChecked(radio);
+          console.log('Radio Excel selecionado via nearText/value/id:', { ok, name, value, id, nearText: nearText.slice(0, 80) });
+          return { success: ok, method: 'direct_fallback', value, name, id };
         }
       }
       
@@ -351,11 +374,17 @@ async function selecionarFormaExibicaoEmExcel(page) {
         log('Clicado à esquerda do texto "Em Excel"');
         await page.waitForTimeout(300);
         
-        // Verificar se algum radio ficou checked
-        const anyChecked = await frame.evaluate(() => {
-          const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
-          return radios.some(r => r.checked && (r.value || '').toLowerCase().includes('excel'));
-        }).catch(() => false);
+        // Verificar se algum radio ficou checked na linha "Em Excel" (não depende do value)
+        const anyChecked = await frame
+          .evaluate(() => {
+            const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+            return radios.some((r) => {
+              if (!r.checked) return false;
+              const nearText = (r.closest('tr, td, div, label, p')?.textContent || '').toLowerCase();
+              return /\bem\s*excel\b/.test(nearText) || nearText.includes('excel');
+            });
+          })
+          .catch(() => false);
         
         if (anyChecked) {
           log('Radio Excel confirmado como checked após clique');
