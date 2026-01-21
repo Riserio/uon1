@@ -319,6 +319,8 @@ export default function GestaoJornada() {
       overtimeMinutes: number;
       entrada?: string;
       saida?: string;
+      almocoMinutes: number;
+      almocoRegistrado: boolean;
     }> = [];
     let totalMinutesWorked = 0;
     let lateCount = 0;
@@ -346,6 +348,9 @@ export default function GestaoJornada() {
       let lateMinutes = 0;
       let hasOvertime = false;
       let overtimeMinutes = 0;
+      let almocoMinutes = defaultAlmocoMinutes;
+      let almocoRegistrado = false;
+      
       if (entrada) {
         const entradaDate = new Date(entrada.data_hora);
         const expectedDate = new Date(entradaDate);
@@ -374,12 +379,12 @@ export default function GestaoJornada() {
         const saidaTime = new Date(saida.data_hora).getTime();
         
         // Calculate lunch break: use actual records if available, otherwise use default from employee settings
-        let almocoMinutes = defaultAlmocoMinutes; // Default lunch break from employee configuration
         if (saidaAlmoco && voltaAlmoco) {
           // If lunch break was registered, use the actual time
           const saidaAlmocoTime = new Date(saidaAlmoco.data_hora).getTime();
           const voltaAlmocoTime = new Date(voltaAlmoco.data_hora).getTime();
           almocoMinutes = (voltaAlmocoTime - saidaAlmocoTime) / (1000 * 60);
+          almocoRegistrado = true;
         }
         
         const totalMinutes = (saidaTime - entradaTime) / (1000 * 60) - almocoMinutes;
@@ -397,7 +402,9 @@ export default function GestaoJornada() {
         hasOvertime,
         overtimeMinutes,
         entrada: entrada ? format(new Date(entrada.data_hora), "HH:mm") : undefined,
-        saida: saida ? format(new Date(saida.data_hora), "HH:mm") : undefined
+        saida: saida ? format(new Date(saida.data_hora), "HH:mm") : undefined,
+        almocoMinutes,
+        almocoRegistrado
       });
     });
     return {
@@ -956,7 +963,7 @@ export default function GestaoJornada() {
                               </span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-4 text-sm">
+                          <div className="flex items-center gap-4 text-sm flex-wrap">
                             <div className="text-right">
                               <span className="text-muted-foreground">Entrada: </span>
                               <span className="font-medium">{day.entrada || "-"}</span>
@@ -965,7 +972,15 @@ export default function GestaoJornada() {
                               <span className="text-muted-foreground">Saída: </span>
                               <span className="font-medium">{day.saida || "-"}</span>
                             </div>
+                            <div className="text-right">
+                              <span className="text-muted-foreground">Almoço: </span>
+                              <span className={`font-medium ${day.almocoRegistrado ? "text-foreground" : "text-muted-foreground italic"}`}>
+                                {formatHoursMinutes(day.almocoMinutes / 60)}
+                                {!day.almocoRegistrado && <span className="text-xs ml-1">(padrão)</span>}
+                              </span>
+                            </div>
                             <div className="text-right min-w-[80px]">
+                              <span className="text-muted-foreground">Total: </span>
                               <span className="font-medium">{formatHoursMinutes(day.hoursWorked)}</span>
                             </div>
                             {day.isLate && <Badge variant="destructive" className="text-xs">
