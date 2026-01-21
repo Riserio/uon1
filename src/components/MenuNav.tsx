@@ -182,9 +182,8 @@ export default function MenuNav() {
           </DropdownMenuItem>
         )}
 
-        {/* Usuários - precisa de role + permissão de menu */}
-        {(userRole === "admin" || userRole === "administrativo" || userRole === "superintendente") &&
-          canView("usuarios") && (
+        {/* Usuários - visibilidade controlada pela tabela role_menu_permissions */}
+        {canView("usuarios") && (
             <DropdownMenuItem asChild>
               <Link to="/usuarios" className="cursor-pointer flex items-center justify-between w-full">
                 <div className="flex items-center">
@@ -287,8 +286,8 @@ export default function MenuNav() {
           </DropdownMenuItem>
         )}
 
-        {/* E-mails */}
-        {(userRole === "admin" || userRole === "superintendente") && canView("emails") && (
+        {/* E-mails - visibilidade controlada pela tabela role_menu_permissions */}
+        {canView("emails") && (
           <DropdownMenuItem asChild>
             <Link to="/emails" className="cursor-pointer">
               <Mail className="mr-2 h-4 w-4" />
@@ -297,8 +296,8 @@ export default function MenuNav() {
           </DropdownMenuItem>
         )}
 
-        {/* Comunicados - hidden for lider and gestao roles */}
-        {userRole && !["lider", "gestao"].includes(userRole) && canView("comunicados") && (
+        {/* Comunicados - visibilidade controlada pela tabela role_menu_permissions */}
+        {canView("comunicados") && (
           <DropdownMenuItem asChild>
             <Link to="/comunicados" className="cursor-pointer">
               <Megaphone className="mr-2 h-4 w-4" />
@@ -317,8 +316,8 @@ export default function MenuNav() {
           </DropdownMenuItem>
         )}
 
-        {/* Configurações */}
-        {(userRole === "admin" || userRole === "superintendente") && canView("configuracoes") && (
+        {/* Configurações - visibilidade controlada pela tabela role_menu_permissions */}
+        {canView("configuracoes") && (
           <DropdownMenuItem asChild>
             <Link to="/configuracoes" className="cursor-pointer">
               <Settings className="mr-2 h-4 w-4" />
