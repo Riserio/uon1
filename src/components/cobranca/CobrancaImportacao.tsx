@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -148,7 +149,7 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [preview, setPreview] = useState<any[]>([]);
-  const [showAutomacao, setShowAutomacao] = useState(false);
+  const [showAutomacaoDialog, setShowAutomacaoDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeImportTab, setActiveImportTab] = useState("upload");
   
@@ -353,8 +354,7 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={() => setShowAutomacao(!showAutomacao)}
-                  className={showAutomacao ? "bg-primary/10" : ""}
+                  onClick={() => setShowAutomacaoDialog(true)}
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   <span className="hidden sm:inline">Automação Hinova</span>
@@ -427,13 +427,21 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
         </CardContent>
       </Card>
 
-      {/* Automação Hinova - Collapsible */}
-      {isAdmin && showAutomacao && (
-        <CobrancaAutomacaoConfig 
-          corretoraId={corretoraId}
-          corretoraNome={corretoraNome}
-        />
-      )}
+      {/* Dialog de Automação Hinova */}
+      <Dialog open={showAutomacaoDialog} onOpenChange={setShowAutomacaoDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-primary" />
+              Automação Hinova
+            </DialogTitle>
+          </DialogHeader>
+          <CobrancaAutomacaoConfig 
+            corretoraId={corretoraId}
+            corretoraNome={corretoraNome}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Preview */}
       {preview.length > 0 && (
