@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Users, Clock, Settings, UserCircle, Briefcase, Shield } from "lucide-react";
-import GestaoFuncionarios from "@/components/gestao/GestaoFuncionarios";
+import { Clock, Settings, UserCircle, Briefcase } from "lucide-react";
 import GestaoJornada from "@/components/gestao/GestaoJornada";
 import Usuarios from "@/pages/Usuarios";
 import Configuracoes from "@/pages/Configuracoes";
@@ -24,10 +23,9 @@ export default function Gestao() {
   }, [isAdmin, activeTab]);
 
   const tabs = [
-    { id: "usuarios", label: "Usuários", shortLabel: "Usuários", icon: UserCircle, visible: canManageUsers },
-    { id: "funcionarios", label: "Funcionários", shortLabel: "RH", icon: Users, visible: isAdmin },
-    { id: "jornada", label: "Jornada", shortLabel: "Jornada", icon: Clock, visible: true },
-    { id: "configuracoes", label: "Configurações", shortLabel: "Config", icon: Settings, visible: isAdmin },
+    { id: "usuarios", label: "Usuários", shortLabel: "Usuários", icon: UserCircle, visible: canManageUsers, description: "Gerenciar usuários e funcionários" },
+    { id: "jornada", label: "Jornada", shortLabel: "Jornada", icon: Clock, visible: true, description: "Controle de ponto" },
+    { id: "configuracoes", label: "Configurações", shortLabel: "Config", icon: Settings, visible: isAdmin, description: "Ajustes do sistema" },
   ].filter(tab => tab.visible);
 
   return (
@@ -47,7 +45,7 @@ export default function Gestao() {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className={`grid grid-cols-2 lg:grid-cols-${tabs.length} gap-4 mb-8`}>
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -71,10 +69,7 @@ export default function Gestao() {
                         {tab.label}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {tab.id === 'funcionarios' && 'Cadastro de funcionários'}
-                        {tab.id === 'jornada' && 'Controle de ponto'}
-                        {tab.id === 'usuarios' && 'Gerenciar usuários'}
-                        {tab.id === 'configuracoes' && 'Ajustes do sistema'}
+                        {tab.description}
                       </p>
                     </div>
                   </div>
@@ -93,16 +88,6 @@ export default function Gestao() {
               </TabsTrigger>
             ))}
           </TabsList>
-
-          {isAdmin && (
-            <TabsContent value="funcionarios" className="mt-0 animate-in fade-in-50 duration-300">
-              <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <GestaoFuncionarios />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
 
           <TabsContent value="jornada" className="mt-0 animate-in fade-in-50 duration-300">
             <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
