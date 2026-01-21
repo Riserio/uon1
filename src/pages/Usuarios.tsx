@@ -42,6 +42,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination";
+import FuncionarioFormTabs, { FuncionarioFormData, defaultFuncionarioFormData } from "@/components/FuncionarioFormTabs";
 
 type RoleType = "superintendente" | "administrativo" | "lider" | "comercial" | "parceiro";
 
@@ -135,8 +136,8 @@ export default function Usuarios() {
 
   const [logs, setLogs] = useState<UserLog[]>([]);
   const [isFuncionario, setIsFuncionario] = useState(false);
-  const [showFuncionarioPrompt, setShowFuncionarioPrompt] = useState(false);
   const [createdFuncionarioId, setCreatedFuncionarioId] = useState<string | null>(null);
+  const [funcionarioFormData, setFuncionarioFormData] = useState<FuncionarioFormData>(defaultFuncionarioFormData);
   const filteredProfiles = useMemo(() => {
     if (!searchTerm) return profiles;
     const term = searchTerm.toLowerCase();
@@ -410,6 +411,30 @@ export default function Usuarios() {
               telefone: formData.telefone || null,
               cargo: formData.cargo || null,
               cpf: formData.cpf_cnpj || null,
+              departamento: funcionarioFormData.departamento || null,
+              tipo_contrato: funcionarioFormData.tipoContrato,
+              data_admissao: funcionarioFormData.dataAdmissao || null,
+              salario: funcionarioFormData.salario ? parseFloat(funcionarioFormData.salario) : null,
+              corretora_id: funcionarioFormData.corretoraId || null,
+              carga_horaria_semanal: parseInt(funcionarioFormData.cargaHoraria),
+              horario_entrada: funcionarioFormData.horarioEntrada,
+              horario_saida: funcionarioFormData.horarioSaida,
+              horario_almoco_inicio: funcionarioFormData.horarioAlmocoInicio,
+              horario_almoco_fim: funcionarioFormData.horarioAlmocoFim,
+              endereco: {
+                cep: funcionarioFormData.cep,
+                rua: funcionarioFormData.rua,
+                numero: funcionarioFormData.numero,
+                bairro: funcionarioFormData.bairro,
+                cidade: funcionarioFormData.cidade,
+                estado: funcionarioFormData.estado,
+              },
+              dados_bancarios: {
+                banco: funcionarioFormData.banco,
+                agencia: funcionarioFormData.agencia,
+                conta: funcionarioFormData.conta,
+                pix: funcionarioFormData.pix,
+              },
               created_by: user.id,
             })
             .select()
@@ -420,16 +445,13 @@ export default function Usuarios() {
             toast.warning("Usuário criado, mas houve erro ao criar registro de funcionário");
           } else {
             setCreatedFuncionarioId(funcionarioData.id);
-            setShowFuncionarioPrompt(true);
           }
         }
 
         toast.success(`Usuário criado! Senha temporária: ${tempPassword}`);
         await logUserAction("create", createdUserId, { nome: validatedData.nome, role: selectedRole, isFuncionario });
 
-        if (!isFuncionario) {
-          setDialogOpen(false);
-        }
+        setDialogOpen(false);
         fetchProfiles();
         fetchUserRoles();
       } catch (error) {
@@ -526,6 +548,30 @@ export default function Usuarios() {
           telefone: formData.telefone || null,
           cargo: formData.cargo || null,
           cpf: formData.cpf_cnpj || null,
+          departamento: funcionarioFormData.departamento || null,
+          tipo_contrato: funcionarioFormData.tipoContrato,
+          data_admissao: funcionarioFormData.dataAdmissao || null,
+          salario: funcionarioFormData.salario ? parseFloat(funcionarioFormData.salario) : null,
+          corretora_id: funcionarioFormData.corretoraId || null,
+          carga_horaria_semanal: parseInt(funcionarioFormData.cargaHoraria),
+          horario_entrada: funcionarioFormData.horarioEntrada,
+          horario_saida: funcionarioFormData.horarioSaida,
+          horario_almoco_inicio: funcionarioFormData.horarioAlmocoInicio,
+          horario_almoco_fim: funcionarioFormData.horarioAlmocoFim,
+          endereco: {
+            cep: funcionarioFormData.cep,
+            rua: funcionarioFormData.rua,
+            numero: funcionarioFormData.numero,
+            bairro: funcionarioFormData.bairro,
+            cidade: funcionarioFormData.cidade,
+            estado: funcionarioFormData.estado,
+          },
+          dados_bancarios: {
+            banco: funcionarioFormData.banco,
+            agencia: funcionarioFormData.agencia,
+            conta: funcionarioFormData.conta,
+            pix: funcionarioFormData.pix,
+          },
           created_by: user.id,
         })
         .select()
@@ -536,10 +582,48 @@ export default function Usuarios() {
         toast.warning("Usuário atualizado, mas houve erro ao criar registro de funcionário");
       } else {
         setCreatedFuncionarioId(novoFuncionario.id);
-        setShowFuncionarioPrompt(true);
-        fetchProfiles();
-        fetchUserRoles();
-        return;
+      }
+    } else if (isFuncionario && createdFuncionarioId) {
+      // Atualizar funcionário existente
+      const { error: updateError } = await supabase
+        .from("funcionarios")
+        .update({
+          nome: formData.nome || editingItem.nome,
+          email: formData.email || editingItem.email,
+          telefone: formData.telefone || null,
+          cargo: formData.cargo || null,
+          cpf: formData.cpf_cnpj || null,
+          departamento: funcionarioFormData.departamento || null,
+          tipo_contrato: funcionarioFormData.tipoContrato,
+          data_admissao: funcionarioFormData.dataAdmissao || null,
+          salario: funcionarioFormData.salario ? parseFloat(funcionarioFormData.salario) : null,
+          corretora_id: funcionarioFormData.corretoraId || null,
+          carga_horaria_semanal: parseInt(funcionarioFormData.cargaHoraria),
+          horario_entrada: funcionarioFormData.horarioEntrada,
+          horario_saida: funcionarioFormData.horarioSaida,
+          horario_almoco_inicio: funcionarioFormData.horarioAlmocoInicio,
+          horario_almoco_fim: funcionarioFormData.horarioAlmocoFim,
+          endereco: {
+            cep: funcionarioFormData.cep,
+            rua: funcionarioFormData.rua,
+            numero: funcionarioFormData.numero,
+            bairro: funcionarioFormData.bairro,
+            cidade: funcionarioFormData.cidade,
+            estado: funcionarioFormData.estado,
+          },
+          dados_bancarios: {
+            banco: funcionarioFormData.banco,
+            agencia: funcionarioFormData.agencia,
+            conta: funcionarioFormData.conta,
+            pix: funcionarioFormData.pix,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", createdFuncionarioId);
+
+      if (updateError) {
+        console.error("Erro ao atualizar funcionário:", updateError);
+        toast.warning("Usuário atualizado, mas houve erro ao atualizar registro de funcionário");
       }
     } else if (!isFuncionario && createdFuncionarioId) {
       // Remover funcionário
@@ -649,15 +733,45 @@ export default function Usuarios() {
       setEditingRole((userRoles[item.id] as RoleType) || "comercial");
       setSelectedEquipes(userEquipes[item.id] || []);
       
-      // Verificar se já é funcionário
+      // Verificar se já é funcionário e carregar dados completos
       const { data: funcionarioData } = await supabase
         .from("funcionarios")
-        .select("id")
+        .select("*")
         .eq("profile_id", item.id)
         .maybeSingle();
       
       setIsFuncionario(!!funcionarioData);
       setCreatedFuncionarioId(funcionarioData?.id || null);
+      
+      if (funcionarioData) {
+        const endereco = funcionarioData.endereco as any || {};
+        const dadosBancarios = funcionarioData.dados_bancarios as any || {};
+        
+        setFuncionarioFormData({
+          departamento: funcionarioData.departamento || "",
+          tipoContrato: funcionarioData.tipo_contrato || "CLT",
+          dataAdmissao: funcionarioData.data_admissao || "",
+          salario: funcionarioData.salario?.toString() || "",
+          corretoraId: funcionarioData.corretora_id || "",
+          cargaHoraria: funcionarioData.carga_horaria_semanal?.toString() || "44",
+          horarioEntrada: funcionarioData.horario_entrada || "08:00",
+          horarioSaida: funcionarioData.horario_saida || "18:00",
+          horarioAlmocoInicio: funcionarioData.horario_almoco_inicio || "12:00",
+          horarioAlmocoFim: funcionarioData.horario_almoco_fim || "13:00",
+          cep: endereco.cep || "",
+          rua: endereco.rua || "",
+          numero: endereco.numero || "",
+          bairro: endereco.bairro || "",
+          cidade: endereco.cidade || "",
+          estado: endereco.estado || "",
+          banco: dadosBancarios.banco || "",
+          agencia: dadosBancarios.agencia || "",
+          conta: dadosBancarios.conta || "",
+          pix: dadosBancarios.pix || "",
+        });
+      } else {
+        setFuncionarioFormData(defaultFuncionarioFormData);
+      }
     } else {
       setEditingItem(null);
       setFormData({});
@@ -665,8 +779,8 @@ export default function Usuarios() {
       setSelectedEquipes([]);
       setTempPassword("");
       setIsFuncionario(false);
-      setShowFuncionarioPrompt(false);
       setCreatedFuncionarioId(null);
+      setFuncionarioFormData(defaultFuncionarioFormData);
     }
     setDialogOpen(true);
   };
@@ -1353,6 +1467,15 @@ export default function Usuarios() {
                           </div>
                         ) : null}
                       </div>
+                    )}
+
+                    {/* DADOS DO FUNCIONÁRIO */}
+                    {isFuncionario && (
+                      <FuncionarioFormTabs
+                        data={funcionarioFormData}
+                        onChange={setFuncionarioFormData}
+                        isEditing={!!editingItem && !!createdFuncionarioId}
+                      />
                     )}
                   </div>
 
@@ -2267,45 +2390,6 @@ export default function Usuarios() {
           onOpenChange={setRoleMenuPermissionsDialogOpen}
         />
 
-        {/* Dialog para completar dados do funcionário */}
-        <Dialog open={showFuncionarioPrompt} onOpenChange={(open) => {
-          setShowFuncionarioPrompt(open);
-          if (!open) {
-            setDialogOpen(false);
-            setIsFuncionario(false);
-            setCreatedFuncionarioId(null);
-          }
-        }}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Funcionário criado com sucesso!</DialogTitle>
-            </DialogHeader>
-            <div className="py-4">
-              <p className="text-muted-foreground">
-                O registro de funcionário foi criado. Deseja completar as informações de jornada, endereço e dados bancários agora?
-              </p>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => {
-                setShowFuncionarioPrompt(false);
-                setDialogOpen(false);
-                setIsFuncionario(false);
-                setCreatedFuncionarioId(null);
-              }}>
-                Depois
-              </Button>
-              <Button onClick={() => {
-                setShowFuncionarioPrompt(false);
-                setDialogOpen(false);
-                setIsFuncionario(false);
-                // Navigate to Gestão > Funcionários
-                window.location.href = '/gestao?tab=funcionarios';
-              }}>
-                Completar Agora
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </Tabs>
     </div>
   );
