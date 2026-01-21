@@ -35,3 +35,6 @@ verify_jwt = true
 
 [functions.webhook-cobranca-hinova]
 verify_jwt = false
+
+[functions.executar-cobranca-hinova]
+verify_jwt = false
