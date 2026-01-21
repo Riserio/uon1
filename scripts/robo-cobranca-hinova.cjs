@@ -1282,12 +1282,128 @@ async function rodarRobo() {
       
       try {
         // ============================================
-        // CORREÇÃO: O portal Hinova abre uma NOVA ABA após clicar em "Gerar"
-        // O download acontece nessa nova aba, não na página original
+        // CORREÇÃO: Selecionar Excel ANTES de clicar em Gerar
         // ============================================
         
-        // 6. Gerar relatório (vai abrir nova aba e baixar Excel)
-        log('Clicando em Gerar relatório Excel...');
+        // PASSO 1: Garantir que "Em Excel" está selecionado
+        log('Verificando/selecionando forma de exibição Excel...');
+        await page.screenshot({ path: 'debug_antes_excel_tentativa.png' }).catch(() => {});
+        
+        // Tentar selecionar Excel em qualquer frame
+        const selecionarExcelEmQualquerFrame = async () => {
+          const frames = [page.mainFrame(), ...page.frames().filter(f => f !== page.mainFrame())];
+          
+          for (const frame of frames) {
+            try {
+              const frameUrl = frame.url() || 'main';
+              
+              // Verificar se já tem Excel selecionado
+              const jaChecked = await frame.evaluate(() => {
+                const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+                for (const r of radios) {
+                  if (!r.checked) continue;
+                  const nearText = (r.closest('tr, div, label, td')?.textContent || '').toLowerCase();
+                  const value = (r.value || '').toLowerCase();
+                  if (nearText.includes('excel') || value.includes('excel')) {
+                    return true;
+                  }
+                }
+                return false;
+              }).catch(() => false);
+              
+              if (jaChecked) {
+                log(`✅ Excel já está selecionado (frame: ${frameUrl})`);
+                return true;
+              }
+              
+              // Tentar clicar no radio de Excel
+              const clicouExcel = await frame.evaluate(() => {
+                const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+                
+                for (const radio of radios) {
+                  const value = (radio.value || '').toLowerCase();
+                  const id = (radio.id || '').toLowerCase();
+                  const name = (radio.name || '').toLowerCase();
+                  const nearText = (radio.closest('tr, div, label, td, table')?.textContent || '').toLowerCase();
+                  
+                  // Verificar se é o radio de forma de exibição Excel
+                  const isExcel = value.includes('excel') || id.includes('excel') ||
+                    (nearText.includes('excel') && (nearText.includes('exib') || nearText.includes('forma')));
+                  
+                  if (isExcel) {
+                    radio.checked = true;
+                    radio.click();
+                    radio.dispatchEvent(new Event('change', { bubbles: true }));
+                    return { success: true, value, id, nearText: nearText.substring(0, 100) };
+                  }
+                }
+                
+                // Fallback: procurar por texto "Em Excel" e clicar no radio mais próximo
+                const labels = Array.from(document.querySelectorAll('label, span, td, div, font, b'));
+                for (const label of labels) {
+                  const text = (label.textContent || '').toLowerCase();
+                  if (text.includes('em excel') || (text.trim() === 'excel' && text.length < 20)) {
+                    // Procurar radio próximo
+                    let radio = label.querySelector('input[type="radio"]');
+                    if (!radio) radio = label.previousElementSibling;
+                    if (!radio || radio.tagName !== 'INPUT') radio = label.parentElement?.querySelector('input[type="radio"]');
+                    if (!radio) radio = label.closest('tr, td, div')?.querySelector('input[type="radio"]');
+                    
+                    if (radio && radio.type === 'radio') {
+                      radio.checked = true;
+                      radio.click();
+                      radio.dispatchEvent(new Event('change', { bubbles: true }));
+                      return { success: true, method: 'label', labelText: text.substring(0, 50) };
+                    }
+                  }
+                }
+                
+                return { success: false };
+              }).catch(() => ({ success: false }));
+              
+              if (clicouExcel.success) {
+                log(`✅ Excel selecionado via JavaScript (frame: ${frameUrl}): ${JSON.stringify(clicouExcel)}`);
+                await page.waitForTimeout(500);
+                return true;
+              }
+              
+              // Tentar via Playwright locator
+              const excelLocator = frame.locator('text=/em\\s*excel/i').first();
+              const excelVisible = await excelLocator.isVisible().catch(() => false);
+              
+              if (excelVisible) {
+                const box = await excelLocator.boundingBox().catch(() => null);
+                if (box) {
+                  // Clicar à esquerda do texto onde normalmente está o radio
+                  await page.mouse.click(box.x - 15, box.y + box.height / 2);
+                  log(`✅ Clicou à esquerda do texto "Em Excel" (frame: ${frameUrl})`);
+                  await page.waitForTimeout(500);
+                  return true;
+                }
+              }
+              
+            } catch (err) {
+              // Continuar para próximo frame
+            }
+          }
+          
+          return false;
+        };
+        
+        const excelOk = await selecionarExcelEmQualquerFrame();
+        
+        if (!excelOk) {
+          log('⚠️ Não foi possível confirmar seleção de Excel - tentando mesmo assim...');
+        }
+        
+        // Aguardar um pouco após selecionar Excel
+        await page.waitForTimeout(1000);
+        await page.screenshot({ path: 'debug_apos_selecao_excel.png' }).catch(() => {});
+        
+        // ============================================
+        // PASSO 2: Clicar no botão Gerar
+        // ============================================
+        log('Clicando em Gerar relatório...');
 
         // IMPORTANTE: no Hinova o botão pode estar dentro de iframe.
         // Se a gente "clica via JS" (evaluate), o portal pode bloquear o window.open/download.
