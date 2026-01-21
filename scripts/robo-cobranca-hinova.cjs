@@ -186,11 +186,12 @@ async function fecharPopups(page, maxTentativas = 10) {
 
 /**
  * Seleciona a opção "Em Excel" na seção "Forma de Exibição".
- * PRIORIDADE: Clicar diretamente no texto/label visível "Em Excel"
- * usando seletor por texto (getByText ou :has-text).
+ * Usa JavaScript para localizar o input[type="radio"] correspondente,
+ * marcar checked = true e disparar o evento change.
+ * NÃO usa clique visual nem getByText.
  */
 async function selecionarFormaExibicaoEmExcel(page) {
-  log('Iniciando seleção de Forma de Exibição: Em Excel...');
+  log('Iniciando seleção de Forma de Exibição: Em Excel via JavaScript...');
   
   // Screenshot antes da seleção para debug
   await page.screenshot({ path: 'debug_antes_excel.png' }).catch(() => {});
@@ -200,190 +201,202 @@ async function selecionarFormaExibicaoEmExcel(page) {
     log(`Tentando selecionar Excel no frame: ${frameUrl}`);
 
     // ========================================
-    // PRIORIDADE 1: Clicar diretamente no texto visível "Em Excel"
-    // ========================================
-    
-    // Estratégia 1A: getByText com regex "Em Excel" (case insensitive)
-    try {
-      const textLocator = frame.getByText(/em\s*excel/i);
-      const textCount = await textLocator.count();
-      log(`getByText(/em excel/i) encontrou ${textCount} elementos`);
-      
-      if (textCount > 0) {
-        // Scroll para garantir visibilidade
-        await textLocator.first().scrollIntoViewIfNeeded().catch(() => {});
-        await page.waitForTimeout(300);
-        
-        // Clicar diretamente no texto "Em Excel"
-        await textLocator.first().click({ force: true });
-        log('✅ Clicou diretamente no texto "Em Excel" via getByText');
-        
-        // Verificar se o radio foi selecionado
-        await page.waitForTimeout(500);
-        const radioChecked = await frame.evaluate(() => {
-          const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
-          return radios.some(r => {
-            if (!r.checked) return false;
-            const nearText = (r.closest('tr, td, div, label, p, font')?.textContent || '').toLowerCase();
-            return /\bem\s*excel\b/i.test(nearText) || nearText.includes('excel');
-          });
-        }).catch(() => false);
-        
-        if (radioChecked) {
-          log('✅ Radio Excel confirmado como selecionado após clicar no texto');
-          return true;
-        }
-        log('Clique no texto não selecionou o radio, tentando próxima estratégia...');
-      }
-    } catch (e) {
-      log(`Estratégia getByText falhou: ${e.message}`);
-    }
-
-    // Estratégia 1B: locator com :has-text("Em Excel")
-    try {
-      const hasTextSelectors = [
-        'td:has-text("Em Excel")',
-        'label:has-text("Em Excel")',
-        'span:has-text("Em Excel")',
-        'font:has-text("Em Excel")',
-        'div:has-text("Em Excel")',
-        '*:has-text("Em Excel")',
-      ];
-      
-      for (const selector of hasTextSelectors) {
-        const locator = frame.locator(selector).first();
-        const isVisible = await locator.isVisible().catch(() => false);
-        
-        if (isVisible) {
-          await locator.scrollIntoViewIfNeeded().catch(() => {});
-          await locator.click({ force: true });
-          log(`✅ Clicou via locator: ${selector}`);
-          
-          await page.waitForTimeout(500);
-          
-          // Verificar se funcionou
-          const radioChecked = await frame.evaluate(() => {
-            const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
-            return radios.some(r => {
-              if (!r.checked) return false;
-              const nearText = (r.closest('tr, td, div, label, p, font')?.textContent || '').toLowerCase();
-              return /\bem\s*excel\b/i.test(nearText) || nearText.includes('excel');
-            });
-          }).catch(() => false);
-          
-          if (radioChecked) {
-            log('✅ Radio Excel confirmado como selecionado');
-            return true;
-          }
-        }
-      }
-    } catch (e) {
-      log(`Estratégia :has-text falhou: ${e.message}`);
-    }
-
-    // ========================================
-    // PRIORIDADE 2: Buscar texto "Em Excel" e clicar nele via JavaScript
+    // ESTRATÉGIA ÚNICA: JavaScript direto no input[type="radio"]
     // ========================================
     try {
-      const clickedViaJS = await frame.evaluate(() => {
-        // Buscar todos os elementos de texto
-        const textElements = document.querySelectorAll('td, span, label, font, div, p, b');
-        
-        for (const el of textElements) {
-          const text = el.textContent?.trim() || '';
-          
-          // Verificar se o texto é exatamente ou contém "Em Excel"
-          if (/\bEm\s*Excel\b/i.test(text)) {
-            // Verificar se é visível
-            const rect = el.getBoundingClientRect();
-            if (rect.width > 0 && rect.height > 0) {
-              // Clicar diretamente no elemento de texto
-              el.click();
-              console.log('Clicou no elemento de texto "Em Excel":', el.tagName, text.substring(0, 50));
-              
-              // Também tentar clicar no radio mais próximo
-              const parent = el.closest('tr') || el.closest('td') || el.parentElement;
-              if (parent) {
-                const radio = parent.querySelector('input[type="radio"]');
-                if (radio) {
-                  radio.checked = true;
-                  radio.click();
-                  radio.dispatchEvent(new Event('change', { bubbles: true }));
-                  console.log('Radio próximo ao texto também clicado');
-                }
-              }
-              
-              return true;
-            }
-          }
-        }
-        
-        return false;
-      });
-      
-      if (clickedViaJS) {
-        log('✅ Clicou no texto "Em Excel" via JavaScript');
-        await page.waitForTimeout(500);
-        
-        // Verificar se funcionou
-        const radioChecked = await frame.evaluate(() => {
-          const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
-          return radios.some(r => {
-            if (!r.checked) return false;
-            const nearText = (r.closest('tr, td, div, label, p, font')?.textContent || '').toLowerCase();
-            return /\bem\s*excel\b/i.test(nearText) || nearText.includes('excel');
-          });
-        }).catch(() => false);
-        
-        if (radioChecked) {
-          log('✅ Radio Excel confirmado como selecionado');
-          return true;
-        }
-      }
-    } catch (e) {
-      log(`Estratégia JavaScript clique texto falhou: ${e.message}`);
-    }
-
-    // ========================================
-    // PRIORIDADE 3 (FALLBACK): Selecionar radio na mesma linha do texto "Em Excel"
-    // ========================================
-    try {
-      const okDirect = await frame.evaluate(() => {
-        const setChecked = (radio) => {
+      const result = await frame.evaluate(() => {
+        // Função auxiliar para marcar radio via JavaScript
+        const setRadioChecked = (radio) => {
           try {
+            // Garantir que está visível e habilitado
+            if (radio.disabled) return false;
+            
+            // Desmarcar outros radios do mesmo grupo
+            if (radio.name) {
+              const siblings = document.querySelectorAll(`input[type="radio"][name="${radio.name}"]`);
+              siblings.forEach(r => {
+                if (r !== radio && r.checked) {
+                  r.checked = false;
+                  r.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+              });
+            }
+            
+            // Marcar o radio
             radio.checked = true;
-            radio.click();
+            
+            // Disparar eventos para que o sistema detecte a mudança
             radio.dispatchEvent(new Event('click', { bubbles: true }));
             radio.dispatchEvent(new Event('input', { bubbles: true }));
             radio.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            // Também disparar evento no formulário pai, se existir
+            const form = radio.closest('form');
+            if (form) {
+              form.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            
             return true;
-          } catch {
+          } catch (e) {
+            console.error('Erro ao marcar radio:', e);
             return false;
           }
         };
 
+        // Buscar todos os inputs radio
         const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+        console.log(`Total de radios encontrados: ${radios.length}`);
         
+        // Debug: listar todos os radios
+        radios.forEach((r, i) => {
+          const nearText = (r.closest('tr, td, div, label, p, font')?.textContent || '').trim().substring(0, 100);
+          console.log(`Radio ${i}: name=${r.name}, value=${r.value}, checked=${r.checked}, nearText=${nearText}`);
+        });
+        
+        // ESTRATÉGIA 1: Buscar radio cujo elemento próximo contém texto "Em Excel"
         for (const radio of radios) {
-          const nearText = (radio.closest('tr, td, div, label, p, font')?.textContent || '').toLowerCase();
-
-          // Verificar se está na linha do "Em Excel"
-          if (/\bem\s*excel\b/.test(nearText)) {
-            const ok = setChecked(radio);
-            console.log('Radio Excel selecionado via nearText:', { ok, nearText: nearText.slice(0, 80) });
-            return { success: ok, method: 'nearText' };
+          // Verificar texto do elemento pai mais próximo
+          const containers = [
+            radio.closest('tr'),
+            radio.closest('td'),
+            radio.closest('label'),
+            radio.closest('div'),
+            radio.parentElement,
+            radio.closest('font'),
+            radio.closest('p'),
+          ].filter(Boolean);
+          
+          for (const container of containers) {
+            const text = (container.textContent || '').toLowerCase();
+            
+            // Verificar padrões de "Em Excel"
+            if (/\bem\s*excel\b/i.test(text) || 
+                text.includes('excel') && text.includes('em')) {
+              console.log(`Encontrado radio Excel no container: ${container.tagName}, texto: ${text.substring(0, 80)}`);
+              
+              if (setRadioChecked(radio)) {
+                console.log('✅ Radio Excel marcado com sucesso via JavaScript');
+                return { success: true, method: 'nearText', radioValue: radio.value, radioName: radio.name };
+              }
+            }
           }
         }
         
-        return { success: false };
+        // ESTRATÉGIA 2: Buscar pelo valor do radio que contenha "excel"
+        for (const radio of radios) {
+          const value = (radio.value || '').toLowerCase();
+          const name = (radio.name || '').toLowerCase();
+          
+          if (value.includes('excel') || name.includes('excel') || value === 'xls' || value === 'xlsx') {
+            console.log(`Encontrado radio Excel por value/name: value=${radio.value}, name=${radio.name}`);
+            
+            if (setRadioChecked(radio)) {
+              console.log('✅ Radio Excel marcado com sucesso via value/name');
+              return { success: true, method: 'value', radioValue: radio.value, radioName: radio.name };
+            }
+          }
+        }
+        
+        // ESTRATÉGIA 3: Buscar texto "Em Excel" na página e encontrar radio próximo
+        const textElements = document.querySelectorAll('td, span, label, font, div, p, b, strong');
+        for (const el of textElements) {
+          const text = (el.textContent || '').trim();
+          
+          if (/^Em\s*Excel$/i.test(text) || /\bEm\s*Excel\b/i.test(text)) {
+            console.log(`Encontrado texto "Em Excel" em: ${el.tagName}, buscando radio próximo...`);
+            
+            // Procurar radio na mesma linha da tabela
+            const tr = el.closest('tr');
+            if (tr) {
+              const radio = tr.querySelector('input[type="radio"]');
+              if (radio) {
+                console.log(`Radio encontrado na mesma TR`);
+                if (setRadioChecked(radio)) {
+                  return { success: true, method: 'sameRow', radioValue: radio.value, radioName: radio.name };
+                }
+              }
+            }
+            
+            // Procurar radio no elemento pai
+            const parent = el.parentElement;
+            if (parent) {
+              const radio = parent.querySelector('input[type="radio"]');
+              if (radio) {
+                console.log(`Radio encontrado no parent`);
+                if (setRadioChecked(radio)) {
+                  return { success: true, method: 'parent', radioValue: radio.value, radioName: radio.name };
+                }
+              }
+            }
+            
+            // Procurar radio em elementos irmãos
+            const siblings = el.parentElement?.children || [];
+            for (const sibling of siblings) {
+              const radio = sibling.querySelector ? sibling.querySelector('input[type="radio"]') : null;
+              if (radio) {
+                console.log(`Radio encontrado em sibling`);
+                if (setRadioChecked(radio)) {
+                  return { success: true, method: 'sibling', radioValue: radio.value, radioName: radio.name };
+                }
+              }
+              if (sibling.tagName === 'INPUT' && sibling.type === 'radio') {
+                console.log(`Sibling é o próprio radio`);
+                if (setRadioChecked(sibling)) {
+                  return { success: true, method: 'sibling-direct', radioValue: sibling.value, radioName: sibling.name };
+                }
+              }
+            }
+          }
+        }
+        
+        // ESTRATÉGIA 4: Se houver radio group de "forma exibição", selecionar o segundo (geralmente Excel)
+        const formaExibicaoRadios = radios.filter(r => {
+          const name = (r.name || '').toLowerCase();
+          return name.includes('forma') || name.includes('exib') || name.includes('tipo') || name.includes('output');
+        });
+        
+        if (formaExibicaoRadios.length >= 2) {
+          // Normalmente: [0] = Em Tela, [1] = Em Excel
+          console.log(`Grupo de forma exibição encontrado com ${formaExibicaoRadios.length} opções`);
+          const excelRadio = formaExibicaoRadios[1]; // Segundo geralmente é Excel
+          if (setRadioChecked(excelRadio)) {
+            return { success: true, method: 'groupSecond', radioValue: excelRadio.value, radioName: excelRadio.name };
+          }
+        }
+        
+        return { success: false, totalRadios: radios.length };
       });
       
-      if (okDirect.success) {
-        log(`✅ Excel selecionado via fallback: ${JSON.stringify(okDirect)}`);
-        return true;
+      if (result.success) {
+        log(`✅ Excel selecionado via JavaScript: ${JSON.stringify(result)}`);
+        await page.waitForTimeout(500);
+        
+        // Verificar se realmente foi marcado
+        const verified = await frame.evaluate(() => {
+          const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+          const checkedRadio = radios.find(r => r.checked);
+          if (!checkedRadio) return { verified: false, reason: 'Nenhum radio marcado' };
+          
+          const nearText = (checkedRadio.closest('tr, td, div, label')?.textContent || '').toLowerCase();
+          const isExcel = /\bem\s*excel\b/i.test(nearText) || 
+                          nearText.includes('excel') ||
+                          (checkedRadio.value || '').toLowerCase().includes('excel');
+          
+          return { 
+            verified: isExcel, 
+            checkedValue: checkedRadio.value,
+            nearText: nearText.substring(0, 100)
+          };
+        }).catch(() => ({ verified: false }));
+        
+        log(`Verificação do radio: ${JSON.stringify(verified)}`);
+        return verified.verified || result.success;
       }
+      
+      log(`JavaScript não encontrou radio Excel: ${JSON.stringify(result)}`);
+      
     } catch (e) {
-      log(`Estratégia fallback falhou: ${e.message}`);
+      log(`Erro na seleção JavaScript: ${e.message}`);
     }
 
     // Debug: listar todos os radios encontrados
