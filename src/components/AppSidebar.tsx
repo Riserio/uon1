@@ -258,8 +258,8 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
 
-                {/* Uon1Sign */}
-                {canView("contratos") && <SidebarMenuItem>
+                {/* Uon1Sign - hidden for lider and gestao roles */}
+                {canView("contratos") && userRole !== "lider" && userRole !== "gestao" && <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink to="/uon1sign" activeClassName="bg-primary text-primary-foreground">
                         <FileSignature className="h-4 w-4" />
@@ -268,8 +268,8 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
 
-                {/* Comunicados */}
-                {canView("comunicados") && <SidebarMenuItem>
+                {/* Comunicados - hidden for lider and gestao roles */}
+                {canView("comunicados") && userRole !== "lider" && userRole !== "gestao" && <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink to="/comunicados" activeClassName="bg-primary text-primary-foreground">
                         <Megaphone className="h-4 w-4" />
