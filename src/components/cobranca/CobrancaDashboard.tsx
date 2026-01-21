@@ -85,27 +85,42 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     }
   };
 
-  // Carregar histórico de inadimplência (snapshot do dia anterior ou último disponível)
+  // Carregar histórico de inadimplência (snapshot mais recente diferente de hoje ou de ontem)
   const loadInadimplenciaHistorico = async () => {
     if (!corretoraId || !mesReferencia) return;
     
     try {
-      // Buscar o último registro disponível (diferente de hoje)
       const hoje = new Date();
       const hojeStr = hoje.toISOString().split('T')[0];
       
-      const { data, error } = await supabase
+      // Primeiro, tentar buscar registros de dias anteriores
+      let { data, error } = await supabase
         .from("cobranca_inadimplencia_historico")
         .select("dia, percentual_inadimplencia, data_registro")
         .eq("corretora_id", corretoraId)
         .eq("mes_referencia", mesReferencia)
         .lt("data_registro", hojeStr)
         .order("data_registro", { ascending: false })
-        .limit(31); // máximo de dias do mês
+        .limit(31);
 
       if (error) throw error;
 
-      // Pegar a data_registro mais recente (já que ordenamos DESC)
+      // Se não houver dados de dias anteriores, buscar qualquer dado disponível para visualização
+      if (!data || data.length === 0) {
+        const { data: todayData, error: todayError } = await supabase
+          .from("cobranca_inadimplencia_historico")
+          .select("dia, percentual_inadimplencia, data_registro")
+          .eq("corretora_id", corretoraId)
+          .eq("mes_referencia", mesReferencia)
+          .order("data_registro", { ascending: false })
+          .limit(31);
+        
+        if (!todayError && todayData && todayData.length > 0) {
+          data = todayData;
+          console.log("Usando histórico do dia atual como referência inicial");
+        }
+      }
+
       const historicoMap = new Map<number, number>();
       const dataRegistroMaisRecente = data?.[0]?.data_registro;
       
@@ -114,6 +129,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
         historicoMap.set(d.dia, Number(d.percentual_inadimplencia));
       });
       
+      console.log("Histórico carregado:", historicoMap.size, "dias, data:", dataRegistroMaisRecente);
       setInadimplenciaHistorico(historicoMap);
     } catch (error) {
       console.error("Erro ao carregar histórico inadimplência:", error);
@@ -148,6 +164,10 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
 
       if (error) {
         console.error("Erro ao salvar histórico inadimplência:", error);
+      } else {
+        console.log("Snapshot salvo com sucesso:", registros.length, "registros para", hojeStr);
+        // Recarregar histórico para exibir os dados
+        loadInadimplenciaHistorico();
       }
     } catch (error) {
       console.error("Erro ao salvar histórico inadimplência:", error);
