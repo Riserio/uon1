@@ -583,6 +583,62 @@ export type Database = {
           },
         ]
       }
+      cobranca_automacao_config: {
+        Row: {
+          ativo: boolean
+          corretora_id: string
+          created_at: string
+          hinova_codigo_cliente: string | null
+          hinova_pass: string
+          hinova_url: string
+          hinova_user: string
+          id: string
+          layout_relatorio: string | null
+          ultima_execucao: string | null
+          ultimo_erro: string | null
+          ultimo_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          corretora_id: string
+          created_at?: string
+          hinova_codigo_cliente?: string | null
+          hinova_pass?: string
+          hinova_url?: string
+          hinova_user?: string
+          id?: string
+          layout_relatorio?: string | null
+          ultima_execucao?: string | null
+          ultimo_erro?: string | null
+          ultimo_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          corretora_id?: string
+          created_at?: string
+          hinova_codigo_cliente?: string | null
+          hinova_pass?: string
+          hinova_url?: string
+          hinova_user?: string
+          id?: string
+          layout_relatorio?: string | null
+          ultima_execucao?: string | null
+          ultimo_erro?: string | null
+          ultimo_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobranca_automacao_config_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: true
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cobranca_boletos: {
         Row: {
           cooperativa: string | null
