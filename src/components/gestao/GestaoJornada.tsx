@@ -326,8 +326,16 @@ export default function GestaoJornada() {
     let totalOvertimeMinutes = 0;
     const expectedEntrada = funcionarioSelecionado.horario_entrada || "08:00";
     const expectedSaida = funcionarioSelecionado.horario_saida || "18:00";
+    const almocoInicio = funcionarioSelecionado.horario_almoco_inicio || "12:00";
+    const almocoFim = funcionarioSelecionado.horario_almoco_fim || "13:00";
     const [expectedHour, expectedMinute] = expectedEntrada.split(":").map(Number);
     const [expectedSaidaHour, expectedSaidaMinute] = expectedSaida.split(":").map(Number);
+    
+    // Calculate default lunch duration from employee settings
+    const [almocoInicioHour, almocoInicioMinute] = almocoInicio.split(":").map(Number);
+    const [almocoFimHour, almocoFimMinute] = almocoFim.split(":").map(Number);
+    const defaultAlmocoMinutes = (almocoFimHour * 60 + almocoFimMinute) - (almocoInicioHour * 60 + almocoInicioMinute);
+    
     Object.entries(registrosPorDia).forEach(([dia, regs]) => {
       const entrada = regs.find((r: any) => r.tipo === "entrada");
       const saida = regs.find((r: any) => r.tipo === "saida");
@@ -364,12 +372,16 @@ export default function GestaoJornada() {
       if (entrada && saida) {
         const entradaTime = new Date(entrada.data_hora).getTime();
         const saidaTime = new Date(saida.data_hora).getTime();
-        let almocoMinutes = 0;
+        
+        // Calculate lunch break: use actual records if available, otherwise use default from employee settings
+        let almocoMinutes = defaultAlmocoMinutes; // Default lunch break from employee configuration
         if (saidaAlmoco && voltaAlmoco) {
+          // If lunch break was registered, use the actual time
           const saidaAlmocoTime = new Date(saidaAlmoco.data_hora).getTime();
           const voltaAlmocoTime = new Date(voltaAlmoco.data_hora).getTime();
           almocoMinutes = (voltaAlmocoTime - saidaAlmocoTime) / (1000 * 60);
         }
+        
         const totalMinutes = (saidaTime - entradaTime) / (1000 * 60) - almocoMinutes;
         hoursWorked = Math.max(0, totalMinutes / 60);
         totalMinutesWorked += totalMinutes;
