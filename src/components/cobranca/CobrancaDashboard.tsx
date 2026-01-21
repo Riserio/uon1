@@ -129,64 +129,79 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     const totalPago = boletosPagos.reduce((acc, b) => acc + (b.valor || 0), 0);
     const totalAberto = boletosAbertos.reduce((acc, b) => acc + (b.valor || 0), 0);
 
-    // Por Dia Vencimento Veículo (emitidos)
-    const porDiaVencimento = boletosFiltrados.reduce((acc: any, b) => {
+    // Por Dia Vencimento Veículo (emitidos, pagos, abertos)
+    // Primeiro agregamos tudo junto para calcular percentuais
+    const porDiaVencimentoAll: Record<string, { emitido: number; emitidoValor: number; pago: number; pagoValor: number; aberto: number; abertoValor: number }> = {};
+    
+    boletosFiltrados.forEach(b => {
       const dia = b.dia_vencimento_veiculo || 'N/I';
-      if (!acc[dia]) {
-        acc[dia] = { qtde: 0, valor: 0 };
+      if (!porDiaVencimentoAll[dia]) {
+        porDiaVencimentoAll[dia] = { emitido: 0, emitidoValor: 0, pago: 0, pagoValor: 0, aberto: 0, abertoValor: 0 };
       }
-      acc[dia].qtde += 1;
-      acc[dia].valor += b.valor || 0;
-      return acc;
-    }, {});
-    const diasVencimentoData = Object.entries(porDiaVencimento)
+      porDiaVencimentoAll[dia].emitido += 1;
+      porDiaVencimentoAll[dia].emitidoValor += b.valor || 0;
+      
+      if (b.situacao && b.situacao.toUpperCase() === 'BAIXADO') {
+        porDiaVencimentoAll[dia].pago += 1;
+        porDiaVencimentoAll[dia].pagoValor += b.valor || 0;
+      } else if (b.situacao && b.situacao.toUpperCase() === 'ABERTO') {
+        porDiaVencimentoAll[dia].aberto += 1;
+        porDiaVencimentoAll[dia].abertoValor += b.valor || 0;
+      }
+    });
+    
+    // Converter para arrays com percentuais
+    const diasVencimentoData = Object.entries(porDiaVencimentoAll)
       .filter(([dia]) => dia !== 'N/I')
-      .map(([dia, data]: [string, any]) => ({
-        dia: `Dia ${dia}`,
-        diaNum: parseInt(dia),
-        qtde: data.qtde,
-        valor: data.valor
-      }))
+      .map(([dia, data]) => {
+        const total = data.emitido;
+        const percPago = total > 0 ? (data.pago / total) * 100 : 0;
+        const percAberto = total > 0 ? (data.aberto / total) * 100 : 0;
+        return {
+          dia: `Dia ${dia}`,
+          diaNum: parseInt(dia),
+          qtde: data.emitido,
+          valor: data.emitidoValor,
+          percPago,
+          percAberto
+        };
+      })
       .sort((a, b) => a.diaNum - b.diaNum);
-
-    // Por Dia Vencimento - Boletos Pagos
-    const porDiaVencimentoPagos = boletosPagos.reduce((acc: any, b) => {
-      const dia = b.dia_vencimento_veiculo || 'N/I';
-      if (!acc[dia]) {
-        acc[dia] = { qtde: 0, valor: 0 };
-      }
-      acc[dia].qtde += 1;
-      acc[dia].valor += b.valor || 0;
-      return acc;
-    }, {});
-    const diasVencimentoPagosData = Object.entries(porDiaVencimentoPagos)
-      .filter(([dia]) => dia !== 'N/I')
-      .map(([dia, data]: [string, any]) => ({
-        dia: `Dia ${dia}`,
-        diaNum: parseInt(dia),
-        qtde: data.qtde,
-        valor: data.valor
-      }))
+    
+    const diasVencimentoPagosData = Object.entries(porDiaVencimentoAll)
+      .filter(([dia]) => dia !== 'N/I' && (porDiaVencimentoAll[dia].pago > 0 || porDiaVencimentoAll[dia].aberto > 0))
+      .map(([dia, data]) => {
+        const total = data.emitido;
+        const percPago = total > 0 ? (data.pago / total) * 100 : 0;
+        const percAberto = total > 0 ? (data.aberto / total) * 100 : 0;
+        return {
+          dia: `Dia ${dia}`,
+          diaNum: parseInt(dia),
+          qtde: data.pago,
+          valor: data.pagoValor,
+          percPago,
+          percAberto
+        };
+      })
+      .filter(item => item.qtde > 0)
       .sort((a, b) => a.diaNum - b.diaNum);
-
-    // Por Dia Vencimento - Boletos em Aberto
-    const porDiaVencimentoAbertos = boletosAbertos.reduce((acc: any, b) => {
-      const dia = b.dia_vencimento_veiculo || 'N/I';
-      if (!acc[dia]) {
-        acc[dia] = { qtde: 0, valor: 0 };
-      }
-      acc[dia].qtde += 1;
-      acc[dia].valor += b.valor || 0;
-      return acc;
-    }, {});
-    const diasVencimentoAbertosData = Object.entries(porDiaVencimentoAbertos)
-      .filter(([dia]) => dia !== 'N/I')
-      .map(([dia, data]: [string, any]) => ({
-        dia: `Dia ${dia}`,
-        diaNum: parseInt(dia),
-        qtde: data.qtde,
-        valor: data.valor
-      }))
+    
+    const diasVencimentoAbertosData = Object.entries(porDiaVencimentoAll)
+      .filter(([dia]) => dia !== 'N/I' && (porDiaVencimentoAll[dia].pago > 0 || porDiaVencimentoAll[dia].aberto > 0))
+      .map(([dia, data]) => {
+        const total = data.emitido;
+        const percPago = total > 0 ? (data.pago / total) * 100 : 0;
+        const percAberto = total > 0 ? (data.aberto / total) * 100 : 0;
+        return {
+          dia: `Dia ${dia}`,
+          diaNum: parseInt(dia),
+          qtde: data.aberto,
+          valor: data.abertoValor,
+          percPago,
+          percAberto
+        };
+      })
+      .filter(item => item.qtde > 0)
       .sort((a, b) => a.diaNum - b.diaNum);
 
     // Gráfico de Inadimplência por Dia do Mês (usando dia_vencimento_veiculo)
@@ -490,12 +505,16 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
           </CardHeader>
           <CardContent>
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
-              {stats.diasVencimentoData.map((item, index) => (
+              {stats.diasVencimentoData.map((item) => (
                 <div key={item.dia} className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
                   <span className="font-medium">{item.dia}</span>
                   <div className="text-right">
                     <p className="text-sm font-semibold">{item.qtde} boletos</p>
                     <p className="text-xs text-blue-600">{formatCurrency(item.valor)}</p>
+                    <div className="flex gap-2 text-[10px] mt-0.5">
+                      <span className="text-green-600">{formatPercent(item.percPago)} pago</span>
+                      <span className="text-red-600">{formatPercent(item.percAberto)} aberto</span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -519,12 +538,16 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
           </CardHeader>
           <CardContent>
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
-              {stats.diasVencimentoPagosData.map((item, index) => (
+              {stats.diasVencimentoPagosData.map((item) => (
                 <div key={item.dia} className="flex items-center justify-between p-2 bg-green-500/10 rounded-lg">
                   <span className="font-medium">{item.dia}</span>
                   <div className="text-right">
                     <p className="text-sm font-semibold">{item.qtde} boletos</p>
                     <p className="text-xs text-green-600">{formatCurrency(item.valor)}</p>
+                    <div className="flex gap-2 text-[10px] mt-0.5">
+                      <span className="text-green-600 font-medium">{formatPercent(item.percPago)} pago</span>
+                      <span className="text-red-600">{formatPercent(item.percAberto)} aberto</span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -548,12 +571,16 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
           </CardHeader>
           <CardContent>
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
-              {stats.diasVencimentoAbertosData.map((item, index) => (
+              {stats.diasVencimentoAbertosData.map((item) => (
                 <div key={item.dia} className="flex items-center justify-between p-2 bg-red-500/10 rounded-lg">
                   <span className="font-medium">{item.dia}</span>
                   <div className="text-right">
                     <p className="text-sm font-semibold">{item.qtde} boletos</p>
                     <p className="text-xs text-red-600">{formatCurrency(item.valor)}</p>
+                    <div className="flex gap-2 text-[10px] mt-0.5">
+                      <span className="text-green-600">{formatPercent(item.percPago)} pago</span>
+                      <span className="text-red-600 font-medium">{formatPercent(item.percAberto)} aberto</span>
+                    </div>
                   </div>
                 </div>
               ))}
