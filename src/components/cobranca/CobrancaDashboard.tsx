@@ -971,6 +971,46 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
         </CardContent>
       </Card>
 
+      {/* Arrecadação Projetada x Recebida */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5 text-primary" />
+            Arrecadação Projetada x Recebida no Dia
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <div style={{ minWidth: Math.max(800, stats.arrecadacaoData.length * 50) + 'px' }}>
+              <ResponsiveContainer width="100%" height={350}>
+                <ComposedChart data={stats.arrecadacaoData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="diaLabel" tick={{ fontSize: 11 }} />
+                  <YAxis 
+                    tick={{ fontSize: 11 }} 
+                    tickFormatter={(v) => formatCompactCurrency(v)}
+                  />
+                  <Tooltip content={<CustomTooltip isCurrency />} />
+                  <Legend />
+                  <Bar 
+                    dataKey="projetado" 
+                    fill="#3b82f6" 
+                    name="Vencimentos (Projetado)" 
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar 
+                    dataKey="recebido" 
+                    fill="#10b981" 
+                    name="Pagamentos (Recebido)" 
+                    radius={[4, 4, 0, 0]}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Rankings de Inadimplência por Regional */}
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -1039,44 +1079,6 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
           </CardContent>
         </Card>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-primary" />
-            Arrecadação Projetada x Recebida no Dia
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <div style={{ minWidth: Math.max(800, stats.arrecadacaoData.length * 50) + 'px' }}>
-              <ResponsiveContainer width="100%" height={350}>
-                <ComposedChart data={stats.arrecadacaoData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="diaLabel" tick={{ fontSize: 11 }} />
-                  <YAxis 
-                    tick={{ fontSize: 11 }} 
-                    tickFormatter={(v) => formatCompactCurrency(v)}
-                  />
-                  <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Legend />
-                  <Bar 
-                    dataKey="projetado" 
-                    fill="#3b82f6" 
-                    name="Vencimentos (Projetado)" 
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar 
-                    dataKey="recebido" 
-                    fill="#10b981" 
-                    name="Pagamentos (Recebido)" 
-                    radius={[4, 4, 0, 0]}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Rankings de Regionais */}
       <div className="grid gap-6 md:grid-cols-2">
