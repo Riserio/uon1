@@ -432,7 +432,9 @@ function criarWatcherRespostaExcel(context, timeoutMs) {
     const matchesExcel = (resp) => {
       try {
         if (!resp) return false;
-        if (resp.status() !== 200) return false;
+        // Hinova pode responder com 200/206 ou redirecionar (3xx) antes do arquivo.
+        const status = resp.status();
+        if (status < 200 || status >= 400) return false;
         const h = resp.headers() || {};
         const ct = String(h['content-type'] || '').toLowerCase();
         const cd = String(h['content-disposition'] || '').toLowerCase();
@@ -489,6 +491,57 @@ function criarWatcherRespostaExcel(context, timeoutMs) {
       if (done) return;
       done = true;
       cleanup(timer, onPage);
+      resolve(null);
+    }, timeoutMs);
+  });
+}
+
+/**
+ * Captura o evento de download em QUALQUER aba (incluindo popups) sem depender
+ * de estar esperando no page correto.
+ */
+function criarWatcherDownloadAnyPage(context, timeoutMs) {
+  return new Promise((resolve) => {
+    let done = false;
+    const pagesAttached = new Set();
+
+    const cleanup = (timer, onPage, onDownload) => {
+      try {
+        clearTimeout(timer);
+      } catch {}
+      try {
+        context.removeListener('page', onPage);
+      } catch {}
+      for (const p of pagesAttached) {
+        try {
+          p.removeListener('download', onDownload);
+        } catch {}
+      }
+    };
+
+    const onDownload = (download) => {
+      if (done) return;
+      done = true;
+      cleanup(timer, onPage, onDownload);
+      resolve(download);
+    };
+
+    const attachToPage = (p) => {
+      if (!p || pagesAttached.has(p)) return;
+      pagesAttached.add(p);
+      p.on('download', onDownload);
+    };
+
+    const onPage = (p) => attachToPage(p);
+    context.on('page', onPage);
+
+    // anexar páginas já abertas
+    for (const p of context.pages()) attachToPage(p);
+
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      cleanup(timer, onPage, onDownload);
       resolve(null);
     }, timeoutMs);
   });
@@ -1491,9 +1544,12 @@ async function rodarRobo() {
         // Promises precisam ser criadas ANTES do clique para não perder eventos rápidos
         // - download: pode iniciar na nova aba instantaneamente
         // - page: Hinova abre uma nova aba (geraRelatorioBoleto.php)
-        const downloadPromise = context
-          .waitForEvent('download', { timeout: DOWNLOAD_EVENT_TIMEOUT_MS })
-          .catch(() => null);
+        // Capturar download em qualquer aba (incluindo popup). Isso evita o bug
+        // onde a Hinova abre uma nova janela e o download dispara lá.
+        const downloadPromise = criarWatcherDownloadAnyPage(
+          context,
+          DOWNLOAD_EVENT_TIMEOUT_MS
+        ).catch(() => null);
 
         // fallback: capturar a RESPOSTA HTTP do Excel (quando o evento de download não dispara)
         const excelResponsePromise = criarWatcherRespostaExcel(
