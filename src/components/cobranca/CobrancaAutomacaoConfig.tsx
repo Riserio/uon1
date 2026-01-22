@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock, Play, History } from "lucide-react";
+import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock, Play, History, Square } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -49,6 +49,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [executing, setExecuting] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState("config");
 
@@ -71,6 +72,10 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
 
       if (data) {
         setConfig(data);
+        // Verificar se está executando
+        if (data.ultimo_status === 'executando') {
+          setExecuting(true);
+        }
       } else {
         setConfig({
           ...DEFAULT_CONFIG,
@@ -155,12 +160,76 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
         loadConfig();
       } else {
         toast.error(data?.message || "Erro ao executar automação");
+        setExecuting(false);
       }
     } catch (error: any) {
       console.error("Erro ao executar automação:", error);
       toast.error("Erro ao executar: " + (error.message || "Erro desconhecido"));
-    } finally {
       setExecuting(false);
+    }
+  };
+
+  const handleStop = async () => {
+    if (!config.id) return;
+
+    setStopping(true);
+    try {
+      // Atualizar status para "parado" no banco
+      const { error: updateError } = await supabase
+        .from("cobranca_automacao_config")
+        .update({
+          ultimo_status: 'parado',
+          ultimo_erro: 'Execução interrompida pelo usuário',
+        })
+        .eq("id", config.id);
+
+      if (updateError) throw updateError;
+
+      // Buscar a execução em andamento e atualizar
+      const { data: execucaoAtual } = await supabase
+        .from("cobranca_automacao_execucoes")
+        .select("id")
+        .eq("config_id", config.id)
+        .eq("status", "executando")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (execucaoAtual) {
+        // Atualizar o registro de execução
+        await supabase
+          .from("cobranca_automacao_execucoes")
+          .update({
+            status: 'parado',
+            erro: 'Execução interrompida pelo usuário',
+            finalizado_at: new Date().toISOString(),
+          })
+          .eq("id", execucaoAtual.id);
+      }
+
+      // Registrar log de auditoria
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from("bi_audit_logs").insert({
+        modulo: "cobranca",
+        acao: "execucao_parada",
+        descricao: `Execução da automação Hinova interrompida por ${user?.email || 'usuário'}`,
+        corretora_id: corretoraId,
+        user_id: user?.id || '',
+        user_nome: user?.email || "Usuário",
+        dados_novos: {
+          config_id: config.id,
+          motivo: 'Interrupção manual pelo usuário',
+        },
+      });
+
+      toast.success("Execução interrompida com sucesso");
+      setExecuting(false);
+      loadConfig();
+    } catch (error: any) {
+      console.error("Erro ao parar automação:", error);
+      toast.error("Erro ao parar: " + (error.message || "Erro desconhecido"));
+    } finally {
+      setStopping(false);
     }
   };
 
@@ -173,6 +242,8 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
       </Card>
     );
   }
+
+  const isExecuting = executing || config.ultimo_status === 'executando';
 
   return (
     <div className="space-y-4">
@@ -209,6 +280,8 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                 ? 'bg-red-500/10 border-red-500/30'
                 : config.ultimo_status === 'executando'
                 ? 'bg-yellow-500/10 border-yellow-500/30'
+                : config.ultimo_status === 'parado'
+                ? 'bg-orange-500/10 border-orange-500/30'
                 : 'bg-muted border-border'
             }`}>
               <div className="flex items-center gap-3">
@@ -218,6 +291,8 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                   <XCircle className="h-4 w-4 text-red-600 shrink-0" />
                 ) : config.ultimo_status === 'executando' ? (
                   <Loader2 className="h-4 w-4 text-yellow-600 animate-spin shrink-0" />
+                ) : config.ultimo_status === 'parado' ? (
+                  <Square className="h-4 w-4 text-orange-600 shrink-0" />
                 ) : (
                   <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
                 )}
@@ -227,6 +302,9 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                     {format(new Date(config.ultima_execucao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                     {config.ultimo_status === 'executando' && (
                       <span className="ml-2 text-yellow-600">(em andamento)</span>
+                    )}
+                    {config.ultimo_status === 'parado' && (
+                      <span className="ml-2 text-orange-600">(interrompida)</span>
                     )}
                   </p>
                   {config.ultimo_erro && (
@@ -239,31 +317,43 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
 
           {/* Botões de ação em linha */}
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={loadConfig} disabled={saving || executing}>
+            <Button variant="outline" size="sm" onClick={loadConfig} disabled={saving || stopping}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Recarregar
             </Button>
             
-            <Button 
-              variant="secondary" 
-              size="sm"
-              onClick={handleExecute} 
-              disabled={saving || executing || !config.id}
-            >
-              {executing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Executando...
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4 mr-2" />
-                  Executar Agora
-                </>
-              )}
-            </Button>
+            {isExecuting ? (
+              <Button 
+                variant="destructive" 
+                size="sm"
+                onClick={handleStop} 
+                disabled={stopping}
+              >
+                {stopping ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Parando...
+                  </>
+                ) : (
+                  <>
+                    <Square className="h-4 w-4 mr-2" />
+                    Parar Execução
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button 
+                variant="secondary" 
+                size="sm"
+                onClick={handleExecute} 
+                disabled={saving || !config.id}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Executar Agora
+              </Button>
+            )}
             
-            <Button size="sm" onClick={handleSave} disabled={saving || executing}>
+            <Button size="sm" onClick={handleSave} disabled={saving || isExecuting}>
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -317,7 +407,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                     id="hinova-codigo"
                     value={config.hinova_codigo_cliente}
                     onChange={(e) => setConfig(prev => ({ ...prev, hinova_codigo_cliente: e.target.value }))}
-                    placeholder="2363"
+                    placeholder="Ex: 2363"
                   />
                 </div>
 
@@ -364,7 +454,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                     id="layout-relatorio"
                     value={config.layout_relatorio}
                     onChange={(e) => setConfig(prev => ({ ...prev, layout_relatorio: e.target.value }))}
-                    placeholder="BI - Vangard Cobrança"
+                    placeholder="Ex: BI - Vangard Cobrança"
                   />
                   <p className="text-xs text-muted-foreground">
                     Nome exato do layout a ser selecionado
@@ -383,6 +473,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                   <li>• Extrai boletos com vencimento no mês atual</li>
                   <li>• Filtra apenas boletos com situação "ABERTO"</li>
                   <li>• Os dados são atualizados automaticamente no dashboard</li>
+                  <li>• Você pode interromper a execução a qualquer momento</li>
                 </ul>
               </div>
             </CardContent>
