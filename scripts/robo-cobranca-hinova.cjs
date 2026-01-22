@@ -514,19 +514,24 @@ async function selecionarFormaExibicaoEmExcel(page) {
 }
 
 // ============================================
-// SISTEMA DE DOWNLOAD COM CANCELAMENTO IMEDIATO
+// SISTEMA DE DOWNLOAD COM EXECUÇÃO IMEDIATA
 // ============================================
 
 /**
  * Classe para controlar o estado do download e cancelar watchers
+ * O saveAs é executado IMEDIATAMENTE ao capturar o download,
+ * SEM aguardar nenhum outro evento de página/popup/response
  */
 class DownloadController {
   constructor() {
     this.captured = false;
     this.result = null;
+    this.fileResult = null;
+    this.error = null;
     this.cleanupFunctions = [];
     this.monitorInterval = null;
     this.startTime = Date.now();
+    this.onCompleteCallback = null;
   }
   
   addCleanup(fn) {
@@ -537,17 +542,49 @@ class DownloadController {
     if (this.captured) return false; // Já foi capturado
     this.captured = true;
     this.result = result;
-    log(`Download capturado! Cancelando todos os watchers...`, LOG_LEVELS.SUCCESS);
+    log(`Download capturado! Fonte: ${result.source}`, LOG_LEVELS.SUCCESS);
+    log(`Cancelando todos os watchers...`, LOG_LEVELS.DEBUG);
     this.cleanup();
     return true;
+  }
+  
+  setFileResult(fileResult) {
+    this.fileResult = fileResult;
+    // Notificar que o arquivo foi salvo
+    if (this.onCompleteCallback) {
+      this.onCompleteCallback();
+    }
+  }
+  
+  setError(error) {
+    this.error = error;
+    if (this.onCompleteCallback) {
+      this.onCompleteCallback();
+    }
+  }
+  
+  setOnComplete(callback) {
+    this.onCompleteCallback = callback;
   }
   
   isCaptured() {
     return this.captured;
   }
   
+  isComplete() {
+    return this.fileResult !== null || this.error !== null;
+  }
+  
   getResult() {
     return this.result;
+  }
+  
+  getFileResult() {
+    return this.fileResult;
+  }
+  
+  getError() {
+    return this.error;
   }
   
   cleanup() {
@@ -571,7 +608,7 @@ class DownloadController {
   
   startProgressMonitor() {
     this.monitorInterval = setInterval(() => {
-      if (this.captured) {
+      if (this.captured || this.isComplete()) {
         clearInterval(this.monitorInterval);
         return;
       }
@@ -630,15 +667,48 @@ function isExcelResponse(response) {
 
 /**
  * Watcher 1: Intercepta respostas HTTP que contêm Excel
+ * NOTA: HTTP response não usa saveAs do Playwright, salva via fs.writeFileSync
  */
-function criarWatcherRespostaHTTP(context, controller) {
+function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName) {
   const pagesAttached = new Set();
   
   const onResponse = async (response) => {
     if (controller.isCaptured()) return;
     if (isExcelResponse(response)) {
       log(`HTTP Excel detectado: ${response.url()}`, LOG_LEVELS.DEBUG);
-      controller.setCaptured({ type: 'httpResponse', response, source: 'httpInterception' });
+      
+      const wasCaptured = controller.setCaptured({ 
+        type: 'httpResponse', 
+        response, 
+        source: 'httpInterception' 
+      });
+      
+      if (!wasCaptured) return;
+      
+      try {
+        // Salvar via HTTP imediatamente
+        const filePath = path.join(downloadDir, semanticName);
+        log(`Salvando arquivo via HTTP: ${filePath}`, LOG_LEVELS.INFO);
+        
+        const buf = await response.body();
+        fs.writeFileSync(filePath, buf);
+        log(`Arquivo salvo com sucesso via HTTP: ${buf.length} bytes`, LOG_LEVELS.SUCCESS);
+        
+        // Validação síncrona
+        if (!fs.existsSync(filePath)) {
+          throw new Error('Arquivo não existe após salvamento HTTP');
+        }
+        
+        const stats = fs.statSync(filePath);
+        if (stats.size <= 0) {
+          throw new Error(`Arquivo vazio: ${stats.size} bytes`);
+        }
+        
+        controller.setFileResult({ filePath, size: stats.size });
+      } catch (e) {
+        log(`Erro ao salvar via HTTP: ${e.message}`, LOG_LEVELS.ERROR);
+        controller.setError(e);
+      }
     }
   };
   
@@ -672,16 +742,79 @@ function criarWatcherRespostaHTTP(context, controller) {
 }
 
 /**
- * Watcher 2: Captura eventos de download global
+ * Processa um objeto Download do Playwright IMEDIATAMENTE
+ * Esta função executa path() + saveAs() de forma síncrona no bloco de captura
+ * SEM aguardar nenhum outro evento de página, popup ou response
  */
-function criarWatcherDownloadGlobal(context, controller) {
+async function processarDownloadImediato(download, downloadDir, semanticName) {
+  log(`Download capturado`, LOG_LEVELS.SUCCESS);
+  
+  const filePath = path.join(downloadDir, semanticName);
+  const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
+  
+  log(`Salvando arquivo: ${suggestedName} -> ${semanticName}`, LOG_LEVELS.INFO);
+  
+  // 1. Verificar se arquivo temporário existe via download.path()
+  let tempPath = null;
+  try {
+    tempPath = await download.path();
+    if (tempPath) {
+      log(`Arquivo temporário detectado: ${tempPath}`, LOG_LEVELS.DEBUG);
+    }
+  } catch (e) {
+    log(`Aviso: download.path() falhou - ${e.message}`, LOG_LEVELS.DEBUG);
+  }
+  
+  // 2. Executar saveAs IMEDIATAMENTE - sem aguardar nenhum outro evento
+  log(`Executando saveAs para: ${filePath}`, LOG_LEVELS.INFO);
+  await download.saveAs(filePath);
+  log(`Arquivo salvo com sucesso: ${filePath}`, LOG_LEVELS.SUCCESS);
+  
+  // 3. Validação síncrona do arquivo salvo
+  if (!fs.existsSync(filePath)) {
+    throw new Error('Arquivo não existe após saveAs');
+  }
+  
+  const stats = fs.statSync(filePath);
+  if (stats.size <= 0) {
+    throw new Error(`Arquivo vazio: ${stats.size} bytes`);
+  }
+  
+  log(`Validação síncrona OK: ${(stats.size / 1024).toFixed(2)} KB`, LOG_LEVELS.SUCCESS);
+  
+  return { filePath, size: stats.size };
+}
+
+/**
+ * Watcher 2: Captura eventos de download global
+ * Ao capturar, executa saveAs IMEDIATAMENTE no mesmo bloco
+ */
+function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName) {
   const pagesAttached = new Set();
   
-  const onDownload = (download) => {
+  const onDownload = async (download) => {
     if (controller.isCaptured()) return;
+    
     const filename = download.suggestedFilename?.() || '';
     log(`Download global detectado: ${filename}`, LOG_LEVELS.DEBUG);
-    controller.setCaptured({ type: 'download', download, source: 'globalDownload' });
+    
+    // Marcar como capturado ANTES de qualquer processamento
+    const wasCaptured = controller.setCaptured({ 
+      type: 'download', 
+      download, 
+      source: 'globalDownload' 
+    });
+    
+    if (!wasCaptured) return; // Outro watcher já capturou
+    
+    try {
+      // EXECUÇÃO IMEDIATA: path() + saveAs() + validação síncrona
+      const result = await processarDownloadImediato(download, downloadDir, semanticName);
+      controller.setFileResult(result);
+    } catch (e) {
+      log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
+      controller.setError(e);
+    }
   };
   
   const attachToPage = (page) => {
@@ -715,13 +848,32 @@ function criarWatcherDownloadGlobal(context, controller) {
 
 /**
  * Watcher 3: Evento de download da página principal
+ * Ao capturar, executa saveAs IMEDIATAMENTE no mesmo bloco
  */
-function criarWatcherDownloadPaginaPrincipal(page, controller) {
-  const onDownload = (download) => {
+function criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, semanticName) {
+  const onDownload = async (download) => {
     if (controller.isCaptured()) return;
+    
     const filename = download.suggestedFilename?.() || '';
     log(`Download página principal: ${filename}`, LOG_LEVELS.DEBUG);
-    controller.setCaptured({ type: 'download', download, source: 'mainPage' });
+    
+    // Marcar como capturado ANTES de qualquer processamento
+    const wasCaptured = controller.setCaptured({ 
+      type: 'download', 
+      download, 
+      source: 'mainPage' 
+    });
+    
+    if (!wasCaptured) return; // Outro watcher já capturou
+    
+    try {
+      // EXECUÇÃO IMEDIATA: path() + saveAs() + validação síncrona
+      const result = await processarDownloadImediato(download, downloadDir, semanticName);
+      controller.setFileResult(result);
+    } catch (e) {
+      log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
+      controller.setError(e);
+    }
   };
   
   page.on('download', onDownload);
@@ -734,37 +886,64 @@ function criarWatcherDownloadPaginaPrincipal(page, controller) {
 
 /**
  * Watcher 4: Monitora novas abas (popup) e captura downloads delas
- * NÃO BLOQUEIA se já há download capturado
+ * NÃO BLOQUEIA se já há download capturado - fecha abas imediatamente
  */
-function criarWatcherNovaAba(context, mainPage, controller) {
+function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanticName) {
   const processarNovaAba = async (newPage) => {
+    // Se já capturou, apenas fechar a nova aba silenciosamente
     if (controller.isCaptured()) {
-      // Se já capturou, apenas fechar a nova aba silenciosamente
       try { await newPage.close(); } catch {}
       return;
     }
     
     try {
-      log(`Nova aba aberta: aguardando carregamento...`, LOG_LEVELS.INFO);
+      log(`Nova aba aberta: configurando listener de download...`, LOG_LEVELS.INFO);
       
-      // Handler de download na nova aba
-      const onNewPageDownload = (download) => {
+      // Handler de download na nova aba - executa saveAs IMEDIATAMENTE
+      const onNewPageDownload = async (download) => {
         if (controller.isCaptured()) return;
+        
         const filename = download.suggestedFilename?.() || '';
         log(`Download capturado da nova aba: ${filename}`, LOG_LEVELS.SUCCESS);
-        controller.setCaptured({ type: 'download', download, source: 'newTab', newPage });
+        
+        const wasCaptured = controller.setCaptured({ 
+          type: 'download', 
+          download, 
+          source: 'newTab', 
+          newPage 
+        });
+        
+        if (!wasCaptured) return;
+        
+        try {
+          // EXECUÇÃO IMEDIATA: path() + saveAs() + validação síncrona
+          const result = await processarDownloadImediato(download, downloadDir, semanticName);
+          controller.setFileResult(result);
+        } catch (e) {
+          log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
+          controller.setError(e);
+        }
       };
       
       newPage.on('download', onNewPageDownload);
       
-      // Aguardar carregamento com timeout curto
-      await Promise.race([
-        newPage.waitForLoadState('load', { timeout: 30000 }),
+      // Aguardar carregamento com timeout curto - MAS parar se já capturou
+      const loadPromise = Promise.race([
         newPage.waitForLoadState('domcontentloaded', { timeout: 15000 }),
-        new Promise(resolve => setTimeout(resolve, 20000)),
+        new Promise(resolve => setTimeout(resolve, 10000)),
       ]).catch(() => {});
       
-      // Se já capturou durante o carregamento, sair
+      // Verificar periodicamente se já capturou durante carregamento
+      const checkInterval = setInterval(() => {
+        if (controller.isCaptured()) {
+          clearInterval(checkInterval);
+        }
+      }, 100);
+      
+      await loadPromise;
+      clearInterval(checkInterval);
+      
+      // Se já capturou durante o carregamento, não fazer mais nada
       if (controller.isCaptured()) {
         try { newPage.removeListener('download', onNewPageDownload); } catch {}
         return;
@@ -773,18 +952,11 @@ function criarWatcherNovaAba(context, mainPage, controller) {
       const url = newPage.url();
       log(`Nova aba carregada: ${url}`, LOG_LEVELS.DEBUG);
       
-      // Verificar se é uma URL de Excel direto
-      if (url.includes('.xlsx') || url.includes('.xls') || url.includes('download') || url.includes('export')) {
-        log(`URL de download detectada na nova aba`, LOG_LEVELS.DEBUG);
-      }
-      
-      // Procurar e clicar em botões de download (com timeout curto)
+      // Procurar e clicar em botões de download (apenas se ainda não capturou)
       const seletoresDownload = [
         'a[href*=".xlsx"]', 'a[href*=".xls"]',
         'a:has-text("Baixar")', 'button:has-text("Baixar")',
         'a:has-text("Download")', 'button:has-text("Download")',
-        'a:has-text("Exportar")', 'button:has-text("Exportar")',
-        'input[value*="Download"]', 'input[value*="Baixar"]',
       ];
       
       for (const seletor of seletoresDownload) {
@@ -793,7 +965,7 @@ function criarWatcherNovaAba(context, mainPage, controller) {
         if (el && (await el.isVisible().catch(() => false))) {
           log(`Clicando em elemento de download na nova aba: ${seletor}`, LOG_LEVELS.DEBUG);
           await el.click({ timeout: 5000 }).catch(() => {});
-          await newPage.waitForTimeout(2000);
+          await newPage.waitForTimeout(1000);
           break;
         }
       }
@@ -824,45 +996,64 @@ function criarWatcherNovaAba(context, mainPage, controller) {
 
 /**
  * Inicia todos os watchers e aguarda o primeiro download válido
- * Retorna imediatamente após captura, cancelando todos os watchers
+ * O saveAs é executado IMEDIATAMENTE dentro do watcher que captura o download
+ * Retorna o resultado com o caminho do arquivo JÁ SALVO
+ * 
+ * IMPORTANTE: Ao capturar um download, o fluxo:
+ * 1. Executa download.path() para validar existência do arquivo temporário
+ * 2. Executa download.saveAs(caminhoFinal) sem aguardar qualquer outro evento
+ * 3. Valida sincronamente o arquivo salvo (existsSync e size > 0)
+ * 4. Finaliza a etapa DOWNLOAD imediatamente
  */
-async function aguardarDownloadHibrido(context, page, timeoutMs) {
+async function aguardarDownloadHibrido(context, page, downloadDir, semanticName, timeoutMs) {
   log(`Iniciando captura híbrida de download (timeout: ${timeoutMs / 60000} min)...`, LOG_LEVELS.INFO);
+  log(`Arquivo destino: ${path.join(downloadDir, semanticName)}`, LOG_LEVELS.DEBUG);
   
   const controller = new DownloadController();
   
-  // Iniciar todos os watchers
-  criarWatcherDownloadGlobal(context, controller);
-  criarWatcherDownloadPaginaPrincipal(page, controller);
-  criarWatcherRespostaHTTP(context, controller);
-  criarWatcherNovaAba(context, page, controller);
+  // Iniciar todos os watchers - passando downloadDir e semanticName para saveAs imediato
+  criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName);
+  criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, semanticName);
+  criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName);
+  criarWatcherNovaAba(context, page, controller, downloadDir, semanticName);
   
   // Iniciar monitor de progresso
   controller.startProgressMonitor();
   
-  // Aguardar captura ou timeout
+  // Aguardar arquivo salvo ou timeout
   return new Promise((resolve) => {
-    // Check imediato se já capturou
-    if (controller.isCaptured()) {
-      resolve(controller.getResult());
-      return;
-    }
+    // Callback para quando arquivo for salvo
+    controller.setOnComplete(() => {
+      if (controller.getError()) {
+        log(`Erro durante salvamento: ${controller.getError().message}`, LOG_LEVELS.ERROR);
+        resolve({ success: false, error: controller.getError() });
+      } else if (controller.getFileResult()) {
+        const fileResult = controller.getFileResult();
+        log(`Download finalizado! Arquivo: ${fileResult.filePath}`, LOG_LEVELS.SUCCESS);
+        resolve({ 
+          success: true, 
+          filePath: fileResult.filePath, 
+          size: fileResult.size,
+          source: controller.getResult()?.source 
+        });
+      }
+    });
     
-    // Polling para verificar se capturou
+    // Polling para verificar se completou (fallback)
     const pollInterval = setInterval(() => {
-      if (controller.isCaptured()) {
+      if (controller.isComplete()) {
         clearInterval(pollInterval);
-        resolve(controller.getResult());
+        // Callback já resolveu
       }
     }, 100);
     
     // Timeout
     setTimeout(() => {
       clearInterval(pollInterval);
-      if (!controller.isCaptured()) {
-        log(`Timeout de ${timeoutMs / 60000} min - nenhum download capturado`, LOG_LEVELS.WARN);
+      if (!controller.isComplete()) {
+        log(`Timeout de ${timeoutMs / 60000} min - nenhum download capturado/salvo`, LOG_LEVELS.WARN);
         controller.cleanup();
-        resolve(null);
+        resolve({ success: false, error: new Error('Timeout - nenhum download capturado') });
       }
     }, timeoutMs);
     
@@ -871,40 +1062,6 @@ async function aguardarDownloadHibrido(context, page, timeoutMs) {
       clearInterval(pollInterval);
     });
   });
-}
-
-/**
- * Salva o arquivo de download IMEDIATAMENTE após captura
- * Esta função é executada assim que o download é detectado
- */
-async function salvarArquivoImediato(result, downloadDir, semanticName) {
-  const filePath = path.join(downloadDir, semanticName);
-  
-  log(`Salvando arquivo imediatamente: ${semanticName}`, LOG_LEVELS.INFO);
-  
-  if (result.type === 'download' && result.download) {
-    const download = result.download;
-    const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
-    log(`Nome sugerido: ${suggestedName} -> Salvando como: ${semanticName}`);
-    
-    await Promise.race([
-      download.saveAs(filePath),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout ao salvar arquivo')), TIMEOUTS.DOWNLOAD_SAVE)
-      ),
-    ]);
-    
-    log(`Arquivo salvo via evento download`, LOG_LEVELS.SUCCESS);
-    
-  } else if (result.type === 'httpResponse' && result.response) {
-    log(`Salvando via interceptação HTTP...`);
-    
-    const buf = await result.response.body();
-    fs.writeFileSync(filePath, buf);
-    log(`Arquivo salvo via HTTP: ${buf.length} bytes`, LOG_LEVELS.SUCCESS);
-  }
-  
-  return filePath;
 }
 
 // ============================================
@@ -1476,7 +1633,13 @@ async function rodarRobo() {
     log('Filtros configurados', LOG_LEVELS.SUCCESS);
     
     // ============================================
-    // ETAPA: DOWNLOAD (COM CANCELAMENTO IMEDIATO)
+    // ETAPA: DOWNLOAD (EXECUÇÃO IMEDIATA DO SAVEAS)
+    // ============================================
+    // Ao capturar um objeto Download válido:
+    // 1. download.path() valida existência do arquivo temporário
+    // 2. download.saveAs(caminhoFinal) executa IMEDIATAMENTE
+    // 3. Validação síncrona (existsSync + size > 0)
+    // 4. Etapa DOWNLOAD finaliza imediatamente após salvar
     // ============================================
     setStep('DOWNLOAD');
     
@@ -1500,10 +1663,17 @@ async function rodarRobo() {
         nomeArquivoFinal = semanticName;
         
         // Iniciar captura híbrida ANTES do clique
+        // NOTA: O saveAs é executado IMEDIATAMENTE dentro do watcher que captura
         log('Iniciando estratégia híbrida de captura de download...');
         
-        // Criar a promessa de captura híbrida
-        const capturaHibridaPromise = aguardarDownloadHibrido(context, page, TIMEOUTS.DOWNLOAD_TOTAL);
+        // Criar a promessa de captura híbrida (com downloadDir e semanticName para saveAs imediato)
+        const capturaHibridaPromise = aguardarDownloadHibrido(
+          context, 
+          page, 
+          downloadDir, 
+          semanticName, 
+          TIMEOUTS.DOWNLOAD_TOTAL
+        );
         
         // Clicar no botão Gerar
         log('Clicando em Gerar Relatório...');
@@ -1567,45 +1737,42 @@ async function rodarRobo() {
         
         log(`Clicou: ${clickInfo}`, LOG_LEVELS.SUCCESS);
         
-        // Aguardar resultado da captura híbrida
+        // ===== AGUARDAR RESULTADO - ARQUIVO JÁ ESTÁ SALVO =====
+        // A função aguardarDownloadHibrido retorna com o arquivo JÁ SALVO
+        // Nenhum await de página, popup, response ou watcher ocorre após a captura
         log(`Aguardando captura híbrida (timeout: ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)...`);
         
         const result = await capturaHibridaPromise;
         
-        if (!result) {
+        if (!result.success) {
           // Salvar debug antes de lançar erro
-          await saveDebugInfo(page, context, 'Nenhum download capturado');
-          throw new Error(`Timeout de ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min - nenhuma estratégia capturou o download`);
+          await saveDebugInfo(page, context, result.error?.message || 'Nenhum download capturado');
+          throw result.error || new Error('Download falhou - nenhuma estratégia capturou o arquivo');
         }
         
-        log(`Download capturado via estratégia: ${result.source}`, LOG_LEVELS.SUCCESS);
+        // ===== ARQUIVO JÁ ESTÁ SALVO - LOGS NA SEQUÊNCIA CORRETA =====
+        // Os logs já foram emitidos dentro do watcher:
+        // 1. "Download capturado"
+        // 2. "Salvando arquivo"
+        // 3. "Arquivo salvo com sucesso"
         
-        // ===== PONTO CRÍTICO: SALVAR IMEDIATAMENTE =====
-        // Nenhuma outra operação deve ocorrer antes do saveAs
-        const filePath = await salvarArquivoImediato(result, downloadDir, semanticName);
+        log(`Download finalizado via estratégia: ${result.source}`, LOG_LEVELS.SUCCESS);
+        log(`Arquivo: ${result.filePath} (${(result.size / 1024).toFixed(2)} KB)`, LOG_LEVELS.INFO);
         
-        // Validar arquivo APÓS salvamento
-        const validation = validateDownloadedFile(filePath);
+        // Validar arquivo Excel (estrutura interna)
+        const validation = validateDownloadedFile(result.filePath);
         if (!validation.valid) {
           throw new Error(`Arquivo inválido: ${validation.error}`);
         }
         
-        log(`Arquivo validado: ${(validation.size / 1024).toFixed(2)} KB, ${validation.sheets} planilha(s), ${validation.rows} registros`, LOG_LEVELS.SUCCESS);
+        log(`Validação Excel OK: ${validation.sheets} planilha(s), ${validation.rows} registros`, LOG_LEVELS.SUCCESS);
         
         // Processar Excel
-        dados = processarExcel(filePath);
+        dados = processarExcel(result.filePath);
         downloadSucesso = true;
         
-        // Fechar abas extras (APÓS o download ser salvo)
+        // Fechar abas extras (APÓS o download ser salvo com sucesso)
         await closeExtraPages(context, page);
-        
-        // Fechar página da nova aba se veio dela (APÓS o download ser salvo)
-        if (result.newPage) {
-          try {
-            await result.newPage.close();
-            log('Nova aba fechada após download', LOG_LEVELS.DEBUG);
-          } catch {}
-        }
         
       } catch (downloadError) {
         log(`Erro no download (tentativa ${tentativaDownload}): ${downloadError.message}`, LOG_LEVELS.ERROR);
