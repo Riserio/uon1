@@ -110,6 +110,13 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
             Executando
           </Badge>
         );
+      case "parado":
+        return (
+          <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">
+            <XCircle className="h-3 w-3 mr-1" />
+            Parado
+          </Badge>
+        );
       default:
         return (
           <Badge variant="outline">
@@ -169,6 +176,8 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                       ? "bg-red-500/5 border-red-500/20"
                       : log.status === "executando"
                       ? "bg-yellow-500/5 border-yellow-500/20"
+                      : log.status === "parado"
+                      ? "bg-orange-500/5 border-orange-500/20"
                       : "bg-muted/30"
                   }`}
                 >
