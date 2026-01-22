@@ -1191,6 +1191,7 @@ function parseMoneyValue(value) {
   const parsed = parseFloat(cleanValue);
   return isNaN(parsed) ? 0 : parsed;
 }
+
 function processarExcel(filePath) {
   log(`Processando arquivo: ${filePath}`);
   
@@ -1216,6 +1217,13 @@ function processarExcel(filePath) {
     const normalized = normalizeHeader(header);
     if (COLUMN_MAP[normalized]) {
       headerMapping[header] = COLUMN_MAP[normalized];
+    } else {
+      for (const [key, value] of Object.entries(COLUMN_MAP)) {
+        if (normalized.includes(key) || key.includes(normalized)) {
+          headerMapping[header] = value;
+          break;
+        }
+      }
     }
   }
   
@@ -1231,6 +1239,8 @@ function processarExcel(filePath) {
         value = parseExcelDate(value);
       } else if (mappedHeader === 'Valor') {
         value = parseMoneyValue(value);
+      } else if (mappedHeader === 'Dia Vencimento Veiculo' || mappedHeader.includes('Dias')) {
+        value = parseInt(String(value)) || null;
       } else {
         value = value ? String(value).trim() : null;
       }
@@ -1241,7 +1251,9 @@ function processarExcel(filePath) {
       }
     }
     
-    if (temDados) dados.push(rowData);
+    if (temDados && (rowData['Nome'] || rowData['Placas'])) {
+      dados.push(rowData);
+    }
   }
   
   log(`Registros válidos: ${dados.length}`, LOG_LEVELS.SUCCESS);
@@ -1251,82 +1263,639 @@ function processarExcel(filePath) {
 async function enviarWebhook(dados, nomeArquivo) {
   setStep('WEBHOOK');
   
-  log(`Enviando ${dados.length} registros para webhook...`);
-  
-  await axios.post(CONFIG.WEBHOOK_URL, {
+  const payload = {
     corretora_id: CONFIG.CORRETORA_ID,
     dados,
     nome_arquivo: nomeArquivo,
     mes_referencia: new Date().toISOString().slice(0, 7),
-  }, {
-    headers: { 'Content-Type': 'application/json' },
-    timeout: 120000,
-  });
+  };
   
-  log('Webhook enviado com sucesso', LOG_LEVELS.SUCCESS);
-  return true;
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (CONFIG.WEBHOOK_SECRET) {
+    headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
+  }
+  
+  log(`Enviando ${dados.length} registros para webhook...`);
+  
+  try {
+    const response = await axios.post(CONFIG.WEBHOOK_URL, payload, {
+      headers,
+      timeout: 120000,
+    });
+    
+    log(`Webhook OK: ${response.data.message || 'Sucesso'}`, LOG_LEVELS.SUCCESS);
+    return true;
+  } catch (error) {
+    log(`Erro no webhook: ${error.response?.status || error.message}`, LOG_LEVELS.ERROR);
+    return false;
+  }
 }
 
 // ============================================
 // FUNÇÃO PRINCIPAL
 // ============================================
 async function rodarRobo() {
-  setStep('INICIO');
+  setStep('VALIDACAO');
+  
+  if (!CONFIG.HINOVA_USER || !CONFIG.HINOVA_PASS) {
+    throw new Error('HINOVA_USER e HINOVA_PASS são obrigatórios');
+  }
+  if (!CONFIG.WEBHOOK_URL) {
+    throw new Error('WEBHOOK_URL é obrigatório');
+  }
+
+  log('='.repeat(60));
   log('INICIANDO ROBÔ DE COBRANÇA HINOVA');
-
+  log('='.repeat(60));
+  
   const { inicio, fim } = getDateRange();
-  let browser, context, page;
-
+  log(`Período: ${inicio} até ${fim}`);
+  
+  let browser = null;
+  let context = null;
+  let page = null;
+  
   try {
-    browser = await chromium.launch({ headless: true });
+    setStep('BROWSER_INIT');
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--disable-popup-blocking'],
+    });
     context = await browser.newContext({ acceptDownloads: true });
     page = await context.newPage();
 
-    // LOGIN
+    // Debug: logar eventos de download (apenas para log, não para captura)
+    context.on('download', (d) => {
+      try {
+        const name = d.suggestedFilename?.() || 'arquivo';
+        log(`[DEBUG] Evento download global: ${name}`, LOG_LEVELS.DEBUG);
+      } catch {}
+    });
+
+    // ============================================
+    // ETAPA: LOGIN
+    // ============================================
     setStep('LOGIN');
-    await page.goto(CONFIG.HINOVA_URL, { waitUntil: 'domcontentloaded' });
-    await realizarLogin(page);
-
-    // RELATÓRIO
-    setStep('RELATORIO');
-    await page.goto(CONFIG.HINOVA_RELATORIO_URL, { waitUntil: 'domcontentloaded' });
-    await configurarFiltros(page, inicio, fim);
-    await selecionarFormaExibicaoEmExcel(page);
-
-    // DOWNLOAD
-    setStep('DOWNLOAD');
-    const nomeArquivo = generateSemanticFilename('Cobranca_Hinova', inicio, fim);
-    const downloadDir = getDownloadDirectory();
-
-    const resultado = await aguardarDownloadHibrido(
-      context,
-      page,
-      downloadDir,
-      nomeArquivo,
-      TIMEOUTS.DOWNLOAD_TOTAL
-    );
-
-    if (!resultado.success) {
-      throw resultado.error || new Error('Falha no download');
+    
+    let navegacaoOk = false;
+    for (let tentativa = 1; tentativa <= 3 && !navegacaoOk; tentativa++) {
+      try {
+        log(`Tentativa ${tentativa} de acessar portal...`);
+        await page.goto(CONFIG.HINOVA_URL, { 
+          waitUntil: 'domcontentloaded',
+          timeout: TIMEOUTS.PAGE_LOAD 
+        });
+        navegacaoOk = true;
+      } catch (e) {
+        log(`Erro: ${e.message}`, LOG_LEVELS.WARN);
+        if (tentativa === 3) throw e;
+        await page.waitForTimeout(5000);
+      }
     }
-
-    const dados = processarExcel(resultado.filePath);
-    if (!dados.length) throw new Error('Excel sem dados');
-
-    // WEBHOOK
-    await enviarWebhook(dados, nomeArquivo);
-
-    log('ROBÔ FINALIZADO COM SUCESSO', LOG_LEVELS.SUCCESS);
-    return true;
-
+    
+    log('Aguardando formulário de login...');
+    await page.waitForTimeout(3000);
+    
+    try {
+      await page.waitForSelector('input[placeholder="Usuário"], input[type="password"]', {
+        timeout: 30000
+      });
+      log('Formulário de login carregado', LOG_LEVELS.SUCCESS);
+    } catch {
+      log('Campos de login não encontrados pelo seletor padrão', LOG_LEVELS.WARN);
+    }
+    
+    await fecharPopups(page);
+    
+    // Preencher credenciais
+    log('Preenchendo credenciais...');
+    
+    await page.fill('input[placeholder=""]', '2363').catch(() => {});
+    
+    try {
+      await page.fill('input[placeholder="Usuário"]', CONFIG.HINOVA_USER);
+    } catch (e) {
+      log(`Erro ao preencher usuário: ${e.message}`, LOG_LEVELS.WARN);
+    }
+    
+    try {
+      await page.fill('input[placeholder="Senha"]', CONFIG.HINOVA_PASS);
+    } catch (e) {
+      log(`Erro ao preencher senha: ${e.message}`, LOG_LEVELS.WARN);
+    }
+    
+    // Fallback: preencher via JavaScript
+    await page.evaluate(({ usuario, senha }) => {
+      const allInputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])'));
+      
+      if (allInputs.length >= 3) {
+        if (!allInputs[0].value) {
+          allInputs[0].value = '2363';
+          allInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        
+        if (!allInputs[1].value || allInputs[1].value === allInputs[1].placeholder) {
+          allInputs[1].value = usuario;
+          allInputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        
+        if (!allInputs[2].value || allInputs[2].value === allInputs[2].placeholder) {
+          allInputs[2].value = senha;
+          allInputs[2].dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+    }, { usuario: CONFIG.HINOVA_USER, senha: CONFIG.HINOVA_PASS });
+    
+    // Dispensar código de autenticação
+    const dispensarCodigoAutenticacao = async () => {
+      try {
+        const selector = 'input[placeholder*="Autenticação"], input[placeholder*="autenticação"]';
+        const campoAuth = await page.$(selector);
+        if (!campoAuth) return false;
+        
+        await campoAuth.evaluate((el) => {
+          el.value = '';
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }).catch(() => {});
+        
+        await campoAuth.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(200);
+        await page.click('body', { position: { x: 20, y: 20 }, force: true }).catch(() => {});
+        await page.keyboard.press('Escape').catch(() => {});
+        await page.waitForTimeout(200);
+        
+        log('Código de autenticação dispensado', LOG_LEVELS.DEBUG);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    };
+    
+    // Clicar no botão Entrar
+    let loginSucesso = false;
+    
+    const isAindaNaLogin = async () => {
+      const relatorioVisible = await page.locator('text=Relatório').first().isVisible().catch(() => false);
+      if (relatorioVisible) return false;
+      
+      const esqueceuVisible = await page.locator('text=Esqueci minha senha').first().isVisible().catch(() => false);
+      const codigoClienteVisible = await page.locator('text=Código cliente').first().isVisible().catch(() => false);
+      if (esqueceuVisible || codigoClienteVisible) return true;
+      
+      const pwdVisible = await page.locator('input[type="password"]').first().isVisible().catch(() => false);
+      const url = page.url?.() || '';
+      const urlPareceLogin = /login/i.test(url);
+      
+      return pwdVisible || urlPareceLogin;
+    };
+    
+    for (let tentativa = 1; tentativa <= LIMITS.MAX_LOGIN_RETRIES; tentativa++) {
+      log(`Tentativa ${tentativa}/${LIMITS.MAX_LOGIN_RETRIES} - Clicando em Entrar...`);
+      
+      try {
+        const clicarEntrar = async () => {
+          const btnSelector = 'button:has-text("Entrar"), input[value="Entrar"], .btn-primary, button.btn, #btn-login';
+          const btnEntrar = await page.$(btnSelector);
+          
+          if (btnEntrar) {
+            await btnEntrar.evaluate((el) => el.click()).catch(() => {});
+            await btnEntrar.click({ force: true }).catch(() => {});
+          } else {
+            await page.click('button:has-text("Entrar")', { force: true, timeout: 1000 }).catch(() => {});
+          }
+        };
+        
+        await clicarEntrar();
+        await Promise.race([
+          page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => null),
+          page.waitForTimeout(1500),
+        ]);
+        
+        await dispensarCodigoAutenticacao();
+        await Promise.race([
+          page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
+          page.waitForTimeout(1200),
+        ]);
+        
+        await clicarEntrar();
+        await Promise.race([
+          page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
+          page.waitForTimeout(1200),
+        ]);
+        
+        await page.keyboard.press('Enter').catch(() => {});
+        
+        await Promise.race([
+          page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: TIMEOUTS.LOGIN_RETRY_WAIT }).catch(() => null),
+          page.waitForLoadState('networkidle', { timeout: TIMEOUTS.LOGIN_RETRY_WAIT }).catch(() => null),
+          page.waitForTimeout(TIMEOUTS.LOGIN_RETRY_WAIT),
+        ]);
+        
+        const aindaNaLogin = await isAindaNaLogin();
+        if (!aindaNaLogin) {
+          loginSucesso = true;
+          log(`Login bem sucedido na tentativa ${tentativa}!`, LOG_LEVELS.SUCCESS);
+          break;
+        }
+        
+        const erroMsg = await page.$eval('.alert-danger, .error, .erro, .message-error', (el) => el.textContent).catch(() => null);
+        if (erroMsg) {
+          log(`Erro detectado: ${String(erroMsg).trim()}`, LOG_LEVELS.WARN);
+        }
+        
+        log(`Tentativa ${tentativa} falhou - ainda na página de login`, LOG_LEVELS.WARN);
+        await page.waitForTimeout(600);
+      } catch (err) {
+        log(`Erro na tentativa ${tentativa}: ${err.message}`, LOG_LEVELS.WARN);
+        await page.waitForTimeout(600);
+      }
+    }
+    
+    if (!loginSucesso) {
+      await saveDebugInfo(page, context, 'Login falhou');
+      throw new Error(`Login falhou após ${LIMITS.MAX_LOGIN_RETRIES} tentativas`);
+    }
+    
+    await fecharPopups(page);
+    
+    // ============================================
+    // ETAPA: NAVEGAÇÃO PARA RELATÓRIO
+    // ============================================
+    setStep('NAVEGACAO_RELATORIO');
+    
+    log('Navegando para Relatório de Boletos...');
+    await fecharPopups(page);
+    
+    await page.goto(CONFIG.HINOVA_RELATORIO_URL, { 
+      waitUntil: 'domcontentloaded',
+      timeout: TIMEOUTS.PAGE_LOAD
+    });
+    
+    log('Aguardando carregamento...');
+    await page.waitForTimeout(5000);
+    await fecharPopups(page);
+    
+    await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {
+      log('NetworkIdle timeout - continuando...', LOG_LEVELS.WARN);
+    });
+    
+    await fecharPopups(page);
+    log('Página de relatório aberta', LOG_LEVELS.SUCCESS);
+    
+    // ============================================
+    // ETAPA: PREENCHIMENTO DE FILTROS
+    // ============================================
+    setStep('FILTROS');
+    
+    log(`Data Vencimento Original: ${inicio} até ${fim}`);
+    
+    const dataInicioInput = await page.$('input[name*="data_inicio"], input[name*="vencimento_inicial"], input[name*="dt_vencimento_original_ini"]');
+    if (dataInicioInput) {
+      await dataInicioInput.fill('');
+      await dataInicioInput.fill(inicio);
+      log(`Data início: ${inicio}`, LOG_LEVELS.DEBUG);
+    }
+    
+    const dataFimInput = await page.$('input[name*="data_fim"], input[name*="vencimento_final"], input[name*="dt_vencimento_original_fim"]');
+    if (dataFimInput) {
+      await dataFimInput.fill('');
+      await dataFimInput.fill(fim);
+      log(`Data fim: ${fim}`, LOG_LEVELS.DEBUG);
+    }
+    
+    // Boletos Anteriores: NÃO POSSUI
+    log('Configurando Boletos Anteriores: NÃO POSSUI...');
+    await page.evaluate(() => {
+      const selects = document.querySelectorAll('select');
+      for (const select of selects) {
+        const parent = select.closest('tr, div, td');
+        const parentText = parent?.textContent?.toLowerCase() || '';
+        const options = Array.from(select.querySelectorAll('option'));
+        
+        if (parentText.includes('boletos anteriores') || parentText.includes('boleto anterior')) {
+          for (const option of options) {
+            const texto = option.textContent?.toUpperCase().trim() || '';
+            if (texto === 'NÃO POSSUI' || texto === 'NAO POSSUI') {
+              select.value = option.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              break;
+            }
+          }
+        }
+      }
+    });
+    
+    // Referência: VENCIMENTO ORIGINAL
+    log('Configurando Referência: VENCIMENTO ORIGINAL...');
+    await page.evaluate(() => {
+      const selects = document.querySelectorAll('select');
+      for (const select of selects) {
+        const parent = select.closest('tr, div, td');
+        const parentText = parent?.textContent?.toLowerCase() || '';
+        const options = Array.from(select.querySelectorAll('option'));
+        
+        if (parentText.includes('referência') || parentText.includes('referencia')) {
+          for (const option of options) {
+            const texto = option.textContent?.toUpperCase().trim() || '';
+            if (texto === 'VENCIMENTO ORIGINAL' || texto.includes('VENCIMENTO ORIGINAL')) {
+              select.value = option.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              break;
+            }
+          }
+        }
+      }
+    });
+    
+    await page.waitForTimeout(1000);
+    
+    // Situação Boleto: somente ABERTO
+    log('Configurando Situação Boleto: somente ABERTO...');
+    await page.evaluate(() => {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+      
+      for (const cb of checkboxes) {
+        const label = cb.closest('label') || cb.parentElement;
+        const labelText = label?.textContent?.trim().toUpperCase() || '';
+        const value = cb.value?.toUpperCase() || '';
+        
+        const section = cb.closest('tr, div, fieldset');
+        const sectionText = section?.textContent?.toLowerCase() || '';
+        
+        if (sectionText.includes('situação boleto') || sectionText.includes('situacao boleto')) {
+          if (labelText === 'TODOS' || value === 'TODOS') {
+            if (cb.checked) cb.click();
+          }
+        }
+      }
+    });
+    
+    await page.waitForTimeout(500);
+    
+    await page.evaluate(() => {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+      
+      for (const cb of checkboxes) {
+        const label = cb.closest('label') || cb.parentElement;
+        const labelText = label?.textContent?.trim().toUpperCase() || '';
+        const value = cb.value?.toUpperCase() || '';
+        
+        const section = cb.closest('tr, div, fieldset');
+        const sectionText = section?.textContent?.toLowerCase() || '';
+        
+        if (sectionText.includes('situação boleto') || sectionText.includes('situacao boleto')) {
+          const isAberto = labelText === 'ABERTO' || value === 'ABERTO';
+          
+          if (isAberto) {
+            if (!cb.checked) cb.click();
+          } else if (labelText !== 'TODOS' && value !== 'TODOS') {
+            if (cb.checked) cb.click();
+          }
+        }
+      }
+    });
+    
+    // Layout
+    log('Configurando layout...');
+    const layoutSelect = await page.$('select[name*="layout"], select[name*="visualiza"], select[name*="dados_visualizados"]');
+    if (layoutSelect) {
+      await layoutSelect.selectOption({ label: 'BI - Vangard Cobrança' }).catch(async () => {
+        await layoutSelect.selectOption({ label: 'BI - Vangard' }).catch(() => {});
+      });
+    }
+    
+    // Forma de Exibição: Em Excel
+    await selecionarFormaExibicaoEmExcel(page);
+    
+    await page.waitForTimeout(1000);
+    log('Filtros configurados', LOG_LEVELS.SUCCESS);
+    
+    // ============================================
+    // ETAPA: DOWNLOAD (EXECUÇÃO IMEDIATA DO SAVEAS)
+    // ============================================
+    // Ao capturar um objeto Download válido:
+    // 1. download.path() valida existência do arquivo temporário
+    // 2. download.saveAs(caminhoFinal) executa IMEDIATAMENTE
+    // 3. Validação síncrona (existsSync + size > 0)
+    // 4. Etapa DOWNLOAD finaliza imediatamente após salvar
+    // ============================================
+    setStep('DOWNLOAD');
+    
+    const downloadDir = getDownloadDirectory();
+    log(`Diretório de download: ${downloadDir}`);
+    
+    let dados = [];
+    let nomeArquivoFinal = '';
+    let downloadSucesso = false;
+    
+    for (let tentativaDownload = 1; tentativaDownload <= LIMITS.MAX_DOWNLOAD_RETRIES && !downloadSucesso; tentativaDownload++) {
+      log(`Tentativa de download ${tentativaDownload}/${LIMITS.MAX_DOWNLOAD_RETRIES}...`);
+      
+      try {
+        // Garantir seleção de Excel
+        await selecionarFormaExibicaoEmExcel(page);
+        await page.waitForTimeout(1000);
+        
+        // Gerar nome semântico ANTES do download
+        const semanticName = generateSemanticFilename('Cobranca_Hinova', inicio, fim);
+        nomeArquivoFinal = semanticName;
+        
+        // Iniciar captura híbrida ANTES do clique
+        // NOTA: O saveAs é executado IMEDIATAMENTE dentro do watcher que captura
+        log('Iniciando estratégia híbrida de captura de download...');
+        
+        // Criar a promessa de captura híbrida (com downloadDir e semanticName para saveAs imediato)
+        const capturaHibridaPromise = aguardarDownloadHibrido(
+          context, 
+          page, 
+          downloadDir, 
+          semanticName, 
+          TIMEOUTS.DOWNLOAD_TOTAL
+        );
+        
+        // Clicar no botão Gerar
+        log('Clicando em Gerar Relatório...');
+        
+        const clicarGerarEmQualquerFrame = async () => {
+          const tentarNoFrame = async (frame) => {
+            // Tentar botão por role
+            const byRole = frame.getByRole('button', { name: /gerar/i });
+            const count = await byRole.count().catch(() => 0);
+            for (let i = 0; i < count; i++) {
+              const el = byRole.nth(i);
+              const visible = await el.isVisible().catch(() => false);
+              if (!visible) continue;
+              
+              const enabled = await el.isEnabled().catch(() => true);
+              if (!enabled) continue;
+              
+              await el.click({ timeout: 15000, force: true });
+              return `botão Gerar (frame: ${frame.url() || 'main'})`;
+            }
+            
+            // Tentar inputs
+            const inputs = frame.locator('input[type="submit"], input[type="button"], input[type="image"]');
+            const ic = await inputs.count().catch(() => 0);
+            for (let i = 0; i < ic; i++) {
+              const el = inputs.nth(i);
+              const visible = await el.isVisible().catch(() => false);
+              if (!visible) continue;
+              
+              const value = (await el.getAttribute('value').catch(() => '')) || '';
+              const alt = (await el.getAttribute('alt').catch(() => '')) || '';
+              const label = `${value} ${alt}`.toLowerCase();
+              if (label.includes('gerar')) {
+                await el.click({ timeout: 15000, force: true });
+                return `input Gerar (value="${value}")`;
+              }
+            }
+            
+            return null;
+          };
+          
+          // Tentar no frame principal primeiro
+          const mainClicked = await tentarNoFrame(page.mainFrame());
+          if (mainClicked) return mainClicked;
+          
+          // Tentar em todos os frames
+          for (const frame of page.frames()) {
+            if (frame === page.mainFrame()) continue;
+            const clicked = await tentarNoFrame(frame);
+            if (clicked) return clicked;
+          }
+          
+          return null;
+        };
+        
+        const clickInfo = await clicarGerarEmQualquerFrame();
+        if (!clickInfo) {
+          await saveDebugInfo(page, context, 'Botão Gerar não encontrado');
+          throw new Error('Botão "Gerar" não encontrado');
+        }
+        
+        log(`Clicou: ${clickInfo}`, LOG_LEVELS.SUCCESS);
+        
+        // ===== AGUARDAR RESULTADO - ARQUIVO JÁ ESTÁ SALVO =====
+        // A função aguardarDownloadHibrido retorna com o arquivo JÁ SALVO
+        // Nenhum await de página, popup, response ou watcher ocorre após a captura
+        log(`Aguardando captura híbrida (timeout: ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)...`);
+        
+        const result = await capturaHibridaPromise;
+        
+        if (!result.success) {
+          // Salvar debug antes de lançar erro
+          await saveDebugInfo(page, context, result.error?.message || 'Nenhum download capturado');
+          throw result.error || new Error('Download falhou - nenhuma estratégia capturou o arquivo');
+        }
+        
+        // ===== ARQUIVO JÁ ESTÁ SALVO - LOGS NA SEQUÊNCIA CORRETA =====
+        // Os logs já foram emitidos dentro do watcher:
+        // 1. "Download capturado"
+        // 2. "Salvando arquivo"
+        // 3. "Arquivo salvo com sucesso"
+        
+        log(`Download finalizado via estratégia: ${result.source}`, LOG_LEVELS.SUCCESS);
+        log(`Arquivo: ${result.filePath} (${(result.size / 1024).toFixed(2)} KB)`, LOG_LEVELS.INFO);
+        
+        // Validar arquivo Excel (estrutura interna)
+        const validation = validateDownloadedFile(result.filePath);
+        if (!validation.valid) {
+          throw new Error(`Arquivo inválido: ${validation.error}`);
+        }
+        
+        log(`Validação Excel OK: ${validation.sheets} planilha(s), ${validation.rows} registros`, LOG_LEVELS.SUCCESS);
+        
+        // Processar Excel
+        dados = processarExcel(result.filePath);
+        downloadSucesso = true;
+        
+        // Fechar abas extras (APÓS o download ser salvo com sucesso)
+        await closeExtraPages(context, page);
+        
+      } catch (downloadError) {
+        log(`Erro no download (tentativa ${tentativaDownload}): ${downloadError.message}`, LOG_LEVELS.ERROR);
+        await saveDebugInfo(page, context, downloadError.message);
+        
+        if (tentativaDownload < LIMITS.MAX_DOWNLOAD_RETRIES) {
+          log('Preparando nova tentativa...', LOG_LEVELS.INFO);
+          await page.waitForTimeout(5000);
+          await fecharPopups(page);
+          await closeExtraPages(context, page);
+          
+          const urlAtual = page.url();
+          if (!urlAtual.includes('relatorioBoleto')) {
+            log('Recarregando página de relatório...');
+            await page.goto(CONFIG.HINOVA_RELATORIO_URL, { 
+              waitUntil: 'domcontentloaded',
+              timeout: TIMEOUTS.PAGE_LOAD
+            });
+            await fecharPopups(page);
+            await page.waitForTimeout(3000);
+            
+            // Re-preencher filtros
+            const dataInicioInput = await page.$('input[name*="data_inicio"], input[name*="vencimento_inicial"], input[name*="dt_vencimento_original_ini"]');
+            if (dataInicioInput) await dataInicioInput.fill(inicio);
+            
+            const dataFimInput = await page.$('input[name*="data_fim"], input[name*="vencimento_final"], input[name*="dt_vencimento_original_fim"]');
+            if (dataFimInput) await dataFimInput.fill(fim);
+          }
+        }
+      }
+    }
+    
+    if (!downloadSucesso) {
+      await saveDebugInfo(page, context, 'Download falhou após todas as tentativas');
+      throw new Error('Download falhou após todas as tentativas');
+    }
+    
+    log(`Total de registros: ${dados.length}`, LOG_LEVELS.SUCCESS);
+    
+    if (dados.length === 0) {
+      log('Nenhum dado encontrado no Excel!', LOG_LEVELS.WARN);
+      await saveDebugInfo(page, context, 'Excel vazio');
+      return false;
+    }
+    
+    // ============================================
+    // ETAPA: ENVIO PARA WEBHOOK
+    // ============================================
+    const sucesso = await enviarWebhook(dados, nomeArquivoFinal);
+    
+    return sucesso;
+    
   } catch (error) {
     log(`ERRO CRÍTICO: ${error.message}`, LOG_LEVELS.ERROR);
-    if (page && context) await saveDebugInfo(page, context, error.message);
+    if (page && context) {
+      await saveDebugInfo(page, context, error.message);
+    }
     throw error;
-
+    
   } finally {
+    // ============================================
+    // ENCERRAMENTO LIMPO
+    // ============================================
     setStep('ENCERRAMENTO');
-    if (browser) await browser.close();
+    
+    try {
+      if (context) {
+        await closeExtraPages(context, page);
+      }
+      
+      if (browser) {
+        await browser.close();
+        log('Browser fechado', LOG_LEVELS.SUCCESS);
+      }
+    } catch (e) {
+      log(`Erro ao fechar browser: ${e.message}`, LOG_LEVELS.WARN);
+    }
+    
+    log('='.repeat(60));
+    log('ROBÔ FINALIZADO');
+    log('='.repeat(60));
   }
 }
 
@@ -1334,5 +1903,16 @@ async function rodarRobo() {
 // EXECUÇÃO
 // ============================================
 rodarRobo()
-  .then(() => process.exit(0))
-  .catch(() => process.exit(1));
+  .then((sucesso) => {
+    if (sucesso) {
+      log('Execução concluída com sucesso!', LOG_LEVELS.SUCCESS);
+      process.exit(0);
+    } else {
+      log('Execução concluída com avisos', LOG_LEVELS.WARN);
+      process.exit(1);
+    }
+  })
+  .catch((error) => {
+    log(`Execução falhou: ${error.message}`, LOG_LEVELS.ERROR);
+    process.exit(1);
+  });
