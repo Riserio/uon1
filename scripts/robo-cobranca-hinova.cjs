@@ -1426,6 +1426,7 @@ async function rodarRobo() {
               // Tentar clicar no radio de Excel via JavaScript
               const clicouExcel = await frame.evaluate(() => {
                 const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+                for (const radio of radios) {
                   const value = (radio.value || '').toLowerCase();
                   const id = (radio.id || '').toLowerCase();
                   const name = (radio.name || '').toLowerCase();
