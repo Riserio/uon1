@@ -1562,6 +1562,7 @@ async function rodarRobo() {
           try {
             await result.newPage.close();
             log('Nova aba fechada após download', LOG_LEVELS.DEBUG);
+          } catch {}
         }
         
       } catch (downloadError) {
