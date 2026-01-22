@@ -514,109 +514,328 @@ async function selecionarFormaExibicaoEmExcel(page) {
 }
 
 // ============================================
-// WATCHERS DE DOWNLOAD
+// WATCHERS DE DOWNLOAD - ESTRATÉGIA HÍBRIDA
 // ============================================
-function criarWatcherRespostaExcel(context, timeoutMs) {
+
+/**
+ * Verifica se uma resposta HTTP contém um arquivo Excel
+ */
+function isExcelResponse(response) {
+  try {
+    if (!response) return false;
+    const status = response.status();
+    if (status < 200 || status >= 400) return false;
+    
+    const headers = response.headers() || {};
+    const contentType = String(headers['content-type'] || '').toLowerCase();
+    const contentDisposition = String(headers['content-disposition'] || '').toLowerCase();
+    const url = String(response.url?.() || '').toLowerCase();
+    
+    // Verificar Content-Type
+    if (contentType.includes('spreadsheet') || 
+        contentType.includes('excel') || 
+        contentType.includes('vnd.ms-excel') ||
+        contentType.includes('vnd.openxmlformats-officedocument.spreadsheetml')) {
+      return true;
+    }
+    
+    // Verificar Content-Disposition
+    if (contentDisposition.includes('.xlsx') || contentDisposition.includes('.xls')) {
+      return true;
+    }
+    
+    // Verificar extensão na URL
+    if (url.includes('.xlsx') || url.includes('.xls')) {
+      return true;
+    }
+    
+    // Verificar octet-stream com attachment Excel
+    if (contentType.includes('octet-stream') && 
+        contentDisposition.includes('attachment') && 
+        (contentDisposition.includes('xls') || contentDisposition.includes('xlsx'))) {
+      return true;
+    }
+    
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Watcher 1: Intercepta respostas HTTP que contêm Excel em qualquer página do contexto
+ */
+function criarWatcherRespostaHTTP(context, timeoutMs) {
   return new Promise((resolve) => {
-    let done = false;
+    let resolved = false;
     const pagesAttached = new Set();
-
-    const matchesExcel = (resp) => {
-      try {
-        if (!resp) return false;
-        const status = resp.status();
-        if (status < 200 || status >= 400) return false;
-        const h = resp.headers() || {};
-        const ct = String(h['content-type'] || '').toLowerCase();
-        const cd = String(h['content-disposition'] || '').toLowerCase();
-        const url = String(resp.url?.() || '').toLowerCase();
-
-        if (ct.includes('spreadsheet') || ct.includes('excel')) return true;
-        if (cd.includes('.xlsx') || cd.includes('.xls')) return true;
-        if (url.includes('.xlsx') || url.includes('.xls')) return true;
-        if (ct.includes('octet-stream') && cd.includes('attachment') && (cd.includes('xls') || cd.includes('xlsx'))) {
-          return true;
-        }
-        return false;
-      } catch {
-        return false;
-      }
-    };
-
-    const cleanup = (timer, onPage) => {
-      try { clearTimeout(timer); } catch {}
-      try { context.removeListener('page', onPage); } catch {}
+    let timeoutId = null;
+    
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      try { context.removeListener('page', onNewPage); } catch {}
       for (const p of pagesAttached) {
         try { p.removeListener('response', onResponse); } catch {}
       }
     };
-
-    const onResponse = async (resp) => {
-      if (done) return;
-      if (!matchesExcel(resp)) return;
-      done = true;
-      cleanup(timer, onPage);
-      resolve(resp);
+    
+    const finish = (result) => {
+      if (resolved) return;
+      resolved = true;
+      cleanup();
+      resolve(result);
     };
-
-    const attachToPage = (p) => {
-      if (!p || pagesAttached.has(p)) return;
-      pagesAttached.add(p);
-      p.on('response', onResponse);
+    
+    const onResponse = async (response) => {
+      if (resolved) return;
+      if (isExcelResponse(response)) {
+        log(`HTTP Excel detectado: ${response.url()}`, LOG_LEVELS.DEBUG);
+        finish({ type: 'httpResponse', response, source: 'httpInterception' });
+      }
     };
-
-    const onPage = (p) => attachToPage(p);
-    context.on('page', onPage);
-
-    for (const p of context.pages()) attachToPage(p);
-
-    const timer = setTimeout(() => {
-      if (done) return;
-      done = true;
-      cleanup(timer, onPage);
-      resolve(null);
-    }, timeoutMs);
+    
+    const attachToPage = (page) => {
+      if (!page || pagesAttached.has(page)) return;
+      pagesAttached.add(page);
+      page.on('response', onResponse);
+    };
+    
+    const onNewPage = (page) => {
+      log(`Watcher HTTP: nova página detectada`, LOG_LEVELS.DEBUG);
+      attachToPage(page);
+    };
+    
+    // Anexar a todas as páginas existentes
+    for (const p of context.pages()) {
+      attachToPage(p);
+    }
+    
+    // Monitorar novas páginas
+    context.on('page', onNewPage);
+    
+    timeoutId = setTimeout(() => finish(null), timeoutMs);
   });
 }
 
-function criarWatcherDownloadAnyPage(context, timeoutMs) {
+/**
+ * Watcher 2: Captura eventos de download em qualquer página do contexto
+ */
+function criarWatcherDownloadGlobal(context, timeoutMs) {
   return new Promise((resolve) => {
-    let done = false;
+    let resolved = false;
     const pagesAttached = new Set();
-
-    const cleanup = (timer, onPage, onDownload) => {
-      try { clearTimeout(timer); } catch {}
-      try { context.removeListener('page', onPage); } catch {}
+    let timeoutId = null;
+    
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      try { context.removeListener('page', onNewPage); } catch {}
       for (const p of pagesAttached) {
         try { p.removeListener('download', onDownload); } catch {}
       }
     };
-
+    
+    const finish = (result) => {
+      if (resolved) return;
+      resolved = true;
+      cleanup();
+      resolve(result);
+    };
+    
     const onDownload = (download) => {
-      if (done) return;
-      done = true;
-      cleanup(timer, onPage, onDownload);
-      resolve(download);
+      if (resolved) return;
+      const filename = download.suggestedFilename?.() || '';
+      log(`Download global detectado: ${filename}`, LOG_LEVELS.DEBUG);
+      finish({ type: 'download', download, source: 'globalDownload' });
     };
-
-    const attachToPage = (p) => {
-      if (!p || pagesAttached.has(p)) return;
-      pagesAttached.add(p);
-      p.on('download', onDownload);
+    
+    const attachToPage = (page) => {
+      if (!page || pagesAttached.has(page)) return;
+      pagesAttached.add(page);
+      page.on('download', onDownload);
     };
-
-    const onPage = (p) => attachToPage(p);
-    context.on('page', onPage);
-
-    for (const p of context.pages()) attachToPage(p);
-
-    const timer = setTimeout(() => {
-      if (done) return;
-      done = true;
-      cleanup(timer, onPage, onDownload);
-      resolve(null);
-    }, timeoutMs);
+    
+    const onNewPage = (page) => {
+      log(`Watcher Download: nova página detectada`, LOG_LEVELS.DEBUG);
+      attachToPage(page);
+    };
+    
+    // Anexar a todas as páginas existentes
+    for (const p of context.pages()) {
+      attachToPage(p);
+    }
+    
+    // Monitorar novas páginas
+    context.on('page', onNewPage);
+    
+    timeoutId = setTimeout(() => finish(null), timeoutMs);
   });
+}
+
+/**
+ * Watcher 3: Monitora novas abas e tenta capturar download delas
+ */
+function criarWatcherNovaAba(context, page, timeoutMs) {
+  return new Promise((resolve) => {
+    let resolved = false;
+    let timeoutId = null;
+    
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      try { context.removeListener('page', onNewPage); } catch {}
+    };
+    
+    const finish = (result) => {
+      if (resolved) return;
+      resolved = true;
+      cleanup();
+      resolve(result);
+    };
+    
+    const processarNovaAba = async (newPage) => {
+      if (resolved) return;
+      
+      try {
+        log(`Nova aba aberta: aguardando carregamento...`, LOG_LEVELS.INFO);
+        
+        // Aguardar carregamento
+        await Promise.race([
+          newPage.waitForLoadState('load', { timeout: 60000 }),
+          newPage.waitForLoadState('domcontentloaded', { timeout: 30000 }),
+        ]).catch(() => {});
+        
+        const url = newPage.url();
+        log(`Nova aba carregada: ${url}`, LOG_LEVELS.DEBUG);
+        
+        // Verificar se é uma URL de Excel direto
+        if (url.includes('.xlsx') || url.includes('.xls') || url.includes('download') || url.includes('export')) {
+          log(`URL de download detectada na nova aba`, LOG_LEVELS.DEBUG);
+        }
+        
+        // Tentar capturar download da nova aba
+        const downloadPromise = newPage.waitForEvent('download', { timeout: 120000 }).catch(() => null);
+        
+        // Procurar e clicar em botões de download
+        const seletoresDownload = [
+          'a[href*=".xlsx"]', 'a[href*=".xls"]',
+          'a:has-text("Baixar")', 'button:has-text("Baixar")',
+          'a:has-text("Download")', 'button:has-text("Download")',
+          'a:has-text("Exportar")', 'button:has-text("Exportar")',
+          'input[value*="Download"]', 'input[value*="Baixar"]',
+        ];
+        
+        for (const seletor of seletoresDownload) {
+          const el = await newPage.$(seletor).catch(() => null);
+          if (el && (await el.isVisible().catch(() => false))) {
+            log(`Clicando em elemento de download na nova aba: ${seletor}`, LOG_LEVELS.DEBUG);
+            await el.click({ timeout: 5000 }).catch(() => {});
+            break;
+          }
+        }
+        
+        // Aguardar download
+        const download = await downloadPromise;
+        if (download) {
+          const filename = download.suggestedFilename?.() || '';
+          log(`Download capturado da nova aba: ${filename}`, LOG_LEVELS.SUCCESS);
+          finish({ type: 'download', download, source: 'newTab', newPage });
+        }
+        
+      } catch (err) {
+        log(`Erro ao processar nova aba: ${err.message}`, LOG_LEVELS.WARN);
+      }
+    };
+    
+    const onNewPage = (newPage) => {
+      if (newPage !== page) {
+        processarNovaAba(newPage);
+      }
+    };
+    
+    context.on('page', onNewPage);
+    
+    timeoutId = setTimeout(() => finish(null), timeoutMs);
+  });
+}
+
+/**
+ * Watcher 4: Evento de download específico da página principal
+ */
+function criarWatcherDownloadPaginaPrincipal(page, timeoutMs) {
+  return new Promise((resolve) => {
+    let resolved = false;
+    let timeoutId = null;
+    
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      try { page.removeListener('download', onDownload); } catch {}
+    };
+    
+    const finish = (result) => {
+      if (resolved) return;
+      resolved = true;
+      cleanup();
+      resolve(result);
+    };
+    
+    const onDownload = (download) => {
+      if (resolved) return;
+      const filename = download.suggestedFilename?.() || '';
+      log(`Download página principal: ${filename}`, LOG_LEVELS.DEBUG);
+      finish({ type: 'download', download, source: 'mainPage' });
+    };
+    
+    page.on('download', onDownload);
+    
+    timeoutId = setTimeout(() => finish(null), timeoutMs);
+  });
+}
+
+/**
+ * Combina todas as estratégias de download em uma única Promise
+ * Retorna o primeiro resultado válido de qualquer estratégia
+ */
+async function aguardarDownloadHibrido(context, page, timeoutMs) {
+  log(`Iniciando captura híbrida de download (timeout: ${timeoutMs / 60000} min)...`, LOG_LEVELS.INFO);
+  
+  // Iniciar todos os watchers em paralelo
+  const watchers = [
+    criarWatcherDownloadGlobal(context, timeoutMs),
+    criarWatcherDownloadPaginaPrincipal(page, timeoutMs),
+    criarWatcherRespostaHTTP(context, timeoutMs),
+    criarWatcherNovaAba(context, page, timeoutMs),
+  ];
+  
+  // Monitorar progresso
+  const startTime = Date.now();
+  const monitorInterval = setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    const minutos = Math.floor(elapsed / 60000);
+    const segundos = Math.floor((elapsed % 60000) / 1000);
+    log(`Aguardando download... ${minutos}m ${segundos}s`, LOG_LEVELS.DEBUG);
+  }, 30000);
+  
+  try {
+    // Aguardar primeira resposta válida
+    const result = await Promise.race([
+      ...watchers,
+      new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+    
+    clearInterval(monitorInterval);
+    
+    if (result) {
+      log(`Download capturado via: ${result.source}`, LOG_LEVELS.SUCCESS);
+      return result;
+    }
+    
+    log(`Nenhum download capturado após ${timeoutMs / 60000} min`, LOG_LEVELS.WARN);
+    return null;
+    
+  } catch (err) {
+    clearInterval(monitorInterval);
+    log(`Erro na captura híbrida: ${err.message}`, LOG_LEVELS.ERROR);
+    return null;
+  }
 }
 
 // ============================================
@@ -1215,50 +1434,18 @@ async function rodarRobo() {
         await selecionarFormaExibicaoEmExcel(page);
         await page.waitForTimeout(1000);
         
-        // Configurar watchers ANTES do clique
-        log('Configurando watchers de download...');
+        // Iniciar captura híbrida ANTES do clique
+        log('Iniciando estratégia híbrida de captura de download...');
         
-        const downloadFromAnyPagePromise = criarWatcherDownloadAnyPage(context, TIMEOUTS.DOWNLOAD_TOTAL).catch(() => null);
-        const excelResponsePromise = criarWatcherRespostaExcel(context, TIMEOUTS.DOWNLOAD_TOTAL).catch(() => null);
-        const pageDownloadPromise = page.waitForEvent('download', { timeout: TIMEOUTS.DOWNLOAD_TOTAL }).catch(() => null);
-        
-        const newPageHandler = async (newPage) => {
-          try {
-            log('Nova aba detectada, aguardando carregamento...', LOG_LEVELS.DEBUG);
-            await newPage.waitForLoadState('domcontentloaded', { timeout: 120000 }).catch(() => {});
-            log(`Nova aba carregada: ${newPage.url()}`, LOG_LEVELS.DEBUG);
-            
-            const downloadInNewPage = newPage.waitForEvent('download', { timeout: TIMEOUTS.DOWNLOAD_TOTAL - 60000 }).catch(() => null);
-            
-            const seletoresDownload = [
-              'a[href*=".xlsx"]', 'a[href*=".xls"]',
-              'a:has-text("Baixar")', 'button:has-text("Baixar")',
-              'a:has-text("Download")', 'button:has-text("Download")',
-            ];
-            
-            for (const seletor of seletoresDownload) {
-              const el = await newPage.$(seletor).catch(() => null);
-              if (el && (await el.isVisible().catch(() => false))) {
-                log(`Clicando em elemento de download: ${seletor}`, LOG_LEVELS.DEBUG);
-                await el.click({ timeout: 5000 }).catch(() => {});
-                break;
-              }
-            }
-            
-            return { page: newPage, downloadPromise: downloadInNewPage };
-          } catch (err) {
-            log(`Erro ao processar nova aba: ${err.message}`, LOG_LEVELS.WARN);
-            return null;
-          }
-        };
-        
-        const newPagePromise = context.waitForEvent('page', { timeout: 120000 }).then(newPageHandler).catch(() => null);
+        // Criar a promessa de captura híbrida
+        const capturaHibridaPromise = aguardarDownloadHibrido(context, page, TIMEOUTS.DOWNLOAD_TOTAL);
         
         // Clicar no botão Gerar
         log('Clicando em Gerar Relatório...');
         
         const clicarGerarEmQualquerFrame = async () => {
           const tentarNoFrame = async (frame) => {
+            // Tentar botão por role
             const byRole = frame.getByRole('button', { name: /gerar/i });
             const count = await byRole.count().catch(() => 0);
             for (let i = 0; i < count; i++) {
@@ -1273,6 +1460,7 @@ async function rodarRobo() {
               return `botão Gerar (frame: ${frame.url() || 'main'})`;
             }
             
+            // Tentar inputs
             const inputs = frame.locator('input[type="submit"], input[type="button"], input[type="image"]');
             const ic = await inputs.count().catch(() => 0);
             for (let i = 0; i < ic; i++) {
@@ -1292,9 +1480,11 @@ async function rodarRobo() {
             return null;
           };
           
+          // Tentar no frame principal primeiro
           const mainClicked = await tentarNoFrame(page.mainFrame());
           if (mainClicked) return mainClicked;
           
+          // Tentar em todos os frames
           for (const frame of page.frames()) {
             if (frame === page.mainFrame()) continue;
             const clicked = await tentarNoFrame(frame);
@@ -1311,86 +1501,67 @@ async function rodarRobo() {
         }
         
         log(`Clicou: ${clickInfo}`, LOG_LEVELS.SUCCESS);
+        
+        // Aguardar um pouco após o clique
         await page.waitForTimeout(2000);
         
-        // Aguardar download
-        log(`Aguardando download (timeout: ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)...`);
+        // Aguardar resultado da captura híbrida
+        log(`Aguardando captura híbrida (timeout: ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)...`);
         
-        const startTime = Date.now();
-        const monitoramentoInterval = setInterval(() => {
-          const elapsed = Date.now() - startTime;
-          const minutos = Math.floor(elapsed / 60000);
-          const segundos = Math.floor((elapsed % 60000) / 1000);
-          log(`Aguardando... ${minutos}m ${segundos}s`, LOG_LEVELS.DEBUG);
-        }, 30000);
+        const result = await capturaHibridaPromise;
         
-        try {
-          const result = await Promise.race([
-            downloadFromAnyPagePromise.then((d) => d ? { type: 'download', download: d, source: 'anyPage' } : null),
-            pageDownloadPromise.then((d) => d ? { type: 'download', download: d, source: 'mainPage' } : null),
-            excelResponsePromise.then((r) => r ? { type: 'response', response: r, source: 'httpResponse' } : null),
-            newPagePromise.then(async (result) => {
-              if (!result) return null;
-              const download = await result.downloadPromise;
-              return download ? { type: 'download', download, source: 'newPage' } : null;
-            }),
-            new Promise((resolve) => setTimeout(() => resolve(null), TIMEOUTS.DOWNLOAD_TOTAL)),
+        if (!result) {
+          // Salvar debug antes de lançar erro
+          await saveDebugInfo(page, context, 'Nenhum download capturado');
+          throw new Error(`Timeout de ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min - nenhuma estratégia capturou o download`);
+        }
+        
+        log(`Download capturado via estratégia: ${result.source}`, LOG_LEVELS.SUCCESS);
+        
+        // Gerar nome semântico
+        const semanticName = generateSemanticFilename('Cobranca_Hinova', inicio, fim);
+        let filePath = path.join(downloadDir, semanticName);
+        nomeArquivoFinal = semanticName;
+        
+        // Salvar arquivo conforme o tipo de resultado
+        if (result.type === 'download' && result.download) {
+          const download = result.download;
+          const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
+          log(`Nome sugerido: ${suggestedName} -> Salvando como: ${nomeArquivoFinal}`);
+          
+          await Promise.race([
+            download.saveAs(filePath),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao salvar arquivo')), TIMEOUTS.DOWNLOAD_SAVE)),
           ]);
           
-          clearInterval(monitoramentoInterval);
+        } else if (result.type === 'httpResponse' && result.response) {
+          log(`Salvando via interceptação HTTP como: ${nomeArquivoFinal}`);
           
-          if (!result) {
-            throw new Error(`Timeout de ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min aguardando download`);
-          }
-          
-          log(`Download capturado via: ${result.source}`, LOG_LEVELS.SUCCESS);
-          
-          // Gerar nome semântico
-          const semanticName = generateSemanticFilename('Cobranca_Hinova', inicio, fim);
-          let filePath = '';
-          
-          if (result.type === 'download' && result.download) {
-            const download = result.download;
-            const suggestedName = download.suggestedFilename() || 'download.xlsx';
-            nomeArquivoFinal = semanticName;
-            filePath = path.join(downloadDir, nomeArquivoFinal);
-            
-            log(`Salvando como: ${nomeArquivoFinal}`);
-            
-            await Promise.race([
-              download.saveAs(filePath),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao salvar arquivo')), TIMEOUTS.DOWNLOAD_SAVE)),
-            ]);
-            
-          } else if (result.type === 'response' && result.response) {
-            const resp = result.response;
-            nomeArquivoFinal = semanticName;
-            filePath = path.join(downloadDir, nomeArquivoFinal);
-            
-            log(`Salvando via HTTP como: ${nomeArquivoFinal}`);
-            
-            const buf = await resp.body();
-            fs.writeFileSync(filePath, buf);
-          }
-          
-          // Validar arquivo
-          const validation = validateDownloadedFile(filePath);
-          if (!validation.valid) {
-            throw new Error(`Arquivo inválido: ${validation.error}`);
-          }
-          
-          log(`Arquivo validado: ${(validation.size / 1024).toFixed(2)} KB, ${validation.rows} registros`, LOG_LEVELS.SUCCESS);
-          
-          // Processar Excel
-          dados = processarExcel(filePath);
-          downloadSucesso = true;
-          
-          // Fechar abas extras
-          await closeExtraPages(context, page);
-          
-        } catch (downloadError) {
-          clearInterval(monitoramentoInterval);
-          throw downloadError;
+          const buf = await result.response.body();
+          fs.writeFileSync(filePath, buf);
+          log(`Arquivo salvo via HTTP: ${buf.length} bytes`);
+        }
+        
+        // Validar arquivo
+        const validation = validateDownloadedFile(filePath);
+        if (!validation.valid) {
+          throw new Error(`Arquivo inválido: ${validation.error}`);
+        }
+        
+        log(`Arquivo validado: ${(validation.size / 1024).toFixed(2)} KB, ${validation.sheets} planilha(s), ${validation.rows} registros`, LOG_LEVELS.SUCCESS);
+        
+        // Processar Excel
+        dados = processarExcel(filePath);
+        downloadSucesso = true;
+        
+        // Fechar abas extras (incluindo novas abas abertas pelo portal)
+        await closeExtraPages(context, page);
+        
+        // Fechar página da nova aba se veio dela
+        if (result.newPage) {
+          try {
+            await result.newPage.close();
+            log('Nova aba fechada após download', LOG_LEVELS.DEBUG);
         }
         
       } catch (downloadError) {
