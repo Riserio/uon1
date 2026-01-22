@@ -31,12 +31,13 @@ interface AutomacaoConfig {
   ultimo_erro?: string;
 }
 
+// Valores padrão vazios - cada associação deve configurar seus próprios dados
 const DEFAULT_CONFIG: Omit<AutomacaoConfig, 'corretora_id'> = {
-  hinova_url: 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php',
+  hinova_url: '',
   hinova_user: '',
   hinova_pass: '',
-  hinova_codigo_cliente: '2363',
-  layout_relatorio: 'BI - Vangard Cobrança',
+  hinova_codigo_cliente: '',
+  layout_relatorio: '',
   ativo: false,
 };
 
