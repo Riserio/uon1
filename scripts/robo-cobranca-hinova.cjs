@@ -54,8 +54,8 @@ const TIMEOUTS = {
   PAGE_LOAD: 90000,           // 90s para carregar página
   LOGIN_RETRY_WAIT: 8000,     // 8s entre tentativas de login
   DOWNLOAD_EVENT: 3 * 60000,  // 3 min para evento de download
-  DOWNLOAD_TOTAL: 10 * 60000, // 10 min total para download
-  DOWNLOAD_SAVE: 5 * 60000,   // 5 min para salvar arquivo
+  DOWNLOAD_TOTAL: 3 * 60000,  // 3 min total para download
+  DOWNLOAD_SAVE: 3 * 60000,   // 3 min para salvar arquivo
   POPUP_CLOSE: 800,           // 800ms para fechar popup
 };
 
@@ -775,28 +775,17 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
   
   const filePath = path.join(downloadDir, semanticName);
   const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
-  
-  // ===== PASSO 2: Validar arquivo temporário via download.path() =====
-  let tempPath = null;
-  try {
-    tempPath = await download.path();
-    if (tempPath && fs.existsSync(tempPath)) {
-      const tempStats = fs.statSync(tempPath);
-      log(`Arquivo temporário válido: ${tempPath} (${tempStats.size} bytes)`, LOG_LEVELS.DEBUG);
-    }
-  } catch (e) {
-    // download.path() pode falhar se o download ainda não completou internamente
-    // Mas prosseguimos com saveAs que aguardará o download completo
-    log(`Aviso: download.path() não disponível - ${e.message}`, LOG_LEVELS.DEBUG);
-  }
-  
-  // ===== PASSO 3 e 4: Executar saveAs IMEDIATAMENTE =====
+
+  // ===== PASSO 2: Executar saveAs IMEDIATAMENTE (sem aguardar página/popup/rede) =====
   log(`Salvando arquivo: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
   
   // EXECUÇÃO IMEDIATA - sem nenhum await de página, popup ou response
-  await download.saveAs(filePath);
+  await Promise.race([
+    download.saveAs(filePath),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout salvando arquivo (${TIMEOUTS.DOWNLOAD_SAVE / 60000} min)`)), TIMEOUTS.DOWNLOAD_SAVE)),
+  ]);
   
-  // ===== PASSO 5: Validação síncrona =====
+  // ===== PASSO 3: Validação síncrona =====
   // Verificar existência do arquivo
   if (!fs.existsSync(filePath)) {
     throw new Error('FALHA: Arquivo não existe após saveAs');
@@ -808,11 +797,11 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
     throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
   }
   
-  // ===== PASSO 6: Log de sucesso com nome e tamanho =====
+  // ===== PASSO 4: Log de sucesso com nome e tamanho =====
   const sizeKB = (stats.size / 1024).toFixed(2);
   log(`Arquivo salvo com sucesso: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
   
-  // ===== PASSO 7: Etapa DOWNLOAD concluída =====
+  // ===== PASSO 5: Etapa DOWNLOAD concluída =====
   log(`✅ Etapa DOWNLOAD concluída`, LOG_LEVELS.SUCCESS);
   
   return { filePath, size: stats.size };
