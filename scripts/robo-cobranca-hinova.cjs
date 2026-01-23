@@ -518,13 +518,40 @@ async function selecionarFormaExibicaoEmExcel(page) {
 // ============================================
 
 /**
+ * Verifica se um erro é do tipo "operação cancelada"
+ * Esses erros são cosméticos e ocorrem quando watchers são cancelados
+ * após outro watcher ter capturado o download com sucesso
+ */
+function isOperationCanceledError(error) {
+  if (!error) return false;
+  const message = String(error.message || error).toLowerCase();
+  return (
+    message.includes('operation was canceled') ||
+    message.includes('operation canceled') ||
+    message.includes('cancelled') ||
+    message.includes('aborted') ||
+    message.includes('target closed') ||
+    message.includes('context closed') ||
+    message.includes('page closed') ||
+    message.includes('browser closed') ||
+    message.includes('navigation interrupted')
+  );
+}
+
+/**
  * Classe para controlar o estado do download e cancelar watchers
  * O saveAs é executado IMEDIATAMENTE ao capturar o download,
  * SEM aguardar nenhum outro evento de página/popup/response
+ * 
+ * PROTEÇÃO CONTRA ERROS DE CANCELAMENTO:
+ * - Flag `downloadConcluido` impede múltiplos resolves
+ * - Watchers ignoram operações após download concluído
+ * - Erros "operation canceled" são tratados silenciosamente
  */
 class DownloadController {
   constructor() {
     this.captured = false;
+    this.downloadConcluido = false;  // Flag para impedir processamento após conclusão
     this.result = null;
     this.fileResult = null;
     this.error = null;
@@ -538,8 +565,12 @@ class DownloadController {
     this.cleanupFunctions.push(fn);
   }
   
+  /**
+   * Marca o download como capturado e cancela todos os watchers
+   * Retorna false se já foi capturado (proteção contra múltiplos resolves)
+   */
   setCaptured(result) {
-    if (this.captured) return false; // Já foi capturado
+    if (this.captured || this.downloadConcluido) return false;
     this.captured = true;
     this.result = result;
     log(`Download capturado! Fonte: ${result.source}`, LOG_LEVELS.SUCCESS);
@@ -548,19 +579,46 @@ class DownloadController {
     return true;
   }
   
+  /**
+   * Define o resultado do arquivo salvo
+   * Só executa se ainda não concluído (proteção contra múltiplos resolves)
+   */
   setFileResult(fileResult) {
+    if (this.downloadConcluido) return false;
+    this.downloadConcluido = true;
     this.fileResult = fileResult;
     // Notificar que o arquivo foi salvo
     if (this.onCompleteCallback) {
       this.onCompleteCallback();
     }
+    return true;
   }
   
+  /**
+   * Define um erro (apenas se não for erro de cancelamento cosmético)
+   */
   setError(error) {
+    // Ignorar erros de cancelamento se download já foi concluído
+    if (this.downloadConcluido) {
+      if (isOperationCanceledError(error)) {
+        log(`Erro de cancelamento ignorado (download já concluído): ${error.message}`, LOG_LEVELS.DEBUG);
+        return false;
+      }
+    }
+    
+    // Ignorar erros de cancelamento mesmo que não tenha concluído
+    // (outro watcher pode ter capturado)
+    if (this.captured && isOperationCanceledError(error)) {
+      log(`Erro de cancelamento ignorado (já capturado): ${error.message}`, LOG_LEVELS.DEBUG);
+      return false;
+    }
+    
     this.error = error;
+    this.downloadConcluido = true;
     if (this.onCompleteCallback) {
       this.onCompleteCallback();
     }
+    return true;
   }
   
   setOnComplete(callback) {
@@ -569,6 +627,10 @@ class DownloadController {
   
   isCaptured() {
     return this.captured;
+  }
+  
+  isConcluido() {
+    return this.downloadConcluido;
   }
   
   isComplete() {
@@ -599,7 +661,7 @@ class DownloadController {
       try {
         fn();
       } catch (e) {
-        // Ignorar erros de cleanup
+        // Ignorar erros de cleanup silenciosamente
       }
     }
     this.cleanupFunctions = [];
@@ -721,20 +783,26 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
         
         controller.setFileResult({ filePath, size: stats.size });
       } catch (e) {
-        log(`Erro ao salvar via HTTP: ${e.message}`, LOG_LEVELS.ERROR);
-        controller.setError(e);
+        // Ignorar erros de cancelamento
+        if (!isOperationCanceledError(e)) {
+          log(`Erro ao salvar via HTTP: ${e.message}`, LOG_LEVELS.ERROR);
+          controller.setError(e);
+        } else {
+          log(`Erro de cancelamento ignorado no watcher HTTP`, LOG_LEVELS.DEBUG);
+        }
       }
     }
   };
   
   const attachToPage = (page) => {
     if (!page || pagesAttached.has(page)) return;
+    if (controller.isConcluido()) return;  // Não anexar se já concluiu
     pagesAttached.add(page);
     page.on('response', onResponse);
   };
   
   const onNewPage = (page) => {
-    if (controller.isCaptured()) return;
+    if (controller.isCaptured() || controller.isConcluido()) return;
     attachToPage(page);
   };
   
@@ -826,7 +894,8 @@ function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticNa
   const pagesAttached = new Set();
   
   const onDownload = async (download) => {
-    if (controller.isCaptured()) return;
+    // Proteção: ignorar se já capturado ou concluído
+    if (controller.isCaptured() || controller.isConcluido()) return;
     
     const filename = download.suggestedFilename?.() || '';
     log(`Download global detectado: ${filename}`, LOG_LEVELS.DEBUG);
@@ -845,19 +914,25 @@ function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticNa
       const result = await processarDownloadImediato(download, downloadDir, semanticName);
       controller.setFileResult(result);
     } catch (e) {
-      log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
-      controller.setError(e);
+      // Ignorar erros de cancelamento
+      if (!isOperationCanceledError(e)) {
+        log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
+        controller.setError(e);
+      } else {
+        log(`Erro de cancelamento ignorado no watcher global`, LOG_LEVELS.DEBUG);
+      }
     }
   };
   
   const attachToPage = (page) => {
     if (!page || pagesAttached.has(page)) return;
+    if (controller.isConcluido()) return;  // Não anexar se já concluiu
     pagesAttached.add(page);
     page.on('download', onDownload);
   };
   
   const onNewPage = (page) => {
-    if (controller.isCaptured()) return;
+    if (controller.isCaptured() || controller.isConcluido()) return;
     log(`Watcher Download: nova página detectada`, LOG_LEVELS.DEBUG);
     attachToPage(page);
   };
@@ -885,7 +960,8 @@ function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticNa
  */
 function criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, semanticName) {
   const onDownload = async (download) => {
-    if (controller.isCaptured()) return;
+    // Proteção: ignorar se já capturado ou concluído
+    if (controller.isCaptured() || controller.isConcluido()) return;
     
     const filename = download.suggestedFilename?.() || '';
     log(`Download página principal: ${filename}`, LOG_LEVELS.DEBUG);
@@ -904,8 +980,13 @@ function criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, sema
       const result = await processarDownloadImediato(download, downloadDir, semanticName);
       controller.setFileResult(result);
     } catch (e) {
-      log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
-      controller.setError(e);
+      // Ignorar erros de cancelamento
+      if (!isOperationCanceledError(e)) {
+        log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
+        controller.setError(e);
+      } else {
+        log(`Erro de cancelamento ignorado no watcher principal`, LOG_LEVELS.DEBUG);
+      }
     }
   };
   
@@ -928,8 +1009,8 @@ function criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, sema
  */
 function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanticName) {
   const processarNovaAba = async (newPage) => {
-    // Se já capturou, apenas fechar a nova aba silenciosamente - SEM ESPERA
-    if (controller.isCaptured()) {
+    // Proteção: Se já capturou ou concluiu, apenas fechar a nova aba silenciosamente
+    if (controller.isCaptured() || controller.isConcluido()) {
       try { await newPage.close(); } catch {}
       return;
     }
@@ -939,7 +1020,8 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
       
       // Handler de download na nova aba - executa saveAs IMEDIATAMENTE
       const onNewPageDownload = async (download) => {
-        if (controller.isCaptured()) return;
+        // Proteção: ignorar se já capturado ou concluído
+        if (controller.isCaptured() || controller.isConcluido()) return;
         
         const filename = download.suggestedFilename?.() || '';
         
@@ -961,8 +1043,13 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
           // Fechar aba após salvar (sem esperar)
           newPage.close().catch(() => {});
         } catch (e) {
-          log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
-          controller.setError(e);
+          // Ignorar erros de cancelamento
+          if (!isOperationCanceledError(e)) {
+            log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
+            controller.setError(e);
+          } else {
+            log(`Erro de cancelamento ignorado no watcher nova aba`, LOG_LEVELS.DEBUG);
+          }
         }
       };
       
@@ -973,24 +1060,31 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
       const loadTimeout = setTimeout(() => { loadCompleted = true; }, 10000);
       
       const checkCaptured = setInterval(() => {
-        if (controller.isCaptured()) {
+        if (controller.isCaptured() || controller.isConcluido()) {
           clearTimeout(loadTimeout);
           clearInterval(checkCaptured);
           loadCompleted = true;
         }
       }, 50);
       
-      // Tentar carregar página (com timeout curto)
-      await Promise.race([
-        newPage.waitForLoadState('domcontentloaded', { timeout: 8000 }),
-        new Promise(resolve => setTimeout(resolve, 8000)),
-      ]).catch(() => {});
+      // Tentar carregar página (com timeout curto) - com tratamento de erro de cancelamento
+      try {
+        await Promise.race([
+          newPage.waitForLoadState('domcontentloaded', { timeout: 8000 }),
+          new Promise(resolve => setTimeout(resolve, 8000)),
+        ]);
+      } catch (e) {
+        // Ignorar erros de cancelamento silenciosamente
+        if (!isOperationCanceledError(e)) {
+          log(`Erro no carregamento da nova aba: ${e.message}`, LOG_LEVELS.DEBUG);
+        }
+      }
       
       clearTimeout(loadTimeout);
       clearInterval(checkCaptured);
       
-      // Se já capturou durante o carregamento, NÃO fazer mais nada
-      if (controller.isCaptured()) {
+      // Se já capturou ou concluiu durante o carregamento, NÃO fazer mais nada
+      if (controller.isCaptured() || controller.isConcluido()) {
         try { newPage.removeListener('download', onNewPageDownload); } catch {}
         return;
       }
@@ -1002,11 +1096,18 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
       ];
       
       for (const seletor of seletoresDownload) {
-        if (controller.isCaptured()) break;
-        const el = await newPage.$(seletor).catch(() => null);
-        if (el && (await el.isVisible().catch(() => false))) {
-          await el.click({ timeout: 3000 }).catch(() => {});
-          break;
+        if (controller.isCaptured() || controller.isConcluido()) break;
+        try {
+          const el = await newPage.$(seletor);
+          if (el && (await el.isVisible().catch(() => false))) {
+            await el.click({ timeout: 3000 }).catch(() => {});
+            break;
+          }
+        } catch (e) {
+          // Ignorar erros silenciosamente (pode ser erro de cancelamento)
+          if (!isOperationCanceledError(e)) {
+            log(`Erro ao clicar botão download: ${e.message}`, LOG_LEVELS.DEBUG);
+          }
         }
       }
       
@@ -1016,11 +1117,20 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
       });
       
     } catch (err) {
-      // Ignorar erros - não afetar o fluxo principal
+      // Ignorar erros de cancelamento silenciosamente
+      if (!isOperationCanceledError(err)) {
+        log(`Erro no processamento da nova aba: ${err.message}`, LOG_LEVELS.DEBUG);
+      }
     }
   };
   
   const onNewPage = (newPage) => {
+    // Proteção: ignorar se já capturou ou concluiu
+    if (controller.isCaptured() || controller.isConcluido()) {
+      // Fechar silenciosamente
+      newPage.close().catch(() => {});
+      return;
+    }
     if (newPage !== mainPage) {
       processarNovaAba(newPage);
     }
@@ -1049,6 +1159,11 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
  * - page.waitFor* / page.waitForEvent
  * - context.waitForEvent
  * - Qualquer watcher ou listener adicional
+ * 
+ * TRATAMENTO DE ERROS:
+ * - Erros "operation canceled" são tratados silenciosamente
+ * - Flag downloadConcluido impede múltiplos resolves
+ * - Apenas o primeiro watcher a capturar resolve a promise
  */
 async function aguardarDownloadHibrido(context, page, downloadDir, semanticName, timeoutMs) {
   log(`Iniciando captura híbrida de download (timeout: ${timeoutMs / 60000} min)...`, LOG_LEVELS.INFO);
@@ -1066,11 +1181,12 @@ async function aguardarDownloadHibrido(context, page, downloadDir, semanticName,
   controller.startProgressMonitor();
   
   // Aguardar arquivo salvo ou timeout - RESOLVE IMEDIATAMENTE após arquivo ser salvo
+  // Proteção contra múltiplos resolves e erros de cancelamento
   return new Promise((resolve) => {
     let resolved = false;
     
     const doResolve = (result) => {
-      if (resolved) return;
+      if (resolved) return;  // Proteção contra múltiplos resolves
       resolved = true;
       controller.cleanup();
       resolve(result);
@@ -1078,10 +1194,25 @@ async function aguardarDownloadHibrido(context, page, downloadDir, semanticName,
     
     // Callback para quando arquivo for salvo - RESOLUÇÃO IMEDIATA
     controller.setOnComplete(() => {
-      if (controller.getError()) {
-        doResolve({ success: false, error: controller.getError() });
-      } else if (controller.getFileResult()) {
-        const fileResult = controller.getFileResult();
+      // Proteção: não resolver se já resolvido
+      if (resolved) return;
+      
+      const error = controller.getError();
+      const fileResult = controller.getFileResult();
+      
+      // Se tem erro, verificar se é erro de cancelamento (ignorar)
+      if (error) {
+        // Se já temos resultado de arquivo, o erro é cosmético - ignorar
+        if (fileResult) {
+          log(`Erro ignorado (arquivo já salvo): ${error.message}`, LOG_LEVELS.DEBUG);
+        } else {
+          doResolve({ success: false, error });
+        }
+        return;
+      }
+      
+      // Sucesso: arquivo salvo
+      if (fileResult) {
         doResolve({ 
           success: true, 
           filePath: fileResult.filePath, 
@@ -1093,7 +1224,7 @@ async function aguardarDownloadHibrido(context, page, downloadDir, semanticName,
     
     // Timeout
     const timeoutId = setTimeout(() => {
-      if (!resolved) {
+      if (!resolved && !controller.isConcluido()) {
         log(`Timeout de ${timeoutMs / 60000} min - nenhum download capturado`, LOG_LEVELS.WARN);
         doResolve({ success: false, error: new Error('Timeout - nenhum download capturado') });
       }
