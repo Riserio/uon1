@@ -777,22 +777,61 @@ function isExcelResponse(response) {
  * Processa um objeto Download do Playwright IMEDIATAMENTE
  * 
  * FLUXO TERMINAL:
- * 1. await download.saveAs(caminhoFinal) - execução IMEDIATA
- * 2. Validação síncrona: fs.existsSync() + stats.size > 0
- * 3. Retorna resultado ou lança erro
+ * 1. await download.path() - AGUARDA arquivo temporário existir (CRÍTICO)
+ * 2. await download.saveAs(caminhoFinal) - execução IMEDIATA
+ * 3. Fallback: cópia manual se saveAs falhar
+ * 4. Validação síncrona: fs.existsSync() + stats.size > 0
+ * 5. Validação de integridade: XLSX.readFile()
+ * 6. Retorna resultado ou lança erro
  */
 async function processarDownloadImediato(download, downloadDir, semanticName, source) {
   const filePath = path.join(downloadDir, semanticName);
+  const absolutePath = path.resolve(filePath);
   const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
   
-  log(`Salvando arquivo: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
+  log(`Download capturado: ${suggestedName}`, LOG_LEVELS.SUCCESS);
+  log(`Destino: ${absolutePath}`, LOG_LEVELS.DEBUG);
   
-  // EXECUÇÃO IMEDIATA - sem nenhum await de página, popup ou response
-  await download.saveAs(filePath);
+  // CRÍTICO: Aguardar arquivo temporário existir ANTES de saveAs
+  log(`Aguardando arquivo temporário do Playwright...`, LOG_LEVELS.DEBUG);
+  let tempPath = null;
+  try {
+    tempPath = await download.path();
+  } catch (e) {
+    log(`Erro ao obter path temporário: ${e.message}`, LOG_LEVELS.WARN);
+  }
   
-  // Validação síncrona
+  if (!tempPath) {
+    throw new Error('FALHA: Arquivo temporário não disponível após download');
+  }
+  log(`Arquivo temporário pronto: ${tempPath}`, LOG_LEVELS.DEBUG);
+  
+  // Garantir que o diretório de destino existe
+  if (!fs.existsSync(downloadDir)) {
+    fs.mkdirSync(downloadDir, { recursive: true });
+    log(`Diretório criado: ${downloadDir}`, LOG_LEVELS.DEBUG);
+  }
+  
+  // Tentar saveAs com fallback para cópia manual
+  log(`Salvando arquivo: ${filePath}`, LOG_LEVELS.INFO);
+  try {
+    await download.saveAs(filePath);
+    log(`saveAs executado com sucesso`, LOG_LEVELS.DEBUG);
+  } catch (saveError) {
+    log(`saveAs falhou: ${saveError.message}, tentando cópia manual...`, LOG_LEVELS.WARN);
+    
+    // Fallback: cópia manual do arquivo temporário
+    if (tempPath && fs.existsSync(tempPath)) {
+      fs.copyFileSync(tempPath, filePath);
+      log(`Arquivo copiado manualmente de ${tempPath}`, LOG_LEVELS.DEBUG);
+    } else {
+      throw new Error(`FALHA: Não foi possível salvar arquivo: ${saveError.message}`);
+    }
+  }
+  
+  // Validação síncrona ROBUSTA
   if (!fs.existsSync(filePath)) {
-    throw new Error('FALHA: Arquivo não existe após saveAs');
+    throw new Error(`FALHA: Arquivo não existe após saveAs: ${filePath}`);
   }
   
   const stats = fs.statSync(filePath);
@@ -801,8 +840,21 @@ async function processarDownloadImediato(download, downloadDir, semanticName, so
   }
   
   const sizeKB = (stats.size / 1024).toFixed(2);
-  log(`Arquivo salvo com sucesso: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
+  log(`Arquivo salvo: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
+  
+  // Validação de integridade do Excel
+  try {
+    const workbook = XLSX.readFile(filePath);
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      throw new Error('Excel sem planilhas');
+    }
+    log(`Excel válido: ${workbook.SheetNames.length} planilha(s)`, LOG_LEVELS.DEBUG);
+  } catch (xlsxError) {
+    throw new Error(`FALHA: Excel corrompido - ${xlsxError.message}`);
+  }
+  
   log(`✅ Etapa DOWNLOAD concluída`, LOG_LEVELS.SUCCESS);
+  log(`✅ Caminho absoluto: ${absolutePath}`, LOG_LEVELS.SUCCESS);
   
   return { filePath, size: stats.size, source };
 }
@@ -825,9 +877,22 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
       
       try {
         const filePath = path.join(downloadDir, semanticName);
+        const absolutePath = path.resolve(filePath);
+        const headers = response.headers() || {};
+        
         log(`Salvando arquivo via HTTP: ${semanticName}`, LOG_LEVELS.INFO);
+        log(`Content-Type: ${headers['content-type'] || 'N/A'}`, LOG_LEVELS.DEBUG);
+        log(`Content-Length: ${headers['content-length'] || 'N/A'}`, LOG_LEVELS.DEBUG);
+        
+        // Garantir que o diretório existe
+        if (!fs.existsSync(downloadDir)) {
+          fs.mkdirSync(downloadDir, { recursive: true });
+          log(`Diretório criado: ${downloadDir}`, LOG_LEVELS.DEBUG);
+        }
         
         const buf = await response.body();
+        log(`Buffer size: ${buf.length} bytes`, LOG_LEVELS.DEBUG);
+        
         fs.writeFileSync(filePath, buf);
         
         if (!fs.existsSync(filePath)) {
@@ -840,8 +905,21 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
         }
         
         const sizeKB = (stats.size / 1024).toFixed(2);
-        log(`Arquivo salvo com sucesso: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
+        log(`Arquivo salvo: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
+        
+        // Validação de integridade do Excel
+        try {
+          const workbook = XLSX.readFile(filePath);
+          if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+            throw new Error('Excel sem planilhas');
+          }
+          log(`Excel válido: ${workbook.SheetNames.length} planilha(s)`, LOG_LEVELS.DEBUG);
+        } catch (xlsxError) {
+          throw new Error(`FALHA: Excel corrompido - ${xlsxError.message}`);
+        }
+        
         log(`✅ Etapa DOWNLOAD concluída`, LOG_LEVELS.SUCCESS);
+        log(`✅ Caminho absoluto: ${absolutePath}`, LOG_LEVELS.SUCCESS);
         
         controller.setFileResult({ filePath, size: stats.size, source: 'httpInterception' });
       } catch (e) {
