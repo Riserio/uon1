@@ -54,7 +54,7 @@ const TIMEOUTS = {
   PAGE_LOAD: 90000,           // 90s para carregar página
   LOGIN_RETRY_WAIT: 8000,     // 8s entre tentativas de login
   DOWNLOAD_EVENT: 3 * 60000,  // 3 min para evento de download
-  DOWNLOAD_TOTAL: 3 * 60000,  // 3 min total para download
+  DOWNLOAD_TOTAL: 10 * 60000, // 10 min total para download (portal pode demorar)
   DOWNLOAD_SAVE: 3 * 60000,   // 3 min para salvar arquivo
   POPUP_CLOSE: 800,           // 800ms para fechar popup
 };
