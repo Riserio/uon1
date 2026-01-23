@@ -518,9 +518,11 @@ async function selecionarFormaExibicaoEmExcel(page) {
 // ============================================
 
 /**
- * Verifica se um erro é do tipo "operação cancelada"
- * Esses erros são cosméticos e ocorrem quando watchers são cancelados
- * após outro watcher ter capturado o download com sucesso
+ * Verifica se um erro é do tipo "operação cancelada" ou relacionado
+ * Esses erros são COSMÉTICOS e ocorrem quando watchers são cancelados
+ * após outro watcher ter capturado o download com sucesso.
+ * 
+ * IMPORTANTE: NÃO LANÇAR EXCEÇÃO para esses erros!
  */
 function isOperationCanceledError(error) {
   if (!error) return false;
@@ -534,122 +536,169 @@ function isOperationCanceledError(error) {
     message.includes('context closed') ||
     message.includes('page closed') ||
     message.includes('browser closed') ||
-    message.includes('navigation interrupted')
+    message.includes('navigation interrupted') ||
+    message.includes('frame was detached') ||
+    message.includes('execution context was destroyed')
   );
 }
 
 /**
- * Classe para controlar o estado do download e cancelar watchers
- * O saveAs é executado IMEDIATAMENTE ao capturar o download,
- * SEM aguardar nenhum outro evento de página/popup/response
+ * Busca arquivo Excel (.xls ou .xlsx) no diretório de download
+ * Retorna o caminho do primeiro arquivo encontrado ou null
+ */
+function buscarArquivoExcelNoDiretorio(downloadDir, nomeEsperado = null) {
+  try {
+    if (!fs.existsSync(downloadDir)) return null;
+    
+    const arquivos = fs.readdirSync(downloadDir);
+    const excels = arquivos.filter(f => /\.(xlsx?|xls)$/i.test(f));
+    
+    if (excels.length === 0) return null;
+    
+    // Se temos nome esperado, tentar encontrar
+    if (nomeEsperado) {
+      const exato = excels.find(f => f === nomeEsperado);
+      if (exato) return path.join(downloadDir, exato);
+    }
+    
+    // Retornar o mais recente
+    const comStats = excels.map(f => {
+      const fullPath = path.join(downloadDir, f);
+      try {
+        const stats = fs.statSync(fullPath);
+        return { file: f, path: fullPath, mtime: stats.mtime, size: stats.size };
+      } catch {
+        return null;
+      }
+    }).filter(Boolean);
+    
+    if (comStats.length === 0) return null;
+    
+    comStats.sort((a, b) => b.mtime - a.mtime);
+    
+    // Retornar apenas se tamanho > 0
+    const valido = comStats.find(f => f.size > LIMITS.MIN_FILE_SIZE_BYTES);
+    return valido ? valido.path : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Controlador de estado do download com proteção contra race conditions
  * 
- * PROTEÇÃO CONTRA ERROS DE CANCELAMENTO:
- * - Flag `downloadConcluido` impede múltiplos resolves
- * - Watchers ignoram operações após download concluído
- * - Erros "operation canceled" são tratados silenciosamente
+ * GARANTIAS:
+ * - Apenas UMA promise pode resolver (flag `resolved`)
+ * - Cleanup centralizado e executado uma única vez
+ * - Erros de cancelamento são SILENCIOSAMENTE ignorados
+ * - Validação final via filesystem
  */
 class DownloadController {
   constructor() {
-    this.captured = false;
-    this.downloadConcluido = false;  // Flag para impedir processamento após conclusão
-    this.result = null;
-    this.fileResult = null;
-    this.error = null;
-    this.cleanupFunctions = [];
+    this.captured = false;        // Download foi capturado por algum watcher
+    this.resolved = false;        // Promise principal já foi resolvida
+    this.fileResult = null;       // Resultado do arquivo salvo
+    this.error = null;            // Erro real (não cosmético)
+    this.cleanupFunctions = [];   // Funções de limpeza registradas
+    this.cleanupExecuted = false; // Cleanup já foi executado
     this.monitorInterval = null;
     this.startTime = Date.now();
-    this.onCompleteCallback = null;
+    this.resolveCallback = null;  // Callback para resolver a promise principal
   }
   
   addCleanup(fn) {
-    this.cleanupFunctions.push(fn);
+    if (!this.cleanupExecuted) {
+      this.cleanupFunctions.push(fn);
+    }
   }
   
   /**
-   * Marca o download como capturado e cancela todos os watchers
+   * Marca como capturado e executa cleanup
    * Retorna false se já foi capturado (proteção contra múltiplos resolves)
    */
   setCaptured(result) {
-    if (this.captured || this.downloadConcluido) return false;
+    if (this.captured || this.resolved) return false;
     this.captured = true;
-    this.result = result;
     log(`Download capturado! Fonte: ${result.source}`, LOG_LEVELS.SUCCESS);
-    log(`Cancelando todos os watchers...`, LOG_LEVELS.DEBUG);
-    this.cleanup();
     return true;
   }
   
   /**
-   * Define o resultado do arquivo salvo
-   * Só executa se ainda não concluído (proteção contra múltiplos resolves)
+   * Define o resultado do arquivo salvo e resolve a promise principal
+   * Retorna false se já resolvido
    */
   setFileResult(fileResult) {
-    if (this.downloadConcluido) return false;
-    this.downloadConcluido = true;
+    if (this.resolved) return false;
+    this.resolved = true;
     this.fileResult = fileResult;
-    // Notificar que o arquivo foi salvo
-    if (this.onCompleteCallback) {
-      this.onCompleteCallback();
+    
+    // Executar cleanup ANTES de resolver
+    this.executeCleanup();
+    
+    // Resolver promise principal
+    if (this.resolveCallback) {
+      this.resolveCallback({ 
+        success: true, 
+        filePath: fileResult.filePath, 
+        size: fileResult.size,
+        source: fileResult.source || 'unknown'
+      });
     }
     return true;
   }
   
   /**
-   * Define um erro (apenas se não for erro de cancelamento cosmético)
+   * Define um erro e resolve a promise principal
+   * IGNORA SILENCIOSAMENTE erros de cancelamento
    */
   setError(error) {
-    // Ignorar erros de cancelamento se download já foi concluído
-    if (this.downloadConcluido) {
-      if (isOperationCanceledError(error)) {
-        log(`Erro de cancelamento ignorado (download já concluído): ${error.message}`, LOG_LEVELS.DEBUG);
-        return false;
-      }
-    }
-    
-    // Ignorar erros de cancelamento mesmo que não tenha concluído
-    // (outro watcher pode ter capturado)
-    if (this.captured && isOperationCanceledError(error)) {
-      log(`Erro de cancelamento ignorado (já capturado): ${error.message}`, LOG_LEVELS.DEBUG);
+    // Ignorar erros de cancelamento SEMPRE
+    if (isOperationCanceledError(error)) {
+      log(`[IGNORADO] Erro cosmético: ${error.message}`, LOG_LEVELS.DEBUG);
       return false;
     }
     
+    // Se já resolveu com sucesso, ignorar qualquer erro
+    if (this.resolved && this.fileResult) {
+      log(`[IGNORADO] Erro após sucesso: ${error.message}`, LOG_LEVELS.DEBUG);
+      return false;
+    }
+    
+    // Se já resolveu com outro erro, ignorar
+    if (this.resolved) return false;
+    
+    this.resolved = true;
     this.error = error;
-    this.downloadConcluido = true;
-    if (this.onCompleteCallback) {
-      this.onCompleteCallback();
+    
+    // Executar cleanup ANTES de resolver
+    this.executeCleanup();
+    
+    // Resolver promise principal com erro
+    if (this.resolveCallback) {
+      this.resolveCallback({ success: false, error });
     }
     return true;
   }
   
-  setOnComplete(callback) {
-    this.onCompleteCallback = callback;
+  setResolveCallback(callback) {
+    this.resolveCallback = callback;
   }
   
   isCaptured() {
     return this.captured;
   }
   
-  isConcluido() {
-    return this.downloadConcluido;
+  isResolved() {
+    return this.resolved;
   }
   
-  isComplete() {
-    return this.fileResult !== null || this.error !== null;
-  }
-  
-  getResult() {
-    return this.result;
-  }
-  
-  getFileResult() {
-    return this.fileResult;
-  }
-  
-  getError() {
-    return this.error;
-  }
-  
-  cleanup() {
+  /**
+   * Executa cleanup centralizado UMA ÚNICA VEZ
+   */
+  executeCleanup() {
+    if (this.cleanupExecuted) return;
+    this.cleanupExecuted = true;
+    
     // Parar monitor de progresso
     if (this.monitorInterval) {
       clearInterval(this.monitorInterval);
@@ -657,20 +706,21 @@ class DownloadController {
     }
     
     // Executar todas as funções de cleanup registradas
+    // SILENCIAR TODOS os erros para evitar exceções não tratadas
     for (const fn of this.cleanupFunctions) {
       try {
         fn();
       } catch (e) {
-        // Ignorar erros de cleanup silenciosamente
+        // Ignorar QUALQUER erro de cleanup silenciosamente
       }
     }
     this.cleanupFunctions = [];
-    log(`Cleanup concluído - todos os watchers removidos`, LOG_LEVELS.DEBUG);
+    log(`Cleanup concluído - watchers removidos`, LOG_LEVELS.DEBUG);
   }
   
   startProgressMonitor() {
     this.monitorInterval = setInterval(() => {
-      if (this.captured || this.isComplete()) {
+      if (this.resolved) {
         clearInterval(this.monitorInterval);
         return;
       }
@@ -696,7 +746,6 @@ function isExcelResponse(response) {
     const contentDisposition = String(headers['content-disposition'] || '').toLowerCase();
     const url = String(response.url?.() || '').toLowerCase();
     
-    // Verificar Content-Type
     if (contentType.includes('spreadsheet') || 
         contentType.includes('excel') || 
         contentType.includes('vnd.ms-excel') ||
@@ -704,17 +753,14 @@ function isExcelResponse(response) {
       return true;
     }
     
-    // Verificar Content-Disposition
     if (contentDisposition.includes('.xlsx') || contentDisposition.includes('.xls')) {
       return true;
     }
     
-    // Verificar extensão na URL
     if (url.includes('.xlsx') || url.includes('.xls')) {
       return true;
     }
     
-    // Verificar octet-stream com attachment Excel
     if (contentType.includes('octet-stream') && 
         contentDisposition.includes('attachment') && 
         (contentDisposition.includes('xls') || contentDisposition.includes('xlsx'))) {
@@ -728,43 +774,62 @@ function isExcelResponse(response) {
 }
 
 /**
- * Watcher 1: Intercepta respostas HTTP que contêm Excel
+ * Processa um objeto Download do Playwright IMEDIATAMENTE
  * 
- * FLUXO TERMINAL - Ao detectar resposta Excel:
- * 1. Log: "Download capturado"
- * 2. fs.writeFileSync() - salva imediatamente
- * 3. Log: "Salvando arquivo"
- * 4. Validação síncrona: existsSync + size > 0
- * 5. Log: "Arquivo salvo com sucesso"
- * 6. Etapa DOWNLOAD finaliza
+ * FLUXO TERMINAL:
+ * 1. await download.saveAs(caminhoFinal) - execução IMEDIATA
+ * 2. Validação síncrona: fs.existsSync() + stats.size > 0
+ * 3. Retorna resultado ou lança erro
+ */
+async function processarDownloadImediato(download, downloadDir, semanticName, source) {
+  const filePath = path.join(downloadDir, semanticName);
+  const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
+  
+  log(`Salvando arquivo: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
+  
+  // EXECUÇÃO IMEDIATA - sem nenhum await de página, popup ou response
+  await download.saveAs(filePath);
+  
+  // Validação síncrona
+  if (!fs.existsSync(filePath)) {
+    throw new Error('FALHA: Arquivo não existe após saveAs');
+  }
+  
+  const stats = fs.statSync(filePath);
+  if (stats.size <= 0) {
+    throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
+  }
+  
+  const sizeKB = (stats.size / 1024).toFixed(2);
+  log(`Arquivo salvo com sucesso: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
+  log(`✅ Etapa DOWNLOAD concluída`, LOG_LEVELS.SUCCESS);
+  
+  return { filePath, size: stats.size, source };
+}
+
+/**
+ * Watcher 1: Intercepta respostas HTTP que contêm Excel
  */
 function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName) {
+  if (controller.isResolved()) return;
+  
   const pagesAttached = new Set();
   
   const onResponse = async (response) => {
-    if (controller.isCaptured()) return;
+    // Proteção: ignorar se já resolvido
+    if (controller.isResolved()) return;
+    
     if (isExcelResponse(response)) {
-      // ===== PASSO 1: Marcar como capturado e log =====
-      const wasCaptured = controller.setCaptured({ 
-        type: 'httpResponse', 
-        response, 
-        source: 'httpInterception' 
-      });
-      
+      const wasCaptured = controller.setCaptured({ type: 'httpResponse', source: 'httpInterception' });
       if (!wasCaptured) return;
-      
-      log(`Download capturado (via HTTP)`, LOG_LEVELS.SUCCESS);
       
       try {
         const filePath = path.join(downloadDir, semanticName);
-        
-        // ===== PASSO 2 e 3: Salvar arquivo imediatamente =====
         log(`Salvando arquivo via HTTP: ${semanticName}`, LOG_LEVELS.INFO);
         
         const buf = await response.body();
         fs.writeFileSync(filePath, buf);
         
-        // ===== PASSO 4: Validação síncrona =====
         if (!fs.existsSync(filePath)) {
           throw new Error('FALHA: Arquivo não existe após salvamento HTTP');
         }
@@ -774,47 +839,37 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
           throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
         }
         
-        // ===== PASSO 5: Log de sucesso =====
         const sizeKB = (stats.size / 1024).toFixed(2);
         log(`Arquivo salvo com sucesso: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
-        
-        // ===== PASSO 6: Etapa DOWNLOAD concluída =====
         log(`✅ Etapa DOWNLOAD concluída`, LOG_LEVELS.SUCCESS);
         
-        controller.setFileResult({ filePath, size: stats.size });
+        controller.setFileResult({ filePath, size: stats.size, source: 'httpInterception' });
       } catch (e) {
-        // Ignorar erros de cancelamento
+        // Ignorar erros de cancelamento silenciosamente
         if (!isOperationCanceledError(e)) {
-          log(`Erro ao salvar via HTTP: ${e.message}`, LOG_LEVELS.ERROR);
           controller.setError(e);
-        } else {
-          log(`Erro de cancelamento ignorado no watcher HTTP`, LOG_LEVELS.DEBUG);
         }
       }
     }
   };
   
   const attachToPage = (page) => {
-    if (!page || pagesAttached.has(page)) return;
-    if (controller.isConcluido()) return;  // Não anexar se já concluiu
+    if (!page || pagesAttached.has(page) || controller.isResolved()) return;
     pagesAttached.add(page);
     page.on('response', onResponse);
   };
   
   const onNewPage = (page) => {
-    if (controller.isCaptured() || controller.isConcluido()) return;
+    if (controller.isResolved()) return;
     attachToPage(page);
   };
   
-  // Anexar a todas as páginas existentes
   for (const p of context.pages()) {
     attachToPage(p);
   }
   
-  // Monitorar novas páginas
   context.on('page', onNewPage);
   
-  // Registrar cleanup
   controller.addCleanup(() => {
     try { context.removeListener('page', onNewPage); } catch {}
     for (const p of pagesAttached) {
@@ -824,128 +879,46 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
 }
 
 /**
- * Processa um objeto Download do Playwright IMEDIATAMENTE
- * 
- * FLUXO TERMINAL - Após capturar o objeto Download:
- * 1. Log: "Download capturado"
- * 2. download.path() - valida existência do arquivo temporário
- * 3. download.saveAs(caminhoFinal) - executa IMEDIATAMENTE
- * 4. Log: "Salvando arquivo"
- * 5. Validação síncrona: fs.existsSync() + stats.size > 0
- * 6. Log: "Arquivo salvo com sucesso" com nome e tamanho
- * 7. Etapa DOWNLOAD finaliza - SEM awaits adicionais
- * 
- * PROIBIDO: Nenhum await page.waitFor*, context.waitForEvent ou watcher após saveAs
- */
-async function processarDownloadImediato(download, downloadDir, semanticName) {
-  // ===== PASSO 1: Log de captura =====
-  log(`Download capturado`, LOG_LEVELS.SUCCESS);
-  
-  const filePath = path.join(downloadDir, semanticName);
-  const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
-  
-  // ===== PASSO 2: Validar arquivo temporário via download.path() =====
-  let tempPath = null;
-  try {
-    tempPath = await download.path();
-    if (tempPath && fs.existsSync(tempPath)) {
-      const tempStats = fs.statSync(tempPath);
-      log(`Arquivo temporário válido: ${tempPath} (${tempStats.size} bytes)`, LOG_LEVELS.DEBUG);
-    }
-  } catch (e) {
-    // download.path() pode falhar se o download ainda não completou internamente
-    // Mas prosseguimos com saveAs que aguardará o download completo
-    log(`Aviso: download.path() não disponível - ${e.message}`, LOG_LEVELS.DEBUG);
-  }
-  
-  // ===== PASSO 3 e 4: Executar saveAs IMEDIATAMENTE =====
-  log(`Salvando arquivo: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
-  
-  // EXECUÇÃO IMEDIATA - sem nenhum await de página, popup ou response
-  await download.saveAs(filePath);
-  
-  // ===== PASSO 5: Validação síncrona =====
-  // Verificar existência do arquivo
-  if (!fs.existsSync(filePath)) {
-    throw new Error('FALHA: Arquivo não existe após saveAs');
-  }
-  
-  // Verificar tamanho > 0
-  const stats = fs.statSync(filePath);
-  if (stats.size <= 0) {
-    throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
-  }
-  
-  // ===== PASSO 6: Log de sucesso com nome e tamanho =====
-  const sizeKB = (stats.size / 1024).toFixed(2);
-  log(`Arquivo salvo com sucesso: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
-  
-  // ===== PASSO 7: Etapa DOWNLOAD concluída =====
-  log(`✅ Etapa DOWNLOAD concluída`, LOG_LEVELS.SUCCESS);
-  
-  return { filePath, size: stats.size };
-}
-
-/**
  * Watcher 2: Captura eventos de download global
- * Ao capturar, executa saveAs IMEDIATAMENTE no mesmo bloco
  */
 function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName) {
+  if (controller.isResolved()) return;
+  
   const pagesAttached = new Set();
   
   const onDownload = async (download) => {
-    // Proteção: ignorar se já capturado ou concluído
-    if (controller.isCaptured() || controller.isConcluido()) return;
+    if (controller.isResolved()) return;
     
-    const filename = download.suggestedFilename?.() || '';
-    log(`Download global detectado: ${filename}`, LOG_LEVELS.DEBUG);
-    
-    // Marcar como capturado ANTES de qualquer processamento
-    const wasCaptured = controller.setCaptured({ 
-      type: 'download', 
-      download, 
-      source: 'globalDownload' 
-    });
-    
-    if (!wasCaptured) return; // Outro watcher já capturou
+    const wasCaptured = controller.setCaptured({ type: 'download', source: 'globalDownload' });
+    if (!wasCaptured) return;
     
     try {
-      // EXECUÇÃO IMEDIATA: path() + saveAs() + validação síncrona
-      const result = await processarDownloadImediato(download, downloadDir, semanticName);
+      const result = await processarDownloadImediato(download, downloadDir, semanticName, 'globalDownload');
       controller.setFileResult(result);
     } catch (e) {
-      // Ignorar erros de cancelamento
       if (!isOperationCanceledError(e)) {
-        log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
         controller.setError(e);
-      } else {
-        log(`Erro de cancelamento ignorado no watcher global`, LOG_LEVELS.DEBUG);
       }
     }
   };
   
   const attachToPage = (page) => {
-    if (!page || pagesAttached.has(page)) return;
-    if (controller.isConcluido()) return;  // Não anexar se já concluiu
+    if (!page || pagesAttached.has(page) || controller.isResolved()) return;
     pagesAttached.add(page);
     page.on('download', onDownload);
   };
   
   const onNewPage = (page) => {
-    if (controller.isCaptured() || controller.isConcluido()) return;
-    log(`Watcher Download: nova página detectada`, LOG_LEVELS.DEBUG);
+    if (controller.isResolved()) return;
     attachToPage(page);
   };
   
-  // Anexar a todas as páginas existentes
   for (const p of context.pages()) {
     attachToPage(p);
   }
   
-  // Monitorar novas páginas
   context.on('page', onNewPage);
   
-  // Registrar cleanup
   controller.addCleanup(() => {
     try { context.removeListener('page', onNewPage); } catch {}
     for (const p of pagesAttached) {
@@ -956,43 +929,28 @@ function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticNa
 
 /**
  * Watcher 3: Evento de download da página principal
- * Ao capturar, executa saveAs IMEDIATAMENTE no mesmo bloco
  */
 function criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, semanticName) {
+  if (controller.isResolved()) return;
+  
   const onDownload = async (download) => {
-    // Proteção: ignorar se já capturado ou concluído
-    if (controller.isCaptured() || controller.isConcluido()) return;
+    if (controller.isResolved()) return;
     
-    const filename = download.suggestedFilename?.() || '';
-    log(`Download página principal: ${filename}`, LOG_LEVELS.DEBUG);
-    
-    // Marcar como capturado ANTES de qualquer processamento
-    const wasCaptured = controller.setCaptured({ 
-      type: 'download', 
-      download, 
-      source: 'mainPage' 
-    });
-    
-    if (!wasCaptured) return; // Outro watcher já capturou
+    const wasCaptured = controller.setCaptured({ type: 'download', source: 'mainPage' });
+    if (!wasCaptured) return;
     
     try {
-      // EXECUÇÃO IMEDIATA: path() + saveAs() + validação síncrona
-      const result = await processarDownloadImediato(download, downloadDir, semanticName);
+      const result = await processarDownloadImediato(download, downloadDir, semanticName, 'mainPage');
       controller.setFileResult(result);
     } catch (e) {
-      // Ignorar erros de cancelamento
       if (!isOperationCanceledError(e)) {
-        log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
         controller.setError(e);
-      } else {
-        log(`Erro de cancelamento ignorado no watcher principal`, LOG_LEVELS.DEBUG);
       }
     }
   };
   
   page.on('download', onDownload);
   
-  // Registrar cleanup
   controller.addCleanup(() => {
     try { page.removeListener('download', onDownload); } catch {}
   });
@@ -1000,134 +958,89 @@ function criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, sema
 
 /**
  * Watcher 4: Monitora novas abas (popup) e captura downloads delas
- * 
- * COMPORTAMENTO TERMINAL:
- * - Se já capturou download, fecha novas abas silenciosamente
- * - Ao capturar download, executa saveAs IMEDIATAMENTE
- * - NÃO aguarda carregamento de página após captura
- * - NÃO executa lógica adicional após saveAs
  */
 function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanticName) {
+  if (controller.isResolved()) return;
+  
   const processarNovaAba = async (newPage) => {
-    // Proteção: Se já capturou ou concluiu, apenas fechar a nova aba silenciosamente
-    if (controller.isCaptured() || controller.isConcluido()) {
+    // Se já resolveu, apenas fechar a aba silenciosamente
+    if (controller.isResolved()) {
       try { await newPage.close(); } catch {}
       return;
     }
     
     try {
-      log(`Nova aba detectada: configurando listener de download...`, LOG_LEVELS.DEBUG);
-      
-      // Handler de download na nova aba - executa saveAs IMEDIATAMENTE
       const onNewPageDownload = async (download) => {
-        // Proteção: ignorar se já capturado ou concluído
-        if (controller.isCaptured() || controller.isConcluido()) return;
+        if (controller.isResolved()) return;
         
-        const filename = download.suggestedFilename?.() || '';
-        
-        const wasCaptured = controller.setCaptured({ 
-          type: 'download', 
-          download, 
-          source: 'newTab', 
-          newPage 
-        });
-        
+        const wasCaptured = controller.setCaptured({ type: 'download', source: 'newTab' });
         if (!wasCaptured) return;
         
         try {
-          // EXECUÇÃO IMEDIATA: path() + saveAs() + validação síncrona
-          // Nenhum await de página após isso
-          const result = await processarDownloadImediato(download, downloadDir, semanticName);
+          const result = await processarDownloadImediato(download, downloadDir, semanticName, 'newTab');
           controller.setFileResult(result);
-          
-          // Fechar aba após salvar (sem esperar)
+          // Fechar aba após salvar (sem esperar, sem tratar erro)
           newPage.close().catch(() => {});
         } catch (e) {
-          // Ignorar erros de cancelamento
           if (!isOperationCanceledError(e)) {
-            log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
             controller.setError(e);
-          } else {
-            log(`Erro de cancelamento ignorado no watcher nova aba`, LOG_LEVELS.DEBUG);
           }
         }
       };
       
       newPage.on('download', onNewPageDownload);
       
-      // Aguardar carregamento com timeout curto - MAS parar IMEDIATAMENTE se capturou
-      let loadCompleted = false;
-      const loadTimeout = setTimeout(() => { loadCompleted = true; }, 10000);
-      
-      const checkCaptured = setInterval(() => {
-        if (controller.isCaptured() || controller.isConcluido()) {
-          clearTimeout(loadTimeout);
-          clearInterval(checkCaptured);
-          loadCompleted = true;
-        }
-      }, 50);
-      
-      // Tentar carregar página (com timeout curto) - com tratamento de erro de cancelamento
+      // Aguardar carregamento com timeout curto - parar se resolveu
       try {
         await Promise.race([
           newPage.waitForLoadState('domcontentloaded', { timeout: 8000 }),
           new Promise(resolve => setTimeout(resolve, 8000)),
+          new Promise(resolve => {
+            const check = setInterval(() => {
+              if (controller.isResolved()) {
+                clearInterval(check);
+                resolve();
+              }
+            }, 100);
+          }),
         ]);
       } catch (e) {
-        // Ignorar erros de cancelamento silenciosamente
-        if (!isOperationCanceledError(e)) {
-          log(`Erro no carregamento da nova aba: ${e.message}`, LOG_LEVELS.DEBUG);
-        }
+        // Ignorar erros silenciosamente
       }
       
-      clearTimeout(loadTimeout);
-      clearInterval(checkCaptured);
-      
-      // Se já capturou ou concluiu durante o carregamento, NÃO fazer mais nada
-      if (controller.isCaptured() || controller.isConcluido()) {
+      // Se resolveu, parar
+      if (controller.isResolved()) {
         try { newPage.removeListener('download', onNewPageDownload); } catch {}
         return;
       }
       
-      // Procurar e clicar em botões de download APENAS se ainda não capturou
-      const seletoresDownload = [
-        'a[href*=".xlsx"]', 'a[href*=".xls"]',
-        'a:has-text("Baixar")', 'button:has-text("Baixar")',
-      ];
+      // Tentar clicar em botões de download
+      const seletoresDownload = ['a[href*=".xlsx"]', 'a[href*=".xls"]', 'a:has-text("Baixar")', 'button:has-text("Baixar")'];
       
       for (const seletor of seletoresDownload) {
-        if (controller.isCaptured() || controller.isConcluido()) break;
+        if (controller.isResolved()) break;
         try {
           const el = await newPage.$(seletor);
           if (el && (await el.isVisible().catch(() => false))) {
             await el.click({ timeout: 3000 }).catch(() => {});
             break;
           }
-        } catch (e) {
-          // Ignorar erros silenciosamente (pode ser erro de cancelamento)
-          if (!isOperationCanceledError(e)) {
-            log(`Erro ao clicar botão download: ${e.message}`, LOG_LEVELS.DEBUG);
-          }
+        } catch {
+          // Ignorar
         }
       }
       
-      // Cleanup do listener
       controller.addCleanup(() => {
         try { newPage.removeListener('download', onNewPageDownload); } catch {}
       });
       
     } catch (err) {
-      // Ignorar erros de cancelamento silenciosamente
-      if (!isOperationCanceledError(err)) {
-        log(`Erro no processamento da nova aba: ${err.message}`, LOG_LEVELS.DEBUG);
-      }
+      // Ignorar silenciosamente
     }
   };
   
   const onNewPage = (newPage) => {
-    // Proteção: ignorar se já capturou ou concluiu
-    if (controller.isCaptured() || controller.isConcluido()) {
-      // Fechar silenciosamente
+    if (controller.isResolved()) {
       newPage.close().catch(() => {});
       return;
     }
@@ -1138,32 +1051,21 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
   
   context.on('page', onNewPage);
   
-  // Registrar cleanup
   controller.addCleanup(() => {
     try { context.removeListener('page', onNewPage); } catch {}
   });
 }
 
 /**
- * Inicia todos os watchers e aguarda o primeiro download válido
- * O saveAs é executado IMEDIATAMENTE dentro do watcher que captura o download
- * Retorna o resultado com o caminho do arquivo JÁ SALVO
+ * FUNÇÃO PRINCIPAL DE CAPTURA HÍBRIDA DE DOWNLOAD
  * 
- * FLUXO TERMINAL - Ao capturar um download:
- * 1. download.path() valida existência do arquivo temporário
- * 2. download.saveAs(caminhoFinal) executa IMEDIATAMENTE
- * 3. Validação síncrona (existsSync + size > 0)
- * 4. Etapa DOWNLOAD finaliza - SEM awaits adicionais
- * 
- * PROIBIDO após saveAs:
- * - page.waitFor* / page.waitForEvent
- * - context.waitForEvent
- * - Qualquer watcher ou listener adicional
- * 
- * TRATAMENTO DE ERROS:
- * - Erros "operation canceled" são tratados silenciosamente
- * - Flag downloadConcluido impede múltiplos resolves
- * - Apenas o primeiro watcher a capturar resolve a promise
+ * GARANTIAS:
+ * 1. Apenas UMA promise pode resolver (flag `resolved`)
+ * 2. Cleanup centralizado e executado uma única vez
+ * 3. Erros "operation canceled" são SILENCIOSAMENTE ignorados
+ * 4. Validação final via filesystem (.xls ou .xlsx)
+ * 5. Retorna o path final do arquivo baixado
+ * 6. O script NÃO FALHA se o arquivo existir no diretório
  */
 async function aguardarDownloadHibrido(context, page, downloadDir, semanticName, timeoutMs) {
   log(`Iniciando captura híbrida de download (timeout: ${timeoutMs / 60000} min)...`, LOG_LEVELS.INFO);
@@ -1171,63 +1073,46 @@ async function aguardarDownloadHibrido(context, page, downloadDir, semanticName,
   
   const controller = new DownloadController();
   
-  // Iniciar todos os watchers - passando downloadDir e semanticName para saveAs imediato
-  criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName);
-  criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, semanticName);
-  criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName);
-  criarWatcherNovaAba(context, page, controller, downloadDir, semanticName);
-  
-  // Iniciar monitor de progresso
-  controller.startProgressMonitor();
-  
-  // Aguardar arquivo salvo ou timeout - RESOLVE IMEDIATAMENTE após arquivo ser salvo
-  // Proteção contra múltiplos resolves e erros de cancelamento
   return new Promise((resolve) => {
-    let resolved = false;
-    
-    const doResolve = (result) => {
-      if (resolved) return;  // Proteção contra múltiplos resolves
-      resolved = true;
-      controller.cleanup();
+    // Configurar callback de resolução UMA ÚNICA VEZ
+    controller.setResolveCallback((result) => {
+      // Esta função só é chamada uma vez pelo controller
       resolve(result);
-    };
-    
-    // Callback para quando arquivo for salvo - RESOLUÇÃO IMEDIATA
-    controller.setOnComplete(() => {
-      // Proteção: não resolver se já resolvido
-      if (resolved) return;
-      
-      const error = controller.getError();
-      const fileResult = controller.getFileResult();
-      
-      // Se tem erro, verificar se é erro de cancelamento (ignorar)
-      if (error) {
-        // Se já temos resultado de arquivo, o erro é cosmético - ignorar
-        if (fileResult) {
-          log(`Erro ignorado (arquivo já salvo): ${error.message}`, LOG_LEVELS.DEBUG);
-        } else {
-          doResolve({ success: false, error });
-        }
-        return;
-      }
-      
-      // Sucesso: arquivo salvo
-      if (fileResult) {
-        doResolve({ 
-          success: true, 
-          filePath: fileResult.filePath, 
-          size: fileResult.size,
-          source: controller.getResult()?.source 
-        });
-      }
     });
     
-    // Timeout
+    // Iniciar todos os watchers
+    criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName);
+    criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, semanticName);
+    criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName);
+    criarWatcherNovaAba(context, page, controller, downloadDir, semanticName);
+    
+    // Iniciar monitor de progresso
+    controller.startProgressMonitor();
+    
+    // Timeout com verificação de filesystem como fallback
     const timeoutId = setTimeout(() => {
-      if (!resolved && !controller.isConcluido()) {
-        log(`Timeout de ${timeoutMs / 60000} min - nenhum download capturado`, LOG_LEVELS.WARN);
-        doResolve({ success: false, error: new Error('Timeout - nenhum download capturado') });
+      if (controller.isResolved()) return;
+      
+      // FALLBACK: Verificar se arquivo existe no filesystem
+      const arquivoExistente = buscarArquivoExcelNoDiretorio(downloadDir, semanticName);
+      
+      if (arquivoExistente) {
+        log(`Arquivo encontrado via filesystem fallback: ${arquivoExistente}`, LOG_LEVELS.SUCCESS);
+        try {
+          const stats = fs.statSync(arquivoExistente);
+          if (stats.size > LIMITS.MIN_FILE_SIZE_BYTES) {
+            controller.setFileResult({ 
+              filePath: arquivoExistente, 
+              size: stats.size, 
+              source: 'filesystemFallback' 
+            });
+            return;
+          }
+        } catch {}
       }
+      
+      log(`Timeout de ${timeoutMs / 60000} min - nenhum download capturado`, LOG_LEVELS.WARN);
+      controller.setError(new Error('Timeout - nenhum download capturado'));
     }, timeoutMs);
     
     // Registrar cleanup do timeout
