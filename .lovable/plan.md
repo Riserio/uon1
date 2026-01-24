@@ -1,175 +1,206 @@
 
-# Plano: Exibir Percentual de Download e Importação
+# Plano: Corrigir Filtros e Parser para Relatório Hinova
 
-## Diagnóstico do Problema
+## Problema Identificado
 
-Os logs mostram o seguinte fluxo:
+### 1. Download de 628 MB vs 17 MB esperado
+Os logs mostram que o arquivo baixado automaticamente é **37x maior** que o download manual com filtros corretos. Isso indica que os **filtros não estão sendo aplicados** no portal Hinova.
 
-```text
-[globalDownload] ⬇️ Baixando via HTTP stream...
-[3 min depois] ⚠️ HTTP stream falhou (canceled) — usando saveAs
-[Fallback] ⏳ Download em progresso... Xm Ys (sem percentual)
+### 2. Formato do Arquivo
+O "Excel" do Hinova é na verdade **HTML disfarçado com extensão .xls**:
+
+```html
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"...>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>SGA - RELATORIO DE BOLETOS</title>
+</head>
+<body>
+<table>
+    <tr><td>Data Pagamento</td><td>Data Vencimento Original</td>...</tr>
+    <tr><td>08/01/2026</td><td>20/01/2026</td>...</tr>
+</table>
 ```
 
-### Por que o percentual não aparece?
+A biblioteca `xlsx` não processa HTML corretamente, causando o erro "Cannot create a string longer than 0x1fffffe8 characters".
 
-1. **HTTP Stream via Axios falha**: O portal Hinova provavelmente bloqueia requisições "replay" do axios (autenticação de sessão, verificação de referer, ou cookie session binding)
+---
 
-2. **Fallback para Playwright saveAs**: O método `download.saveAs()` do Playwright é uma "caixa preta" - não expõe quantos bytes foram recebidos, apenas retorna quando termina
+## Solução em Duas Partes
 
-3. **Cancelamento após 3 min**: O idle timeout (3 min sem bytes) está abortando o axios antes que o portal comece a transmitir
+### Parte 1: Validar e Debugar Aplicação de Filtros
 
-## Solução Proposta
+**Problema:** Os filtros podem não estar sendo aplicados porque:
+- Os seletores CSS não correspondem aos campos reais do portal
+- O portal usa iframes que não estão sendo processados
+- Eventos JavaScript do portal não são disparados corretamente
 
-### Estratégia 1: Monitorar Tamanho do Arquivo Parcial
-
-O Playwright salva o arquivo progressivamente. Podemos monitorar o **tamanho do arquivo em disco** durante o `saveAs()` e calcular o percentual baseado no `Content-Length` (se disponível) ou mostrar bytes recebidos.
+**Solução:**
+1. Salvar screenshot e HTML da página de filtros ANTES de clicar em "Gerar"
+2. Adicionar logs detalhados do estado de cada filtro após configuração
+3. Validar tamanho do arquivo e alertar se for muito grande
 
 ```javascript
-// Durante o saveAs, monitorar arquivo parcial
-let progressInterval = setInterval(() => {
-  const tempPath = filePath + '.crdownload'; // ou o próprio filePath
-  if (fs.existsSync(tempPath)) {
-    const currentSize = fs.statSync(tempPath).size;
-    if (expectedSize > 0) {
-      const pct = Math.min(100, Math.floor((currentSize / expectedSize) * 100));
-      log(`⬇️ Download ${pct}% (${formatBytes(currentSize)} / ${formatBytes(expectedSize)})`);
-    } else {
-      log(`⬇️ Download ${formatBytes(currentSize)} recebidos`);
+// Antes de clicar em Gerar, salvar debug dos filtros
+await saveDebugInfo(page, context, 'Pre-download: verificar filtros');
+
+// Validar estado dos filtros configurados
+const estadoFiltros = await page.evaluate(() => {
+  const resultado = {};
+  
+  // Verificar datas
+  const inputs = document.querySelectorAll('input[type="text"]');
+  for (const input of inputs) {
+    if (input.value) {
+      resultado[input.name || input.id || 'input'] = input.value;
     }
   }
-}, 10000);
+  
+  // Verificar checkboxes de Situação
+  const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+  resultado.checkboxesMarcados = Array.from(checkboxes).map(cb => cb.value || cb.id);
+  
+  // Verificar selects
+  const selects = document.querySelectorAll('select');
+  for (const select of selects) {
+    if (select.selectedIndex >= 0) {
+      resultado[select.name || 'select'] = select.options[select.selectedIndex]?.text;
+    }
+  }
+  
+  return resultado;
+});
+
+log(`Estado dos filtros: ${JSON.stringify(estadoFiltros, null, 2)}`, LOG_LEVELS.DEBUG);
 ```
 
-### Estratégia 2: Obter Content-Length do Header de Download
+### Parte 2: Criar Parser HTML para o Relatório
 
-O objeto `download` do Playwright tem acesso aos headers. Podemos extrair o `content-length` para saber o tamanho total esperado.
+**Problema:** A biblioteca `xlsx` não processa HTML. Precisamos de um parser específico.
 
-### Estratégia 3: Aumentar Idle Timeout do Axios
+**Solução:** Criar função `processarHtmlRelatorio()` que:
+1. Detecta se o arquivo é HTML ou Excel binário
+2. Usa regex/parsing simples para extrair dados das tabelas HTML
+3. Mapeia as colunas para o formato esperado pelo webhook
 
-O portal pode demorar a começar a transmitir. Aumentar de 3 min para 5 min pode permitir que o HTTP stream funcione.
+```javascript
+function processarHtmlRelatorio(filePath) {
+  const content = fs.readFileSync(filePath, 'utf-8');
+  
+  // Detectar se é HTML
+  if (!content.includes('<html') && !content.includes('<table')) {
+    // É Excel binário - usar xlsx
+    return processarExcel(filePath);
+  }
+  
+  log('Arquivo detectado como HTML - usando parser HTML', LOG_LEVELS.INFO);
+  
+  const dados = [];
+  
+  // Regex para extrair linhas de dados (<tr> com dados)
+  const rowRegex = /<tr[^>]*ondblclick[^>]*>([\s\S]*?)<\/tr>/gi;
+  let match;
+  
+  while ((match = rowRegex.exec(content)) !== null) {
+    const rowHtml = match[1];
+    
+    // Extrair células
+    const cells = [];
+    const cellRegex = /<td[^>]*>[\s\S]*?<div[^>]*>([\s\S]*?)<\/div>[\s\S]*?<\/td>/gi;
+    let cellMatch;
+    
+    while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
+      // Limpar HTML e extrair texto
+      let text = cellMatch[1]
+        .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, '$1') // Extrair texto de links
+        .replace(/<[^>]*>/g, '') // Remover tags HTML
+        .replace(/&nbsp;/g, ' ')
+        .trim();
+      cells.push(text);
+    }
+    
+    if (cells.length >= 10) {
+      dados.push({
+        'Data Pagamento': parseExcelDate(cells[0]),
+        'Data Vencimento Original': parseExcelDate(cells[1]),
+        'Dia Vencimento Veiculo': parseInt(cells[2]) || null,
+        'Regional Boleto': cells[3],
+        'Cooperativa': cells[4],
+        'Voluntário': cells[5],
+        'Nome': cells[6],
+        'Placas': cells[7],
+        'Valor': parseMoneyValue(cells[8]),
+        'Data Vencimento': parseExcelDate(cells[9]),
+        'Qtde Dias em Atraso Vencimento Original': parseInt(cells[10]) || null,
+        'Situacao': cells[11],
+      });
+    }
+  }
+  
+  return dados;
+}
+```
+
+---
 
 ## Mudanças Técnicas
 
-### 1. Novo Helper: `monitorFileProgress`
-
-Cria um monitor que verifica o tamanho do arquivo a cada 10 segundos e exibe progresso.
-
-```javascript
-function monitorFileProgress(filePath, expectedSize = 0, intervalMs = 10000) {
-  const startTime = Date.now();
-  let lastLoggedPercent = -1;
-  
-  const interval = setInterval(() => {
-    // Tentar arquivo parcial (.crdownload, .part, .download) ou o próprio arquivo
-    const possiblePaths = [
-      filePath,
-      filePath + '.crdownload',
-      filePath + '.part',
-      filePath + '.download',
-    ];
-    
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        const size = fs.statSync(p).size;
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        const speed = size / Math.max(1, elapsed);
-        
-        if (expectedSize > 0) {
-          const pct = Math.min(100, Math.floor((size / expectedSize) * 100));
-          if (pct >= lastLoggedPercent + 5) { // Log a cada +5%
-            lastLoggedPercent = pct;
-            log(`⬇️ Download ${pct}% (${formatBytes(size)} / ${formatBytes(expectedSize)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.DEBUG);
-          }
-        } else {
-          log(`⬇️ Download ${formatBytes(size)} recebidos • ${formatBytes(speed)}/s (${Math.floor(elapsed/60)}m ${elapsed%60}s)`, LOG_LEVELS.DEBUG);
-        }
-        break;
-      }
-    }
-  }, intervalMs);
-  
-  return () => clearInterval(interval);
-}
-```
-
-### 2. Atualizar `processarDownloadImediato`
-
-Extrair `Content-Length` do download e usar o novo monitor.
-
-```javascript
-async function processarDownloadImediato(download, downloadDir, semanticName) {
-  const filePath = path.join(downloadDir, semanticName);
-  
-  // Tentar obter tamanho esperado dos headers
-  let expectedSize = 0;
-  try {
-    const request = download.request?.();
-    const response = await request?.response?.();
-    const headers = response?.headers?.() || {};
-    expectedSize = parseInt(headers['content-length'] || '0', 10);
-    if (expectedSize > 0) {
-      log(`Tamanho esperado: ${formatBytes(expectedSize)}`, LOG_LEVELS.DEBUG);
-    }
-  } catch (e) {
-    // Ignorar - monitoramento funcionará sem expectedSize
-  }
-  
-  // Iniciar monitor de progresso do arquivo
-  const stopMonitor = monitorFileProgress(filePath, expectedSize, 10000);
-  
-  try {
-    await download.saveAs(filePath);
-  } finally {
-    stopMonitor();
-  }
-  
-  // ... validação e logs de sucesso
-}
-```
-
-### 3. Aumentar Idle Timeout do Axios
-
-De 3 min para 5 min para dar mais tempo ao portal iniciar a transmissão.
-
-```javascript
-const TIMEOUTS = {
-  // ...
-  DOWNLOAD_IDLE: 5 * 60000,   // 5 min sem receber bytes -> abortar
-};
-```
-
-### 4. Progresso na Importação (Webhook)
-
-Atualizar `enviarWebhook` para exibir porcentagem a cada lote enviado.
-
-```javascript
-// Já implementado, mas garantir que os logs estão corretos
-log(`📤 Importação ${Math.round((i + batch.length) / total * 100)}% (${i + batch.length}/${total} registros)`, LOG_LEVELS.DEBUG);
-```
-
-## Arquivos Modificados
-
 | Arquivo | Alteração |
 |---------|-----------|
-| `scripts/robo-cobranca-hinova.cjs` | Adicionar `monitorFileProgress`, atualizar `processarDownloadImediato`, aumentar `DOWNLOAD_IDLE` para 5 min |
+| `scripts/robo-cobranca-hinova.cjs` | Adicionar `processarHtmlRelatorio()`, debug de filtros pré-download, validação de tamanho |
+
+### Ordem de Implementação
+
+1. **Debug de filtros** - Salvar screenshot/HTML antes do download para análise
+2. **Validação de tamanho** - Alertar se arquivo > 50 MB (indica filtros não aplicados)
+3. **Parser HTML** - Detectar formato e usar parser apropriado
+4. **Logs de progresso** - Manter o monitoramento de % do download
+
+---
+
+## Fluxo de Processamento
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                    DOWNLOAD INICIADO                         │
+├─────────────────────────────────────────────────────────────┤
+│ 1. Configurar filtros (datas, situação ABERTO, etc)         │
+│ 2. Salvar debug (screenshot + HTML) dos filtros             │
+│ 3. Clicar em Gerar Relatório                                 │
+│ 4. Monitorar progresso do download (% em disco)              │
+│ 5. Validar tamanho (alertar se > 50 MB)                      │
+├─────────────────────────────────────────────────────────────┤
+│                 PROCESSAR ARQUIVO                            │
+├─────────────────────────────────────────────────────────────┤
+│ 6. Detectar formato (HTML vs Excel binário)                  │
+│    ├─ HTML? → processarHtmlRelatorio()                       │
+│    └─ Excel? → processarExcel() (xlsx)                       │
+│ 7. Mapear colunas para formato padrão                        │
+│ 8. Enviar para webhook em lotes (com % de importação)        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
 
 ## Resultado Esperado
 
 ```text
-[DOWNLOAD] ✅ Download capturado
-[DOWNLOAD] Salvando arquivo: relatorio.xls -> ...Cobranca_...xlsx
-[DOWNLOAD] Tamanho esperado: 2.5 MB
-[DOWNLOAD] ⬇️ Download 0% (0 B / 2.5 MB) • 0 B/s
-[DOWNLOAD] ⬇️ Download 5% (128 KB / 2.5 MB) • 12.8 KB/s
-[DOWNLOAD] ⬇️ Download 15% (384 KB / 2.5 MB) • 19.2 KB/s
-...
-[DOWNLOAD] ⬇️ Download 100% (2.5 MB / 2.5 MB) • 15.4 KB/s
-[DOWNLOAD] ✅ Arquivo salvo com sucesso (2.5 MB)
-[PROCESSAMENTO] Processando Excel...
-[WEBHOOK] 📤 Importação 25% (1000/4000 registros)
-[WEBHOOK] 📤 Importação 50% (2000/4000 registros)
-[WEBHOOK] 📤 Importação 75% (3000/4000 registros)
-[WEBHOOK] 📤 Importação 100% (4000/4000 registros)
+[FILTROS] Estado dos filtros: {
+  "dt_vencimento_original_ini": "01/01/2026",
+  "dt_vencimento_original_fim": "31/01/2026",
+  "checkboxesMarcados": ["ABERTO"],
+  "boletos_anteriores": "NÃO POSSUI"
+}
+[FILTROS] 🔍 Debug salvo para análise
+[DOWNLOAD] ⬇️ Download 25% (4.5 MB / 17 MB)
+[DOWNLOAD] ⬇️ Download 50% (8.5 MB / 17 MB)
+[DOWNLOAD] ⬇️ Download 100% (17 MB / 17 MB)
+[DOWNLOAD] ✅ Arquivo salvo: Cobranca_24012026.xlsx (17 MB)
+[PROCESSAMENTO] Arquivo detectado como HTML - usando parser HTML
+[PROCESSAMENTO] ⏳ Processamento: 25% (1250/5000 linhas)
+[PROCESSAMENTO] ⏳ Processamento: 50% (2500/5000 linhas)
+[PROCESSAMENTO] ✅ Processamento concluído: 5000 registros válidos
+[WEBHOOK] 📤 Importação 50% (2500/5000)
+[WEBHOOK] 📤 Importação 100% (5000/5000)
 [WEBHOOK] ✅ Dados enviados com sucesso
 ```
