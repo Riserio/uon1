@@ -1,59 +1,143 @@
 
-# Plano: Corrigir Lógica de Seleção CSV/Tabela Dinâmica
+# Plano: Corrigir Filtros e Parser para Relatório Hinova
 
 ## Problema Identificado
 
-Nos logs, vemos que:
+### 1. Download de 628 MB vs 17 MB esperado
+Os logs mostram que o arquivo baixado automaticamente é **37x maior** que o download manual com filtros corretos. Isso indica que os **filtros não estão sendo aplicados** no portal Hinova.
 
-```text
-[FILTROS] Selecionando Forma de Exibição: Em Tabela Dinâmica
-[FILTROS] ✅ Tabela Dinâmica selecionada: nearText   ← SUCESSO
-...
-[DOWNLOAD] Usando estratégia Excel/HTML...           ← REVERTEU PARA EXCEL!
-[DOWNLOAD] Selecionando Forma de Exibição: Em Excel  ← ANULOU A SELEÇÃO
+### 2. Formato do Arquivo
+O "Excel" do Hinova é na verdade **HTML disfarçado com extensão .xls**:
+
+```html
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"...>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>SGA - RELATORIO DE BOLETOS</title>
+</head>
+<body>
+<table>
+    <tr><td>Data Pagamento</td><td>Data Vencimento Original</td>...</tr>
+    <tr><td>08/01/2026</td><td>20/01/2026</td>...</tr>
+</table>
 ```
 
-### Causa Raiz
-
-O código seleciona "Tabela Dinâmica" corretamente na etapa FILTROS (linha 2790), mas na etapa DOWNLOAD (linha 2893-2903) ele **verifica novamente o DOM** para decidir qual estratégia usar:
-
-```javascript
-const radioTabelaDinamica = await page.evaluate(() => {
-  const radios = document.querySelectorAll('input[type="radio"]:checked');
-  // Busca por ":checked" mas algo pode ter desmarcado
-});
-
-if (radioTabelaDinamica) {
-  // CSV via Tabela Dinâmica
-} else {
-  // FALLBACK: Excel/HTML ← está entrando aqui!
-  await selecionarFormaExibicaoEmExcel(page);  // Anula a seleção anterior
-}
-```
-
-A verificação `:checked` está falhando porque:
-1. O portal pode ter resetado a seleção
-2. Um iframe diferente contém o radio
-3. A seleção não persistiu corretamente
+A biblioteca `xlsx` não processa HTML corretamente, causando o erro "Cannot create a string longer than 0x1fffffe8 characters".
 
 ---
 
-## Solução
+## Solução em Duas Partes
 
-Usar uma **variável de estado** para rastrear se a Tabela Dinâmica foi selecionada, em vez de verificar o DOM novamente:
+### Parte 1: Validar e Debugar Aplicação de Filtros
+
+**Problema:** Os filtros podem não estar sendo aplicados porque:
+- Os seletores CSS não correspondem aos campos reais do portal
+- O portal usa iframes que não estão sendo processados
+- Eventos JavaScript do portal não são disparados corretamente
+
+**Solução:**
+1. Salvar screenshot e HTML da página de filtros ANTES de clicar em "Gerar"
+2. Adicionar logs detalhados do estado de cada filtro após configuração
+3. Validar tamanho do arquivo e alertar se for muito grande
 
 ```javascript
-// Na etapa FILTROS
-const usarTabelaDinamica = await selecionarFormaExibicaoTabelaDinamica(page);
+// Antes de clicar em Gerar, salvar debug dos filtros
+await saveDebugInfo(page, context, 'Pre-download: verificar filtros');
 
-// Na etapa DOWNLOAD - usar a variável, não o DOM
-if (usarTabelaDinamica) {
-  log('Usando estratégia CSV via Tabela Dinâmica...');
-  // ... código CSV
-} else {
-  log('Usando estratégia Excel/HTML...');
-  await selecionarFormaExibicaoEmExcel(page);
-  // ... código Excel
+// Validar estado dos filtros configurados
+const estadoFiltros = await page.evaluate(() => {
+  const resultado = {};
+  
+  // Verificar datas
+  const inputs = document.querySelectorAll('input[type="text"]');
+  for (const input of inputs) {
+    if (input.value) {
+      resultado[input.name || input.id || 'input'] = input.value;
+    }
+  }
+  
+  // Verificar checkboxes de Situação
+  const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+  resultado.checkboxesMarcados = Array.from(checkboxes).map(cb => cb.value || cb.id);
+  
+  // Verificar selects
+  const selects = document.querySelectorAll('select');
+  for (const select of selects) {
+    if (select.selectedIndex >= 0) {
+      resultado[select.name || 'select'] = select.options[select.selectedIndex]?.text;
+    }
+  }
+  
+  return resultado;
+});
+
+log(`Estado dos filtros: ${JSON.stringify(estadoFiltros, null, 2)}`, LOG_LEVELS.DEBUG);
+```
+
+### Parte 2: Criar Parser HTML para o Relatório
+
+**Problema:** A biblioteca `xlsx` não processa HTML. Precisamos de um parser específico.
+
+**Solução:** Criar função `processarHtmlRelatorio()` que:
+1. Detecta se o arquivo é HTML ou Excel binário
+2. Usa regex/parsing simples para extrair dados das tabelas HTML
+3. Mapeia as colunas para o formato esperado pelo webhook
+
+```javascript
+function processarHtmlRelatorio(filePath) {
+  const content = fs.readFileSync(filePath, 'utf-8');
+  
+  // Detectar se é HTML
+  if (!content.includes('<html') && !content.includes('<table')) {
+    // É Excel binário - usar xlsx
+    return processarExcel(filePath);
+  }
+  
+  log('Arquivo detectado como HTML - usando parser HTML', LOG_LEVELS.INFO);
+  
+  const dados = [];
+  
+  // Regex para extrair linhas de dados (<tr> com dados)
+  const rowRegex = /<tr[^>]*ondblclick[^>]*>([\s\S]*?)<\/tr>/gi;
+  let match;
+  
+  while ((match = rowRegex.exec(content)) !== null) {
+    const rowHtml = match[1];
+    
+    // Extrair células
+    const cells = [];
+    const cellRegex = /<td[^>]*>[\s\S]*?<div[^>]*>([\s\S]*?)<\/div>[\s\S]*?<\/td>/gi;
+    let cellMatch;
+    
+    while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
+      // Limpar HTML e extrair texto
+      let text = cellMatch[1]
+        .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, '$1') // Extrair texto de links
+        .replace(/<[^>]*>/g, '') // Remover tags HTML
+        .replace(/&nbsp;/g, ' ')
+        .trim();
+      cells.push(text);
+    }
+    
+    if (cells.length >= 10) {
+      dados.push({
+        'Data Pagamento': parseExcelDate(cells[0]),
+        'Data Vencimento Original': parseExcelDate(cells[1]),
+        'Dia Vencimento Veiculo': parseInt(cells[2]) || null,
+        'Regional Boleto': cells[3],
+        'Cooperativa': cells[4],
+        'Voluntário': cells[5],
+        'Nome': cells[6],
+        'Placas': cells[7],
+        'Valor': parseMoneyValue(cells[8]),
+        'Data Vencimento': parseExcelDate(cells[9]),
+        'Qtde Dias em Atraso Vencimento Original': parseInt(cells[10]) || null,
+        'Situacao': cells[11],
+      });
+    }
+  }
+  
+  return dados;
 }
 ```
 
@@ -63,90 +147,60 @@ if (usarTabelaDinamica) {
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `scripts/robo-cobranca-hinova.cjs` | Remover re-verificação do DOM e usar variável `usarTabelaDinamica` já existente |
+| `scripts/robo-cobranca-hinova.cjs` | Adicionar `processarHtmlRelatorio()`, debug de filtros pré-download, validação de tamanho |
 
-### Código Atual (Problemático)
+### Ordem de Implementação
 
-```javascript
-// Linha 2790 - Etapa FILTROS
-const usarTabelaDinamica = await selecionarFormaExibicaoTabelaDinamica(page);
+1. **Debug de filtros** - Salvar screenshot/HTML antes do download para análise
+2. **Validação de tamanho** - Alertar se arquivo > 50 MB (indica filtros não aplicados)
+3. **Parser HTML** - Detectar formato e usar parser apropriado
+4. **Logs de progresso** - Manter o monitoramento de % do download
 
-// ... outras configurações ...
+---
 
-// Linha 2893-2903 - Etapa DOWNLOAD (PROBLEMA!)
-const radioTabelaDinamica = await page.evaluate(() => {
-  // Re-verifica o DOM - pode falhar!
-});
+## Fluxo de Processamento
 
-if (radioTabelaDinamica) {
-  // CSV
-} else {
-  // Excel - entra aqui mesmo com seleção correta!
-}
-```
-
-### Código Corrigido
-
-```javascript
-// Linha 2790 - Etapa FILTROS (mantém)
-const usarTabelaDinamica = await selecionarFormaExibicaoTabelaDinamica(page);
-
-// ... outras configurações ...
-
-// Etapa DOWNLOAD - usa variável diretamente!
-if (usarTabelaDinamica) {
-  log('Usando estratégia CSV via Tabela Dinâmica...');
-  // Código CSV existente
-} else {
-  log('Usando estratégia Excel/HTML...');
-  await selecionarFormaExibicaoEmExcel(page);
-  // Código Excel existente
-}
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                    DOWNLOAD INICIADO                         │
+├─────────────────────────────────────────────────────────────┤
+│ 1. Configurar filtros (datas, situação ABERTO, etc)         │
+│ 2. Salvar debug (screenshot + HTML) dos filtros             │
+│ 3. Clicar em Gerar Relatório                                 │
+│ 4. Monitorar progresso do download (% em disco)              │
+│ 5. Validar tamanho (alertar se > 50 MB)                      │
+├─────────────────────────────────────────────────────────────┤
+│                 PROCESSAR ARQUIVO                            │
+├─────────────────────────────────────────────────────────────┤
+│ 6. Detectar formato (HTML vs Excel binário)                  │
+│    ├─ HTML? → processarHtmlRelatorio()                       │
+│    └─ Excel? → processarExcel() (xlsx)                       │
+│ 7. Mapear colunas para formato padrão                        │
+│ 8. Enviar para webhook em lotes (com % de importação)        │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Fluxo Corrigido
+## Resultado Esperado
 
 ```text
-┌────────────────────────────────────────────────────────────┐
-│                     ETAPA: FILTROS                          │
-├────────────────────────────────────────────────────────────┤
-│ 1. Configurar datas, situação ABERTO, etc                  │
-│ 2. Chamar selecionarFormaExibicaoTabelaDinamica()          │
-│    └─ Retorna TRUE se sucesso                              │
-│ 3. Salvar resultado em usarTabelaDinamica                  │
-├────────────────────────────────────────────────────────────┤
-│                     ETAPA: DOWNLOAD                         │
-├────────────────────────────────────────────────────────────┤
-│ 4. if (usarTabelaDinamica) {                               │
-│      → Clicar Gerar (abre nova aba)                        │
-│      → Aguardar DataTable carregar                         │
-│      → Clicar botão CSV                                    │
-│      → Baixar e processar CSV                              │
-│    } else {                                                 │
-│      → Selecionar Excel                                     │
-│      → Clicar Gerar                                         │
-│      → Baixar e processar XLS/HTML                         │
-│    }                                                        │
-│ 5. Enviar dados para webhook                               │
-└────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Resultado Esperado Após Correção
-
-```text
-[FILTROS] Selecionando Forma de Exibição: Em Tabela Dinâmica
-[FILTROS] ✅ Tabela Dinâmica selecionada: nearText
-[FILTROS] ✅ Filtros configurados
-[DOWNLOAD] Usando estratégia CSV via Tabela Dinâmica...    ← CORRETO!
-[DOWNLOAD] Clicando em Gerar Relatório...
-[DOWNLOAD] ✅ Nova aba detectada
-[DOWNLOAD] Aguardando DataTable carregar...
-[DOWNLOAD] Clicando em CSV...
-[DOWNLOAD] ✅ CSV baixado: Cobranca_24012026.csv (17 MB)
-[PROCESSAMENTO] ✅ 5000 registros processados
+[FILTROS] Estado dos filtros: {
+  "dt_vencimento_original_ini": "01/01/2026",
+  "dt_vencimento_original_fim": "31/01/2026",
+  "checkboxesMarcados": ["ABERTO"],
+  "boletos_anteriores": "NÃO POSSUI"
+}
+[FILTROS] 🔍 Debug salvo para análise
+[DOWNLOAD] ⬇️ Download 25% (4.5 MB / 17 MB)
+[DOWNLOAD] ⬇️ Download 50% (8.5 MB / 17 MB)
+[DOWNLOAD] ⬇️ Download 100% (17 MB / 17 MB)
+[DOWNLOAD] ✅ Arquivo salvo: Cobranca_24012026.xlsx (17 MB)
+[PROCESSAMENTO] Arquivo detectado como HTML - usando parser HTML
+[PROCESSAMENTO] ⏳ Processamento: 25% (1250/5000 linhas)
+[PROCESSAMENTO] ⏳ Processamento: 50% (2500/5000 linhas)
+[PROCESSAMENTO] ✅ Processamento concluído: 5000 registros válidos
+[WEBHOOK] 📤 Importação 50% (2500/5000)
+[WEBHOOK] 📤 Importação 100% (5000/5000)
 [WEBHOOK] ✅ Dados enviados com sucesso
 ```

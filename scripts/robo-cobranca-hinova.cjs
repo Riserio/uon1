@@ -456,29 +456,6 @@ function validateDownloadedFile(filePath) {
     log(`⚠️ ATENÇÃO: Arquivo muito grande (${formatBytes(stats.size)}) - pode indicar filtros não aplicados`, LOG_LEVELS.WARN);
   }
   
-  // Verificar se é CSV
-  const ext = path.extname(filePath).toLowerCase();
-  if (ext === '.csv' || isCSVFile(filePath)) {
-    log(`Arquivo detectado como CSV`, LOG_LEVELS.INFO);
-    try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const lines = content.split('\n').filter(l => l.trim());
-      
-      if (lines.length < 2) {
-        return { valid: false, error: 'CSV sem dados' };
-      }
-      
-      return {
-        valid: true,
-        size: stats.size,
-        isCSV: true,
-        rows: lines.length - 1, // Menos o cabeçalho
-      };
-    } catch (e) {
-      return { valid: false, error: `Erro ao ler CSV: ${e.message}` };
-    }
-  }
-  
   // Detectar se é HTML disfarçado
   const isHtml = isHtmlFile(filePath);
   
@@ -680,276 +657,8 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
 }
 
 // ============================================
-// SELEÇÃO DE FORMA DE EXIBIÇÃO
+// SELEÇÃO DE FORMA DE EXIBIÇÃO EXCEL
 // ============================================
-
-/**
- * Seleciona "Em Tabela Dinâmica" para abrir nova aba com DataTables
- * Depois clicaremos no botão CSV dessa nova aba
- */
-async function selecionarFormaExibicaoTabelaDinamica(page) {
-  log('Selecionando Forma de Exibição: Em Tabela Dinâmica', LOG_LEVELS.INFO);
-  
-  const tryInFrame = async (frame) => {
-    try {
-      const result = await frame.evaluate(() => {
-        const setRadioChecked = (radio) => {
-          try {
-            if (radio.disabled) return false;
-            
-            if (radio.name) {
-              const siblings = document.querySelectorAll(`input[type="radio"][name="${radio.name}"]`);
-              siblings.forEach(r => {
-                if (r !== radio && r.checked) {
-                  r.checked = false;
-                  r.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-              });
-            }
-            
-            radio.checked = true;
-            radio.dispatchEvent(new Event('click', { bubbles: true }));
-            radio.dispatchEvent(new Event('input', { bubbles: true }));
-            radio.dispatchEvent(new Event('change', { bubbles: true }));
-            
-            const form = radio.closest('form');
-            if (form) {
-              form.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            
-            return true;
-          } catch {
-            return false;
-          }
-        };
-
-        const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
-        
-        // Estratégia 1: Buscar por texto "Tabela Dinâmica"
-        for (const radio of radios) {
-          const containers = [
-            radio.closest('tr'),
-            radio.closest('td'),
-            radio.closest('label'),
-            radio.closest('div'),
-            radio.parentElement,
-          ].filter(Boolean);
-          
-          for (const container of containers) {
-            const text = (container.textContent || '').toLowerCase();
-            
-            if (text.includes('tabela dinâmica') || text.includes('tabela dinamica')) {
-              if (setRadioChecked(radio)) {
-                return { success: true, method: 'nearText', radioValue: radio.value };
-              }
-            }
-          }
-        }
-        
-        // Estratégia 2: Buscar pelo valor do radio
-        for (const radio of radios) {
-          const value = (radio.value || '').toLowerCase();
-          
-          if (value.includes('tabela') || value.includes('dinamica') || value === 'grid' || value === 'table') {
-            if (setRadioChecked(radio)) {
-              return { success: true, method: 'value', radioValue: radio.value };
-            }
-          }
-        }
-        
-        // Estratégia 3: Buscar texto na página
-        const textElements = document.querySelectorAll('td, span, label, font, div, p, b, strong');
-        for (const el of textElements) {
-          const text = (el.textContent || '').trim();
-          
-          if (/tabela\s*din[aâ]mica/i.test(text)) {
-            const tr = el.closest('tr');
-            if (tr) {
-              const radio = tr.querySelector('input[type="radio"]');
-              if (radio && setRadioChecked(radio)) {
-                return { success: true, method: 'sameRow', radioValue: radio.value };
-              }
-            }
-          }
-        }
-        
-        return { success: false, totalRadios: radios.length };
-      });
-      
-      if (result.success) {
-        log(`Tabela Dinâmica selecionada: ${result.method}`, LOG_LEVELS.SUCCESS);
-        await page.waitForTimeout(500);
-        return true;
-      }
-      
-    } catch (e) {
-      log(`Erro na seleção Tabela Dinâmica: ${e.message}`, LOG_LEVELS.DEBUG);
-    }
-
-    return false;
-  };
-
-  // Tentar no frame principal
-  if (await tryInFrame(page.mainFrame())) {
-    return true;
-  }
-
-  // Tentar em iframes
-  for (const frame of page.frames()) {
-    if (frame === page.mainFrame()) continue;
-    if (await tryInFrame(frame)) {
-      return true;
-    }
-  }
-
-  log('Não foi possível selecionar Tabela Dinâmica', LOG_LEVELS.WARN);
-  return false;
-}
-
-/**
- * Aguarda a nova aba da Tabela Dinâmica carregar e clica no botão CSV
- * Retorna o caminho do arquivo CSV baixado
- */
-async function baixarCSVDaTabelaDinamica(context, mainPage, downloadDir, semanticName, timeoutMs) {
-  log('Aguardando nova aba da Tabela Dinâmica...', LOG_LEVELS.INFO);
-  
-  return new Promise(async (resolve) => {
-    let resolved = false;
-    let newTabPage = null;
-    let downloadPath = null;
-    
-    const doResolve = (result) => {
-      if (resolved) return;
-      resolved = true;
-      resolve(result);
-    };
-    
-    // Timeout geral
-    const timeoutId = setTimeout(() => {
-      doResolve({ success: false, error: new Error('Timeout aguardando CSV da Tabela Dinâmica') });
-    }, timeoutMs);
-    
-    // Handler para nova aba
-    const onNewPage = async (page) => {
-      if (resolved) return;
-      if (page === mainPage) return;
-      
-      newTabPage = page;
-      log('Nova aba detectada - aguardando tabela DataTables...', LOG_LEVELS.INFO);
-      
-      try {
-        // Aguardar carregamento da página
-        await page.waitForLoadState('domcontentloaded', { timeout: 60000 });
-        await page.waitForTimeout(3000);
-        
-        // Aguardar tabela DataTables aparecer
-        await page.waitForSelector('table, .dataTables_wrapper, #DataTables_Table_0', { 
-          timeout: 60000 
-        }).catch(() => {});
-        
-        log('Tabela carregada - procurando botão CSV...', LOG_LEVELS.INFO);
-        
-        // Aguardar mais um pouco para os botões de exportação carregarem
-        await page.waitForTimeout(2000);
-        
-        // Configurar listener de download ANTES de clicar
-        const downloadPromise = page.waitForEvent('download', { timeout: 120000 });
-        
-        // Tentar clicar no botão CSV
-        const csvClicked = await page.evaluate(() => {
-          // Buscar botão com texto "CSV"
-          const buttons = document.querySelectorAll('button, a, span.dt-button');
-          
-          for (const btn of buttons) {
-            const text = (btn.textContent || '').trim().toUpperCase();
-            if (text === 'CSV' || text.includes('CSV')) {
-              btn.click();
-              return { success: true, element: btn.tagName };
-            }
-          }
-          
-          // Buscar por classe específica do DataTables
-          const dtButtons = document.querySelectorAll('.buttons-csv, .dt-button');
-          for (const btn of dtButtons) {
-            const text = (btn.textContent || '').trim().toUpperCase();
-            if (text.includes('CSV')) {
-              btn.click();
-              return { success: true, element: 'dt-button' };
-            }
-          }
-          
-          return { success: false };
-        });
-        
-        if (!csvClicked.success) {
-          // Tentar via Playwright locator
-          const csvButton = page.locator('button:has-text("CSV"), a:has-text("CSV"), span:has-text("CSV")').first();
-          if (await csvButton.isVisible().catch(() => false)) {
-            await csvButton.click({ timeout: 5000 });
-            log('Botão CSV clicado via locator', LOG_LEVELS.SUCCESS);
-          } else {
-            throw new Error('Botão CSV não encontrado');
-          }
-        } else {
-          log(`Botão CSV clicado: ${csvClicked.element}`, LOG_LEVELS.SUCCESS);
-        }
-        
-        // Aguardar download
-        log('Aguardando download do CSV...', LOG_LEVELS.INFO);
-        const download = await downloadPromise;
-        
-        // Salvar arquivo
-        const filePath = path.join(downloadDir, semanticName.replace(/\.xlsx?$/i, '.csv'));
-        await download.saveAs(filePath);
-        
-        // Validar arquivo
-        if (!fs.existsSync(filePath)) {
-          throw new Error('Arquivo CSV não foi salvo');
-        }
-        
-        const stats = fs.statSync(filePath);
-        log(`✅ CSV baixado: ${filePath} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
-        
-        // Fechar nova aba
-        await page.close().catch(() => {});
-        
-        clearTimeout(timeoutId);
-        doResolve({ 
-          success: true, 
-          filePath, 
-          size: stats.size,
-          source: 'tabelaDinamica' 
-        });
-        
-      } catch (err) {
-        log(`Erro na nova aba: ${err.message}`, LOG_LEVELS.ERROR);
-        
-        // Tentar salvar debug
-        try {
-          await saveDebugInfo(page, context, 'Erro na Tabela Dinâmica');
-        } catch {}
-        
-        // Fechar aba com erro
-        await page.close().catch(() => {});
-        
-        clearTimeout(timeoutId);
-        doResolve({ success: false, error: err });
-      }
-    };
-    
-    // Registrar listener de nova aba
-    context.on('page', onNewPage);
-    
-    // Cleanup quando resolver
-    const originalResolve = doResolve;
-    const wrappedResolve = (result) => {
-      try { context.removeListener('page', onNewPage); } catch {}
-      clearTimeout(timeoutId);
-      originalResolve(result);
-    };
-  });
-}
-
 async function selecionarFormaExibicaoEmExcel(page) {
   log('Selecionando Forma de Exibição: Em Excel', LOG_LEVELS.INFO);
   
@@ -1883,193 +1592,6 @@ function parseMoneyValue(value) {
 }
 
 /**
- * Parser CSV para relatório Hinova (via Tabela Dinâmica)
- * Formato mais limpo e confiável que HTML disfarçado de Excel
- */
-function processarCSV(filePath) {
-  setStep('PROCESSAMENTO_CSV');
-  log(`Processando arquivo CSV: ${filePath}`, LOG_LEVELS.INFO);
-  
-  const startTime = Date.now();
-  
-  // Tentar detectar encoding (UTF-8 ou Latin1)
-  let content;
-  try {
-    content = fs.readFileSync(filePath, 'utf-8');
-  } catch {
-    content = fs.readFileSync(filePath, 'latin1');
-  }
-  
-  // Detectar separador (vírgula, ponto-e-vírgula ou tab)
-  const firstLine = content.split('\n')[0] || '';
-  let separator = ';'; // Default para CSV brasileiro
-  if (firstLine.includes('\t')) {
-    separator = '\t';
-  } else if (!firstLine.includes(';') && firstLine.includes(',')) {
-    separator = ',';
-  }
-  
-  log(`Separador detectado: "${separator === '\t' ? 'TAB' : separator}"`, LOG_LEVELS.DEBUG);
-  
-  const lines = content.split('\n').filter(line => line.trim());
-  
-  if (lines.length === 0) {
-    log('Arquivo CSV vazio!', LOG_LEVELS.WARN);
-    return [];
-  }
-  
-  // Primeira linha é o cabeçalho
-  const headerLine = lines[0];
-  const headers = headerLine.split(separator).map(h => normalizeHeader(h.replace(/"/g, '').trim()));
-  
-  log(`Colunas encontradas: ${headers.length}`, LOG_LEVELS.DEBUG);
-  
-  // Mapear headers para nomes padronizados
-  const headerMapping = [];
-  for (const header of headers) {
-    let mappedName = COLUMN_MAP[header] || null;
-    
-    if (!mappedName) {
-      // Buscar correspondência parcial
-      for (const [key, value] of Object.entries(COLUMN_MAP)) {
-        if (header.includes(key) || key.includes(header)) {
-          mappedName = value;
-          break;
-        }
-      }
-    }
-    headerMapping.push(mappedName);
-  }
-  
-  log(`Mapeamento: ${headerMapping.filter(Boolean).length} colunas reconhecidas`, LOG_LEVELS.DEBUG);
-  
-  // Processar linhas de dados
-  const dados = [];
-  let lastProgressLog = 0;
-  const totalDataRows = lines.length - 1;
-  
-  log(`🔄 Processando ${totalDataRows} registros CSV...`, LOG_LEVELS.INFO);
-  
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    
-    // Parse CSV (considera aspas)
-    const cells = parseCSVLine(line, separator);
-    
-    const rowData = {};
-    let temDados = false;
-    
-    for (let j = 0; j < cells.length && j < headerMapping.length; j++) {
-      const mappedHeader = headerMapping[j];
-      if (!mappedHeader) continue;
-      
-      let value = cells[j];
-      
-      // Converter valores baseado no tipo de campo
-      if (mappedHeader.includes('Data')) {
-        value = parseExcelDate(value);
-      } else if (mappedHeader === 'Valor') {
-        value = parseMoneyValue(value);
-      } else if (mappedHeader === 'Dia Vencimento Veiculo' || mappedHeader.includes('Dias')) {
-        value = parseInt(String(value).replace(/\D/g, '')) || null;
-      } else {
-        value = value ? String(value).trim() : null;
-      }
-      
-      if (value !== null && value !== '') {
-        rowData[mappedHeader] = value;
-        temDados = true;
-      }
-    }
-    
-    // Validar que a linha tem dados mínimos (Nome ou Placas)
-    if (temDados && (rowData['Nome'] || rowData['Placas'])) {
-      dados.push(rowData);
-    }
-    
-    // Log de progresso a cada 25%
-    const progress = Math.floor((i / totalDataRows) * 100);
-    if (progress >= lastProgressLog + 25) {
-      lastProgressLog = progress;
-      log(`⏳ Processamento CSV: ${progress}% (${i}/${totalDataRows} linhas)`, LOG_LEVELS.DEBUG);
-    }
-  }
-  
-  const totalTime = Math.floor((Date.now() - startTime) / 1000);
-  log(`✅ Processamento CSV concluído em ${totalTime}s`, LOG_LEVELS.SUCCESS);
-  log(`Registros válidos: ${dados.length} de ${totalDataRows}`, LOG_LEVELS.SUCCESS);
-  
-  return dados;
-}
-
-/**
- * Parser de linha CSV que respeita aspas
- */
-function parseCSVLine(line, separator = ';') {
-  const cells = [];
-  let current = '';
-  let inQuotes = false;
-  
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    
-    if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        // Aspas escapadas
-        current += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === separator && !inQuotes) {
-      cells.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  
-  cells.push(current.trim());
-  return cells;
-}
-
-/**
- * Verifica se arquivo é CSV
- */
-function isCSVFile(filePath) {
-  try {
-    const ext = path.extname(filePath).toLowerCase();
-    if (ext === '.csv') return true;
-    
-    // Verificar conteúdo
-    const content = fs.readFileSync(filePath, 'utf-8').substring(0, 1000);
-    
-    // CSV não tem tags HTML
-    if (content.includes('<html') || content.includes('<table')) {
-      return false;
-    }
-    
-    // CSV tem linhas com separadores consistentes
-    const lines = content.split('\n').slice(0, 3);
-    if (lines.length < 2) return false;
-    
-    // Verificar se tem separador consistente
-    const separators = [';', ',', '\t'];
-    for (const sep of separators) {
-      const counts = lines.map(l => (l.match(new RegExp('\\' + sep, 'g')) || []).length);
-      if (counts[0] > 3 && counts.every(c => c === counts[0])) {
-        return true;
-      }
-    }
-    
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Parser HTML para relatório Hinova (que disfarça HTML como .xls)
  * O portal gera HTML com tabelas ao invés de Excel binário
  */
@@ -2240,15 +1762,10 @@ function processarHtmlRelatorio(filePath) {
 }
 
 /**
- * Processa arquivo (CSV, HTML ou Excel) - detecta automaticamente
+ * Processa arquivo Excel ou HTML (detecta automaticamente)
  */
 function processarArquivo(filePath) {
-  // Prioridade: CSV > HTML > Excel binário
-  if (isCSVFile(filePath)) {
-    log(`Formato detectado: CSV (preferido)`, LOG_LEVELS.INFO);
-    return processarCSV(filePath);
-  }
-  
+  // Detectar formato
   if (isHtmlFile(filePath)) {
     log(`Formato detectado: HTML disfarçado de Excel`, LOG_LEVELS.INFO);
     return processarHtmlRelatorio(filePath);
@@ -2785,13 +2302,10 @@ async function rodarRobo() {
       });
     }
     
-    // Forma de Exibição: Em Tabela Dinâmica (preferido - permite baixar CSV limpo)
-    // Fallback para Excel se Tabela Dinâmica não funcionar
-    const usarTabelaDinamica = await selecionarFormaExibicaoTabelaDinamica(page);
-    if (!usarTabelaDinamica) {
-      log('Tabela Dinâmica não disponível, usando Excel...', LOG_LEVELS.WARN);
-      await selecionarFormaExibicaoEmExcel(page);
-    }
+    // Forma de Exibição: Em Excel
+    await selecionarFormaExibicaoEmExcel(page);
+    
+    await page.waitForTimeout(1000);
     
     // ============================================
     // DEBUG: Salvar estado dos filtros ANTES de gerar
@@ -2885,207 +2399,127 @@ async function rodarRobo() {
       log(`Tentativa de download ${tentativaDownload}/${LIMITS.MAX_DOWNLOAD_RETRIES}...`);
       
       try {
+        // Garantir seleção de Excel
+        await selecionarFormaExibicaoEmExcel(page);
+        await page.waitForTimeout(1000);
+        
         // Gerar nome semântico ANTES do download
         const semanticName = generateSemanticFilename('Cobranca_Hinova', inicio, fim);
         nomeArquivoFinal = semanticName;
         
-        // Usar a variável de estado definida na etapa FILTROS
-        // NÃO re-verificar o DOM pois o portal pode ter resetado a seleção visual
-        if (usarTabelaDinamica) {
-          // ===== ESTRATÉGIA 1: CSV via Tabela Dinâmica (PREFERIDA) =====
-          log('Usando estratégia CSV via Tabela Dinâmica...', LOG_LEVELS.INFO);
-          
-          // Preparar listener para nova aba ANTES do clique
-          const csvPromise = baixarCSVDaTabelaDinamica(
-            context, 
-            page, 
-            downloadDir, 
-            semanticName, 
-            TIMEOUTS.DOWNLOAD_TOTAL
-          );
-          
-          // Clicar no botão Gerar
-          log('Clicando em Gerar Relatório...');
-          
-          const clicarGerarEmQualquerFrame = async () => {
-            const tentarNoFrame = async (frame) => {
-              // Tentar botão por role
-              const byRole = frame.getByRole('button', { name: /gerar/i });
-              const count = await byRole.count().catch(() => 0);
-              for (let i = 0; i < count; i++) {
-                const el = byRole.nth(i);
-                const visible = await el.isVisible().catch(() => false);
-                if (!visible) continue;
-                
-                const enabled = await el.isEnabled().catch(() => true);
-                if (!enabled) continue;
-                
+        // Iniciar captura híbrida ANTES do clique
+        // NOTA: o watcher captura o objeto Download e então aguarda a finalização real
+        // do download antes de salvar/copiar para o destino.
+        log('Iniciando estratégia híbrida de captura de download...');
+        
+        // Criar a promessa de captura híbrida (com downloadDir e semanticName)
+        const capturaHibridaPromise = aguardarDownloadHibrido(
+          context, 
+          page, 
+          downloadDir, 
+          semanticName, 
+          TIMEOUTS.DOWNLOAD_TOTAL
+        );
+        
+        // Clicar no botão Gerar
+        log('Clicando em Gerar Relatório...');
+        
+        const clicarGerarEmQualquerFrame = async () => {
+          const tentarNoFrame = async (frame) => {
+            // Tentar botão por role
+            const byRole = frame.getByRole('button', { name: /gerar/i });
+            const count = await byRole.count().catch(() => 0);
+            for (let i = 0; i < count; i++) {
+              const el = byRole.nth(i);
+              const visible = await el.isVisible().catch(() => false);
+              if (!visible) continue;
+              
+              const enabled = await el.isEnabled().catch(() => true);
+              if (!enabled) continue;
+              
+              await el.click({ timeout: 15000, force: true });
+              return `botão Gerar (frame: ${frame.url() || 'main'})`;
+            }
+            
+            // Tentar inputs
+            const inputs = frame.locator('input[type="submit"], input[type="button"], input[type="image"]');
+            const ic = await inputs.count().catch(() => 0);
+            for (let i = 0; i < ic; i++) {
+              const el = inputs.nth(i);
+              const visible = await el.isVisible().catch(() => false);
+              if (!visible) continue;
+              
+              const value = (await el.getAttribute('value').catch(() => '')) || '';
+              const alt = (await el.getAttribute('alt').catch(() => '')) || '';
+              const label = `${value} ${alt}`.toLowerCase();
+              if (label.includes('gerar')) {
                 await el.click({ timeout: 15000, force: true });
-                return `botão Gerar (frame: ${frame.url() || 'main'})`;
+                return `input Gerar (value="${value}")`;
               }
-              
-              // Tentar inputs
-              const inputs = frame.locator('input[type="submit"], input[type="button"], input[type="image"]');
-              const ic = await inputs.count().catch(() => 0);
-              for (let i = 0; i < ic; i++) {
-                const el = inputs.nth(i);
-                const visible = await el.isVisible().catch(() => false);
-                if (!visible) continue;
-                
-                const value = (await el.getAttribute('value').catch(() => '')) || '';
-                const alt = (await el.getAttribute('alt').catch(() => '')) || '';
-                const label = `${value} ${alt}`.toLowerCase();
-                if (label.includes('gerar')) {
-                  await el.click({ timeout: 15000, force: true });
-                  return `input Gerar (value="${value}")`;
-                }
-              }
-              
-              return null;
-            };
-            
-            // Tentar no frame principal primeiro
-            const mainClicked = await tentarNoFrame(page.mainFrame());
-            if (mainClicked) return mainClicked;
-            
-            // Tentar em todos os frames
-            for (const frame of page.frames()) {
-              if (frame === page.mainFrame()) continue;
-              const clicked = await tentarNoFrame(frame);
-              if (clicked) return clicked;
             }
             
             return null;
           };
           
-          const clickInfo = await clicarGerarEmQualquerFrame();
-          if (!clickInfo) {
-            await saveDebugInfo(page, context, 'Botão Gerar não encontrado');
-            throw new Error('Botão "Gerar" não encontrado');
+          // Tentar no frame principal primeiro
+          const mainClicked = await tentarNoFrame(page.mainFrame());
+          if (mainClicked) return mainClicked;
+          
+          // Tentar em todos os frames
+          for (const frame of page.frames()) {
+            if (frame === page.mainFrame()) continue;
+            const clicked = await tentarNoFrame(frame);
+            if (clicked) return clicked;
           }
           
-          log(`Clicou: ${clickInfo}`, LOG_LEVELS.SUCCESS);
-          
-          // Aguardar CSV da nova aba
-          log(`Aguardando CSV da Tabela Dinâmica (timeout: ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)...`);
-          const result = await csvPromise;
-          
-          if (!result.success) {
-            throw result.error || new Error('Download CSV falhou');
-          }
-          
-          log(`✅ CSV baixado: ${result.filePath} (${formatBytes(result.size)})`, LOG_LEVELS.SUCCESS);
-          
-          // Processar CSV
-          dados = processarArquivo(result.filePath);
-          nomeArquivoFinal = path.basename(result.filePath);
-          downloadSucesso = true;
-          
-        } else {
-          // ===== ESTRATÉGIA 2: Excel/HTML (FALLBACK) =====
-          log('Usando estratégia Excel/HTML...', LOG_LEVELS.INFO);
-          
-          // Garantir seleção de Excel
-          await selecionarFormaExibicaoEmExcel(page);
-          await page.waitForTimeout(1000);
-          
-          // Iniciar captura híbrida ANTES do clique
-          log('Iniciando estratégia híbrida de captura de download...');
-          
-          const capturaHibridaPromise = aguardarDownloadHibrido(
-            context, 
-            page, 
-            downloadDir, 
-            semanticName, 
-            TIMEOUTS.DOWNLOAD_TOTAL
-          );
-          
-          // Clicar no botão Gerar
-          log('Clicando em Gerar Relatório...');
-          
-          const clicarGerarEmQualquerFrame = async () => {
-            const tentarNoFrame = async (frame) => {
-              const byRole = frame.getByRole('button', { name: /gerar/i });
-              const count = await byRole.count().catch(() => 0);
-              for (let i = 0; i < count; i++) {
-                const el = byRole.nth(i);
-                const visible = await el.isVisible().catch(() => false);
-                if (!visible) continue;
-                
-                const enabled = await el.isEnabled().catch(() => true);
-                if (!enabled) continue;
-                
-                await el.click({ timeout: 15000, force: true });
-                return `botão Gerar (frame: ${frame.url() || 'main'})`;
-              }
-              
-              const inputs = frame.locator('input[type="submit"], input[type="button"], input[type="image"]');
-              const ic = await inputs.count().catch(() => 0);
-              for (let i = 0; i < ic; i++) {
-                const el = inputs.nth(i);
-                const visible = await el.isVisible().catch(() => false);
-                if (!visible) continue;
-                
-                const value = (await el.getAttribute('value').catch(() => '')) || '';
-                const alt = (await el.getAttribute('alt').catch(() => '')) || '';
-                const label = `${value} ${alt}`.toLowerCase();
-                if (label.includes('gerar')) {
-                  await el.click({ timeout: 15000, force: true });
-                  return `input Gerar (value="${value}")`;
-                }
-              }
-              
-              return null;
-            };
-            
-            const mainClicked = await tentarNoFrame(page.mainFrame());
-            if (mainClicked) return mainClicked;
-            
-            for (const frame of page.frames()) {
-              if (frame === page.mainFrame()) continue;
-              const clicked = await tentarNoFrame(frame);
-              if (clicked) return clicked;
-            }
-            
-            return null;
-          };
-          
-          const clickInfo = await clicarGerarEmQualquerFrame();
-          if (!clickInfo) {
-            await saveDebugInfo(page, context, 'Botão Gerar não encontrado');
-            throw new Error('Botão "Gerar" não encontrado');
-          }
-          
-          log(`Clicou: ${clickInfo}`, LOG_LEVELS.SUCCESS);
-          
-          // Aguardar resultado híbrido
-          log(`Aguardando captura híbrida (timeout: ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)...`);
-          const result = await capturaHibridaPromise;
-          
-          if (!result.success) {
-            await saveDebugInfo(page, context, result.error?.message || 'Nenhum download capturado');
-            throw result.error || new Error('Download falhou - nenhuma estratégia capturou o arquivo');
-          }
-          
-          log(`Download finalizado via estratégia: ${result.source}`, LOG_LEVELS.SUCCESS);
-          log(`Arquivo: ${result.filePath} (${(result.size / 1024).toFixed(2)} KB)`, LOG_LEVELS.INFO);
-          
-          // Validar arquivo
-          const validation = validateDownloadedFile(result.filePath);
-          if (!validation.valid) {
-            throw new Error(`Arquivo inválido: ${validation.error}`);
-          }
-          
-          if (validation.isHtml) {
-            log(`Validação HTML OK: ~${validation.rows} linhas de tabela`, LOG_LEVELS.SUCCESS);
-          } else {
-            log(`Validação Excel OK: ${validation.sheets} planilha(s), ${validation.rows} registros`, LOG_LEVELS.SUCCESS);
-          }
-          
-          // Processar arquivo
-          dados = processarArquivo(result.filePath);
-          downloadSucesso = true;
+          return null;
+        };
+        
+        const clickInfo = await clicarGerarEmQualquerFrame();
+        if (!clickInfo) {
+          await saveDebugInfo(page, context, 'Botão Gerar não encontrado');
+          throw new Error('Botão "Gerar" não encontrado');
         }
+        
+        log(`Clicou: ${clickInfo}`, LOG_LEVELS.SUCCESS);
+        
+        // ===== AGUARDAR RESULTADO - ARQUIVO JÁ ESTÁ SALVO =====
+        // A função aguardarDownloadHibrido retorna com o arquivo JÁ SALVO
+        // Nenhum await de página, popup, response ou watcher ocorre após a captura
+        log(`Aguardando captura híbrida (timeout: ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)...`);
+        
+        const result = await capturaHibridaPromise;
+        
+        if (!result.success) {
+          // Salvar debug antes de lançar erro
+          await saveDebugInfo(page, context, result.error?.message || 'Nenhum download capturado');
+          throw result.error || new Error('Download falhou - nenhuma estratégia capturou o arquivo');
+        }
+        
+        // ===== ARQUIVO JÁ ESTÁ SALVO - LOGS NA SEQUÊNCIA CORRETA =====
+        // Os logs já foram emitidos dentro do watcher:
+        // 1. "Download capturado"
+        // 2. "Salvando arquivo"
+        // 3. "Arquivo salvo com sucesso"
+        
+        log(`Download finalizado via estratégia: ${result.source}`, LOG_LEVELS.SUCCESS);
+        log(`Arquivo: ${result.filePath} (${(result.size / 1024).toFixed(2)} KB)`, LOG_LEVELS.INFO);
+        
+        // Validar arquivo Excel (estrutura interna)
+        const validation = validateDownloadedFile(result.filePath);
+        if (!validation.valid) {
+          throw new Error(`Arquivo inválido: ${validation.error}`);
+        }
+        
+        if (validation.isHtml) {
+          log(`Validação HTML OK: ~${validation.rows} linhas de tabela`, LOG_LEVELS.SUCCESS);
+        } else {
+          log(`Validação Excel OK: ${validation.sheets} planilha(s), ${validation.rows} registros`, LOG_LEVELS.SUCCESS);
+        }
+        
+        // Processar arquivo (detecta formato automaticamente)
+        dados = processarArquivo(result.filePath);
+        downloadSucesso = true;
         
         // Fechar abas extras (APÓS o download ser salvo com sucesso)
         await closeExtraPages(context, page);
