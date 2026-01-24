@@ -124,7 +124,12 @@ serve(async (req) => {
       corretora_slug,
       dados,
       nome_arquivo,
-      mes_referencia 
+      mes_referencia,
+      // Suporte a importação em lotes (chunks)
+      importacao_id,
+      total_registros,
+      chunk_index,
+      chunk_total,
     } = body;
 
     console.log("Webhook cobrança recebido:", {
@@ -168,38 +173,81 @@ serve(async (req) => {
       );
     }
 
-    // Desativar importações anteriores
-    await supabase
-      .from("cobranca_importacoes")
-      .update({ ativo: false })
-      .eq("ativo", true)
-      .eq("corretora_id", corretoraId);
-
-    // Criar nova importação
+    // ============================================
+    // Importação: modo único (payload completo) OU modo chunks (lotes)
+    // ============================================
     const nomeArquivo = nome_arquivo || `Hinova_Auto_${new Date().toISOString().split('T')[0]}.json`;
-    
-    const { data: importacao, error: importError } = await supabase
-      .from("cobranca_importacoes")
-      .insert({
-        corretora_id: corretoraId,
-        nome_arquivo: nomeArquivo,
-        ativo: true,
-        total_registros: dados.length,
-      })
-      .select()
-      .single();
 
-    if (importError) {
-      console.error("Erro ao criar importação:", importError);
-      return new Response(
-        JSON.stringify({ success: false, message: "Erro ao criar importação", error: importError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    let importacao: any = null;
+
+    if (importacao_id) {
+      // Reutilizar importação existente (chunk mode)
+      const { data: existing, error: exErr } = await supabase
+        .from("cobranca_importacoes")
+        .select("*")
+        .eq("id", importacao_id)
+        .single();
+
+      if (exErr || !existing) {
+        return new Response(
+          JSON.stringify({ success: false, message: "importacao_id inválido" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Garantir que pertence à corretora (segurança)
+      if (existing.corretora_id !== corretoraId) {
+        return new Response(
+          JSON.stringify({ success: false, message: "importacao_id não pertence à corretora" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      importacao = existing;
+
+      // Opcional: atualizar total_registros se veio no chunk
+      if (typeof total_registros === 'number' && total_registros > 0 && importacao.total_registros !== total_registros) {
+        await supabase
+          .from("cobranca_importacoes")
+          .update({ total_registros })
+          .eq("id", importacao.id);
+      }
+    } else {
+      // Modo tradicional: desativar importações anteriores e criar uma nova
+      await supabase
+        .from("cobranca_importacoes")
+        .update({ ativo: false })
+        .eq("ativo", true)
+        .eq("corretora_id", corretoraId);
+
+      const totalReg = (typeof total_registros === 'number' && total_registros > 0)
+        ? total_registros
+        : dados.length;
+
+      const { data: created, error: importError } = await supabase
+        .from("cobranca_importacoes")
+        .insert({
+          corretora_id: corretoraId,
+          nome_arquivo: nomeArquivo,
+          ativo: true,
+          total_registros: totalReg,
+        })
+        .select()
+        .single();
+
+      if (importError) {
+        console.error("Erro ao criar importação:", importError);
+        return new Response(
+          JSON.stringify({ success: false, message: "Erro ao criar importação", error: importError.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      importacao = created;
+      console.log("Importação criada:", importacao.id);
     }
 
-    console.log("Importação criada:", importacao.id);
-
-    // Processar dados em lotes
+    // Processar dados em lotes (inserção no banco)
     const BATCH_SIZE = 100;
     let processados = 0;
     let erros = 0;
@@ -279,11 +327,13 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Importação concluída: ${processados} registros processados`,
+        message: `Chunk processado: ${processados} registros inseridos`,
         importacao_id: importacao.id,
-        total: dados.length,
+        total: typeof total_registros === 'number' && total_registros > 0 ? total_registros : dados.length,
         processados,
         erros,
+        chunk_index: chunk_index || null,
+        chunk_total: chunk_total || null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
