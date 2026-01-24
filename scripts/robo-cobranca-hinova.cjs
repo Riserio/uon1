@@ -1100,15 +1100,10 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
  * NOTA: Removido timeout para permitir downloads grandes do portal lento.
  */
 async function processarDownloadImediato(download, downloadDir, semanticName) {
-  // ===== PASSO 1: Log de captura =====
-  log(`Download capturado`, LOG_LEVELS.SUCCESS);
-
   const filePath = path.join(downloadDir, semanticName);
   const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
 
-  log(`Salvando arquivo: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
-
-  // ===== PASSO 2: Tentar obter tamanho esperado dos headers =====
+  // ===== PASSO 1: Tentar obter tamanho esperado dos headers =====
   let expectedSize = 0;
   try {
     const request = download.request?.();
@@ -1117,15 +1112,20 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
       if (response) {
         const headers = response.headers?.() || {};
         expectedSize = parseInt(headers['content-length'] || '0', 10);
-        if (expectedSize > 0) {
-          log(`Tamanho esperado: ${formatBytes(expectedSize)}`, LOG_LEVELS.DEBUG);
-        }
       }
     }
   } catch (e) {
     // Ignorar - monitoramento funcionará sem expectedSize
-    log(`Não foi possível obter content-length: ${e.message}`, LOG_LEVELS.DEBUG);
   }
+
+  // ===== PASSO 2: Log de captura com tamanho =====
+  if (expectedSize > 0) {
+    log(`Download capturado - Tamanho: ${formatBytes(expectedSize)}`, LOG_LEVELS.SUCCESS);
+  } else {
+    log(`Download capturado - Tamanho: desconhecido (streaming)`, LOG_LEVELS.SUCCESS);
+  }
+
+  log(`Salvando: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
 
   log(`Aguardando transmissão do portal (saveAs)...`, LOG_LEVELS.DEBUG);
   log(`⏳ O portal pode demorar vários minutos para gerar o relatório...`, LOG_LEVELS.INFO);
