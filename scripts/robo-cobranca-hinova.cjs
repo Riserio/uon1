@@ -22,6 +22,10 @@ const axios = require('axios');
 const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
+const { pipeline } = require('stream');
+const { promisify } = require('util');
+
+const pipelineAsync = promisify(pipeline);
 
 // ============================================
 // CONFIGURAÇÃO - EDITE AQUI OU USE ENV VARS
@@ -56,6 +60,8 @@ const TIMEOUTS = {
   DOWNLOAD_EVENT: 3 * 60000,  // 3 min para evento de download
   DOWNLOAD_TOTAL: 10 * 60000, // 10 min total para download (portal pode demorar)
   DOWNLOAD_SAVE: 10 * 60000,  // 10 min para salvar arquivo (portal Hinova é lento)
+  DOWNLOAD_IDLE: 3 * 60000,   // 3 min sem receber bytes -> abortar e tentar novamente
+  DOWNLOAD_HARD: 0,           // 0 = sem limite rígido (usa apenas DOWNLOAD_IDLE)
   POPUP_CLOSE: 800,           // 800ms para fechar popup
 };
 
@@ -116,6 +122,160 @@ function log(message, level = LOG_LEVELS.INFO) {
     default:
       console.log(`${prefix} ${message}`);
   }
+}
+
+// ============================================
+// UTIL: Progresso de download/upload
+// ============================================
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let v = bytes;
+  let idx = 0;
+  while (v >= 1024 && idx < units.length - 1) {
+    v /= 1024;
+    idx++;
+  }
+  return `${v.toFixed(idx === 0 ? 0 : 2)} ${units[idx]}`;
+}
+
+async function buildCookieHeader(context, url) {
+  try {
+    const cookies = await context.cookies(url);
+    if (!cookies || cookies.length === 0) return '';
+    return cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+  } catch {
+    return '';
+  }
+}
+
+function pickHeadersForHttpReplay(headers = {}) {
+  // Reaproveitar apenas headers úteis/seguros para replay do request
+  const allow = [
+    'user-agent',
+    'accept',
+    'accept-language',
+    'referer',
+    'origin',
+    'content-type',
+  ];
+  const out = {};
+  for (const [k, v] of Object.entries(headers)) {
+    const key = String(k || '').toLowerCase();
+    if (allow.includes(key) && v) out[key] = v;
+  }
+  // Evitar gzip/br por segurança em binário (não é obrigatório, mas reduz surpresas)
+  out['accept-encoding'] = 'identity';
+  return out;
+}
+
+async function downloadViaAxiosStream({
+  url,
+  method = 'GET',
+  headers = {},
+  data,
+  filePath,
+  expectedBytes = 0,
+  idleTimeoutMs = TIMEOUTS.DOWNLOAD_IDLE,
+  hardTimeoutMs = TIMEOUTS.DOWNLOAD_HARD,
+}) {
+  if (!url) throw new Error('URL de download vazia');
+  if (!filePath) throw new Error('filePath vazio');
+
+  const startedAt = Date.now();
+  const abortController = new AbortController();
+
+  let hardTimer = null;
+  if (hardTimeoutMs && hardTimeoutMs > 0) {
+    hardTimer = setTimeout(() => {
+      abortController.abort(new Error(`Timeout rígido de download (${Math.round(hardTimeoutMs / 60000)} min)`));
+    }, hardTimeoutMs);
+  }
+
+  let idleTimer = null;
+  const resetIdleTimer = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      abortController.abort(new Error(`Download travado (sem bytes por ${Math.round(idleTimeoutMs / 60000)} min)`));
+    }, idleTimeoutMs);
+  };
+  resetIdleTimer();
+
+  let receivedBytes = 0;
+  let lastLoggedPercent = -1;
+  let lastLoggedAt = 0;
+
+  const logProgress = (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastLoggedAt < 15000) return; // no máximo a cada 15s
+    lastLoggedAt = now;
+
+    const elapsedSec = Math.max(1, Math.floor((now - startedAt) / 1000));
+    const speed = receivedBytes / elapsedSec;
+
+    if (expectedBytes > 0) {
+      const pct = Math.min(100, Math.floor((receivedBytes / expectedBytes) * 100));
+      if (!force && pct < lastLoggedPercent + 5) return; // log a cada +5%
+      lastLoggedPercent = pct;
+      log(`⬇️ Download ${pct}% (${formatBytes(receivedBytes)} / ${formatBytes(expectedBytes)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.DEBUG);
+    } else {
+      log(`⬇️ Download ${formatBytes(receivedBytes)} recebido • ${formatBytes(speed)}/s (tamanho total não informado)`, LOG_LEVELS.DEBUG);
+    }
+  };
+
+  const response = await axios({
+    url,
+    method,
+    headers,
+    data,
+    responseType: 'stream',
+    maxRedirects: 10,
+    timeout: 0, // controlado por idle/hard
+    signal: abortController.signal,
+    validateStatus: (s) => s >= 200 && s < 400,
+  });
+
+  const contentLengthHeader = response.headers?.['content-length'];
+  const responseLen = parseInt(contentLengthHeader || '0', 10);
+  if (!expectedBytes && responseLen > 0) expectedBytes = responseLen;
+
+  if (expectedBytes > 0) {
+    log(`Tamanho esperado: ${formatBytes(expectedBytes)}`, LOG_LEVELS.DEBUG);
+  }
+
+  const writeStream = fs.createWriteStream(filePath);
+
+  response.data.on('data', (chunk) => {
+    receivedBytes += chunk.length;
+    resetIdleTimer();
+    logProgress(false);
+  });
+
+  response.data.on('error', (e) => {
+    // garante que timers sejam limpos
+    if (idleTimer) clearTimeout(idleTimer);
+    if (hardTimer) clearTimeout(hardTimer);
+    throw e;
+  });
+
+  try {
+    await pipelineAsync(response.data, writeStream);
+  } finally {
+    if (idleTimer) clearTimeout(idleTimer);
+    if (hardTimer) clearTimeout(hardTimer);
+  }
+
+  logProgress(true);
+
+  if (!fs.existsSync(filePath)) {
+    throw new Error('FALHA: Arquivo não existe após streaming HTTP');
+  }
+  const stats = fs.statSync(filePath);
+  if (stats.size <= 0) {
+    throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
+  }
+
+  return { filePath, size: stats.size };
 }
 
 function setStep(step) {
@@ -734,29 +894,32 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
       try {
         const filePath = path.join(downloadDir, semanticName);
         const startTime = Date.now();
-        
-        // ===== PASSO 2: Consumir body com progresso =====
-        log(`⬇️ Recebendo stream de bytes...`, LOG_LEVELS.INFO);
-        
-        // Monitor de progresso durante o download HTTP
-        let progressInterval = setInterval(() => {
-          const elapsed = Math.floor((Date.now() - startTime) / 1000);
-          log(`⏳ Recebendo dados... ${elapsed}s`, LOG_LEVELS.DEBUG);
-        }, 15000); // Log a cada 15 segundos
-        
-        let buffer;
-        try {
-          buffer = await response.body();
-        } finally {
-          clearInterval(progressInterval);
-        }
-        
+
+        // ===== PASSO 2: Replay via HTTP stream (Node) com progresso percentual =====
+        // Motivo: Playwright response.body()/download.saveAs() não expõem progresso e podem ser cancelados.
+        log(`⬇️ Baixando via HTTP stream (com progresso)...`, LOG_LEVELS.INFO);
+
+        const request = response.request?.();
+        const url = response.url?.();
+        const method = request?.method?.() || 'GET';
+        const requestHeaders = pickHeadersForHttpReplay(request?.headers?.() || {});
+        const cookieHeader = await buildCookieHeader(context, url);
+        if (cookieHeader) requestHeaders['cookie'] = cookieHeader;
+
+        const postData = request?.postData?.();
+        const result = await downloadViaAxiosStream({
+          url,
+          method,
+          headers: requestHeaders,
+          data: method !== 'GET' ? postData : undefined,
+          filePath,
+          expectedBytes: contentLength,
+          idleTimeoutMs: TIMEOUTS.DOWNLOAD_IDLE,
+          hardTimeoutMs: TIMEOUTS.DOWNLOAD_HARD,
+        });
+
         const downloadTime = Math.floor((Date.now() - startTime) / 1000);
-        log(`Stream recebido em ${downloadTime}s (${(buffer.length / 1024).toFixed(2)} KB)`, LOG_LEVELS.SUCCESS);
-        
-        // ===== PASSO 3: Salvar arquivo =====
-        log(`💾 Salvando arquivo: ${semanticName}`, LOG_LEVELS.INFO);
-        fs.writeFileSync(filePath, buffer);
+        log(`✅ Download HTTP concluído em ${downloadTime}s (${formatBytes(result.size)})`, LOG_LEVELS.SUCCESS);
         
         // ===== PASSO 4: Validação síncrona =====
         if (!fs.existsSync(filePath)) {
@@ -764,18 +927,14 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
         }
         
         const stats = fs.statSync(filePath);
-        if (stats.size <= 0) {
-          throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
-        }
-        
+
         // Verificar se tamanho bate com content-length (se informado)
         if (contentLength > 0 && stats.size !== contentLength) {
           log(`⚠️ Tamanho difere: esperado ${contentLength}, recebido ${stats.size}`, LOG_LEVELS.WARN);
         }
-        
+
         // ===== PASSO 5: Log de sucesso =====
-        const sizeKB = (stats.size / 1024).toFixed(2);
-        log(`✅ Arquivo salvo com sucesso: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
+        log(`✅ Arquivo salvo com sucesso: ${semanticName} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
         log(`✅ Etapa DOWNLOAD concluída via HTTP Stream`, LOG_LEVELS.SUCCESS);
         
         controller.setFileResult({ filePath, size: stats.size });
@@ -829,52 +988,54 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
 async function processarDownloadImediato(download, downloadDir, semanticName) {
   // ===== PASSO 1: Log de captura =====
   log(`Download capturado`, LOG_LEVELS.SUCCESS);
-  
+
   const filePath = path.join(downloadDir, semanticName);
   const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
-  
+  const url = download.url?.() || '';
+
   log(`Salvando arquivo: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
-  log(`Aguardando transmissão do portal (sem limite de tempo)...`, LOG_LEVELS.DEBUG);
-  
-  // ===== PASSO 2: Monitor de progresso durante o download =====
+
+  // ===== PASSO 2: Preferir stream HTTP (Node) para ter % e evitar cancelamento do Playwright =====
+  if (url) {
+    try {
+      log(`⬇️ Captura via HTTP stream (com progresso) usando a URL do download...`, LOG_LEVELS.INFO);
+      // Nota: sem cookies aqui; quem chama deve injetar via wrapper com contexto.
+      // Mantemos compatibilidade chamando o saveAs caso o replay falhe.
+    } catch {
+      // noop
+    }
+  }
+
+  // Mantém comportamento antigo como fallback (sem % real, mas garante compatibilidade)
+  log(`Fallback: aguardando saveAs do Playwright (sem % real)...`, LOG_LEVELS.WARN);
+  log(`Aguardando transmissão do portal...`, LOG_LEVELS.DEBUG);
+
   const startTime = Date.now();
   let progressInterval = setInterval(() => {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
     const minutes = Math.floor(elapsed / 60);
     const seconds = elapsed % 60;
-    log(`⏳ Download em progresso... ${minutes}m ${seconds}s`, LOG_LEVELS.DEBUG);
-  }, 30000); // Log a cada 30 segundos
-  
+    log(`⏳ Download em progresso... ${minutes}m ${seconds}s (sem percentual)`, LOG_LEVELS.DEBUG);
+  }, 30000);
+
   try {
-    // ===== PASSO 3: saveAs direto SEM TIMEOUT =====
-    // O saveAs() aguarda internamente a conclusão da transmissão do servidor
     await download.saveAs(filePath);
   } finally {
-    // Limpar o monitor de progresso
     clearInterval(progressInterval);
   }
-  
-  // ===== PASSO 4: Log do tempo total =====
-  const totalTime = Math.floor((Date.now() - startTime) / 1000);
-  const totalMinutes = Math.floor(totalTime / 60);
-  const totalSeconds = totalTime % 60;
-  log(`Download concluído em ${totalMinutes}m ${totalSeconds}s`, LOG_LEVELS.SUCCESS);
-  
-  // ===== PASSO 5: Validação síncrona =====
+
   if (!fs.existsSync(filePath)) {
     throw new Error('FALHA: Arquivo não existe após saveAs');
   }
-  
   const stats = fs.statSync(filePath);
   if (stats.size <= 0) {
     throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
   }
-  
-  // ===== PASSO 6: Log de sucesso =====
-  const sizeKB = (stats.size / 1024).toFixed(2);
-  log(`Arquivo salvo com sucesso: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
+
+  const totalTime = Math.floor((Date.now() - startTime) / 1000);
+  log(`Download concluído em ${Math.floor(totalTime / 60)}m ${totalTime % 60}s`, LOG_LEVELS.SUCCESS);
+  log(`Arquivo salvo com sucesso: ${semanticName} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
   log(`✅ Etapa DOWNLOAD concluída`, LOG_LEVELS.SUCCESS);
-  
   return { filePath, size: stats.size };
 }
 
@@ -901,8 +1062,29 @@ function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticNa
     if (!wasCaptured) return; // Outro watcher já capturou
     
     try {
-      // Execução terminal: aguardar finalização do download + salvar/cópia + validação síncrona
-      const result = await processarDownloadImediato(download, downloadDir, semanticName);
+      // Preferir replay HTTP com cookies da sessão para obter % e evitar cancelamento
+      const url = download.url?.() || '';
+      const cookieHeader = await buildCookieHeader(context, url);
+      const headers = pickHeadersForHttpReplay({ 'user-agent': 'Mozilla/5.0' });
+      if (cookieHeader) headers['cookie'] = cookieHeader;
+
+      let result;
+      if (url) {
+        try {
+          log(`⬇️ Baixando via HTTP stream (globalDownload)...`, LOG_LEVELS.INFO);
+          result = await downloadViaAxiosStream({
+            url,
+            method: 'GET',
+            headers,
+            filePath: path.join(downloadDir, semanticName),
+          });
+        } catch (e) {
+          log(`⚠️ HTTP stream falhou (${e.message}) — usando saveAs`, LOG_LEVELS.WARN);
+          result = await processarDownloadImediato(download, downloadDir, semanticName);
+        }
+      } else {
+        result = await processarDownloadImediato(download, downloadDir, semanticName);
+      }
       controller.setFileResult(result);
     } catch (e) {
       log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
@@ -943,7 +1125,7 @@ function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticNa
  * Watcher 3: Evento de download da página principal
  * Ao capturar, executa saveAs IMEDIATAMENTE no mesmo bloco
  */
-function criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, semanticName) {
+function criarWatcherDownloadPaginaPrincipal(context, page, controller, downloadDir, semanticName) {
   const onDownload = async (download) => {
     if (controller.isCaptured()) return;
     
@@ -960,8 +1142,28 @@ function criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, sema
     if (!wasCaptured) return; // Outro watcher já capturou
     
     try {
-      // EXECUÇÃO IMEDIATA: path() + saveAs() + validação síncrona
-      const result = await processarDownloadImediato(download, downloadDir, semanticName);
+      const url = download.url?.() || '';
+      const cookieHeader = await buildCookieHeader(context, url);
+      const headers = pickHeadersForHttpReplay({ 'user-agent': 'Mozilla/5.0' });
+      if (cookieHeader) headers['cookie'] = cookieHeader;
+
+      let result;
+      if (url) {
+        try {
+          log(`⬇️ Baixando via HTTP stream (mainPage)...`, LOG_LEVELS.INFO);
+          result = await downloadViaAxiosStream({
+            url,
+            method: 'GET',
+            headers,
+            filePath: path.join(downloadDir, semanticName),
+          });
+        } catch (e) {
+          log(`⚠️ HTTP stream falhou (${e.message}) — usando saveAs`, LOG_LEVELS.WARN);
+          result = await processarDownloadImediato(download, downloadDir, semanticName);
+        }
+      } else {
+        result = await processarDownloadImediato(download, downloadDir, semanticName);
+      }
       controller.setFileResult(result);
     } catch (e) {
       log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
@@ -1013,9 +1215,28 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
         if (!wasCaptured) return;
         
         try {
-          // Execução terminal: aguardar finalização do download + salvar/cópia + validação síncrona
-          // Nenhum await de página após isso
-          const result = await processarDownloadImediato(download, downloadDir, semanticName);
+          const url = download.url?.() || '';
+          const cookieHeader = await buildCookieHeader(context, url);
+          const headers = pickHeadersForHttpReplay({ 'user-agent': 'Mozilla/5.0' });
+          if (cookieHeader) headers['cookie'] = cookieHeader;
+
+          let result;
+          if (url) {
+            try {
+              log(`⬇️ Baixando via HTTP stream (newTab)...`, LOG_LEVELS.INFO);
+              result = await downloadViaAxiosStream({
+                url,
+                method: 'GET',
+                headers,
+                filePath: path.join(downloadDir, semanticName),
+              });
+            } catch (e) {
+              log(`⚠️ HTTP stream falhou (${e.message}) — usando saveAs`, LOG_LEVELS.WARN);
+              result = await processarDownloadImediato(download, downloadDir, semanticName);
+            }
+          } else {
+            result = await processarDownloadImediato(download, downloadDir, semanticName);
+          }
           controller.setFileResult(result);
           
           // Fechar aba após salvar (sem esperar)
@@ -1116,7 +1337,7 @@ async function aguardarDownloadHibrido(context, page, downloadDir, semanticName,
   // Iniciar watchers - HTTP Stream é o principal (mais rápido e confiável)
   criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName);  // PRINCIPAL
   criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName);
-  criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, semanticName);
+  criarWatcherDownloadPaginaPrincipal(context, page, controller, downloadDir, semanticName);
   criarWatcherNovaAba(context, page, controller, downloadDir, semanticName);
   
   // Iniciar monitor de progresso
@@ -1341,41 +1562,65 @@ function processarExcel(filePath) {
 
 async function enviarWebhook(dados, nomeArquivo) {
   setStep('WEBHOOK');
-  
-  const payload = {
-    corretora_id: CONFIG.CORRETORA_ID,
-    dados,
-    nome_arquivo: nomeArquivo,
-    mes_referencia: new Date().toISOString().slice(0, 7),
-  };
-  
-  const headers = {
-    'Content-Type': 'application/json',
-  };
-  
-  if (CONFIG.WEBHOOK_SECRET) {
-    headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
-  }
-  
-  log(`📤 Enviando ${dados.length} registros para webhook...`);
-  log(`Tamanho do payload: ${(JSON.stringify(payload).length / 1024).toFixed(2)} KB`, LOG_LEVELS.DEBUG);
-  
+
+  const mesReferencia = new Date().toISOString().slice(0, 7);
+  const headers = { 'Content-Type': 'application/json' };
+  if (CONFIG.WEBHOOK_SECRET) headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
+
+  // Envio em lotes para:
+  // - reduzir risco de timeout
+  // - permitir progresso percentual de "importação"
+  const BATCH_SIZE = parseInt(process.env.WEBHOOK_BATCH_SIZE || '1000', 10);
+  const total = dados.length;
+  const totalChunks = Math.ceil(total / BATCH_SIZE);
+  let importacaoId = null;
+  let enviados = 0;
+
+  log(`📤 Enviando ${total} registros para webhook em ${totalChunks} lote(s) (batch=${BATCH_SIZE})...`, LOG_LEVELS.INFO);
+
   const startTime = Date.now();
-  
-  try {
-    const response = await axios.post(CONFIG.WEBHOOK_URL, payload, {
-      headers,
-      timeout: 300000, // 5 minutos para envio de grandes volumes
-    });
-    
-    const totalTime = Math.floor((Date.now() - startTime) / 1000);
-    log(`✅ Webhook OK em ${totalTime}s: ${response.data.message || 'Sucesso'}`, LOG_LEVELS.SUCCESS);
-    return true;
-  } catch (error) {
-    const totalTime = Math.floor((Date.now() - startTime) / 1000);
-    log(`❌ Erro no webhook após ${totalTime}s: ${error.response?.status || error.message}`, LOG_LEVELS.ERROR);
-    return false;
+
+  for (let offset = 0; offset < total; offset += BATCH_SIZE) {
+    const chunkIndex = Math.floor(offset / BATCH_SIZE) + 1;
+    const batch = dados.slice(offset, offset + BATCH_SIZE);
+
+    const payload = {
+      corretora_id: CONFIG.CORRETORA_ID,
+      importacao_id: importacaoId,
+      dados: batch,
+      nome_arquivo: nomeArquivo,
+      mes_referencia: mesReferencia,
+      total_registros: total,
+      chunk_index: chunkIndex,
+      chunk_total: totalChunks,
+    };
+
+    log(`📦 Lote ${chunkIndex}/${totalChunks}: enviando ${batch.length} registros...`, LOG_LEVELS.DEBUG);
+
+    try {
+      const response = await axios.post(CONFIG.WEBHOOK_URL, payload, {
+        headers,
+        timeout: 600000, // 10 min por lote
+      });
+
+      if (!importacaoId && response.data?.importacao_id) {
+        importacaoId = response.data.importacao_id;
+        log(`🆔 Importação iniciada: ${importacaoId}`, LOG_LEVELS.DEBUG);
+      }
+
+      enviados += batch.length;
+      const pct = Math.min(100, Math.floor((enviados / total) * 100));
+      log(`✅ Importação (envio) ${pct}% (${enviados}/${total})`, LOG_LEVELS.INFO);
+    } catch (error) {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      log(`❌ Falha no lote ${chunkIndex}/${totalChunks} após ${elapsed}s: ${error.response?.status || error.message}`, LOG_LEVELS.ERROR);
+      return false;
+    }
   }
+
+  const totalTime = Math.floor((Date.now() - startTime) / 1000);
+  log(`✅ Webhook concluído em ${totalTime}s (importação_id=${importacaoId || 'N/A'})`, LOG_LEVELS.SUCCESS);
+  return true;
 }
 
 // ============================================
