@@ -419,6 +419,27 @@ async function saveDebugInfo(page, context, errorMessage = null) {
 // ============================================
 // VALIDAÇÃO DE ARQUIVO
 // ============================================
+// Constante para validação de tamanho (indica que filtros não foram aplicados)
+const MAX_EXPECTED_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+
+/**
+ * Detecta se o arquivo é HTML disfarçado de Excel (comum no Hinova)
+ */
+function isHtmlFile(filePath) {
+  try {
+    // Ler primeiros 500 bytes para detectar
+    const buffer = Buffer.alloc(500);
+    const fd = fs.openSync(filePath, 'r');
+    fs.readSync(fd, buffer, 0, 500, 0);
+    fs.closeSync(fd);
+    
+    const header = buffer.toString('utf-8', 0, 500).toLowerCase();
+    return header.includes('<!doctype') || header.includes('<html') || header.includes('<table');
+  } catch {
+    return false;
+  }
+}
+
 function validateDownloadedFile(filePath) {
   if (!fs.existsSync(filePath)) {
     return { valid: false, error: 'Arquivo não existe' };
@@ -428,6 +449,38 @@ function validateDownloadedFile(filePath) {
   
   if (stats.size < LIMITS.MIN_FILE_SIZE_BYTES) {
     return { valid: false, error: `Arquivo muito pequeno: ${stats.size} bytes` };
+  }
+  
+  // Verificar se tamanho indica filtros não aplicados
+  if (stats.size > MAX_EXPECTED_FILE_SIZE) {
+    log(`⚠️ ATENÇÃO: Arquivo muito grande (${formatBytes(stats.size)}) - pode indicar filtros não aplicados`, LOG_LEVELS.WARN);
+  }
+  
+  // Detectar se é HTML disfarçado
+  const isHtml = isHtmlFile(filePath);
+  
+  if (isHtml) {
+    log(`Arquivo detectado como HTML disfarçado de Excel`, LOG_LEVELS.INFO);
+    // Validar que tem conteúdo de tabela
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const hasTable = content.includes('<table') || content.includes('<tr');
+      if (!hasTable) {
+        return { valid: false, error: 'Arquivo HTML sem tabela de dados' };
+      }
+      
+      // Contar linhas aproximadas
+      const rowCount = (content.match(/<tr/gi) || []).length;
+      
+      return {
+        valid: true,
+        size: stats.size,
+        isHtml: true,
+        rows: rowCount,
+      };
+    } catch (e) {
+      return { valid: false, error: `Erro ao ler HTML: ${e.message}` };
+    }
   }
   
   // Verificar se é um Excel válido tentando abrir
@@ -443,6 +496,7 @@ function validateDownloadedFile(filePath) {
     return {
       valid: true,
       size: stats.size,
+      isHtml: false,
       sheets: workbook.SheetNames.length,
       rows: data.length,
     };
@@ -1537,8 +1591,192 @@ function parseMoneyValue(value) {
   return isNaN(parsed) ? 0 : parsed;
 }
 
+/**
+ * Parser HTML para relatório Hinova (que disfarça HTML como .xls)
+ * O portal gera HTML com tabelas ao invés de Excel binário
+ */
+function processarHtmlRelatorio(filePath) {
+  setStep('PROCESSAMENTO_HTML');
+  log(`Processando arquivo HTML: ${filePath}`, LOG_LEVELS.INFO);
+  
+  const startTime = Date.now();
+  const content = fs.readFileSync(filePath, 'utf-8');
+  
+  const dados = [];
+  let headersEncontrados = [];
+  let lastProgressLog = 0;
+  
+  // Primeiro, encontrar o cabeçalho da tabela
+  // O Hinova usa <tr> com <td> tanto para cabeçalho quanto para dados
+  // Detectamos o cabeçalho pelo conteúdo (ex: "Data Pagamento", "Nome", etc)
+  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  const rows = [];
+  let match;
+  
+  while ((match = rowRegex.exec(content)) !== null) {
+    const rowHtml = match[1];
+    
+    // Extrair células - suporta tanto <td><div>texto</div></td> quanto <td>texto</td>
+    const cells = [];
+    const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+    let cellMatch;
+    
+    while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
+      let text = cellMatch[1]
+        // Extrair texto de divs
+        .replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, '$1')
+        // Extrair texto de links
+        .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, '$1')
+        // Remover outras tags HTML
+        .replace(/<[^>]*>/g, '')
+        // Limpar entidades HTML
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&#\d+;/g, '')
+        .trim();
+      cells.push(text);
+    }
+    
+    if (cells.length > 0) {
+      rows.push(cells);
+    }
+  }
+  
+  log(`Total de linhas HTML encontradas: ${rows.length}`, LOG_LEVELS.DEBUG);
+  
+  if (rows.length === 0) {
+    log('Nenhuma linha encontrada no HTML', LOG_LEVELS.WARN);
+    return [];
+  }
+  
+  // Detectar linha de cabeçalho - procura linha que contém campos conhecidos
+  let headerRowIndex = -1;
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const rowText = rows[i].join(' ').toUpperCase();
+    // Verificar se contém campos conhecidos do relatório Hinova
+    if (rowText.includes('NOME') && (rowText.includes('PLACA') || rowText.includes('VALOR') || rowText.includes('VENCIMENTO'))) {
+      headerRowIndex = i;
+      headersEncontrados = rows[i].map(h => normalizeHeader(h));
+      log(`Cabeçalho detectado na linha ${i}: ${rows[i].length} colunas`, LOG_LEVELS.DEBUG);
+      break;
+    }
+  }
+  
+  if (headerRowIndex === -1) {
+    log('Cabeçalho não encontrado - usando índices de coluna padrão', LOG_LEVELS.WARN);
+    // Usar mapeamento por posição (baseado no layout conhecido do Hinova)
+    headersEncontrados = [
+      'DATA PAGAMENTO',
+      'DATA VENCIMENTO ORIGINAL',
+      'DIA VENCIMENTO VEICULO',
+      'REGIONAL BOLETO',
+      'COOPERATIVA',
+      'VOLUNTARIO',
+      'NOME',
+      'PLACAS',
+      'VALOR',
+      'DATA VENCIMENTO',
+      'QTDE DIAS EM ATRASO VENCIMENTO ORIGINAL',
+      'SITUACAO',
+    ];
+    headerRowIndex = -1; // Processar todas as linhas
+  }
+  
+  // Mapear cabeçalhos para nomes padronizados
+  const headerMapping = [];
+  for (let i = 0; i < headersEncontrados.length; i++) {
+    const normalized = headersEncontrados[i];
+    let mappedName = null;
+    
+    if (COLUMN_MAP[normalized]) {
+      mappedName = COLUMN_MAP[normalized];
+    } else {
+      // Buscar correspondência parcial
+      for (const [key, value] of Object.entries(COLUMN_MAP)) {
+        if (normalized.includes(key) || key.includes(normalized)) {
+          mappedName = value;
+          break;
+        }
+      }
+    }
+    
+    headerMapping.push(mappedName);
+  }
+  
+  log(`Mapeamento de colunas: ${headerMapping.filter(Boolean).length} colunas reconhecidas`, LOG_LEVELS.DEBUG);
+  
+  // Processar linhas de dados (pular cabeçalho)
+  const dataStartIndex = headerRowIndex + 1;
+  const totalDataRows = rows.length - dataStartIndex;
+  
+  log(`🔄 Processando ${totalDataRows} registros HTML...`, LOG_LEVELS.INFO);
+  
+  for (let i = dataStartIndex; i < rows.length; i++) {
+    const cells = rows[i];
+    const rowData = {};
+    let temDados = false;
+    
+    for (let j = 0; j < cells.length && j < headerMapping.length; j++) {
+      const mappedHeader = headerMapping[j];
+      if (!mappedHeader) continue;
+      
+      let value = cells[j];
+      
+      // Converter valores baseado no tipo de campo
+      if (mappedHeader.includes('Data')) {
+        value = parseExcelDate(value);
+      } else if (mappedHeader === 'Valor') {
+        value = parseMoneyValue(value);
+      } else if (mappedHeader === 'Dia Vencimento Veiculo' || mappedHeader.includes('Dias')) {
+        value = parseInt(String(value).replace(/\D/g, '')) || null;
+      } else {
+        value = value ? String(value).trim() : null;
+      }
+      
+      if (value !== null && value !== '') {
+        rowData[mappedHeader] = value;
+        temDados = true;
+      }
+    }
+    
+    // Validar que a linha tem dados mínimos (Nome ou Placas)
+    if (temDados && (rowData['Nome'] || rowData['Placas'])) {
+      dados.push(rowData);
+    }
+    
+    // Log de progresso a cada 25%
+    const progress = Math.floor(((i - dataStartIndex) / totalDataRows) * 100);
+    if (progress >= lastProgressLog + 25) {
+      lastProgressLog = progress;
+      log(`⏳ Processamento HTML: ${progress}% (${i - dataStartIndex}/${totalDataRows} linhas)`, LOG_LEVELS.DEBUG);
+    }
+  }
+  
+  const totalTime = Math.floor((Date.now() - startTime) / 1000);
+  log(`✅ Processamento HTML concluído em ${totalTime}s`, LOG_LEVELS.SUCCESS);
+  log(`Registros válidos: ${dados.length} de ${totalDataRows}`, LOG_LEVELS.SUCCESS);
+  
+  return dados;
+}
+
+/**
+ * Processa arquivo Excel ou HTML (detecta automaticamente)
+ */
+function processarArquivo(filePath) {
+  // Detectar formato
+  if (isHtmlFile(filePath)) {
+    log(`Formato detectado: HTML disfarçado de Excel`, LOG_LEVELS.INFO);
+    return processarHtmlRelatorio(filePath);
+  }
+  
+  log(`Formato detectado: Excel binário`, LOG_LEVELS.INFO);
+  return processarExcel(filePath);
+}
+
 function processarExcel(filePath) {
-  setStep('PROCESSAMENTO');
+  setStep('PROCESSAMENTO_EXCEL');
   log(`Processando arquivo Excel: ${filePath}`);
   
   const startTime = Date.now();
@@ -2068,6 +2306,75 @@ async function rodarRobo() {
     await selecionarFormaExibicaoEmExcel(page);
     
     await page.waitForTimeout(1000);
+    
+    // ============================================
+    // DEBUG: Salvar estado dos filtros ANTES de gerar
+    // ============================================
+    log('Verificando estado dos filtros antes de gerar...', LOG_LEVELS.DEBUG);
+    
+    const estadoFiltros = await page.evaluate(() => {
+      const resultado = {
+        inputs: {},
+        checkboxes: { marcados: [], desmarcados: [] },
+        selects: {},
+      };
+      
+      // Verificar todos os inputs de texto com valor
+      const inputs = document.querySelectorAll('input[type="text"], input:not([type])');
+      for (const input of inputs) {
+        if (input.value && input.value.trim()) {
+          const name = input.name || input.id || input.placeholder || 'input_sem_nome';
+          resultado.inputs[name] = input.value.trim();
+        }
+      }
+      
+      // Verificar checkboxes de Situação Boleto
+      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+      for (const cb of checkboxes) {
+        const section = cb.closest('tr, div, fieldset');
+        const sectionText = section?.textContent?.toLowerCase() || '';
+        
+        if (sectionText.includes('situação boleto') || sectionText.includes('situacao boleto') || sectionText.includes('situação') || sectionText.includes('situacao')) {
+          const label = cb.closest('label')?.textContent?.trim() || cb.value || 'checkbox';
+          if (cb.checked) {
+            resultado.checkboxes.marcados.push(label);
+          } else {
+            resultado.checkboxes.desmarcados.push(label);
+          }
+        }
+      }
+      
+      // Verificar selects
+      const selects = document.querySelectorAll('select');
+      for (const select of selects) {
+        if (select.selectedIndex >= 0) {
+          const name = select.name || select.id || 'select_sem_nome';
+          const option = select.options[select.selectedIndex];
+          resultado.selects[name] = option?.textContent?.trim() || option?.value || '';
+        }
+      }
+      
+      // Verificar radio buttons selecionados
+      const radios = document.querySelectorAll('input[type="radio"]:checked');
+      resultado.radios = Array.from(radios).map(r => {
+        const container = r.closest('tr, label, div');
+        return container?.textContent?.trim().substring(0, 50) || r.value;
+      });
+      
+      return resultado;
+    });
+    
+    log(`🔍 Estado dos filtros:`, LOG_LEVELS.DEBUG);
+    log(`   Inputs: ${JSON.stringify(estadoFiltros.inputs)}`, LOG_LEVELS.DEBUG);
+    log(`   Checkboxes marcados: ${estadoFiltros.checkboxes.marcados.join(', ') || 'nenhum'}`, LOG_LEVELS.DEBUG);
+    log(`   Checkboxes desmarcados: ${estadoFiltros.checkboxes.desmarcados.join(', ') || 'nenhum'}`, LOG_LEVELS.DEBUG);
+    log(`   Selects: ${JSON.stringify(estadoFiltros.selects)}`, LOG_LEVELS.DEBUG);
+    log(`   Radios selecionados: ${estadoFiltros.radios.join(', ') || 'nenhum'}`, LOG_LEVELS.DEBUG);
+    
+    // Salvar screenshot dos filtros para análise
+    await saveDebugInfo(page, context, 'Pre-download: estado dos filtros');
+    log('🔍 Debug de filtros salvo para análise', LOG_LEVELS.DEBUG);
+    
     log('Filtros configurados', LOG_LEVELS.SUCCESS);
     
     // ============================================
@@ -2204,10 +2511,14 @@ async function rodarRobo() {
           throw new Error(`Arquivo inválido: ${validation.error}`);
         }
         
-        log(`Validação Excel OK: ${validation.sheets} planilha(s), ${validation.rows} registros`, LOG_LEVELS.SUCCESS);
+        if (validation.isHtml) {
+          log(`Validação HTML OK: ~${validation.rows} linhas de tabela`, LOG_LEVELS.SUCCESS);
+        } else {
+          log(`Validação Excel OK: ${validation.sheets} planilha(s), ${validation.rows} registros`, LOG_LEVELS.SUCCESS);
+        }
         
-        // Processar Excel
-        dados = processarExcel(result.filePath);
+        // Processar arquivo (detecta formato automaticamente)
+        dados = processarArquivo(result.filePath);
         downloadSucesso = true;
         
         // Fechar abas extras (APÓS o download ser salvo com sucesso)
