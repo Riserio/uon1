@@ -371,11 +371,13 @@ function getDebugDirectory() {
 }
 
 function generateSemanticFilename(tipoRelatorio, periodoInicio, periodoFim) {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-  const inicio = periodoInicio.replace(/\//g, '');
-  const fim = periodoFim.replace(/\//g, '');
+  // Formato simples: DDMMYYYY.xlsx (apenas data do dia)
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
   
-  return `${tipoRelatorio}_${inicio}-${fim}_${timestamp}.xlsx`;
+  return `Cobranca_${day}${month}${year}.xlsx`;
 }
 
 // ============================================
