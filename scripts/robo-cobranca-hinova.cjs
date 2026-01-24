@@ -774,15 +774,14 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
 /**
  * Processa um objeto Download do Playwright IMEDIATAMENTE
  * 
- * FLUXO TERMINAL SIMPLIFICADO:
+ * FLUXO TERMINAL COM PROGRESSO:
  * 1. Log: "Download capturado"
- * 2. download.saveAs(filePath) diretamente - aguarda transmissão completa (até 10 min)
- * 3. Validação síncrona: fs.existsSync() + stats.size > 0
- * 4. Log: "Arquivo salvo com sucesso" com nome e tamanho
- * 5. Etapa DOWNLOAD finaliza - SEM awaits adicionais
+ * 2. Inicia monitor de progresso (log a cada 30s)
+ * 3. download.saveAs(filePath) - SEM TIMEOUT RÍGIDO (aguarda conclusão)
+ * 4. Validação síncrona: fs.existsSync() + stats.size > 0
+ * 5. Log: "Arquivo salvo com sucesso" com nome e tamanho
  * 
- * NOTA: Removido download.path() que causava travamento.
- * O saveAs() do Playwright já aguarda a transmissão completa internamente.
+ * NOTA: Removido timeout para permitir downloads grandes do portal lento.
  */
 async function processarDownloadImediato(download, downloadDir, semanticName) {
   // ===== PASSO 1: Log de captura =====
@@ -792,18 +791,33 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
   const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
   
   log(`Salvando arquivo: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
-  log(`Aguardando transmissão do portal (timeout: ${TIMEOUTS.DOWNLOAD_SAVE / 60000} min)...`, LOG_LEVELS.DEBUG);
+  log(`Aguardando transmissão do portal (sem limite de tempo)...`, LOG_LEVELS.DEBUG);
   
-  // ===== PASSO 2: saveAs direto com timeout de 10 min =====
-  // O saveAs() aguarda internamente a conclusão da transmissão do servidor
-  // e salva diretamente no destino final, eliminando etapas intermediárias.
-  await withTimeout(
-    download.saveAs(filePath),
-    TIMEOUTS.DOWNLOAD_SAVE,
-    `Timeout salvando arquivo (${TIMEOUTS.DOWNLOAD_SAVE / 60000} min)`
-  );
+  // ===== PASSO 2: Monitor de progresso durante o download =====
+  const startTime = Date.now();
+  let progressInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    log(`⏳ Download em progresso... ${minutes}m ${seconds}s`, LOG_LEVELS.DEBUG);
+  }, 30000); // Log a cada 30 segundos
   
-  // ===== PASSO 3: Validação síncrona =====
+  try {
+    // ===== PASSO 3: saveAs direto SEM TIMEOUT =====
+    // O saveAs() aguarda internamente a conclusão da transmissão do servidor
+    await download.saveAs(filePath);
+  } finally {
+    // Limpar o monitor de progresso
+    clearInterval(progressInterval);
+  }
+  
+  // ===== PASSO 4: Log do tempo total =====
+  const totalTime = Math.floor((Date.now() - startTime) / 1000);
+  const totalMinutes = Math.floor(totalTime / 60);
+  const totalSeconds = totalTime % 60;
+  log(`Download concluído em ${totalMinutes}m ${totalSeconds}s`, LOG_LEVELS.SUCCESS);
+  
+  // ===== PASSO 5: Validação síncrona =====
   if (!fs.existsSync(filePath)) {
     throw new Error('FALHA: Arquivo não existe após saveAs');
   }
@@ -813,7 +827,7 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
     throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
   }
   
-  // ===== PASSO 4: Log de sucesso =====
+  // ===== PASSO 6: Log de sucesso =====
   const sizeKB = (stats.size / 1024).toFixed(2);
   log(`Arquivo salvo com sucesso: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
   log(`✅ Etapa DOWNLOAD concluída`, LOG_LEVELS.SUCCESS);
@@ -1196,12 +1210,17 @@ function parseMoneyValue(value) {
 }
 
 function processarExcel(filePath) {
-  log(`Processando arquivo: ${filePath}`);
+  setStep('PROCESSAMENTO');
+  log(`Processando arquivo Excel: ${filePath}`);
   
+  const startTime = Date.now();
+  
+  log(`📂 Lendo arquivo...`, LOG_LEVELS.DEBUG);
   const workbook = XLSX.readFile(filePath);
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
   
+  log(`📊 Convertendo para JSON...`, LOG_LEVELS.DEBUG);
   const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
   
   log(`Total de linhas brutas: ${rawData.length}`, LOG_LEVELS.DEBUG);
@@ -1213,8 +1232,10 @@ function processarExcel(filePath) {
   
   const primeiraLinha = rawData[0];
   const headersOriginais = Object.keys(primeiraLinha);
-  log(`Colunas: ${headersOriginais.join(', ')}`, LOG_LEVELS.DEBUG);
+  log(`Colunas encontradas: ${headersOriginais.length}`, LOG_LEVELS.DEBUG);
   
+  // Mapear colunas
+  log(`🔄 Mapeando colunas...`, LOG_LEVELS.DEBUG);
   const headerMapping = {};
   for (const header of headersOriginais) {
     const normalized = normalizeHeader(header);
@@ -1230,8 +1251,13 @@ function processarExcel(filePath) {
     }
   }
   
+  // Processar linhas com progresso
+  log(`🔄 Processando ${rawData.length} registros...`, LOG_LEVELS.INFO);
   const dados = [];
-  for (const row of rawData) {
+  let lastProgressLog = 0;
+  
+  for (let i = 0; i < rawData.length; i++) {
+    const row = rawData[i];
     const rowData = {};
     let temDados = false;
     
@@ -1257,9 +1283,19 @@ function processarExcel(filePath) {
     if (temDados && (rowData['Nome'] || rowData['Placas'])) {
       dados.push(rowData);
     }
+    
+    // Log de progresso a cada 1000 registros ou 25%
+    const progress = Math.floor((i / rawData.length) * 100);
+    if (progress >= lastProgressLog + 25) {
+      lastProgressLog = progress;
+      log(`⏳ Processamento: ${progress}% (${i}/${rawData.length} linhas)`, LOG_LEVELS.DEBUG);
+    }
   }
   
-  log(`Registros válidos: ${dados.length}`, LOG_LEVELS.SUCCESS);
+  const totalTime = Math.floor((Date.now() - startTime) / 1000);
+  log(`✅ Processamento concluído em ${totalTime}s`, LOG_LEVELS.SUCCESS);
+  log(`Registros válidos: ${dados.length} de ${rawData.length}`, LOG_LEVELS.SUCCESS);
+  
   return dados;
 }
 
@@ -1281,18 +1317,23 @@ async function enviarWebhook(dados, nomeArquivo) {
     headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
   }
   
-  log(`Enviando ${dados.length} registros para webhook...`);
+  log(`📤 Enviando ${dados.length} registros para webhook...`);
+  log(`Tamanho do payload: ${(JSON.stringify(payload).length / 1024).toFixed(2)} KB`, LOG_LEVELS.DEBUG);
+  
+  const startTime = Date.now();
   
   try {
     const response = await axios.post(CONFIG.WEBHOOK_URL, payload, {
       headers,
-      timeout: 120000,
+      timeout: 300000, // 5 minutos para envio de grandes volumes
     });
     
-    log(`Webhook OK: ${response.data.message || 'Sucesso'}`, LOG_LEVELS.SUCCESS);
+    const totalTime = Math.floor((Date.now() - startTime) / 1000);
+    log(`✅ Webhook OK em ${totalTime}s: ${response.data.message || 'Sucesso'}`, LOG_LEVELS.SUCCESS);
     return true;
   } catch (error) {
-    log(`Erro no webhook: ${error.response?.status || error.message}`, LOG_LEVELS.ERROR);
+    const totalTime = Math.floor((Date.now() - startTime) / 1000);
+    log(`❌ Erro no webhook após ${totalTime}s: ${error.response?.status || error.message}`, LOG_LEVELS.ERROR);
     return false;
   }
 }
