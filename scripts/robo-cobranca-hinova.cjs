@@ -55,7 +55,7 @@ const TIMEOUTS = {
   LOGIN_RETRY_WAIT: 8000,     // 8s entre tentativas de login
   DOWNLOAD_EVENT: 3 * 60000,  // 3 min para evento de download
   DOWNLOAD_TOTAL: 10 * 60000, // 10 min total para download (portal pode demorar)
-  DOWNLOAD_SAVE: 3 * 60000,   // 3 min para salvar arquivo
+  DOWNLOAD_SAVE: 10 * 60000,  // 10 min para salvar arquivo (portal Hinova é lento)
   POPUP_CLOSE: 800,           // 800ms para fechar popup
 };
 
@@ -774,16 +774,15 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
 /**
  * Processa um objeto Download do Playwright IMEDIATAMENTE
  * 
- * FLUXO TERMINAL - Após capturar o objeto Download:
+ * FLUXO TERMINAL SIMPLIFICADO:
  * 1. Log: "Download capturado"
- * 2. download.path() - aguarda finalização do download (pode demorar)
- * 3. Copiar arquivo temporário para o caminho final (rápido)
- * 4. Log: "Salvando arquivo"
- * 5. Validação síncrona: fs.existsSync() + stats.size > 0
- * 6. Log: "Arquivo salvo com sucesso" com nome e tamanho
- * 7. Etapa DOWNLOAD finaliza - SEM awaits adicionais
+ * 2. download.saveAs(filePath) diretamente - aguarda transmissão completa (até 10 min)
+ * 3. Validação síncrona: fs.existsSync() + stats.size > 0
+ * 4. Log: "Arquivo salvo com sucesso" com nome e tamanho
+ * 5. Etapa DOWNLOAD finaliza - SEM awaits adicionais
  * 
- * PROIBIDO: Nenhum await page.waitFor*, context.waitForEvent ou watcher após saveAs
+ * NOTA: Removido download.path() que causava travamento.
+ * O saveAs() do Playwright já aguarda a transmissão completa internamente.
  */
 async function processarDownloadImediato(download, downloadDir, semanticName) {
   // ===== PASSO 1: Log de captura =====
@@ -791,62 +790,32 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
   
   const filePath = path.join(downloadDir, semanticName);
   const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
-
-  // ===== PASSO 2: Esperar finalização REAL do download (até DOWNLOAD_TOTAL) =====
-  // Observação: o evento "download" pode disparar antes do arquivo terminar de baixar.
-  // Se usarmos saveAs direto com timeout curto, ele pode estourar mesmo com download ainda em andamento.
-  let tempPath = null;
-  try {
-    log(
-      `Aguardando finalização do download (arquivo temporário) (timeout: ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)...`,
-      LOG_LEVELS.DEBUG
-    );
-    tempPath = await withTimeout(
-      download.path(),
-      TIMEOUTS.DOWNLOAD_TOTAL,
-      `Timeout aguardando arquivo temporário (${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)`
-    );
-  } catch (e) {
-    log(`Não foi possível obter arquivo temporário: ${e.message}`, LOG_LEVELS.WARN);
-  }
-
-  // ===== PASSO 3: Salvar no destino final =====
-  // Regra: salvar/cópia em disco deve respeitar DOWNLOAD_SAVE (3 min).
+  
   log(`Salvando arquivo: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
-
-  if (tempPath && fs.existsSync(tempPath)) {
-    log(`Arquivo temporário pronto: ${tempPath}`, LOG_LEVELS.DEBUG);
-    await withTimeout(
-      fs.promises.copyFile(tempPath, filePath),
-      TIMEOUTS.DOWNLOAD_SAVE,
-      `Timeout copiando arquivo (${TIMEOUTS.DOWNLOAD_SAVE / 60000} min)`
-    );
-  } else {
-    // Fallback: se por algum motivo o Playwright não fornecer path (ou não existir), tentar saveAs.
-    await withTimeout(
-      download.saveAs(filePath),
-      TIMEOUTS.DOWNLOAD_SAVE,
-      `Timeout salvando arquivo (${TIMEOUTS.DOWNLOAD_SAVE / 60000} min)`
-    );
-  }
+  log(`Aguardando transmissão do portal (timeout: ${TIMEOUTS.DOWNLOAD_SAVE / 60000} min)...`, LOG_LEVELS.DEBUG);
+  
+  // ===== PASSO 2: saveAs direto com timeout de 10 min =====
+  // O saveAs() aguarda internamente a conclusão da transmissão do servidor
+  // e salva diretamente no destino final, eliminando etapas intermediárias.
+  await withTimeout(
+    download.saveAs(filePath),
+    TIMEOUTS.DOWNLOAD_SAVE,
+    `Timeout salvando arquivo (${TIMEOUTS.DOWNLOAD_SAVE / 60000} min)`
+  );
   
   // ===== PASSO 3: Validação síncrona =====
-  // Verificar existência do arquivo
   if (!fs.existsSync(filePath)) {
     throw new Error('FALHA: Arquivo não existe após saveAs');
   }
   
-  // Verificar tamanho > 0
   const stats = fs.statSync(filePath);
   if (stats.size <= 0) {
     throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
   }
   
-  // ===== PASSO 4: Log de sucesso com nome e tamanho =====
+  // ===== PASSO 4: Log de sucesso =====
   const sizeKB = (stats.size / 1024).toFixed(2);
   log(`Arquivo salvo com sucesso: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
-  
-  // ===== PASSO 5: Etapa DOWNLOAD concluída =====
   log(`✅ Etapa DOWNLOAD concluída`, LOG_LEVELS.SUCCESS);
   
   return { filePath, size: stats.size };
