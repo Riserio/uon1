@@ -169,14 +169,31 @@ O script automatiza os seguintes passos:
 1. **Login** no portal Hinova
 2. **Menu** Relatório → 11.3 Relatório Boletos
 3. **Filtros**:
-   - Data Vencimento Original: 01 do mês até data atual
-   - Situação: desmarcar "Cancelado"
+   - Data Vencimento Original: 01 do mês até último dia do mês
+   - Situação Boleto: apenas "ABERTO"
    - Boletos Anteriores: "Não possui"
-   - Referência Original: apenas "Aberto"
+   - Referência: "VENCIMENTO ORIGINAL"
    - Layout: "BI - Vangard Cobrança"
-4. **Gerar** relatório
-5. **Extrair** dados da tabela
-6. **Enviar** para webhook
+4. **Forma de Exibição**: "Em Tabela Dinâmica" (preferido)
+5. **Gerar** relatório → abre nova aba com DataTables
+6. **Download CSV**: Clica no botão "CSV" da nova aba (formato limpo)
+7. **Parser**: Processa CSV e mapeia colunas
+8. **Enviar** para webhook em lotes
+
+### Estratégias de Download
+
+O script usa uma abordagem em cascata:
+
+| Prioridade | Estratégia | Descrição |
+|------------|------------|-----------|
+| 1️⃣ | **CSV via Tabela Dinâmica** | Mais confiável, formato limpo, sem problemas de parsing |
+| 2️⃣ | **Excel/HTML** | Fallback se Tabela Dinâmica não estiver disponível |
+
+A abordagem CSV é preferida porque:
+- Formato texto puro, sem ambiguidade
+- Parsing trivial (split por separador)
+- Arquivo menor e mais rápido
+- Evita problema de "HTML disfarçado de Excel"
 
 ---
 
