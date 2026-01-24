@@ -1128,14 +1128,43 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
   }
 
   log(`Aguardando transmissão do portal (saveAs)...`, LOG_LEVELS.DEBUG);
+  log(`⏳ O portal pode demorar vários minutos para gerar o relatório...`, LOG_LEVELS.INFO);
 
   // ===== PASSO 3: Iniciar monitor de progresso do arquivo em disco =====
   const stopMonitor = monitorFileProgress(filePath, expectedSize);
   const startTime = Date.now();
 
+  // Heartbeat para mostrar que o processo ainda está ativo
+  let lastHeartbeat = Date.now();
+  const HEARTBEAT_INTERVAL = 30000; // 30 segundos
+  const heartbeatInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    
+    // Verificar se arquivo começou a ser criado
+    const possiblePaths = [filePath, filePath + '.crdownload', filePath + '.part'];
+    let fileSize = 0;
+    for (const p of possiblePaths) {
+      try {
+        if (fs.existsSync(p)) {
+          fileSize = fs.statSync(p).size;
+          break;
+        }
+      } catch {}
+    }
+    
+    if (fileSize > 0) {
+      log(`⏳ Recebendo dados... ${formatBytes(fileSize)} (${minutes}m ${seconds}s)`, LOG_LEVELS.INFO);
+    } else {
+      log(`⏳ Aguardando servidor Hinova gerar relatório... (${minutes}m ${seconds}s)`, LOG_LEVELS.INFO);
+    }
+  }, HEARTBEAT_INTERVAL);
+
   try {
     await download.saveAs(filePath);
   } finally {
+    clearInterval(heartbeatInterval);
     stopMonitor();
   }
 
