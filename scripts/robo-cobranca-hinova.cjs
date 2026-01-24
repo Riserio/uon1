@@ -637,7 +637,7 @@ class DownloadController {
 }
 
 /**
- * Verifica se uma resposta HTTP contém um arquivo Excel
+ * Verifica se uma resposta HTTP contém um arquivo Excel ou binário de relatório
  */
 function isExcelResponse(response) {
   try {
@@ -649,8 +649,9 @@ function isExcelResponse(response) {
     const contentType = String(headers['content-type'] || '').toLowerCase();
     const contentDisposition = String(headers['content-disposition'] || '').toLowerCase();
     const url = String(response.url?.() || '').toLowerCase();
+    const contentLength = parseInt(headers['content-length'] || '0', 10);
     
-    // Verificar Content-Type
+    // Verificar Content-Type Excel específico
     if (contentType.includes('spreadsheet') || 
         contentType.includes('excel') || 
         contentType.includes('vnd.ms-excel') ||
@@ -658,7 +659,7 @@ function isExcelResponse(response) {
       return true;
     }
     
-    // Verificar Content-Disposition
+    // Verificar Content-Disposition com extensão Excel
     if (contentDisposition.includes('.xlsx') || contentDisposition.includes('.xls')) {
       return true;
     }
@@ -668,10 +669,16 @@ function isExcelResponse(response) {
       return true;
     }
     
-    // Verificar octet-stream com attachment Excel
-    if (contentType.includes('octet-stream') && 
-        contentDisposition.includes('attachment') && 
-        (contentDisposition.includes('xls') || contentDisposition.includes('xlsx'))) {
+    // Verificar octet-stream com attachment (potencial download)
+    if (contentType.includes('octet-stream') && contentDisposition.includes('attachment')) {
+      // Se tem extensão xls ou tamanho significativo, provavelmente é o arquivo
+      if (contentDisposition.includes('xls') || contentLength > 1000) {
+        return true;
+      }
+    }
+    
+    // Verificar application/download ou force-download
+    if (contentType.includes('download') || contentType.includes('force-download')) {
       return true;
     }
     
@@ -683,40 +690,73 @@ function isExcelResponse(response) {
 
 /**
  * Watcher 1: Intercepta respostas HTTP que contêm Excel
+ * MÉTODO PRINCIPAL - Captura direta do stream HTTP
  * 
- * FLUXO TERMINAL - Ao detectar resposta Excel:
- * 1. Log: "Download capturado"
- * 2. fs.writeFileSync() - salva imediatamente
- * 3. Log: "Salvando arquivo"
- * 4. Validação síncrona: existsSync + size > 0
- * 5. Log: "Arquivo salvo com sucesso"
- * 6. Etapa DOWNLOAD finaliza
+ * FLUXO TERMINAL COM STREAMING:
+ * 1. Detecta resposta Excel via headers
+ * 2. Consome o body da resposta diretamente
+ * 3. Salva bytes em disco com progresso
+ * 4. Validação síncrona
+ * 5. Etapa DOWNLOAD finaliza
  */
 function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName) {
   const pagesAttached = new Set();
   
   const onResponse = async (response) => {
     if (controller.isCaptured()) return;
+    
     if (isExcelResponse(response)) {
-      // ===== PASSO 1: Marcar como capturado e log =====
+      const headers = response.headers() || {};
+      const contentLength = parseInt(headers['content-length'] || '0', 10);
+      const contentDisposition = String(headers['content-disposition'] || '');
+      
+      // Extrair nome do arquivo do header, se disponível
+      let fileName = semanticName;
+      const fileNameMatch = contentDisposition.match(/filename[*]?=["']?([^"';\n]+)/i);
+      if (fileNameMatch) {
+        log(`Arquivo detectado via HTTP: ${fileNameMatch[1]}`, LOG_LEVELS.DEBUG);
+      }
+      
+      // ===== PASSO 1: Marcar como capturado =====
       const wasCaptured = controller.setCaptured({ 
         type: 'httpResponse', 
         response, 
-        source: 'httpInterception' 
+        source: 'httpStream' 
       });
       
       if (!wasCaptured) return;
       
-      log(`Download capturado (via HTTP)`, LOG_LEVELS.SUCCESS);
+      log(`✅ Download capturado via interceptação HTTP`, LOG_LEVELS.SUCCESS);
+      if (contentLength > 0) {
+        log(`Tamanho esperado: ${(contentLength / 1024).toFixed(2)} KB`, LOG_LEVELS.DEBUG);
+      }
       
       try {
         const filePath = path.join(downloadDir, semanticName);
+        const startTime = Date.now();
         
-        // ===== PASSO 2 e 3: Salvar arquivo imediatamente =====
-        log(`Salvando arquivo via HTTP: ${semanticName}`, LOG_LEVELS.INFO);
+        // ===== PASSO 2: Consumir body com progresso =====
+        log(`⬇️ Recebendo stream de bytes...`, LOG_LEVELS.INFO);
         
-        const buf = await response.body();
-        fs.writeFileSync(filePath, buf);
+        // Monitor de progresso durante o download HTTP
+        let progressInterval = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          log(`⏳ Recebendo dados... ${elapsed}s`, LOG_LEVELS.DEBUG);
+        }, 15000); // Log a cada 15 segundos
+        
+        let buffer;
+        try {
+          buffer = await response.body();
+        } finally {
+          clearInterval(progressInterval);
+        }
+        
+        const downloadTime = Math.floor((Date.now() - startTime) / 1000);
+        log(`Stream recebido em ${downloadTime}s (${(buffer.length / 1024).toFixed(2)} KB)`, LOG_LEVELS.SUCCESS);
+        
+        // ===== PASSO 3: Salvar arquivo =====
+        log(`💾 Salvando arquivo: ${semanticName}`, LOG_LEVELS.INFO);
+        fs.writeFileSync(filePath, buffer);
         
         // ===== PASSO 4: Validação síncrona =====
         if (!fs.existsSync(filePath)) {
@@ -728,16 +768,19 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
           throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
         }
         
+        // Verificar se tamanho bate com content-length (se informado)
+        if (contentLength > 0 && stats.size !== contentLength) {
+          log(`⚠️ Tamanho difere: esperado ${contentLength}, recebido ${stats.size}`, LOG_LEVELS.WARN);
+        }
+        
         // ===== PASSO 5: Log de sucesso =====
         const sizeKB = (stats.size / 1024).toFixed(2);
-        log(`Arquivo salvo com sucesso: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
-        
-        // ===== PASSO 6: Etapa DOWNLOAD concluída =====
-        log(`✅ Etapa DOWNLOAD concluída`, LOG_LEVELS.SUCCESS);
+        log(`✅ Arquivo salvo com sucesso: ${semanticName} (${sizeKB} KB)`, LOG_LEVELS.SUCCESS);
+        log(`✅ Etapa DOWNLOAD concluída via HTTP Stream`, LOG_LEVELS.SUCCESS);
         
         controller.setFileResult({ filePath, size: stats.size });
       } catch (e) {
-        log(`Erro ao salvar via HTTP: ${e.message}`, LOG_LEVELS.ERROR);
+        log(`❌ Erro ao salvar via HTTP: ${e.message}`, LOG_LEVELS.ERROR);
         controller.setError(e);
       }
     }
@@ -1053,30 +1096,27 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
 
 /**
  * Inicia todos os watchers e aguarda o primeiro download válido
- * O saveAs é executado IMEDIATAMENTE dentro do watcher que captura o download
- * Retorna o resultado com o caminho do arquivo JÁ SALVO
+ * PRIORIDADE: HTTP Stream > Download Global > Download Página > Nova Aba
  * 
- * FLUXO TERMINAL - Ao capturar um download:
- * 1. download.path() aguarda a finalização do download
- * 2. Copiar arquivo temporário para o caminho final (rápido)
- * 3. Validação síncrona (existsSync + size > 0)
- * 4. Etapa DOWNLOAD finaliza - SEM awaits adicionais
+ * ESTRATÉGIA HÍBRIDA:
+ * 1. HTTP Stream (PREFERIDO): Captura bytes diretamente da resposta HTTP - mais rápido e confiável
+ * 2. Download Global: Eventos de download do contexto Playwright
+ * 3. Download Página: Eventos de download da página principal
+ * 4. Nova Aba: Detecta popups que disparam downloads
  * 
- * PROIBIDO após saveAs:
- * - page.waitFor* / page.waitForEvent
- * - context.waitForEvent
- * - Qualquer watcher ou listener adicional
+ * O primeiro watcher que capturar salva imediatamente e encerra os demais.
  */
 async function aguardarDownloadHibrido(context, page, downloadDir, semanticName, timeoutMs) {
-  log(`Iniciando captura híbrida de download (timeout: ${timeoutMs / 60000} min)...`, LOG_LEVELS.INFO);
+  log(`Iniciando captura híbrida de download...`, LOG_LEVELS.INFO);
   log(`Arquivo destino: ${path.join(downloadDir, semanticName)}`, LOG_LEVELS.DEBUG);
+  log(`Watchers ativos: HTTP Stream (principal), Download Global, Download Página, Nova Aba`, LOG_LEVELS.DEBUG);
   
   const controller = new DownloadController();
   
-  // Iniciar todos os watchers - passando downloadDir e semanticName para saveAs imediato
+  // Iniciar watchers - HTTP Stream é o principal (mais rápido e confiável)
+  criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName);  // PRINCIPAL
   criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName);
   criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, semanticName);
-  criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName);
   criarWatcherNovaAba(context, page, controller, downloadDir, semanticName);
   
   // Iniciar monitor de progresso
