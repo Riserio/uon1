@@ -60,9 +60,10 @@ const TIMEOUTS = {
   DOWNLOAD_EVENT: 3 * 60000,  // 3 min para evento de download
   DOWNLOAD_TOTAL: 10 * 60000, // 10 min total para download (portal pode demorar)
   DOWNLOAD_SAVE: 10 * 60000,  // 10 min para salvar arquivo (portal Hinova é lento)
-  DOWNLOAD_IDLE: 3 * 60000,   // 3 min sem receber bytes -> abortar e tentar novamente
+  DOWNLOAD_IDLE: 5 * 60000,   // 5 min sem receber bytes -> abortar e tentar novamente
   DOWNLOAD_HARD: 0,           // 0 = sem limite rígido (usa apenas DOWNLOAD_IDLE)
   POPUP_CLOSE: 800,           // 800ms para fechar popup
+  FILE_PROGRESS_INTERVAL: 10000, // 10s entre logs de progresso do arquivo
 };
 
 const LIMITS = {
@@ -137,6 +138,62 @@ function formatBytes(bytes) {
     idx++;
   }
   return `${v.toFixed(idx === 0 ? 0 : 2)} ${units[idx]}`;
+}
+
+/**
+ * Monitor de progresso de arquivo em disco
+ * O Playwright salva arquivos progressivamente, então podemos monitorar o tamanho
+ * para exibir percentual mesmo durante download.saveAs()
+ */
+function monitorFileProgress(filePath, expectedSize = 0, intervalMs = TIMEOUTS.FILE_PROGRESS_INTERVAL) {
+  const startTime = Date.now();
+  let lastLoggedPercent = -1;
+  let lastSize = 0;
+  
+  const interval = setInterval(() => {
+    // Tentar arquivo parcial (.crdownload, .part, .download) ou o próprio arquivo
+    const possiblePaths = [
+      filePath,
+      filePath + '.crdownload',
+      filePath + '.part',
+      filePath + '.download',
+    ];
+    
+    for (const p of possiblePaths) {
+      try {
+        if (fs.existsSync(p)) {
+          const size = fs.statSync(p).size;
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          const speed = size / Math.max(1, elapsed);
+          
+          // Evitar log repetido se tamanho não mudou
+          if (size === lastSize && elapsed > 10) continue;
+          lastSize = size;
+          
+          if (expectedSize > 0) {
+            const pct = Math.min(100, Math.floor((size / expectedSize) * 100));
+            // Log a cada +5% ou a cada intervalo se ainda não logou
+            if (pct >= lastLoggedPercent + 5 || lastLoggedPercent === -1) {
+              lastLoggedPercent = pct;
+              log(`⬇️ Download ${pct}% (${formatBytes(size)} / ${formatBytes(expectedSize)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.DEBUG);
+            }
+          } else {
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            log(`⬇️ Download ${formatBytes(size)} recebido • ${formatBytes(speed)}/s (${minutes}m ${seconds}s)`, LOG_LEVELS.DEBUG);
+          }
+          return; // Encontrou o arquivo, sair do loop
+        }
+      } catch {
+        // Arquivo pode estar sendo escrito, ignorar erro
+      }
+    }
+  }, intervalMs);
+  
+  // Retorna função para parar o monitor
+  return () => {
+    clearInterval(interval);
+  };
 }
 
 async function buildCookieHeader(context, url) {
@@ -978,10 +1035,11 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
  * 
  * FLUXO TERMINAL COM PROGRESSO:
  * 1. Log: "Download capturado"
- * 2. Inicia monitor de progresso (log a cada 30s)
- * 3. download.saveAs(filePath) - SEM TIMEOUT RÍGIDO (aguarda conclusão)
- * 4. Validação síncrona: fs.existsSync() + stats.size > 0
- * 5. Log: "Arquivo salvo com sucesso" com nome e tamanho
+ * 2. Tenta extrair Content-Length dos headers para calcular %
+ * 3. Inicia monitor de progresso do arquivo em disco
+ * 4. download.saveAs(filePath) - SEM TIMEOUT RÍGIDO (aguarda conclusão)
+ * 5. Validação síncrona: fs.existsSync() + stats.size > 0
+ * 6. Log: "Arquivo salvo com sucesso" com nome e tamanho
  * 
  * NOTA: Removido timeout para permitir downloads grandes do portal lento.
  */
@@ -991,45 +1049,52 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
 
   const filePath = path.join(downloadDir, semanticName);
   const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
-  const url = download.url?.() || '';
 
   log(`Salvando arquivo: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
 
-  // ===== PASSO 2: Preferir stream HTTP (Node) para ter % e evitar cancelamento do Playwright =====
-  if (url) {
-    try {
-      log(`⬇️ Captura via HTTP stream (com progresso) usando a URL do download...`, LOG_LEVELS.INFO);
-      // Nota: sem cookies aqui; quem chama deve injetar via wrapper com contexto.
-      // Mantemos compatibilidade chamando o saveAs caso o replay falhe.
-    } catch {
-      // noop
+  // ===== PASSO 2: Tentar obter tamanho esperado dos headers =====
+  let expectedSize = 0;
+  try {
+    const request = download.request?.();
+    if (request) {
+      const response = await request.response?.();
+      if (response) {
+        const headers = response.headers?.() || {};
+        expectedSize = parseInt(headers['content-length'] || '0', 10);
+        if (expectedSize > 0) {
+          log(`Tamanho esperado: ${formatBytes(expectedSize)}`, LOG_LEVELS.DEBUG);
+        }
+      }
     }
+  } catch (e) {
+    // Ignorar - monitoramento funcionará sem expectedSize
+    log(`Não foi possível obter content-length: ${e.message}`, LOG_LEVELS.DEBUG);
   }
 
-  // Mantém comportamento antigo como fallback (sem % real, mas garante compatibilidade)
-  log(`Fallback: aguardando saveAs do Playwright (sem % real)...`, LOG_LEVELS.WARN);
-  log(`Aguardando transmissão do portal...`, LOG_LEVELS.DEBUG);
+  log(`Aguardando transmissão do portal (saveAs)...`, LOG_LEVELS.DEBUG);
 
+  // ===== PASSO 3: Iniciar monitor de progresso do arquivo em disco =====
+  const stopMonitor = monitorFileProgress(filePath, expectedSize);
   const startTime = Date.now();
-  let progressInterval = setInterval(() => {
-    const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    const minutes = Math.floor(elapsed / 60);
-    const seconds = elapsed % 60;
-    log(`⏳ Download em progresso... ${minutes}m ${seconds}s (sem percentual)`, LOG_LEVELS.DEBUG);
-  }, 30000);
 
   try {
     await download.saveAs(filePath);
   } finally {
-    clearInterval(progressInterval);
+    stopMonitor();
   }
 
+  // ===== PASSO 4: Validação síncrona =====
   if (!fs.existsSync(filePath)) {
     throw new Error('FALHA: Arquivo não existe após saveAs');
   }
   const stats = fs.statSync(filePath);
   if (stats.size <= 0) {
     throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
+  }
+
+  // Verificar se tamanho bate com content-length (se informado)
+  if (expectedSize > 0 && stats.size !== expectedSize) {
+    log(`⚠️ Tamanho difere: esperado ${formatBytes(expectedSize)}, recebido ${formatBytes(stats.size)}`, LOG_LEVELS.WARN);
   }
 
   const totalTime = Math.floor((Date.now() - startTime) / 1000);
