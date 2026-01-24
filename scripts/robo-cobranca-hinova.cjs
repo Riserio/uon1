@@ -2889,20 +2889,9 @@ async function rodarRobo() {
         const semanticName = generateSemanticFilename('Cobranca_Hinova', inicio, fim);
         nomeArquivoFinal = semanticName;
         
-        // Verificar se estamos usando Tabela Dinâmica ou Excel
-        const radioTabelaDinamica = await page.evaluate(() => {
-          const radios = document.querySelectorAll('input[type="radio"]:checked');
-          for (const r of radios) {
-            const container = r.closest('tr, td, label, div');
-            const text = (container?.textContent || '').toLowerCase();
-            if (text.includes('tabela dinâmica') || text.includes('tabela dinamica')) {
-              return true;
-            }
-          }
-          return false;
-        });
-        
-        if (radioTabelaDinamica) {
+        // Usar a variável de estado definida na etapa FILTROS
+        // NÃO re-verificar o DOM pois o portal pode ter resetado a seleção visual
+        if (usarTabelaDinamica) {
           // ===== ESTRATÉGIA 1: CSV via Tabela Dinâmica (PREFERIDA) =====
           log('Usando estratégia CSV via Tabela Dinâmica...', LOG_LEVELS.INFO);
           
