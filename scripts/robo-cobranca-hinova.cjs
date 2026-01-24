@@ -80,6 +80,22 @@ const LOG_LEVELS = {
 
 let currentStep = 'INIT';
 
+// ============================================
+// UTIL: Promise com timeout (evita hangs)
+// ============================================
+async function withTimeout(promise, timeoutMs, timeoutMessage) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 function log(message, level = LOG_LEVELS.INFO) {
   const timestamp = new Date().toISOString();
   const prefix = `[${timestamp}] [${level}] [${currentStep}]`;
@@ -760,8 +776,8 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
  * 
  * FLUXO TERMINAL - Após capturar o objeto Download:
  * 1. Log: "Download capturado"
- * 2. download.path() - valida existência do arquivo temporário
- * 3. download.saveAs(caminhoFinal) - executa IMEDIATAMENTE
+ * 2. download.path() - aguarda finalização do download (pode demorar)
+ * 3. Copiar arquivo temporário para o caminho final (rápido)
  * 4. Log: "Salvando arquivo"
  * 5. Validação síncrona: fs.existsSync() + stats.size > 0
  * 6. Log: "Arquivo salvo com sucesso" com nome e tamanho
@@ -776,14 +792,43 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
   const filePath = path.join(downloadDir, semanticName);
   const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
 
-  // ===== PASSO 2: Executar saveAs IMEDIATAMENTE (sem aguardar página/popup/rede) =====
+  // ===== PASSO 2: Esperar finalização REAL do download (até DOWNLOAD_TOTAL) =====
+  // Observação: o evento "download" pode disparar antes do arquivo terminar de baixar.
+  // Se usarmos saveAs direto com timeout curto, ele pode estourar mesmo com download ainda em andamento.
+  let tempPath = null;
+  try {
+    log(
+      `Aguardando finalização do download (arquivo temporário) (timeout: ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)...`,
+      LOG_LEVELS.DEBUG
+    );
+    tempPath = await withTimeout(
+      download.path(),
+      TIMEOUTS.DOWNLOAD_TOTAL,
+      `Timeout aguardando arquivo temporário (${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)`
+    );
+  } catch (e) {
+    log(`Não foi possível obter arquivo temporário: ${e.message}`, LOG_LEVELS.WARN);
+  }
+
+  // ===== PASSO 3: Salvar no destino final =====
+  // Regra: salvar/cópia em disco deve respeitar DOWNLOAD_SAVE (3 min).
   log(`Salvando arquivo: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
-  
-  // EXECUÇÃO IMEDIATA - sem nenhum await de página, popup ou response
-  await Promise.race([
-    download.saveAs(filePath),
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout salvando arquivo (${TIMEOUTS.DOWNLOAD_SAVE / 60000} min)`)), TIMEOUTS.DOWNLOAD_SAVE)),
-  ]);
+
+  if (tempPath && fs.existsSync(tempPath)) {
+    log(`Arquivo temporário pronto: ${tempPath}`, LOG_LEVELS.DEBUG);
+    await withTimeout(
+      fs.promises.copyFile(tempPath, filePath),
+      TIMEOUTS.DOWNLOAD_SAVE,
+      `Timeout copiando arquivo (${TIMEOUTS.DOWNLOAD_SAVE / 60000} min)`
+    );
+  } else {
+    // Fallback: se por algum motivo o Playwright não fornecer path (ou não existir), tentar saveAs.
+    await withTimeout(
+      download.saveAs(filePath),
+      TIMEOUTS.DOWNLOAD_SAVE,
+      `Timeout salvando arquivo (${TIMEOUTS.DOWNLOAD_SAVE / 60000} min)`
+    );
+  }
   
   // ===== PASSO 3: Validação síncrona =====
   // Verificar existência do arquivo
@@ -830,7 +875,7 @@ function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticNa
     if (!wasCaptured) return; // Outro watcher já capturou
     
     try {
-      // EXECUÇÃO IMEDIATA: path() + saveAs() + validação síncrona
+      // Execução terminal: aguardar finalização do download + salvar/cópia + validação síncrona
       const result = await processarDownloadImediato(download, downloadDir, semanticName);
       controller.setFileResult(result);
     } catch (e) {
@@ -911,9 +956,9 @@ function criarWatcherDownloadPaginaPrincipal(page, controller, downloadDir, sema
  * 
  * COMPORTAMENTO TERMINAL:
  * - Se já capturou download, fecha novas abas silenciosamente
- * - Ao capturar download, executa saveAs IMEDIATAMENTE
+ * - Ao capturar download, aguarda finalização do download e salva/copia para o destino
  * - NÃO aguarda carregamento de página após captura
- * - NÃO executa lógica adicional após saveAs
+ * - NÃO executa lógica adicional após o arquivo estar salvo
  */
 function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanticName) {
   const processarNovaAba = async (newPage) => {
@@ -942,7 +987,7 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
         if (!wasCaptured) return;
         
         try {
-          // EXECUÇÃO IMEDIATA: path() + saveAs() + validação síncrona
+          // Execução terminal: aguardar finalização do download + salvar/cópia + validação síncrona
           // Nenhum await de página após isso
           const result = await processarDownloadImediato(download, downloadDir, semanticName);
           controller.setFileResult(result);
@@ -1029,8 +1074,8 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
  * Retorna o resultado com o caminho do arquivo JÁ SALVO
  * 
  * FLUXO TERMINAL - Ao capturar um download:
- * 1. download.path() valida existência do arquivo temporário
- * 2. download.saveAs(caminhoFinal) executa IMEDIATAMENTE
+ * 1. download.path() aguarda a finalização do download
+ * 2. Copiar arquivo temporário para o caminho final (rápido)
  * 3. Validação síncrona (existsSync + size > 0)
  * 4. Etapa DOWNLOAD finaliza - SEM awaits adicionais
  * 
@@ -1664,11 +1709,11 @@ async function rodarRobo() {
     log('Filtros configurados', LOG_LEVELS.SUCCESS);
     
     // ============================================
-    // ETAPA: DOWNLOAD (EXECUÇÃO IMEDIATA DO SAVEAS)
+    // ETAPA: DOWNLOAD (aguarda finalização do download e salva/copia)
     // ============================================
     // Ao capturar um objeto Download válido:
-    // 1. download.path() valida existência do arquivo temporário
-    // 2. download.saveAs(caminhoFinal) executa IMEDIATAMENTE
+    // 1. download.path() aguarda a finalização do download
+    // 2. Copiar arquivo temporário para o caminho final (rápido)
     // 3. Validação síncrona (existsSync + size > 0)
     // 4. Etapa DOWNLOAD finaliza imediatamente após salvar
     // ============================================
@@ -1694,10 +1739,11 @@ async function rodarRobo() {
         nomeArquivoFinal = semanticName;
         
         // Iniciar captura híbrida ANTES do clique
-        // NOTA: O saveAs é executado IMEDIATAMENTE dentro do watcher que captura
+        // NOTA: o watcher captura o objeto Download e então aguarda a finalização real
+        // do download antes de salvar/copiar para o destino.
         log('Iniciando estratégia híbrida de captura de download...');
         
-        // Criar a promessa de captura híbrida (com downloadDir e semanticName para saveAs imediato)
+        // Criar a promessa de captura híbrida (com downloadDir e semanticName)
         const capturaHibridaPromise = aguardarDownloadHibrido(
           context, 
           page, 
