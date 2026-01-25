@@ -1625,43 +1625,48 @@ function parseMoneyValue(value) {
 
 /**
  * Parser HTML para relatório Hinova (que disfarça HTML como .xls)
- * O portal gera HTML com tabelas ao invés de Excel binário
+ * Usa leitura em STREAMING para evitar o limite de ~512MB de strings do JavaScript.
+ * O portal gera HTML com tabelas ao invés de Excel binário.
  */
-function processarHtmlRelatorio(filePath) {
+async function processarHtmlRelatorioStream(filePath) {
   setStep('PROCESSAMENTO_HTML');
-  log(`Processando arquivo HTML: ${filePath}`, LOG_LEVELS.INFO);
+  log(`Processando arquivo HTML via streaming: ${filePath}`, LOG_LEVELS.INFO);
   
   const startTime = Date.now();
-  const content = fs.readFileSync(filePath, 'utf-8');
+  const fileSize = fs.statSync(filePath).size;
+  log(`📂 Tamanho do arquivo: ${(fileSize / 1024 / 1024).toFixed(2)} MB`, LOG_LEVELS.DEBUG);
+  
+  const readline = require('readline');
   
   const dados = [];
   let headersEncontrados = [];
+  let headerMapping = [];
+  let headerRowIndex = -1;
+  let currentRowIndex = 0;
   let lastProgressLog = 0;
+  let bytesProcessed = 0;
   
-  // Primeiro, encontrar o cabeçalho da tabela
-  // O Hinova usa <tr> com <td> tanto para cabeçalho quanto para dados
-  // Detectamos o cabeçalho pelo conteúdo (ex: "Data Pagamento", "Nome", etc)
-  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-  const rows = [];
-  let match;
+  // Buffer para acumular linhas até termos um <tr>...</tr> completo
+  let buffer = '';
+  let insideRow = false;
   
-  while ((match = rowRegex.exec(content)) !== null) {
-    const rowHtml = match[1];
-    
-    // Extrair células - suporta tanto <td><div>texto</div></td> quanto <td>texto</td>
+  // Criar stream de leitura
+  const rl = readline.createInterface({
+    input: fs.createReadStream(filePath, { encoding: 'utf-8', highWaterMark: 64 * 1024 }), // 64KB chunks
+    crlfDelay: Infinity,
+  });
+  
+  // Função para processar uma linha <tr>...</tr> completa
+  const processRow = (rowHtml) => {
     const cells = [];
     const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
     let cellMatch;
     
     while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
       let text = cellMatch[1]
-        // Extrair texto de divs
         .replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, '$1')
-        // Extrair texto de links
         .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, '$1')
-        // Remover outras tags HTML
         .replace(/<[^>]*>/g, '')
-        // Limpar entidades HTML
         .replace(/&nbsp;/g, ' ')
         .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
@@ -1671,82 +1676,44 @@ function processarHtmlRelatorio(filePath) {
       cells.push(text);
     }
     
-    if (cells.length > 0) {
-      rows.push(cells);
-    }
-  }
-  
-  log(`Total de linhas HTML encontradas: ${rows.length}`, LOG_LEVELS.DEBUG);
-  
-  if (rows.length === 0) {
-    log('Nenhuma linha encontrada no HTML', LOG_LEVELS.WARN);
-    return [];
-  }
-  
-  // Detectar linha de cabeçalho - procura linha que contém campos conhecidos
-  let headerRowIndex = -1;
-  for (let i = 0; i < Math.min(rows.length, 10); i++) {
-    const rowText = rows[i].join(' ').toUpperCase();
-    // Verificar se contém campos conhecidos do relatório Hinova
-    if (rowText.includes('NOME') && (rowText.includes('PLACA') || rowText.includes('VALOR') || rowText.includes('VENCIMENTO'))) {
-      headerRowIndex = i;
-      headersEncontrados = rows[i].map(h => normalizeHeader(h));
-      log(`Cabeçalho detectado na linha ${i}: ${rows[i].length} colunas`, LOG_LEVELS.DEBUG);
-      break;
-    }
-  }
-  
-  if (headerRowIndex === -1) {
-    log('Cabeçalho não encontrado - usando índices de coluna padrão', LOG_LEVELS.WARN);
-    // Usar mapeamento por posição (baseado no layout conhecido do Hinova)
-    headersEncontrados = [
-      'DATA PAGAMENTO',
-      'DATA VENCIMENTO ORIGINAL',
-      'DIA VENCIMENTO VEICULO',
-      'REGIONAL BOLETO',
-      'COOPERATIVA',
-      'VOLUNTARIO',
-      'NOME',
-      'PLACAS',
-      'VALOR',
-      'DATA VENCIMENTO',
-      'QTDE DIAS EM ATRASO VENCIMENTO ORIGINAL',
-      'SITUACAO',
-    ];
-    headerRowIndex = -1; // Processar todas as linhas
-  }
-  
-  // Mapear cabeçalhos para nomes padronizados
-  const headerMapping = [];
-  for (let i = 0; i < headersEncontrados.length; i++) {
-    const normalized = headersEncontrados[i];
-    let mappedName = null;
+    if (cells.length === 0) return;
     
-    if (COLUMN_MAP[normalized]) {
-      mappedName = COLUMN_MAP[normalized];
-    } else {
-      // Buscar correspondência parcial
-      for (const [key, value] of Object.entries(COLUMN_MAP)) {
-        if (normalized.includes(key) || key.includes(normalized)) {
-          mappedName = value;
-          break;
+    currentRowIndex++;
+    
+    // Detectar cabeçalho nas primeiras 10 linhas
+    if (headerRowIndex === -1 && currentRowIndex <= 10) {
+      const rowText = cells.join(' ').toUpperCase();
+      if (rowText.includes('NOME') && (rowText.includes('PLACA') || rowText.includes('VALOR') || rowText.includes('VENCIMENTO'))) {
+        headerRowIndex = currentRowIndex;
+        headersEncontrados = cells.map(h => normalizeHeader(h));
+        log(`Cabeçalho detectado na linha ${currentRowIndex}: ${cells.length} colunas`, LOG_LEVELS.DEBUG);
+        
+        // Mapear cabeçalhos para nomes padronizados
+        for (let i = 0; i < headersEncontrados.length; i++) {
+          const normalized = headersEncontrados[i];
+          let mappedName = null;
+          
+          if (COLUMN_MAP[normalized]) {
+            mappedName = COLUMN_MAP[normalized];
+          } else {
+            for (const [key, value] of Object.entries(COLUMN_MAP)) {
+              if (normalized.includes(key) || key.includes(normalized)) {
+                mappedName = value;
+                break;
+              }
+            }
+          }
+          headerMapping.push(mappedName);
         }
+        log(`Mapeamento: ${headerMapping.filter(Boolean).length} colunas reconhecidas`, LOG_LEVELS.DEBUG);
+        return;
       }
     }
     
-    headerMapping.push(mappedName);
-  }
-  
-  log(`Mapeamento de colunas: ${headerMapping.filter(Boolean).length} colunas reconhecidas`, LOG_LEVELS.DEBUG);
-  
-  // Processar linhas de dados (pular cabeçalho)
-  const dataStartIndex = headerRowIndex + 1;
-  const totalDataRows = rows.length - dataStartIndex;
-  
-  log(`🔄 Processando ${totalDataRows} registros HTML...`, LOG_LEVELS.INFO);
-  
-  for (let i = dataStartIndex; i < rows.length; i++) {
-    const cells = rows[i];
+    // Pular linhas antes do cabeçalho
+    if (headerRowIndex === -1 || currentRowIndex <= headerRowIndex) return;
+    
+    // Processar linha de dados
     const rowData = {};
     let temDados = false;
     
@@ -1756,7 +1723,6 @@ function processarHtmlRelatorio(filePath) {
       
       let value = cells[j];
       
-      // Converter valores baseado no tipo de campo
       if (mappedHeader.includes('Data')) {
         value = parseExcelDate(value);
       } else if (mappedHeader === 'Valor') {
@@ -1773,16 +1739,222 @@ function processarHtmlRelatorio(filePath) {
       }
     }
     
-    // Validar que a linha tem dados mínimos (Nome ou Placas)
+    if (temDados && (rowData['Nome'] || rowData['Placas'])) {
+      dados.push(rowData);
+    }
+  };
+  
+  // Processar linha por linha
+  for await (const line of rl) {
+    bytesProcessed += Buffer.byteLength(line, 'utf-8') + 1;
+    
+    // Log de progresso a cada 10%
+    const progress = Math.floor((bytesProcessed / fileSize) * 100);
+    if (progress >= lastProgressLog + 10) {
+      lastProgressLog = progress;
+      log(`⏳ Leitura HTML: ${progress}% (${dados.length} registros válidos)`, LOG_LEVELS.DEBUG);
+    }
+    
+    // Acumular no buffer
+    buffer += line + '\n';
+    
+    // Verificar se entramos em uma linha <tr>
+    if (!insideRow && buffer.includes('<tr')) {
+      insideRow = true;
+    }
+    
+    // Verificar se fechamos a linha </tr>
+    if (insideRow && buffer.includes('</tr>')) {
+      // Extrair todos os <tr>...</tr> completos do buffer
+      const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+      let match;
+      let lastIndex = 0;
+      
+      while ((match = trRegex.exec(buffer)) !== null) {
+        processRow(match[1]);
+        lastIndex = match.index + match[0].length;
+      }
+      
+      // Manter apenas o conteúdo após o último </tr> processado
+      buffer = buffer.substring(lastIndex);
+      insideRow = buffer.includes('<tr');
+    }
+    
+    // Limitar tamanho do buffer para evitar acúmulo de memória (100KB)
+    if (buffer.length > 100 * 1024 && !insideRow) {
+      buffer = '';
+    }
+  }
+  
+  // Processar qualquer conteúdo restante no buffer
+  if (buffer.includes('<tr') && buffer.includes('</tr>')) {
+    const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let match;
+    while ((match = trRegex.exec(buffer)) !== null) {
+      processRow(match[1]);
+    }
+  }
+  
+  const totalTime = Math.floor((Date.now() - startTime) / 1000);
+  log(`✅ Processamento HTML concluído em ${totalTime}s`, LOG_LEVELS.SUCCESS);
+  log(`Registros válidos: ${dados.length} (${currentRowIndex} linhas lidas)`, LOG_LEVELS.SUCCESS);
+  
+  return dados;
+}
+
+/**
+ * Wrapper síncrono para compatibilidade - detecta se deve usar streaming
+ */
+function processarHtmlRelatorio(filePath) {
+  // Verificar tamanho do arquivo
+  const fileSize = fs.statSync(filePath).size;
+  const MAX_SYNC_SIZE = 400 * 1024 * 1024; // 400MB limite para leitura síncrona
+  
+  if (fileSize > MAX_SYNC_SIZE) {
+    log(`Arquivo muito grande (${(fileSize / 1024 / 1024).toFixed(2)} MB) - usando streaming`, LOG_LEVELS.WARN);
+    // Retorna Promise - o chamador deve usar await
+    return processarHtmlRelatorioStream(filePath);
+  }
+  
+  // Para arquivos menores, usar método síncrono original (mais rápido)
+  setStep('PROCESSAMENTO_HTML');
+  log(`Processando arquivo HTML: ${filePath}`, LOG_LEVELS.INFO);
+  
+  const startTime = Date.now();
+  
+  let content;
+  try {
+    content = fs.readFileSync(filePath, 'utf-8');
+  } catch (e) {
+    log(`Erro ao ler HTML: ${e.message}`, LOG_LEVELS.ERROR);
+    // Fallback para streaming
+    return processarHtmlRelatorioStream(filePath);
+  }
+  
+  const dados = [];
+  let headersEncontrados = [];
+  let lastProgressLog = 0;
+  
+  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  const rows = [];
+  let match;
+  
+  while ((match = rowRegex.exec(content)) !== null) {
+    const rowHtml = match[1];
+    const cells = [];
+    const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+    let cellMatch;
+    
+    while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
+      let text = cellMatch[1]
+        .replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, '$1')
+        .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, '$1')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&#\d+;/g, '')
+        .trim();
+      cells.push(text);
+    }
+    
+    if (cells.length > 0) {
+      rows.push(cells);
+    }
+  }
+  
+  // Liberar memória do conteúdo original
+  content = null;
+  
+  log(`Total de linhas HTML encontradas: ${rows.length}`, LOG_LEVELS.DEBUG);
+  
+  if (rows.length === 0) {
+    log('Nenhuma linha encontrada no HTML', LOG_LEVELS.WARN);
+    return [];
+  }
+  
+  let headerRowIndex = -1;
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const rowText = rows[i].join(' ').toUpperCase();
+    if (rowText.includes('NOME') && (rowText.includes('PLACA') || rowText.includes('VALOR') || rowText.includes('VENCIMENTO'))) {
+      headerRowIndex = i;
+      headersEncontrados = rows[i].map(h => normalizeHeader(h));
+      log(`Cabeçalho detectado na linha ${i}: ${rows[i].length} colunas`, LOG_LEVELS.DEBUG);
+      break;
+    }
+  }
+  
+  if (headerRowIndex === -1) {
+    log('Cabeçalho não encontrado - usando índices padrão', LOG_LEVELS.WARN);
+    headersEncontrados = [
+      'DATA PAGAMENTO', 'DATA VENCIMENTO ORIGINAL', 'DIA VENCIMENTO VEICULO',
+      'REGIONAL BOLETO', 'COOPERATIVA', 'VOLUNTARIO', 'NOME', 'PLACAS',
+      'VALOR', 'DATA VENCIMENTO', 'QTDE DIAS EM ATRASO VENCIMENTO ORIGINAL', 'SITUACAO',
+    ];
+    headerRowIndex = -1;
+  }
+  
+  const headerMapping = [];
+  for (let i = 0; i < headersEncontrados.length; i++) {
+    const normalized = headersEncontrados[i];
+    let mappedName = null;
+    
+    if (COLUMN_MAP[normalized]) {
+      mappedName = COLUMN_MAP[normalized];
+    } else {
+      for (const [key, value] of Object.entries(COLUMN_MAP)) {
+        if (normalized.includes(key) || key.includes(normalized)) {
+          mappedName = value;
+          break;
+        }
+      }
+    }
+    headerMapping.push(mappedName);
+  }
+  
+  log(`Mapeamento: ${headerMapping.filter(Boolean).length} colunas reconhecidas`, LOG_LEVELS.DEBUG);
+  
+  const dataStartIndex = headerRowIndex + 1;
+  const totalDataRows = rows.length - dataStartIndex;
+  
+  log(`🔄 Processando ${totalDataRows} registros HTML...`, LOG_LEVELS.INFO);
+  
+  for (let i = dataStartIndex; i < rows.length; i++) {
+    const cells = rows[i];
+    const rowData = {};
+    let temDados = false;
+    
+    for (let j = 0; j < cells.length && j < headerMapping.length; j++) {
+      const mappedHeader = headerMapping[j];
+      if (!mappedHeader) continue;
+      
+      let value = cells[j];
+      
+      if (mappedHeader.includes('Data')) {
+        value = parseExcelDate(value);
+      } else if (mappedHeader === 'Valor') {
+        value = parseMoneyValue(value);
+      } else if (mappedHeader === 'Dia Vencimento Veiculo' || mappedHeader.includes('Dias')) {
+        value = parseInt(String(value).replace(/\D/g, '')) || null;
+      } else {
+        value = value ? String(value).trim() : null;
+      }
+      
+      if (value !== null && value !== '') {
+        rowData[mappedHeader] = value;
+        temDados = true;
+      }
+    }
+    
     if (temDados && (rowData['Nome'] || rowData['Placas'])) {
       dados.push(rowData);
     }
     
-    // Log de progresso a cada 25%
     const progress = Math.floor(((i - dataStartIndex) / totalDataRows) * 100);
     if (progress >= lastProgressLog + 25) {
       lastProgressLog = progress;
-      log(`⏳ Processamento HTML: ${progress}% (${i - dataStartIndex}/${totalDataRows} linhas)`, LOG_LEVELS.DEBUG);
+      log(`⏳ Processamento: ${progress}%`, LOG_LEVELS.DEBUG);
     }
   }
   
@@ -1795,12 +1967,15 @@ function processarHtmlRelatorio(filePath) {
 
 /**
  * Processa arquivo Excel ou HTML (detecta automaticamente)
+ * ASYNC: Pode retornar Promise para arquivos HTML muito grandes (streaming)
  */
-function processarArquivo(filePath) {
+async function processarArquivo(filePath) {
   // Detectar formato
   if (isHtmlFile(filePath)) {
     log(`Formato detectado: HTML disfarçado de Excel`, LOG_LEVELS.INFO);
-    return processarHtmlRelatorio(filePath);
+    // processarHtmlRelatorio pode retornar Promise se usar streaming
+    const result = processarHtmlRelatorio(filePath);
+    return result instanceof Promise ? await result : result;
   }
   
   log(`Formato detectado: Excel binário`, LOG_LEVELS.INFO);
@@ -2549,8 +2724,8 @@ async function rodarRobo() {
           log(`Validação Excel OK: ${validation.sheets} planilha(s), ${validation.rows} registros`, LOG_LEVELS.SUCCESS);
         }
         
-        // Processar arquivo (detecta formato automaticamente)
-        dados = processarArquivo(result.filePath);
+        // Processar arquivo (detecta formato automaticamente - async para streaming)
+        dados = await processarArquivo(result.filePath);
         downloadSucesso = true;
         
         // Fechar abas extras (APÓS o download ser salvo com sucesso)
