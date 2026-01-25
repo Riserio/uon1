@@ -1354,7 +1354,26 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
   }, HEARTBEAT_INTERVAL);
 
   try {
-    await download.saveAs(filePath);
+    // Promise de timeout explícito para evitar cancelamento inesperado
+    const timeoutPromise = new Promise((_, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error(`Timeout de ${Math.floor(TIMEOUTS.DOWNLOAD_HARD / 60000)} minutos atingido aguardando download do portal`));
+      }, TIMEOUTS.DOWNLOAD_HARD);
+      
+      // Permitir que o timeout seja cancelado quando o download completar
+      timeoutPromise.cancelTimeout = () => clearTimeout(timeoutId);
+    });
+    
+    const savePromise = download.saveAs(filePath);
+    
+    // Usar Promise.race para permitir timeout controlado
+    await Promise.race([
+      savePromise.then(result => {
+        if (timeoutPromise.cancelTimeout) timeoutPromise.cancelTimeout();
+        return result;
+      }),
+      timeoutPromise
+    ]);
   } finally {
     clearInterval(heartbeatInterval);
     stopMonitor();
@@ -2569,8 +2588,24 @@ async function rodarRobo() {
       headless: true,
       args: ['--disable-popup-blocking'],
     });
-    context = await browser.newContext({ acceptDownloads: true });
+    
+    // Configurar contexto com timeout estendido para suportar downloads longos
+    // O portal Hinova pode demorar 30+ minutos para gerar relatórios grandes
+    context = await browser.newContext({ 
+      acceptDownloads: true,
+      // Timeout de navegação padrão estendido
+      navigationTimeout: TIMEOUTS.PAGE_LOAD,
+    });
+    
+    // Configurar timeout padrão para todas as operações do contexto
+    context.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD); // 55 minutos
+    context.setDefaultNavigationTimeout(TIMEOUTS.PAGE_LOAD);
+    
     page = await context.newPage();
+    
+    // Configurar timeout da página também
+    page.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
+    page.setDefaultNavigationTimeout(TIMEOUTS.PAGE_LOAD);
 
     // Debug: logar eventos de download (apenas para log, não para captura)
     context.on('download', (d) => {
