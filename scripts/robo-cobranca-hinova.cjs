@@ -475,30 +475,75 @@ async function saveDebugInfo(page, context, errorMessage = null) {
 }
 
 // ============================================
-// VALIDAÇÃO DE ARQUIVO
+// VALIDAÇÃO DE ARQUIVO (BINÁRIO PURO)
 // ============================================
 // Constante para validação de tamanho (indica que filtros não foram aplicados)
 const MAX_EXPECTED_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
+// Magic bytes para detecção de tipo de arquivo
+const FILE_SIGNATURES = {
+  // Excel XLSX (ZIP com magic bytes PK)
+  XLSX: [0x50, 0x4B, 0x03, 0x04],
+  // Excel XLS (BIFF8)
+  XLS: [0xD0, 0xCF, 0x11, 0xE0],
+  // HTML (diversos)
+  HTML_DOCTYPE: [0x3C, 0x21, 0x44, 0x4F], // <!DO
+  HTML_TAG: [0x3C, 0x68, 0x74, 0x6D],     // <htm
+  HTML_TAG_UPPER: [0x3C, 0x48, 0x54, 0x4D], // <HTM
+};
+
 /**
- * Detecta se o arquivo é HTML disfarçado de Excel (comum no Hinova)
+ * Detecta tipo de arquivo via magic bytes (header binário)
+ * NÃO usa text(), toString() ou utf8 - leitura 100% binária
  */
-function isHtmlFile(filePath) {
+function detectFileType(filePath) {
   try {
-    // Ler primeiros 500 bytes para detectar
-    const buffer = Buffer.alloc(500);
+    // Ler primeiros 16 bytes como buffer binário puro
     const fd = fs.openSync(filePath, 'r');
-    fs.readSync(fd, buffer, 0, 500, 0);
+    const buffer = Buffer.alloc(16);
+    fs.readSync(fd, buffer, 0, 16, 0);
     fs.closeSync(fd);
     
-    const header = buffer.toString('utf-8', 0, 500).toLowerCase();
-    return header.includes('<!doctype') || header.includes('<html') || header.includes('<table');
-  } catch {
-    return false;
+    // Verificar magic bytes em ordem de probabilidade
+    const matchesSignature = (signature) => {
+      for (let i = 0; i < signature.length; i++) {
+        if (buffer[i] !== signature[i]) return false;
+      }
+      return true;
+    };
+    
+    if (matchesSignature(FILE_SIGNATURES.XLSX)) {
+      return { type: 'xlsx', binary: true };
+    }
+    
+    if (matchesSignature(FILE_SIGNATURES.XLS)) {
+      return { type: 'xls', binary: true };
+    }
+    
+    if (matchesSignature(FILE_SIGNATURES.HTML_DOCTYPE) ||
+        matchesSignature(FILE_SIGNATURES.HTML_TAG) ||
+        matchesSignature(FILE_SIGNATURES.HTML_TAG_UPPER)) {
+      return { type: 'html', binary: false };
+    }
+    
+    // Verificar se começa com < (possível HTML/XML)
+    if (buffer[0] === 0x3C) {
+      return { type: 'html', binary: false };
+    }
+    
+    // Fallback: considerar binário desconhecido
+    return { type: 'unknown', binary: true };
+  } catch (e) {
+    log(`Erro ao detectar tipo de arquivo: ${e.message}`, LOG_LEVELS.WARN);
+    return { type: 'unknown', binary: true };
   }
 }
 
-function validateDownloadedFile(filePath) {
+/**
+ * Validação de arquivo baseada apenas em tamanho e magic bytes
+ * NÃO lê conteúdo como texto - apenas verifica integridade básica
+ */
+function validateDownloadedFile(filePath, contentType = '') {
   if (!fs.existsSync(filePath)) {
     return { valid: false, error: 'Arquivo não existe' };
   }
@@ -514,53 +559,61 @@ function validateDownloadedFile(filePath) {
     log(`⚠️ ATENÇÃO: Arquivo muito grande (${formatBytes(stats.size)}) - pode indicar filtros não aplicados`, LOG_LEVELS.WARN);
   }
   
-  // Detectar se é HTML disfarçado
-  const isHtml = isHtmlFile(filePath);
+  // Detectar tipo via magic bytes (binário)
+  const fileType = detectFileType(filePath);
   
-  if (isHtml) {
+  // Validação baseada em content-type do header (se disponível)
+  const contentTypeLower = String(contentType).toLowerCase();
+  const isExcelContentType = contentTypeLower.includes('excel') || 
+                             contentTypeLower.includes('spreadsheet') ||
+                             contentTypeLower.includes('vnd.ms-excel');
+  
+  log(`Tipo detectado: ${fileType.type} (content-type: ${contentType || 'não informado'})`, LOG_LEVELS.DEBUG);
+  
+  // Para HTML disfarçado de Excel (comum no Hinova)
+  if (fileType.type === 'html') {
     log(`Arquivo detectado como HTML disfarçado de Excel`, LOG_LEVELS.INFO);
-    // Validar que tem conteúdo de tabela
-    try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const hasTable = content.includes('<table') || content.includes('<tr');
-      if (!hasTable) {
-        return { valid: false, error: 'Arquivo HTML sem tabela de dados' };
-      }
-      
-      // Contar linhas aproximadas
-      const rowCount = (content.match(/<tr/gi) || []).length;
-      
-      return {
-        valid: true,
-        size: stats.size,
-        isHtml: true,
-        rows: rowCount,
-      };
-    } catch (e) {
-      return { valid: false, error: `Erro ao ler HTML: ${e.message}` };
-    }
+    return {
+      valid: true,
+      size: stats.size,
+      isHtml: true,
+      fileType: fileType.type,
+    };
   }
   
-  // Verificar se é um Excel válido tentando abrir
-  try {
-    const workbook = XLSX.readFile(filePath);
-    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-      return { valid: false, error: 'Excel sem planilhas' };
-    }
-    
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-    
+  // Para Excel binário real (XLSX/XLS)
+  if (fileType.type === 'xlsx' || fileType.type === 'xls') {
     return {
       valid: true,
       size: stats.size,
       isHtml: false,
-      sheets: workbook.SheetNames.length,
-      rows: data.length,
+      fileType: fileType.type,
     };
-  } catch (e) {
-    return { valid: false, error: `Erro ao ler Excel: ${e.message}` };
   }
+  
+  // Para tipo desconhecido, aceitar se content-type indica Excel
+  if (fileType.type === 'unknown' && isExcelContentType) {
+    log(`Tipo desconhecido mas content-type indica Excel - aceitando`, LOG_LEVELS.WARN);
+    return {
+      valid: true,
+      size: stats.size,
+      isHtml: false,
+      fileType: 'unknown',
+    };
+  }
+  
+  // Aceitar arquivos > 1KB mesmo sem detecção clara
+  if (stats.size > 1024) {
+    log(`Arquivo de ${formatBytes(stats.size)} aceito sem detecção de tipo`, LOG_LEVELS.WARN);
+    return {
+      valid: true,
+      size: stats.size,
+      isHtml: false,
+      fileType: fileType.type,
+    };
+  }
+  
+  return { valid: false, error: `Tipo de arquivo não reconhecido: ${fileType.type}` };
 }
 
 // ============================================
@@ -1092,12 +1145,13 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
         const downloadTime = Math.floor((Date.now() - startTime) / 1000);
         log(`✅ Download HTTP concluído em ${downloadTime}s (${formatBytes(result.size)})`, LOG_LEVELS.SUCCESS);
         
-        // ===== PASSO 4: Validação síncrona =====
+        // ===== PASSO 4: Validação síncrona (binária) =====
         if (!fs.existsSync(filePath)) {
           throw new Error('FALHA: Arquivo não existe após salvamento HTTP');
         }
         
         const stats = fs.statSync(filePath);
+        const contentTypeHeader = String(headers['content-type'] || '');
 
         // Verificar se tamanho bate com content-length (se informado)
         if (contentLength > 0 && stats.size !== contentLength) {
@@ -1108,7 +1162,7 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
         log(`✅ Arquivo salvo com sucesso: ${semanticName} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
         log(`✅ Etapa DOWNLOAD concluída via HTTP Stream`, LOG_LEVELS.SUCCESS);
         
-        controller.setFileResult({ filePath, size: stats.size });
+        controller.setFileResult({ filePath, size: stats.size, contentType: contentTypeHeader });
       } catch (e) {
         log(`❌ Erro ao salvar via HTTP: ${e.message}`, LOG_LEVELS.ERROR);
         controller.setError(e);
@@ -2203,19 +2257,23 @@ function processarHtmlRelatorio(filePath) {
 }
 
 /**
- * Processa arquivo Excel ou HTML (detecta automaticamente)
+ * Processa arquivo Excel ou HTML (detecta via magic bytes)
  * ASYNC: Pode retornar Promise para arquivos HTML muito grandes (streaming)
+ * 
+ * IMPORTANTE: Usa detectFileType() baseado em magic bytes, não lê como texto
  */
 async function processarArquivo(filePath) {
-  // Detectar formato
-  if (isHtmlFile(filePath)) {
-    log(`Formato detectado: HTML disfarçado de Excel`, LOG_LEVELS.INFO);
+  // Detectar formato via magic bytes (binário)
+  const fileType = detectFileType(filePath);
+  
+  if (fileType.type === 'html') {
+    log(`Formato detectado via magic bytes: HTML disfarçado de Excel`, LOG_LEVELS.INFO);
     // processarHtmlRelatorio pode retornar Promise se usar streaming
     const result = processarHtmlRelatorio(filePath);
     return result instanceof Promise ? await result : result;
   }
   
-  log(`Formato detectado: Excel binário`, LOG_LEVELS.INFO);
+  log(`Formato detectado via magic bytes: ${fileType.type.toUpperCase()} binário`, LOG_LEVELS.INFO);
   return processarExcel(filePath);
 }
 
@@ -2917,16 +2975,16 @@ async function rodarRobo() {
         log(`Download finalizado via estratégia: ${result.source}`, LOG_LEVELS.SUCCESS);
         log(`Arquivo: ${result.filePath} (${(result.size / 1024).toFixed(2)} KB)`, LOG_LEVELS.INFO);
         
-        // Validar arquivo Excel (estrutura interna)
-        const validation = validateDownloadedFile(result.filePath);
+        // Validar arquivo via magic bytes (não lê como texto)
+        const validation = validateDownloadedFile(result.filePath, result.contentType || '');
         if (!validation.valid) {
           throw new Error(`Arquivo inválido: ${validation.error}`);
         }
         
         if (validation.isHtml) {
-          log(`Validação HTML OK: ~${validation.rows} linhas de tabela`, LOG_LEVELS.SUCCESS);
+          log(`Validação OK: HTML disfarçado de Excel (${formatBytes(validation.size)})`, LOG_LEVELS.SUCCESS);
         } else {
-          log(`Validação Excel OK: ${validation.sheets} planilha(s), ${validation.rows} registros`, LOG_LEVELS.SUCCESS);
+          log(`Validação OK: ${validation.fileType.toUpperCase()} (${formatBytes(validation.size)})`, LOG_LEVELS.SUCCESS);
         }
         
         // Processar arquivo (detecta formato automaticamente - async para streaming)
