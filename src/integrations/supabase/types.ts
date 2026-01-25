@@ -588,6 +588,12 @@ export type Database = {
           ativo: boolean
           corretora_id: string
           created_at: string
+          filtro_boletos_anteriores: string | null
+          filtro_data_fim: string | null
+          filtro_data_inicio: string | null
+          filtro_periodo_tipo: string | null
+          filtro_referencia: string | null
+          filtro_situacoes: Json | null
           hinova_codigo_cliente: string | null
           hinova_pass: string
           hinova_url: string
@@ -603,6 +609,12 @@ export type Database = {
           ativo?: boolean
           corretora_id: string
           created_at?: string
+          filtro_boletos_anteriores?: string | null
+          filtro_data_fim?: string | null
+          filtro_data_inicio?: string | null
+          filtro_periodo_tipo?: string | null
+          filtro_referencia?: string | null
+          filtro_situacoes?: Json | null
           hinova_codigo_cliente?: string | null
           hinova_pass?: string
           hinova_url?: string
@@ -618,6 +630,12 @@ export type Database = {
           ativo?: boolean
           corretora_id?: string
           created_at?: string
+          filtro_boletos_anteriores?: string | null
+          filtro_data_fim?: string | null
+          filtro_data_inicio?: string | null
+          filtro_periodo_tipo?: string | null
+          filtro_referencia?: string | null
+          filtro_situacoes?: Json | null
           hinova_codigo_cliente?: string | null
           hinova_pass?: string
           hinova_url?: string
