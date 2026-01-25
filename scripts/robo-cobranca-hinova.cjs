@@ -22,10 +22,9 @@ const axios = require('axios');
 const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
-const { pipeline } = require('stream');
-const { promisify } = require('util');
-
-const pipelineAsync = promisify(pipeline);
+const { pipeline } = require('stream/promises');
+const { Transform } = require('stream');
+const readline = require('readline');
 
 // ============================================
 // CONFIGURAÇÃO - EDITE AQUI OU USE ENV VARS
@@ -229,6 +228,15 @@ function pickHeadersForHttpReplay(headers = {}) {
   return out;
 }
 
+/**
+ * Download via HTTP stream puro com pipeline (backpressure) e progress logging.
+ * - Não carrega o arquivo em memória
+ * - Usa pipeline (stream/promises) para controlar backpressure
+ * - highWaterMark de 8MB no WriteStream
+ * - timeout: 0 no axios (controlado por idle/hard timers)
+ * - Loga progresso em MB ou % via content-length
+ * - Salva em arquivo temporário e renomeia ao final
+ */
 async function downloadViaAxiosStream({
   url,
   method = 'GET',
@@ -244,7 +252,9 @@ async function downloadViaAxiosStream({
 
   const startedAt = Date.now();
   const abortController = new AbortController();
+  const tempFilePath = filePath + '.tmp';
 
+  // ===== TIMERS DE CONTROLE =====
   let hardTimer = null;
   if (hardTimeoutMs && hardTimeoutMs > 0) {
     hardTimer = setTimeout(() => {
@@ -255,12 +265,15 @@ async function downloadViaAxiosStream({
   let idleTimer = null;
   const resetIdleTimer = () => {
     if (idleTimer) clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => {
-      abortController.abort(new Error(`Download travado (sem bytes por ${Math.round(idleTimeoutMs / 60000)} min)`));
-    }, idleTimeoutMs);
+    if (idleTimeoutMs && idleTimeoutMs > 0) {
+      idleTimer = setTimeout(() => {
+        abortController.abort(new Error(`Download travado (sem bytes por ${Math.round(idleTimeoutMs / 60000)} min)`));
+      }, idleTimeoutMs);
+    }
   };
   resetIdleTimer();
 
+  // ===== VARIÁVEIS DE PROGRESSO =====
   let receivedBytes = 0;
   let lastLoggedPercent = -1;
   let lastLoggedAt = 0;
@@ -279,63 +292,105 @@ async function downloadViaAxiosStream({
       lastLoggedPercent = pct;
       log(`⬇️ Download ${pct}% (${formatBytes(receivedBytes)} / ${formatBytes(expectedBytes)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.DEBUG);
     } else {
-      log(`⬇️ Download ${formatBytes(receivedBytes)} recebido • ${formatBytes(speed)}/s (tamanho total não informado)`, LOG_LEVELS.DEBUG);
+      log(`⬇️ Download ${formatBytes(receivedBytes)} recebido • ${formatBytes(speed)}/s`, LOG_LEVELS.DEBUG);
     }
   };
 
-  const response = await axios({
-    url,
-    method,
-    headers,
-    data,
-    responseType: 'stream',
-    maxRedirects: 10,
-    timeout: 0, // controlado por idle/hard
-    signal: abortController.signal,
-    validateStatus: (s) => s >= 200 && s < 400,
-  });
-
-  const contentLengthHeader = response.headers?.['content-length'];
-  const responseLen = parseInt(contentLengthHeader || '0', 10);
-  if (!expectedBytes && responseLen > 0) expectedBytes = responseLen;
-
-  if (expectedBytes > 0) {
-    log(`Tamanho esperado: ${formatBytes(expectedBytes)}`, LOG_LEVELS.DEBUG);
-  }
-
-  const writeStream = fs.createWriteStream(filePath);
-
-  response.data.on('data', (chunk) => {
-    receivedBytes += chunk.length;
-    resetIdleTimer();
-    logProgress(false);
-  });
-
-  response.data.on('error', (e) => {
-    // garante que timers sejam limpos
+  // ===== LIMPAR TIMERS =====
+  const clearTimers = () => {
     if (idleTimer) clearTimeout(idleTimer);
     if (hardTimer) clearTimeout(hardTimer);
-    throw e;
-  });
+    idleTimer = null;
+    hardTimer = null;
+  };
 
   try {
-    await pipelineAsync(response.data, writeStream);
-  } finally {
-    if (idleTimer) clearTimeout(idleTimer);
-    if (hardTimer) clearTimeout(hardTimer);
-  }
+    // ===== INICIAR REQUEST =====
+    log(`Iniciando download HTTP stream: ${method} ${url.substring(0, 80)}...`, LOG_LEVELS.DEBUG);
+    
+    const response = await axios({
+      url,
+      method,
+      headers,
+      data,
+      responseType: 'stream',
+      maxRedirects: 10,
+      timeout: 0, // SEM timeout do axios - controlado por idle/hard
+      signal: abortController.signal,
+      validateStatus: (s) => s >= 200 && s < 400,
+    });
 
-  logProgress(true);
+    // ===== EXTRAIR TAMANHO DO HEADER =====
+    const contentLengthHeader = response.headers?.['content-length'];
+    const responseLen = parseInt(contentLengthHeader || '0', 10);
+    if (!expectedBytes && responseLen > 0) expectedBytes = responseLen;
 
-  if (!fs.existsSync(filePath)) {
-    throw new Error('FALHA: Arquivo não existe após streaming HTTP');
-  }
-  const stats = fs.statSync(filePath);
-  if (stats.size <= 0) {
-    throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
-  }
+    if (expectedBytes > 0) {
+      log(`Tamanho esperado: ${formatBytes(expectedBytes)}`, LOG_LEVELS.DEBUG);
+    } else {
+      log(`Tamanho desconhecido (streaming sem content-length)`, LOG_LEVELS.DEBUG);
+    }
 
-  return { filePath, size: stats.size };
+    // ===== CRIAR WRITE STREAM COM HIGH WATER MARK =====
+    const writeStream = fs.createWriteStream(tempFilePath, {
+      highWaterMark: 8 * 1024 * 1024, // 8MB buffer
+    });
+
+    // ===== TRANSFORM STREAM PARA MONITORAR PROGRESSO =====
+    const progressTransform = new Transform({
+      transform(chunk, encoding, callback) {
+        receivedBytes += chunk.length;
+        resetIdleTimer();
+        logProgress(false);
+        callback(null, chunk);
+      },
+      highWaterMark: 8 * 1024 * 1024, // 8MB buffer
+    });
+
+    // ===== EXECUTAR PIPELINE COM BACKPRESSURE =====
+    await pipeline(
+      response.data,
+      progressTransform,
+      writeStream
+    );
+
+    // ===== LOG FINAL DE PROGRESSO =====
+    logProgress(true);
+    clearTimers();
+
+    // ===== VALIDAR ARQUIVO TEMPORÁRIO =====
+    if (!fs.existsSync(tempFilePath)) {
+      throw new Error('FALHA: Arquivo temporário não existe após streaming HTTP');
+    }
+    const stats = fs.statSync(tempFilePath);
+    if (stats.size <= 0) {
+      throw new Error(`FALHA: Arquivo temporário vazio (${stats.size} bytes)`);
+    }
+
+    // ===== RENOMEAR PARA ARQUIVO FINAL =====
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath); // Remover arquivo existente
+    }
+    fs.renameSync(tempFilePath, filePath);
+
+    const elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
+    log(`Download HTTP concluído: ${formatBytes(stats.size)} em ${elapsedSec}s`, LOG_LEVELS.SUCCESS);
+
+    return { filePath, size: stats.size };
+
+  } catch (error) {
+    clearTimers();
+    
+    // Limpar arquivo temporário em caso de erro
+    try {
+      if (fs.existsSync(tempFilePath)) {
+        fs.unlinkSync(tempFilePath);
+        log(`Arquivo temporário removido após erro`, LOG_LEVELS.DEBUG);
+      }
+    } catch {}
+    
+    throw error;
+  }
 }
 
 function setStep(step) {
@@ -2779,6 +2834,19 @@ async function rodarRobo() {
     // ETAPA: ENVIO PARA WEBHOOK
     // ============================================
     const sucesso = await enviarWebhook(dados, nomeArquivoFinal);
+    
+    // ============================================
+    // LIMPEZA: REMOVER ARQUIVO TEMPORÁRIO APÓS USO
+    // ============================================
+    try {
+      const downloadFilePath = path.join(downloadDir, nomeArquivoFinal);
+      if (fs.existsSync(downloadFilePath)) {
+        fs.unlinkSync(downloadFilePath);
+        log(`Arquivo temporário removido: ${nomeArquivoFinal}`, LOG_LEVELS.DEBUG);
+      }
+    } catch (cleanupError) {
+      log(`Aviso: não foi possível remover arquivo temporário: ${cleanupError.message}`, LOG_LEVELS.WARN);
+    }
     
     return sucesso;
     
