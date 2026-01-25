@@ -33,8 +33,14 @@ const SITUACOES_BOLETO = [
   { value: "CANCELADO", label: "Cancelado" },
 ];
 
-// Todas as situações marcadas por padrão (TODOS no portal)
-const TODAS_SITUACOES = SITUACOES_BOLETO.map(s => s.value);
+// Situações padrão marcadas conforme screenshot (sem CANCELADO)
+const SITUACOES_PADRAO = [
+  "ABERTO",
+  "ABERTO MIGRADO", 
+  "BAIXADO",
+  "BAIXADO C/ PENDÊNCIA",
+  "BAIXADOS MIGRADOS"
+];
 
 interface AutomacaoConfig {
   id?: string;
@@ -69,7 +75,7 @@ const DEFAULT_CONFIG: Omit<AutomacaoConfig, 'corretora_id'> = {
   filtro_periodo_tipo: 'mes_atual',
   filtro_data_inicio: null,
   filtro_data_fim: null,
-  filtro_situacoes: TODAS_SITUACOES, // TODOS marcados
+  filtro_situacoes: SITUACOES_PADRAO, // Conforme screenshot (sem CANCELADO)
   filtro_boletos_anteriores: 'possui', // POSSUI conforme screenshot
   filtro_referencia: 'vencimento_original',
 };
@@ -107,7 +113,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
         // Parse JSONB field to array if it's a string
         const situacoes = typeof data.filtro_situacoes === 'string' 
           ? JSON.parse(data.filtro_situacoes) 
-          : (data.filtro_situacoes || TODAS_SITUACOES);
+          : (data.filtro_situacoes || SITUACOES_PADRAO);
         
         setConfig({
           ...data,
