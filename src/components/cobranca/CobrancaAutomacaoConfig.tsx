@@ -6,16 +6,33 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock, Play, History, Square } from "lucide-react";
+import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock, Play, History, Square, Filter, Calendar, FileText, Info } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 import CobrancaAutomacaoLogs from "./CobrancaAutomacaoLogs";
 
 interface CobrancaAutomacaoConfigProps {
   corretoraId: string;
   corretoraNome?: string;
 }
+
+// Situações de boleto disponíveis no Hinova
+const SITUACOES_BOLETO = [
+  { value: "ABERTO", label: "Aberto" },
+  { value: "BAIXADO", label: "Baixado" },
+  { value: "CANCELADO", label: "Cancelado" },
+  { value: "VENCIDO", label: "Vencido" },
+  { value: "PROTESTADO", label: "Protestado" },
+  { value: "RENEGOCIADO", label: "Renegociado" },
+  { value: "EM_CARTORIO", label: "Em Cartório" },
+];
 
 interface AutomacaoConfig {
   id?: string;
@@ -29,6 +46,13 @@ interface AutomacaoConfig {
   ultima_execucao?: string;
   ultimo_status?: string;
   ultimo_erro?: string;
+  // Novos campos de filtros
+  filtro_periodo_tipo: string;
+  filtro_data_inicio?: string | null;
+  filtro_data_fim?: string | null;
+  filtro_situacoes: string[];
+  filtro_boletos_anteriores: string;
+  filtro_referencia: string;
 }
 
 // Valores padrão vazios - cada associação deve configurar seus próprios dados
@@ -39,6 +63,13 @@ const DEFAULT_CONFIG: Omit<AutomacaoConfig, 'corretora_id'> = {
   hinova_codigo_cliente: '',
   layout_relatorio: '',
   ativo: false,
+  // Filtros padrão
+  filtro_periodo_tipo: 'mes_atual',
+  filtro_data_inicio: null,
+  filtro_data_fim: null,
+  filtro_situacoes: ['ABERTO', 'BAIXADO'],
+  filtro_boletos_anteriores: 'nao_possui',
+  filtro_referencia: 'vencimento_original',
 };
 
 export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: CobrancaAutomacaoConfigProps) {
@@ -71,7 +102,18 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
       if (error) throw error;
 
       if (data) {
-        setConfig(data);
+        // Parse JSONB field to array if it's a string
+        const situacoes = typeof data.filtro_situacoes === 'string' 
+          ? JSON.parse(data.filtro_situacoes) 
+          : (data.filtro_situacoes || ['ABERTO', 'BAIXADO']);
+        
+        setConfig({
+          ...data,
+          filtro_situacoes: situacoes,
+          filtro_periodo_tipo: data.filtro_periodo_tipo || 'mes_atual',
+          filtro_boletos_anteriores: data.filtro_boletos_anteriores || 'nao_possui',
+          filtro_referencia: data.filtro_referencia || 'vencimento_original',
+        });
         // Verificar se está executando
         if (data.ultimo_status === 'executando') {
           setExecuting(true);
@@ -96,6 +138,11 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
       return;
     }
 
+    if (config.filtro_situacoes.length === 0) {
+      toast.error("Selecione pelo menos uma situação de boleto");
+      return;
+    }
+
     setSaving(true);
     try {
       const dataToSave = {
@@ -106,6 +153,13 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
         hinova_codigo_cliente: config.hinova_codigo_cliente,
         layout_relatorio: config.layout_relatorio,
         ativo: config.ativo,
+        // Filtros
+        filtro_periodo_tipo: config.filtro_periodo_tipo,
+        filtro_data_inicio: config.filtro_periodo_tipo === 'customizado' ? config.filtro_data_inicio : null,
+        filtro_data_fim: config.filtro_periodo_tipo === 'customizado' ? config.filtro_data_fim : null,
+        filtro_situacoes: config.filtro_situacoes,
+        filtro_boletos_anteriores: config.filtro_boletos_anteriores,
+        filtro_referencia: config.filtro_referencia,
       };
 
       if (config.id) {
@@ -231,6 +285,28 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
     } finally {
       setStopping(false);
     }
+  };
+
+  const toggleSituacao = (situacao: string) => {
+    setConfig(prev => {
+      const situacoes = prev.filtro_situacoes.includes(situacao)
+        ? prev.filtro_situacoes.filter(s => s !== situacao)
+        : [...prev.filtro_situacoes, situacao];
+      return { ...prev, filtro_situacoes: situacoes };
+    });
+  };
+
+  // Calcular período exibido
+  const getPeriodoExibicao = () => {
+    if (config.filtro_periodo_tipo === 'mes_atual') {
+      const hoje = new Date();
+      const inicio = startOfMonth(hoje);
+      const fim = endOfMonth(hoje);
+      return `${format(inicio, 'dd/MM/yyyy')} - ${format(fim, 'dd/MM/yyyy')}`;
+    } else if (config.filtro_data_inicio && config.filtro_data_fim) {
+      return `${format(new Date(config.filtro_data_inicio), 'dd/MM/yyyy')} - ${format(new Date(config.filtro_data_fim), 'dd/MM/yyyy')}`;
+    }
+    return 'Não definido';
   };
 
   if (loading) {
@@ -370,12 +446,16 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
         </CardContent>
       </Card>
 
-      {/* Tabs: Configuração e Histórico */}
+      {/* Tabs: Configuração, Filtros e Histórico */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="config" className="gap-2">
             <Settings className="h-4 w-4" />
-            Configuração
+            Acesso
+          </TabsTrigger>
+          <TabsTrigger value="filtros" className="gap-2">
+            <Filter className="h-4 w-4" />
+            Filtros
           </TabsTrigger>
           <TabsTrigger value="historico" className="gap-2">
             <History className="h-4 w-4" />
@@ -461,19 +541,230 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                   </p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="filtros" className="mt-4 space-y-4">
+          {/* Card de Resumo dos Filtros Ativos */}
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Filter className="h-4 w-4 text-primary" />
+                Filtros Ativos
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Período:</span>
+                  <span className="font-medium">{getPeriodoExibicao()}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Situações:</span>
+                  <span className="font-medium">
+                    {config.filtro_situacoes.length > 0 
+                      ? config.filtro_situacoes.join(', ') 
+                      : 'Nenhuma selecionada'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Boletos Anteriores:</span>
+                  <span className="font-medium">
+                    {config.filtro_boletos_anteriores === 'nao_possui' ? 'Não possui' 
+                     : config.filtro_boletos_anteriores === 'possui' ? 'Possui' : 'Todos'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Referência:</span>
+                  <span className="font-medium">
+                    {config.filtro_referencia === 'vencimento_original' ? 'Vencimento Original' : 'Data Pagamento'}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Configurações de Filtros */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Configurar Filtros do Relatório</CardTitle>
+              <CardDescription>
+                Defina os filtros que serão aplicados ao extrair o relatório do Hinova
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Período de Vencimento */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Período de Vencimento Original
+                </Label>
+                <RadioGroup
+                  value={config.filtro_periodo_tipo}
+                  onValueChange={(value) => setConfig(prev => ({ ...prev, filtro_periodo_tipo: value }))}
+                  className="space-y-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="mes_atual" id="mes_atual" />
+                    <Label htmlFor="mes_atual" className="font-normal cursor-pointer">
+                      Mês atual ({format(startOfMonth(new Date()), 'dd/MM')} - {format(endOfMonth(new Date()), 'dd/MM')})
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="customizado" id="customizado" />
+                    <Label htmlFor="customizado" className="font-normal cursor-pointer">
+                      Período customizado
+                    </Label>
+                  </div>
+                </RadioGroup>
+
+                {config.filtro_periodo_tipo === 'customizado' && (
+                  <div className="flex flex-wrap gap-4 mt-3 pl-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm text-muted-foreground">Data Início</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-[180px] justify-start text-left font-normal",
+                              !config.filtro_data_inicio && "text-muted-foreground"
+                            )}
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            {config.filtro_data_inicio 
+                              ? format(new Date(config.filtro_data_inicio), "dd/MM/yyyy")
+                              : "Selecionar"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={config.filtro_data_inicio ? new Date(config.filtro_data_inicio) : undefined}
+                            onSelect={(date) => setConfig(prev => ({ 
+                              ...prev, 
+                              filtro_data_inicio: date ? format(date, 'yyyy-MM-dd') : null 
+                            }))}
+                            initialFocus
+                            className="pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm text-muted-foreground">Data Fim</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-[180px] justify-start text-left font-normal",
+                              !config.filtro_data_fim && "text-muted-foreground"
+                            )}
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            {config.filtro_data_fim 
+                              ? format(new Date(config.filtro_data_fim), "dd/MM/yyyy")
+                              : "Selecionar"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={config.filtro_data_fim ? new Date(config.filtro_data_fim) : undefined}
+                            onSelect={(date) => setConfig(prev => ({ 
+                              ...prev, 
+                              filtro_data_fim: date ? format(date, 'yyyy-MM-dd') : null 
+                            }))}
+                            initialFocus
+                            className="pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Situação do Boleto */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Situação do Boleto
+                </Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {SITUACOES_BOLETO.map((situacao) => (
+                    <div key={situacao.value} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`situacao-${situacao.value}`}
+                        checked={config.filtro_situacoes.includes(situacao.value)}
+                        onCheckedChange={() => toggleSituacao(situacao.value)}
+                      />
+                      <Label 
+                        htmlFor={`situacao-${situacao.value}`} 
+                        className="font-normal cursor-pointer text-sm"
+                      >
+                        {situacao.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Selecione as situações de boleto que deseja incluir no relatório
+                </p>
+              </div>
+
+              {/* Boletos Anteriores */}
+              <div className="space-y-3">
+                <Label htmlFor="boletos-anteriores">Boletos Anteriores</Label>
+                <Select
+                  value={config.filtro_boletos_anteriores}
+                  onValueChange={(value) => setConfig(prev => ({ ...prev, filtro_boletos_anteriores: value }))}
+                >
+                  <SelectTrigger className="w-full sm:w-[280px]">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nao_possui">NÃO POSSUI</SelectItem>
+                    <SelectItem value="possui">POSSUI</SelectItem>
+                    <SelectItem value="todos">TODOS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Referência */}
+              <div className="space-y-3">
+                <Label htmlFor="referencia">Referência</Label>
+                <Select
+                  value={config.filtro_referencia}
+                  onValueChange={(value) => setConfig(prev => ({ ...prev, filtro_referencia: value }))}
+                >
+                  <SelectTrigger className="w-full sm:w-[280px]">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="vencimento_original">VENCIMENTO ORIGINAL</SelectItem>
+                    <SelectItem value="data_pagamento">DATA PAGAMENTO</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
               {/* Info sobre automação */}
               <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
                 <h4 className="font-medium text-blue-700 mb-2 flex items-center gap-2">
-                  <RefreshCw className="h-4 w-4" />
-                  Informações da Automação
+                  <Info className="h-4 w-4" />
+                  Sobre os Filtros
                 </h4>
                 <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• A automação executa diariamente às 09:00 (horário de Brasília)</li>
-                  <li>• Extrai boletos com vencimento no mês atual</li>
-                  <li>• Filtra apenas boletos com situação "ABERTO"</li>
-                  <li>• Os dados são atualizados automaticamente no dashboard</li>
-                  <li>• Você pode interromper a execução a qualquer momento</li>
+                  <li>• Os filtros serão aplicados no portal Hinova antes de gerar o relatório</li>
+                  <li>• Filtros mais específicos resultam em arquivos menores e processamento mais rápido</li>
+                  <li>• A automação marcará apenas os checkboxes selecionados</li>
+                  <li>• Filtros regionais e por cooperativa são marcados automaticamente pelo portal</li>
                 </ul>
               </div>
             </CardContent>

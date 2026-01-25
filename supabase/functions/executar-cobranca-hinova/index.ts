@@ -47,10 +47,18 @@ serve(async (req) => {
 
     console.log(`[Executar Cobrança Hinova] Iniciando para corretora: ${corretora_id}`);
 
-    // Buscar configuração da automação
+    // Buscar configuração da automação com todos os filtros
     const { data: config, error: configError } = await supabase
       .from("cobranca_automacao_config")
-      .select("*")
+      .select(`
+        *,
+        filtro_periodo_tipo,
+        filtro_data_inicio,
+        filtro_data_fim,
+        filtro_situacoes,
+        filtro_boletos_anteriores,
+        filtro_referencia
+      `)
       .eq("corretora_id", corretora_id)
       .single();
 
@@ -107,6 +115,16 @@ serve(async (req) => {
       console.log(`[Executar Cobrança Hinova] Registro de execução criado: ${execucao?.id}`);
     }
 
+    // Processar filtros de situações (pode vir como string JSON ou array)
+    let filtroSituacoes = config.filtro_situacoes;
+    if (typeof filtroSituacoes === 'string') {
+      try {
+        filtroSituacoes = JSON.parse(filtroSituacoes);
+      } catch {
+        filtroSituacoes = ['ABERTO', 'BAIXADO'];
+      }
+    }
+
     // Preparar dados para o GitHub Actions (via repository_dispatch)
     // Este endpoint prepara os dados, mas a execução real acontece via GitHub Actions
     // Por agora, retornamos as informações necessárias para execução manual
@@ -120,6 +138,15 @@ serve(async (req) => {
       corretora_slug: corretora?.slug,
       webhook_url: `${supabaseUrl}/functions/v1/webhook-cobranca-hinova`,
       execucao_id: execucao?.id,
+      // Novos campos de filtros
+      filtros: {
+        periodo_tipo: config.filtro_periodo_tipo || 'mes_atual',
+        data_inicio: config.filtro_data_inicio,
+        data_fim: config.filtro_data_fim,
+        situacoes: filtroSituacoes || ['ABERTO', 'BAIXADO'],
+        boletos_anteriores: config.filtro_boletos_anteriores || 'nao_possui',
+        referencia: config.filtro_referencia || 'vencimento_original',
+      },
     };
 
     // Registrar log de auditoria
@@ -134,6 +161,7 @@ serve(async (req) => {
         config_id: config.id,
         execucao_id: execucao?.id,
         hinova_url: config.hinova_url,
+        filtros: executionData.filtros,
       },
     });
 
@@ -141,6 +169,7 @@ serve(async (req) => {
       corretora: corretora?.nome,
       url: config.hinova_url,
       execucao_id: execucao?.id,
+      filtros: executionData.filtros,
     });
 
     // Por ora, simular uma resposta de sucesso com instruções
@@ -155,6 +184,7 @@ serve(async (req) => {
           hinova_url: config.hinova_url,
           layout: config.layout_relatorio,
           execucao_id: execucao?.id,
+          filtros: executionData.filtros,
         },
         instructions: "A automação será executada com as configurações salvas. Verifique o status em alguns minutos.",
       }),
