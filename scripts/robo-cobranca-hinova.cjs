@@ -177,12 +177,17 @@ function monitorFileProgress(filePath, expectedSize = 0, intervalMs = TIMEOUTS.F
             // Log a cada +5% ou a cada intervalo se ainda não logou
             if (pct >= lastLoggedPercent + 5 || lastLoggedPercent === -1) {
               lastLoggedPercent = pct;
-              log(`⬇️ Download ${pct}% (${formatBytes(size)} / ${formatBytes(expectedSize)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.DEBUG);
+              // Barra de progresso visual
+              const barSize = 20;
+              const filled = Math.round((pct / 100) * barSize);
+              const empty = barSize - filled;
+              const bar = '█'.repeat(filled) + '░'.repeat(empty);
+              log(`   ⬇️ Download [${bar}] ${pct}% (${formatBytes(size)} / ${formatBytes(expectedSize)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.INFO);
             }
           } else {
             const minutes = Math.floor(elapsed / 60);
             const seconds = elapsed % 60;
-            log(`⬇️ Download ${formatBytes(size)} recebido • ${formatBytes(speed)}/s (${minutes}m ${seconds}s)`, LOG_LEVELS.DEBUG);
+            log(`   ⬇️ Download: ${formatBytes(size)} recebidos • ${formatBytes(speed)}/s (${minutes}m ${seconds}s)`, LOG_LEVELS.INFO);
           }
           return; // Encontrou o arquivo, sair do loop
         }
@@ -290,9 +295,14 @@ async function downloadViaAxiosStream({
       const pct = Math.min(100, Math.floor((receivedBytes / expectedBytes) * 100));
       if (!force && pct < lastLoggedPercent + 5) return; // log a cada +5%
       lastLoggedPercent = pct;
-      log(`⬇️ Download ${pct}% (${formatBytes(receivedBytes)} / ${formatBytes(expectedBytes)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.DEBUG);
+      // Barra de progresso visual
+      const barSize = 20;
+      const filled = Math.round((pct / 100) * barSize);
+      const empty = barSize - filled;
+      const bar = '█'.repeat(filled) + '░'.repeat(empty);
+      log(`   ⬇️ Download [${bar}] ${pct}% (${formatBytes(receivedBytes)} / ${formatBytes(expectedBytes)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.INFO);
     } else {
-      log(`⬇️ Download ${formatBytes(receivedBytes)} recebido • ${formatBytes(speed)}/s`, LOG_LEVELS.DEBUG);
+      log(`   ⬇️ Download: ${formatBytes(receivedBytes)} recebidos • ${formatBytes(speed)}/s`, LOG_LEVELS.INFO);
     }
   };
 
@@ -2368,7 +2378,7 @@ function processarExcel(filePath) {
 }
 
 async function enviarWebhook(dados, nomeArquivo) {
-  setStep('WEBHOOK');
+  setStep('IMPORTACAO');
 
   const mesReferencia = new Date().toISOString().slice(0, 7);
   const headers = { 'Content-Type': 'application/json' };
@@ -2383,7 +2393,13 @@ async function enviarWebhook(dados, nomeArquivo) {
   let importacaoId = null;
   let enviados = 0;
 
-  log(`📤 Enviando ${total} registros para webhook em ${totalChunks} lote(s) (batch=${BATCH_SIZE})...`, LOG_LEVELS.INFO);
+  log('', LOG_LEVELS.INFO);
+  log('═'.repeat(50), LOG_LEVELS.INFO);
+  log('📤 INICIANDO IMPORTAÇÃO PARA O SERVIDOR', LOG_LEVELS.INFO);
+  log('═'.repeat(50), LOG_LEVELS.INFO);
+  log(`   Total de registros: ${total.toLocaleString()}`, LOG_LEVELS.INFO);
+  log(`   Lotes: ${totalChunks} (${BATCH_SIZE} registros cada)`, LOG_LEVELS.INFO);
+  log('', LOG_LEVELS.INFO);
 
   const startTime = Date.now();
 
@@ -2402,7 +2418,8 @@ async function enviarWebhook(dados, nomeArquivo) {
       chunk_total: totalChunks,
     };
 
-    log(`📦 Lote ${chunkIndex}/${totalChunks}: enviando ${batch.length} registros...`, LOG_LEVELS.DEBUG);
+    const pctBefore = Math.floor((enviados / total) * 100);
+    log(`   📦 Lote ${chunkIndex}/${totalChunks}: enviando ${batch.length.toLocaleString()} registros...`, LOG_LEVELS.DEBUG);
 
     try {
       const response = await axios.post(CONFIG.WEBHOOK_URL, payload, {
@@ -2412,21 +2429,35 @@ async function enviarWebhook(dados, nomeArquivo) {
 
       if (!importacaoId && response.data?.importacao_id) {
         importacaoId = response.data.importacao_id;
-        log(`🆔 Importação iniciada: ${importacaoId}`, LOG_LEVELS.DEBUG);
+        log(`   🆔 Importação ID: ${importacaoId}`, LOG_LEVELS.DEBUG);
       }
 
       enviados += batch.length;
       const pct = Math.min(100, Math.floor((enviados / total) * 100));
-      log(`✅ Importação (envio) ${pct}% (${enviados}/${total})`, LOG_LEVELS.INFO);
+      
+      // Log de progresso com barra visual
+      const barSize = 20;
+      const filled = Math.round((pct / 100) * barSize);
+      const empty = barSize - filled;
+      const bar = '█'.repeat(filled) + '░'.repeat(empty);
+      
+      log(`   [${bar}] ${pct}% (${enviados.toLocaleString()}/${total.toLocaleString()} registros)`, LOG_LEVELS.INFO);
     } catch (error) {
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      log(`❌ Falha no lote ${chunkIndex}/${totalChunks} após ${elapsed}s: ${error.response?.status || error.message}`, LOG_LEVELS.ERROR);
+      log(`   ❌ Falha no lote ${chunkIndex}/${totalChunks} após ${elapsed}s`, LOG_LEVELS.ERROR);
+      log(`      Erro: ${error.response?.status || error.message}`, LOG_LEVELS.ERROR);
       return false;
     }
   }
 
   const totalTime = Math.floor((Date.now() - startTime) / 1000);
-  log(`✅ Webhook concluído em ${totalTime}s (importação_id=${importacaoId || 'N/A'})`, LOG_LEVELS.SUCCESS);
+  log('', LOG_LEVELS.INFO);
+  log('═'.repeat(50), LOG_LEVELS.INFO);
+  log(`✅ IMPORTAÇÃO CONCLUÍDA COM SUCESSO!`, LOG_LEVELS.SUCCESS);
+  log(`   Tempo total: ${totalTime}s`, LOG_LEVELS.SUCCESS);
+  log(`   Registros importados: ${enviados.toLocaleString()}`, LOG_LEVELS.SUCCESS);
+  log(`   ID da importação: ${importacaoId || 'N/A'}`, LOG_LEVELS.SUCCESS);
+  log('═'.repeat(50), LOG_LEVELS.INFO);
   return true;
 }
 
