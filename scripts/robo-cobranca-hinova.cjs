@@ -550,18 +550,18 @@ function detectFileType(filePath) {
 }
 
 /**
- * Validação de arquivo baseada apenas em tamanho e magic bytes
- * NÃO lê conteúdo como texto - apenas verifica integridade básica
+ * Validação de arquivo baseada em tamanho, magic bytes e conteúdo
+ * DETECTA HTML de erro do portal e marca como inválido para retry
  */
 function validateDownloadedFile(filePath, contentType = '') {
   if (!fs.existsSync(filePath)) {
-    return { valid: false, error: 'Arquivo não existe' };
+    return { valid: false, error: 'Arquivo não existe', isErrorPage: false };
   }
   
   const stats = fs.statSync(filePath);
   
   if (stats.size < LIMITS.MIN_FILE_SIZE_BYTES) {
-    return { valid: false, error: `Arquivo muito pequeno: ${stats.size} bytes` };
+    return { valid: false, error: `Arquivo muito pequeno: ${stats.size} bytes`, isErrorPage: false };
   }
   
   // Verificar se tamanho indica filtros não aplicados
@@ -580,14 +580,63 @@ function validateDownloadedFile(filePath, contentType = '') {
   
   log(`Tipo detectado: ${fileType.type} (content-type: ${contentType || 'não informado'})`, LOG_LEVELS.DEBUG);
   
-  // Para HTML disfarçado de Excel (comum no Hinova)
+  // Para HTML - verificar se é página de erro ou relatório válido
   if (fileType.type === 'html') {
-    log(`Arquivo detectado como HTML disfarçado de Excel`, LOG_LEVELS.INFO);
+    // Ler primeiros 10KB para verificar se é erro
+    const fd = fs.openSync(filePath, 'r');
+    const buffer = Buffer.alloc(Math.min(10240, stats.size));
+    fs.readSync(fd, buffer, 0, buffer.length, 0);
+    fs.closeSync(fd);
+    
+    const content = buffer.toString('utf-8').toLowerCase();
+    
+    // Detectar páginas de erro HTTP 500 ou mensagens de erro do portal
+    const isErrorPage = content.includes('internal server error') ||
+                        content.includes('500 internal') ||
+                        content.includes('erro interno') ||
+                        content.includes('error 500') ||
+                        content.includes('exception') ||
+                        content.includes('fatal error') ||
+                        content.includes('erro ao gerar') ||
+                        content.includes('tempo esgotado') ||
+                        content.includes('timeout') ||
+                        (content.includes('<html') && !content.includes('<table') && !content.includes('<tr'));
+    
+    if (isErrorPage) {
+      log(`❌ Arquivo HTML é uma página de ERRO do portal`, LOG_LEVELS.ERROR);
+      return {
+        valid: false,
+        error: 'Página de erro do portal detectada - o relatório não foi gerado corretamente',
+        isErrorPage: true,
+        size: stats.size,
+        fileType: 'html',
+      };
+    }
+    
+    // Verificar se tem estrutura de tabela (relatório válido)
+    const hasTableStructure = content.includes('<table') && content.includes('<tr');
+    
+    if (!hasTableStructure) {
+      log(`⚠️ HTML sem estrutura de tabela detectado`, LOG_LEVELS.WARN);
+      // Se arquivo é pequeno e sem tabela, provavelmente é erro
+      if (stats.size < 50 * 1024) { // menos de 50KB
+        return {
+          valid: false,
+          error: 'HTML sem dados de relatório detectado',
+          isErrorPage: true,
+          size: stats.size,
+          fileType: 'html',
+        };
+      }
+    }
+    
+    log(`Arquivo detectado como HTML disfarçado de Excel (com tabelas)`, LOG_LEVELS.INFO);
     return {
       valid: true,
       size: stats.size,
       isHtml: true,
       fileType: fileType.type,
+      isErrorPage: false,
     };
   }
   
@@ -598,6 +647,7 @@ function validateDownloadedFile(filePath, contentType = '') {
       size: stats.size,
       isHtml: false,
       fileType: fileType.type,
+      isErrorPage: false,
     };
   }
   
@@ -609,6 +659,7 @@ function validateDownloadedFile(filePath, contentType = '') {
       size: stats.size,
       isHtml: false,
       fileType: 'unknown',
+      isErrorPage: false,
     };
   }
   
@@ -620,10 +671,11 @@ function validateDownloadedFile(filePath, contentType = '') {
       size: stats.size,
       isHtml: false,
       fileType: fileType.type,
+      isErrorPage: false,
     };
   }
   
-  return { valid: false, error: `Tipo de arquivo não reconhecido: ${fileType.type}` };
+  return { valid: false, error: `Tipo de arquivo não reconhecido: ${fileType.type}`, isErrorPage: false };
 }
 
 // ============================================
