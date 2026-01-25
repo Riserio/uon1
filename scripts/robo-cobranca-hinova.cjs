@@ -60,8 +60,11 @@ const TIMEOUTS = {
   DOWNLOAD_EVENT: 3 * 60000,  // 3 min para evento de download
   DOWNLOAD_TOTAL: 10 * 60000, // 10 min total para download (portal pode demorar)
   DOWNLOAD_SAVE: 10 * 60000,  // 10 min para salvar arquivo (portal Hinova é lento)
-  DOWNLOAD_IDLE: 5 * 60000,   // 5 min sem receber bytes -> abortar e tentar novamente
-  DOWNLOAD_HARD: 0,           // 0 = sem limite rígido (usa apenas DOWNLOAD_IDLE)
+  // O portal pode levar MUITO tempo para iniciar a transmissão do relatório.
+  // Se o idle for curto, o replay HTTP aborta cedo e acabamos caindo no `saveAs()`,
+  // que pode ser cancelado se o popup/contexto fechar antes do download iniciar.
+  DOWNLOAD_IDLE: 20 * 60000,  // 20 min sem receber bytes -> abortar
+  DOWNLOAD_HARD: 28 * 60000,  // 28 min limite rígido (abaixo do timeout do workflow)
   POPUP_CLOSE: 800,           // 800ms para fechar popup
   FILE_PROGRESS_INTERVAL: 10000, // 10s entre logs de progresso do arquivo
 };
