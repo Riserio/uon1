@@ -23,16 +23,18 @@ interface CobrancaAutomacaoConfigProps {
   corretoraNome?: string;
 }
 
-// Situações de boleto disponíveis no Hinova
+// Situações de boleto disponíveis no Hinova (seção "Situação Boleto")
 const SITUACOES_BOLETO = [
   { value: "ABERTO", label: "Aberto" },
+  { value: "ABERTO MIGRADO", label: "Aberto Migrado" },
   { value: "BAIXADO", label: "Baixado" },
+  { value: "BAIXADO C/ PENDÊNCIA", label: "Baixado c/ Pendência" },
+  { value: "BAIXADOS MIGRADOS", label: "Baixados Migrados" },
   { value: "CANCELADO", label: "Cancelado" },
-  { value: "VENCIDO", label: "Vencido" },
-  { value: "PROTESTADO", label: "Protestado" },
-  { value: "RENEGOCIADO", label: "Renegociado" },
-  { value: "EM_CARTORIO", label: "Em Cartório" },
 ];
+
+// Todas as situações marcadas por padrão (TODOS no portal)
+const TODAS_SITUACOES = SITUACOES_BOLETO.map(s => s.value);
 
 interface AutomacaoConfig {
   id?: string;
@@ -55,7 +57,7 @@ interface AutomacaoConfig {
   filtro_referencia: string;
 }
 
-// Valores padrão vazios - cada associação deve configurar seus próprios dados
+// Valores padrão - conforme screenshot do portal Hinova
 const DEFAULT_CONFIG: Omit<AutomacaoConfig, 'corretora_id'> = {
   hinova_url: '',
   hinova_user: '',
@@ -63,12 +65,12 @@ const DEFAULT_CONFIG: Omit<AutomacaoConfig, 'corretora_id'> = {
   hinova_codigo_cliente: '',
   layout_relatorio: '',
   ativo: false,
-  // Filtros padrão
+  // Filtros padrão conforme screenshot
   filtro_periodo_tipo: 'mes_atual',
   filtro_data_inicio: null,
   filtro_data_fim: null,
-  filtro_situacoes: ['ABERTO', 'BAIXADO'],
-  filtro_boletos_anteriores: 'nao_possui',
+  filtro_situacoes: TODAS_SITUACOES, // TODOS marcados
+  filtro_boletos_anteriores: 'possui', // POSSUI conforme screenshot
   filtro_referencia: 'vencimento_original',
 };
 
@@ -105,13 +107,13 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
         // Parse JSONB field to array if it's a string
         const situacoes = typeof data.filtro_situacoes === 'string' 
           ? JSON.parse(data.filtro_situacoes) 
-          : (data.filtro_situacoes || ['ABERTO', 'BAIXADO']);
+          : (data.filtro_situacoes || TODAS_SITUACOES);
         
         setConfig({
           ...data,
           filtro_situacoes: situacoes,
           filtro_periodo_tipo: data.filtro_periodo_tipo || 'mes_atual',
-          filtro_boletos_anteriores: data.filtro_boletos_anteriores || 'nao_possui',
+          filtro_boletos_anteriores: data.filtro_boletos_anteriores || 'possui',
           filtro_referencia: data.filtro_referencia || 'vencimento_original',
         });
         // Verificar se está executando
