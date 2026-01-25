@@ -1353,27 +1353,30 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
     }
   }, HEARTBEAT_INTERVAL);
 
+  let timeoutId = null;
+  
   try {
     // Promise de timeout explícito para evitar cancelamento inesperado
     const timeoutPromise = new Promise((_, reject) => {
-      const timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         reject(new Error(`Timeout de ${Math.floor(TIMEOUTS.DOWNLOAD_HARD / 60000)} minutos atingido aguardando download do portal`));
       }, TIMEOUTS.DOWNLOAD_HARD);
-      
-      // Permitir que o timeout seja cancelado quando o download completar
-      timeoutPromise.cancelTimeout = () => clearTimeout(timeoutId);
     });
     
     const savePromise = download.saveAs(filePath);
     
     // Usar Promise.race para permitir timeout controlado
-    await Promise.race([
-      savePromise.then(result => {
-        if (timeoutPromise.cancelTimeout) timeoutPromise.cancelTimeout();
-        return result;
-      }),
-      timeoutPromise
-    ]);
+    // O primeiro a resolver/rejeitar ganha
+    await Promise.race([savePromise, timeoutPromise]);
+    
+    // Se chegou aqui, saveAs completou com sucesso
+    // Cancelar o timeout
+    if (timeoutId) clearTimeout(timeoutId);
+    
+  } catch (err) {
+    // Garantir limpeza do timeout em caso de erro
+    if (timeoutId) clearTimeout(timeoutId);
+    throw err;
   } finally {
     clearInterval(heartbeatInterval);
     stopMonitor();
