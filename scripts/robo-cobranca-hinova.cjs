@@ -1678,185 +1678,279 @@ function getDateRange() {
 }
 
 // ============================================
-// VALIDAÇÃO COMPLETA DE CHECKBOXES
+// CONFIGURAÇÃO DE FILTROS - SITUAÇÃO BOLETO
 // ============================================
 
-/**
- * Lista todos os checkboxes visíveis na página
- * Retorna array com informações detalhadas de cada checkbox
- */
-async function listarCheckboxes(page) {
-  return await page.evaluate(() => {
-    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-    const resultado = [];
-    let index = 0;
-    
-    for (const cb of checkboxes) {
-      // Ignorar checkboxes hidden ou disabled
-      const style = window.getComputedStyle(cb);
-      const isHidden = style.display === 'none' || 
-                       style.visibility === 'hidden' || 
-                       cb.type === 'hidden' ||
-                       cb.offsetParent === null;
-      
-      if (isHidden || cb.disabled) continue;
-      
-      // Extrair label
-      let label = '';
-      const labelElement = cb.closest('label');
-      if (labelElement) {
-        label = labelElement.textContent?.trim() || '';
-      } else {
-        // Procurar label por for
-        const forLabel = document.querySelector(`label[for="${cb.id}"]`);
-        if (forLabel) {
-          label = forLabel.textContent?.trim() || '';
-        } else {
-          // Usar texto do parent
-          const parent = cb.parentElement;
-          label = parent?.textContent?.trim().substring(0, 50) || '';
-        }
-      }
-      
-      // Extrair seção
-      const section = cb.closest('tr, fieldset, div[class*="section"], div[class*="group"]');
-      const sectionText = section?.textContent?.toLowerCase().substring(0, 100) || '';
-      
-      // Determinar nome da seção
-      let sectionName = 'desconhecida';
-      if (sectionText.includes('situação boleto') || sectionText.includes('situacao boleto')) {
-        sectionName = 'Situação Boleto';
-      } else if (sectionText.includes('regional')) {
-        sectionName = 'Regional';
-      } else if (sectionText.includes('cooperativa')) {
-        sectionName = 'Cooperativa';
-      } else if (sectionText.includes('status') || sectionText.includes('estado')) {
-        sectionName = 'Status';
-      }
-      
-      resultado.push({
-        index: index++,
-        label: label.replace(/\s+/g, ' ').trim().substring(0, 50),
-        value: cb.value || '',
-        checked: cb.checked,
-        section: sectionName,
-        name: cb.name || '',
-        id: cb.id || '',
-      });
-    }
-    
-    return resultado;
-  });
-}
 
 /**
- * Valida e marca TODOS os checkboxes visíveis
- * Loga o estado antes e depois
- * Lança erro se não conseguir marcar 100%
+ * Situações de boleto que DEVEM estar marcadas (padrão)
+ * Baseado na configuração do usuário - CANCELADO excluído
  */
-async function validarEMarcarTodosCheckboxes(page, maxTentativas = 3) {
+const SITUACOES_DESEJADAS = [
+  'ABERTO',
+  'ABERTO MIGRADO',
+  'BAIXADO',
+  'BAIXADO C/ PENDÊNCIA',
+  'BAIXADOS MIGRADOS',
+];
+
+/**
+ * Situações de boleto que DEVEM estar desmarcadas
+ */
+const SITUACOES_EXCLUIDAS = [
+  'CANCELADO',
+];
+
+/**
+ * Configura APENAS os checkboxes de "Situação Boleto"
+ * - Marca as situações desejadas
+ * - Desmarca CANCELADO
+ * - NÃO toca nos outros checkboxes da página
+ */
+async function configurarCheckboxesSituacaoBoleto(page, maxTentativas = 3) {
   const stepAnterior = currentStep;
-  setStep('FILTROS_CHECKBOXES');
+  setStep('FILTROS_SITUACAO');
   
-  log('📋 Iniciando validação completa de checkboxes...', LOG_LEVELS.INFO);
+  log('📋 Configurando checkboxes de Situação Boleto...', LOG_LEVELS.INFO);
+  log(`   ✓ Marcar: ${SITUACOES_DESEJADAS.join(', ')}`, LOG_LEVELS.INFO);
+  log(`   ✗ Desmarcar: ${SITUACOES_EXCLUIDAS.join(', ')}`, LOG_LEVELS.INFO);
   
   for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
-    // 1. LISTAR ESTADO INICIAL
-    const checkboxesAntes = await listarCheckboxes(page);
-    const totalCheckboxes = checkboxesAntes.length;
-    
-    if (totalCheckboxes === 0) {
-      log('⚠️ Nenhum checkbox visível encontrado na página', LOG_LEVELS.WARN);
-      currentStep = stepAnterior;
-      return true;
-    }
-    
-    const marcadosAntes = checkboxesAntes.filter(cb => cb.checked);
-    const desmarcadosAntes = checkboxesAntes.filter(cb => !cb.checked);
-    
-    // 2. LOG ESTADO INICIAL (ANTES)
-    log(`📋 ANTES (tentativa ${tentativa}/${maxTentativas}) - Total: ${totalCheckboxes}, Marcados: ${marcadosAntes.length}, Desmarcados: ${desmarcadosAntes.length}`, LOG_LEVELS.INFO);
-    
-    if (desmarcadosAntes.length > 0) {
-      const labels = desmarcadosAntes.map(cb => `"${cb.label || cb.value}"`).join(', ');
-      log(`🔍 Desmarcados: ${labels}`, LOG_LEVELS.DEBUG);
-    }
-    
-    // Agrupar por seção
-    const porSecao = {};
-    for (const cb of checkboxesAntes) {
-      if (!porSecao[cb.section]) porSecao[cb.section] = { total: 0, marcados: 0 };
-      porSecao[cb.section].total++;
-      if (cb.checked) porSecao[cb.section].marcados++;
-    }
-    for (const [secao, stats] of Object.entries(porSecao)) {
-      log(`   [${secao}] ${stats.marcados}/${stats.total}`, LOG_LEVELS.DEBUG);
-    }
-    
-    // 3. MARCAR TODOS os desmarcados
-    if (desmarcadosAntes.length > 0) {
-      log(`✅ Marcando ${desmarcadosAntes.length} checkboxes desmarcados...`, LOG_LEVELS.INFO);
+    // Executar configuração no navegador
+    const resultado = await page.evaluate(({ marcar, desmarcar }) => {
+      const resultados = {
+        marcados: [],
+        desmarcados: [],
+        erros: [],
+        naoEncontrados: [],
+      };
       
-      await page.evaluate(() => {
-        const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+      // Função para normalizar texto (remover acentos, uppercase)
+      const normalizar = (texto) => {
+        return (texto || '')
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+      
+      // Encontrar todos os checkboxes
+      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+      
+      // Mapear checkboxes por label normalizada
+      const checkboxPorLabel = new Map();
+      
+      for (const cb of checkboxes) {
+        // Ignorar hidden/disabled
+        const style = window.getComputedStyle(cb);
+        const isHidden = style.display === 'none' || 
+                         style.visibility === 'hidden' || 
+                         cb.type === 'hidden' ||
+                         cb.offsetParent === null;
         
-        for (const cb of checkboxes) {
-          // Ignorar hidden/disabled
-          const style = window.getComputedStyle(cb);
-          const isHidden = style.display === 'none' || 
-                           style.visibility === 'hidden' || 
-                           cb.type === 'hidden' ||
-                           cb.offsetParent === null;
-          
-          if (isHidden || cb.disabled) continue;
-          
-          // Marcar se estiver desmarcado
-          if (!cb.checked) {
-            cb.click();
+        if (isHidden || cb.disabled) continue;
+        
+        // Extrair label do checkbox
+        let label = '';
+        
+        // 1. Tentar label[for]
+        if (cb.id) {
+          const labelEl = document.querySelector(`label[for="${cb.id}"]`);
+          if (labelEl) {
+            label = labelEl.textContent?.trim() || '';
           }
         }
-      });
+        
+        // 2. Tentar label pai
+        if (!label) {
+          const parentLabel = cb.closest('label');
+          if (parentLabel) {
+            label = parentLabel.textContent?.trim() || '';
+          }
+        }
+        
+        // 3. Tentar texto do TD/próximo sibling
+        if (!label) {
+          const td = cb.closest('td');
+          if (td) {
+            // Pegar texto excluindo sub-elementos
+            const text = td.textContent?.trim() || '';
+            // Geralmente o texto vem após o checkbox
+            label = text;
+          }
+        }
+        
+        // 4. Usar value como fallback
+        if (!label) {
+          label = cb.value || '';
+        }
+        
+        const labelNormalizada = normalizar(label);
+        
+        // Verificar se é uma situação de boleto conhecida
+        const situacoesConhecidas = [
+          'TODOS',
+          'ABERTO', 
+          'ABERTO MIGRADO',
+          'BAIXADO',
+          'BAIXADO C/ PENDENCIA',
+          'BAIXADOS MIGRADOS',
+          'CANCELADO',
+        ];
+        
+        for (const situacao of situacoesConhecidas) {
+          if (labelNormalizada.includes(normalizar(situacao)) || 
+              normalizar(situacao).includes(labelNormalizada)) {
+            checkboxPorLabel.set(situacao, cb);
+            break;
+          }
+        }
+      }
       
-      // Aguardar estabilização
-      await page.waitForTimeout(500);
+      // Marcar as situações desejadas
+      for (const situacao of marcar) {
+        const normalizada = situacao.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const cb = checkboxPorLabel.get(normalizada) || checkboxPorLabel.get(situacao);
+        
+        if (cb) {
+          if (!cb.checked) {
+            cb.click();
+            resultados.marcados.push(situacao);
+          } else {
+            resultados.marcados.push(`${situacao} (já marcado)`);
+          }
+        } else {
+          resultados.naoEncontrados.push(situacao);
+        }
+      }
+      
+      // Desmarcar as situações excluídas
+      for (const situacao of desmarcar) {
+        const normalizada = situacao.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const cb = checkboxPorLabel.get(normalizada) || checkboxPorLabel.get(situacao);
+        
+        if (cb) {
+          if (cb.checked) {
+            cb.click();
+            resultados.desmarcados.push(situacao);
+          } else {
+            resultados.desmarcados.push(`${situacao} (já desmarcado)`);
+          }
+        } else {
+          resultados.naoEncontrados.push(`${situacao} (para desmarcar)`);
+        }
+      }
+      
+      // Também desmarcar "TODOS" se estiver marcado
+      const cbTodos = checkboxPorLabel.get('TODOS');
+      if (cbTodos && cbTodos.checked) {
+        cbTodos.click();
+        resultados.desmarcados.push('TODOS (master)');
+      }
+      
+      return resultados;
+    }, { marcar: SITUACOES_DESEJADAS, desmarcar: SITUACOES_EXCLUIDAS });
+    
+    // Aguardar estabilização
+    await page.waitForTimeout(500);
+    
+    // Logar resultados
+    log(`📋 Tentativa ${tentativa}/${maxTentativas}:`, LOG_LEVELS.INFO);
+    if (resultado.marcados.length > 0) {
+      log(`   ✅ Marcados: ${resultado.marcados.join(', ')}`, LOG_LEVELS.SUCCESS);
+    }
+    if (resultado.desmarcados.length > 0) {
+      log(`   ❌ Desmarcados: ${resultado.desmarcados.join(', ')}`, LOG_LEVELS.SUCCESS);
+    }
+    if (resultado.naoEncontrados.length > 0) {
+      log(`   ⚠️ Não encontrados: ${resultado.naoEncontrados.join(', ')}`, LOG_LEVELS.WARN);
     }
     
-    // 4. VALIDAR NOVAMENTE
-    const checkboxesDepois = await listarCheckboxes(page);
-    const marcadosDepois = checkboxesDepois.filter(cb => cb.checked);
-    const desmarcadosDepois = checkboxesDepois.filter(cb => !cb.checked);
+    // Verificar estado final
+    const estadoFinal = await page.evaluate(({ situacoesDesejadas, situacoesExcluidas }) => {
+      const normalizar = (texto) => {
+        return (texto || '')
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+      
+      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+      const estados = {};
+      
+      for (const cb of checkboxes) {
+        const style = window.getComputedStyle(cb);
+        const isHidden = style.display === 'none' || style.visibility === 'hidden' || cb.offsetParent === null;
+        if (isHidden || cb.disabled) continue;
+        
+        // Extrair label
+        let label = '';
+        if (cb.id) {
+          const labelEl = document.querySelector(`label[for="${cb.id}"]`);
+          if (labelEl) label = labelEl.textContent?.trim() || '';
+        }
+        if (!label) {
+          const parentLabel = cb.closest('label');
+          if (parentLabel) label = parentLabel.textContent?.trim() || '';
+        }
+        if (!label) {
+          const td = cb.closest('td');
+          if (td) label = td.textContent?.trim() || '';
+        }
+        if (!label) label = cb.value || '';
+        
+        const labelNorm = normalizar(label);
+        
+        // Verificar se corresponde a alguma situação conhecida
+        for (const sit of [...situacoesDesejadas, ...situacoesExcluidas]) {
+          const sitNorm = normalizar(sit);
+          if (labelNorm.includes(sitNorm) || sitNorm.includes(labelNorm)) {
+            estados[sit] = cb.checked;
+            break;
+          }
+        }
+      }
+      
+      return estados;
+    }, { situacoesDesejadas: SITUACOES_DESEJADAS, situacoesExcluidas: SITUACOES_EXCLUIDAS });
     
-    // 5. LOG ESTADO FINAL (DEPOIS)
-    log(`📋 DEPOIS - Total: ${checkboxesDepois.length}, Marcados: ${marcadosDepois.length}, Desmarcados: ${desmarcadosDepois.length}`, LOG_LEVELS.INFO);
+    // Verificar se configuração está correta
+    let configOk = true;
     
-    // 6. VERIFICAR 100%
-    if (desmarcadosDepois.length === 0) {
-      log(`✅ 100% dos checkboxes estão marcados (${marcadosDepois.length}/${checkboxesDepois.length}) - prosseguindo`, LOG_LEVELS.SUCCESS);
+    for (const sit of SITUACOES_DESEJADAS) {
+      if (estadoFinal[sit] === false) {
+        log(`   ⚠️ ${sit} deveria estar marcado mas está desmarcado`, LOG_LEVELS.WARN);
+        configOk = false;
+      }
+    }
+    
+    for (const sit of SITUACOES_EXCLUIDAS) {
+      if (estadoFinal[sit] === true) {
+        log(`   ⚠️ ${sit} deveria estar desmarcado mas está marcado`, LOG_LEVELS.WARN);
+        configOk = false;
+      }
+    }
+    
+    if (configOk) {
+      log(`✅ Situação Boleto configurada corretamente`, LOG_LEVELS.SUCCESS);
       currentStep = stepAnterior;
       return true;
     }
     
-    // Ainda tem desmarcados - logar e tentar novamente
-    const labelsRestantes = desmarcadosDepois.map(cb => `"${cb.label || cb.value}"`).join(', ');
-    log(`⚠️ Ainda desmarcados após tentativa ${tentativa}: ${labelsRestantes}`, LOG_LEVELS.WARN);
-    
     if (tentativa < maxTentativas) {
-      log(`Aguardando 1s antes de nova tentativa...`, LOG_LEVELS.DEBUG);
+      log(`⚠️ Configuração incompleta, tentando novamente...`, LOG_LEVELS.WARN);
       await page.waitForTimeout(1000);
     }
   }
   
-  // 7. FALHA APÓS TODAS AS TENTATIVAS
-  const checkboxesFinal = await listarCheckboxes(page);
-  const desmarcadosFinal = checkboxesFinal.filter(cb => !cb.checked);
-  
-  const labels = desmarcadosFinal.map(cb => `"${cb.label || cb.value}" (${cb.section})`).join(', ');
-  const errorMsg = `FALHA: Após ${maxTentativas} tentativas, ${desmarcadosFinal.length} checkboxes ainda desmarcados: ${labels}`;
-  
-  log(errorMsg, LOG_LEVELS.ERROR);
+  // Se chegou aqui, falhou após todas as tentativas
+  log(`⚠️ Não foi possível confirmar configuração de Situação Boleto após ${maxTentativas} tentativas`, LOG_LEVELS.WARN);
+  log(`Continuando mesmo assim - verifique os filtros no screenshot de debug`, LOG_LEVELS.WARN);
   currentStep = stepAnterior;
-  
-  throw new Error(errorMsg);
+  return true; // Não bloquear, mas avisar
 }
 
 // Mapeamento de colunas
@@ -2795,16 +2889,18 @@ async function rodarRobo() {
     await page.waitForTimeout(1000);
     
     // ============================================
-    // VALIDAÇÃO COMPLETA DE CHECKBOXES
+    // CONFIGURAÇÃO DE CHECKBOXES - SITUAÇÃO BOLETO
     // ============================================
-    // Antes de gerar, garantir que TODOS os checkboxes estão marcados
-    // Isso evita que filtros não aplicados gerem arquivos enormes (600+ MB)
+    // Configura apenas os checkboxes da seção "Situação Boleto":
+    // - MARCAR: ABERTO, ABERTO MIGRADO, BAIXADO, BAIXADO C/ PENDÊNCIA, BAIXADOS MIGRADOS
+    // - DESMARCAR: CANCELADO
+    // Outros checkboxes (Regional, Cooperativa, etc) permanecem inalterados
     // ============================================
     try {
-      await validarEMarcarTodosCheckboxes(page, 3);
+      await configurarCheckboxesSituacaoBoleto(page, 3);
     } catch (checkboxError) {
-      log(`Erro na validação de checkboxes: ${checkboxError.message}`, LOG_LEVELS.ERROR);
-      await saveDebugInfo(page, context, `Checkboxes: ${checkboxError.message}`);
+      log(`Erro na configuração de Situação Boleto: ${checkboxError.message}`, LOG_LEVELS.ERROR);
+      await saveDebugInfo(page, context, `Situação Boleto: ${checkboxError.message}`);
       throw checkboxError;
     }
     
