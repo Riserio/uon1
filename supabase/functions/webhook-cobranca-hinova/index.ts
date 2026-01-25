@@ -130,7 +130,47 @@ serve(async (req) => {
       total_registros,
       chunk_index,
       chunk_total,
+      // Suporte a atualização de progresso
+      execucao_id,
+      update_progress,
+      progresso_download,
+      bytes_baixados,
+      bytes_total,
+      progresso_importacao,
+      etapa_atual,
     } = body;
+
+    // ============================================
+    // Atualização de progresso (sem inserção de dados)
+    // ============================================
+    if (update_progress && execucao_id) {
+      const updateData: Record<string, unknown> = {};
+      
+      if (progresso_download !== undefined) updateData.progresso_download = progresso_download;
+      if (bytes_baixados !== undefined) updateData.bytes_baixados = bytes_baixados;
+      if (bytes_total !== undefined) updateData.bytes_total = bytes_total;
+      if (progresso_importacao !== undefined) updateData.progresso_importacao = progresso_importacao;
+      if (etapa_atual !== undefined) updateData.etapa_atual = etapa_atual;
+      if (total_registros !== undefined) updateData.registros_total = total_registros;
+      
+      const { error: updateError } = await supabase
+        .from("cobranca_automacao_execucoes")
+        .update(updateData)
+        .eq("id", execucao_id);
+      
+      if (updateError) {
+        console.error("Erro ao atualizar progresso:", updateError);
+        return new Response(
+          JSON.stringify({ success: false, message: "Erro ao atualizar progresso", error: updateError.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ success: true, message: "Progresso atualizado" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     console.log("Webhook cobrança recebido:", {
       corretora_id,
@@ -302,6 +342,19 @@ serve(async (req) => {
         erros += batch.length;
       } else {
         processados += batch.length;
+      }
+      
+      // Atualizar progresso se temos execucao_id
+      if (execucao_id && dados.length > 0) {
+        const progressoImportacao = Math.round((processados / dados.length) * 100);
+        await supabase
+          .from("cobranca_automacao_execucoes")
+          .update({
+            progresso_importacao: progressoImportacao,
+            registros_processados: processados,
+            etapa_atual: 'importacao',
+          })
+          .eq("id", execucao_id);
       }
     }
 

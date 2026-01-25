@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
 import { 
   History, 
   CheckCircle, 
@@ -12,7 +13,8 @@ import {
   RefreshCw,
   Clock,
   FileSpreadsheet,
-  User
+  Download,
+  Upload
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -30,11 +32,17 @@ interface ExecucaoLog {
   mensagem: string | null;
   erro: string | null;
   registros_processados: number | null;
+  registros_total: number | null;
   nome_arquivo: string | null;
   duracao_segundos: number | null;
   iniciado_por: string | null;
   created_at: string;
   finalizado_at: string | null;
+  progresso_download: number | null;
+  bytes_baixados: number | null;
+  bytes_total: number | null;
+  progresso_importacao: number | null;
+  etapa_atual: string | null;
 }
 
 export default function CobrancaAutomacaoLogs({ configId, corretoraId }: CobrancaAutomacaoLogsProps) {
@@ -134,6 +142,25 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
     return `${minutes}m ${secs}s`;
   };
 
+  const formatBytes = (bytes: number | null) => {
+    if (!bytes || bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getEtapaLabel = (etapa: string | null) => {
+    const etapas: { [key: string]: string } = {
+      'login': 'Login',
+      'filtros': 'Aplicando filtros',
+      'download': 'Baixando arquivo',
+      'processamento': 'Processando dados',
+      'importacao': 'Importando registros',
+    };
+    return etapas[etapa || ''] || etapa || 'Iniciando...';
+  };
+
   if (loading) {
     return (
       <Card>
@@ -191,6 +218,69 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                         </span>
                       </div>
                       
+                      {/* Etapa atual para execuções em andamento */}
+                      {log.status === "executando" && log.etapa_atual && (
+                        <p className="text-sm text-muted-foreground mb-3">
+                          {getEtapaLabel(log.etapa_atual)}
+                        </p>
+                      )}
+
+                      {/* Barra de progresso do download */}
+                      {log.status === "executando" && (log.progresso_download !== null && log.progresso_download > 0 || log.bytes_baixados) && (
+                        <div className="mb-3 space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-1 text-blue-600">
+                              <Download className="h-3 w-3" />
+                              Download
+                            </span>
+                            <span className="text-muted-foreground">
+                              {log.progresso_download !== null && log.progresso_download > 0 
+                                ? `${log.progresso_download}%`
+                                : ''
+                              }
+                              {log.bytes_baixados && log.bytes_total && log.bytes_total > 0
+                                ? ` (${formatBytes(log.bytes_baixados)} / ${formatBytes(log.bytes_total)})`
+                                : log.bytes_baixados 
+                                  ? ` (${formatBytes(log.bytes_baixados)})`
+                                  : ''
+                              }
+                            </span>
+                          </div>
+                          <Progress 
+                            value={log.progresso_download || 0} 
+                            className="h-2"
+                          />
+                        </div>
+                      )}
+
+                      {/* Barra de progresso da importação */}
+                      {log.status === "executando" && (log.progresso_importacao !== null && log.progresso_importacao > 0 || log.registros_processados) && (
+                        <div className="mb-3 space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-1 text-green-600">
+                              <Upload className="h-3 w-3" />
+                              Importação
+                            </span>
+                            <span className="text-muted-foreground">
+                              {log.progresso_importacao !== null && log.progresso_importacao > 0 
+                                ? `${log.progresso_importacao}%`
+                                : ''
+                              }
+                              {log.registros_processados !== null && log.registros_total && log.registros_total > 0
+                                ? ` (${log.registros_processados.toLocaleString('pt-BR')} / ${log.registros_total.toLocaleString('pt-BR')} registros)`
+                                : log.registros_processados 
+                                  ? ` (${log.registros_processados.toLocaleString('pt-BR')} registros)`
+                                  : ''
+                              }
+                            </span>
+                          </div>
+                          <Progress 
+                            value={log.progresso_importacao || 0} 
+                            className="h-2"
+                          />
+                        </div>
+                      )}
+
                       {log.mensagem && (
                         <p className="text-sm mb-2">{log.mensagem}</p>
                       )}
@@ -201,26 +291,35 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                         </p>
                       )}
                       
-                      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                        {log.registros_processados !== null && log.registros_processados > 0 && (
-                          <span className="flex items-center gap-1">
-                            <FileSpreadsheet className="h-3 w-3" />
-                            {log.registros_processados} registros
-                          </span>
-                        )}
-                        {log.duracao_segundos !== null && (
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {formatDuration(log.duracao_segundos)}
-                          </span>
-                        )}
-                        {log.nome_arquivo && (
-                          <span className="flex items-center gap-1 truncate max-w-[200px]">
-                            <FileSpreadsheet className="h-3 w-3" />
-                            {log.nome_arquivo}
-                          </span>
-                        )}
-                      </div>
+                      {/* Métricas finais para execuções concluídas */}
+                      {log.status !== "executando" && (
+                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                          {log.registros_processados !== null && log.registros_processados > 0 && (
+                            <span className="flex items-center gap-1">
+                              <FileSpreadsheet className="h-3 w-3" />
+                              {log.registros_processados.toLocaleString('pt-BR')} registros
+                            </span>
+                          )}
+                          {log.bytes_total !== null && log.bytes_total > 0 && (
+                            <span className="flex items-center gap-1">
+                              <Download className="h-3 w-3" />
+                              {formatBytes(log.bytes_total)}
+                            </span>
+                          )}
+                          {log.duracao_segundos !== null && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatDuration(log.duracao_segundos)}
+                            </span>
+                          )}
+                          {log.nome_arquivo && (
+                            <span className="flex items-center gap-1 truncate max-w-[200px]">
+                              <FileSpreadsheet className="h-3 w-3" />
+                              {log.nome_arquivo}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
