@@ -641,45 +641,63 @@ export type Database = {
       }
       cobranca_automacao_execucoes: {
         Row: {
+          bytes_baixados: number | null
+          bytes_total: number | null
           config_id: string
           corretora_id: string
           created_at: string
           duracao_segundos: number | null
           erro: string | null
+          etapa_atual: string | null
           finalizado_at: string | null
           id: string
           iniciado_por: string | null
           mensagem: string | null
           nome_arquivo: string | null
+          progresso_download: number | null
+          progresso_importacao: number | null
           registros_processados: number | null
+          registros_total: number | null
           status: string
         }
         Insert: {
+          bytes_baixados?: number | null
+          bytes_total?: number | null
           config_id: string
           corretora_id: string
           created_at?: string
           duracao_segundos?: number | null
           erro?: string | null
+          etapa_atual?: string | null
           finalizado_at?: string | null
           id?: string
           iniciado_por?: string | null
           mensagem?: string | null
           nome_arquivo?: string | null
+          progresso_download?: number | null
+          progresso_importacao?: number | null
           registros_processados?: number | null
+          registros_total?: number | null
           status?: string
         }
         Update: {
+          bytes_baixados?: number | null
+          bytes_total?: number | null
           config_id?: string
           corretora_id?: string
           created_at?: string
           duracao_segundos?: number | null
           erro?: string | null
+          etapa_atual?: string | null
           finalizado_at?: string | null
           id?: string
           iniciado_por?: string | null
           mensagem?: string | null
           nome_arquivo?: string | null
+          progresso_download?: number | null
+          progresso_importacao?: number | null
           registros_processados?: number | null
+          registros_total?: number | null
           status?: string
         }
         Relationships: [
