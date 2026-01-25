@@ -57,15 +57,15 @@ const TIMEOUTS = {
   PAGE_LOAD: 90000,           // 90s para carregar página
   LOGIN_RETRY_WAIT: 8000,     // 8s entre tentativas de login
   DOWNLOAD_EVENT: 3 * 60000,  // 3 min para evento de download
-  DOWNLOAD_TOTAL: 10 * 60000, // 10 min total para download (portal pode demorar)
-  DOWNLOAD_SAVE: 10 * 60000,  // 10 min para salvar arquivo (portal Hinova é lento)
+  DOWNLOAD_TOTAL: 40 * 60000, // 40 min total para download (portal pode demorar)
+  DOWNLOAD_SAVE: 40 * 60000,  // 40 min para salvar arquivo (portal Hinova é lento)
   // O portal pode levar MUITO tempo para iniciar a transmissão do relatório.
   // Se o idle for curto, o replay HTTP aborta cedo e acabamos caindo no `saveAs()`,
   // que pode ser cancelado se o popup/contexto fechar antes do download iniciar.
-  DOWNLOAD_IDLE: 20 * 60000,  // 20 min sem receber bytes -> abortar
-  DOWNLOAD_HARD: 28 * 60000,  // 28 min limite rígido (abaixo do timeout do workflow)
+  DOWNLOAD_IDLE: 40 * 60000,  // 40 min sem receber bytes -> abortar
+  DOWNLOAD_HARD: 55 * 60000,  // 55 min limite rígido (abaixo do timeout do workflow de 60 min)
   POPUP_CLOSE: 800,           // 800ms para fechar popup
-  FILE_PROGRESS_INTERVAL: 10000, // 10s entre logs de progresso do arquivo
+  FILE_PROGRESS_INTERVAL: 5000, // 5s entre logs de progresso do arquivo
 };
 
 const LIMITS = {
@@ -1314,9 +1314,8 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
   const stopMonitor = monitorFileProgress(filePath, expectedSize);
   const startTime = Date.now();
 
-  // Heartbeat para mostrar que o processo ainda está ativo
-  let lastHeartbeat = Date.now();
-  const HEARTBEAT_INTERVAL = 30000; // 30 segundos
+  // Heartbeat para mostrar que o processo ainda está ativo (reduzido para 15s)
+  const HEARTBEAT_INTERVAL = 15000; // 15 segundos
   const heartbeatInterval = setInterval(() => {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
     const minutes = Math.floor(elapsed / 60);
@@ -1325,17 +1324,30 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
     // Verificar se arquivo começou a ser criado
     const possiblePaths = [filePath, filePath + '.crdownload', filePath + '.part'];
     let fileSize = 0;
+    let foundPath = null;
     for (const p of possiblePaths) {
       try {
         if (fs.existsSync(p)) {
           fileSize = fs.statSync(p).size;
+          foundPath = p;
           break;
         }
       } catch {}
     }
     
     if (fileSize > 0) {
-      log(`⏳ Recebendo dados... ${formatBytes(fileSize)} (${minutes}m ${seconds}s)`, LOG_LEVELS.INFO);
+      const speed = fileSize / Math.max(1, elapsed);
+      if (expectedSize > 0) {
+        const pct = Math.min(100, Math.floor((fileSize / expectedSize) * 100));
+        // Barra de progresso visual
+        const barSize = 20;
+        const filled = Math.round((pct / 100) * barSize);
+        const empty = barSize - filled;
+        const bar = '█'.repeat(filled) + '░'.repeat(empty);
+        log(`⏳ Download [${bar}] ${pct}% (${formatBytes(fileSize)} / ${formatBytes(expectedSize)}) • ${formatBytes(speed)}/s (${minutes}m ${seconds}s)`, LOG_LEVELS.INFO);
+      } else {
+        log(`⏳ Recebendo dados... ${formatBytes(fileSize)} • ${formatBytes(speed)}/s (${minutes}m ${seconds}s)`, LOG_LEVELS.INFO);
+      }
     } else {
       log(`⏳ Aguardando servidor Hinova gerar relatório... (${minutes}m ${seconds}s)`, LOG_LEVELS.INFO);
     }
