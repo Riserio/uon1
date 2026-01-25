@@ -1135,20 +1135,20 @@ function isExcelResponse(response) {
 }
 
 /**
- * Watcher 1: Intercepta respostas HTTP que contêm Excel
- * MÉTODO PRINCIPAL - Captura direta do stream HTTP
+ * Watcher HTTP: Intercepta respostas HTTP que contêm Excel
  * 
- * FLUXO TERMINAL COM STREAMING:
- * 1. Detecta resposta Excel via headers
- * 2. Consome o body da resposta diretamente
- * 3. Salva bytes em disco com progresso
- * 4. Validação síncrona
- * 5. Etapa DOWNLOAD finaliza
+ * ATENÇÃO: Este é um FALLBACK - só executa se:
+ * 1. Nenhum evento de download foi capturado via Playwright
+ * 2. E não houve criação de arquivo pelo browser
+ * 
+ * Se download foi capturado via Playwright, este watcher é IGNORADO
+ * (controller.isCaptured() retorna true e o handler retorna imediatamente)
  */
 function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName) {
   const pagesAttached = new Set();
   
   const onResponse = async (response) => {
+    // REGRA: Se download já foi capturado via Playwright, NÃO executar HTTP stream
     if (controller.isCaptured()) return;
     
     if (isExcelResponse(response)) {
@@ -1163,7 +1163,13 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
         log(`Arquivo detectado via HTTP: ${fileNameMatch[1]}`, LOG_LEVELS.DEBUG);
       }
       
-      // ===== PASSO 1: Marcar como capturado =====
+      // Verificar novamente se alguém capturou enquanto processávamos
+      if (controller.isCaptured()) {
+        log(`Download já capturado via Playwright - ignorando HTTP stream`, LOG_LEVELS.DEBUG);
+        return;
+      }
+      
+      // ===== MARCAR COMO CAPTURADO =====
       const wasCaptured = controller.setCaptured({ 
         type: 'httpResponse', 
         response, 
@@ -1172,7 +1178,7 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
       
       if (!wasCaptured) return;
       
-      log(`✅ Download capturado via interceptação HTTP`, LOG_LEVELS.SUCCESS);
+      log(`✅ Download capturado via HTTP stream (fallback)`, LOG_LEVELS.SUCCESS);
       if (contentLength > 0) {
         log(`Tamanho esperado: ${(contentLength / 1024).toFixed(2)} KB`, LOG_LEVELS.DEBUG);
       }
@@ -1365,7 +1371,12 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
 
 /**
  * Watcher 2: Captura eventos de download global
- * Ao capturar, executa saveAs IMEDIATAMENTE no mesmo bloco
+ * 
+ * REGRA OBRIGATÓRIA: Quando download é capturado via Playwright:
+ * → USAR APENAS download.saveAs()
+ * → NÃO executar HTTP stream
+ * → NÃO fazer GET manual
+ * → NÃO reutilizar URL geraRelatorioBoleto.php
  */
 function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName) {
   const pagesAttached = new Set();
@@ -1374,7 +1385,7 @@ function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticNa
     if (controller.isCaptured()) return;
     
     const filename = download.suggestedFilename?.() || '';
-    log(`Download global detectado: ${filename}`, LOG_LEVELS.DEBUG);
+    log(`✅ Download CAPTURADO via Playwright (globalDownload): ${filename}`, LOG_LEVELS.SUCCESS);
     
     // Marcar como capturado ANTES de qualquer processamento
     const wasCaptured = controller.setCaptured({ 
@@ -1386,32 +1397,13 @@ function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticNa
     if (!wasCaptured) return; // Outro watcher já capturou
     
     try {
-      // Preferir replay HTTP com cookies da sessão para obter % e evitar cancelamento
-      const url = download.url?.() || '';
-      const cookieHeader = await buildCookieHeader(context, url);
-      const headers = pickHeadersForHttpReplay({ 'user-agent': 'Mozilla/5.0' });
-      if (cookieHeader) headers['cookie'] = cookieHeader;
-
-      let result;
-      if (url) {
-        try {
-          log(`⬇️ Baixando via HTTP stream (globalDownload)...`, LOG_LEVELS.INFO);
-          result = await downloadViaAxiosStream({
-            url,
-            method: 'GET',
-            headers,
-            filePath: path.join(downloadDir, semanticName),
-          });
-        } catch (e) {
-          log(`⚠️ HTTP stream falhou (${e.message}) — usando saveAs`, LOG_LEVELS.WARN);
-          result = await processarDownloadImediato(download, downloadDir, semanticName);
-        }
-      } else {
-        result = await processarDownloadImediato(download, downloadDir, semanticName);
-      }
+      // REGRA: Download capturado via Playwright = usar APENAS saveAs
+      // NÃO tentar HTTP stream, NÃO fazer GET manual
+      log(`📥 Usando download.saveAs() - PRIORIDADE TOTAL para download do browser`, LOG_LEVELS.INFO);
+      const result = await processarDownloadImediato(download, downloadDir, semanticName);
       controller.setFileResult(result);
     } catch (e) {
-      log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
+      log(`Erro ao salvar download via saveAs: ${e.message}`, LOG_LEVELS.ERROR);
       controller.setError(e);
     }
   };
@@ -1447,14 +1439,18 @@ function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticNa
 
 /**
  * Watcher 3: Evento de download da página principal
- * Ao capturar, executa saveAs IMEDIATAMENTE no mesmo bloco
+ * 
+ * REGRA OBRIGATÓRIA: Quando download é capturado via Playwright:
+ * → USAR APENAS download.saveAs()
+ * → NÃO executar HTTP stream
+ * → NÃO fazer GET manual
  */
 function criarWatcherDownloadPaginaPrincipal(context, page, controller, downloadDir, semanticName) {
   const onDownload = async (download) => {
     if (controller.isCaptured()) return;
     
     const filename = download.suggestedFilename?.() || '';
-    log(`Download página principal: ${filename}`, LOG_LEVELS.DEBUG);
+    log(`✅ Download CAPTURADO via Playwright (mainPage): ${filename}`, LOG_LEVELS.SUCCESS);
     
     // Marcar como capturado ANTES de qualquer processamento
     const wasCaptured = controller.setCaptured({ 
@@ -1466,31 +1462,13 @@ function criarWatcherDownloadPaginaPrincipal(context, page, controller, download
     if (!wasCaptured) return; // Outro watcher já capturou
     
     try {
-      const url = download.url?.() || '';
-      const cookieHeader = await buildCookieHeader(context, url);
-      const headers = pickHeadersForHttpReplay({ 'user-agent': 'Mozilla/5.0' });
-      if (cookieHeader) headers['cookie'] = cookieHeader;
-
-      let result;
-      if (url) {
-        try {
-          log(`⬇️ Baixando via HTTP stream (mainPage)...`, LOG_LEVELS.INFO);
-          result = await downloadViaAxiosStream({
-            url,
-            method: 'GET',
-            headers,
-            filePath: path.join(downloadDir, semanticName),
-          });
-        } catch (e) {
-          log(`⚠️ HTTP stream falhou (${e.message}) — usando saveAs`, LOG_LEVELS.WARN);
-          result = await processarDownloadImediato(download, downloadDir, semanticName);
-        }
-      } else {
-        result = await processarDownloadImediato(download, downloadDir, semanticName);
-      }
+      // REGRA: Download capturado via Playwright = usar APENAS saveAs
+      // NÃO tentar HTTP stream, NÃO fazer GET manual
+      log(`📥 Usando download.saveAs() - PRIORIDADE TOTAL para download do browser`, LOG_LEVELS.INFO);
+      const result = await processarDownloadImediato(download, downloadDir, semanticName);
       controller.setFileResult(result);
     } catch (e) {
-      log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
+      log(`Erro ao salvar download via saveAs: ${e.message}`, LOG_LEVELS.ERROR);
       controller.setError(e);
     }
   };
@@ -1523,11 +1501,12 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
     try {
       log(`Nova aba detectada: configurando listener de download...`, LOG_LEVELS.DEBUG);
       
-      // Handler de download na nova aba - executa saveAs IMEDIATAMENTE
+      // Handler de download na nova aba - USAR APENAS saveAs
       const onNewPageDownload = async (download) => {
         if (controller.isCaptured()) return;
         
         const filename = download.suggestedFilename?.() || '';
+        log(`✅ Download CAPTURADO via Playwright (newTab): ${filename}`, LOG_LEVELS.SUCCESS);
         
         const wasCaptured = controller.setCaptured({ 
           type: 'download', 
@@ -1539,34 +1518,16 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
         if (!wasCaptured) return;
         
         try {
-          const url = download.url?.() || '';
-          const cookieHeader = await buildCookieHeader(context, url);
-          const headers = pickHeadersForHttpReplay({ 'user-agent': 'Mozilla/5.0' });
-          if (cookieHeader) headers['cookie'] = cookieHeader;
-
-          let result;
-          if (url) {
-            try {
-              log(`⬇️ Baixando via HTTP stream (newTab)...`, LOG_LEVELS.INFO);
-              result = await downloadViaAxiosStream({
-                url,
-                method: 'GET',
-                headers,
-                filePath: path.join(downloadDir, semanticName),
-              });
-            } catch (e) {
-              log(`⚠️ HTTP stream falhou (${e.message}) — usando saveAs`, LOG_LEVELS.WARN);
-              result = await processarDownloadImediato(download, downloadDir, semanticName);
-            }
-          } else {
-            result = await processarDownloadImediato(download, downloadDir, semanticName);
-          }
+          // REGRA: Download capturado via Playwright = usar APENAS saveAs
+          // NÃO tentar HTTP stream, NÃO fazer GET manual
+          log(`📥 Usando download.saveAs() - PRIORIDADE TOTAL para download do browser`, LOG_LEVELS.INFO);
+          const result = await processarDownloadImediato(download, downloadDir, semanticName);
           controller.setFileResult(result);
           
           // Fechar aba após salvar (sem esperar)
           newPage.close().catch(() => {});
         } catch (e) {
-          log(`Erro ao salvar download: ${e.message}`, LOG_LEVELS.ERROR);
+          log(`Erro ao salvar download via saveAs: ${e.message}`, LOG_LEVELS.ERROR);
           controller.setError(e);
         }
       };
@@ -1641,28 +1602,29 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
 
 /**
  * Inicia todos os watchers e aguarda o primeiro download válido
- * PRIORIDADE: HTTP Stream > Download Global > Download Página > Nova Aba
  * 
- * ESTRATÉGIA HÍBRIDA:
- * 1. HTTP Stream (PREFERIDO): Captura bytes diretamente da resposta HTTP - mais rápido e confiável
- * 2. Download Global: Eventos de download do contexto Playwright
- * 3. Download Página: Eventos de download da página principal
- * 4. Nova Aba: Detecta popups que disparam downloads
+ * PRIORIDADE OBRIGATÓRIA (conforme regras do usuário):
+ * 1. Download Playwright (globalDownload, mainPage, newTab) → PRIORIDADE TOTAL → usa APENAS saveAs()
+ * 2. HTTP Stream → APENAS se nenhum download foi capturado via Playwright E não houve criação de arquivo
  * 
- * O primeiro watcher que capturar salva imediatamente e encerra os demais.
+ * REGRA: Se download é capturado via Playwright:
+ * → NÃO executar HTTP stream
+ * → NÃO fazer GET manual
+ * → USAR APENAS download.saveAs()
  */
 async function aguardarDownloadHibrido(context, page, downloadDir, semanticName, timeoutMs) {
-  log(`Iniciando captura híbrida de download...`, LOG_LEVELS.INFO);
+  log(`Iniciando captura de download...`, LOG_LEVELS.INFO);
   log(`Arquivo destino: ${path.join(downloadDir, semanticName)}`, LOG_LEVELS.DEBUG);
-  log(`Watchers ativos: HTTP Stream (principal), Download Global, Download Página, Nova Aba`, LOG_LEVELS.DEBUG);
+  log(`PRIORIDADE: Download Playwright (saveAs) > HTTP Stream (fallback)`, LOG_LEVELS.DEBUG);
   
   const controller = new DownloadController();
   
-  // Iniciar watchers - HTTP Stream é o principal (mais rápido e confiável)
-  criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName);  // PRINCIPAL
-  criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName);
-  criarWatcherDownloadPaginaPrincipal(context, page, controller, downloadDir, semanticName);
-  criarWatcherNovaAba(context, page, controller, downloadDir, semanticName);
+  // ORDEM CRÍTICA: Watchers de Download do Playwright PRIMEIRO (prioridade total)
+  // O primeiro que capturar bloqueia os demais via controller.isCaptured()
+  criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName);         // 1º - Download global
+  criarWatcherDownloadPaginaPrincipal(context, page, controller, downloadDir, semanticName); // 2º - Página principal  
+  criarWatcherNovaAba(context, page, controller, downloadDir, semanticName);          // 3º - Nova aba/popup
+  criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName);           // 4º - HTTP Stream (FALLBACK)
   
   // Iniciar monitor de progresso
   controller.startProgressMonitor();
