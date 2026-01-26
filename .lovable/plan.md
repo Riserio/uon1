@@ -1,98 +1,121 @@
 
-# Plano: Correção da Seleção de Layout e Filtros na Automação Hinova
-
-## Status: ✅ IMPLEMENTADO
-
----
-
-## Objetivo
-Garantir que o script de automação Hinova selecione corretamente o layout **"BI - VANGARD COBRANÇA"** na seção **"Dados Visualizados"**, e documentar todos os filtros que estão sendo aplicados.
-
----
+# Plano: Aumentar Tempo de Espera e Implementar Espera Inteligente Após Seleção do Layout
 
 ## Problema Identificado
 
-Com base na imagem compartilhada e nos logs, o layout está localizado na seção **"Dados Visualizados"** com:
-- **Label:** "Layout:"
-- **Opções:** "--- SELECIONE ---", "BI - VANGARD COBRANÇA", "CHATBOT", "POS VENDA COBRANÇA"
+Após selecionar o layout "BI - VANGARD COBRANÇA", o script aguarda apenas **10 segundos fixos** antes de prosseguir. Porém, as seções que aparecem apenas com este layout (como "Vencimento do Veículo", "Dias de Vencimento" e "Dias de Atraso") podem demorar mais para carregar completamente no portal Hinova.
 
-O script anterior buscava por atributos `name` ou `id` contendo "layout", "visualiza" ou "dados", mas não encontrava o seletor correto.
+Isso explica por que os campos "Dias de Vencimento" e "Dias de Atraso" não estão sendo exportados no Excel — o script prossegue antes que essas configurações estejam disponíveis.
 
 ---
 
-## Alterações Implementadas
+## Solução Proposta
 
-### 1. ✅ Nova Lógica de Seleção do Layout (4 Estratégias)
+### 1. Aumentar o Tempo Base de Espera
+
+Aumentar o tempo fixo de **10 segundos para 20 segundos** como margem de segurança inicial.
+
+### 2. Implementar Espera Inteligente por Elemento
+
+Após os 20 segundos iniciais, o script deve **verificar ativamente** se elementos específicos do layout BI já estão visíveis antes de prosseguir:
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│           Espera Inteligente Após Layout BI                 │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  1. Selecionar layout "BI - VANGARD COBRANÇA"               │
+│                     ↓                                       │
+│  2. Aguardar 20 segundos (tempo base)                       │
+│                     ↓                                       │
+│  3. Verificar se "Vencimento do Veículo" apareceu           │
+│     ├── Se SIM → Configurações carregadas, prosseguir       │
+│     └── Se NÃO → Aguardar mais 5s e verificar novamente     │
+│                  (até 3 tentativas = +15s extra)            │
+│                     ↓                                       │
+│  4. Total máximo: 35 segundos                               │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 3. Logs de Diagnóstico
+
+Adicionar logs que informem:
+- Quanto tempo foi aguardado
+- Se a seção "Vencimento do Veículo" foi detectada
+- Se campos dinâmicos do layout foram identificados
+
+---
+
+## Alterações no Código
 
 **Arquivo:** `scripts/robo-cobranca-hinova.cjs`
 
-**Estratégias de busca (em ordem de prioridade):**
+**Localização:** Após a validação do layout (linha ~3303)
 
-1. **LABEL_LAYOUT** - Buscar TD/Label com texto exato "Layout:" e selecionar o `<select>` na mesma linha
-2. **SECAO_DADOS_VISUALIZADOS** - Localizar a seção "Dados Visualizados" e encontrar o select com a opção BI-Vangard
-3. **VARREDURA_OPCOES** - Iterar todos os selects da página buscando a opção "BI - VANGARD COBRANÇA"
-4. **FALLBACK_NAME_ID** - Busca por atributos `name`/`id` contendo "layout"
+**Código a implementar:**
 
-### 2. ✅ Seleção de Layout OBRIGATÓRIA
+```javascript
+// ========================================
+// AGUARDAR CONFIGURAÇÕES CARREGAREM APÓS LAYOUT
+// ========================================
+log('⏳ Aguardando configurações do layout carregarem...', LOG_LEVELS.INFO);
 
-Se o layout "BI - VANGARD COBRANÇA" não puder ser selecionado, o script agora:
-- Lança erro crítico
-- Salva screenshot de diagnóstico com todas as opções encontradas
-- Lista todos os selects e suas opções
-- **NÃO prossegue com o download**
+// Tempo base de 20 segundos
+await page.waitForTimeout(20000);
 
-### 3. ✅ Sumário Visual de Filtros Antes do Download
+// Verificar se elementos específicos do layout BI apareceram
+let layoutCarregado = false;
+const maxTentativas = 3;
+const intervaloExtra = 5000; // 5 segundos extras por tentativa
 
-Antes de gerar o relatório, o script exibe:
+for (let tentativa = 1; tentativa <= maxTentativas && !layoutCarregado; tentativa++) {
+  // Verificar se "Vencimento do Veículo" está visível (elemento exclusivo do layout BI)
+  const vencimentoVeiculoVisivel = await page.evaluate(() => {
+    const elementos = document.querySelectorAll('td, th, div, span, label');
+    for (const el of elementos) {
+      const texto = (el.textContent || '').toUpperCase();
+      if (texto.includes('VENCIMENTO DO VEÍCULO') || texto.includes('VENCIMENTO DO VEICULO')) {
+        return true;
+      }
+    }
+    return false;
+  });
 
-```
-══════════════════════════════════════════════════════════════
-📋 SUMÁRIO DE FILTROS APLICADOS
-══════════════════════════════════════════════════════════════
-   ✅ Data Vencimento Original: 01/01/2026 a 31/01/2026
-   ✅ Layout: BI - VANGARD COBRANÇA
-   ✅ Cooperativa - TODOS: MARCADO
-   ✅ Forma Exibição: Em Excel
-   ℹ️ Boletos Anteriores: NÃO POSSUI (configurado)
-   ℹ️ Referência: VENCIMENTO ORIGINAL (configurado)
-══════════════════════════════════════════════════════════════
+  if (vencimentoVeiculoVisivel) {
+    log('✅ Seção "Vencimento do Veículo" detectada - Layout BI carregado completamente!', LOG_LEVELS.SUCCESS);
+    layoutCarregado = true;
+  } else if (tentativa < maxTentativas) {
+    log(`⏳ Seção não detectada ainda. Aguardando mais ${intervaloExtra/1000}s... (tentativa ${tentativa}/${maxTentativas})`, LOG_LEVELS.INFO);
+    await page.waitForTimeout(intervaloExtra);
+  }
+}
+
+if (!layoutCarregado) {
+  log('⚠️ Seção "Vencimento do Veículo" não detectada após espera. Prosseguindo mesmo assim...', LOG_LEVELS.WARN);
+  log('   Os campos "Dias de Vencimento" e "Dias de Atraso" podem não estar disponíveis.', LOG_LEVELS.WARN);
+}
+
+log('✅ Tempo de espera concluído!', LOG_LEVELS.SUCCESS);
 ```
 
 ---
 
-## Resumo dos Filtros Aplicados
+## Resumo das Mudanças
 
-| Filtro | Comportamento | Obrigatório | Validação |
-|--------|--------------|-------------|-----------|
-| **Data Vencimento Original** | Preenche 01/MM/AAAA a DD/MM/AAAA (mês atual) | ✅ Sim | ❌ Erro se falhar |
-| **Layout** | Seleciona "BI - VANGARD COBRANÇA" | ✅ Sim | ❌ Erro se falhar |
-| **Cooperativa** | Marca checkbox "TODOS" | ⚠️ Warning | ⚠️ Aviso se falhar |
-| **Situação Boleto** | Marca: ABERTO, BAIXADO, etc. Desmarca: CANCELADO | ⚠️ Warning | ⚠️ Aviso se falhar |
-| **Forma de Exibição** | Seleciona "Em Excel" | ✅ Sim | Sempre aplica |
-| **Boletos Anteriores** | Seleciona "NÃO POSSUI" | ℹ️ Opcional | Não bloqueia |
-| **Referência** | Seleciona "VENCIMENTO ORIGINAL" | ℹ️ Opcional | Não bloqueia |
+| Aspecto | Antes | Depois |
+|---------|-------|--------|
+| **Tempo base** | 10 segundos fixos | 20 segundos base |
+| **Espera extra** | Nenhuma | Até +15 segundos (3 × 5s) |
+| **Total máximo** | 10 segundos | 35 segundos |
+| **Validação** | Nenhuma | Verifica se "Vencimento do Veículo" apareceu |
+| **Diagnóstico** | Básico | Logs detalhados sobre carregamento |
 
 ---
 
 ## Resultado Esperado
 
-Após estas mudanças:
-1. ✅ O layout "BI - VANGARD COBRANÇA" será selecionado corretamente
-2. ✅ O relatório terá todas as colunas preenchidas (incluindo Cooperativa)
-3. ✅ Se qualquer filtro obrigatório falhar, o script aborta com erro claro
-4. ✅ Logs detalhados mostrarão o estado de cada filtro antes do download
-5. ✅ Screenshot de diagnóstico salvo para análise
-
----
-
-## Próximos Passos
-
-Execute o script localmente ou via GitHub Actions para validar:
-```bash
-node scripts/robo-cobranca-hinova.cjs
-```
-
-Verifique:
-1. O log deve mostrar "✅ Layout selecionado com sucesso!"
-2. O sumário deve mostrar todos os filtros como ✅
-3. O arquivo Excel deve ter a coluna "Cooperativa" preenchida
+1. O portal terá tempo suficiente para carregar todas as seções dependentes do layout BI
+2. As colunas "Dias de Vencimento" e "Dias de Atraso" serão incluídas no relatório Excel
+3. Se o carregamento demorar demais, um aviso será exibido nos logs para diagnóstico
+4. O script não ficará travado indefinidamente graças ao limite de 35 segundos
