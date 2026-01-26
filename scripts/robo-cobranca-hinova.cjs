@@ -3106,87 +3106,179 @@ async function rodarRobo() {
     await page.waitForTimeout(1000);
     
     // ============================================
-    // LAYOUT - CRÍTICO: DEVE SER "BI - Vangard Cobrança"
+    // LAYOUT - CRÍTICO: DEVE SER "BI - VANGARD COBRANÇA"
     // ============================================
-    // Sem o layout correto, o relatório vem com colunas vazias
+    // Localizado na seção "Dados Visualizados" com label "Layout:"
+    // Opções: "--- SELECIONE ---", "BI - VANGARD COBRANÇA", "CHATBOT", "POS VENDA COBRANÇA"
+    // SEM O LAYOUT CORRETO, O RELATÓRIO VEM COM COLUNAS VAZIAS (ex: Cooperativa)
     // ============================================
-    log('📋 Configurando layout do relatório...', LOG_LEVELS.INFO);
+    log('═'.repeat(50), LOG_LEVELS.INFO);
+    log('📋 CONFIGURANDO LAYOUT DO RELATÓRIO', LOG_LEVELS.INFO);
+    log('═'.repeat(50), LOG_LEVELS.INFO);
+    log('   Layout obrigatório: "BI - VANGARD COBRANÇA"', LOG_LEVELS.INFO);
     
     const layoutSelecionado = await page.evaluate(() => {
-      // Encontrar todos os selects na página
-      const selects = document.querySelectorAll('select');
-      const resultado = { encontrado: false, selecionado: false, valorAtual: '', opcoesDisponiveis: [] };
+      const resultado = {
+        sucesso: false,
+        metodo: null,
+        valorSelecionado: null,
+        opcoesDisponiveis: [],
+        diagnostico: {
+          selectsEncontrados: [],
+          labelsLayout: [],
+          secaoDadosVisualizados: null
+        }
+      };
       
-      for (const select of selects) {
-        const name = select.name || select.id || '';
-        const nameNorm = name.toLowerCase();
+      const normalizar = (texto) => {
+        return (texto || '')
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+      
+      // ========================================
+      // ESTRATÉGIA 1: Buscar pelo texto exato "Layout:" adjacente
+      // ========================================
+      const labels = document.querySelectorAll('td, th, label, span');
+      for (const label of labels) {
+        const texto = (label.textContent || '').trim();
+        const textoNorm = normalizar(texto);
         
-        // Verificar se é o select de layout/visualização
-        if (nameNorm.includes('layout') || nameNorm.includes('visualiza') || nameNorm.includes('dados')) {
-          resultado.encontrado = true;
-          resultado.nomeSelect = name;
+        // Buscar exatamente "Layout:" ou "Layout"
+        if (textoNorm === 'LAYOUT:' || textoNorm === 'LAYOUT') {
+          resultado.diagnostico.labelsLayout.push({
+            texto: texto,
+            tag: label.tagName
+          });
           
-          // Listar opções disponíveis
-          const opcoes = Array.from(select.options).map(opt => ({
-            value: opt.value,
-            text: opt.text?.trim() || opt.textContent?.trim() || ''
-          }));
-          resultado.opcoesDisponiveis = opcoes;
-          resultado.valorAtual = select.options[select.selectedIndex]?.text || '';
+          // Procurar select na mesma linha (tr) ou próximo
+          const row = label.closest('tr');
+          const selectInRow = row?.querySelector('select');
           
-          // Procurar a opção correta
-          for (let i = 0; i < select.options.length; i++) {
-            const optText = (select.options[i].text || '').trim().toUpperCase();
-            if (optText.includes('BI') && optText.includes('VANGARD')) {
-              select.selectedIndex = i;
-              select.dispatchEvent(new Event('change', { bubbles: true }));
-              resultado.selecionado = true;
-              resultado.valorSelecionado = select.options[i].text;
-              break;
-            }
-          }
-          
-          // Se não encontrou BI - Vangard, tentar "Completo" ou similar
-          if (!resultado.selecionado) {
-            for (let i = 0; i < select.options.length; i++) {
-              const optText = (select.options[i].text || '').trim().toUpperCase();
-              if (optText.includes('COMPLETO') || optText.includes('TODOS')) {
-                select.selectedIndex = i;
-                select.dispatchEvent(new Event('change', { bubbles: true }));
-                resultado.selecionado = true;
-                resultado.valorSelecionado = select.options[i].text;
-                break;
+          if (selectInRow) {
+            // Listar opções
+            const opcoes = Array.from(selectInRow.options).map(o => o.text?.trim() || '');
+            resultado.opcoesDisponiveis = opcoes;
+            
+            // Procurar "BI - VANGARD COBRANÇA"
+            for (let i = 0; i < selectInRow.options.length; i++) {
+              const optText = normalizar(selectInRow.options[i].text || '');
+              if (optText.includes('BI') && optText.includes('VANGARD')) {
+                selectInRow.selectedIndex = i;
+                selectInRow.dispatchEvent(new Event('change', { bubbles: true }));
+                resultado.sucesso = true;
+                resultado.metodo = 'LABEL_LAYOUT';
+                resultado.valorSelecionado = selectInRow.options[i].text?.trim();
+                return resultado;
               }
             }
           }
-          
-          break;
         }
       }
       
-      // Se não encontrou por nome, procurar por labels próximos
-      if (!resultado.encontrado) {
-        const labels = document.querySelectorAll('td, th, label');
-        for (const label of labels) {
-          const texto = (label.textContent || '').toLowerCase();
-          if (texto.includes('layout') || texto.includes('visualiza') || texto.includes('exibição')) {
-            const row = label.closest('tr');
-            const selectInRow = row?.querySelector('select');
-            if (selectInRow) {
-              resultado.encontrado = true;
-              resultado.nomeSelect = selectInRow.name || 'select_proximo_label';
-              
-              for (let i = 0; i < selectInRow.options.length; i++) {
-                const optText = (selectInRow.options[i].text || '').trim().toUpperCase();
-                if (optText.includes('BI') && optText.includes('VANGARD')) {
-                  selectInRow.selectedIndex = i;
-                  selectInRow.dispatchEvent(new Event('change', { bubbles: true }));
-                  resultado.selecionado = true;
-                  resultado.valorSelecionado = selectInRow.options[i].text;
-                  break;
+      // ========================================
+      // ESTRATÉGIA 2: Buscar seção "Dados Visualizados"
+      // ========================================
+      const secoes = document.querySelectorAll('td, th, div, fieldset, legend');
+      for (const secao of secoes) {
+        const texto = normalizar(secao.textContent || '');
+        
+        if (texto.includes('DADOS VISUALIZADOS')) {
+          resultado.diagnostico.secaoDadosVisualizados = {
+            tag: secao.tagName,
+            texto: (secao.textContent || '').substring(0, 100)
+          };
+          
+          // Encontrar o container mais próximo
+          const container = secao.closest('table, div, fieldset') || secao.parentElement;
+          const selects = container?.querySelectorAll('select') || [];
+          
+          for (const select of selects) {
+            // Listar opções
+            const opcoes = Array.from(select.options).map(o => o.text?.trim() || '');
+            
+            // Verificar se tem a opção BI - VANGARD
+            for (let i = 0; i < select.options.length; i++) {
+              const optText = normalizar(select.options[i].text || '');
+              if (optText.includes('BI') && optText.includes('VANGARD')) {
+                if (resultado.opcoesDisponiveis.length === 0) {
+                  resultado.opcoesDisponiveis = opcoes;
                 }
+                select.selectedIndex = i;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                resultado.sucesso = true;
+                resultado.metodo = 'SECAO_DADOS_VISUALIZADOS';
+                resultado.valorSelecionado = select.options[i].text?.trim();
+                return resultado;
               }
-              break;
+            }
+          }
+        }
+      }
+      
+      // ========================================
+      // ESTRATÉGIA 3: Varrer TODOS os selects buscando a opção correta
+      // ========================================
+      const todosSelects = document.querySelectorAll('select');
+      for (const select of todosSelects) {
+        const opcoes = Array.from(select.options).map(o => o.text?.trim() || '');
+        
+        for (let i = 0; i < select.options.length; i++) {
+          const optText = normalizar(select.options[i].text || '');
+          // Buscar especificamente "BI - VANGARD COBRANÇA" ou "BI VANGARD COBRANCA"
+          if ((optText.includes('BI') && optText.includes('VANGARD')) || 
+              optText.includes('BI - VANGARD') ||
+              optText.includes('VANGARD COBRANCA')) {
+            if (resultado.opcoesDisponiveis.length === 0) {
+              resultado.opcoesDisponiveis = opcoes;
+            }
+            select.selectedIndex = i;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            resultado.sucesso = true;
+            resultado.metodo = 'VARREDURA_OPCOES';
+            resultado.valorSelecionado = select.options[i].text?.trim();
+            return resultado;
+          }
+        }
+        
+        // Guardar para diagnóstico: selects que têm opções com textos relevantes
+        const temLayoutOuVisualizacao = opcoes.some(o => {
+          const norm = normalizar(o);
+          return norm.includes('SELECIONE') || norm.includes('CHATBOT') || norm.includes('COBRANCA');
+        });
+        if (temLayoutOuVisualizacao) {
+          resultado.diagnostico.selectsEncontrados.push({
+            name: select.name || select.id || 'sem_nome',
+            opcoes: opcoes.slice(0, 5)
+          });
+        }
+      }
+      
+      // ========================================
+      // ESTRATÉGIA 4: Fallback por atributos name/id
+      // ========================================
+      for (const select of todosSelects) {
+        const name = (select.name || select.id || '').toLowerCase();
+        
+        if (name.includes('layout') || name.includes('visualiza') || name.includes('dados')) {
+          const opcoes = Array.from(select.options).map(o => o.text?.trim() || '');
+          if (resultado.opcoesDisponiveis.length === 0) {
+            resultado.opcoesDisponiveis = opcoes;
+          }
+          
+          // Tentar selecionar BI - VANGARD
+          for (let i = 0; i < select.options.length; i++) {
+            const optText = normalizar(select.options[i].text || '');
+            if (optText.includes('BI') && optText.includes('VANGARD')) {
+              select.selectedIndex = i;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              resultado.sucesso = true;
+              resultado.metodo = 'FALLBACK_NAME_ID';
+              resultado.valorSelecionado = select.options[i].text?.trim();
+              return resultado;
             }
           }
         }
@@ -3195,14 +3287,35 @@ async function rodarRobo() {
       return resultado;
     });
     
-    if (layoutSelecionado.selecionado) {
-      log(`✅ Layout selecionado: "${layoutSelecionado.valorSelecionado}"`, LOG_LEVELS.SUCCESS);
-    } else if (layoutSelecionado.encontrado) {
-      log(`⚠️ Select de layout encontrado mas layout BI-Vangard não selecionado`, LOG_LEVELS.WARN);
-      log(`   Opções disponíveis: ${layoutSelecionado.opcoesDisponiveis.map(o => o.text).join(', ')}`, LOG_LEVELS.DEBUG);
-      log(`   Valor atual: ${layoutSelecionado.valorAtual}`, LOG_LEVELS.DEBUG);
+    // ========================================
+    // VALIDAÇÃO OBRIGATÓRIA DO LAYOUT
+    // ========================================
+    if (layoutSelecionado.sucesso) {
+      log(`✅ Layout selecionado com sucesso!`, LOG_LEVELS.SUCCESS);
+      log(`   Método: ${layoutSelecionado.metodo}`, LOG_LEVELS.DEBUG);
+      log(`   Valor: "${layoutSelecionado.valorSelecionado}"`, LOG_LEVELS.SUCCESS);
     } else {
-      log(`⚠️ Select de layout não encontrado na página`, LOG_LEVELS.WARN);
+      // ERRO CRÍTICO - NÃO prosseguir sem o layout correto
+      log(`❌ ERRO CRÍTICO: Layout "BI - VANGARD COBRANÇA" não encontrado!`, LOG_LEVELS.ERROR);
+      log(`   Opções disponíveis: ${layoutSelecionado.opcoesDisponiveis.join(', ') || 'NENHUMA'}`, LOG_LEVELS.ERROR);
+      
+      // Diagnóstico detalhado
+      if (layoutSelecionado.diagnostico.labelsLayout.length > 0) {
+        log(`   Labels "Layout" encontrados: ${JSON.stringify(layoutSelecionado.diagnostico.labelsLayout)}`, LOG_LEVELS.DEBUG);
+      }
+      if (layoutSelecionado.diagnostico.secaoDadosVisualizados) {
+        log(`   Seção "Dados Visualizados": ${JSON.stringify(layoutSelecionado.diagnostico.secaoDadosVisualizados)}`, LOG_LEVELS.DEBUG);
+      }
+      if (layoutSelecionado.diagnostico.selectsEncontrados.length > 0) {
+        log(`   Selects relevantes encontrados:`, LOG_LEVELS.DEBUG);
+        layoutSelecionado.diagnostico.selectsEncontrados.forEach(s => {
+          log(`      ${s.name}: [${s.opcoes.join(', ')}]`, LOG_LEVELS.DEBUG);
+        });
+      }
+      
+      // Salvar debug e abortar
+      await saveDebugInfo(page, context, 'Layout BI-VANGARD não encontrado');
+      throw new Error('ERRO CRÍTICO: Layout "BI - VANGARD COBRANÇA" não encontrado! Verifique a seção "Dados Visualizados" no portal.');
     }
     
     // Forma de Exibição: Em Excel
@@ -3411,7 +3524,43 @@ async function rodarRobo() {
     }
     
     // ============================================
-    // DEBUG: Salvar estado dos filtros ANTES de gerar
+    // SUMÁRIO OBRIGATÓRIO DE FILTROS ANTES DE GERAR
+    // ============================================
+    log('', LOG_LEVELS.INFO);
+    log('═'.repeat(60), LOG_LEVELS.INFO);
+    log('📋 SUMÁRIO DE FILTROS APLICADOS', LOG_LEVELS.INFO);
+    log('═'.repeat(60), LOG_LEVELS.INFO);
+    
+    // Montar sumário visual
+    const filtroDataOk = preencheuDatas.sucesso;
+    const filtroLayoutOk = layoutSelecionado.sucesso;
+    const filtroCooperativaOk = cooperativaTodosMarcado.sucesso;
+    // Situação Boleto é tratada como warning se não encontrou (não bloqueia)
+    const filtroFormaExibicaoOk = true; // Sempre configurado via selecionarFormaExibicaoEmExcel
+    
+    log(`   ${filtroDataOk ? '✅' : '❌'} Data Vencimento Original: ${filtroDataOk ? `${inicio} a ${fim}` : 'NÃO PREENCHIDA'}`, filtroDataOk ? LOG_LEVELS.SUCCESS : LOG_LEVELS.ERROR);
+    log(`   ${filtroLayoutOk ? '✅' : '❌'} Layout: ${filtroLayoutOk ? layoutSelecionado.valorSelecionado : 'NÃO SELECIONADO'}`, filtroLayoutOk ? LOG_LEVELS.SUCCESS : LOG_LEVELS.ERROR);
+    log(`   ${filtroCooperativaOk ? '✅' : '⚠️'} Cooperativa - TODOS: ${filtroCooperativaOk ? 'MARCADO' : 'NÃO ENCONTRADO'}`, filtroCooperativaOk ? LOG_LEVELS.SUCCESS : LOG_LEVELS.WARN);
+    log(`   ${filtroFormaExibicaoOk ? '✅' : '❌'} Forma Exibição: Em Excel`, LOG_LEVELS.SUCCESS);
+    log(`   ℹ️ Boletos Anteriores: NÃO POSSUI (configurado)`, LOG_LEVELS.INFO);
+    log(`   ℹ️ Referência: VENCIMENTO ORIGINAL (configurado)`, LOG_LEVELS.INFO);
+    log('═'.repeat(60), LOG_LEVELS.INFO);
+    
+    // Verificar se filtros obrigatórios estão OK
+    if (!filtroDataOk || !filtroLayoutOk) {
+      log('❌ ERRO: Filtros obrigatórios não configurados! Abortando...', LOG_LEVELS.ERROR);
+      await saveDebugInfo(page, context, 'Filtros obrigatórios não configurados');
+      throw new Error('Filtros obrigatórios (Data e Layout) não foram configurados corretamente');
+    }
+    
+    // Warning se Cooperativa não foi marcada
+    if (!filtroCooperativaOk) {
+      log('⚠️ AVISO: Checkbox "TODOS" em Cooperativa não foi encontrado!', LOG_LEVELS.WARN);
+      log('   O relatório pode vir com a coluna Cooperativa vazia.', LOG_LEVELS.WARN);
+    }
+    
+    // ============================================
+    // DEBUG: Capturar estado detalhado dos filtros
     // ============================================
     log('Verificando estado dos filtros antes de gerar...', LOG_LEVELS.DEBUG);
     
@@ -3467,7 +3616,7 @@ async function rodarRobo() {
       return resultado;
     });
     
-    log(`🔍 Estado dos filtros:`, LOG_LEVELS.DEBUG);
+    log(`🔍 Estado dos filtros (detalhado):`, LOG_LEVELS.DEBUG);
     log(`   Inputs: ${JSON.stringify(estadoFiltros.inputs)}`, LOG_LEVELS.DEBUG);
     log(`   Checkboxes marcados: ${estadoFiltros.checkboxes.marcados.join(', ') || 'nenhum'}`, LOG_LEVELS.DEBUG);
     log(`   Checkboxes desmarcados: ${estadoFiltros.checkboxes.desmarcados.join(', ') || 'nenhum'}`, LOG_LEVELS.DEBUG);
@@ -3478,7 +3627,9 @@ async function rodarRobo() {
     await saveDebugInfo(page, context, 'Pre-download: estado dos filtros');
     log('🔍 Debug de filtros salvo para análise', LOG_LEVELS.DEBUG);
     
-    log('Filtros configurados', LOG_LEVELS.SUCCESS);
+    log('', LOG_LEVELS.INFO);
+    log('✅ Todos os filtros obrigatórios configurados com sucesso!', LOG_LEVELS.SUCCESS);
+    log('', LOG_LEVELS.INFO);
     
     // ============================================
     // ETAPA: DOWNLOAD (aguarda finalização do download e salva/copia)
