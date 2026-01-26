@@ -2925,131 +2925,134 @@ async function rodarRobo() {
     // ============================================
     setStep('FILTROS');
     
-    log(`Data Vencimento Original: ${inicio} até ${fim}`);
+    log(`Preenchendo Data Vencimento Original: ${inicio} até ${fim}`);
     
-    // Listar todos os inputs de data disponíveis para debug
-    const todosInputsDatas = await page.evaluate(() => {
-      const inputs = Array.from(document.querySelectorAll('input'));
-      return inputs
-        .filter(i => i.type === 'text' || i.type === '' || !i.type)
-        .filter(i => {
-          const name = (i.name || '').toLowerCase();
-          const id = (i.id || '').toLowerCase();
-          const placeholder = (i.placeholder || '').toLowerCase();
-          return name.includes('data') || name.includes('dt_') || name.includes('vencimento') ||
-                 id.includes('data') || id.includes('dt_') || id.includes('vencimento') ||
-                 placeholder.includes('data') || placeholder.includes('/');
-        })
-        .map(i => ({
-          name: i.name,
-          id: i.id,
-          placeholder: i.placeholder,
-          value: i.value,
-          type: i.type
-        }));
-    });
-    
-    log(`Inputs de data encontrados: ${JSON.stringify(todosInputsDatas, null, 2)}`, LOG_LEVELS.DEBUG);
-    
-    // Estratégia 1: Buscar por nome específico de vencimento original
-    let dataInicioPreenchida = false;
-    let dataFimPreenchida = false;
-    
-    // Tentar múltiplos seletores para data início
-    const seletoresInicio = [
-      'input[name="dt_vencimento_original_ini"]',
-      'input[name*="vencimento_original_ini"]',
-      'input[name*="venc_orig_ini"]',
-      'input[name*="dt_venc_ini"]',
-      'input[name*="data_ini"]',
-      'input[name*="inicio"]',
-      'input[id*="vencimento_original_ini"]',
-      'input[id*="dt_ini"]',
-    ];
-    
-    for (const seletor of seletoresInicio) {
-      const input = await page.$(seletor);
-      if (input) {
-        await input.fill('');
-        await input.fill(inicio);
-        log(`✅ Data início preenchida via: ${seletor} = ${inicio}`, LOG_LEVELS.SUCCESS);
-        dataInicioPreenchida = true;
-        break;
-      }
-    }
-    
-    // Tentar múltiplos seletores para data fim
-    const seletoresFim = [
-      'input[name="dt_vencimento_original_fim"]',
-      'input[name*="vencimento_original_fim"]',
-      'input[name*="venc_orig_fim"]',
-      'input[name*="dt_venc_fim"]',
-      'input[name*="data_fim"]',
-      'input[name*="final"]',
-      'input[id*="vencimento_original_fim"]',
-      'input[id*="dt_fim"]',
-    ];
-    
-    for (const seletor of seletoresFim) {
-      const input = await page.$(seletor);
-      if (input) {
-        await input.fill('');
-        await input.fill(fim);
-        log(`✅ Data fim preenchida via: ${seletor} = ${fim}`, LOG_LEVELS.SUCCESS);
-        dataFimPreenchida = true;
-        break;
-      }
-    }
-    
-    // Estratégia 2 (fallback): Usar page.evaluate para encontrar campos por contexto
-    if (!dataInicioPreenchida || !dataFimPreenchida) {
-      log('Usando fallback: preenchimento via evaluate por contexto...', LOG_LEVELS.WARN);
+    // ============================================
+    // PREENCHER "Data Vencimento Original" - CAMPO ESSENCIAL
+    // ============================================
+    const preencheuDatas = await page.evaluate(({ inicio, fim }) => {
+      const resultado = { sucesso: false, detalhes: [] };
       
-      const resultado = await page.evaluate(({ inicio, fim }) => {
-        const preenchidos = [];
+      // Procurar todas as células/labels que contenham "Data Vencimento Original"
+      const todosElementos = document.querySelectorAll('td, th, label, span, div');
+      
+      for (const elemento of todosElementos) {
+        const texto = elemento.textContent?.trim() || '';
         
-        // Procurar inputs próximos ao texto "Vencimento Original"
-        const allLabels = document.querySelectorAll('td, label, span, div');
-        for (const label of allLabels) {
-          const texto = label.textContent?.toLowerCase() || '';
-          if (texto.includes('vencimento original') || texto.includes('dt venc. original')) {
-            // Procurar inputs próximos
-            const container = label.closest('tr') || label.closest('div') || label.parentElement;
-            if (container) {
-              const inputs = container.querySelectorAll('input[type="text"], input:not([type])');
-              const inputsArr = Array.from(inputs);
+        // Verificar se é o label "Data Vencimento Original"
+        if (texto === 'Data Vencimento Original:' || texto === 'Data Vencimento Original') {
+          resultado.detalhes.push(`Label encontrado: "${texto}"`);
+          
+          // Encontrar a linha (tr) que contém esse label
+          const linha = elemento.closest('tr');
+          if (!linha) {
+            resultado.detalhes.push('Linha (tr) não encontrada, tentando container pai');
+            // Fallback: procurar inputs no container pai
+            const container = elemento.parentElement;
+            const inputs = container?.querySelectorAll('input[type="text"], input:not([type])');
+            if (inputs && inputs.length >= 2) {
+              inputs[0].value = inicio;
+              inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+              inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
               
-              if (inputsArr.length >= 2) {
-                inputsArr[0].value = inicio;
-                inputsArr[0].dispatchEvent(new Event('input', { bubbles: true }));
-                inputsArr[0].dispatchEvent(new Event('change', { bubbles: true }));
-                preenchidos.push(`inicio: ${inputsArr[0].name || inputsArr[0].id}`);
-                
-                inputsArr[1].value = fim;
-                inputsArr[1].dispatchEvent(new Event('input', { bubbles: true }));
-                inputsArr[1].dispatchEvent(new Event('change', { bubbles: true }));
-                preenchidos.push(`fim: ${inputsArr[1].name || inputsArr[1].id}`);
-                break;
-              }
+              inputs[1].value = fim;
+              inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+              inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
+              
+              resultado.sucesso = true;
+              resultado.detalhes.push(`Preenchido via container: ${inputs[0].name || 'input1'} e ${inputs[1].name || 'input2'}`);
+              return resultado;
             }
+            continue;
+          }
+          
+          // Pegar todos os inputs da linha
+          const inputs = linha.querySelectorAll('input[type="text"], input:not([type])');
+          resultado.detalhes.push(`Inputs na linha: ${inputs.length}`);
+          
+          if (inputs.length >= 2) {
+            // Primeiro input = data início
+            inputs[0].value = inicio;
+            inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+            inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+            resultado.detalhes.push(`Input início: ${inputs[0].name || inputs[0].id || 'sem_nome'} = ${inicio}`);
+            
+            // Segundo input = data fim
+            inputs[1].value = fim;
+            inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+            inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
+            resultado.detalhes.push(`Input fim: ${inputs[1].name || inputs[1].id || 'sem_nome'} = ${fim}`);
+            
+            resultado.sucesso = true;
+            return resultado;
+          } else if (inputs.length === 1) {
+            // Pode ter apenas um input com range
+            inputs[0].value = inicio;
+            inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+            resultado.detalhes.push(`Apenas 1 input encontrado: ${inputs[0].name}`);
           }
         }
-        
-        return preenchidos;
-      }, { inicio, fim });
-      
-      if (resultado.length > 0) {
-        log(`✅ Datas preenchidas via fallback: ${resultado.join(', ')}`, LOG_LEVELS.SUCCESS);
-        dataInicioPreenchida = true;
-        dataFimPreenchida = true;
       }
+      
+      // Se não encontrou pelo label exato, tentar por name dos inputs
+      if (!resultado.sucesso) {
+        resultado.detalhes.push('Tentando fallback por name de input...');
+        
+        const possiveisNomes = [
+          ['dt_vencimento_original_ini', 'dt_vencimento_original_fim'],
+          ['vencimento_original_ini', 'vencimento_original_fim'],
+          ['dt_venc_original_ini', 'dt_venc_original_fim'],
+        ];
+        
+        for (const [nomeIni, nomeFim] of possiveisNomes) {
+          const inputIni = document.querySelector(`input[name="${nomeIni}"], input[name*="${nomeIni}"]`);
+          const inputFim = document.querySelector(`input[name="${nomeFim}"], input[name*="${nomeFim}"]`);
+          
+          if (inputIni && inputFim) {
+            inputIni.value = inicio;
+            inputIni.dispatchEvent(new Event('input', { bubbles: true }));
+            inputIni.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            inputFim.value = fim;
+            inputFim.dispatchEvent(new Event('input', { bubbles: true }));
+            inputFim.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            resultado.sucesso = true;
+            resultado.detalhes.push(`Preenchido via name: ${nomeIni} e ${nomeFim}`);
+            return resultado;
+          }
+        }
+      }
+      
+      return resultado;
+    }, { inicio, fim });
+    
+    // Log do resultado
+    for (const detalhe of preencheuDatas.detalhes) {
+      log(detalhe, LOG_LEVELS.DEBUG);
     }
     
-    // Verificar se preencheu
-    if (!dataInicioPreenchida || !dataFimPreenchida) {
-      log('⚠️ ATENÇÃO: Campos de data podem não ter sido preenchidos!', LOG_LEVELS.ERROR);
-      log('Inputs disponíveis: ' + JSON.stringify(todosInputsDatas), LOG_LEVELS.DEBUG);
+    if (preencheuDatas.sucesso) {
+      log(`✅ Data Vencimento Original preenchida: ${inicio} até ${fim}`, LOG_LEVELS.SUCCESS);
+    } else {
+      log('❌ ERRO CRÍTICO: Não foi possível preencher Data Vencimento Original!', LOG_LEVELS.ERROR);
+      await saveDebugInfo(page, context, 'Falha ao preencher Data Vencimento Original');
+      throw new Error('Campo Data Vencimento Original não encontrado - verifique a estrutura do formulário');
     }
+    
+    // Verificar valores preenchidos
+    const valoresPreenchidos = await page.evaluate(() => {
+      const inputs = document.querySelectorAll('input[type="text"], input:not([type])');
+      const comValor = [];
+      for (const input of inputs) {
+        if (input.value && input.value.includes('/')) {
+          comValor.push({ name: input.name || input.id || 'sem_nome', value: input.value });
+        }
+      }
+      return comValor;
+    });
+    
+    log(`Inputs com datas preenchidas: ${JSON.stringify(valoresPreenchidos)}`, LOG_LEVELS.DEBUG);
     
     // Boletos Anteriores: NÃO POSSUI
     log('Configurando Boletos Anteriores: NÃO POSSUI...');
