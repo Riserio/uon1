@@ -1,169 +1,176 @@
 
-# Plano: Filtros Configuráveis para Automação Hinova
 
-## Resumo Executivo
-Adicionar uma seção de **"Filtros do Relatório"** na tela de configuração da Automação Hinova, permitindo que cada associação defina exatamente quais filtros aplicar durante a extração.
+# Plano: Marcar Checkboxes de Regionais e Voluntários
 
-## Situação Atual
+## Problema Identificado
 
-### Filtros Hardcoded no Script
-O robô atualmente usa valores **fixos** para os seguintes filtros:
+O arquivo exportado tem 6.207 registros, mas as colunas **Voluntário**, **Cooperativa** e **Regional** estão vazias porque o script **não marca esses checkboxes** no portal Hinova.
 
-| Filtro | Valor Atual | Configurável? |
-|--------|-------------|---------------|
-| Data Vencimento Original | Mês atual (01/MM/YYYY - último dia) | Não |
-| Situação Boleto | TODOS os checkboxes marcados | Não |
-| Boletos Anteriores | NÃO POSSUI | Não |
-| Referência | VENCIMENTO ORIGINAL | Não |
-| Layout | BI - Vangard Cobrança | Sim (já existe) |
-| Forma de Exibição | Em Excel | Não |
+A função `configurarCheckboxesSituacaoBoleto` (linhas 3120-3123) explicitamente diz:
+```
+// Outros checkboxes (Regional, Cooperativa, etc) permanecem inalterados
+```
+
+O portal Hinova provavelmente exige que os checkboxes de Regionais/Cooperativas e Voluntários estejam marcados para incluir esses dados no relatório.
 
 ---
 
-## Proposta de Solução
+## Solução
 
-### 1. Novos Campos na Tabela de Configuração
-Adicionar colunas para armazenar as preferências de filtros:
+### 1. Criar função para marcar TODOS os checkboxes de Regionais/Cooperativas
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│  NOVOS CAMPOS: cobranca_automacao_config                   │
-├─────────────────────────────────────────────────────────────┤
-│ filtro_periodo_tipo      TEXT   - 'mes_atual', 'customizado'│
-│ filtro_data_inicio       DATE   - Data inicial (se custom)  │
-│ filtro_data_fim          DATE   - Data final (se custom)    │
-│ filtro_situacoes         JSONB  - ['ABERTO', 'BAIXADO', ...] │
-│ filtro_boletos_anteriores TEXT  - 'nao_possui', 'possui', ..│
-│ filtro_referencia        TEXT   - 'vencimento_original', ...│
-│ filtro_regionais         JSONB  - ['Regional SP', ...]      │
-│ filtro_cooperativas      JSONB  - ['Cooperativa X', ...]    │
-└─────────────────────────────────────────────────────────────┘
+Nova funcao: configurarCheckboxesRegionaisVoluntarios(page)
+
+Etapas:
+1. Identificar secoes de filtros: Regional, Cooperativa, Voluntario
+2. Marcar TODOS os checkboxes dessas secoes
+3. Verificar e logar quantos foram marcados
 ```
 
-### 2. Interface de Configuração
-Nova aba/seção "Filtros do Relatório" com:
+### 2. Modificar o fluxo principal
+
+Adicionar chamada da nova funcao ANTES da configuracao de Situacao Boleto:
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│  FILTROS DO RELATÓRIO                                       │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  📅 Período de Vencimento Original                          │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ (●) Mês atual                                        │   │
-│  │ (○) Período customizado                              │   │
-│  │     De: [__/__/____]  Até: [__/__/____]              │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                             │
-│  📋 Situação do Boleto                                      │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ [x] ABERTO     [x] BAIXADO    [ ] CANCELADO          │   │
-│  │ [ ] VENCIDO    [ ] PROTESTADO [ ] RENEGOCIADO        │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                             │
-│  📦 Boletos Anteriores                                      │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ [Dropdown: NÃO POSSUI / POSSUI / TODOS ▼]            │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                             │
-│  🎯 Referência                                              │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ [Dropdown: VENCIMENTO ORIGINAL / DATA PAGAMENTO ▼]   │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                             │
-│  ℹ️ Filtros regionais e por cooperativa dependem do        │
-│     portal Hinova e serão marcados automaticamente.        │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+FILTROS (ordem atual):
+1. Data Vencimento Original ✓
+2. Layout ✓
+3. Forma Exibicao Excel ✓
+4. Situacao Boleto ✓
 
-### 3. Exibição dos Filtros Ativos
-Card resumo mostrando os filtros configurados:
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  🔍 FILTROS ATIVOS                                          │
-├─────────────────────────────────────────────────────────────┤
-│ • Período: Mês atual (01/01/2026 - 31/01/2026)              │
-│ • Situações: ABERTO, BAIXADO                                │
-│ • Boletos Anteriores: NÃO POSSUI                            │
-│ • Referência: VENCIMENTO ORIGINAL                           │
-│ • Layout: BI - Vangard Cobrança                             │
-└─────────────────────────────────────────────────────────────┘
+FILTROS (nova ordem):
+1. Data Vencimento Original ✓
+2. [NOVO] Regionais - MARCAR TODOS
+3. [NOVO] Cooperativas - MARCAR TODOS  
+4. [NOVO] Voluntarios - MARCAR TODOS
+5. Layout ✓
+6. Forma Exibicao Excel ✓
+7. Situacao Boleto ✓
 ```
 
 ---
 
-## Alterações Técnicas
+## Implementacao Tecnica
 
-### Banco de Dados (Migração)
-```sql
-ALTER TABLE public.cobranca_automacao_config
-ADD COLUMN IF NOT EXISTS filtro_periodo_tipo text DEFAULT 'mes_atual',
-ADD COLUMN IF NOT EXISTS filtro_data_inicio date DEFAULT NULL,
-ADD COLUMN IF NOT EXISTS filtro_data_fim date DEFAULT NULL,
-ADD COLUMN IF NOT EXISTS filtro_situacoes jsonb DEFAULT '["ABERTO"]'::jsonb,
-ADD COLUMN IF NOT EXISTS filtro_boletos_anteriores text DEFAULT 'nao_possui',
-ADD COLUMN IF NOT EXISTS filtro_referencia text DEFAULT 'vencimento_original';
+### Arquivo: `scripts/robo-cobranca-hinova.cjs`
+
+#### Modificacao 1: Nova funcao `configurarCheckboxesRegionaisVoluntarios`
+
+```javascript
+async function configurarCheckboxesRegionaisVoluntarios(page) {
+  log('Configurando checkboxes de Regionais, Cooperativas e Voluntarios...');
+  
+  const resultado = await page.evaluate(() => {
+    const stats = { regional: 0, cooperativa: 0, voluntario: 0, total: 0 };
+    
+    // Funcao para identificar secao pelo texto
+    const identificarSecao = (elemento) => {
+      const texto = (elemento?.textContent || '').toUpperCase();
+      if (texto.includes('REGIONAL')) return 'regional';
+      if (texto.includes('COOPERATIVA')) return 'cooperativa';
+      if (texto.includes('VOLUNTARIO') || texto.includes('VOLUNTÁRIO')) return 'voluntario';
+      return null;
+    };
+    
+    // Encontrar TODAS as TRs/TDs que contem checkboxes
+    const todosCheckboxes = document.querySelectorAll('input[type="checkbox"]');
+    
+    for (const cb of todosCheckboxes) {
+      // Verificar se ja esta marcado
+      if (cb.checked) continue;
+      
+      // Encontrar container pai (tr ou td)
+      const container = cb.closest('tr') || cb.closest('td') || cb.parentElement;
+      const secao = identificarSecao(container);
+      
+      if (secao) {
+        cb.checked = true;
+        cb.dispatchEvent(new Event('change', { bubbles: true }));
+        stats[secao]++;
+        stats.total++;
+      }
+    }
+    
+    return stats;
+  });
+  
+  log(`Checkboxes marcados: ${resultado.total} total`);
+  log(`  - Regionais: ${resultado.regional}`);
+  log(`  - Cooperativas: ${resultado.cooperativa}`);
+  log(`  - Voluntarios: ${resultado.voluntario}`);
+  
+  return resultado;
+}
 ```
 
-### Arquivos a Modificar
+#### Modificacao 2: Chamada da nova funcao no fluxo principal
 
-1. **`src/components/cobranca/CobrancaAutomacaoConfig.tsx`**
-   - Adicionar nova seção "Filtros do Relatório"
-   - Campos para período (radio + date pickers)
-   - Checkboxes para situações de boleto
-   - Dropdowns para boletos anteriores e referência
-   - Card de resumo com filtros ativos
+Adicionar ANTES da linha 3117 (configuracao de Situacao Boleto):
 
-2. **`scripts/robo-cobranca-hinova.cjs`**
-   - Receber configurações de filtros via ENV ou webhook
-   - Aplicar situações específicas ao invés de marcar TODOS
-   - Usar datas customizadas quando configurado
-   - Aplicar valores corretos nos dropdowns
+```javascript
+// ============================================
+// CONFIGURACAO DE CHECKBOXES - REGIONAIS E VOLUNTARIOS
+// ============================================
+log('Marcando todos os checkboxes de Regionais e Voluntarios...');
+try {
+  await configurarCheckboxesRegionaisVoluntarios(page);
+} catch (err) {
+  log(`Aviso: Erro ao marcar regionais/voluntarios: ${err.message}`, LOG_LEVELS.WARN);
+  // Nao interrompe - apenas aviso
+}
 
-3. **`supabase/functions/executar-cobranca-hinova/index.ts`**
-   - Buscar configurações de filtros da tabela
-   - Passar filtros como variáveis de ambiente para o script
+await page.waitForTimeout(500);
+```
 
-### Tipagem TypeScript
-```typescript
-interface FiltrosRelatorio {
-  periodo_tipo: 'mes_atual' | 'customizado';
-  data_inicio?: string;
-  data_fim?: string;
-  situacoes: string[]; // ['ABERTO', 'BAIXADO', etc]
-  boletos_anteriores: 'nao_possui' | 'possui' | 'todos';
-  referencia: 'vencimento_original' | 'data_pagamento';
+#### Modificacao 3: Expandir debug de estado dos filtros
+
+Modificar a funcao de debug (linhas 3138-3188) para incluir checkboxes de Regionais/Voluntarios:
+
+```javascript
+// Verificar checkboxes de TODAS as secoes (nao apenas Situacao Boleto)
+const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+const secoes = {
+  situacao: { marcados: [], desmarcados: [] },
+  regional: { marcados: [], desmarcados: [] },
+  cooperativa: { marcados: [], desmarcados: [] },
+  voluntario: { marcados: [], desmarcados: [] },
+  outros: { marcados: [], desmarcados: [] },
+};
+
+for (const cb of checkboxes) {
+  const container = cb.closest('tr') || cb.closest('td') || cb.parentElement;
+  const texto = (container?.textContent || '').toUpperCase();
+  
+  let secao = 'outros';
+  if (texto.includes('SITUACAO') || texto.includes('SITUAÇÃO')) secao = 'situacao';
+  else if (texto.includes('REGIONAL')) secao = 'regional';
+  else if (texto.includes('COOPERATIVA')) secao = 'cooperativa';
+  else if (texto.includes('VOLUNTARIO') || texto.includes('VOLUNTÁRIO')) secao = 'voluntario';
+  
+  const label = cb.value || cb.name || 'checkbox';
+  if (cb.checked) {
+    secoes[secao].marcados.push(label);
+  } else {
+    secoes[secao].desmarcados.push(label);
+  }
 }
 ```
 
 ---
 
-## Lista de Situações de Boleto (Hinova)
-Com base no portal, as opções típicas são:
-- ABERTO
-- BAIXADO  
-- CANCELADO
-- VENCIDO
-- PROTESTADO
-- RENEGOCIADO
-- EM CARTÓRIO
+## Arquivos a Modificar
 
----
-
-## Sequência de Implementação
-
-1. **Migração do banco** - Adicionar novas colunas
-2. **Atualizar interface** - CobrancaAutomacaoConfig.tsx com seção de filtros
-3. **Atualizar Edge Function** - Passar filtros para o script
-4. **Atualizar script** - Aplicar filtros configuráveis
+| Arquivo | Alteracao |
+|---------|-----------|
+| `scripts/robo-cobranca-hinova.cjs` | Adicionar funcao e chamada para marcar checkboxes |
 
 ---
 
 ## Resultado Esperado
-- Usuário pode escolher quais situações de boleto filtrar
-- Usuário pode definir período customizado
-- Filtros são exibidos de forma clara na interface
-- Script aplica exatamente os filtros configurados
-- Redução drástica no tamanho dos arquivos baixados (apenas dados relevantes)
+
+1. O script marcara TODOS os checkboxes de Regionais, Cooperativas e Voluntarios
+2. O relatorio baixado incluira dados nessas colunas
+3. Logs mostrarao quantos checkboxes foram marcados em cada secao
+4. Debug salvara estado completo de TODOS os filtros (nao apenas Situacao Boleto)
+
