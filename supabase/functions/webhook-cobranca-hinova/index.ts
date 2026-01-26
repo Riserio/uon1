@@ -9,7 +9,7 @@ const corsHeaders = {
 // Mapeamento de colunas do Excel/JSON para campos do banco
 // Aceita o formato padronizado do layout "BI - Vangard Cobrança"
 const COLUMN_MAP: { [key: string]: string } = {
-  // Formato padronizado (vindo do Excel processado)
+  // Formato padronizado (vindo do Excel processado pelo script)
   "Data Pagamento": "data_pagamento",
   "Data Vencimento Original": "data_vencimento_original",
   "Dia Vencimento Veiculo": "dia_vencimento_veiculo",
@@ -23,28 +23,68 @@ const COLUMN_MAP: { [key: string]: string } = {
   "Qtde Dias em Atraso Vencimento Original": "qtde_dias_atraso_vencimento_original",
   "Situacao": "situacao",
   
-  // Aliases para compatibilidade
+  // ===== ALIASES E VARIAÇÕES ADICIONAIS =====
+  // Estes campos precisam ser mapeados para garantir que qualquer variação seja reconhecida
+  
+  // Nome e Voluntário
   "nome": "nome",
   "voluntario": "voluntario",
   "voluntário": "voluntario",
+  
+  // Placas
   "placas": "placas",
   "placa": "placas",
+  
+  // Cooperativa e Regional
   "cooperativa": "cooperativa",
   "regional": "regional_boleto",
   "regional_boleto": "regional_boleto",
+  "regional boleto": "regional_boleto",
+  
+  // Situação
   "situacao": "situacao",
   "situação": "situacao",
+  "situacao_boleto": "situacao",
+  "situação_boleto": "situacao",
+  
+  // Valor
   "valor": "valor",
+  
+  // Datas de Vencimento
   "data_vencimento": "data_vencimento",
   "vencimento": "data_vencimento",
+  "data vencimento": "data_vencimento",
   "data_vencimento_original": "data_vencimento_original",
   "vencimento_original": "data_vencimento_original",
+  "data vencimento original": "data_vencimento_original",
+  
+  // Data de Pagamento
   "data_pagamento": "data_pagamento",
   "pagamento": "data_pagamento",
+  "data pagamento": "data_pagamento",
+  
+  // ===== CAMPOS CRÍTICOS: Dia Vencimento Veículo =====
   "dia_vencimento_veiculo": "dia_vencimento_veiculo",
   "dia_vencimento": "dia_vencimento_veiculo",
+  "dia vencimento veiculo": "dia_vencimento_veiculo",
+  "dia vencimento veículo": "dia_vencimento_veiculo",
+  "vencimento_veiculo": "dia_vencimento_veiculo",
+  "vencimento_do_veiculo": "dia_vencimento_veiculo",
+  "vencimento do veiculo": "dia_vencimento_veiculo",
+  "vencimento do veículo": "dia_vencimento_veiculo",
+  "dia_venc_veiculo": "dia_vencimento_veiculo",
+  
+  // ===== CAMPOS CRÍTICOS: Dias de Atraso =====
   "qtde_dias_atraso_vencimento_original": "qtde_dias_atraso_vencimento_original",
+  "qtde dias em atraso vencimento original": "qtde_dias_atraso_vencimento_original",
+  "qtde_dias_em_atraso_vencimento_original": "qtde_dias_atraso_vencimento_original",
   "dias_atraso": "qtde_dias_atraso_vencimento_original",
+  "dias atraso": "qtde_dias_atraso_vencimento_original",
+  "dias_em_atraso": "qtde_dias_atraso_vencimento_original",
+  "dias em atraso": "qtde_dias_atraso_vencimento_original",
+  "atraso": "qtde_dias_atraso_vencimento_original",
+  "qtde_atraso": "qtde_dias_atraso_vencimento_original",
+  "quantidade_dias_atraso": "qtde_dias_atraso_vencimento_original",
 };
 
 // Parse de data no formato DD/MM/YYYY ou YYYY-MM-DD

@@ -1964,27 +1964,77 @@ async function configurarCheckboxesSituacaoBoleto(page, maxTentativas = 3) {
   return true; // Não bloquear, mas avisar
 }
 
-// Mapeamento de colunas
+// Mapeamento de colunas - EXPANDIDO para capturar todas as variações do portal Hinova
 const COLUMN_MAP = {
+  // Data Pagamento
   "DATA PAGAMENTO": "Data Pagamento",
+  "DATA DE PAGAMENTO": "Data Pagamento",
+  
+  // Data Vencimento Original
   "DATA VENCIMENTO ORIGINAL": "Data Vencimento Original",
+  "DATA DE VENCIMENTO ORIGINAL": "Data Vencimento Original",
+  "VENCIMENTO ORIGINAL": "Data Vencimento Original",
+  
+  // ===== CAMPO CRÍTICO: Dia Vencimento Veículo =====
   "DIA VENCIMENTO VEICULO": "Dia Vencimento Veiculo",
+  "DIA VENCIMENTO VEÍCULO": "Dia Vencimento Veiculo",
+  "DIA VENC VEICULO": "Dia Vencimento Veiculo",
+  "DIA VENC. VEICULO": "Dia Vencimento Veiculo",
+  "DIA VENC. VEÍCULO": "Dia Vencimento Veiculo",
+  "VENCIMENTO VEICULO": "Dia Vencimento Veiculo",
+  "VENCIMENTO VEÍCULO": "Dia Vencimento Veiculo",
+  "VENCIMENTO DO VEICULO": "Dia Vencimento Veiculo",
+  "VENCIMENTO DO VEÍCULO": "Dia Vencimento Veiculo",
+  "DIA DE VENCIMENTO": "Dia Vencimento Veiculo",
+  "DIA DE VENCIMENTO VEICULO": "Dia Vencimento Veiculo",
+  "DIA DE VENCIMENTO VEÍCULO": "Dia Vencimento Veiculo",
+  
+  // Regional
   "REGIONAL BOLETO": "Regional Boleto",
+  "REGIONAL DO BOLETO": "Regional Boleto",
   "REGIONAL": "Regional Boleto",
+  
+  // Cooperativa
   "COOPERATIVA": "Cooperativa",
+  
+  // Voluntário
   "VOLUNTÁRIO": "Voluntário",
   "VOLUNTARIO": "Voluntário",
+  
+  // Nome
   "NOME": "Nome",
+  
+  // Placas
   "PLACAS": "Placas",
   "PLACA": "Placas",
+  
+  // Valor
   "VALOR": "Valor",
+  "VALOR BOLETO": "Valor",
+  
+  // Data Vencimento
   "DATA VENCIMENTO": "Data Vencimento",
+  "DATA DE VENCIMENTO": "Data Vencimento",
   "VENCIMENTO": "Data Vencimento",
+  
+  // ===== CAMPO CRÍTICO: Dias em Atraso =====
   "QTDE DIAS EM ATRASO VENCIMENTO ORIGINAL": "Qtde Dias em Atraso Vencimento Original",
+  "QTDE DIAS ATRASO VENCIMENTO ORIGINAL": "Qtde Dias em Atraso Vencimento Original",
+  "QTDE. DIAS EM ATRASO VENCIMENTO ORIGINAL": "Qtde Dias em Atraso Vencimento Original",
+  "QTDE. DIAS ATRASO": "Qtde Dias em Atraso Vencimento Original",
+  "QTD DIAS EM ATRASO": "Qtde Dias em Atraso Vencimento Original",
+  "QTD DIAS ATRASO": "Qtde Dias em Atraso Vencimento Original",
+  "DIAS EM ATRASO": "Qtde Dias em Atraso Vencimento Original",
   "DIAS ATRASO": "Qtde Dias em Atraso Vencimento Original",
+  "ATRASO": "Qtde Dias em Atraso Vencimento Original",
+  "DIAS DE ATRASO": "Qtde Dias em Atraso Vencimento Original",
+  "QUANTIDADE DIAS ATRASO": "Qtde Dias em Atraso Vencimento Original",
+  
+  // Situação
   "SITUACAO": "Situacao",
   "SITUAÇÃO": "Situacao",
   "SITUAÇÃO BOLETO": "Situacao",
+  "SITUACAO BOLETO": "Situacao",
 };
 
 function normalizeHeader(header) {
