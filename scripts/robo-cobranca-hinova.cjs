@@ -2600,14 +2600,15 @@ async function rodarRobo() {
       navigationTimeout: TIMEOUTS.PAGE_LOAD,
     });
     
-    // Configurar timeout padrão para todas as operações do contexto
-    context.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD); // 55 minutos
+    // Configurar timeout padrão MODERADO para operações normais (login, navegação)
+    // O timeout longo (55min) será aplicado apenas durante o download
+    context.setDefaultTimeout(30000); // 30 segundos para operações normais
     context.setDefaultNavigationTimeout(TIMEOUTS.PAGE_LOAD);
     
     page = await context.newPage();
     
-    // Configurar timeout da página também
-    page.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
+    // Timeout moderado para página (será aumentado apenas durante download)
+    page.setDefaultTimeout(30000); // 30 segundos
     page.setDefaultNavigationTimeout(TIMEOUTS.PAGE_LOAD);
 
     // Debug: logar eventos de download (apenas para log, não para captura)
@@ -2656,21 +2657,35 @@ async function rodarRobo() {
     // Preencher credenciais
     log('Preenchendo credenciais...');
     
-    await page.fill('input[placeholder=""]', '2363').catch(() => {});
-    
+    // Preencher código cliente (com timeout curto)
     try {
-      await page.fill('input[placeholder="Usuário"]', CONFIG.HINOVA_USER);
+      await page.fill('input[placeholder=""]', '2363', { timeout: 5000 });
+      log('Código cliente preenchido', LOG_LEVELS.DEBUG);
+    } catch (e) {
+      log('Campo código cliente não encontrado (pode ser opcional)', LOG_LEVELS.DEBUG);
+    }
+    
+    // Preencher usuário (com timeout curto)
+    try {
+      await page.fill('input[placeholder="Usuário"]', CONFIG.HINOVA_USER, { timeout: 5000 });
+      log('Usuário preenchido', LOG_LEVELS.DEBUG);
     } catch (e) {
       log(`Erro ao preencher usuário: ${e.message}`, LOG_LEVELS.WARN);
     }
     
+    // Preencher senha (com timeout curto)
     try {
-      await page.fill('input[placeholder="Senha"]', CONFIG.HINOVA_PASS);
+      await page.fill('input[placeholder="Senha"]', CONFIG.HINOVA_PASS, { timeout: 5000 });
+      log('Senha preenchida', LOG_LEVELS.DEBUG);
     } catch (e) {
       log(`Erro ao preencher senha: ${e.message}`, LOG_LEVELS.WARN);
     }
     
+    // Aguardar um pouco antes do fallback
+    await page.waitForTimeout(500);
+    
     // Fallback: preencher via JavaScript
+    log('Verificando/complementando credenciais via JavaScript...', LOG_LEVELS.DEBUG);
     await page.evaluate(({ usuario, senha }) => {
       const allInputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])'));
       
@@ -2691,6 +2706,8 @@ async function rodarRobo() {
         }
       }
     }, { usuario: CONFIG.HINOVA_USER, senha: CONFIG.HINOVA_PASS });
+    
+    log('Credenciais preenchidas com sucesso', LOG_LEVELS.SUCCESS);
     
     // Dispensar código de autenticação
     const dispensarCodigoAutenticacao = async () => {
@@ -3006,6 +3023,11 @@ async function rodarRobo() {
     // 4. Etapa DOWNLOAD finaliza imediatamente após salvar
     // ============================================
     setStep('DOWNLOAD');
+    
+    // AUMENTAR timeout apenas durante download (55 minutos)
+    log('Aumentando timeout para aguardar download longo...', LOG_LEVELS.DEBUG);
+    context.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
+    page.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
     
     const downloadDir = getDownloadDirectory();
     log(`Diretório de download: ${downloadDir}`);
