@@ -3294,6 +3294,13 @@ async function rodarRobo() {
       log(`✅ Layout selecionado com sucesso!`, LOG_LEVELS.SUCCESS);
       log(`   Método: ${layoutSelecionado.metodo}`, LOG_LEVELS.DEBUG);
       log(`   Valor: "${layoutSelecionado.valorSelecionado}"`, LOG_LEVELS.SUCCESS);
+      
+      // ========================================
+      // AGUARDAR CONFIGURAÇÕES CARREGAREM APÓS LAYOUT
+      // ========================================
+      log('⏳ Aguardando 10 segundos para as configurações do layout carregarem...', LOG_LEVELS.INFO);
+      await page.waitForTimeout(10000);
+      log('✅ Configurações do layout carregadas!', LOG_LEVELS.SUCCESS);
     } else {
       // ERRO CRÍTICO - NÃO prosseguir sem o layout correto
       log(`❌ ERRO CRÍTICO: Layout "BI - VANGARD COBRANÇA" não encontrado!`, LOG_LEVELS.ERROR);
