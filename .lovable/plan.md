@@ -1,169 +1,180 @@
 
-# Plano: Filtros Configuráveis para Automação Hinova
+# Plano: Correção da Seleção de Layout e Filtros na Automação Hinova
 
-## Resumo Executivo
-Adicionar uma seção de **"Filtros do Relatório"** na tela de configuração da Automação Hinova, permitindo que cada associação defina exatamente quais filtros aplicar durante a extração.
-
-## Situação Atual
-
-### Filtros Hardcoded no Script
-O robô atualmente usa valores **fixos** para os seguintes filtros:
-
-| Filtro | Valor Atual | Configurável? |
-|--------|-------------|---------------|
-| Data Vencimento Original | Mês atual (01/MM/YYYY - último dia) | Não |
-| Situação Boleto | TODOS os checkboxes marcados | Não |
-| Boletos Anteriores | NÃO POSSUI | Não |
-| Referência | VENCIMENTO ORIGINAL | Não |
-| Layout | BI - Vangard Cobrança | Sim (já existe) |
-| Forma de Exibição | Em Excel | Não |
+## Objetivo
+Garantir que o script de automação Hinova selecione corretamente o layout **"BI - VANGARD COBRANÇA"** na seção **"Dados Visualizados"**, e documentar todos os filtros que estão sendo aplicados.
 
 ---
 
-## Proposta de Solução
+## Problema Identificado
 
-### 1. Novos Campos na Tabela de Configuração
-Adicionar colunas para armazenar as preferências de filtros:
+Com base na imagem compartilhada e nos logs, o layout está localizado na seção **"Dados Visualizados"** com:
+- **Label:** "Layout:"
+- **Opções:** "--- SELECIONE ---", "BI - VANGARD COBRANÇA", "CHATBOT", "POS VENDA COBRANÇA"
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  NOVOS CAMPOS: cobranca_automacao_config                   │
-├─────────────────────────────────────────────────────────────┤
-│ filtro_periodo_tipo      TEXT   - 'mes_atual', 'customizado'│
-│ filtro_data_inicio       DATE   - Data inicial (se custom)  │
-│ filtro_data_fim          DATE   - Data final (se custom)    │
-│ filtro_situacoes         JSONB  - ['ABERTO', 'BAIXADO', ...] │
-│ filtro_boletos_anteriores TEXT  - 'nao_possui', 'possui', ..│
-│ filtro_referencia        TEXT   - 'vencimento_original', ...│
-│ filtro_regionais         JSONB  - ['Regional SP', ...]      │
-│ filtro_cooperativas      JSONB  - ['Cooperativa X', ...]    │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 2. Interface de Configuração
-Nova aba/seção "Filtros do Relatório" com:
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  FILTROS DO RELATÓRIO                                       │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  📅 Período de Vencimento Original                          │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ (●) Mês atual                                        │   │
-│  │ (○) Período customizado                              │   │
-│  │     De: [__/__/____]  Até: [__/__/____]              │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                             │
-│  📋 Situação do Boleto                                      │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ [x] ABERTO     [x] BAIXADO    [ ] CANCELADO          │   │
-│  │ [ ] VENCIDO    [ ] PROTESTADO [ ] RENEGOCIADO        │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                             │
-│  📦 Boletos Anteriores                                      │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ [Dropdown: NÃO POSSUI / POSSUI / TODOS ▼]            │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                             │
-│  🎯 Referência                                              │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ [Dropdown: VENCIMENTO ORIGINAL / DATA PAGAMENTO ▼]   │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                             │
-│  ℹ️ Filtros regionais e por cooperativa dependem do        │
-│     portal Hinova e serão marcados automaticamente.        │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 3. Exibição dos Filtros Ativos
-Card resumo mostrando os filtros configurados:
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  🔍 FILTROS ATIVOS                                          │
-├─────────────────────────────────────────────────────────────┤
-│ • Período: Mês atual (01/01/2026 - 31/01/2026)              │
-│ • Situações: ABERTO, BAIXADO                                │
-│ • Boletos Anteriores: NÃO POSSUI                            │
-│ • Referência: VENCIMENTO ORIGINAL                           │
-│ • Layout: BI - Vangard Cobrança                             │
-└─────────────────────────────────────────────────────────────┘
-```
+O script atual busca por atributos `name` ou `id` contendo "layout", "visualiza" ou "dados", mas pode não estar encontrando o seletor correto.
 
 ---
 
-## Alterações Técnicas
+## Alterações Planejadas
 
-### Banco de Dados (Migração)
-```sql
-ALTER TABLE public.cobranca_automacao_config
-ADD COLUMN IF NOT EXISTS filtro_periodo_tipo text DEFAULT 'mes_atual',
-ADD COLUMN IF NOT EXISTS filtro_data_inicio date DEFAULT NULL,
-ADD COLUMN IF NOT EXISTS filtro_data_fim date DEFAULT NULL,
-ADD COLUMN IF NOT EXISTS filtro_situacoes jsonb DEFAULT '["ABERTO"]'::jsonb,
-ADD COLUMN IF NOT EXISTS filtro_boletos_anteriores text DEFAULT 'nao_possui',
-ADD COLUMN IF NOT EXISTS filtro_referencia text DEFAULT 'vencimento_original';
+### 1. Reformular Lógica de Seleção do Layout
+
+**Arquivo:** `scripts/robo-cobranca-hinova.cjs`
+
+**Estratégias de busca (em ordem de prioridade):**
+
+1. **Buscar pelo texto exato "Layout:"** - Encontrar um `<td>` ou `<label>` contendo "Layout:" e selecionar o `<select>` adjacente
+2. **Buscar na seção "Dados Visualizados"** - Localizar a seção por texto e encontrar o primeiro `<select>` dentro dela
+3. **Buscar por opções do select** - Iterar todos os selects e verificar se contém a opção "BI - VANGARD COBRANÇA"
+4. **Fallback por atributos** - Manter a busca atual por `name`/`id`
+
+```text
+┌─────────────────────────────────────────────────┐
+│            Lógica de Seleção Layout             │
+├─────────────────────────────────────────────────┤
+│ 1. Buscar TD/Label com texto "Layout:"          │
+│    └─> Pegar <select> na mesma linha/container  │
+│                                                 │
+│ 2. Buscar seção "Dados Visualizados"            │
+│    └─> Pegar primeiro <select> dentro           │
+│                                                 │
+│ 3. Iterar todos os <select>                     │
+│    └─> Verificar se opção "BI - VANGARD" existe │
+│                                                 │
+│ 4. Fallback: name/id contém "layout"            │
+└─────────────────────────────────────────────────┘
 ```
 
-### Arquivos a Modificar
+### 2. Tornar Seleção de Layout OBRIGATÓRIA
 
-1. **`src/components/cobranca/CobrancaAutomacaoConfig.tsx`**
-   - Adicionar nova seção "Filtros do Relatório"
-   - Campos para período (radio + date pickers)
-   - Checkboxes para situações de boleto
-   - Dropdowns para boletos anteriores e referência
-   - Card de resumo com filtros ativos
+Se o layout "BI - VANGARD COBRANÇA" não puder ser selecionado, o script deve:
+- Lançar erro crítico
+- Salvar screenshot de diagnóstico
+- Listar todos os selects encontrados e suas opções
+- **NÃO prosseguir com o download**
 
-2. **`scripts/robo-cobranca-hinova.cjs`**
-   - Receber configurações de filtros via ENV ou webhook
-   - Aplicar situações específicas ao invés de marcar TODOS
-   - Usar datas customizadas quando configurado
-   - Aplicar valores corretos nos dropdowns
+### 3. Adicionar Diagnóstico Completo de Filtros
 
-3. **`supabase/functions/executar-cobranca-hinova/index.ts`**
-   - Buscar configurações de filtros da tabela
-   - Passar filtros como variáveis de ambiente para o script
+Antes de gerar o relatório, o script deve logar:
 
-### Tipagem TypeScript
-```typescript
-interface FiltrosRelatorio {
-  periodo_tipo: 'mes_atual' | 'customizado';
-  data_inicio?: string;
-  data_fim?: string;
-  situacoes: string[]; // ['ABERTO', 'BAIXADO', etc]
-  boletos_anteriores: 'nao_possui' | 'possui' | 'todos';
-  referencia: 'vencimento_original' | 'data_pagamento';
+| Filtro | Status | Valor |
+|--------|--------|-------|
+| Data Vencimento Original | ✅/❌ | 01/01/2026 a 31/01/2026 |
+| Layout | ✅/❌ | BI - VANGARD COBRANÇA |
+| Cooperativa | ✅/❌ | TODOS |
+| Situação Boleto | ✅/❌ | ABERTO, BAIXADO, etc. |
+| Forma Exibição | ✅/❌ | Em Excel |
+| Boletos Anteriores | ✅/❌ | NÃO POSSUI |
+| Referência | ✅/❌ | VENCIMENTO ORIGINAL |
+
+---
+
+## Detalhes Técnicos
+
+### Código da Nova Lógica de Layout
+
+```javascript
+// ESTRATÉGIA 1: Buscar pelo texto "Layout:" adjacente
+const labels = document.querySelectorAll('td, th, label, span');
+for (const label of labels) {
+  const texto = (label.textContent || '').trim();
+  // Buscar exatamente "Layout:" ou "Layout"
+  if (texto === 'Layout:' || texto === 'Layout') {
+    // Procurar select na mesma linha (tr) ou próximo
+    const row = label.closest('tr');
+    const selectInRow = row?.querySelector('select');
+    if (selectInRow) {
+      // Encontrou! Selecionar "BI - VANGARD COBRANÇA"
+      for (let i = 0; i < selectInRow.options.length; i++) {
+        const optText = selectInRow.options[i].text.toUpperCase();
+        if (optText.includes('BI') && optText.includes('VANGARD')) {
+          selectInRow.selectedIndex = i;
+          selectInRow.dispatchEvent(new Event('change', { bubbles: true }));
+          return { sucesso: true, metodo: 'LABEL_LAYOUT', valor: optText };
+        }
+      }
+    }
+  }
+}
+
+// ESTRATÉGIA 2: Buscar seção "Dados Visualizados"
+const secoes = document.querySelectorAll('td, th, div');
+for (const secao of secoes) {
+  const texto = (secao.textContent || '').toUpperCase();
+  if (texto.includes('DADOS VISUALIZADOS')) {
+    // Encontrar o select mais próximo
+    const container = secao.closest('table, div, fieldset');
+    const selects = container?.querySelectorAll('select') || [];
+    for (const select of selects) {
+      for (let i = 0; i < select.options.length; i++) {
+        const optText = select.options[i].text.toUpperCase();
+        if (optText.includes('BI') && optText.includes('VANGARD')) {
+          select.selectedIndex = i;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          return { sucesso: true, metodo: 'SECAO_DADOS_VISUALIZADOS', valor: optText };
+        }
+      }
+    }
+  }
+}
+
+// ESTRATÉGIA 3: Varrer todos os selects buscando a opção correta
+const todosSelects = document.querySelectorAll('select');
+for (const select of todosSelects) {
+  for (let i = 0; i < select.options.length; i++) {
+    const optText = (select.options[i].text || '').toUpperCase();
+    if (optText.includes('BI') && optText.includes('VANGARD') && optText.includes('COBRANCA')) {
+      select.selectedIndex = i;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      return { sucesso: true, metodo: 'VARREDURA_OPCOES', valor: optText };
+    }
+  }
+}
+```
+
+### Validação Obrigatória Após Seleção
+
+```javascript
+if (!layoutSelecionado.sucesso) {
+  // Lançar erro crítico - NÃO gerar relatório sem layout correto
+  const erro = `ERRO CRÍTICO: Layout "BI - VANGARD COBRANÇA" não encontrado!`;
+  log(erro, LOG_LEVELS.ERROR);
+  
+  // Diagnóstico: listar todos os selects e opções
+  const diagnostico = await page.evaluate(() => {
+    return Array.from(document.querySelectorAll('select')).map(s => ({
+      name: s.name || s.id || 'sem-nome',
+      opcoes: Array.from(s.options).map(o => o.text)
+    }));
+  });
+  log(`Selects encontrados: ${JSON.stringify(diagnostico)}`, LOG_LEVELS.DEBUG);
+  
+  await saveDebugInfo(page, context, 'Layout não encontrado');
+  throw new Error(erro);
 }
 ```
 
 ---
 
-## Lista de Situações de Boleto (Hinova)
-Com base no portal, as opções típicas são:
-- ABERTO
-- BAIXADO  
-- CANCELADO
-- VENCIDO
-- PROTESTADO
-- RENEGOCIADO
-- EM CARTÓRIO
+## Resumo dos Filtros Aplicados
 
----
-
-## Sequência de Implementação
-
-1. **Migração do banco** - Adicionar novas colunas
-2. **Atualizar interface** - CobrancaAutomacaoConfig.tsx com seção de filtros
-3. **Atualizar Edge Function** - Passar filtros para o script
-4. **Atualizar script** - Aplicar filtros configuráveis
+| Filtro | Comportamento | Obrigatório |
+|--------|--------------|-------------|
+| **Data Vencimento Original** | Preenche 01/MM/AAAA a DD/MM/AAAA (mês atual) | ✅ Sim |
+| **Layout** | Seleciona "BI - VANGARD COBRANÇA" | ✅ Sim |
+| **Cooperativa** | Marca checkbox "TODOS" | ✅ Sim |
+| **Situação Boleto** | Marca: ABERTO, BAIXADO, etc. Desmarca: CANCELADO | ✅ Sim |
+| **Forma de Exibição** | Seleciona "Em Excel" | ✅ Sim |
+| **Boletos Anteriores** | Seleciona "NÃO POSSUI" | ⚠️ Opcional |
+| **Referência** | Seleciona "VENCIMENTO ORIGINAL" | ⚠️ Opcional |
 
 ---
 
 ## Resultado Esperado
-- Usuário pode escolher quais situações de boleto filtrar
-- Usuário pode definir período customizado
-- Filtros são exibidos de forma clara na interface
-- Script aplica exatamente os filtros configurados
-- Redução drástica no tamanho dos arquivos baixados (apenas dados relevantes)
+
+Após implementar estas mudanças:
+1. O layout "BI - VANGARD COBRANÇA" será selecionado corretamente
+2. O relatório terá todas as colunas preenchidas (incluindo Cooperativa)
+3. Se qualquer filtro obrigatório falhar, o script aborta com erro claro
+4. Logs detalhados mostrarão o estado de cada filtro antes do download
