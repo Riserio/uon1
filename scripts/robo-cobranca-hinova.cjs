@@ -2927,18 +2927,128 @@ async function rodarRobo() {
     
     log(`Data Vencimento Original: ${inicio} até ${fim}`);
     
-    const dataInicioInput = await page.$('input[name*="data_inicio"], input[name*="vencimento_inicial"], input[name*="dt_vencimento_original_ini"]');
-    if (dataInicioInput) {
-      await dataInicioInput.fill('');
-      await dataInicioInput.fill(inicio);
-      log(`Data início: ${inicio}`, LOG_LEVELS.DEBUG);
+    // Listar todos os inputs de data disponíveis para debug
+    const todosInputsDatas = await page.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll('input'));
+      return inputs
+        .filter(i => i.type === 'text' || i.type === '' || !i.type)
+        .filter(i => {
+          const name = (i.name || '').toLowerCase();
+          const id = (i.id || '').toLowerCase();
+          const placeholder = (i.placeholder || '').toLowerCase();
+          return name.includes('data') || name.includes('dt_') || name.includes('vencimento') ||
+                 id.includes('data') || id.includes('dt_') || id.includes('vencimento') ||
+                 placeholder.includes('data') || placeholder.includes('/');
+        })
+        .map(i => ({
+          name: i.name,
+          id: i.id,
+          placeholder: i.placeholder,
+          value: i.value,
+          type: i.type
+        }));
+    });
+    
+    log(`Inputs de data encontrados: ${JSON.stringify(todosInputsDatas, null, 2)}`, LOG_LEVELS.DEBUG);
+    
+    // Estratégia 1: Buscar por nome específico de vencimento original
+    let dataInicioPreenchida = false;
+    let dataFimPreenchida = false;
+    
+    // Tentar múltiplos seletores para data início
+    const seletoresInicio = [
+      'input[name="dt_vencimento_original_ini"]',
+      'input[name*="vencimento_original_ini"]',
+      'input[name*="venc_orig_ini"]',
+      'input[name*="dt_venc_ini"]',
+      'input[name*="data_ini"]',
+      'input[name*="inicio"]',
+      'input[id*="vencimento_original_ini"]',
+      'input[id*="dt_ini"]',
+    ];
+    
+    for (const seletor of seletoresInicio) {
+      const input = await page.$(seletor);
+      if (input) {
+        await input.fill('');
+        await input.fill(inicio);
+        log(`✅ Data início preenchida via: ${seletor} = ${inicio}`, LOG_LEVELS.SUCCESS);
+        dataInicioPreenchida = true;
+        break;
+      }
     }
     
-    const dataFimInput = await page.$('input[name*="data_fim"], input[name*="vencimento_final"], input[name*="dt_vencimento_original_fim"]');
-    if (dataFimInput) {
-      await dataFimInput.fill('');
-      await dataFimInput.fill(fim);
-      log(`Data fim: ${fim}`, LOG_LEVELS.DEBUG);
+    // Tentar múltiplos seletores para data fim
+    const seletoresFim = [
+      'input[name="dt_vencimento_original_fim"]',
+      'input[name*="vencimento_original_fim"]',
+      'input[name*="venc_orig_fim"]',
+      'input[name*="dt_venc_fim"]',
+      'input[name*="data_fim"]',
+      'input[name*="final"]',
+      'input[id*="vencimento_original_fim"]',
+      'input[id*="dt_fim"]',
+    ];
+    
+    for (const seletor of seletoresFim) {
+      const input = await page.$(seletor);
+      if (input) {
+        await input.fill('');
+        await input.fill(fim);
+        log(`✅ Data fim preenchida via: ${seletor} = ${fim}`, LOG_LEVELS.SUCCESS);
+        dataFimPreenchida = true;
+        break;
+      }
+    }
+    
+    // Estratégia 2 (fallback): Usar page.evaluate para encontrar campos por contexto
+    if (!dataInicioPreenchida || !dataFimPreenchida) {
+      log('Usando fallback: preenchimento via evaluate por contexto...', LOG_LEVELS.WARN);
+      
+      const resultado = await page.evaluate(({ inicio, fim }) => {
+        const preenchidos = [];
+        
+        // Procurar inputs próximos ao texto "Vencimento Original"
+        const allLabels = document.querySelectorAll('td, label, span, div');
+        for (const label of allLabels) {
+          const texto = label.textContent?.toLowerCase() || '';
+          if (texto.includes('vencimento original') || texto.includes('dt venc. original')) {
+            // Procurar inputs próximos
+            const container = label.closest('tr') || label.closest('div') || label.parentElement;
+            if (container) {
+              const inputs = container.querySelectorAll('input[type="text"], input:not([type])');
+              const inputsArr = Array.from(inputs);
+              
+              if (inputsArr.length >= 2) {
+                inputsArr[0].value = inicio;
+                inputsArr[0].dispatchEvent(new Event('input', { bubbles: true }));
+                inputsArr[0].dispatchEvent(new Event('change', { bubbles: true }));
+                preenchidos.push(`inicio: ${inputsArr[0].name || inputsArr[0].id}`);
+                
+                inputsArr[1].value = fim;
+                inputsArr[1].dispatchEvent(new Event('input', { bubbles: true }));
+                inputsArr[1].dispatchEvent(new Event('change', { bubbles: true }));
+                preenchidos.push(`fim: ${inputsArr[1].name || inputsArr[1].id}`);
+                break;
+              }
+            }
+          }
+        }
+        
+        return preenchidos;
+      }, { inicio, fim });
+      
+      if (resultado.length > 0) {
+        log(`✅ Datas preenchidas via fallback: ${resultado.join(', ')}`, LOG_LEVELS.SUCCESS);
+        dataInicioPreenchida = true;
+        dataFimPreenchida = true;
+      }
+    }
+    
+    // Verificar se preencheu
+    if (!dataInicioPreenchida || !dataFimPreenchida) {
+      log('⚠️ ATENÇÃO: Campos de data podem não ter sido preenchidos!', LOG_LEVELS.ERROR);
+      log('Inputs disponíveis: ' + JSON.stringify(todosInputsDatas), LOG_LEVELS.DEBUG);
     }
     
     // Boletos Anteriores: NÃO POSSUI
