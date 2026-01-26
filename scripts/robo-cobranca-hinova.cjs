@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 /**
+ * IMPORTANTE: O script marca automaticamente o checkbox "TODOS" na seção Cooperativa
+ * para garantir que todos os dados sejam incluídos no relatório.
+ */
+
+/**
  * Robô de Automação - Cobrança Hinova (Node.js)
  * ==============================================
  * 
@@ -3128,6 +3133,137 @@ async function rodarRobo() {
       log(`Erro na configuração de Situação Boleto: ${checkboxError.message}`, LOG_LEVELS.ERROR);
       await saveDebugInfo(page, context, `Situação Boleto: ${checkboxError.message}`);
       throw checkboxError;
+    }
+    
+    // ============================================
+    // CONFIGURAÇÃO DE CHECKBOXES - COOPERATIVA: TODOS
+    // ============================================
+    // Marcar o checkbox "TODOS" na seção Cooperativa para incluir todas
+    // ============================================
+    log('📋 Configurando checkbox "TODOS" em Cooperativa...', LOG_LEVELS.INFO);
+    try {
+      const cooperativaTodosMarcado = await page.evaluate(() => {
+        // Procurar pela seção "Cooperativa" e marcar checkbox "TODOS"
+        const normalizar = (texto) => {
+          return (texto || '')
+            .toUpperCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        };
+        
+        // Encontrar a seção Cooperativa (pode ser um table row, div, fieldset, etc)
+        const allElements = document.querySelectorAll('td, th, div, span, label, fieldset');
+        let cooperativaSection = null;
+        
+        for (const el of allElements) {
+          const texto = normalizar(el.textContent || '');
+          // Procurar especificamente por "COOPERATIVA:" ou título de seção
+          if (texto.startsWith('COOPERATIVA:') || 
+              texto === 'COOPERATIVA' || 
+              (el.tagName === 'TD' && texto.includes('COOPERATIVA') && texto.includes('TODOS'))) {
+            cooperativaSection = el.closest('tr') || el.closest('table') || el.closest('div') || el;
+            break;
+          }
+        }
+        
+        // Se não encontrou seção específica, procurar checkbox "TODOS" próximo a "Cooperativa"
+        const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+        for (const cb of checkboxes) {
+          const container = cb.closest('tr') || cb.closest('td') || cb.closest('div') || cb.closest('label');
+          const containerText = normalizar(container?.textContent || '');
+          
+          // Verificar se é o checkbox "TODOS" na seção "Cooperativa"
+          if (containerText.includes('COOPERATIVA') && containerText.includes('TODOS')) {
+            // Encontrar o checkbox "TODOS" especificamente
+            const label = cb.closest('label') || cb.parentElement;
+            const labelText = normalizar(label?.textContent || '');
+            
+            // Se o label é exatamente "TODOS" ou o value do checkbox
+            if (labelText === 'TODOS' || cb.value?.toUpperCase() === 'TODOS' || labelText.includes('TODOS')) {
+              if (!cb.checked) {
+                cb.checked = true;
+                cb.dispatchEvent(new Event('change', { bubbles: true }));
+                cb.dispatchEvent(new Event('click', { bubbles: true }));
+              }
+              return { success: true, message: 'Checkbox TODOS marcado em Cooperativa' };
+            }
+          }
+        }
+        
+        // Estratégia alternativa: procurar seção por cabeçalho de tabela
+        const tables = document.querySelectorAll('table');
+        for (const table of tables) {
+          const headerRow = table.querySelector('tr');
+          const headerText = normalizar(headerRow?.textContent || '');
+          
+          if (headerText.includes('COOPERATIVA')) {
+            // Procurar checkbox TODOS nesta tabela
+            const todosCheckboxes = table.querySelectorAll('input[type="checkbox"]');
+            for (const cb of todosCheckboxes) {
+              const cbLabel = cb.closest('label') || cb.parentElement;
+              const cbText = normalizar(cbLabel?.textContent || '') || normalizar(cb.value || '');
+              
+              if (cbText === 'TODOS' || cbText.includes(' TODOS')) {
+                if (!cb.checked) {
+                  cb.checked = true;
+                  cb.dispatchEvent(new Event('change', { bubbles: true }));
+                  cb.dispatchEvent(new Event('click', { bubbles: true }));
+                }
+                return { success: true, message: 'Checkbox TODOS marcado via tabela Cooperativa' };
+              }
+            }
+          }
+        }
+        
+        // Estratégia final: procurar por texto "Cooperativa:" seguido de "TODOS"
+        const tds = document.querySelectorAll('td');
+        for (const td of tds) {
+          const texto = normalizar(td.textContent || '');
+          if (texto.includes('COOPERATIVA:') && texto.includes('TODOS')) {
+            const checkboxTodos = td.querySelector('input[type="checkbox"]');
+            if (checkboxTodos) {
+              const label = checkboxTodos.closest('label');
+              const labelText = normalizar(label?.textContent || '');
+              if (labelText.includes('TODOS') || checkboxTodos.value?.toUpperCase() === 'TODOS') {
+                if (!checkboxTodos.checked) {
+                  checkboxTodos.checked = true;
+                  checkboxTodos.dispatchEvent(new Event('change', { bubbles: true }));
+                  checkboxTodos.dispatchEvent(new Event('click', { bubbles: true }));
+                }
+                return { success: true, message: 'Checkbox TODOS marcado via TD Cooperativa' };
+              }
+            }
+            
+            // Procurar em checkbox adjacente
+            const row = td.closest('tr');
+            if (row) {
+              const rowCheckboxes = row.querySelectorAll('input[type="checkbox"]');
+              const firstCheckbox = rowCheckboxes[0];
+              if (firstCheckbox) {
+                if (!firstCheckbox.checked) {
+                  firstCheckbox.checked = true;
+                  firstCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+                  firstCheckbox.dispatchEvent(new Event('click', { bubbles: true }));
+                }
+                return { success: true, message: 'Primeiro checkbox marcado na linha Cooperativa' };
+              }
+            }
+          }
+        }
+        
+        return { success: false, message: 'Checkbox TODOS em Cooperativa não encontrado' };
+      });
+      
+      if (cooperativaTodosMarcado.success) {
+        log(`✅ ${cooperativaTodosMarcado.message}`, LOG_LEVELS.SUCCESS);
+      } else {
+        log(`⚠️ ${cooperativaTodosMarcado.message}`, LOG_LEVELS.WARN);
+      }
+    } catch (cooperativaError) {
+      log(`⚠️ Erro ao marcar TODOS em Cooperativa: ${cooperativaError.message}`, LOG_LEVELS.WARN);
+      // Não é crítico, continuar execução
     }
     
     // ============================================
