@@ -3297,10 +3297,47 @@ async function rodarRobo() {
       
       // ========================================
       // AGUARDAR CONFIGURAÇÕES CARREGAREM APÓS LAYOUT
+      // Com espera inteligente para garantir que seções específicas do layout BI apareçam
       // ========================================
-      log('⏳ Aguardando 10 segundos para as configurações do layout carregarem...', LOG_LEVELS.INFO);
-      await page.waitForTimeout(10000);
-      log('✅ Configurações do layout carregadas!', LOG_LEVELS.SUCCESS);
+      log('⏳ Aguardando configurações do layout carregarem...', LOG_LEVELS.INFO);
+      
+      // Tempo base de 20 segundos
+      log('   ⏱️ Aguardando 20 segundos (tempo base)...', LOG_LEVELS.INFO);
+      await page.waitForTimeout(20000);
+      
+      // Verificar se elementos específicos do layout BI apareceram
+      let layoutBICarregado = false;
+      const maxTentativasLayout = 3;
+      const intervaloExtraLayout = 5000; // 5 segundos extras por tentativa
+      
+      for (let tentativaLayout = 1; tentativaLayout <= maxTentativasLayout && !layoutBICarregado; tentativaLayout++) {
+        // Verificar se "Vencimento do Veículo" está visível (elemento exclusivo do layout BI)
+        const vencimentoVeiculoVisivel = await page.evaluate(() => {
+          const elementos = document.querySelectorAll('td, th, div, span, label');
+          for (const el of elementos) {
+            const texto = (el.textContent || '').toUpperCase();
+            if (texto.includes('VENCIMENTO DO VEÍCULO') || texto.includes('VENCIMENTO DO VEICULO')) {
+              return true;
+            }
+          }
+          return false;
+        });
+        
+        if (vencimentoVeiculoVisivel) {
+          log('✅ Seção "Vencimento do Veículo" detectada - Layout BI carregado completamente!', LOG_LEVELS.SUCCESS);
+          layoutBICarregado = true;
+        } else if (tentativaLayout < maxTentativasLayout) {
+          log(`⏳ Seção não detectada ainda. Aguardando mais ${intervaloExtraLayout/1000}s... (tentativa ${tentativaLayout}/${maxTentativasLayout})`, LOG_LEVELS.INFO);
+          await page.waitForTimeout(intervaloExtraLayout);
+        }
+      }
+      
+      if (!layoutBICarregado) {
+        log('⚠️ Seção "Vencimento do Veículo" não detectada após espera. Prosseguindo mesmo assim...', LOG_LEVELS.WARN);
+        log('   Os campos "Dias de Vencimento" e "Dias de Atraso" podem não estar disponíveis.', LOG_LEVELS.WARN);
+      }
+      
+      log('✅ Tempo de espera para configurações do layout concluído!', LOG_LEVELS.SUCCESS);
     } else {
       // ERRO CRÍTICO - NÃO prosseguir sem o layout correto
       log(`❌ ERRO CRÍTICO: Layout "BI - VANGARD COBRANÇA" não encontrado!`, LOG_LEVELS.ERROR);
