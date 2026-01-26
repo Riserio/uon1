@@ -3807,6 +3807,207 @@ async function rodarRobo() {
     }
     
     // ============================================
+    // CONFIGURAÇÃO DE CHECKBOXES - VENCIMENTO DO VEÍCULO: TODOS
+    // ============================================
+    // CRÍTICO: Esta seção aparece APÓS selecionar o layout "BI - VANGARD COBRANÇA"
+    // Contém checkboxes para dias (10, 15, 20, 25, 1, 5, 7, 8, 22, 28, 30, 31) e "TODOS"
+    // Label: "Vencimento:" e header: "Vencimento do Veículo"
+    // ============================================
+    log('📋 Configurando checkbox "TODOS" em Vencimento do Veículo...', LOG_LEVELS.INFO);
+    
+    const vencimentoVeiculoTodosMarcado = await page.evaluate(() => {
+      const resultado = { 
+        sucesso: false, 
+        metodo: null, 
+        diagnostico: {
+          checkboxesEncontrados: [],
+          tdsEncontrados: [],
+          secoesVencimento: []
+        }
+      };
+      
+      const normalizar = (texto) => {
+        return (texto || '')
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+      
+      // ESTRATÉGIA 1: Procurar seção "Vencimento do Veículo" pelo header azul
+      const tds = document.querySelectorAll('td, th');
+      for (const td of tds) {
+        const textoOriginal = td.textContent || '';
+        const texto = normalizar(textoOriginal);
+        
+        // Procurar pelo header da seção "Vencimento do Veículo"
+        if (texto === 'VENCIMENTO DO VEICULO' || texto.includes('VENCIMENTO DO VEICULO')) {
+          resultado.diagnostico.secoesVencimento.push({
+            texto: textoOriginal.substring(0, 80),
+            tagName: td.tagName
+          });
+          
+          // Encontrar a tabela que contém esta seção
+          const table = td.closest('table');
+          if (table) {
+            // Procurar por "Vencimento:" label dentro desta tabela
+            const rows = table.querySelectorAll('tr');
+            for (const row of rows) {
+              const rowText = normalizar(row.textContent || '');
+              
+              // Encontrar linha que contém "Vencimento:" mas NÃO "VENCIMENTO DO VEICULO" (header)
+              if (rowText.includes('VENCIMENTO:') && !rowText.includes('VENCIMENTO DO VEICULO')) {
+                const checkboxesNaLinha = row.querySelectorAll('input[type="checkbox"]');
+                
+                for (const cb of checkboxesNaLinha) {
+                  const label = cb.closest('label');
+                  const labelText = normalizar(label?.textContent || cb.value || '');
+                  
+                  resultado.diagnostico.checkboxesEncontrados.push({
+                    value: cb.value,
+                    labelText: labelText,
+                    checked: cb.checked
+                  });
+                  
+                  // Verificar se é o checkbox "TODOS"
+                  if (labelText === 'TODOS' || labelText.startsWith('TODOS ') || cb.value?.toUpperCase() === 'TODOS') {
+                    if (!cb.checked) {
+                      cb.checked = true;
+                      cb.dispatchEvent(new Event('change', { bubbles: true }));
+                      cb.dispatchEvent(new Event('click', { bubbles: true }));
+                      cb.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    resultado.sucesso = true;
+                    resultado.metodo = 'SECAO_VENCIMENTO_VEICULO_TODOS';
+                    resultado.checkboxMarcado = { value: cb.value, label: labelText };
+                    return resultado;
+                  }
+                }
+                
+                // Marcar primeiro checkbox se não encontrou "TODOS" explícito
+                if (checkboxesNaLinha.length > 0) {
+                  const primeiroCheckbox = checkboxesNaLinha[0];
+                  if (!primeiroCheckbox.checked) {
+                    primeiroCheckbox.checked = true;
+                    primeiroCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+                    primeiroCheckbox.dispatchEvent(new Event('click', { bubbles: true }));
+                  }
+                  resultado.sucesso = true;
+                  resultado.metodo = 'PRIMEIRO_CHECKBOX_VENCIMENTO_VEICULO';
+                  resultado.checkboxMarcado = { 
+                    value: primeiroCheckbox.value, 
+                    label: normalizar(primeiroCheckbox.closest('label')?.textContent || primeiroCheckbox.value || 'primeiro')
+                  };
+                  return resultado;
+                }
+              }
+            }
+            
+            // Se não achou pela linha específica, buscar todos checkboxes na tabela
+            const allCbs = table.querySelectorAll('input[type="checkbox"]');
+            for (const cb of allCbs) {
+              const label = cb.closest('label');
+              const labelText = normalizar(label?.textContent || cb.value || '');
+              
+              if (labelText === 'TODOS' || cb.value?.toUpperCase() === 'TODOS') {
+                if (!cb.checked) {
+                  cb.checked = true;
+                  cb.dispatchEvent(new Event('change', { bubbles: true }));
+                  cb.dispatchEvent(new Event('click', { bubbles: true }));
+                }
+                resultado.sucesso = true;
+                resultado.metodo = 'TABLE_VENCIMENTO_VEICULO_TODOS';
+                resultado.checkboxMarcado = { value: cb.value, label: labelText };
+                return resultado;
+              }
+            }
+            
+            // Último recurso: marcar primeiro checkbox da tabela
+            if (allCbs.length > 0 && !resultado.sucesso) {
+              const primeiro = allCbs[0];
+              if (!primeiro.checked) {
+                primeiro.checked = true;
+                primeiro.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              resultado.sucesso = true;
+              resultado.metodo = 'PRIMEIRO_CHECKBOX_TABLE_VENCIMENTO';
+              return resultado;
+            }
+          }
+        }
+      }
+      
+      // ESTRATÉGIA 2: Procurar por "Vencimento:" label diretamente (sem header)
+      for (const td of tds) {
+        const textoOriginal = td.textContent || '';
+        const texto = normalizar(textoOriginal);
+        
+        // Procurar TD com "Vencimento:" (não confundir com "Vencimento Original" de datas)
+        if ((texto === 'VENCIMENTO:' || texto.startsWith('VENCIMENTO:')) && 
+            !texto.includes('ORIGINAL') && !texto.includes('DATA')) {
+          resultado.diagnostico.tdsEncontrados.push(textoOriginal.substring(0, 80));
+          
+          const row = td.closest('tr');
+          const table = td.closest('table');
+          
+          // Verificar se a tabela contém checkboxes de dias (10, 15, 20, etc.)
+          const tableText = normalizar(table?.textContent || '');
+          const temDias = /\b(10|15|20|25|30|31)\b/.test(tableText);
+          
+          if (temDias && row) {
+            const checkboxesNaLinha = row.querySelectorAll('input[type="checkbox"]');
+            
+            for (const cb of checkboxesNaLinha) {
+              const label = cb.closest('label');
+              const labelText = normalizar(label?.textContent || cb.value || '');
+              
+              if (labelText === 'TODOS' || cb.value?.toUpperCase() === 'TODOS') {
+                if (!cb.checked) {
+                  cb.checked = true;
+                  cb.dispatchEvent(new Event('change', { bubbles: true }));
+                  cb.dispatchEvent(new Event('click', { bubbles: true }));
+                }
+                resultado.sucesso = true;
+                resultado.metodo = 'TD_VENCIMENTO_DIAS_TODOS';
+                resultado.checkboxMarcado = { value: cb.value, label: labelText };
+                return resultado;
+              }
+            }
+            
+            if (checkboxesNaLinha.length > 0) {
+              const primeiroCheckbox = checkboxesNaLinha[0];
+              if (!primeiroCheckbox.checked) {
+                primeiroCheckbox.checked = true;
+                primeiroCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              resultado.sucesso = true;
+              resultado.metodo = 'PRIMEIRO_CHECKBOX_VENCIMENTO_DIAS';
+              resultado.checkboxMarcado = { 
+                value: primeiroCheckbox.value, 
+                label: normalizar(primeiroCheckbox.closest('label')?.textContent || 'primeiro')
+              };
+              return resultado;
+            }
+          }
+        }
+      }
+      
+      return resultado;
+    });
+    
+    if (vencimentoVeiculoTodosMarcado.sucesso) {
+      log(`✅ Checkbox TODOS em Vencimento do Veículo marcado (método: ${vencimentoVeiculoTodosMarcado.metodo})`, LOG_LEVELS.SUCCESS);
+      if (vencimentoVeiculoTodosMarcado.checkboxMarcado) {
+        log(`   Checkbox: ${JSON.stringify(vencimentoVeiculoTodosMarcado.checkboxMarcado)}`, LOG_LEVELS.DEBUG);
+      }
+    } else {
+      log(`⚠️ Checkbox TODOS em Vencimento do Veículo NÃO encontrado!`, LOG_LEVELS.WARN);
+      log(`   Seções encontradas: ${JSON.stringify(vencimentoVeiculoTodosMarcado.diagnostico.secoesVencimento)}`, LOG_LEVELS.DEBUG);
+      log(`   TDs encontrados: ${JSON.stringify(vencimentoVeiculoTodosMarcado.diagnostico.tdsEncontrados)}`, LOG_LEVELS.DEBUG);
+    }
+    
+    // ============================================
     // SUMÁRIO OBRIGATÓRIO DE FILTROS ANTES DE GERAR
     // ============================================
     log('', LOG_LEVELS.INFO);
@@ -3820,6 +4021,7 @@ async function rodarRobo() {
     const filtroCooperativaOk = cooperativaTodosMarcado.sucesso;
     const filtroRegionalOk = regionalTodosMarcado.sucesso;
     const filtroSituacaoVeiculoOk = situacaoVeiculoTodosMarcado.sucesso;
+    const filtroVencimentoVeiculoOk = vencimentoVeiculoTodosMarcado.sucesso;
     // Situação Boleto é tratada como warning se não encontrou (não bloqueia)
     const filtroFormaExibicaoOk = true; // Sempre configurado via selecionarFormaExibicaoEmExcel
     
@@ -3828,6 +4030,7 @@ async function rodarRobo() {
     log(`   ${filtroCooperativaOk ? '✅' : '⚠️'} Cooperativa - TODOS: ${filtroCooperativaOk ? 'MARCADO' : 'NÃO ENCONTRADO'}`, filtroCooperativaOk ? LOG_LEVELS.SUCCESS : LOG_LEVELS.WARN);
     log(`   ${filtroRegionalOk ? '✅' : '⚠️'} Regional do Associado - TODOS: ${filtroRegionalOk ? 'MARCADO' : 'NÃO ENCONTRADO'}`, filtroRegionalOk ? LOG_LEVELS.SUCCESS : LOG_LEVELS.WARN);
     log(`   ${filtroSituacaoVeiculoOk ? '✅' : '⚠️'} Situação do Veículo - TODOS: ${filtroSituacaoVeiculoOk ? 'MARCADO' : 'NÃO ENCONTRADO'}`, filtroSituacaoVeiculoOk ? LOG_LEVELS.SUCCESS : LOG_LEVELS.WARN);
+    log(`   ${filtroVencimentoVeiculoOk ? '✅' : '⚠️'} Vencimento do Veículo - TODOS: ${filtroVencimentoVeiculoOk ? 'MARCADO' : 'NÃO ENCONTRADO'}`, filtroVencimentoVeiculoOk ? LOG_LEVELS.SUCCESS : LOG_LEVELS.WARN);
     log(`   ${filtroFormaExibicaoOk ? '✅' : '❌'} Forma Exibição: Em Excel`, LOG_LEVELS.SUCCESS);
     log(`   ℹ️ Boletos Anteriores: NÃO POSSUI (configurado)`, LOG_LEVELS.INFO);
     log(`   ℹ️ Referência: VENCIMENTO ORIGINAL (configurado)`, LOG_LEVELS.INFO);
