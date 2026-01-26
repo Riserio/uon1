@@ -3218,6 +3218,8 @@ async function rodarRobo() {
               const optText = normalizar(selectInRow.options[i].text || '');
               if (optText.includes('BI') && optText.includes('VANGARD')) {
                 selectInRow.selectedIndex = i;
+                // Alguns portais dependem de eventos adicionais além do 'change'
+                selectInRow.dispatchEvent(new Event('input', { bubbles: true }));
                 selectInRow.dispatchEvent(new Event('change', { bubbles: true }));
                 resultado.sucesso = true;
                 resultado.metodo = 'LABEL_LAYOUT';
@@ -3258,6 +3260,7 @@ async function rodarRobo() {
                   resultado.opcoesDisponiveis = opcoes;
                 }
                 select.selectedIndex = i;
+                select.dispatchEvent(new Event('input', { bubbles: true }));
                 select.dispatchEvent(new Event('change', { bubbles: true }));
                 resultado.sucesso = true;
                 resultado.metodo = 'SECAO_DADOS_VISUALIZADOS';
@@ -3286,6 +3289,7 @@ async function rodarRobo() {
               resultado.opcoesDisponiveis = opcoes;
             }
             select.selectedIndex = i;
+            select.dispatchEvent(new Event('input', { bubbles: true }));
             select.dispatchEvent(new Event('change', { bubbles: true }));
             resultado.sucesso = true;
             resultado.metodo = 'VARREDURA_OPCOES';
@@ -3324,6 +3328,7 @@ async function rodarRobo() {
             const optText = normalizar(select.options[i].text || '');
             if (optText.includes('BI') && optText.includes('VANGARD')) {
               select.selectedIndex = i;
+              select.dispatchEvent(new Event('input', { bubbles: true }));
               select.dispatchEvent(new Event('change', { bubbles: true }));
               resultado.sucesso = true;
               resultado.metodo = 'FALLBACK_NAME_ID';
@@ -3346,47 +3351,69 @@ async function rodarRobo() {
       log(`   Valor: "${layoutSelecionado.valorSelecionado}"`, LOG_LEVELS.SUCCESS);
       
       // ========================================
-      // AGUARDAR CONFIGURAÇÕES CARREGAREM APÓS LAYOUT
-      // Com espera inteligente para garantir que seções específicas do layout BI apareçam
+      // AGUARDAR CONFIGURAÇÕES CARREGAREM APÓS LAYOUT (COM DETECÇÃO ROBUSTA)
       // ========================================
       log('⏳ Aguardando configurações do layout carregarem...', LOG_LEVELS.INFO);
-      
-      // Tempo base de 20 segundos
+
+      // Tempo base de 20s (o portal carrega campos dinamicamente)
       log('   ⏱️ Aguardando 20 segundos (tempo base)...', LOG_LEVELS.INFO);
       await page.waitForTimeout(20000);
-      
-      // Verificar se elementos específicos do layout BI apareceram
+
+      // Verificar se elementos específicos do layout BI apareceram (tolerante a variações)
       let layoutBICarregado = false;
-      const maxTentativasLayout = 3;
+      const maxTentativasLayout = 4;
       const intervaloExtraLayout = 5000; // 5 segundos extras por tentativa
-      
-      for (let tentativaLayout = 1; tentativaLayout <= maxTentativasLayout && !layoutBICarregado; tentativaLayout++) {
-        // Verificar se "Vencimento do Veículo" está visível (elemento exclusivo do layout BI)
-        const vencimentoVeiculoVisivel = await page.evaluate(() => {
+
+      const detectarCamposLayoutBI = async () => {
+        return await page.evaluate(() => {
+          const normalizar = (t) => (t || '')
+            .toUpperCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+
+          const alvos = [
+            // Variações observadas no portal
+            'VENCIMENTO DO VEICULO',
+            'VENCIMENTO VEICULO',
+            'DIA VENCIMENTO VEICULO',
+            'DIA DE VENCIMENTO',
+            // Campo de atraso (pode aparecer no layout)
+            'QTDE DIAS EM ATRASO',
+            'DIAS EM ATRASO',
+          ];
+
           const elementos = document.querySelectorAll('td, th, div, span, label');
           for (const el of elementos) {
-            const texto = (el.textContent || '').toUpperCase();
-            if (texto.includes('VENCIMENTO DO VEÍCULO') || texto.includes('VENCIMENTO DO VEICULO')) {
-              return true;
-            }
+            const texto = normalizar(el.textContent || '');
+            if (!texto) continue;
+            if (alvos.some(a => texto.includes(a))) return true;
           }
           return false;
         });
-        
-        if (vencimentoVeiculoVisivel) {
-          log('✅ Seção "Vencimento do Veículo" detectada - Layout BI carregado completamente!', LOG_LEVELS.SUCCESS);
+      };
+
+      for (let tentativaLayout = 1; tentativaLayout <= maxTentativasLayout && !layoutBICarregado; tentativaLayout++) {
+        const detectado = await detectarCamposLayoutBI();
+
+        if (detectado) {
+          log('✅ Campos do layout BI detectados no DOM (layout carregado)!', LOG_LEVELS.SUCCESS);
           layoutBICarregado = true;
-        } else if (tentativaLayout < maxTentativasLayout) {
-          log(`⏳ Seção não detectada ainda. Aguardando mais ${intervaloExtraLayout/1000}s... (tentativa ${tentativaLayout}/${maxTentativasLayout})`, LOG_LEVELS.INFO);
+          break;
+        }
+
+        if (tentativaLayout < maxTentativasLayout) {
+          log(`⏳ Layout BI ainda não aparenta estar pronto. Aguardando mais ${intervaloExtraLayout / 1000}s... (tentativa ${tentativaLayout}/${maxTentativasLayout})`, LOG_LEVELS.INFO);
           await page.waitForTimeout(intervaloExtraLayout);
         }
       }
-      
+
       if (!layoutBICarregado) {
-        log('⚠️ Seção "Vencimento do Veículo" não detectada após espera. Prosseguindo mesmo assim...', LOG_LEVELS.WARN);
-        log('   Os campos "Dias de Vencimento" e "Dias de Atraso" podem não estar disponíveis.', LOG_LEVELS.WARN);
+        // Não prosseguir silenciosamente: isso gera importação com colunas críticas vazias
+        log('❌ ERRO: Campos do layout BI não foram detectados após a espera.', LOG_LEVELS.ERROR);
+        await saveDebugInfo(page, context, 'Layout BI não carregou campos críticos (vencimento/atraso)');
+        throw new Error('Layout BI não carregou totalmente (campos de vencimento/atraso não apareceram).');
       }
-      
+
       log('✅ Tempo de espera para configurações do layout concluído!', LOG_LEVELS.SUCCESS);
     } else {
       // ERRO CRÍTICO - NÃO prosseguir sem o layout correto
@@ -4355,6 +4382,49 @@ async function rodarRobo() {
         
         // Processar arquivo (detecta formato automaticamente - async para streaming)
         dados = await processarArquivo(result.filePath);
+
+        // ============================================
+        // VALIDAÇÃO CRÍTICA: Garantir que as colunas do layout BI vieram no arquivo
+        // (evita salvar importação com "Dia Vencimento Veículo" e "Dias em Atraso" vazios)
+        // ============================================
+        const validarCamposCriticos = (rows) => {
+          const total = Array.isArray(rows) ? rows.length : 0;
+          if (!Array.isArray(rows) || total === 0) {
+            return { ok: false, total, comDiaVenc: 0, comDiasAtraso: 0, headers: [] };
+          }
+
+          const headers = Object.keys(rows[0] || {});
+          const chaveDiaVenc = 'Dia Vencimento Veiculo';
+          const chaveDiasAtraso = 'Qtde Dias em Atraso Vencimento Original';
+
+          let comDiaVenc = 0;
+          let comDiasAtraso = 0;
+
+          for (const r of rows) {
+            const v1 = r?.[chaveDiaVenc];
+            const v2 = r?.[chaveDiasAtraso];
+
+            if (v1 !== null && v1 !== undefined && String(v1).trim() !== '') comDiaVenc++;
+            if (v2 !== null && v2 !== undefined && String(v2).trim() !== '') comDiasAtraso++;
+          }
+
+          // Critério: pelo menos 1 registro deve ter o campo (caso contrário, a coluna não veio no layout)
+          const ok = comDiaVenc > 0 && comDiasAtraso > 0;
+          return { ok, total, comDiaVenc, comDiasAtraso, headers };
+        };
+
+        const valida = validarCamposCriticos(dados);
+        log(
+          `📊 Validação de colunas BI: total=${valida.total}, comDiaVenc=${valida.comDiaVenc}, comDiasAtraso=${valida.comDiasAtraso}`,
+          valida.ok ? LOG_LEVELS.SUCCESS : LOG_LEVELS.ERROR
+        );
+
+        if (!valida.ok) {
+          log(`❌ Arquivo baixado NÃO contém colunas críticas preenchidas. Headers: ${valida.headers.slice(0, 25).join(' | ')}`, LOG_LEVELS.ERROR);
+          await saveDebugInfo(page, context, 'Arquivo baixado sem colunas BI críticas (Dia Venc / Dias Atraso)');
+          throw new Error('Arquivo baixado sem colunas BI críticas preenchidas (Dia Vencimento Veículo / Dias em Atraso).');
+        }
+
         downloadSucesso = true;
         
         // Fechar abas extras (APÓS o download ser salvo com sucesso)
