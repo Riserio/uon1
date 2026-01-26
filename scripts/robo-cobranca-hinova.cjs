@@ -3524,6 +3524,282 @@ async function rodarRobo() {
     }
     
     // ============================================
+    // CONFIGURAÇÃO DE CHECKBOXES - REGIONAL DO ASSOCIADO: TODOS
+    // ============================================
+    log('📋 Configurando checkbox "TODOS" em Regional do Associado...', LOG_LEVELS.INFO);
+    
+    const regionalTodosMarcado = await page.evaluate(() => {
+      const resultado = { 
+        sucesso: false, 
+        metodo: null, 
+        diagnostico: {
+          checkboxesEncontrados: [],
+          tdsEncontrados: []
+        }
+      };
+      
+      const normalizar = (texto) => {
+        return (texto || '')
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+      
+      // ESTRATÉGIA 1: Procurar TD que contém "Regional:" no início
+      const tds = document.querySelectorAll('td, th');
+      for (const td of tds) {
+        const textoOriginal = td.textContent || '';
+        const texto = normalizar(textoOriginal);
+        
+        // Verificar se este TD é o label "Regional:" (não confundir com Regional do Boleto)
+        if (texto.startsWith('REGIONAL:') || texto === 'REGIONAL' || texto.includes('REGIONAL DO ASSOCIADO')) {
+          resultado.diagnostico.tdsEncontrados.push(textoOriginal.substring(0, 80));
+          
+          // Procurar os checkboxes DENTRO deste TD ou na mesma linha
+          const row = td.closest('tr');
+          const container = row || td;
+          
+          const checkboxesNoContainer = container.querySelectorAll('input[type="checkbox"]');
+          
+          for (const cb of checkboxesNoContainer) {
+            const label = cb.closest('label');
+            const labelText = normalizar(label?.textContent || cb.value || '');
+            
+            resultado.diagnostico.checkboxesEncontrados.push({
+              value: cb.value,
+              labelText: labelText,
+              checked: cb.checked
+            });
+            
+            // Verificar se é o checkbox "TODOS"
+            if (labelText === 'TODOS' || labelText.startsWith('TODOS ') || cb.value?.toUpperCase() === 'TODOS') {
+              if (!cb.checked) {
+                cb.checked = true;
+                cb.dispatchEvent(new Event('change', { bubbles: true }));
+                cb.dispatchEvent(new Event('click', { bubbles: true }));
+                cb.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+              resultado.sucesso = true;
+              resultado.metodo = 'TD_REGIONAL_TODOS';
+              resultado.checkboxMarcado = { value: cb.value, label: labelText };
+              return resultado;
+            }
+          }
+          
+          // Se não encontrou "TODOS" explícito, marcar o PRIMEIRO checkbox
+          if (checkboxesNoContainer.length > 0) {
+            const primeiroCheckbox = checkboxesNoContainer[0];
+            if (!primeiroCheckbox.checked) {
+              primeiroCheckbox.checked = true;
+              primeiroCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+              primeiroCheckbox.dispatchEvent(new Event('click', { bubbles: true }));
+              primeiroCheckbox.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            resultado.sucesso = true;
+            resultado.metodo = 'PRIMEIRO_CHECKBOX_REGIONAL';
+            resultado.checkboxMarcado = { 
+              value: primeiroCheckbox.value, 
+              label: normalizar(primeiroCheckbox.closest('label')?.textContent || primeiroCheckbox.value || 'primeiro')
+            };
+            return resultado;
+          }
+        }
+      }
+      
+      // ESTRATÉGIA 2: Procurar seção "Regional do Associado" pelo header
+      for (const td of tds) {
+        const texto = normalizar(td.textContent || '');
+        if (texto.includes('REGIONAL DO ASSOCIADO')) {
+          const table = td.closest('table');
+          if (table) {
+            const allCbs = table.querySelectorAll('input[type="checkbox"]');
+            for (const cb of allCbs) {
+              const label = cb.closest('label');
+              const labelText = normalizar(label?.textContent || cb.value || '');
+              
+              if (labelText === 'TODOS' || cb.value?.toUpperCase() === 'TODOS') {
+                if (!cb.checked) {
+                  cb.checked = true;
+                  cb.dispatchEvent(new Event('change', { bubbles: true }));
+                  cb.dispatchEvent(new Event('click', { bubbles: true }));
+                }
+                resultado.sucesso = true;
+                resultado.metodo = 'SECAO_REGIONAL_ASSOCIADO';
+                resultado.checkboxMarcado = { value: cb.value, label: labelText };
+                return resultado;
+              }
+            }
+            // Marcar primeiro se não encontrou TODOS explícito
+            if (allCbs.length > 0 && !resultado.sucesso) {
+              const primeiro = allCbs[0];
+              if (!primeiro.checked) {
+                primeiro.checked = true;
+                primeiro.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              resultado.sucesso = true;
+              resultado.metodo = 'PRIMEIRO_CHECKBOX_SECAO_REGIONAL';
+              return resultado;
+            }
+          }
+        }
+      }
+      
+      return resultado;
+    });
+    
+    if (regionalTodosMarcado.sucesso) {
+      log(`✅ Checkbox TODOS em Regional do Associado marcado (método: ${regionalTodosMarcado.metodo})`, LOG_LEVELS.SUCCESS);
+      if (regionalTodosMarcado.checkboxMarcado) {
+        log(`   Checkbox: ${JSON.stringify(regionalTodosMarcado.checkboxMarcado)}`, LOG_LEVELS.DEBUG);
+      }
+    } else {
+      log(`⚠️ Checkbox TODOS em Regional do Associado NÃO encontrado!`, LOG_LEVELS.WARN);
+      log(`   TDs encontrados: ${JSON.stringify(regionalTodosMarcado.diagnostico.tdsEncontrados)}`, LOG_LEVELS.DEBUG);
+    }
+    
+    // ============================================
+    // CONFIGURAÇÃO DE CHECKBOXES - SITUAÇÃO DO VEÍCULO: TODOS
+    // ============================================
+    log('📋 Configurando checkbox "TODOS" em Situação do Veículo...', LOG_LEVELS.INFO);
+    
+    const situacaoVeiculoTodosMarcado = await page.evaluate(() => {
+      const resultado = { 
+        sucesso: false, 
+        metodo: null, 
+        diagnostico: {
+          checkboxesEncontrados: [],
+          tdsEncontrados: []
+        }
+      };
+      
+      const normalizar = (texto) => {
+        return (texto || '')
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+      
+      // ESTRATÉGIA 1: Procurar TD que contém "Situação:" ou "Situacao:" (sem ser Situação Boleto)
+      const tds = document.querySelectorAll('td, th');
+      for (const td of tds) {
+        const textoOriginal = td.textContent || '';
+        const texto = normalizar(textoOriginal);
+        
+        // Verificar se este TD é o label "Situação:" dentro da seção de Veículo
+        // Evitar confundir com "Situação Boleto"
+        if ((texto.startsWith('SITUACAO:') || texto === 'SITUACAO') && !texto.includes('BOLETO')) {
+          resultado.diagnostico.tdsEncontrados.push(textoOriginal.substring(0, 80));
+          
+          // Verificar contexto - deve estar na seção "Situação do Veículo"
+          const table = td.closest('table');
+          const tableText = normalizar(table?.textContent || '');
+          
+          // Se a tabela menciona "VEICULO" ou está próxima de seção de veículo
+          if (tableText.includes('VEICULO') || tableText.includes('SITUACAO DO VEICULO')) {
+            const row = td.closest('tr');
+            const container = row || td;
+            
+            const checkboxesNoContainer = container.querySelectorAll('input[type="checkbox"]');
+            
+            for (const cb of checkboxesNoContainer) {
+              const label = cb.closest('label');
+              const labelText = normalizar(label?.textContent || cb.value || '');
+              
+              resultado.diagnostico.checkboxesEncontrados.push({
+                value: cb.value,
+                labelText: labelText,
+                checked: cb.checked
+              });
+              
+              if (labelText === 'TODOS' || labelText.startsWith('TODOS ') || cb.value?.toUpperCase() === 'TODOS') {
+                if (!cb.checked) {
+                  cb.checked = true;
+                  cb.dispatchEvent(new Event('change', { bubbles: true }));
+                  cb.dispatchEvent(new Event('click', { bubbles: true }));
+                  cb.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                resultado.sucesso = true;
+                resultado.metodo = 'TD_SITUACAO_VEICULO_TODOS';
+                resultado.checkboxMarcado = { value: cb.value, label: labelText };
+                return resultado;
+              }
+            }
+            
+            // Marcar primeiro se não encontrou TODOS explícito
+            if (checkboxesNoContainer.length > 0) {
+              const primeiroCheckbox = checkboxesNoContainer[0];
+              if (!primeiroCheckbox.checked) {
+                primeiroCheckbox.checked = true;
+                primeiroCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              resultado.sucesso = true;
+              resultado.metodo = 'PRIMEIRO_CHECKBOX_SITUACAO_VEICULO';
+              resultado.checkboxMarcado = { 
+                value: primeiroCheckbox.value, 
+                label: normalizar(primeiroCheckbox.closest('label')?.textContent || 'primeiro')
+              };
+              return resultado;
+            }
+          }
+        }
+      }
+      
+      // ESTRATÉGIA 2: Procurar seção "Situação do Veículo" ou "Situacao do Veiculo" pelo header
+      for (const td of tds) {
+        const texto = normalizar(td.textContent || '');
+        if (texto.includes('SITUACAO DO VEICULO') || texto === 'SITUACAO DO VEICULO') {
+          const table = td.closest('table');
+          if (table) {
+            const allCbs = table.querySelectorAll('input[type="checkbox"]');
+            for (const cb of allCbs) {
+              const label = cb.closest('label');
+              const labelText = normalizar(label?.textContent || cb.value || '');
+              
+              if (labelText === 'TODOS' || cb.value?.toUpperCase() === 'TODOS') {
+                if (!cb.checked) {
+                  cb.checked = true;
+                  cb.dispatchEvent(new Event('change', { bubbles: true }));
+                  cb.dispatchEvent(new Event('click', { bubbles: true }));
+                }
+                resultado.sucesso = true;
+                resultado.metodo = 'SECAO_SITUACAO_VEICULO';
+                resultado.checkboxMarcado = { value: cb.value, label: labelText };
+                return resultado;
+              }
+            }
+            // Marcar primeiro se não encontrou TODOS explícito
+            if (allCbs.length > 0 && !resultado.sucesso) {
+              const primeiro = allCbs[0];
+              if (!primeiro.checked) {
+                primeiro.checked = true;
+                primeiro.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              resultado.sucesso = true;
+              resultado.metodo = 'PRIMEIRO_CHECKBOX_SECAO_SITUACAO_VEICULO';
+              return resultado;
+            }
+          }
+        }
+      }
+      
+      return resultado;
+    });
+    
+    if (situacaoVeiculoTodosMarcado.sucesso) {
+      log(`✅ Checkbox TODOS em Situação do Veículo marcado (método: ${situacaoVeiculoTodosMarcado.metodo})`, LOG_LEVELS.SUCCESS);
+      if (situacaoVeiculoTodosMarcado.checkboxMarcado) {
+        log(`   Checkbox: ${JSON.stringify(situacaoVeiculoTodosMarcado.checkboxMarcado)}`, LOG_LEVELS.DEBUG);
+      }
+    } else {
+      log(`⚠️ Checkbox TODOS em Situação do Veículo NÃO encontrado!`, LOG_LEVELS.WARN);
+      log(`   TDs encontrados: ${JSON.stringify(situacaoVeiculoTodosMarcado.diagnostico.tdsEncontrados)}`, LOG_LEVELS.DEBUG);
+    }
+    
+    // ============================================
     // SUMÁRIO OBRIGATÓRIO DE FILTROS ANTES DE GERAR
     // ============================================
     log('', LOG_LEVELS.INFO);
@@ -3535,12 +3811,16 @@ async function rodarRobo() {
     const filtroDataOk = preencheuDatas.sucesso;
     const filtroLayoutOk = layoutSelecionado.sucesso;
     const filtroCooperativaOk = cooperativaTodosMarcado.sucesso;
+    const filtroRegionalOk = regionalTodosMarcado.sucesso;
+    const filtroSituacaoVeiculoOk = situacaoVeiculoTodosMarcado.sucesso;
     // Situação Boleto é tratada como warning se não encontrou (não bloqueia)
     const filtroFormaExibicaoOk = true; // Sempre configurado via selecionarFormaExibicaoEmExcel
     
     log(`   ${filtroDataOk ? '✅' : '❌'} Data Vencimento Original: ${filtroDataOk ? `${inicio} a ${fim}` : 'NÃO PREENCHIDA'}`, filtroDataOk ? LOG_LEVELS.SUCCESS : LOG_LEVELS.ERROR);
     log(`   ${filtroLayoutOk ? '✅' : '❌'} Layout: ${filtroLayoutOk ? layoutSelecionado.valorSelecionado : 'NÃO SELECIONADO'}`, filtroLayoutOk ? LOG_LEVELS.SUCCESS : LOG_LEVELS.ERROR);
     log(`   ${filtroCooperativaOk ? '✅' : '⚠️'} Cooperativa - TODOS: ${filtroCooperativaOk ? 'MARCADO' : 'NÃO ENCONTRADO'}`, filtroCooperativaOk ? LOG_LEVELS.SUCCESS : LOG_LEVELS.WARN);
+    log(`   ${filtroRegionalOk ? '✅' : '⚠️'} Regional do Associado - TODOS: ${filtroRegionalOk ? 'MARCADO' : 'NÃO ENCONTRADO'}`, filtroRegionalOk ? LOG_LEVELS.SUCCESS : LOG_LEVELS.WARN);
+    log(`   ${filtroSituacaoVeiculoOk ? '✅' : '⚠️'} Situação do Veículo - TODOS: ${filtroSituacaoVeiculoOk ? 'MARCADO' : 'NÃO ENCONTRADO'}`, filtroSituacaoVeiculoOk ? LOG_LEVELS.SUCCESS : LOG_LEVELS.WARN);
     log(`   ${filtroFormaExibicaoOk ? '✅' : '❌'} Forma Exibição: Em Excel`, LOG_LEVELS.SUCCESS);
     log(`   ℹ️ Boletos Anteriores: NÃO POSSUI (configurado)`, LOG_LEVELS.INFO);
     log(`   ℹ️ Referência: VENCIMENTO ORIGINAL (configurado)`, LOG_LEVELS.INFO);
