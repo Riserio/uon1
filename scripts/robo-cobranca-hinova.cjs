@@ -1959,173 +1959,6 @@ async function configurarCheckboxesSituacaoBoleto(page, maxTentativas = 3) {
   return true; // Não bloquear, mas avisar
 }
 
-// ============================================
-// CONFIGURAÇÃO DE CHECKBOXES - REGIONAIS E VOLUNTÁRIOS
-// ============================================
-// Marca TODOS os checkboxes das seções Regional, Cooperativa e Voluntário
-// para que o relatório inclua dados dessas colunas
-// ============================================
-async function configurarCheckboxesRegionaisVoluntarios(page) {
-  log('📋 Configurando checkboxes de Regionais, Cooperativas e Voluntários...', LOG_LEVELS.INFO);
-  
-  const resultado = await page.evaluate(() => {
-    const stats = { 
-      regional: { marcados: 0, jaMarcados: 0 }, 
-      cooperativa: { marcados: 0, jaMarcados: 0 }, 
-      voluntario: { marcados: 0, jaMarcados: 0 }, 
-      total: 0,
-      detalhes: []
-    };
-    
-    // Função para normalizar texto (remover acentos, uppercase)
-    const normalizar = (texto) => {
-      return (texto || '')
-        .toUpperCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-    };
-    
-    // Função para identificar seção pelo texto do container
-    const identificarSecao = (elemento) => {
-      if (!elemento) return null;
-      const texto = normalizar(elemento.textContent || '');
-      
-      // Evitar falsos positivos: não incluir seções de Situação
-      if (texto.includes('SITUACAO')) return null;
-      
-      if (texto.includes('REGIONAL')) return 'regional';
-      if (texto.includes('COOPERATIVA')) return 'cooperativa';
-      if (texto.includes('VOLUNTARIO')) return 'voluntario';
-      return null;
-    };
-    
-    // Estratégia 1: Encontrar containers com labels "Regional", "Cooperativa", "Voluntário"
-    // e marcar todos os checkboxes dentro desses containers
-    const allTds = document.querySelectorAll('td, th, div, fieldset, section');
-    const containersEncontrados = {
-      regional: new Set(),
-      cooperativa: new Set(),
-      voluntario: new Set()
-    };
-    
-    for (const td of allTds) {
-      const texto = normalizar(td.textContent || '');
-      
-      // Identificar containers de cada tipo
-      if (texto.includes('REGIONAL') && !texto.includes('SITUACAO')) {
-        const tr = td.closest('tr');
-        const table = td.closest('table');
-        if (tr) containersEncontrados.regional.add(tr);
-        if (table) containersEncontrados.regional.add(table);
-      }
-      if (texto.includes('COOPERATIVA') && !texto.includes('SITUACAO')) {
-        const tr = td.closest('tr');
-        const table = td.closest('table');
-        if (tr) containersEncontrados.cooperativa.add(tr);
-        if (table) containersEncontrados.cooperativa.add(table);
-      }
-      if (texto.includes('VOLUNTARIO') && !texto.includes('SITUACAO')) {
-        const tr = td.closest('tr');
-        const table = td.closest('table');
-        if (tr) containersEncontrados.voluntario.add(tr);
-        if (table) containersEncontrados.voluntario.add(table);
-      }
-    }
-    
-    stats.detalhes.push(`Containers encontrados: Regional=${containersEncontrados.regional.size}, Cooperativa=${containersEncontrados.cooperativa.size}, Voluntario=${containersEncontrados.voluntario.size}`);
-    
-    // Marcar checkboxes nos containers identificados
-    const checkboxesProcessados = new Set();
-    
-    for (const [secao, containers] of Object.entries(containersEncontrados)) {
-      for (const container of containers) {
-        const checkboxes = container.querySelectorAll('input[type="checkbox"]');
-        for (const cb of checkboxes) {
-          if (checkboxesProcessados.has(cb)) continue;
-          checkboxesProcessados.add(cb);
-          
-          // Verificar se o contexto imediato realmente pertence à seção
-          const tr = cb.closest('tr');
-          const tdPai = cb.closest('td');
-          const labelPai = cb.closest('label');
-          const contexto = tr || tdPai || labelPai || cb.parentElement;
-          const secaoContexto = identificarSecao(contexto);
-          
-          // Só marcar se o contexto confirmar a seção
-          if (secaoContexto === secao || !secaoContexto) {
-            if (cb.checked) {
-              stats[secao].jaMarcados++;
-            } else {
-              cb.checked = true;
-              cb.dispatchEvent(new Event('change', { bubbles: true }));
-              cb.dispatchEvent(new Event('input', { bubbles: true }));
-              stats[secao].marcados++;
-              stats.total++;
-            }
-          }
-        }
-      }
-    }
-    
-    // Estratégia 2: Fallback - procurar checkboxes por value/name que contenham palavras-chave
-    const allCheckboxes = document.querySelectorAll('input[type="checkbox"]');
-    for (const cb of allCheckboxes) {
-      if (checkboxesProcessados.has(cb)) continue;
-      
-      const cbValue = normalizar(cb.value || '');
-      const cbName = normalizar(cb.name || '');
-      const cbId = normalizar(cb.id || '');
-      
-      // Não processar checkboxes de Situação
-      if (cbValue.includes('ABERTO') || cbValue.includes('BAIXADO') || 
-          cbValue.includes('CANCELADO') || cbValue.includes('SITUACAO')) {
-        continue;
-      }
-      
-      // Verificar contexto do checkbox (td/tr pai)
-      const tr = cb.closest('tr');
-      if (tr) {
-        const trText = normalizar(tr.textContent || '');
-        
-        let secao = null;
-        if (trText.includes('REGIONAL') && !trText.includes('SITUACAO')) secao = 'regional';
-        else if (trText.includes('COOPERATIVA')) secao = 'cooperativa';
-        else if (trText.includes('VOLUNTARIO')) secao = 'voluntario';
-        
-        if (secao) {
-          checkboxesProcessados.add(cb);
-          if (cb.checked) {
-            stats[secao].jaMarcados++;
-          } else {
-            cb.checked = true;
-            cb.dispatchEvent(new Event('change', { bubbles: true }));
-            cb.dispatchEvent(new Event('input', { bubbles: true }));
-            stats[secao].marcados++;
-            stats.total++;
-          }
-        }
-      }
-    }
-    
-    stats.detalhes.push(`Total checkboxes processados: ${checkboxesProcessados.size}`);
-    
-    return stats;
-  });
-  
-  log(`✅ Checkboxes marcados: ${resultado.total} novos`, LOG_LEVELS.SUCCESS);
-  log(`   - Regionais: ${resultado.regional.marcados} novos + ${resultado.regional.jaMarcados} já marcados`, LOG_LEVELS.INFO);
-  log(`   - Cooperativas: ${resultado.cooperativa.marcados} novos + ${resultado.cooperativa.jaMarcados} já marcados`, LOG_LEVELS.INFO);
-  log(`   - Voluntários: ${resultado.voluntario.marcados} novos + ${resultado.voluntario.jaMarcados} já marcados`, LOG_LEVELS.INFO);
-  
-  for (const detalhe of resultado.detalhes) {
-    log(`   📍 ${detalhe}`, LOG_LEVELS.DEBUG);
-  }
-  
-  return resultado;
-}
-
 // Mapeamento de colunas
 const COLUMN_MAP = {
   "DATA PAGAMENTO": "Data Pagamento",
@@ -3282,27 +3115,12 @@ async function rodarRobo() {
     await page.waitForTimeout(1000);
     
     // ============================================
-    // CONFIGURAÇÃO DE CHECKBOXES - REGIONAIS E VOLUNTÁRIOS
-    // ============================================
-    // Marca TODOS os checkboxes de Regional, Cooperativa e Voluntário
-    // para que essas colunas sejam preenchidas no relatório
-    // ============================================
-    log('Marcando todos os checkboxes de Regionais e Voluntários...');
-    try {
-      await configurarCheckboxesRegionaisVoluntarios(page);
-    } catch (err) {
-      log(`⚠️ Aviso: Erro ao marcar regionais/voluntários: ${err.message}`, LOG_LEVELS.WARN);
-      // Não interrompe - apenas aviso
-    }
-    
-    await page.waitForTimeout(500);
-    
-    // ============================================
     // CONFIGURAÇÃO DE CHECKBOXES - SITUAÇÃO BOLETO
     // ============================================
     // Configura apenas os checkboxes da seção "Situação Boleto":
     // - MARCAR: ABERTO, ABERTO MIGRADO, BAIXADO, BAIXADO C/ PENDÊNCIA, BAIXADOS MIGRADOS
     // - DESMARCAR: CANCELADO
+    // Outros checkboxes (Regional, Cooperativa, etc) permanecem inalterados
     // ============================================
     try {
       await configurarCheckboxesSituacaoBoleto(page, 3);
@@ -3333,37 +3151,21 @@ async function rodarRobo() {
         }
       }
       
-      // Verificar checkboxes de TODAS as seções (não apenas Situação Boleto)
+      // Verificar checkboxes de Situação Boleto
       const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-      const secoes = {
-        situacao: { marcados: [], desmarcados: [] },
-        regional: { marcados: [], desmarcados: [] },
-        cooperativa: { marcados: [], desmarcados: [] },
-        voluntario: { marcados: [], desmarcados: [] },
-        outros: { marcados: [], desmarcados: [] },
-      };
-      
       for (const cb of checkboxes) {
         const section = cb.closest('tr, div, fieldset');
-        const sectionText = (section?.textContent || '').toUpperCase();
+        const sectionText = section?.textContent?.toLowerCase() || '';
         
-        let secao = 'outros';
-        if (sectionText.includes('SITUACAO') || sectionText.includes('SITUAÇÃO')) secao = 'situacao';
-        else if (sectionText.includes('REGIONAL')) secao = 'regional';
-        else if (sectionText.includes('COOPERATIVA')) secao = 'cooperativa';
-        else if (sectionText.includes('VOLUNTARIO') || sectionText.includes('VOLUNTÁRIO')) secao = 'voluntario';
-        
-        const label = cb.closest('label')?.textContent?.trim() || cb.value || 'checkbox';
-        if (cb.checked) {
-          secoes[secao].marcados.push(label);
-          resultado.checkboxes.marcados.push(`[${secao}] ${label}`);
-        } else {
-          secoes[secao].desmarcados.push(label);
-          resultado.checkboxes.desmarcados.push(`[${secao}] ${label}`);
+        if (sectionText.includes('situação boleto') || sectionText.includes('situacao boleto') || sectionText.includes('situação') || sectionText.includes('situacao')) {
+          const label = cb.closest('label')?.textContent?.trim() || cb.value || 'checkbox';
+          if (cb.checked) {
+            resultado.checkboxes.marcados.push(label);
+          } else {
+            resultado.checkboxes.desmarcados.push(label);
+          }
         }
       }
-      
-      resultado.secoes = secoes;
       
       // Verificar selects
       const selects = document.querySelectorAll('select');
@@ -3387,19 +3189,10 @@ async function rodarRobo() {
     
     log(`🔍 Estado dos filtros:`, LOG_LEVELS.DEBUG);
     log(`   Inputs: ${JSON.stringify(estadoFiltros.inputs)}`, LOG_LEVELS.DEBUG);
-    
-    // Log detalhado por seção
-    if (estadoFiltros.secoes) {
-      log(`   📋 SITUAÇÃO BOLETO: ${estadoFiltros.secoes.situacao.marcados.length} marcados, ${estadoFiltros.secoes.situacao.desmarcados.length} desmarcados`, LOG_LEVELS.DEBUG);
-      log(`   📋 REGIONAL: ${estadoFiltros.secoes.regional.marcados.length} marcados, ${estadoFiltros.secoes.regional.desmarcados.length} desmarcados`, LOG_LEVELS.DEBUG);
-      log(`   📋 COOPERATIVA: ${estadoFiltros.secoes.cooperativa.marcados.length} marcados, ${estadoFiltros.secoes.cooperativa.desmarcados.length} desmarcados`, LOG_LEVELS.DEBUG);
-      log(`   📋 VOLUNTÁRIO: ${estadoFiltros.secoes.voluntario.marcados.length} marcados, ${estadoFiltros.secoes.voluntario.desmarcados.length} desmarcados`, LOG_LEVELS.DEBUG);
-      log(`   📋 OUTROS: ${estadoFiltros.secoes.outros.marcados.length} marcados, ${estadoFiltros.secoes.outros.desmarcados.length} desmarcados`, LOG_LEVELS.DEBUG);
-    }
-    
-    log(`   Checkboxes marcados (total): ${estadoFiltros.checkboxes.marcados.length}`, LOG_LEVELS.DEBUG);
+    log(`   Checkboxes marcados: ${estadoFiltros.checkboxes.marcados.join(', ') || 'nenhum'}`, LOG_LEVELS.DEBUG);
+    log(`   Checkboxes desmarcados: ${estadoFiltros.checkboxes.desmarcados.join(', ') || 'nenhum'}`, LOG_LEVELS.DEBUG);
     log(`   Selects: ${JSON.stringify(estadoFiltros.selects)}`, LOG_LEVELS.DEBUG);
-    log(`   Radios selecionados: ${estadoFiltros.radios?.join(', ') || 'nenhum'}`, LOG_LEVELS.DEBUG);
+    log(`   Radios selecionados: ${estadoFiltros.radios.join(', ') || 'nenhum'}`, LOG_LEVELS.DEBUG);
     
     // Salvar screenshot dos filtros para análise
     await saveDebugInfo(page, context, 'Pre-download: estado dos filtros');
