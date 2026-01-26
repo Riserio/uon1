@@ -2047,6 +2047,10 @@ async function processarHtmlRelatorioStream(filePath) {
   let lastProgressLog = 0;
   let bytesProcessed = 0;
   
+  // Diagnóstico: guardar as primeiras linhas para análise
+  const sampleRows = [];
+  const MAX_SAMPLE_ROWS = 30;
+  
   // Buffer para acumular linhas até termos um <tr>...</tr> completo
   let buffer = '';
   let insideRow = false;
@@ -2056,6 +2060,23 @@ async function processarHtmlRelatorioStream(filePath) {
     input: fs.createReadStream(filePath, { encoding: 'utf-8', highWaterMark: 64 * 1024 }), // 64KB chunks
     crlfDelay: Infinity,
   });
+  
+  // Função para detectar se uma linha é cabeçalho
+  const isHeaderRow = (cells) => {
+    const rowText = cells.join(' ').toUpperCase();
+    // Precisa ter NOME e pelo menos um dos outros campos esperados
+    const hasNome = rowText.includes('NOME');
+    const hasOther = rowText.includes('PLACA') || 
+                     rowText.includes('VALOR') || 
+                     rowText.includes('VENCIMENTO') ||
+                     rowText.includes('SITUACAO') ||
+                     rowText.includes('SITUAÇÃO') ||
+                     rowText.includes('VOLUNTARIO') ||
+                     rowText.includes('VOLUNTÁRIO') ||
+                     rowText.includes('COOPERATIVA') ||
+                     rowText.includes('REGIONAL');
+    return hasNome && hasOther;
+  };
   
   // Função para processar uma linha <tr>...</tr> completa
   const processRow = (rowHtml) => {
@@ -2081,13 +2102,18 @@ async function processarHtmlRelatorioStream(filePath) {
     
     currentRowIndex++;
     
-    // Detectar cabeçalho nas primeiras 10 linhas
-    if (headerRowIndex === -1 && currentRowIndex <= 10) {
-      const rowText = cells.join(' ').toUpperCase();
-      if (rowText.includes('NOME') && (rowText.includes('PLACA') || rowText.includes('VALOR') || rowText.includes('VENCIMENTO'))) {
+    // Salvar amostra das primeiras linhas para diagnóstico
+    if (sampleRows.length < MAX_SAMPLE_ROWS) {
+      sampleRows.push({ index: currentRowIndex, cells: cells.slice(0, 5) });
+    }
+    
+    // EXPANDIDO: Detectar cabeçalho nas primeiras 500 linhas (antes era 10)
+    if (headerRowIndex === -1 && currentRowIndex <= 500) {
+      if (isHeaderRow(cells)) {
         headerRowIndex = currentRowIndex;
         headersEncontrados = cells.map(h => normalizeHeader(h));
-        log(`Cabeçalho detectado na linha ${currentRowIndex}: ${cells.length} colunas`, LOG_LEVELS.DEBUG);
+        log(`🎯 Cabeçalho detectado na linha ${currentRowIndex}: ${cells.length} colunas`, LOG_LEVELS.SUCCESS);
+        log(`📋 Cabeçalhos: ${cells.slice(0, 8).join(' | ')}...`, LOG_LEVELS.DEBUG);
         
         // Mapear cabeçalhos para nomes padronizados
         for (let i = 0; i < headersEncontrados.length; i++) {
@@ -2109,6 +2135,15 @@ async function processarHtmlRelatorioStream(filePath) {
         log(`Mapeamento: ${headerMapping.filter(Boolean).length} colunas reconhecidas`, LOG_LEVELS.DEBUG);
         return;
       }
+    }
+    
+    // Log se não encontrou cabeçalho após 500 linhas
+    if (headerRowIndex === -1 && currentRowIndex === 501) {
+      log(`⚠️ Cabeçalho NÃO encontrado nas primeiras 500 linhas!`, LOG_LEVELS.WARN);
+      log(`📊 Amostra das primeiras ${sampleRows.length} linhas:`, LOG_LEVELS.DEBUG);
+      sampleRows.slice(0, 10).forEach(row => {
+        log(`   Linha ${row.index}: ${row.cells.join(' | ')}`, LOG_LEVELS.DEBUG);
+      });
     }
     
     // Pular linhas antes do cabeçalho
@@ -2198,7 +2233,23 @@ async function processarHtmlRelatorioStream(filePath) {
   
   const totalTime = Math.floor((Date.now() - startTime) / 1000);
   log(`✅ Processamento HTML concluído em ${totalTime}s`, LOG_LEVELS.SUCCESS);
-  log(`Registros válidos: ${dados.length} (${currentRowIndex} linhas lidas)`, LOG_LEVELS.SUCCESS);
+  log(`Registros válidos: ${dados.length} (${currentRowIndex} linhas <tr> processadas)`, LOG_LEVELS.SUCCESS);
+  
+  // Diagnóstico detalhado se não encontrou dados
+  if (dados.length === 0) {
+    log(`🔍 DIAGNÓSTICO - Cabeçalho encontrado: ${headerRowIndex > 0 ? 'SIM na linha ' + headerRowIndex : 'NÃO'}`, LOG_LEVELS.WARN);
+    
+    if (headerRowIndex > 0) {
+      log(`📋 Headers mapeados: ${headerMapping.filter(Boolean).join(', ')}`, LOG_LEVELS.DEBUG);
+      log(`❌ Possível causa: campos Nome/Placas não estão sendo preenchidos`, LOG_LEVELS.WARN);
+    } else {
+      log(`❌ Causa: Cabeçalho da tabela não foi detectado!`, LOG_LEVELS.ERROR);
+      log(`📊 Amostra das primeiras linhas processadas:`, LOG_LEVELS.DEBUG);
+      sampleRows.slice(0, 15).forEach(row => {
+        log(`   Linha ${row.index}: ${row.cells.join(' | ').substring(0, 100)}...`, LOG_LEVELS.DEBUG);
+      });
+    }
+  }
   
   return dados;
 }
@@ -2275,25 +2326,48 @@ function processarHtmlRelatorio(filePath) {
     return [];
   }
   
+  // Função para detectar se uma linha é cabeçalho
+  const isHeaderRow = (cells) => {
+    const rowText = cells.join(' ').toUpperCase();
+    const hasNome = rowText.includes('NOME');
+    const hasOther = rowText.includes('PLACA') || 
+                     rowText.includes('VALOR') || 
+                     rowText.includes('VENCIMENTO') ||
+                     rowText.includes('SITUACAO') ||
+                     rowText.includes('SITUAÇÃO') ||
+                     rowText.includes('VOLUNTARIO') ||
+                     rowText.includes('VOLUNTÁRIO') ||
+                     rowText.includes('COOPERATIVA') ||
+                     rowText.includes('REGIONAL');
+    return hasNome && hasOther;
+  };
+
   let headerRowIndex = -1;
-  for (let i = 0; i < Math.min(rows.length, 10); i++) {
-    const rowText = rows[i].join(' ').toUpperCase();
-    if (rowText.includes('NOME') && (rowText.includes('PLACA') || rowText.includes('VALOR') || rowText.includes('VENCIMENTO'))) {
+  // EXPANDIDO: Buscar cabeçalho nas primeiras 500 linhas (antes era 10)
+  for (let i = 0; i < Math.min(rows.length, 500); i++) {
+    if (isHeaderRow(rows[i])) {
       headerRowIndex = i;
       headersEncontrados = rows[i].map(h => normalizeHeader(h));
-      log(`Cabeçalho detectado na linha ${i}: ${rows[i].length} colunas`, LOG_LEVELS.DEBUG);
+      log(`🎯 Cabeçalho detectado na linha ${i}: ${rows[i].length} colunas`, LOG_LEVELS.SUCCESS);
+      log(`📋 Cabeçalhos: ${rows[i].slice(0, 8).join(' | ')}...`, LOG_LEVELS.DEBUG);
       break;
     }
   }
   
   if (headerRowIndex === -1) {
-    log('Cabeçalho não encontrado - usando índices padrão', LOG_LEVELS.WARN);
+    log('⚠️ Cabeçalho NÃO encontrado nas primeiras 500 linhas!', LOG_LEVELS.WARN);
+    log(`📊 Amostra das primeiras linhas:`, LOG_LEVELS.DEBUG);
+    rows.slice(0, 10).forEach((row, idx) => {
+      log(`   Linha ${idx}: ${row.slice(0, 5).join(' | ')}`, LOG_LEVELS.DEBUG);
+    });
+    
+    // Fallback com índices padrão
     headersEncontrados = [
       'DATA PAGAMENTO', 'DATA VENCIMENTO ORIGINAL', 'DIA VENCIMENTO VEICULO',
       'REGIONAL BOLETO', 'COOPERATIVA', 'VOLUNTARIO', 'NOME', 'PLACAS',
       'VALOR', 'DATA VENCIMENTO', 'QTDE DIAS EM ATRASO VENCIMENTO ORIGINAL', 'SITUACAO',
     ];
-    headerRowIndex = -1;
+    headerRowIndex = 0; // Começa do início
   }
   
   const headerMapping = [];
