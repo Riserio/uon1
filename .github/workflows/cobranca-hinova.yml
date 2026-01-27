@@ -30,8 +30,10 @@ jobs:
       - name: Executar robô de cobrança
         env:
           HINOVA_URL: ${{ secrets.HINOVA_URL }}
+          HINOVA_CODIGO_CLIENTE: ${{ secrets.HINOVA_CODIGO_CLIENTE }}
           HINOVA_USER: ${{ secrets.HINOVA_USER }}
           HINOVA_PASS: ${{ secrets.HINOVA_PASS }}
+          HINOVA_LAYOUT: ${{ secrets.HINOVA_LAYOUT }}
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
           WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
           CORRETORA_ID: ${{ secrets.CORRETORA_ID }}

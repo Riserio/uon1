@@ -40,6 +40,11 @@ const CONFIG = {
   HINOVA_RELATORIO_URL: 'https://eris.hinova.com.br/sga/sgav4_valecar/relatorio/relatorioBoleto.php',
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
+
+  // Alguns ambientes exigem o código do cliente e/ou o perfil/layout selecionado no login.
+  // Mantém compatibilidade com o valor antigo (2363), mas permite sobrescrever por ENV.
+  HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '2363',
+  HINOVA_LAYOUT: process.env.HINOVA_LAYOUT || 'BI - VANGARD COBRANÇA',
   
   // URL do webhook
   WEBHOOK_URL: process.env.WEBHOOK_URL || '',
@@ -54,6 +59,97 @@ const CONFIG = {
   // Diretório para debug (screenshots e HTML)
   DEBUG_DIR: process.env.DEBUG_DIR || './debug',
 };
+
+// ============================================
+// LOGIN: helpers (mantidos próximos ao topo por reutilização)
+// ============================================
+function normalizeText(str) {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
+async function trySelectHinovaLayout(page) {
+  const desired = normalizeText(CONFIG.HINOVA_LAYOUT);
+  if (!desired) return false;
+
+  // 1) Tentar select tradicional
+  try {
+    const select = page
+      .locator(
+        'select[name*="layout" i], select[id*="layout" i], select[name*="sistema" i], select[id*="sistema" i], select[name*="perfil" i], select[id*="perfil" i]'
+      )
+      .first();
+
+    if (await select.isVisible().catch(() => false)) {
+      const optionTexts = await select.locator('option').allTextContents().catch(() => []);
+      const idx = optionTexts.findIndex((t) => {
+        const nt = normalizeText(t);
+        return nt.includes('vangard') || nt.includes(desired);
+      });
+
+      if (idx >= 0) {
+        const option = select.locator('option').nth(idx);
+        const value = (await option.getAttribute('value').catch(() => null)) ?? optionTexts[idx];
+        await select.selectOption(value).catch(() => null);
+        log(`Layout selecionado via <select>: ${optionTexts[idx]}`, LOG_LEVELS.DEBUG);
+        return true;
+      }
+    }
+  } catch {}
+
+  // 2) Tentar input (autocomplete/datalist)
+  try {
+    const input = page
+      .locator(
+        'input[placeholder*="Sistema" i], input[placeholder*="Layout" i], input[placeholder*="Perfil" i], input[placeholder*="Relat" i], input[placeholder*="Empresa" i]'
+      )
+      .first();
+    if (await input.isVisible().catch(() => false)) {
+      await input.click({ force: true }).catch(() => null);
+      await input.fill(CONFIG.HINOVA_LAYOUT).catch(() => null);
+      await input.press('Enter').catch(() => null);
+      log(`Layout preenchido via input: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.DEBUG);
+      return true;
+    }
+  } catch {}
+
+  // 3) Fallback: se houver 4+ inputs visíveis, preencher o último (o replay mostra um campo extra de layout)
+  try {
+    const ok = await page
+      .evaluate(({ layout }) => {
+        const isVisible = (el) => {
+          const r = el.getBoundingClientRect();
+          const style = window.getComputedStyle(el);
+          return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+        };
+
+        const inputs = Array.from(
+          document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])')
+        ).filter(isVisible);
+
+        if (inputs.length < 4) return false;
+
+        // Preferir o último input vazio (muito comum ser o campo de layout)
+        const candidate = [...inputs].reverse().find((i) => !i.value);
+        if (!candidate) return false;
+        candidate.value = layout;
+        candidate.dispatchEvent(new Event('input', { bubbles: true }));
+        candidate.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      }, { layout: CONFIG.HINOVA_LAYOUT })
+      .catch(() => false);
+
+    if (ok) {
+      log(`Layout preenchido via fallback (último input): ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.DEBUG);
+      return true;
+    }
+  } catch {}
+
+  return false;
+}
 
 // ============================================
 // CONSTANTES DE TIMEOUT E CONTROLE
@@ -2786,12 +2882,14 @@ async function rodarRobo() {
     // Preencher credenciais
     log('Preenchendo credenciais...');
     
-    // Preencher código cliente (com timeout curto)
-    try {
-      await page.fill('input[placeholder=""]', '2363', { timeout: 5000 });
-      log('Código cliente preenchido', LOG_LEVELS.DEBUG);
-    } catch (e) {
-      log('Campo código cliente não encontrado (pode ser opcional)', LOG_LEVELS.DEBUG);
+    // Preencher código cliente (com timeout curto) — alguns logins exigem
+    if (CONFIG.HINOVA_CODIGO_CLIENTE) {
+      try {
+        await page.fill('input[placeholder=""]', CONFIG.HINOVA_CODIGO_CLIENTE, { timeout: 5000 });
+        log('Código cliente preenchido', LOG_LEVELS.DEBUG);
+      } catch (e) {
+        log('Campo código cliente não encontrado (pode ser opcional)', LOG_LEVELS.DEBUG);
+      }
     }
     
     // Preencher usuário (com timeout curto)
@@ -2815,12 +2913,12 @@ async function rodarRobo() {
     
     // Fallback: preencher via JavaScript
     log('Verificando/complementando credenciais via JavaScript...', LOG_LEVELS.DEBUG);
-    await page.evaluate(({ usuario, senha }) => {
+    await page.evaluate(({ codigoCliente, usuario, senha }) => {
       const allInputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])'));
       
       if (allInputs.length >= 3) {
-        if (!allInputs[0].value) {
-          allInputs[0].value = '2363';
+        if (codigoCliente && !allInputs[0].value) {
+          allInputs[0].value = codigoCliente;
           allInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
         }
         
@@ -2834,9 +2932,16 @@ async function rodarRobo() {
           allInputs[2].dispatchEvent(new Event('input', { bubbles: true }));
         }
       }
-    }, { usuario: CONFIG.HINOVA_USER, senha: CONFIG.HINOVA_PASS });
+    }, { codigoCliente: CONFIG.HINOVA_CODIGO_CLIENTE, usuario: CONFIG.HINOVA_USER, senha: CONFIG.HINOVA_PASS });
     
     log('Credenciais preenchidas com sucesso', LOG_LEVELS.SUCCESS);
+
+    // O portal costuma exigir a seleção de um layout/perfil ainda na tela de login.
+    // Sem isso, o clique em Entrar mantém o usuário na tela sem mensagem clara.
+    const layoutOk = await trySelectHinovaLayout(page);
+    if (!layoutOk) {
+      log('Campo de layout/perfil não identificado no login (seguindo assim mesmo)', LOG_LEVELS.WARN);
+    }
     
     // Dispensar código de autenticação
     const dispensarCodigoAutenticacao = async () => {
