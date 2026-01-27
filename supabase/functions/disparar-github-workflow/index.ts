@@ -134,6 +134,8 @@ serve(async (req) => {
       // Disparar workflow do GitHub Actions
       const workflowDispatchUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/actions/workflows/cobranca-hinova.yml/dispatches`;
       
+      // Passar credenciais do banco como inputs dinâmicos do workflow
+      // Isso permite que cada associação use seu próprio portal Hinova
       const githubResponse = await fetch(workflowDispatchUrl, {
         method: 'POST',
         headers: {
@@ -147,6 +149,12 @@ serve(async (req) => {
           inputs: {
             corretora_id: corretora_id,
             execucao_id: execucao?.id || '',
+            // Credenciais dinâmicas do banco (sobrescrevem secrets do GitHub)
+            hinova_url: config.hinova_url || '',
+            hinova_user: config.hinova_user || '',
+            hinova_pass: config.hinova_pass || '',
+            hinova_codigo_cliente: config.hinova_codigo_cliente || '',
+            hinova_layout: config.layout_relatorio || 'BI - VANGARD COBRANÇA',
           },
         }),
       });

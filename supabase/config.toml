@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.disparar-github-workflow]
 verify_jwt = false
+
+[functions.testar-hinova-login]
+verify_jwt = false
