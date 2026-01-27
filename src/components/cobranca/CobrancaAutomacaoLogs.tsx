@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   History, 
   CheckCircle, 
@@ -14,7 +15,12 @@ import {
   Clock,
   FileSpreadsheet,
   Download,
-  Upload
+  Upload,
+  Github,
+  ExternalLink,
+  Filter,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -22,6 +28,16 @@ import { ptBR } from "date-fns/locale";
 interface CobrancaAutomacaoLogsProps {
   configId: string;
   corretoraId: string;
+}
+
+interface FiltrosAplicados {
+  periodo_tipo?: string;
+  data_inicio?: string;
+  data_fim?: string;
+  situacoes?: string[];
+  boletos_anteriores?: string;
+  referencia?: string;
+  layout?: string;
 }
 
 interface ExecucaoLog {
@@ -43,6 +59,10 @@ interface ExecucaoLog {
   bytes_total: number | null;
   progresso_importacao: number | null;
   etapa_atual: string | null;
+  tipo_disparo: string | null;
+  github_run_id: string | null;
+  github_run_url: string | null;
+  filtros_aplicados: FiltrosAplicados | null;
 }
 
 export default function CobrancaAutomacaoLogs({ configId, corretoraId }: CobrancaAutomacaoLogsProps) {
@@ -87,7 +107,12 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
         .limit(20);
 
       if (error) throw error;
-      setLogs(data || []);
+      // Cast filtros_aplicados to correct type
+      const typedData = (data || []).map(item => ({
+        ...item,
+        filtros_aplicados: item.filtros_aplicados as FiltrosAplicados | null
+      }));
+      setLogs(typedData);
     } catch (error) {
       console.error("Erro ao carregar logs:", error);
     } finally {
@@ -212,10 +237,29 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-2">
                         {getStatusBadge(log.status)}
+                        {/* Badge do tipo de disparo */}
+                        {log.tipo_disparo === 'github_actions' && (
+                          <Badge variant="outline" className="gap-1 text-xs">
+                            <Github className="h-3 w-3" />
+                            GitHub
+                          </Badge>
+                        )}
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {format(new Date(log.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                         </span>
+                        {/* Link para o GitHub */}
+                        {log.github_run_url && (
+                          <a 
+                            href={log.github_run_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Ver no GitHub
+                          </a>
+                        )}
                       </div>
                       
                       {/* Etapa atual para execuções em andamento */}
@@ -290,10 +334,73 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                           {log.erro}
                         </p>
                       )}
+
+                      {/* Filtros aplicados (collapsible) */}
+                      {log.filtros_aplicados && Object.keys(log.filtros_aplicados).length > 0 && (
+                        <Collapsible className="mt-3">
+                          <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors group">
+                            <Filter className="h-3 w-3" />
+                            <span>Filtros aplicados</span>
+                            <ChevronRight className="h-3 w-3 group-data-[state=open]:hidden" />
+                            <ChevronDown className="h-3 w-3 hidden group-data-[state=open]:block" />
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="mt-2">
+                            <div className="text-xs bg-muted/50 rounded-lg p-3 space-y-1.5">
+                              {log.filtros_aplicados.periodo_tipo && (
+                                <div className="flex gap-2">
+                                  <span className="text-muted-foreground">Período:</span>
+                                  <span className="font-medium">
+                                    {log.filtros_aplicados.periodo_tipo === 'mes_atual' 
+                                      ? 'Mês atual' 
+                                      : `${log.filtros_aplicados.data_inicio || '?'} - ${log.filtros_aplicados.data_fim || '?'}`
+                                    }
+                                  </span>
+                                </div>
+                              )}
+                              {log.filtros_aplicados.situacoes && log.filtros_aplicados.situacoes.length > 0 && (
+                                <div className="flex gap-2">
+                                  <span className="text-muted-foreground">Situações:</span>
+                                  <span className="font-medium">{log.filtros_aplicados.situacoes.join(', ')}</span>
+                                </div>
+                              )}
+                              {log.filtros_aplicados.boletos_anteriores && (
+                                <div className="flex gap-2">
+                                  <span className="text-muted-foreground">Boletos anteriores:</span>
+                                  <span className="font-medium">
+                                    {log.filtros_aplicados.boletos_anteriores === 'nao_possui' 
+                                      ? 'Não possui' 
+                                      : log.filtros_aplicados.boletos_anteriores === 'possui'
+                                        ? 'Possui'
+                                        : 'Todos'
+                                    }
+                                  </span>
+                                </div>
+                              )}
+                              {log.filtros_aplicados.referencia && (
+                                <div className="flex gap-2">
+                                  <span className="text-muted-foreground">Referência:</span>
+                                  <span className="font-medium">
+                                    {log.filtros_aplicados.referencia === 'vencimento_original' 
+                                      ? 'Vencimento Original' 
+                                      : 'Data Pagamento'
+                                    }
+                                  </span>
+                                </div>
+                              )}
+                              {log.filtros_aplicados.layout && (
+                                <div className="flex gap-2">
+                                  <span className="text-muted-foreground">Layout:</span>
+                                  <span className="font-medium">{log.filtros_aplicados.layout}</span>
+                                </div>
+                              )}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      )}
                       
                       {/* Métricas finais para execuções concluídas */}
                       {log.status !== "executando" && (
-                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-2">
                           {log.registros_processados !== null && log.registros_processados > 0 && (
                             <span className="flex items-center gap-1">
                               <FileSpreadsheet className="h-3 w-3" />
