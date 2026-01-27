@@ -40,11 +40,6 @@ const CONFIG = {
   HINOVA_RELATORIO_URL: 'https://eris.hinova.com.br/sga/sgav4_valecar/relatorio/relatorioBoleto.php',
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
-
-  // Alguns ambientes exigem o código do cliente e/ou o perfil/layout selecionado no login.
-  // Mantém compatibilidade com o valor antigo (2363), mas permite sobrescrever por ENV.
-  HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '2363',
-  HINOVA_LAYOUT: process.env.HINOVA_LAYOUT || 'BI - VANGARD COBRANÇA',
   
   // URL do webhook
   WEBHOOK_URL: process.env.WEBHOOK_URL || '',
@@ -59,97 +54,6 @@ const CONFIG = {
   // Diretório para debug (screenshots e HTML)
   DEBUG_DIR: process.env.DEBUG_DIR || './debug',
 };
-
-// ============================================
-// LOGIN: helpers (mantidos próximos ao topo por reutilização)
-// ============================================
-function normalizeText(str) {
-  return String(str || '')
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .trim();
-}
-
-async function trySelectHinovaLayout(page) {
-  const desired = normalizeText(CONFIG.HINOVA_LAYOUT);
-  if (!desired) return false;
-
-  // 1) Tentar select tradicional
-  try {
-    const select = page
-      .locator(
-        'select[name*="layout" i], select[id*="layout" i], select[name*="sistema" i], select[id*="sistema" i], select[name*="perfil" i], select[id*="perfil" i]'
-      )
-      .first();
-
-    if (await select.isVisible().catch(() => false)) {
-      const optionTexts = await select.locator('option').allTextContents().catch(() => []);
-      const idx = optionTexts.findIndex((t) => {
-        const nt = normalizeText(t);
-        return nt.includes('vangard') || nt.includes(desired);
-      });
-
-      if (idx >= 0) {
-        const option = select.locator('option').nth(idx);
-        const value = (await option.getAttribute('value').catch(() => null)) ?? optionTexts[idx];
-        await select.selectOption(value).catch(() => null);
-        log(`Layout selecionado via <select>: ${optionTexts[idx]}`, LOG_LEVELS.DEBUG);
-        return true;
-      }
-    }
-  } catch {}
-
-  // 2) Tentar input (autocomplete/datalist)
-  try {
-    const input = page
-      .locator(
-        'input[placeholder*="Sistema" i], input[placeholder*="Layout" i], input[placeholder*="Perfil" i], input[placeholder*="Relat" i], input[placeholder*="Empresa" i]'
-      )
-      .first();
-    if (await input.isVisible().catch(() => false)) {
-      await input.click({ force: true }).catch(() => null);
-      await input.fill(CONFIG.HINOVA_LAYOUT).catch(() => null);
-      await input.press('Enter').catch(() => null);
-      log(`Layout preenchido via input: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.DEBUG);
-      return true;
-    }
-  } catch {}
-
-  // 3) Fallback: se houver 4+ inputs visíveis, preencher o último (o replay mostra um campo extra de layout)
-  try {
-    const ok = await page
-      .evaluate(({ layout }) => {
-        const isVisible = (el) => {
-          const r = el.getBoundingClientRect();
-          const style = window.getComputedStyle(el);
-          return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
-        };
-
-        const inputs = Array.from(
-          document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])')
-        ).filter(isVisible);
-
-        if (inputs.length < 4) return false;
-
-        // Preferir o último input vazio (muito comum ser o campo de layout)
-        const candidate = [...inputs].reverse().find((i) => !i.value);
-        if (!candidate) return false;
-        candidate.value = layout;
-        candidate.dispatchEvent(new Event('input', { bubbles: true }));
-        candidate.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-      }, { layout: CONFIG.HINOVA_LAYOUT })
-      .catch(() => false);
-
-    if (ok) {
-      log(`Layout preenchido via fallback (último input): ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.DEBUG);
-      return true;
-    }
-  } catch {}
-
-  return false;
-}
 
 // ============================================
 // CONSTANTES DE TIMEOUT E CONTROLE
@@ -2882,14 +2786,12 @@ async function rodarRobo() {
     // Preencher credenciais
     log('Preenchendo credenciais...');
     
-    // Preencher código cliente (com timeout curto) — alguns logins exigem
-    if (CONFIG.HINOVA_CODIGO_CLIENTE) {
-      try {
-        await page.fill('input[placeholder=""]', CONFIG.HINOVA_CODIGO_CLIENTE, { timeout: 5000 });
-        log('Código cliente preenchido', LOG_LEVELS.DEBUG);
-      } catch (e) {
-        log('Campo código cliente não encontrado (pode ser opcional)', LOG_LEVELS.DEBUG);
-      }
+    // Preencher código cliente (com timeout curto)
+    try {
+      await page.fill('input[placeholder=""]', '2363', { timeout: 5000 });
+      log('Código cliente preenchido', LOG_LEVELS.DEBUG);
+    } catch (e) {
+      log('Campo código cliente não encontrado (pode ser opcional)', LOG_LEVELS.DEBUG);
     }
     
     // Preencher usuário (com timeout curto)
@@ -2913,12 +2815,12 @@ async function rodarRobo() {
     
     // Fallback: preencher via JavaScript
     log('Verificando/complementando credenciais via JavaScript...', LOG_LEVELS.DEBUG);
-    await page.evaluate(({ codigoCliente, usuario, senha }) => {
+    await page.evaluate(({ usuario, senha }) => {
       const allInputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])'));
       
       if (allInputs.length >= 3) {
-        if (codigoCliente && !allInputs[0].value) {
-          allInputs[0].value = codigoCliente;
+        if (!allInputs[0].value) {
+          allInputs[0].value = '2363';
           allInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
         }
         
@@ -2932,16 +2834,9 @@ async function rodarRobo() {
           allInputs[2].dispatchEvent(new Event('input', { bubbles: true }));
         }
       }
-    }, { codigoCliente: CONFIG.HINOVA_CODIGO_CLIENTE, usuario: CONFIG.HINOVA_USER, senha: CONFIG.HINOVA_PASS });
+    }, { usuario: CONFIG.HINOVA_USER, senha: CONFIG.HINOVA_PASS });
     
     log('Credenciais preenchidas com sucesso', LOG_LEVELS.SUCCESS);
-
-    // O portal costuma exigir a seleção de um layout/perfil ainda na tela de login.
-    // Sem isso, o clique em Entrar mantém o usuário na tela sem mensagem clara.
-    const layoutOk = await trySelectHinovaLayout(page);
-    if (!layoutOk) {
-      log('Campo de layout/perfil não identificado no login (seguindo assim mesmo)', LOG_LEVELS.WARN);
-    }
     
     // Dispensar código de autenticação
     const dispensarCodigoAutenticacao = async () => {
@@ -3323,8 +3218,6 @@ async function rodarRobo() {
               const optText = normalizar(selectInRow.options[i].text || '');
               if (optText.includes('BI') && optText.includes('VANGARD')) {
                 selectInRow.selectedIndex = i;
-                // Alguns portais dependem de eventos adicionais além do 'change'
-                selectInRow.dispatchEvent(new Event('input', { bubbles: true }));
                 selectInRow.dispatchEvent(new Event('change', { bubbles: true }));
                 resultado.sucesso = true;
                 resultado.metodo = 'LABEL_LAYOUT';
@@ -3365,7 +3258,6 @@ async function rodarRobo() {
                   resultado.opcoesDisponiveis = opcoes;
                 }
                 select.selectedIndex = i;
-                select.dispatchEvent(new Event('input', { bubbles: true }));
                 select.dispatchEvent(new Event('change', { bubbles: true }));
                 resultado.sucesso = true;
                 resultado.metodo = 'SECAO_DADOS_VISUALIZADOS';
@@ -3394,7 +3286,6 @@ async function rodarRobo() {
               resultado.opcoesDisponiveis = opcoes;
             }
             select.selectedIndex = i;
-            select.dispatchEvent(new Event('input', { bubbles: true }));
             select.dispatchEvent(new Event('change', { bubbles: true }));
             resultado.sucesso = true;
             resultado.metodo = 'VARREDURA_OPCOES';
@@ -3433,7 +3324,6 @@ async function rodarRobo() {
             const optText = normalizar(select.options[i].text || '');
             if (optText.includes('BI') && optText.includes('VANGARD')) {
               select.selectedIndex = i;
-              select.dispatchEvent(new Event('input', { bubbles: true }));
               select.dispatchEvent(new Event('change', { bubbles: true }));
               resultado.sucesso = true;
               resultado.metodo = 'FALLBACK_NAME_ID';
@@ -3456,69 +3346,47 @@ async function rodarRobo() {
       log(`   Valor: "${layoutSelecionado.valorSelecionado}"`, LOG_LEVELS.SUCCESS);
       
       // ========================================
-      // AGUARDAR CONFIGURAÇÕES CARREGAREM APÓS LAYOUT (COM DETECÇÃO ROBUSTA)
+      // AGUARDAR CONFIGURAÇÕES CARREGAREM APÓS LAYOUT
+      // Com espera inteligente para garantir que seções específicas do layout BI apareçam
       // ========================================
       log('⏳ Aguardando configurações do layout carregarem...', LOG_LEVELS.INFO);
-
-      // Tempo base de 20s (o portal carrega campos dinamicamente)
+      
+      // Tempo base de 20 segundos
       log('   ⏱️ Aguardando 20 segundos (tempo base)...', LOG_LEVELS.INFO);
       await page.waitForTimeout(20000);
-
-      // Verificar se elementos específicos do layout BI apareceram (tolerante a variações)
+      
+      // Verificar se elementos específicos do layout BI apareceram
       let layoutBICarregado = false;
-      const maxTentativasLayout = 4;
+      const maxTentativasLayout = 3;
       const intervaloExtraLayout = 5000; // 5 segundos extras por tentativa
-
-      const detectarCamposLayoutBI = async () => {
-        return await page.evaluate(() => {
-          const normalizar = (t) => (t || '')
-            .toUpperCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '');
-
-          const alvos = [
-            // Variações observadas no portal
-            'VENCIMENTO DO VEICULO',
-            'VENCIMENTO VEICULO',
-            'DIA VENCIMENTO VEICULO',
-            'DIA DE VENCIMENTO',
-            // Campo de atraso (pode aparecer no layout)
-            'QTDE DIAS EM ATRASO',
-            'DIAS EM ATRASO',
-          ];
-
+      
+      for (let tentativaLayout = 1; tentativaLayout <= maxTentativasLayout && !layoutBICarregado; tentativaLayout++) {
+        // Verificar se "Vencimento do Veículo" está visível (elemento exclusivo do layout BI)
+        const vencimentoVeiculoVisivel = await page.evaluate(() => {
           const elementos = document.querySelectorAll('td, th, div, span, label');
           for (const el of elementos) {
-            const texto = normalizar(el.textContent || '');
-            if (!texto) continue;
-            if (alvos.some(a => texto.includes(a))) return true;
+            const texto = (el.textContent || '').toUpperCase();
+            if (texto.includes('VENCIMENTO DO VEÍCULO') || texto.includes('VENCIMENTO DO VEICULO')) {
+              return true;
+            }
           }
           return false;
         });
-      };
-
-      for (let tentativaLayout = 1; tentativaLayout <= maxTentativasLayout && !layoutBICarregado; tentativaLayout++) {
-        const detectado = await detectarCamposLayoutBI();
-
-        if (detectado) {
-          log('✅ Campos do layout BI detectados no DOM (layout carregado)!', LOG_LEVELS.SUCCESS);
+        
+        if (vencimentoVeiculoVisivel) {
+          log('✅ Seção "Vencimento do Veículo" detectada - Layout BI carregado completamente!', LOG_LEVELS.SUCCESS);
           layoutBICarregado = true;
-          break;
-        }
-
-        if (tentativaLayout < maxTentativasLayout) {
-          log(`⏳ Layout BI ainda não aparenta estar pronto. Aguardando mais ${intervaloExtraLayout / 1000}s... (tentativa ${tentativaLayout}/${maxTentativasLayout})`, LOG_LEVELS.INFO);
+        } else if (tentativaLayout < maxTentativasLayout) {
+          log(`⏳ Seção não detectada ainda. Aguardando mais ${intervaloExtraLayout/1000}s... (tentativa ${tentativaLayout}/${maxTentativasLayout})`, LOG_LEVELS.INFO);
           await page.waitForTimeout(intervaloExtraLayout);
         }
       }
-
+      
       if (!layoutBICarregado) {
-        // Não prosseguir silenciosamente: isso gera importação com colunas críticas vazias
-        log('❌ ERRO: Campos do layout BI não foram detectados após a espera.', LOG_LEVELS.ERROR);
-        await saveDebugInfo(page, context, 'Layout BI não carregou campos críticos (vencimento/atraso)');
-        throw new Error('Layout BI não carregou totalmente (campos de vencimento/atraso não apareceram).');
+        log('⚠️ Seção "Vencimento do Veículo" não detectada após espera. Prosseguindo mesmo assim...', LOG_LEVELS.WARN);
+        log('   Os campos "Dias de Vencimento" e "Dias de Atraso" podem não estar disponíveis.', LOG_LEVELS.WARN);
       }
-
+      
       log('✅ Tempo de espera para configurações do layout concluído!', LOG_LEVELS.SUCCESS);
     } else {
       // ERRO CRÍTICO - NÃO prosseguir sem o layout correto
@@ -4487,49 +4355,6 @@ async function rodarRobo() {
         
         // Processar arquivo (detecta formato automaticamente - async para streaming)
         dados = await processarArquivo(result.filePath);
-
-        // ============================================
-        // VALIDAÇÃO CRÍTICA: Garantir que as colunas do layout BI vieram no arquivo
-        // (evita salvar importação com "Dia Vencimento Veículo" e "Dias em Atraso" vazios)
-        // ============================================
-        const validarCamposCriticos = (rows) => {
-          const total = Array.isArray(rows) ? rows.length : 0;
-          if (!Array.isArray(rows) || total === 0) {
-            return { ok: false, total, comDiaVenc: 0, comDiasAtraso: 0, headers: [] };
-          }
-
-          const headers = Object.keys(rows[0] || {});
-          const chaveDiaVenc = 'Dia Vencimento Veiculo';
-          const chaveDiasAtraso = 'Qtde Dias em Atraso Vencimento Original';
-
-          let comDiaVenc = 0;
-          let comDiasAtraso = 0;
-
-          for (const r of rows) {
-            const v1 = r?.[chaveDiaVenc];
-            const v2 = r?.[chaveDiasAtraso];
-
-            if (v1 !== null && v1 !== undefined && String(v1).trim() !== '') comDiaVenc++;
-            if (v2 !== null && v2 !== undefined && String(v2).trim() !== '') comDiasAtraso++;
-          }
-
-          // Critério: pelo menos 1 registro deve ter o campo (caso contrário, a coluna não veio no layout)
-          const ok = comDiaVenc > 0 && comDiasAtraso > 0;
-          return { ok, total, comDiaVenc, comDiasAtraso, headers };
-        };
-
-        const valida = validarCamposCriticos(dados);
-        log(
-          `📊 Validação de colunas BI: total=${valida.total}, comDiaVenc=${valida.comDiaVenc}, comDiasAtraso=${valida.comDiasAtraso}`,
-          valida.ok ? LOG_LEVELS.SUCCESS : LOG_LEVELS.ERROR
-        );
-
-        if (!valida.ok) {
-          log(`❌ Arquivo baixado NÃO contém colunas críticas preenchidas. Headers: ${valida.headers.slice(0, 25).join(' | ')}`, LOG_LEVELS.ERROR);
-          await saveDebugInfo(page, context, 'Arquivo baixado sem colunas BI críticas (Dia Venc / Dias Atraso)');
-          throw new Error('Arquivo baixado sem colunas BI críticas preenchidas (Dia Vencimento Veículo / Dias em Atraso).');
-        }
-
         downloadSucesso = true;
         
         // Fechar abas extras (APÓS o download ser salvo com sucesso)

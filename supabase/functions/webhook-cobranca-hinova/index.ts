@@ -327,29 +327,24 @@ serve(async (req) => {
       console.log("Importação criada:", importacao.id);
     }
 
-    // ============================================
     // Processar dados em lotes (inserção no banco)
-    // ============================================
     const BATCH_SIZE = 100;
     let processados = 0;
     let erros = 0;
 
-    // Data de referência para cálculo de atraso
-    const hojeStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-
     for (let i = 0; i < dados.length; i += BATCH_SIZE) {
       const batch = dados.slice(i, i + BATCH_SIZE);
-
+      
       const boletosBatch = batch.map((row: any) => {
         const boleto: any = {
           importacao_id: importacao.id,
         };
 
-        // Mapear campos primários
+        // Mapear campos
         for (const [key, value] of Object.entries(row)) {
           const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
           const dbField = COLUMN_MAP[normalizedKey];
-
+          
           if (dbField) {
             if (dbField.includes('data') || dbField.includes('vencimento') || dbField.includes('pagamento')) {
               boleto[dbField] = parseDate(value);
@@ -360,31 +355,6 @@ serve(async (req) => {
             } else {
               boleto[dbField] = value ? String(value).trim() : null;
             }
-          }
-        }
-
-        // ============================================
-        // FALLBACK: Derivar campos críticos quando vazios
-        // ============================================
-
-        // Dia Vencimento Veículo = dia do mês de data_vencimento
-        if (boleto.dia_vencimento_veiculo == null && boleto.data_vencimento) {
-          const dv = String(boleto.data_vencimento); // YYYY-MM-DD
-          const dia = parseInt(dv.split('-')[2], 10);
-          if (!isNaN(dia) && dia >= 1 && dia <= 31) {
-            boleto.dia_vencimento_veiculo = dia;
-          }
-        }
-
-        // Dias de atraso = hoje - data_vencimento_original (>=0)
-        if (boleto.qtde_dias_atraso_vencimento_original == null && boleto.data_vencimento_original) {
-          const dvo = String(boleto.data_vencimento_original);
-          const dtVencOrig = new Date(dvo + 'T00:00:00');
-          const dtHoje = new Date(hojeStr + 'T00:00:00');
-          if (!isNaN(dtVencOrig.getTime())) {
-            const diffMs = dtHoje.getTime() - dtVencOrig.getTime();
-            const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            boleto.qtde_dias_atraso_vencimento_original = diffDias >= 0 ? diffDias : 0;
           }
         }
 
@@ -413,7 +383,7 @@ serve(async (req) => {
       } else {
         processados += batch.length;
       }
-
+      
       // Atualizar progresso se temos execucao_id
       if (execucao_id && dados.length > 0) {
         const progressoImportacao = Math.round((processados / dados.length) * 100);

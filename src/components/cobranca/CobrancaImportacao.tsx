@@ -237,25 +237,22 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
       const batchSize = 100;
       const totalBatches = Math.ceil(jsonData.length / batchSize);
 
-      // Data de referência para cálculo de atraso
-      const hojeStr = new Date().toISOString().split("T")[0];
-
       for (let i = 0; i < totalBatches; i++) {
         const batch = jsonData.slice(i * batchSize, (i + 1) * batchSize);
-
+        
         const records = batch.map((row: any) => {
           const record: any = { importacao_id: importacao.id };
           const processedDbCols = new Set<string>();
-
+          
           Object.entries(COLUMN_MAP).forEach(([excelCol, dbCol]) => {
             if (processedDbCols.has(dbCol)) return;
-
+            
             const value = getValueFromRow(row, excelCol);
-
+            
             if (value !== undefined && value !== null && value !== "") {
               processedDbCols.add(dbCol);
             }
-
+            
             // Campos de data
             if (dbCol.startsWith("data_")) {
               record[dbCol] = parseExcelDate(value);
@@ -277,32 +274,7 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
               record[dbCol] = value || null;
             }
           });
-
-          // ============================================
-          // FALLBACK: derivar campos críticos se vazios
-          // ============================================
-
-          // Dia Vencimento Veículo = dia do mês de data_vencimento
-          if (record.dia_vencimento_veiculo == null && record.data_vencimento) {
-            const dv = String(record.data_vencimento); // YYYY-MM-DD
-            const dia = parseInt(dv.split("-")[2], 10);
-            if (!isNaN(dia) && dia >= 1 && dia <= 31) {
-              record.dia_vencimento_veiculo = dia;
-            }
-          }
-
-          // Dias de atraso = hoje - data_vencimento_original (>=0)
-          if (record.qtde_dias_atraso_vencimento_original == null && record.data_vencimento_original) {
-            const dvo = String(record.data_vencimento_original);
-            const dtVencOrig = new Date(dvo + "T00:00:00");
-            const dtHoje = new Date(hojeStr + "T00:00:00");
-            if (!isNaN(dtVencOrig.getTime())) {
-              const diffMs = dtHoje.getTime() - dtVencOrig.getTime();
-              const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-              record.qtde_dias_atraso_vencimento_original = diffDias >= 0 ? diffDias : 0;
-            }
-          }
-
+          
           return record;
         });
 
