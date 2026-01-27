@@ -116,20 +116,58 @@ const parseExcelDate = (value: any): string | null => {
   return null;
 };
 
-// Função para converter valor monetário (formato brasileiro)
+// Função para converter valor monetário - trata formato brasileiro e valores com casas decimais extras
 const parseMoneyValue = (value: any): number => {
   if (!value) return 0;
-  if (typeof value === "number") return value;
   
-  // Remover "R$", espaços e converter vírgula para ponto
-  const cleaned = String(value)
-    .replace(/R\$\s*/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".")
-    .trim();
+  // Se for número, verificar se parece estar em centavos
+  if (typeof value === "number") {
+    // Se o número é muito grande e termina em 00, pode estar em centavos
+    if (value >= 10000 && value % 100 === 0) {
+      return value / 100;
+    }
+    return value;
+  }
   
-  const num = parseFloat(cleaned);
-  return isNaN(num) ? 0 : num;
+  const strValue = String(value).trim();
+  
+  // Remove R$, espaços extras
+  let cleanValue = strValue.replace(/R\$\s*/g, "").trim();
+  
+  // Se não tem vírgula nem ponto, pode ser um número inteiro
+  if (!/[.,]/.test(cleanValue)) {
+    const parsed = parseFloat(cleanValue);
+    if (isNaN(parsed)) return 0;
+    // Se parece ser um valor em centavos (muito grande para boleto típico)
+    if (parsed > 10000 && parsed % 100 === 0) {
+      return parsed / 100;
+    }
+    return parsed;
+  }
+  
+  // Detectar formato brasileiro: 1.234,56 ou 96,39
+  // vs formato internacional: 1,234.56 ou 96.39
+  const lastComma = cleanValue.lastIndexOf(",");
+  const lastDot = cleanValue.lastIndexOf(".");
+  
+  if (lastComma > lastDot) {
+    // Formato brasileiro: vírgula é separador decimal
+    cleanValue = cleanValue.replace(/\./g, "").replace(",", ".");
+  } else if (lastDot > lastComma) {
+    // Formato internacional ou misto
+    cleanValue = cleanValue.replace(/,/g, "");
+  }
+  
+  const parsed = parseFloat(cleanValue);
+  if (isNaN(parsed)) return 0;
+  
+  // Heurística: se o valor é muito alto e termina em .00, pode estar em centavos
+  const strParsed = parsed.toFixed(2);
+  if (parsed >= 10000 && strParsed.endsWith(".00")) {
+    return parsed / 100;
+  }
+  
+  return parsed;
 };
 
 // Limpar links do Excel [texto](link)
