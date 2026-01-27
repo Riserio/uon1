@@ -119,21 +119,64 @@ function parseDate(value: any): string | null {
   return null;
 }
 
-// Parse de valor monetário
+// Parse de valor monetário - trata formato brasileiro e valores com casas decimais extras
 function parseMoneyValue(value: any): number {
   if (!value) return 0;
   
   const strValue = String(value).trim();
   
-  // Remove R$, espaços e converte vírgula para ponto
-  const cleanValue = strValue
-    .replace(/R\$\s*/gi, '')
-    .replace(/\./g, '')
-    .replace(',', '.')
-    .trim();
+  // Remove R$, espaços extras
+  let cleanValue = strValue.replace(/R\$\s*/gi, '').trim();
+  
+  // Se não tem vírgula nem ponto, pode ser um número inteiro
+  if (!/[.,]/.test(cleanValue)) {
+    const parsed = parseFloat(cleanValue);
+    if (isNaN(parsed)) return 0;
+    // Se parece ser um valor em centavos (muito grande para boleto típico)
+    // Ex: 9639 quando deveria ser 96,39
+    if (parsed > 10000 && parsed % 100 === 0) {
+      return parsed / 100;
+    }
+    return parsed;
+  }
+  
+  // Detectar formato brasileiro: 1.234,56 ou 96,39
+  // vs formato internacional: 1,234.56 ou 96.39
+  const lastComma = cleanValue.lastIndexOf(',');
+  const lastDot = cleanValue.lastIndexOf('.');
+  
+  if (lastComma > lastDot) {
+    // Formato brasileiro: vírgula é separador decimal
+    // Remove pontos (milhares) e substitui vírgula por ponto
+    cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+  } else if (lastDot > lastComma) {
+    // Formato internacional ou misto
+    // Remove vírgulas (milhares)
+    cleanValue = cleanValue.replace(/,/g, '');
+  }
   
   const parsed = parseFloat(cleanValue);
-  return isNaN(parsed) ? 0 : parsed;
+  if (isNaN(parsed)) return 0;
+  
+  // Verificar se o valor parece ter casas decimais extras (4, 5, 6 casas)
+  // Ex: se o resultado é 9639.00 mas deveria ser 96.39
+  // Isso acontece quando o Excel armazena "96,3900" que vira "96.3900" -> 96.39 (ok)
+  // Mas se armazena "9639,00" que vira "9639.00" -> pode estar errado
+  
+  // Heurística: se o valor tem muitos zeros à direita e é muito grande, pode estar em centavos
+  // Valores de boleto típicos são < R$ 5.000,00
+  // Se o valor é > 10.000 e parece ter 2 zeros decimais, dividir por 100
+  const strParsed = parsed.toFixed(2);
+  if (parsed >= 1000 && strParsed.endsWith('.00')) {
+    // Verificar se o valor original tinha indicação de ser centavos
+    // Se o valor termina em ,00 ou .00 no original e é muito alto
+    if (parsed >= 10000 && (strValue.includes(',00') || strValue.includes('.00') || /\d{4,}$/.test(strValue.replace(/[^0-9]/g, '')))) {
+      // Valor provavelmente está em centavos
+      return parsed / 100;
+    }
+  }
+  
+  return parsed;
 }
 
 serve(async (req) => {
