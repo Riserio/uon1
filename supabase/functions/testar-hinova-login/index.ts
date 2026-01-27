@@ -139,20 +139,28 @@ serve(async (req) => {
         );
       }
 
-      // Validar formato do usuário (email)
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(hinova_user)) {
+      // Validar formato do usuário (mínimo 3 caracteres)
+      if (hinova_user.length < 3) {
         return new Response(
           JSON.stringify({ 
             success: false, 
-            message: "Usuário deve ser um email válido",
+            message: "Usuário deve ter pelo menos 3 caracteres",
             field: "hinova_user"
           }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
       // Validar tamanho da senha
+      if (hinova_pass.length < 3) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: "Senha muito curta",
+            field: "hinova_pass"
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       if (hinova_pass.length < 3) {
         return new Response(
           JSON.stringify({ 
