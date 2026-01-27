@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock, Play, History, Square, Filter, Calendar, FileText, Info } from "lucide-react";
+import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock, Play, History, Square, Filter, Calendar, FileText, Info, Github, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -197,6 +197,42 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
     }
   };
 
+  // Disparo via GitHub Actions
+  const handleExecuteGitHub = async () => {
+    if (!config.id) {
+      toast.error("Salve a configuração antes de executar");
+      return;
+    }
+
+    if (!config.hinova_user || !config.hinova_pass) {
+      toast.error("Configure usuário e senha antes de executar");
+      return;
+    }
+
+    setExecuting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('disparar-github-workflow', {
+        body: { corretora_id: corretoraId, action: 'start' }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success("Workflow GitHub Actions disparado! Acompanhe o status no histórico.");
+        setActiveTab("historico");
+        loadConfig();
+      } else {
+        toast.error(data?.message || "Erro ao disparar workflow");
+        setExecuting(false);
+      }
+    } catch (error: any) {
+      console.error("Erro ao disparar GitHub Actions:", error);
+      toast.error("Erro ao disparar: " + (error.message || "Erro desconhecido"));
+      setExecuting(false);
+    }
+  };
+
+  // Execução local (fallback)
   const handleExecute = async () => {
     if (!config.id) {
       toast.error("Salve a configuração antes de executar");
@@ -236,6 +272,15 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
 
     setStopping(true);
     try {
+      // Tentar cancelar via GitHub primeiro
+      const { data: githubData, error: githubError } = await supabase.functions.invoke('disparar-github-workflow', {
+        body: { corretora_id: corretoraId, action: 'cancel' }
+      });
+
+      if (githubError) {
+        console.warn("Erro ao cancelar via GitHub:", githubError);
+      }
+
       // Atualizar status para "parado" no banco
       const { error: updateError } = await supabase
         .from("cobranca_automacao_config")
@@ -426,15 +471,27 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                 )}
               </Button>
             ) : (
-              <Button 
-                variant="secondary" 
-                size="sm"
-                onClick={handleExecute} 
-                disabled={saving || !config.id}
-              >
-                <Play className="h-4 w-4 mr-2" />
-                Executar Agora
-              </Button>
+              <>
+                <Button 
+                  variant="default" 
+                  size="sm"
+                  onClick={handleExecuteGitHub} 
+                  disabled={saving || !config.id}
+                  className="gap-2"
+                >
+                  <Github className="h-4 w-4" />
+                  Executar via GitHub
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleExecute} 
+                  disabled={saving || !config.id}
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  Executar Local
+                </Button>
+              </>
             )}
             
             <Button size="sm" onClick={handleSave} disabled={saving || isExecuting}>
