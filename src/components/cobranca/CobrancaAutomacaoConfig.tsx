@@ -27,7 +27,9 @@ import {
   Filter,
   MapPin,
   Car,
-  Users
+  Users,
+  Plug,
+  Wifi
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -93,6 +95,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
   const [saving, setSaving] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -304,6 +307,37 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
     setHasChanges(true);
   };
 
+  const handleTestConnection = async () => {
+    if (!config.hinova_url || !config.hinova_user || !config.hinova_pass) {
+      toast.error("Preencha URL, usuário e senha para testar a conexão");
+      return;
+    }
+
+    setTestingConnection(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('testar-hinova-login', {
+        body: { 
+          hinova_url: config.hinova_url,
+          hinova_user: config.hinova_user,
+          hinova_pass: config.hinova_pass,
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success(data.message || "Conexão validada com sucesso!");
+      } else {
+        toast.error(data?.message || "Falha na validação da conexão");
+      }
+    } catch (error: any) {
+      console.error("Erro ao testar conexão:", error);
+      toast.error("Erro ao testar: " + (error.message || "Erro desconhecido"));
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
   const getPeriodoExibicao = () => {
     if (config.filtro_periodo_tipo === 'mes_atual') {
       const hoje = new Date();
@@ -512,8 +546,28 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                 </div>
               </div>
 
-              {hasChanges && (
-                <div className="flex items-center justify-end pt-2">
+              <div className="flex items-center justify-between pt-2 border-t">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleTestConnection}
+                  disabled={testingConnection || !config.hinova_url || !config.hinova_user || !config.hinova_pass}
+                  className="gap-2"
+                >
+                  {testingConnection ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Testando...
+                    </>
+                  ) : (
+                    <>
+                      <Wifi className="h-4 w-4" />
+                      Testar Conexão
+                    </>
+                  )}
+                </Button>
+
+                {hasChanges && (
                   <Button onClick={handleSave} disabled={saving} size="sm" className="gap-2">
                     {saving ? (
                       <>
@@ -527,8 +581,8 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                       </>
                     )}
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </CardContent>
           </Card>
 

@@ -5,7 +5,7 @@ on:
   schedule:
     - cron: '0 12 * * *'
   
-  # Permite execução manual pelo GitHub
+  # Permite execução manual pelo GitHub ou via Edge Function
   workflow_dispatch:
     inputs:
       corretora_id:
@@ -14,6 +14,26 @@ on:
         type: string
       execucao_id:
         description: 'ID do registro de execução no banco'
+        required: false
+        type: string
+      hinova_url:
+        description: 'URL do portal Hinova (dinâmico por associação)'
+        required: false
+        type: string
+      hinova_user:
+        description: 'Usuário do portal (dinâmico por associação)'
+        required: false
+        type: string
+      hinova_pass:
+        description: 'Senha do portal (dinâmico por associação)'
+        required: false
+        type: string
+      hinova_codigo_cliente:
+        description: 'Código do cliente (dinâmico por associação)'
+        required: false
+        type: string
+      hinova_layout:
+        description: 'Layout do relatório (dinâmico por associação)'
         required: false
         type: string
 
@@ -53,11 +73,13 @@ jobs:
       
       - name: Executar robô de cobrança
         env:
-          HINOVA_URL: ${{ secrets.HINOVA_URL }}
-          HINOVA_CODIGO_CLIENTE: ${{ secrets.HINOVA_CODIGO_CLIENTE }}
-          HINOVA_USER: ${{ secrets.HINOVA_USER }}
-          HINOVA_PASS: ${{ secrets.HINOVA_PASS }}
-          HINOVA_LAYOUT: ${{ secrets.HINOVA_LAYOUT }}
+          # Priorizar inputs dinâmicos sobre secrets fixos (permite múltiplas associações)
+          HINOVA_URL: ${{ github.event.inputs.hinova_url || secrets.HINOVA_URL }}
+          HINOVA_USER: ${{ github.event.inputs.hinova_user || secrets.HINOVA_USER }}
+          HINOVA_PASS: ${{ github.event.inputs.hinova_pass || secrets.HINOVA_PASS }}
+          HINOVA_CODIGO_CLIENTE: ${{ github.event.inputs.hinova_codigo_cliente || secrets.HINOVA_CODIGO_CLIENTE }}
+          HINOVA_LAYOUT: ${{ github.event.inputs.hinova_layout || secrets.HINOVA_LAYOUT }}
+          # Variáveis que sempre vêm de secrets
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
           WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
           CORRETORA_ID: ${{ github.event.inputs.corretora_id || secrets.CORRETORA_ID }}
