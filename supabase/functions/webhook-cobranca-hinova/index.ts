@@ -376,8 +376,11 @@ serve(async (req) => {
           }
         }
 
-        // Dias de atraso = hoje - data_vencimento_original (>=0)
-        if (boleto.qtde_dias_atraso_vencimento_original == null && boleto.data_vencimento_original) {
+        // Se tem data de pagamento, o boleto foi pago - dias de atraso = 0
+        if (boleto.data_pagamento) {
+          boleto.qtde_dias_atraso_vencimento_original = 0;
+        } else if (boleto.qtde_dias_atraso_vencimento_original == null && boleto.data_vencimento_original) {
+          // Dias de atraso = hoje - data_vencimento_original (>=0)
           const dvo = String(boleto.data_vencimento_original);
           const dtVencOrig = new Date(dvo + 'T00:00:00');
           const dtHoje = new Date(hojeStr + 'T00:00:00');

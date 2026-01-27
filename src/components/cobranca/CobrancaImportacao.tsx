@@ -291,8 +291,11 @@ export default function CobrancaImportacao({ onImportSuccess, corretoraId, corre
             }
           }
 
-          // Dias de atraso = hoje - data_vencimento_original (>=0)
-          if (record.qtde_dias_atraso_vencimento_original == null && record.data_vencimento_original) {
+          // Se tem data de pagamento, o boleto foi pago - dias de atraso = 0
+          if (record.data_pagamento) {
+            record.qtde_dias_atraso_vencimento_original = 0;
+          } else if (record.qtde_dias_atraso_vencimento_original == null && record.data_vencimento_original) {
+            // Dias de atraso = hoje - data_vencimento_original (>=0)
             const dvo = String(record.data_vencimento_original);
             const dtVencOrig = new Date(dvo + "T00:00:00");
             const dtHoje = new Date(hojeStr + "T00:00:00");
