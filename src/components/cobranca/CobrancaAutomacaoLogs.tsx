@@ -6,6 +6,17 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { 
   CheckCircle, 
   XCircle, 
@@ -20,10 +31,12 @@ import {
   Filter,
   ChevronDown,
   ChevronRight,
-  Calendar
+  Calendar,
+  Trash2
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 interface CobrancaAutomacaoLogsProps {
   configId: string;
@@ -68,12 +81,12 @@ interface ExecucaoLog {
 export default function CobrancaAutomacaoLogs({ configId, corretoraId }: CobrancaAutomacaoLogsProps) {
   const [logs, setLogs] = useState<ExecucaoLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     if (configId) {
       loadLogs();
       
-      // Realtime subscription
       const channel = supabase
         .channel(`automacao-logs-${configId}`)
         .on(
@@ -107,7 +120,6 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
         .limit(10);
 
       if (error) throw error;
-      // Cast filtros_aplicados to correct type
       const typedData = (data || []).map(item => ({
         ...item,
         filtros_aplicados: item.filtros_aplicados as FiltrosAplicados | null
@@ -117,6 +129,26 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
       console.error("Erro ao carregar logs:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (logId: string) => {
+    setDeleting(logId);
+    try {
+      const { error } = await supabase
+        .from("cobranca_automacao_execucoes")
+        .delete()
+        .eq("id", logId);
+
+      if (error) throw error;
+      
+      toast.success("Registro excluído com sucesso");
+      loadLogs();
+    } catch (error: any) {
+      console.error("Erro ao excluir log:", error);
+      toast.error("Erro ao excluir: " + (error.message || "Erro desconhecido"));
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -219,12 +251,12 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
           </Button>
         </div>
         
-        <ScrollArea className="h-[350px]">
+        <ScrollArea className="h-[400px]">
           <div className="divide-y">
             {logs.map((log) => (
               <div
                 key={log.id}
-                className={`p-3 transition-colors ${
+                className={`p-3 transition-colors group ${
                   log.status === "executando" ? "bg-yellow-500/5" : ""
                 }`}
               >
@@ -239,10 +271,48 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                       </Badge>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
-                    <Clock className="h-3 w-3" />
-                    {format(new Date(log.created_at), "dd/MM HH:mm", { locale: ptBR })}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
+                      <Clock className="h-3 w-3" />
+                      {format(new Date(log.created_at), "dd/MM HH:mm", { locale: ptBR })}
+                    </span>
+                    
+                    {/* Delete button - only for non-running */}
+                    {log.status !== "executando" && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-600"
+                          >
+                            {deleting === log.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3 w-3" />
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir registro?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta ação não pode ser desfeita. O registro de execução será removido permanentemente.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction 
+                              onClick={() => handleDelete(log.id)}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Etapa atual para execuções em andamento */}
@@ -313,11 +383,11 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                 {/* Filtros aplicados (collapsible) */}
                 {log.filtros_aplicados && Object.keys(log.filtros_aplicados).length > 0 && (
                   <Collapsible className="mt-2">
-                    <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors group w-full">
+                    <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors group/trigger w-full">
                       <Filter className="h-3 w-3" />
                       <span>Filtros aplicados</span>
-                      <ChevronRight className="h-3 w-3 ml-auto group-data-[state=open]:hidden" />
-                      <ChevronDown className="h-3 w-3 ml-auto hidden group-data-[state=open]:block" />
+                      <ChevronRight className="h-3 w-3 ml-auto group-data-[state=open]/trigger:hidden" />
+                      <ChevronDown className="h-3 w-3 ml-auto hidden group-data-[state=open]/trigger:block" />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="mt-2">
                       <div className="text-xs bg-muted/50 rounded-lg p-2.5 space-y-1">
