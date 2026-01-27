@@ -1,121 +1,207 @@
 
-# Plano: Aumentar Tempo de Espera e Implementar Espera Inteligente Após Seleção do Layout
 
-## Problema Identificado
+# Plano: Credenciais Dinâmicas por Associação na Automação Hinova
 
-Após selecionar o layout "BI - VANGARD COBRANÇA", o script aguarda apenas **10 segundos fixos** antes de prosseguir. Porém, as seções que aparecem apenas com este layout (como "Vencimento do Veículo", "Dias de Vencimento" e "Dias de Atraso") podem demorar mais para carregar completamente no portal Hinova.
+## Contexto
 
-Isso explica por que os campos "Dias de Vencimento" e "Dias de Atraso" não estão sendo exportados no Excel — o script prossegue antes que essas configurações estejam disponíveis.
-
----
+Atualmente, a automação Hinova usa credenciais fixas armazenadas como **Secrets do GitHub** (HINOVA_URL, HINOVA_USER, HINOVA_PASS, etc.). Isso impede que múltiplas associações usem portais Hinova diferentes, como:
+- `https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php` (atual)
+- `https://sga.hinova.com.br/sga/sgav4_asspas/v5/login.php` (sua nova)
 
 ## Solução Proposta
 
-### 1. Aumentar o Tempo Base de Espera
+Modificar o fluxo para que as credenciais sejam buscadas **dinamicamente do banco de dados** com base no `corretora_id`, permitindo configuração independente por associação.
 
-Aumentar o tempo fixo de **10 segundos para 20 segundos** como margem de segurança inicial.
+---
 
-### 2. Implementar Espera Inteligente por Elemento
-
-Após os 20 segundos iniciais, o script deve **verificar ativamente** se elementos específicos do layout BI já estão visíveis antes de prosseguir:
+## Arquitetura Atual vs. Nova
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│           Espera Inteligente Após Layout BI                 │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  1. Selecionar layout "BI - VANGARD COBRANÇA"               │
-│                     ↓                                       │
-│  2. Aguardar 20 segundos (tempo base)                       │
-│                     ↓                                       │
-│  3. Verificar se "Vencimento do Veículo" apareceu           │
-│     ├── Se SIM → Configurações carregadas, prosseguir       │
-│     └── Se NÃO → Aguardar mais 5s e verificar novamente     │
-│                  (até 3 tentativas = +15s extra)            │
-│                     ↓                                       │
-│  4. Total máximo: 35 segundos                               │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+ATUAL:
+┌────────────────┐     ┌─────────────────┐     ┌────────────────┐
+│  Interface     │────▶│ Edge Function   │────▶│ GitHub Actions │
+│ (UI Config)    │     │ disparar-github │     │ (Secrets fixos)│
+└────────────────┘     └─────────────────┘     └────────────────┘
+                               │                       │
+                               ▼                       ▼
+                        Passa apenas:           Usa secrets:
+                        - corretora_id          - HINOVA_URL
+                        - execucao_id           - HINOVA_USER
+                                                - HINOVA_PASS
+                                                - HINOVA_LAYOUT
 ```
 
-### 3. Logs de Diagnóstico
-
-Adicionar logs que informem:
-- Quanto tempo foi aguardado
-- Se a seção "Vencimento do Veículo" foi detectada
-- Se campos dinâmicos do layout foram identificados
-
----
-
-## Alterações no Código
-
-**Arquivo:** `scripts/robo-cobranca-hinova.cjs`
-
-**Localização:** Após a validação do layout (linha ~3303)
-
-**Código a implementar:**
-
-```javascript
-// ========================================
-// AGUARDAR CONFIGURAÇÕES CARREGAREM APÓS LAYOUT
-// ========================================
-log('⏳ Aguardando configurações do layout carregarem...', LOG_LEVELS.INFO);
-
-// Tempo base de 20 segundos
-await page.waitForTimeout(20000);
-
-// Verificar se elementos específicos do layout BI apareceram
-let layoutCarregado = false;
-const maxTentativas = 3;
-const intervaloExtra = 5000; // 5 segundos extras por tentativa
-
-for (let tentativa = 1; tentativa <= maxTentativas && !layoutCarregado; tentativa++) {
-  // Verificar se "Vencimento do Veículo" está visível (elemento exclusivo do layout BI)
-  const vencimentoVeiculoVisivel = await page.evaluate(() => {
-    const elementos = document.querySelectorAll('td, th, div, span, label');
-    for (const el of elementos) {
-      const texto = (el.textContent || '').toUpperCase();
-      if (texto.includes('VENCIMENTO DO VEÍCULO') || texto.includes('VENCIMENTO DO VEICULO')) {
-        return true;
-      }
-    }
-    return false;
-  });
-
-  if (vencimentoVeiculoVisivel) {
-    log('✅ Seção "Vencimento do Veículo" detectada - Layout BI carregado completamente!', LOG_LEVELS.SUCCESS);
-    layoutCarregado = true;
-  } else if (tentativa < maxTentativas) {
-    log(`⏳ Seção não detectada ainda. Aguardando mais ${intervaloExtra/1000}s... (tentativa ${tentativa}/${maxTentativas})`, LOG_LEVELS.INFO);
-    await page.waitForTimeout(intervaloExtra);
-  }
-}
-
-if (!layoutCarregado) {
-  log('⚠️ Seção "Vencimento do Veículo" não detectada após espera. Prosseguindo mesmo assim...', LOG_LEVELS.WARN);
-  log('   Os campos "Dias de Vencimento" e "Dias de Atraso" podem não estar disponíveis.', LOG_LEVELS.WARN);
-}
-
-log('✅ Tempo de espera concluído!', LOG_LEVELS.SUCCESS);
+```text
+NOVA (proposta):
+┌────────────────┐     ┌─────────────────┐     ┌────────────────┐
+│  Interface     │────▶│ Edge Function   │────▶│ GitHub Actions │
+│ (UI Config)    │     │ disparar-github │     │ (Inputs dinâm) │
+└────────────────┘     └─────────────────┘     └────────────────┘
+       │                       │                       │
+       ▼                       ▼                       ▼
+  Salva no DB:          Busca do DB e            Recebe inputs:
+  - hinova_url          passa como inputs:       - hinova_url
+  - hinova_user         - hinova_url             - hinova_user
+  - hinova_pass         - hinova_user            - hinova_pass
+  - hinova_layout       - hinova_pass            - hinova_layout
+                        - hinova_layout
 ```
 
 ---
 
-## Resumo das Mudanças
+## Etapas de Implementação
 
-| Aspecto | Antes | Depois |
-|---------|-------|--------|
-| **Tempo base** | 10 segundos fixos | 20 segundos base |
-| **Espera extra** | Nenhuma | Até +15 segundos (3 × 5s) |
-| **Total máximo** | 10 segundos | 35 segundos |
-| **Validação** | Nenhuma | Verifica se "Vencimento do Veículo" apareceu |
-| **Diagnóstico** | Básico | Logs detalhados sobre carregamento |
+### 1. Atualizar Workflow do GitHub
+
+**Arquivo:** `.github/workflows/cobranca-hinova.yml`
+
+Adicionar novos inputs para receber credenciais dinamicamente:
+
+```yaml
+workflow_dispatch:
+  inputs:
+    corretora_id:
+      description: 'ID da associação'
+      required: false
+    execucao_id:
+      description: 'ID do registro de execução'
+      required: false
+    hinova_url:
+      description: 'URL do portal Hinova'
+      required: false
+    hinova_user:
+      description: 'Usuário do portal'
+      required: false
+    hinova_pass:
+      description: 'Senha do portal'
+      required: false
+    hinova_codigo_cliente:
+      description: 'Código do cliente'
+      required: false
+    hinova_layout:
+      description: 'Layout do relatório'
+      required: false
+```
+
+Modificar o step de execução para priorizar inputs sobre secrets:
+
+```yaml
+- name: Executar robô de cobrança
+  env:
+    HINOVA_URL: ${{ github.event.inputs.hinova_url || secrets.HINOVA_URL }}
+    HINOVA_USER: ${{ github.event.inputs.hinova_user || secrets.HINOVA_USER }}
+    HINOVA_PASS: ${{ github.event.inputs.hinova_pass || secrets.HINOVA_PASS }}
+    HINOVA_CODIGO_CLIENTE: ${{ github.event.inputs.hinova_codigo_cliente || secrets.HINOVA_CODIGO_CLIENTE }}
+    HINOVA_LAYOUT: ${{ github.event.inputs.hinova_layout || secrets.HINOVA_LAYOUT }}
+    # ... demais variáveis
+```
 
 ---
 
-## Resultado Esperado
+### 2. Atualizar Edge Function `disparar-github-workflow`
 
-1. O portal terá tempo suficiente para carregar todas as seções dependentes do layout BI
-2. As colunas "Dias de Vencimento" e "Dias de Atraso" serão incluídas no relatório Excel
-3. Se o carregamento demorar demais, um aviso será exibido nos logs para diagnóstico
-4. O script não ficará travado indefinidamente graças ao limite de 35 segundos
+**Arquivo:** `supabase/functions/disparar-github-workflow/index.ts`
+
+Modificar para enviar as credenciais do banco como inputs do workflow:
+
+```typescript
+// Após buscar config do banco (linha ~63):
+const githubResponse = await fetch(workflowDispatchUrl, {
+  method: 'POST',
+  headers: { /* ... */ },
+  body: JSON.stringify({
+    ref: 'main',
+    inputs: {
+      corretora_id: corretora_id,
+      execucao_id: execucao?.id || '',
+      // NOVOS: Passar credenciais do banco
+      hinova_url: config.hinova_url || '',
+      hinova_user: config.hinova_user || '',
+      hinova_pass: config.hinova_pass || '',
+      hinova_codigo_cliente: config.hinova_codigo_cliente || '',
+      hinova_layout: config.layout_relatorio || 'BI - VANGARD COBRANÇA',
+    },
+  }),
+});
+```
+
+---
+
+### 3. Criar Edge Function de Validação de Credenciais
+
+**Novo arquivo:** `supabase/functions/testar-hinova-login/index.ts`
+
+Como o portal Hinova usa formulário de login (não API REST), criaremos uma Edge Function que:
+
+1. Recebe URL, usuário e senha
+2. Faz uma requisição HTTP ao portal
+3. Analisa a resposta para validar se as credenciais estão corretas
+
+Abordagem: Verificar se a URL é acessível e se retorna a página de login esperada.
+
+```typescript
+// Validação básica:
+// 1. Testar se a URL responde (HTTP 200)
+// 2. Verificar se contém elementos do portal Hinova
+// 3. Opcionalmente, simular envio de formulário para validar credenciais
+```
+
+**Nota técnica:** Validação completa de login via formulário seria complexa em Edge Function. A alternativa mais segura é validar a URL e o formato das credenciais, deixando a validação real para a primeira execução do robô.
+
+---
+
+### 4. Adicionar Botão "Testar Conexão" na Interface
+
+**Arquivo:** `src/components/cobranca/CobrancaAutomacaoConfig.tsx`
+
+Adicionar um botão ao lado das credenciais que:
+
+1. Valida localmente se os campos estão preenchidos
+2. Chama a Edge Function de teste
+3. Exibe feedback visual (sucesso/erro)
+
+```tsx
+<Button
+  variant="outline"
+  size="sm"
+  onClick={handleTestarConexao}
+  disabled={!config.hinova_url || !config.hinova_user || !config.hinova_pass}
+>
+  <CheckCircle className="h-4 w-4 mr-2" />
+  Testar Conexão
+</Button>
+```
+
+---
+
+## Considerações de Segurança
+
+1. **Credenciais no banco:** Já estão armazenadas na tabela `cobranca_automacao_config` com os campos `hinova_user` e `hinova_pass`
+
+2. **Transmissão para GitHub:** Os inputs do workflow_dispatch são criptografados em trânsito e não ficam visíveis em logs públicos
+
+3. **Logs de auditoria:** A Edge Function já registra em `bi_audit_logs` para rastreabilidade
+
+4. **Fallback para Secrets:** Se a configuração no banco estiver vazia, o workflow continua usando os Secrets do repositório (retrocompatibilidade)
+
+---
+
+## Resumo das Alterações
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `.github/workflows/cobranca-hinova.yml` | Adicionar inputs para credenciais; priorizar inputs sobre secrets |
+| `supabase/functions/disparar-github-workflow/index.ts` | Incluir credenciais do banco nos inputs do workflow |
+| `supabase/functions/testar-hinova-login/index.ts` | Nova Edge Function para validar URL/credenciais |
+| `src/components/cobranca/CobrancaAutomacaoConfig.tsx` | Adicionar botão "Testar Conexão" |
+| `supabase/config.toml` | Registrar nova Edge Function |
+
+---
+
+## Benefícios
+
+- Cada associação pode configurar suas próprias credenciais Hinova
+- URLs de portais diferentes são suportadas (sgav4_valecar, sgav4_asspas, etc.)
+- Configuração centralizada na interface, sem necessidade de editar Secrets do GitHub
+- Retrocompatibilidade com configurações existentes via fallback
+
