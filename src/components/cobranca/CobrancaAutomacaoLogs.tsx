@@ -5,6 +5,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { 
   History, 
   CheckCircle, 
@@ -14,10 +25,14 @@ import {
   Clock,
   FileSpreadsheet,
   Download,
-  Upload
+  Upload,
+  Trash2,
+  ExternalLink,
+  Github
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 interface CobrancaAutomacaoLogsProps {
   configId: string;
@@ -43,6 +58,9 @@ interface ExecucaoLog {
   bytes_total: number | null;
   progresso_importacao: number | null;
   etapa_atual: string | null;
+  github_run_id: string | null;
+  github_run_url: string | null;
+  tipo_disparo: string | null;
 }
 
 export default function CobrancaAutomacaoLogs({ configId, corretoraId }: CobrancaAutomacaoLogsProps) {
@@ -95,6 +113,22 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
     }
   };
 
+  const handleDeleteLog = async (logId: string) => {
+    try {
+      const { error } = await supabase
+        .from("cobranca_automacao_execucoes")
+        .delete()
+        .eq("id", logId);
+
+      if (error) throw error;
+      toast.success("Registro excluído com sucesso");
+      loadLogs();
+    } catch (error: any) {
+      console.error("Erro ao excluir log:", error);
+      toast.error("Erro ao excluir: " + (error.message || "Erro desconhecido"));
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "sucesso":
@@ -119,10 +153,11 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
           </Badge>
         );
       case "parado":
+      case "cancelled":
         return (
           <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">
             <XCircle className="h-3 w-3 mr-1" />
-            Parado
+            {status === 'cancelled' ? 'Cancelado' : 'Parado'}
           </Badge>
         );
       default:
@@ -319,6 +354,46 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                             </span>
                           )}
                         </div>
+                      )}
+                    </div>
+                    
+                    {/* Ações: GitHub link e Delete */}
+                    <div className="flex flex-col gap-2 items-end shrink-0">
+                      {log.github_run_url && (
+                        <a
+                          href={log.github_run_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                        >
+                          <Github className="h-3 w-3" />
+                          Ver no GitHub
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                      
+                      {log.status !== "executando" && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive">
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Excluir registro</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja excluir este registro do histórico? Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteLog(log.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   </div>

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock, Play, History, Square, Filter, Calendar, FileText, Info } from "lucide-react";
+import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock, Play, History, Square, Filter, Calendar, FileText, Info, Github, StopCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -63,6 +63,11 @@ interface AutomacaoConfig {
   filtro_referencia: string;
 }
 
+interface CurrentExecution {
+  id: string;
+  github_run_id?: string | null;
+}
+
 // Valores padrão - conforme screenshot do portal Hinova
 const DEFAULT_CONFIG: Omit<AutomacaoConfig, 'corretora_id'> = {
   hinova_url: '',
@@ -91,6 +96,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
   const [stopping, setStopping] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState("config");
+  const [currentExecution, setCurrentExecution] = useState<CurrentExecution | null>(null);
 
   useEffect(() => {
     if (corretoraId) {
@@ -125,6 +131,21 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
         // Verificar se está executando
         if (data.ultimo_status === 'executando') {
           setExecuting(true);
+          // Buscar execução atual para obter o github_run_id
+          const { data: execAtual } = await supabase
+            .from("cobranca_automacao_execucoes")
+            .select("id, github_run_id")
+            .eq("config_id", data.id)
+            .eq("status", "executando")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (execAtual) {
+            setCurrentExecution(execAtual);
+          }
+        } else {
+          setCurrentExecution(null);
         }
       } else {
         setConfig({
@@ -210,18 +231,22 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
 
     setExecuting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('executar-cobranca-hinova', {
-        body: { corretora_id: corretoraId }
+      // Chamar a nova edge function que dispara o GitHub Actions
+      const { data, error } = await supabase.functions.invoke('disparar-github-workflow', {
+        body: { action: 'dispatch', corretora_id: corretoraId }
       });
 
       if (error) throw error;
 
       if (data?.success) {
-        toast.success("Execução iniciada! Acompanhe o status no histórico.");
+        toast.success("Workflow GitHub disparado! Acompanhe o status no histórico.");
         setActiveTab("historico");
+        if (data.execucao_id && data.github_run_id) {
+          setCurrentExecution({ id: data.execucao_id, github_run_id: data.github_run_id });
+        }
         loadConfig();
       } else {
-        toast.error(data?.message || "Erro ao executar automação");
+        toast.error(data?.message || "Erro ao disparar workflow");
         setExecuting(false);
       }
     } catch (error: any) {
@@ -236,6 +261,19 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
 
     setStopping(true);
     try {
+      // Se temos um github_run_id, tentar cancelar no GitHub primeiro
+      if (currentExecution?.github_run_id) {
+        const { data: cancelData, error: cancelError } = await supabase.functions.invoke('disparar-github-workflow', {
+          body: { action: 'cancel', run_id: currentExecution.github_run_id }
+        });
+        
+        if (cancelError) {
+          console.warn("Erro ao cancelar no GitHub:", cancelError);
+        } else if (cancelData?.success) {
+          console.log("Solicitação de cancelamento enviada ao GitHub");
+        }
+      }
+
       // Atualizar status para "parado" no banco
       const { error: updateError } = await supabase
         .from("cobranca_automacao_config")
@@ -280,12 +318,14 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
         user_nome: user?.email || "Usuário",
         dados_novos: {
           config_id: config.id,
+          github_run_id: currentExecution?.github_run_id,
           motivo: 'Interrupção manual pelo usuário',
         },
       });
 
       toast.success("Execução interrompida com sucesso");
       setExecuting(false);
+      setCurrentExecution(null);
       loadConfig();
     } catch (error: any) {
       console.error("Erro ao parar automação:", error);
@@ -339,18 +379,24 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
               <CardTitle className="flex items-center gap-2">
                 <Settings className="h-5 w-5 text-primary" />
                 Automação Hinova
+                <Github className="h-4 w-4 text-muted-foreground" />
               </CardTitle>
               <CardDescription className="mt-1">
-                {corretoraNome}
+                {corretoraNome} • Execução via GitHub Actions
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="ativo-switch" className="text-sm">Ativa</Label>
-              <Switch
-                id="ativo-switch"
-                checked={config.ativo}
-                onCheckedChange={(checked) => setConfig(prev => ({ ...prev, ativo: checked }))}
-              />
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="ativo-switch" className="text-sm">Execução Diária</Label>
+                <Switch
+                  id="ativo-switch"
+                  checked={config.ativo}
+                  onCheckedChange={(checked) => setConfig(prev => ({ ...prev, ativo: checked }))}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {config.ativo ? "Ativa às 09:00 (Brasília)" : "Desativada"}
+              </span>
             </div>
           </div>
         </CardHeader>
@@ -427,12 +473,13 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
               </Button>
             ) : (
               <Button 
-                variant="secondary" 
+                variant="default" 
                 size="sm"
                 onClick={handleExecute} 
                 disabled={saving || !config.id}
+                className="bg-green-600 hover:bg-green-700"
               >
-                <Play className="h-4 w-4 mr-2" />
+                <Github className="h-4 w-4 mr-2" />
                 Executar Agora
               </Button>
             )}
