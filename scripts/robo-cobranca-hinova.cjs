@@ -74,6 +74,13 @@ const CONFIG = {
   // Identificador da corretora - USE O ID DIRETO
   CORRETORA_ID: process.env.CORRETORA_ID || 'a4931643-8bf1-4153-97b1-c64925f536eb',
   
+  // ID da execução (vindo do banco via GitHub Actions)
+  EXECUCAO_ID: process.env.EXECUCAO_ID || '',
+  
+  // GitHub Actions run info
+  GITHUB_RUN_ID: process.env.GITHUB_RUN_ID || '',
+  GITHUB_RUN_URL: process.env.GITHUB_RUN_URL || '',
+  
   // Diretório base para downloads
   DOWNLOAD_BASE_DIR: process.env.DOWNLOAD_DIR || './downloads',
   
@@ -2756,6 +2763,9 @@ async function enviarWebhook(dados, nomeArquivo) {
     const payload = {
       corretora_id: CONFIG.CORRETORA_ID,
       importacao_id: importacaoId,
+      execucao_id: CONFIG.EXECUCAO_ID || null,
+      github_run_id: CONFIG.GITHUB_RUN_ID || null,
+      github_run_url: CONFIG.GITHUB_RUN_URL || null,
       dados: batch,
       nome_arquivo: nomeArquivo,
       mes_referencia: mesReferencia,
@@ -2829,6 +2839,13 @@ async function rodarRobo() {
   log(`Usuário: ${CONFIG.HINOVA_USER}`, LOG_LEVELS.INFO);
   log(`Layout: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.INFO);
   log(`Corretora ID: ${CONFIG.CORRETORA_ID}`, LOG_LEVELS.INFO);
+  if (CONFIG.EXECUCAO_ID) {
+    log(`Execução ID: ${CONFIG.EXECUCAO_ID}`, LOG_LEVELS.INFO);
+  }
+  if (CONFIG.GITHUB_RUN_ID) {
+    log(`GitHub Run ID: ${CONFIG.GITHUB_RUN_ID}`, LOG_LEVELS.INFO);
+    log(`GitHub Run URL: ${CONFIG.GITHUB_RUN_URL}`, LOG_LEVELS.INFO);
+  }
   log('='.repeat(60));
   
   const { inicio, fim } = getDateRange();

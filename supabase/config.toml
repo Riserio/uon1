@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.executar-cobranca-hinova]
 verify_jwt = false
+
+[functions.disparar-github-workflow]
+verify_jwt = false

@@ -221,6 +221,9 @@ serve(async (req) => {
       bytes_total,
       progresso_importacao,
       etapa_atual,
+      // GitHub run info
+      github_run_id,
+      github_run_url,
     } = body;
 
     // ============================================
@@ -235,6 +238,8 @@ serve(async (req) => {
       if (progresso_importacao !== undefined) updateData.progresso_importacao = progresso_importacao;
       if (etapa_atual !== undefined) updateData.etapa_atual = etapa_atual;
       if (total_registros !== undefined) updateData.registros_total = total_registros;
+      if (github_run_id !== undefined) updateData.github_run_id = github_run_id;
+      if (github_run_url !== undefined) updateData.github_run_url = github_run_url;
       
       const { error: updateError } = await supabase
         .from("cobranca_automacao_execucoes")
