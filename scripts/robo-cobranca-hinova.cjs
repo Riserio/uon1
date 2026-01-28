@@ -35,9 +35,30 @@ const readline = require('readline');
 // CONFIGURAÇÃO - EDITE AQUI OU USE ENV VARS
 // ============================================
 
+// Função para derivar URL do relatório a partir da URL de login
+function deriveRelatorioUrl(loginUrl) {
+  try {
+    const url = new URL(loginUrl);
+    // Extrai o caminho base (ex: /sga/sgav4_valecar/v5/ -> /sga/sgav4_valecar/)
+    const pathParts = url.pathname.split('/');
+    // Remove 'v5', 'login.php' ou 'Principal' e reconstrói
+    const basePathParts = pathParts.filter(p => 
+      p && !p.includes('login') && !p.includes('Principal') && p !== 'v5'
+    );
+    const basePath = '/' + basePathParts.join('/');
+    return `${url.origin}${basePath}/relatorio/relatorioBoleto.php`;
+  } catch (e) {
+    // Fallback para URL padrão se parsing falhar
+    return 'https://eris.hinova.com.br/sga/sgav4_valecar/relatorio/relatorioBoleto.php';
+  }
+}
+
+const HINOVA_URL = process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php';
+
 const CONFIG = {
-  HINOVA_URL: process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php',
-  HINOVA_RELATORIO_URL: 'https://eris.hinova.com.br/sga/sgav4_valecar/relatorio/relatorioBoleto.php',
+  HINOVA_URL: HINOVA_URL,
+  // URL do relatório derivada dinamicamente da URL de login
+  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || deriveRelatorioUrl(HINOVA_URL),
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
 
@@ -2801,6 +2822,13 @@ async function rodarRobo() {
 
   log('='.repeat(60));
   log('INICIANDO ROBÔ DE COBRANÇA HINOVA');
+  log('='.repeat(60));
+  log(`URL Login: ${CONFIG.HINOVA_URL}`, LOG_LEVELS.INFO);
+  log(`URL Relatório: ${CONFIG.HINOVA_RELATORIO_URL}`, LOG_LEVELS.INFO);
+  log(`Código Cliente: ${CONFIG.HINOVA_CODIGO_CLIENTE}`, LOG_LEVELS.INFO);
+  log(`Usuário: ${CONFIG.HINOVA_USER}`, LOG_LEVELS.INFO);
+  log(`Layout: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.INFO);
+  log(`Corretora ID: ${CONFIG.CORRETORA_ID}`, LOG_LEVELS.INFO);
   log('='.repeat(60));
   
   const { inicio, fim } = getDateRange();
