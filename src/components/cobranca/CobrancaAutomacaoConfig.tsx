@@ -165,24 +165,52 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
         // Verificar se está executando baseado na execução real, não apenas no config
         const { data: execAtual } = await supabase
           .from("cobranca_automacao_execucoes")
-          .select("id, github_run_id, status")
+          .select("id, github_run_id, status, created_at, finalizado_at")
           .eq("config_id", data.id)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
         
-        if (execAtual && execAtual.status === 'executando') {
+        // Verificar se a execução é órfã (mais de 70 minutos sem finalizar)
+        const isOrphan = execAtual && 
+          execAtual.status === 'executando' && 
+          !execAtual.finalizado_at &&
+          (new Date().getTime() - new Date(execAtual.created_at).getTime()) > 70 * 60 * 1000;
+        
+        if (isOrphan && execAtual) {
+          // Marcar como erro no banco
+          await supabase
+            .from("cobranca_automacao_execucoes")
+            .update({
+              status: 'erro',
+              erro: 'Execução não finalizada - timeout ou falha de comunicação',
+              finalizado_at: new Date().toISOString(),
+            })
+            .eq("id", execAtual.id);
+        }
+        
+        if (execAtual && execAtual.status === 'executando' && !isOrphan) {
           setExecuting(true);
           setCurrentExecution({ id: execAtual.id, github_run_id: execAtual.github_run_id });
         } else {
           setExecuting(false);
           setCurrentExecution(null);
           // Corrigir config se estiver desincronizado
-          if (data.ultimo_status === 'executando' && (!execAtual || execAtual.status !== 'executando')) {
+          const correctStatus = isOrphan ? 'erro' : (execAtual?.status || 'erro');
+          if (data.ultimo_status === 'executando') {
             await supabase
               .from("cobranca_automacao_config")
-              .update({ ultimo_status: execAtual?.status || 'erro' })
+              .update({ 
+                ultimo_status: correctStatus,
+                ultimo_erro: isOrphan ? 'Execução não finalizada - timeout' : data.ultimo_erro
+              })
               .eq("id", data.id);
+            // Atualizar estado local
+            setConfig(prev => ({ 
+              ...prev, 
+              ultimo_status: correctStatus,
+              ultimo_erro: isOrphan ? 'Execução não finalizada - timeout' : prev.ultimo_erro
+            }));
           }
         }
       } else {
