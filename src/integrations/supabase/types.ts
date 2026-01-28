@@ -667,7 +667,10 @@ export type Database = {
           duracao_segundos: number | null
           erro: string | null
           etapa_atual: string | null
+          filtros_aplicados: Json | null
           finalizado_at: string | null
+          github_run_id: string | null
+          github_run_url: string | null
           id: string
           iniciado_por: string | null
           mensagem: string | null
@@ -677,6 +680,7 @@ export type Database = {
           registros_processados: number | null
           registros_total: number | null
           status: string
+          tipo_disparo: string | null
         }
         Insert: {
           bytes_baixados?: number | null
@@ -687,7 +691,10 @@ export type Database = {
           duracao_segundos?: number | null
           erro?: string | null
           etapa_atual?: string | null
+          filtros_aplicados?: Json | null
           finalizado_at?: string | null
+          github_run_id?: string | null
+          github_run_url?: string | null
           id?: string
           iniciado_por?: string | null
           mensagem?: string | null
@@ -697,6 +704,7 @@ export type Database = {
           registros_processados?: number | null
           registros_total?: number | null
           status?: string
+          tipo_disparo?: string | null
         }
         Update: {
           bytes_baixados?: number | null
@@ -707,7 +715,10 @@ export type Database = {
           duracao_segundos?: number | null
           erro?: string | null
           etapa_atual?: string | null
+          filtros_aplicados?: Json | null
           finalizado_at?: string | null
+          github_run_id?: string | null
+          github_run_url?: string | null
           id?: string
           iniciado_por?: string | null
           mensagem?: string | null
@@ -717,6 +728,7 @@ export type Database = {
           registros_processados?: number | null
           registros_total?: number | null
           status?: string
+          tipo_disparo?: string | null
         }
         Relationships: [
           {
