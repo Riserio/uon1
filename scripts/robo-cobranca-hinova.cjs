@@ -3086,6 +3086,31 @@ async function rodarRobo() {
     setStep('FILTROS');
     
     log(`Preenchendo Data Vencimento Original: ${inicio} até ${fim}`);
+
+    // A tela de relatório às vezes demora para renderizar os filtros; se avaliarmos cedo demais,
+    // acabamos enxergando apenas inputs residuais (ex: login) e falhamos.
+    log('Aguardando carregamento do formulário de filtros...', LOG_LEVELS.INFO);
+    try {
+      await page.waitForLoadState('domcontentloaded', { timeout: 20000 });
+    } catch (e) {
+      // Ignorar: alguns portais nunca estabilizam corretamente o load state
+    }
+    await page.waitForTimeout(2000);
+
+    // Espera ativa por sinais do formulário de filtros (evita avaliar o DOM cedo demais)
+    try {
+      await page.waitForFunction(() => {
+        const txt = (document.body?.innerText || '').toLowerCase();
+        return (
+          txt.includes('vencimento original') ||
+          txt.includes('boletos anteriores') ||
+          txt.includes('dados visualizados')
+        );
+      }, null, { timeout: 45000 });
+      log('✅ Formulário de filtros detectado', LOG_LEVELS.SUCCESS);
+    } catch (e) {
+      log('⚠️ Timeout aguardando formulário de filtros (tentando preencher mesmo assim)...', LOG_LEVELS.WARN);
+    }
     
     // ============================================
     // PREENCHER "Data Vencimento Original" - CAMPO ESSENCIAL
@@ -3094,6 +3119,15 @@ async function rodarRobo() {
     // Usa múltiplas estratégias em cascata para encontrar e preencher os campos
     const preencheuDatas = await page.evaluate(({ inicio, fim }) => {
       const resultado = { sucesso: false, detalhes: [], inputsEncontrados: [] };
+
+      // Diagnóstico rápido do contexto (ajuda a identificar redirects/DOM incorreto)
+      try {
+        resultado.detalhes.push(`🧭 URL: ${location.href}`);
+        const snippet = (document.body?.innerText || '').replace(/\s+/g, ' ').trim().substring(0, 160);
+        if (snippet) resultado.detalhes.push(`🧾 Body snippet: "${snippet}${snippet.length >= 160 ? '...' : ''}"`);
+      } catch (e) {
+        // ignore
+      }
       
       // Função para normalizar texto (remover acentos, lowercase, trim)
       const normalizar = (texto) => {
