@@ -3086,285 +3086,103 @@ async function rodarRobo() {
     setStep('FILTROS');
     
     log(`Preenchendo Data Vencimento Original: ${inicio} até ${fim}`);
-
-    // A tela de relatório às vezes demora para renderizar os filtros; se avaliarmos cedo demais,
-    // acabamos enxergando apenas inputs residuais (ex: login) e falhamos.
-    log('Aguardando carregamento do formulário de filtros...', LOG_LEVELS.INFO);
-    try {
-      await page.waitForLoadState('domcontentloaded', { timeout: 20000 });
-    } catch (e) {
-      // Ignorar: alguns portais nunca estabilizam corretamente o load state
-    }
-    await page.waitForTimeout(2000);
-
-    // Espera ativa por sinais do formulário de filtros (evita avaliar o DOM cedo demais)
-    try {
-      await page.waitForFunction(() => {
-        const txt = (document.body?.innerText || '').toLowerCase();
-        return (
-          txt.includes('vencimento original') ||
-          txt.includes('boletos anteriores') ||
-          txt.includes('dados visualizados')
-        );
-      }, null, { timeout: 45000 });
-      log('✅ Formulário de filtros detectado', LOG_LEVELS.SUCCESS);
-    } catch (e) {
-      log('⚠️ Timeout aguardando formulário de filtros (tentando preencher mesmo assim)...', LOG_LEVELS.WARN);
-    }
     
     // ============================================
     // PREENCHER "Data Vencimento Original" - CAMPO ESSENCIAL
     // ============================================
-    // NOVA IMPLEMENTAÇÃO - Preenchimento robusto de Data Vencimento Original
-    // Usa múltiplas estratégias em cascata para encontrar e preencher os campos
     const preencheuDatas = await page.evaluate(({ inicio, fim }) => {
-      const resultado = { sucesso: false, detalhes: [], inputsEncontrados: [] };
-
-      // Diagnóstico rápido do contexto (ajuda a identificar redirects/DOM incorreto)
-      try {
-        resultado.detalhes.push(`🧭 URL: ${location.href}`);
-        const snippet = (document.body?.innerText || '').replace(/\s+/g, ' ').trim().substring(0, 160);
-        if (snippet) resultado.detalhes.push(`🧾 Body snippet: "${snippet}${snippet.length >= 160 ? '...' : ''}"`);
-      } catch (e) {
-        // ignore
-      }
+      const resultado = { sucesso: false, detalhes: [] };
       
-      // Função para normalizar texto (remover acentos, lowercase, trim)
-      const normalizar = (texto) => {
-        return (texto || '')
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .toLowerCase()
-          .replace(/\s+/g, ' ')
-          .trim();
-      };
+      // Procurar todas as células/labels que contenham "Data Vencimento Original"
+      const todosElementos = document.querySelectorAll('td, th, label, span, div');
       
-      // Função para preencher inputs de forma segura
-      const preencherInputs = (inputIni, inputFim, origem) => {
-        try {
-          // Limpar valores anteriores
-          inputIni.value = '';
-          inputFim.value = '';
-          
-          // Preencher início
-          inputIni.focus();
-          inputIni.value = inicio;
-          inputIni.dispatchEvent(new Event('input', { bubbles: true }));
-          inputIni.dispatchEvent(new Event('change', { bubbles: true }));
-          inputIni.dispatchEvent(new Event('blur', { bubbles: true }));
-          
-          // Preencher fim
-          inputFim.focus();
-          inputFim.value = fim;
-          inputFim.dispatchEvent(new Event('input', { bubbles: true }));
-          inputFim.dispatchEvent(new Event('change', { bubbles: true }));
-          inputFim.dispatchEvent(new Event('blur', { bubbles: true }));
-          
-          resultado.sucesso = true;
-          resultado.detalhes.push(`✅ Preenchido via ${origem}`);
-          resultado.inputsEncontrados.push({
-            ini: { name: inputIni.name || 'sem_name', id: inputIni.id || 'sem_id', value: inputIni.value },
-            fim: { name: inputFim.name || 'sem_name', id: inputFim.id || 'sem_id', value: inputFim.value }
-          });
-          return true;
-        } catch (e) {
-          resultado.detalhes.push(`❌ Erro ao preencher via ${origem}: ${e.message}`);
-          return false;
-        }
-      };
-      
-      // Seletor para inputs de texto (excluindo tipos especiais)
-      const inputSelector = 'input[type="text"], input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="image"]):not([type="reset"]):not([type="file"])';
-      
-      // ============================================
-      // ESTRATÉGIA 1: Busca por texto exato/parcial em TDs/THs
-      // ============================================
-      resultado.detalhes.push('🔍 Estratégia 1: Busca por label em células...');
-      
-      const termosBusca = [
-        'data vencimento original:',
-        'data vencimento original',
-        'vencimento original:',
-        'vencimento original',
-        'dt. vencimento original',
-        'dt vencimento original'
-      ];
-      
-      const celulas = document.querySelectorAll('td, th, label');
-      
-      for (const celula of celulas) {
-        const textoOriginal = celula.textContent?.trim() || '';
-        const textoNorm = normalizar(textoOriginal);
+      for (const elemento of todosElementos) {
+        const texto = elemento.textContent?.trim() || '';
         
-        // Verificar se contém algum dos termos de busca
-        const encontrou = termosBusca.some(termo => 
-          textoNorm === termo || textoNorm.includes('vencimento original')
-        );
-        
-        if (!encontrou) continue;
-        
-        resultado.detalhes.push(`📍 Label encontrado: "${textoOriginal.substring(0, 60)}"`);
-        
-        // ESTRATÉGIA 1A: Buscar inputs na mesma linha (TR)
-        const tr = celula.closest('tr');
-        if (tr) {
-          const inputsTr = tr.querySelectorAll(inputSelector);
-          resultado.detalhes.push(`   TR tem ${inputsTr.length} inputs`);
+        // Verificar se é o label "Data Vencimento Original"
+        if (texto === 'Data Vencimento Original:' || texto === 'Data Vencimento Original') {
+          resultado.detalhes.push(`Label encontrado: "${texto}"`);
           
-          if (inputsTr.length >= 2) {
-            if (preencherInputs(inputsTr[0], inputsTr[1], 'TR direta')) return resultado;
-          }
-          
-          // ESTRATÉGIA 1B: Se TR atual tem poucos inputs, verificar TR seguinte
-          if (inputsTr.length < 2) {
-            const nextTr = tr.nextElementSibling;
-            if (nextTr && nextTr.tagName === 'TR') {
-              const nextInputs = nextTr.querySelectorAll(inputSelector);
-              resultado.detalhes.push(`   TR seguinte tem ${nextInputs.length} inputs`);
-              if (nextInputs.length >= 2) {
-                if (preencherInputs(nextInputs[0], nextInputs[1], 'TR seguinte')) return resultado;
-              }
+          // Encontrar a linha (tr) que contém esse label
+          const linha = elemento.closest('tr');
+          if (!linha) {
+            resultado.detalhes.push('Linha (tr) não encontrada, tentando container pai');
+            // Fallback: procurar inputs no container pai
+            const container = elemento.parentElement;
+            const inputs = container?.querySelectorAll('input[type="text"], input:not([type])');
+            if (inputs && inputs.length >= 2) {
+              inputs[0].value = inicio;
+              inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+              inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+              
+              inputs[1].value = fim;
+              inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+              inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
+              
+              resultado.sucesso = true;
+              resultado.detalhes.push(`Preenchido via container: ${inputs[0].name || 'input1'} e ${inputs[1].name || 'input2'}`);
+              return resultado;
             }
-          }
-        }
-        
-        // ESTRATÉGIA 1C: Buscar inputs em TDs irmãs na mesma linha
-        const parentTr = celula.closest('tr');
-        if (parentTr) {
-          const todasTds = parentTr.querySelectorAll('td');
-          for (const td of todasTds) {
-            if (td === celula) continue; // Pular a própria célula do label
-            const inputsTd = td.querySelectorAll(inputSelector);
-            if (inputsTd.length >= 2) {
-              resultado.detalhes.push(`   TD irmã tem ${inputsTd.length} inputs`);
-              if (preencherInputs(inputsTd[0], inputsTd[1], 'TD irmã')) return resultado;
-            }
+            continue;
           }
           
-          // ESTRATÉGIA 1D: Juntar todos inputs de todas TDs (exceto label)
-          const todosInputsTr = [];
-          for (const td of todasTds) {
-            if (normalizar(td.textContent || '').includes('vencimento original')) continue;
-            const inputsTd = td.querySelectorAll(inputSelector);
-            todosInputsTr.push(...inputsTd);
-          }
-          if (todosInputsTr.length >= 2) {
-            resultado.detalhes.push(`   Total inputs nas TDs: ${todosInputsTr.length}`);
-            if (preencherInputs(todosInputsTr[0], todosInputsTr[1], 'TDs combinadas')) return resultado;
-          }
-        }
-      }
-      
-      // ============================================
-      // ESTRATÉGIA 2: Busca por name/id parcial com regex
-      // ============================================
-      resultado.detalhes.push('🔍 Estratégia 2: Busca por name/id com regex...');
-      
-      const padroes = [
-        [/venc.*orig.*ini/i, /venc.*orig.*fim/i],
-        [/venc.*orig.*1/i, /venc.*orig.*2/i],
-        [/dt_venc.*orig.*ini/i, /dt_venc.*orig.*fim/i],
-        [/vencimento.*original.*de/i, /vencimento.*original.*ate/i],
-        [/vencimento.*original.*ini/i, /vencimento.*original.*fim/i],
-        [/original.*ini/i, /original.*fim/i],
-      ];
-      
-      const todosInputs = Array.from(document.querySelectorAll(inputSelector));
-      resultado.detalhes.push(`   Total de inputs na página: ${todosInputs.length}`);
-      
-      for (const [padraoIni, padraoFim] of padroes) {
-        const inputIni = todosInputs.find(i => 
-          padraoIni.test(i.name || '') || padraoIni.test(i.id || '')
-        );
-        const inputFim = todosInputs.find(i => 
-          padraoFim.test(i.name || '') || padraoFim.test(i.id || '')
-        );
-        
-        if (inputIni && inputFim) {
-          resultado.detalhes.push(`   Encontrados: ${inputIni.name || inputIni.id} e ${inputFim.name || inputFim.id}`);
-          if (preencherInputs(inputIni, inputFim, 'regex name/id')) return resultado;
-        }
-      }
-      
-      // ============================================
-      // ESTRATÉGIA 3: Buscar pares de inputs adjacentes com contexto "à"
-      // ============================================
-      resultado.detalhes.push('🔍 Estratégia 3: Busca por inputs adjacentes com "à"...');
-      
-      for (let i = 0; i < todosInputs.length - 1; i++) {
-        const input1 = todosInputs[i];
-        const input2 = todosInputs[i + 1];
-        
-        // Verificar se o container pai tem "à" entre os inputs
-        const container = input1.closest('td, div, span');
-        if (container) {
-          const textoContainer = container.textContent || '';
+          // Pegar todos os inputs da linha
+          const inputs = linha.querySelectorAll('input[type="text"], input:not([type])');
+          resultado.detalhes.push(`Inputs na linha: ${inputs.length}`);
           
-          // Procurar pelo padrão "input à input" comum no Hinova
-          if (textoContainer.includes(' à ') || textoContainer.includes('à')) {
-            // Verificar contexto - deve estar relacionado a vencimento original
-            const trContexto = input1.closest('tr');
-            const contextoTexto = normalizar(trContexto?.textContent || container.textContent || '');
+          if (inputs.length >= 2) {
+            // Primeiro input = data início
+            inputs[0].value = inicio;
+            inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+            inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+            resultado.detalhes.push(`Input início: ${inputs[0].name || inputs[0].id || 'sem_nome'} = ${inicio}`);
             
-            if (contextoTexto.includes('vencimento') && contextoTexto.includes('original')) {
-              resultado.detalhes.push(`   Contexto encontrado: "${contextoTexto.substring(0, 80)}..."`);
-              if (preencherInputs(input1, input2, 'contexto "à"')) return resultado;
-            }
+            // Segundo input = data fim
+            inputs[1].value = fim;
+            inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+            inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
+            resultado.detalhes.push(`Input fim: ${inputs[1].name || inputs[1].id || 'sem_nome'} = ${fim}`);
+            
+            resultado.sucesso = true;
+            return resultado;
+          } else if (inputs.length === 1) {
+            // Pode ter apenas um input com range
+            inputs[0].value = inicio;
+            inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+            resultado.detalhes.push(`Apenas 1 input encontrado: ${inputs[0].name}`);
           }
         }
       }
       
-      // ============================================
-      // ESTRATÉGIA 4: Busca por atributos size/maxlength típicos de data
-      // ============================================
-      resultado.detalhes.push('🔍 Estratégia 4: Busca por inputs com formato de data...');
-      
-      // Inputs de data geralmente têm size=10 ou maxlength=10 (dd/mm/yyyy)
-      const inputsData = todosInputs.filter(i => {
-        const size = parseInt(i.getAttribute('size') || '0');
-        const maxlen = parseInt(i.getAttribute('maxlength') || '0');
-        return size === 10 || maxlen === 10 || size === 8 || maxlen === 8;
-      });
-      
-      resultado.detalhes.push(`   Inputs com formato data (size/maxlen 8-10): ${inputsData.length}`);
-      
-      // Procurar par de inputs de data que estejam no contexto correto
-      for (let i = 0; i < inputsData.length - 1; i++) {
-        const input1 = inputsData[i];
-        const input2 = inputsData[i + 1];
+      // Se não encontrou pelo label exato, tentar por name dos inputs
+      if (!resultado.sucesso) {
+        resultado.detalhes.push('Tentando fallback por name de input...');
         
-        const tr = input1.closest('tr');
-        const contexto = normalizar(tr?.textContent || '');
+        const possiveisNomes = [
+          ['dt_vencimento_original_ini', 'dt_vencimento_original_fim'],
+          ['vencimento_original_ini', 'vencimento_original_fim'],
+          ['dt_venc_original_ini', 'dt_venc_original_fim'],
+        ];
         
-        if (contexto.includes('vencimento') && contexto.includes('original')) {
-          resultado.detalhes.push(`   Par de inputs de data no contexto correto`);
-          if (preencherInputs(input1, input2, 'formato data')) return resultado;
+        for (const [nomeIni, nomeFim] of possiveisNomes) {
+          const inputIni = document.querySelector(`input[name="${nomeIni}"], input[name*="${nomeIni}"]`);
+          const inputFim = document.querySelector(`input[name="${nomeFim}"], input[name*="${nomeFim}"]`);
+          
+          if (inputIni && inputFim) {
+            inputIni.value = inicio;
+            inputIni.dispatchEvent(new Event('input', { bubbles: true }));
+            inputIni.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            inputFim.value = fim;
+            inputFim.dispatchEvent(new Event('input', { bubbles: true }));
+            inputFim.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            resultado.sucesso = true;
+            resultado.detalhes.push(`Preenchido via name: ${nomeIni} e ${nomeFim}`);
+            return resultado;
+          }
         }
       }
-      
-      // ============================================
-      // ESTRATÉGIA 5 (FALLBACK): Log detalhado para debug
-      // ============================================
-      resultado.detalhes.push('❌ Nenhuma estratégia funcionou - coletando debug...');
-      resultado.detalhes.push(`📊 Total de inputs texto na página: ${todosInputs.length}`);
-      
-      // Listar os primeiros 25 inputs para diagnóstico
-      todosInputs.slice(0, 25).forEach((input, idx) => {
-        const tr = input.closest('tr');
-        const contexto = tr?.querySelector('td')?.textContent?.trim().substring(0, 30) || '';
-        resultado.detalhes.push(`   [${idx}] name="${input.name}" id="${input.id}" contexto="${contexto}"`);
-      });
-      
-      // Listar todas as TRs que contenham "vencimento"
-      const trsVencimento = Array.from(document.querySelectorAll('tr')).filter(tr => 
-        normalizar(tr.textContent || '').includes('vencimento')
-      );
-      resultado.detalhes.push(`📊 TRs com "vencimento": ${trsVencimento.length}`);
-      trsVencimento.forEach((tr, idx) => {
-        const inputs = tr.querySelectorAll(inputSelector);
-        const texto = tr.textContent?.trim().substring(0, 60) || '';
-        resultado.detalhes.push(`   TR[${idx}]: "${texto}..." (${inputs.length} inputs)`);
-      });
       
       return resultado;
     }, { inicio, fim });

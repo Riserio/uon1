@@ -5,37 +5,8 @@ on:
   schedule:
     - cron: '0 12 * * *'
   
-  # Permite execução manual pelo GitHub ou via Edge Function
+  # Permite execução manual pelo GitHub
   workflow_dispatch:
-    inputs:
-      corretora_id:
-        description: 'ID da associação (corretora)'
-        required: false
-        type: string
-      execucao_id:
-        description: 'ID do registro de execução no banco'
-        required: false
-        type: string
-      hinova_url:
-        description: 'URL do portal Hinova (dinâmico por associação)'
-        required: false
-        type: string
-      hinova_user:
-        description: 'Usuário do portal (dinâmico por associação)'
-        required: false
-        type: string
-      hinova_pass:
-        description: 'Senha do portal (dinâmico por associação)'
-        required: false
-        type: string
-      hinova_codigo_cliente:
-        description: 'Código do cliente (dinâmico por associação)'
-        required: false
-        type: string
-      hinova_layout:
-        description: 'Layout do relatório (dinâmico por associação)'
-        required: false
-        type: string
 
 jobs:
   importar-cobranca:
@@ -56,65 +27,17 @@ jobs:
           npm install playwright axios xlsx
           npx playwright install chromium --with-deps
       
-      - name: Atualizar status no banco (início)
-        if: ${{ github.event.inputs.execucao_id != '' }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          EXECUCAO_ID: ${{ github.event.inputs.execucao_id }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
-        run: |
-          curl -X PATCH "${SUPABASE_URL}/rest/v1/cobranca_automacao_execucoes?id=eq.${EXECUCAO_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=minimal" \
-            -d "{\"github_run_id\": \"${GITHUB_RUN_ID}\", \"github_run_url\": \"https://github.com/${{ github.repository }}/actions/runs/${GITHUB_RUN_ID}\", \"etapa_atual\": \"login\"}"
-      
       - name: Executar robô de cobrança
         env:
-          # Priorizar inputs dinâmicos sobre secrets fixos (permite múltiplas associações)
-          HINOVA_URL: ${{ github.event.inputs.hinova_url || secrets.HINOVA_URL }}
-          HINOVA_USER: ${{ github.event.inputs.hinova_user || secrets.HINOVA_USER }}
-          HINOVA_PASS: ${{ github.event.inputs.hinova_pass || secrets.HINOVA_PASS }}
-          HINOVA_CODIGO_CLIENTE: ${{ github.event.inputs.hinova_codigo_cliente || secrets.HINOVA_CODIGO_CLIENTE }}
-          HINOVA_LAYOUT: ${{ github.event.inputs.hinova_layout || secrets.HINOVA_LAYOUT }}
-          # Variáveis que sempre vêm de secrets
+          HINOVA_URL: ${{ secrets.HINOVA_URL }}
+          HINOVA_CODIGO_CLIENTE: ${{ secrets.HINOVA_CODIGO_CLIENTE }}
+          HINOVA_USER: ${{ secrets.HINOVA_USER }}
+          HINOVA_PASS: ${{ secrets.HINOVA_PASS }}
+          HINOVA_LAYOUT: ${{ secrets.HINOVA_LAYOUT }}
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
           WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
-          CORRETORA_ID: ${{ github.event.inputs.corretora_id || secrets.CORRETORA_ID }}
-          EXECUCAO_ID: ${{ github.event.inputs.execucao_id }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CORRETORA_ID: ${{ secrets.CORRETORA_ID }}
         run: node scripts/robo-cobranca-hinova.cjs
-      
-      - name: Atualizar status no banco (sucesso)
-        if: ${{ success() && github.event.inputs.execucao_id != '' }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          EXECUCAO_ID: ${{ github.event.inputs.execucao_id }}
-        run: |
-          curl -X PATCH "${SUPABASE_URL}/rest/v1/cobranca_automacao_execucoes?id=eq.${EXECUCAO_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=minimal" \
-            -d "{\"status\": \"sucesso\", \"finalizado_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
-      
-      - name: Atualizar status no banco (erro)
-        if: ${{ failure() && github.event.inputs.execucao_id != '' }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          EXECUCAO_ID: ${{ github.event.inputs.execucao_id }}
-        run: |
-          curl -X PATCH "${SUPABASE_URL}/rest/v1/cobranca_automacao_execucoes?id=eq.${EXECUCAO_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=minimal" \
-            -d "{\"status\": \"erro\", \"erro\": \"Falha na execução do workflow\", \"finalizado_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
       
       - name: Upload screenshots de debug (se houver)
         if: always()

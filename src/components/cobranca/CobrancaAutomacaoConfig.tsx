@@ -5,35 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { 
-  Settings, 
-  Loader2, 
-  Eye, 
-  EyeOff, 
-  RefreshCw, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
-  Square, 
-  Calendar, 
-  FileText, 
-  Github, 
-  History,
-  Zap,
-  Shield,
-  AlertCircle,
-  Filter,
-  MapPin,
-  Car,
-  Users,
-  Plug,
-  Wifi
-} from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock, Play, History, Square, Filter, Calendar, FileText, Info } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import CobrancaAutomacaoLogs from "./CobrancaAutomacaoLogs";
 
@@ -41,6 +22,25 @@ interface CobrancaAutomacaoConfigProps {
   corretoraId: string;
   corretoraNome?: string;
 }
+
+// Situações de boleto disponíveis no Hinova (seção "Situação Boleto")
+const SITUACOES_BOLETO = [
+  { value: "ABERTO", label: "Aberto" },
+  { value: "ABERTO MIGRADO", label: "Aberto Migrado" },
+  { value: "BAIXADO", label: "Baixado" },
+  { value: "BAIXADO C/ PENDÊNCIA", label: "Baixado c/ Pendência" },
+  { value: "BAIXADOS MIGRADOS", label: "Baixados Migrados" },
+  { value: "CANCELADO", label: "Cancelado" },
+];
+
+// Situações padrão marcadas conforme screenshot (sem CANCELADO)
+const SITUACOES_PADRAO = [
+  "ABERTO",
+  "ABERTO MIGRADO", 
+  "BAIXADO",
+  "BAIXADO C/ PENDÊNCIA",
+  "BAIXADOS MIGRADOS"
+];
 
 interface AutomacaoConfig {
   id?: string;
@@ -54,6 +54,7 @@ interface AutomacaoConfig {
   ultima_execucao?: string;
   ultimo_status?: string;
   ultimo_erro?: string;
+  // Novos campos de filtros
   filtro_periodo_tipo: string;
   filtro_data_inicio?: string | null;
   filtro_data_fim?: string | null;
@@ -62,6 +63,7 @@ interface AutomacaoConfig {
   filtro_referencia: string;
 }
 
+// Valores padrão - conforme screenshot do portal Hinova
 const DEFAULT_CONFIG: Omit<AutomacaoConfig, 'corretora_id'> = {
   hinova_url: '',
   hinova_user: '',
@@ -69,21 +71,13 @@ const DEFAULT_CONFIG: Omit<AutomacaoConfig, 'corretora_id'> = {
   hinova_codigo_cliente: '',
   layout_relatorio: '',
   ativo: false,
+  // Filtros padrão conforme screenshot
   filtro_periodo_tipo: 'mes_atual',
   filtro_data_inicio: null,
   filtro_data_fim: null,
-  filtro_situacoes: ["ABERTO", "ABERTO MIGRADO", "BAIXADO", "BAIXADO C/ PENDÊNCIA", "BAIXADOS MIGRADOS"],
-  filtro_boletos_anteriores: 'possui',
+  filtro_situacoes: SITUACOES_PADRAO, // Conforme screenshot (sem CANCELADO)
+  filtro_boletos_anteriores: 'possui', // POSSUI conforme screenshot
   filtro_referencia: 'vencimento_original',
-};
-
-// Regras de filtros fixas aplicadas pelo robô
-const FILTROS_FIXOS = {
-  cooperativa: "TODOS",
-  regional_associado: "TODOS", 
-  situacao_veiculo: "TODOS",
-  vencimento_veiculo: "TODOS",
-  layout: "BI - VANGARD COBRANÇA",
 };
 
 export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: CobrancaAutomacaoConfigProps) {
@@ -95,9 +89,8 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
   const [saving, setSaving] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [stopping, setStopping] = useState(false);
-  const [testingConnection, setTestingConnection] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  const [activeTab, setActiveTab] = useState("config");
 
   useEffect(() => {
     if (corretoraId) {
@@ -117,9 +110,10 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
       if (error) throw error;
 
       if (data) {
+        // Parse JSONB field to array if it's a string
         const situacoes = typeof data.filtro_situacoes === 'string' 
           ? JSON.parse(data.filtro_situacoes) 
-          : (data.filtro_situacoes || DEFAULT_CONFIG.filtro_situacoes);
+          : (data.filtro_situacoes || SITUACOES_PADRAO);
         
         setConfig({
           ...data,
@@ -128,6 +122,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
           filtro_boletos_anteriores: data.filtro_boletos_anteriores || 'possui',
           filtro_referencia: data.filtro_referencia || 'vencimento_original',
         });
+        // Verificar se está executando
         if (data.ultimo_status === 'executando') {
           setExecuting(true);
         }
@@ -137,7 +132,6 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
           corretora_id: corretoraId,
         });
       }
-      setHasChanges(false);
     } catch (error) {
       console.error("Erro ao carregar configuração:", error);
       toast.error("Erro ao carregar configuração de automação");
@@ -152,6 +146,11 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
       return;
     }
 
+    if (config.filtro_situacoes.length === 0) {
+      toast.error("Selecione pelo menos uma situação de boleto");
+      return;
+    }
+
     setSaving(true);
     try {
       const dataToSave = {
@@ -160,8 +159,9 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
         hinova_user: config.hinova_user,
         hinova_pass: config.hinova_pass,
         hinova_codigo_cliente: config.hinova_codigo_cliente,
-        layout_relatorio: config.layout_relatorio || FILTROS_FIXOS.layout,
+        layout_relatorio: config.layout_relatorio,
         ativo: config.ativo,
+        // Filtros
         filtro_periodo_tipo: config.filtro_periodo_tipo,
         filtro_data_inicio: config.filtro_periodo_tipo === 'customizado' ? config.filtro_data_inicio : null,
         filtro_data_fim: config.filtro_periodo_tipo === 'customizado' ? config.filtro_data_fim : null,
@@ -188,7 +188,6 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
         setConfig(prev => ({ ...prev, id: data.id }));
       }
 
-      setHasChanges(false);
       toast.success("Configuração salva com sucesso!");
     } catch (error: any) {
       console.error("Erro ao salvar configuração:", error);
@@ -198,38 +197,36 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
     }
   };
 
-  const handleExecuteGitHub = async () => {
-    if (hasChanges || !config.id) {
-      if (!config.hinova_user || !config.hinova_pass) {
-        toast.error("Configure usuário e senha antes de executar");
-        return;
-      }
-      await handleSave();
+  const handleExecute = async () => {
+    if (!config.id) {
+      toast.error("Salve a configuração antes de executar");
+      return;
     }
 
-    if (!config.id && !hasChanges) {
-      toast.error("Configure a automação antes de executar");
+    if (!config.hinova_user || !config.hinova_pass) {
+      toast.error("Configure usuário e senha antes de executar");
       return;
     }
 
     setExecuting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('disparar-github-workflow', {
-        body: { corretora_id: corretoraId, action: 'start' }
+      const { data, error } = await supabase.functions.invoke('executar-cobranca-hinova', {
+        body: { corretora_id: corretoraId }
       });
 
       if (error) throw error;
 
       if (data?.success) {
-        toast.success("Execução iniciada! Acompanhe o progresso abaixo.");
+        toast.success("Execução iniciada! Acompanhe o status no histórico.");
+        setActiveTab("historico");
         loadConfig();
       } else {
-        toast.error(data?.message || "Erro ao disparar workflow");
+        toast.error(data?.message || "Erro ao executar automação");
         setExecuting(false);
       }
     } catch (error: any) {
-      console.error("Erro ao disparar GitHub Actions:", error);
-      toast.error("Erro ao disparar: " + (error.message || "Erro desconhecido"));
+      console.error("Erro ao executar automação:", error);
+      toast.error("Erro ao executar: " + (error.message || "Erro desconhecido"));
       setExecuting(false);
     }
   };
@@ -239,14 +236,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
 
     setStopping(true);
     try {
-      const { error: githubError } = await supabase.functions.invoke('disparar-github-workflow', {
-        body: { corretora_id: corretoraId, action: 'cancel' }
-      });
-
-      if (githubError) {
-        console.warn("Erro ao cancelar via GitHub:", githubError);
-      }
-
+      // Atualizar status para "parado" no banco
       const { error: updateError } = await supabase
         .from("cobranca_automacao_config")
         .update({
@@ -257,6 +247,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
 
       if (updateError) throw updateError;
 
+      // Buscar a execução em andamento e atualizar
       const { data: execucaoAtual } = await supabase
         .from("cobranca_automacao_execucoes")
         .select("id")
@@ -267,6 +258,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
         .maybeSingle();
 
       if (execucaoAtual) {
+        // Atualizar o registro de execução
         await supabase
           .from("cobranca_automacao_execucoes")
           .update({
@@ -277,6 +269,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
           .eq("id", execucaoAtual.id);
       }
 
+      // Registrar log de auditoria
       const { data: { user } } = await supabase.auth.getUser();
       await supabase.from("bi_audit_logs").insert({
         modulo: "cobranca",
@@ -302,42 +295,16 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
     }
   };
 
-  const updateConfig = (updates: Partial<AutomacaoConfig>) => {
-    setConfig(prev => ({ ...prev, ...updates }));
-    setHasChanges(true);
+  const toggleSituacao = (situacao: string) => {
+    setConfig(prev => {
+      const situacoes = prev.filtro_situacoes.includes(situacao)
+        ? prev.filtro_situacoes.filter(s => s !== situacao)
+        : [...prev.filtro_situacoes, situacao];
+      return { ...prev, filtro_situacoes: situacoes };
+    });
   };
 
-  const handleTestConnection = async () => {
-    if (!config.hinova_url || !config.hinova_user || !config.hinova_pass) {
-      toast.error("Preencha URL, usuário e senha para testar a conexão");
-      return;
-    }
-
-    setTestingConnection(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('testar-hinova-login', {
-        body: { 
-          hinova_url: config.hinova_url,
-          hinova_user: config.hinova_user,
-          hinova_pass: config.hinova_pass,
-        }
-      });
-
-      if (error) throw error;
-
-      if (data?.success) {
-        toast.success(data.message || "Conexão validada com sucesso!");
-      } else {
-        toast.error(data?.message || "Falha na validação da conexão");
-      }
-    } catch (error: any) {
-      console.error("Erro ao testar conexão:", error);
-      toast.error("Erro ao testar: " + (error.message || "Erro desconhecido"));
-    } finally {
-      setTestingConnection(false);
-    }
-  };
-
+  // Calcular período exibido
   const getPeriodoExibicao = () => {
     if (config.filtro_periodo_tipo === 'mes_atual') {
       const hoje = new Date();
@@ -352,140 +319,174 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <Card>
+        <CardContent className="p-6 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
     );
   }
 
   const isExecuting = executing || config.ultimo_status === 'executando';
-  const isConfigured = config.hinova_user && config.hinova_pass;
 
   return (
-    <div className="space-y-6">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-primary/5 via-background to-primary/10">
-        <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,transparent,black)]" />
-        <div className="relative p-6">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Zap className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold">Automação Hinova</h2>
-                  <p className="text-sm text-muted-foreground">{corretoraNome}</p>
-                </div>
-              </div>
-              
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={config.ativo ? "default" : "secondary"} className="gap-1">
-                  {config.ativo ? <CheckCircle className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-                  {config.ativo ? "Ativa" : "Inativa"}
-                </Badge>
-                
-                {isConfigured ? (
-                  <Badge variant="outline" className="gap-1 bg-green-500/10 text-green-700 border-green-500/30">
-                    <Shield className="h-3 w-3" />
-                    Configurada
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="gap-1 bg-orange-500/10 text-orange-700 border-orange-500/30">
-                    <AlertCircle className="h-3 w-3" />
-                    Pendente configuração
-                  </Badge>
-                )}
-
-                {config.ultima_execucao && (
-                  <Badge variant="outline" className="gap-1">
-                    <Clock className="h-3 w-3" />
-                    {format(new Date(config.ultima_execucao), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                  </Badge>
-                )}
-              </div>
-
-              {config.ultimo_erro && config.ultimo_status === 'erro' && (
-                <p className="text-sm text-red-600 bg-red-500/10 rounded-md px-3 py-1.5 inline-flex items-center gap-2">
-                  <XCircle className="h-4 w-4 shrink-0" />
-                  {config.ultimo_erro}
-                </p>
-              )}
+    <div className="space-y-4">
+      {/* Header com status e ações */}
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5 text-primary" />
+                Automação Hinova
+              </CardTitle>
+              <CardDescription className="mt-1">
+                {corretoraNome}
+              </CardDescription>
             </div>
-
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 mr-2">
-                <Label htmlFor="ativo-switch" className="text-sm font-medium">Automação</Label>
-                <Switch
-                  id="ativo-switch"
-                  checked={config.ativo}
-                  onCheckedChange={(checked) => updateConfig({ ativo: checked })}
-                />
-              </div>
-              
-              <Button variant="outline" size="sm" onClick={loadConfig} disabled={saving || stopping}>
-                <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-              </Button>
-
-              {isExecuting ? (
-                <Button 
-                  variant="destructive"
-                  onClick={handleStop} 
-                  disabled={stopping}
-                  className="gap-2"
-                >
-                  {stopping ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Parando...
-                    </>
-                  ) : (
-                    <>
-                      <Square className="h-4 w-4" />
-                      Parar Execução
-                    </>
-                  )}
-                </Button>
-              ) : (
-                <Button 
-                  onClick={handleExecuteGitHub} 
-                  disabled={saving || !isConfigured}
-                  className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
-                >
-                  <Github className="h-4 w-4" />
-                  Executar Agora
-                </Button>
-              )}
+            <div className="flex items-center gap-2">
+              <Label htmlFor="ativo-switch" className="text-sm">Ativa</Label>
+              <Switch
+                id="ativo-switch"
+                checked={config.ativo}
+                onCheckedChange={(checked) => setConfig(prev => ({ ...prev, ativo: checked }))}
+              />
             </div>
           </div>
-        </div>
-      </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {/* Status da última execução */}
+          {config.ultima_execucao && (
+            <div className={`p-3 rounded-lg border mb-4 ${
+              config.ultimo_status === 'sucesso' 
+                ? 'bg-green-500/10 border-green-500/30' 
+                : config.ultimo_status === 'erro'
+                ? 'bg-red-500/10 border-red-500/30'
+                : config.ultimo_status === 'executando'
+                ? 'bg-yellow-500/10 border-yellow-500/30'
+                : config.ultimo_status === 'parado'
+                ? 'bg-orange-500/10 border-orange-500/30'
+                : 'bg-muted border-border'
+            }`}>
+              <div className="flex items-center gap-3">
+                {config.ultimo_status === 'sucesso' ? (
+                  <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                ) : config.ultimo_status === 'erro' ? (
+                  <XCircle className="h-4 w-4 text-red-600 shrink-0" />
+                ) : config.ultimo_status === 'executando' ? (
+                  <Loader2 className="h-4 w-4 text-yellow-600 animate-spin shrink-0" />
+                ) : config.ultimo_status === 'parado' ? (
+                  <Square className="h-4 w-4 text-orange-600 shrink-0" />
+                ) : (
+                  <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm">
+                    <span className="font-medium">Última execução:</span>{" "}
+                    {format(new Date(config.ultima_execucao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    {config.ultimo_status === 'executando' && (
+                      <span className="ml-2 text-yellow-600">(em andamento)</span>
+                    )}
+                    {config.ultimo_status === 'parado' && (
+                      <span className="ml-2 text-orange-600">(interrompida)</span>
+                    )}
+                  </p>
+                  {config.ultimo_erro && (
+                    <p className="text-xs text-red-600 mt-1 truncate">{config.ultimo_erro}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
-      {/* Content Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Left Column - Credentials & Filters */}
-        <div className="xl:col-span-2 space-y-6">
+          {/* Botões de ação em linha */}
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={loadConfig} disabled={saving || stopping}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Recarregar
+            </Button>
+            
+            {isExecuting ? (
+              <Button 
+                variant="destructive" 
+                size="sm"
+                onClick={handleStop} 
+                disabled={stopping}
+              >
+                {stopping ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Parando...
+                  </>
+                ) : (
+                  <>
+                    <Square className="h-4 w-4 mr-2" />
+                    Parar Execução
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button 
+                variant="secondary" 
+                size="sm"
+                onClick={handleExecute} 
+                disabled={saving || !config.id}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Executar Agora
+              </Button>
+            )}
+            
+            <Button size="sm" onClick={handleSave} disabled={saving || isExecuting}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Salvar
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabs: Configuração, Filtros e Histórico */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="config" className="gap-2">
+            <Settings className="h-4 w-4" />
+            Acesso
+          </TabsTrigger>
+          <TabsTrigger value="filtros" className="gap-2">
+            <Filter className="h-4 w-4" />
+            Filtros
+          </TabsTrigger>
+          <TabsTrigger value="historico" className="gap-2">
+            <History className="h-4 w-4" />
+            Histórico
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="config" className="mt-4">
           <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="h-4 w-4 text-primary" />
-                Credenciais de Acesso
-              </CardTitle>
-              <CardDescription>
-                Configure as credenciais para acessar o portal Hinova
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="pt-6 space-y-6">
+              {/* Configurações de acesso */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2 space-y-2">
-                  <Label htmlFor="hinova-url">URL do Portal</Label>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="hinova-url">URL do Portal Hinova</Label>
                   <Input
                     id="hinova-url"
                     value={config.hinova_url}
-                    onChange={(e) => updateConfig({ hinova_url: e.target.value })}
+                    onChange={(e) => setConfig(prev => ({ ...prev, hinova_url: e.target.value }))}
                     placeholder="https://eris.hinova.com.br/..."
-                    className="font-mono text-sm"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    URL completa da página de login do portal
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -493,18 +494,8 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                   <Input
                     id="hinova-codigo"
                     value={config.hinova_codigo_cliente}
-                    onChange={(e) => updateConfig({ hinova_codigo_cliente: e.target.value })}
+                    onChange={(e) => setConfig(prev => ({ ...prev, hinova_codigo_cliente: e.target.value }))}
                     placeholder="Ex: 2363"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="layout-relatorio">Layout do Relatório</Label>
-                  <Input
-                    id="layout-relatorio"
-                    value={config.layout_relatorio || FILTROS_FIXOS.layout}
-                    onChange={(e) => updateConfig({ layout_relatorio: e.target.value })}
-                    placeholder="Ex: BI - Vangard Cobrança"
                   />
                 </div>
 
@@ -513,7 +504,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                   <Input
                     id="hinova-user"
                     value={config.hinova_user}
-                    onChange={(e) => updateConfig({ hinova_user: e.target.value })}
+                    onChange={(e) => setConfig(prev => ({ ...prev, hinova_user: e.target.value }))}
                     placeholder="usuario@email.com"
                   />
                 </div>
@@ -525,7 +516,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                       id="hinova-pass"
                       type={showPassword ? "text" : "password"}
                       value={config.hinova_pass}
-                      onChange={(e) => updateConfig({ hinova_pass: e.target.value })}
+                      onChange={(e) => setConfig(prev => ({ ...prev, hinova_pass: e.target.value }))}
                       placeholder="••••••••"
                       className="pr-10"
                     />
@@ -544,170 +535,251 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                     </Button>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center justify-between pt-2 border-t">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleTestConnection}
-                  disabled={testingConnection || !config.hinova_url || !config.hinova_user || !config.hinova_pass}
-                  className="gap-2"
-                >
-                  {testingConnection ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Testando...
-                    </>
-                  ) : (
-                    <>
-                      <Wifi className="h-4 w-4" />
-                      Testar Conexão
-                    </>
-                  )}
-                </Button>
-
-                {hasChanges && (
-                  <Button onClick={handleSave} disabled={saving} size="sm" className="gap-2">
-                    {saving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Salvando...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-4 w-4" />
-                        Salvar Alterações
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Filtros Ativos - Somente Leitura */}
-          <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Filter className="h-4 w-4 text-primary" />
-                Filtros Aplicados na Extração
-              </CardTitle>
-              <CardDescription>
-                Regras de filtros que serão aplicadas automaticamente pelo robô
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Período */}
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-background/50">
-                <Calendar className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Data Vencimento Original</p>
-                  <p className="text-sm text-muted-foreground">{getPeriodoExibicao()}</p>
-                </div>
-                <Badge variant="secondary" className="text-xs">Dinâmico</Badge>
-              </div>
-
-              {/* Layout */}
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-background/50">
-                <FileText className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Layout do Relatório</p>
-                  <p className="text-sm text-muted-foreground">{config.layout_relatorio || FILTROS_FIXOS.layout}</p>
-                </div>
-                <Badge variant="secondary" className="text-xs">Obrigatório</Badge>
-              </div>
-
-              {/* Situação Boleto */}
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-background/50">
-                <FileText className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Situação Boleto</p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {config.filtro_situacoes.map(sit => (
-                      <Badge key={sit} variant="outline" className="text-xs bg-green-500/10 text-green-700 border-green-500/30">
-                        {sit}
-                      </Badge>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    CANCELADO é excluído automaticamente
+                <div className="space-y-2">
+                  <Label htmlFor="layout-relatorio">Layout do Relatório</Label>
+                  <Input
+                    id="layout-relatorio"
+                    value={config.layout_relatorio}
+                    onChange={(e) => setConfig(prev => ({ ...prev, layout_relatorio: e.target.value }))}
+                    placeholder="Ex: BI - Vangard Cobrança"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Nome exato do layout a ser selecionado
                   </p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-              <Separator />
-
-              {/* Filtros Fixos (sempre TODOS) */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50">
-                  <Users className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Cooperativa</p>
-                    <p className="text-sm font-medium">{FILTROS_FIXOS.cooperativa}</p>
-                  </div>
+        <TabsContent value="filtros" className="mt-4 space-y-4">
+          {/* Card de Resumo dos Filtros Ativos */}
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Filter className="h-4 w-4 text-primary" />
+                Filtros Ativos
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Período:</span>
+                  <span className="font-medium">{getPeriodoExibicao()}</span>
                 </div>
-
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50">
-                  <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Regional Associado</p>
-                    <p className="text-sm font-medium">{FILTROS_FIXOS.regional_associado}</p>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Situações:</span>
+                  <span className="font-medium">
+                    {config.filtro_situacoes.length > 0 
+                      ? config.filtro_situacoes.join(', ') 
+                      : 'Nenhuma selecionada'}
+                  </span>
                 </div>
-
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50">
-                  <Car className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Situação Veículo</p>
-                    <p className="text-sm font-medium">{FILTROS_FIXOS.situacao_veiculo}</p>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Boletos Anteriores:</span>
+                  <span className="font-medium">
+                    {config.filtro_boletos_anteriores === 'nao_possui' ? 'Não possui' 
+                     : config.filtro_boletos_anteriores === 'possui' ? 'Possui' : 'Todos'}
+                  </span>
                 </div>
-
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50">
-                  <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Vencimento Veículo</p>
-                    <p className="text-sm font-medium">{FILTROS_FIXOS.vencimento_veiculo}</p>
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Outros Filtros */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50">
-                  <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Boletos Anteriores</p>
-                    <p className="text-sm font-medium">
-                      {config.filtro_boletos_anteriores === 'nao_possui' ? 'NÃO POSSUI' 
-                       : config.filtro_boletos_anteriores === 'possui' ? 'POSSUI' : 'TODOS'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50">
-                  <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Referência</p>
-                    <p className="text-sm font-medium">
-                      {config.filtro_referencia === 'vencimento_original' ? 'VENCIMENTO ORIGINAL' : 'DATA PAGAMENTO'}
-                    </p>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Referência:</span>
+                  <span className="font-medium">
+                    {config.filtro_referencia === 'vencimento_original' ? 'Vencimento Original' : 'Data Pagamento'}
+                  </span>
                 </div>
               </div>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Right Column - History */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-2 mb-3">
-            <History className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">Histórico de Execuções</h3>
-          </div>
+          {/* Configurações de Filtros */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Configurar Filtros do Relatório</CardTitle>
+              <CardDescription>
+                Defina os filtros que serão aplicados ao extrair o relatório do Hinova
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Período de Vencimento */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Período de Vencimento Original
+                </Label>
+                <RadioGroup
+                  value={config.filtro_periodo_tipo}
+                  onValueChange={(value) => setConfig(prev => ({ ...prev, filtro_periodo_tipo: value }))}
+                  className="space-y-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="mes_atual" id="mes_atual" />
+                    <Label htmlFor="mes_atual" className="font-normal cursor-pointer">
+                      Mês atual ({format(startOfMonth(new Date()), 'dd/MM')} - {format(endOfMonth(new Date()), 'dd/MM')})
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="customizado" id="customizado" />
+                    <Label htmlFor="customizado" className="font-normal cursor-pointer">
+                      Período customizado
+                    </Label>
+                  </div>
+                </RadioGroup>
+
+                {config.filtro_periodo_tipo === 'customizado' && (
+                  <div className="flex flex-wrap gap-4 mt-3 pl-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm text-muted-foreground">Data Início</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-[180px] justify-start text-left font-normal",
+                              !config.filtro_data_inicio && "text-muted-foreground"
+                            )}
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            {config.filtro_data_inicio 
+                              ? format(new Date(config.filtro_data_inicio), "dd/MM/yyyy")
+                              : "Selecionar"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={config.filtro_data_inicio ? new Date(config.filtro_data_inicio) : undefined}
+                            onSelect={(date) => setConfig(prev => ({ 
+                              ...prev, 
+                              filtro_data_inicio: date ? format(date, 'yyyy-MM-dd') : null 
+                            }))}
+                            initialFocus
+                            className="pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm text-muted-foreground">Data Fim</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-[180px] justify-start text-left font-normal",
+                              !config.filtro_data_fim && "text-muted-foreground"
+                            )}
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            {config.filtro_data_fim 
+                              ? format(new Date(config.filtro_data_fim), "dd/MM/yyyy")
+                              : "Selecionar"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={config.filtro_data_fim ? new Date(config.filtro_data_fim) : undefined}
+                            onSelect={(date) => setConfig(prev => ({ 
+                              ...prev, 
+                              filtro_data_fim: date ? format(date, 'yyyy-MM-dd') : null 
+                            }))}
+                            initialFocus
+                            className="pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Situação do Boleto */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Situação do Boleto
+                </Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {SITUACOES_BOLETO.map((situacao) => (
+                    <div key={situacao.value} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`situacao-${situacao.value}`}
+                        checked={config.filtro_situacoes.includes(situacao.value)}
+                        onCheckedChange={() => toggleSituacao(situacao.value)}
+                      />
+                      <Label 
+                        htmlFor={`situacao-${situacao.value}`} 
+                        className="font-normal cursor-pointer text-sm"
+                      >
+                        {situacao.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Selecione as situações de boleto que deseja incluir no relatório
+                </p>
+              </div>
+
+              {/* Boletos Anteriores */}
+              <div className="space-y-3">
+                <Label htmlFor="boletos-anteriores">Boletos Anteriores</Label>
+                <Select
+                  value={config.filtro_boletos_anteriores}
+                  onValueChange={(value) => setConfig(prev => ({ ...prev, filtro_boletos_anteriores: value }))}
+                >
+                  <SelectTrigger className="w-full sm:w-[280px]">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nao_possui">NÃO POSSUI</SelectItem>
+                    <SelectItem value="possui">POSSUI</SelectItem>
+                    <SelectItem value="todos">TODOS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Referência */}
+              <div className="space-y-3">
+                <Label htmlFor="referencia">Referência</Label>
+                <Select
+                  value={config.filtro_referencia}
+                  onValueChange={(value) => setConfig(prev => ({ ...prev, filtro_referencia: value }))}
+                >
+                  <SelectTrigger className="w-full sm:w-[280px]">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="vencimento_original">VENCIMENTO ORIGINAL</SelectItem>
+                    <SelectItem value="data_pagamento">DATA PAGAMENTO</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Info sobre automação */}
+              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <h4 className="font-medium text-blue-700 mb-2 flex items-center gap-2">
+                  <Info className="h-4 w-4" />
+                  Sobre os Filtros
+                </h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• Os filtros serão aplicados no portal Hinova antes de gerar o relatório</li>
+                  <li>• Filtros mais específicos resultam em arquivos menores e processamento mais rápido</li>
+                  <li>• A automação marcará apenas os checkboxes selecionados</li>
+                  <li>• Filtros regionais e por cooperativa são marcados automaticamente pelo portal</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="historico" className="mt-4">
           {config.id ? (
             <CobrancaAutomacaoLogs 
               configId={config.id} 
@@ -716,13 +788,13 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
           ) : (
             <Card>
               <CardContent className="p-6 text-center text-muted-foreground">
-                <History className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Salve a configuração para ver o histórico</p>
+                <History className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                <p>Salve a configuração para ver o histórico de execuções</p>
               </CardContent>
             </Card>
           )}
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
