@@ -6,16 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock, Play, History, Square, Filter, Calendar, FileText, Info, Github, StopCircle } from "lucide-react";
+import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock, History, Square, Filter, Calendar, FileText, Info, Github } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import CobrancaAutomacaoLogs from "./CobrancaAutomacaoLogs";
 
 interface CobrancaAutomacaoConfigProps {
@@ -104,6 +99,44 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
     }
   }, [corretoraId]);
 
+  // Subscrição realtime para atualizações de status
+  useEffect(() => {
+    if (!config.id) return;
+
+    const channel = supabase
+      .channel(`automacao-config-${config.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'cobranca_automacao_config',
+          filter: `id=eq.${config.id}`,
+        },
+        (payload) => {
+          const newData = payload.new as any;
+          // Atualizar config localmente sem refetch completo
+          setConfig(prev => ({
+            ...prev,
+            ultimo_status: newData.ultimo_status,
+            ultima_execucao: newData.ultima_execucao,
+            ultimo_erro: newData.ultimo_erro,
+          }));
+          
+          // Atualizar estado de execução
+          if (newData.ultimo_status !== 'executando') {
+            setExecuting(false);
+            setCurrentExecution(null);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [config.id]);
+
   const loadConfig = async () => {
     setLoading(true);
     try {
@@ -128,30 +161,37 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
           filtro_boletos_anteriores: data.filtro_boletos_anteriores || 'possui',
           filtro_referencia: data.filtro_referencia || 'vencimento_original',
         });
-        // Verificar se está executando
-        if (data.ultimo_status === 'executando') {
+        
+        // Verificar se está executando baseado na execução real, não apenas no config
+        const { data: execAtual } = await supabase
+          .from("cobranca_automacao_execucoes")
+          .select("id, github_run_id, status")
+          .eq("config_id", data.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (execAtual && execAtual.status === 'executando') {
           setExecuting(true);
-          // Buscar execução atual para obter o github_run_id
-          const { data: execAtual } = await supabase
-            .from("cobranca_automacao_execucoes")
-            .select("id, github_run_id")
-            .eq("config_id", data.id)
-            .eq("status", "executando")
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
-          if (execAtual) {
-            setCurrentExecution(execAtual);
-          }
+          setCurrentExecution({ id: execAtual.id, github_run_id: execAtual.github_run_id });
         } else {
+          setExecuting(false);
           setCurrentExecution(null);
+          // Corrigir config se estiver desincronizado
+          if (data.ultimo_status === 'executando' && (!execAtual || execAtual.status !== 'executando')) {
+            await supabase
+              .from("cobranca_automacao_config")
+              .update({ ultimo_status: execAtual?.status || 'erro' })
+              .eq("id", data.id);
+          }
         }
       } else {
         setConfig({
           ...DEFAULT_CONFIG,
           corretora_id: corretoraId,
         });
+        setExecuting(false);
+        setCurrentExecution(null);
       }
     } catch (error) {
       console.error("Erro ao carregar configuração:", error);
@@ -335,14 +375,6 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
     }
   };
 
-  const toggleSituacao = (situacao: string) => {
-    setConfig(prev => {
-      const situacoes = prev.filtro_situacoes.includes(situacao)
-        ? prev.filtro_situacoes.filter(s => s !== situacao)
-        : [...prev.filtro_situacoes, situacao];
-      return { ...prev, filtro_situacoes: situacoes };
-    });
-  };
 
   // Calcular período exibido
   const getPeriodoExibicao = () => {
@@ -501,16 +533,12 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
         </CardContent>
       </Card>
 
-      {/* Tabs: Configuração, Filtros e Histórico */}
+      {/* Tabs: Configuração e Histórico */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="config" className="gap-2">
             <Settings className="h-4 w-4" />
-            Acesso
-          </TabsTrigger>
-          <TabsTrigger value="filtros" className="gap-2">
-            <Filter className="h-4 w-4" />
-            Filtros
+            Configuração
           </TabsTrigger>
           <TabsTrigger value="historico" className="gap-2">
             <History className="h-4 w-4" />
@@ -518,10 +546,13 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="config" className="mt-4">
+        <TabsContent value="config" className="mt-4 space-y-4">
+          {/* Card de Acesso */}
           <Card>
-            <CardContent className="pt-6 space-y-6">
-              {/* Configurações de acesso */}
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Credenciais de Acesso</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="hinova-url">URL do Portal Hinova</Label>
@@ -598,229 +629,77 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="filtros" className="mt-4 space-y-4">
-          {/* Card de Resumo dos Filtros Ativos */}
+          {/* Card de Filtros Ativos (somente leitura) */}
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Filter className="h-4 w-4 text-primary" />
-                Filtros Ativos
+                Filtros Aplicados na Extração
               </CardTitle>
+              <CardDescription>
+                Filtros fixos configurados para a extração do relatório Hinova
+              </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Período:</span>
-                  <span className="font-medium">{getPeriodoExibicao()}</span>
+              <div className="space-y-3">
+                {/* Período */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 p-2 rounded-md bg-background/50">
+                  <div className="flex items-center gap-2 min-w-[140px]">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">Período:</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">{getPeriodoExibicao()}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Situações:</span>
-                  <span className="font-medium">
-                    {config.filtro_situacoes.length > 0 
-                      ? config.filtro_situacoes.join(', ') 
-                      : 'Nenhuma selecionada'}
-                  </span>
+
+                {/* Situações */}
+                <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 p-2 rounded-md bg-background/50">
+                  <div className="flex items-center gap-2 min-w-[140px]">
+                    <FileText className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">Situações:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {config.filtro_situacoes.map((sit) => (
+                      <span key={sit} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                        {sit}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Info className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Boletos Anteriores:</span>
-                  <span className="font-medium">
+
+                {/* Boletos Anteriores */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 p-2 rounded-md bg-background/50">
+                  <div className="flex items-center gap-2 min-w-[140px]">
+                    <Info className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">Boletos Anteriores:</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
                     {config.filtro_boletos_anteriores === 'nao_possui' ? 'Não possui' 
                      : config.filtro_boletos_anteriores === 'possui' ? 'Possui' : 'Todos'}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Info className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Referência:</span>
-                  <span className="font-medium">
+
+                {/* Referência */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 p-2 rounded-md bg-background/50">
+                  <div className="flex items-center gap-2 min-w-[140px]">
+                    <Clock className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">Referência:</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
                     {config.filtro_referencia === 'vencimento_original' ? 'Vencimento Original' : 'Data Pagamento'}
                   </span>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Configurações de Filtros */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Configurar Filtros do Relatório</CardTitle>
-              <CardDescription>
-                Defina os filtros que serão aplicados ao extrair o relatório do Hinova
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Período de Vencimento */}
-              <div className="space-y-3">
-                <Label className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Período de Vencimento Original
-                </Label>
-                <RadioGroup
-                  value={config.filtro_periodo_tipo}
-                  onValueChange={(value) => setConfig(prev => ({ ...prev, filtro_periodo_tipo: value }))}
-                  className="space-y-2"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="mes_atual" id="mes_atual" />
-                    <Label htmlFor="mes_atual" className="font-normal cursor-pointer">
-                      Mês atual ({format(startOfMonth(new Date()), 'dd/MM')} - {format(endOfMonth(new Date()), 'dd/MM')})
-                    </Label>
+                {/* Filtros Fixos */}
+                <div className="mt-3 pt-3 border-t border-border/50">
+                  <p className="text-xs text-muted-foreground mb-2">Filtros fixos (aplicados automaticamente):</p>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground">Cooperativa: TODOS</span>
+                    <span className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground">Regional: TODOS</span>
+                    <span className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground">Situação Veículo: TODOS</span>
+                    <span className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground">Vencimento Veículo: TODOS</span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="customizado" id="customizado" />
-                    <Label htmlFor="customizado" className="font-normal cursor-pointer">
-                      Período customizado
-                    </Label>
-                  </div>
-                </RadioGroup>
-
-                {config.filtro_periodo_tipo === 'customizado' && (
-                  <div className="flex flex-wrap gap-4 mt-3 pl-6">
-                    <div className="space-y-2">
-                      <Label className="text-sm text-muted-foreground">Data Início</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-[180px] justify-start text-left font-normal",
-                              !config.filtro_data_inicio && "text-muted-foreground"
-                            )}
-                          >
-                            <Calendar className="mr-2 h-4 w-4" />
-                            {config.filtro_data_inicio 
-                              ? format(new Date(config.filtro_data_inicio), "dd/MM/yyyy")
-                              : "Selecionar"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <CalendarComponent
-                            mode="single"
-                            selected={config.filtro_data_inicio ? new Date(config.filtro_data_inicio) : undefined}
-                            onSelect={(date) => setConfig(prev => ({ 
-                              ...prev, 
-                              filtro_data_inicio: date ? format(date, 'yyyy-MM-dd') : null 
-                            }))}
-                            initialFocus
-                            className="pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm text-muted-foreground">Data Fim</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-[180px] justify-start text-left font-normal",
-                              !config.filtro_data_fim && "text-muted-foreground"
-                            )}
-                          >
-                            <Calendar className="mr-2 h-4 w-4" />
-                            {config.filtro_data_fim 
-                              ? format(new Date(config.filtro_data_fim), "dd/MM/yyyy")
-                              : "Selecionar"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <CalendarComponent
-                            mode="single"
-                            selected={config.filtro_data_fim ? new Date(config.filtro_data_fim) : undefined}
-                            onSelect={(date) => setConfig(prev => ({ 
-                              ...prev, 
-                              filtro_data_fim: date ? format(date, 'yyyy-MM-dd') : null 
-                            }))}
-                            initialFocus
-                            className="pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Situação do Boleto */}
-              <div className="space-y-3">
-                <Label className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Situação do Boleto
-                </Label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {SITUACOES_BOLETO.map((situacao) => (
-                    <div key={situacao.value} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`situacao-${situacao.value}`}
-                        checked={config.filtro_situacoes.includes(situacao.value)}
-                        onCheckedChange={() => toggleSituacao(situacao.value)}
-                      />
-                      <Label 
-                        htmlFor={`situacao-${situacao.value}`} 
-                        className="font-normal cursor-pointer text-sm"
-                      >
-                        {situacao.label}
-                      </Label>
-                    </div>
-                  ))}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Selecione as situações de boleto que deseja incluir no relatório
-                </p>
-              </div>
-
-              {/* Boletos Anteriores */}
-              <div className="space-y-3">
-                <Label htmlFor="boletos-anteriores">Boletos Anteriores</Label>
-                <Select
-                  value={config.filtro_boletos_anteriores}
-                  onValueChange={(value) => setConfig(prev => ({ ...prev, filtro_boletos_anteriores: value }))}
-                >
-                  <SelectTrigger className="w-full sm:w-[280px]">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="nao_possui">NÃO POSSUI</SelectItem>
-                    <SelectItem value="possui">POSSUI</SelectItem>
-                    <SelectItem value="todos">TODOS</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Referência */}
-              <div className="space-y-3">
-                <Label htmlFor="referencia">Referência</Label>
-                <Select
-                  value={config.filtro_referencia}
-                  onValueChange={(value) => setConfig(prev => ({ ...prev, filtro_referencia: value }))}
-                >
-                  <SelectTrigger className="w-full sm:w-[280px]">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="vencimento_original">VENCIMENTO ORIGINAL</SelectItem>
-                    <SelectItem value="data_pagamento">DATA PAGAMENTO</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Info sobre automação */}
-              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <h4 className="font-medium text-blue-700 mb-2 flex items-center gap-2">
-                  <Info className="h-4 w-4" />
-                  Sobre os Filtros
-                </h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Os filtros serão aplicados no portal Hinova antes de gerar o relatório</li>
-                  <li>• Filtros mais específicos resultam em arquivos menores e processamento mais rápido</li>
-                  <li>• A automação marcará apenas os checkboxes selecionados</li>
-                  <li>• Filtros regionais e por cooperativa são marcados automaticamente pelo portal</li>
-                </ul>
               </div>
             </CardContent>
           </Card>
