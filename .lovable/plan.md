@@ -1,207 +1,244 @@
 
+# Plano: Correção do Preenchimento de "Data Vencimento Original" na Automação Hinova
 
-# Plano: Credenciais Dinâmicas por Associação na Automação Hinova
+## Diagnóstico do Problema
 
-## Contexto
+O robô de automação está falhando ao tentar preencher os campos de "Data Vencimento Original" no portal Hinova, com o erro:
+```
+[ERROR] Campo Data Vencimento Original não encontrado - verifique a estrutura do formulário
+```
 
-Atualmente, a automação Hinova usa credenciais fixas armazenadas como **Secrets do GitHub** (HINOVA_URL, HINOVA_USER, HINOVA_PASS, etc.). Isso impede que múltiplas associações usem portais Hinova diferentes, como:
-- `https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php` (atual)
-- `https://sga.hinova.com.br/sga/sgav4_asspas/v5/login.php` (sua nova)
+### Análise da Screenshot do Portal
+A screenshot mostra a estrutura do formulário com:
+- Label "Data Vencimento Original:" na coluna da esquerda
+- Dois campos de input separados por "à" (início e fim)
+- Estrutura de tabela HTML tradicional
+
+### Problema no Código Atual
+O código em `scripts/robo-cobranca-hinova.cjs` (linhas 3093-3188) usa duas estratégias:
+
+1. **Busca por label exato** - Procura elementos com texto `'Data Vencimento Original:'` e depois busca inputs na mesma linha `<tr>`
+2. **Fallback por name** - Tenta encontrar inputs por nomes específicos (`dt_vencimento_original_ini`, etc.)
+
+**O problema**: Ambas as estratégias estão falhando porque:
+- A estrutura HTML do portal pode ter o label em uma TD e os inputs em TDs separadas na mesma linha
+- O texto pode ter espaços extras ou caracteres não visíveis
+- Os inputs podem não ter os `name` esperados
+
+---
 
 ## Solução Proposta
 
-Modificar o fluxo para que as credenciais sejam buscadas **dinamicamente do banco de dados** com base no `corretora_id`, permitindo configuração independente por associação.
+### Estratégia Multi-Camada de Busca
 
----
-
-## Arquitetura Atual vs. Nova
+Implementar 5 estratégias de busca em cascata, da mais específica para a mais genérica:
 
 ```text
-ATUAL:
-┌────────────────┐     ┌─────────────────┐     ┌────────────────┐
-│  Interface     │────▶│ Edge Function   │────▶│ GitHub Actions │
-│ (UI Config)    │     │ disparar-github │     │ (Secrets fixos)│
-└────────────────┘     └─────────────────┘     └────────────────┘
-                               │                       │
-                               ▼                       ▼
-                        Passa apenas:           Usa secrets:
-                        - corretora_id          - HINOVA_URL
-                        - execucao_id           - HINOVA_USER
-                                                - HINOVA_PASS
-                                                - HINOVA_LAYOUT
-```
-
-```text
-NOVA (proposta):
-┌────────────────┐     ┌─────────────────┐     ┌────────────────┐
-│  Interface     │────▶│ Edge Function   │────▶│ GitHub Actions │
-│ (UI Config)    │     │ disparar-github │     │ (Inputs dinâm) │
-└────────────────┘     └─────────────────┘     └────────────────┘
-       │                       │                       │
-       ▼                       ▼                       ▼
-  Salva no DB:          Busca do DB e            Recebe inputs:
-  - hinova_url          passa como inputs:       - hinova_url
-  - hinova_user         - hinova_url             - hinova_user
-  - hinova_pass         - hinova_user            - hinova_pass
-  - hinova_layout       - hinova_pass            - hinova_layout
-                        - hinova_layout
+┌─────────────────────────────────────────────────────────────────┐
+│                   ESTRATÉGIAS DE BUSCA                          │
+├─────────────────────────────────────────────────────────────────┤
+│ 1. Busca por label exato na mesma TR                            │
+│    └─> Encontra "Data Vencimento Original:" e busca inputs      │
+│        na mesma linha <tr>                                      │
+│                                                                 │
+│ 2. Busca por label com texto parcial (contains)                 │
+│    └─> Procura elementos que CONTENHAM "vencimento original"    │
+│        (case-insensitive, sem acentos)                          │
+│                                                                 │
+│ 3. Busca em TRs adjacentes                                      │
+│    └─> Label pode estar em uma TR e inputs na próxima TR        │
+│                                                                 │
+│ 4. Busca por placeholder/title dos inputs                       │
+│    └─> Inputs podem ter atributos como placeholder="dd/mm/yyyy" │
+│                                                                 │
+│ 5. Busca por padrão de data (inputs com máscara de data)        │
+│    └─> Encontra pares de inputs com formato de data que         │
+│        estejam entre campos conhecidos                          │
+│                                                                 │
+│ 6. Fallback por name/id parcial                                 │
+│    └─> input[name*="venc"][name*="orig"]                        │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Etapas de Implementação
+## Alterações no Código
 
-### 1. Atualizar Workflow do GitHub
+### Arquivo: `scripts/robo-cobranca-hinova.cjs`
 
-**Arquivo:** `.github/workflows/cobranca-hinova.yml`
+**Seção a ser modificada**: Linhas 3093-3201
 
-Adicionar novos inputs para receber credenciais dinamicamente:
-
-```yaml
-workflow_dispatch:
-  inputs:
-    corretora_id:
-      description: 'ID da associação'
-      required: false
-    execucao_id:
-      description: 'ID do registro de execução'
-      required: false
-    hinova_url:
-      description: 'URL do portal Hinova'
-      required: false
-    hinova_user:
-      description: 'Usuário do portal'
-      required: false
-    hinova_pass:
-      description: 'Senha do portal'
-      required: false
-    hinova_codigo_cliente:
-      description: 'Código do cliente'
-      required: false
-    hinova_layout:
-      description: 'Layout do relatório'
-      required: false
+```javascript
+// NOVA IMPLEMENTAÇÃO - Preenchimento robusto de Data Vencimento Original
+const preencheuDatas = await page.evaluate(({ inicio, fim }) => {
+  const resultado = { sucesso: false, detalhes: [], inputsEncontrados: [] };
+  
+  // Função para normalizar texto (remover acentos, lowercase, trim)
+  const normalizar = (texto) => {
+    return (texto || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+  
+  // Função para preencher inputs
+  const preencherInputs = (inputIni, inputFim, origem) => {
+    try {
+      inputIni.value = inicio;
+      inputIni.dispatchEvent(new Event('input', { bubbles: true }));
+      inputIni.dispatchEvent(new Event('change', { bubbles: true }));
+      
+      inputFim.value = fim;
+      inputFim.dispatchEvent(new Event('input', { bubbles: true }));
+      inputFim.dispatchEvent(new Event('change', { bubbles: true }));
+      
+      resultado.sucesso = true;
+      resultado.detalhes.push(`✅ Preenchido via ${origem}`);
+      resultado.inputsEncontrados.push({
+        ini: { name: inputIni.name, id: inputIni.id },
+        fim: { name: inputFim.name, id: inputFim.id }
+      });
+      return true;
+    } catch (e) {
+      resultado.detalhes.push(`Erro ao preencher: ${e.message}`);
+      return false;
+    }
+  };
+  
+  // ESTRATÉGIA 1: Busca por texto exato/parcial em TDs
+  const termosBusca = [
+    'Data Vencimento Original:',
+    'Data Vencimento Original',
+    'Vencimento Original:',
+    'Vencimento Original'
+  ];
+  
+  const tds = document.querySelectorAll('td, th');
+  
+  for (const td of tds) {
+    const textoNorm = normalizar(td.textContent || '');
+    
+    const encontrou = termosBusca.some(termo => 
+      textoNorm === normalizar(termo) || 
+      textoNorm.includes(normalizar('vencimento original'))
+    );
+    
+    if (!encontrou) continue;
+    
+    resultado.detalhes.push(`Label encontrado: "${td.textContent?.trim().substring(0, 50)}"`);
+    
+    // Buscar TR pai
+    const tr = td.closest('tr');
+    if (tr) {
+      const inputs = tr.querySelectorAll('input[type="text"], input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"])');
+      resultado.detalhes.push(`Inputs na TR: ${inputs.length}`);
+      
+      if (inputs.length >= 2) {
+        if (preencherInputs(inputs[0], inputs[1], 'TR direta')) return resultado;
+      }
+      
+      // Tentar TR seguinte (inputs podem estar na próxima linha)
+      const nextTr = tr.nextElementSibling;
+      if (nextTr && nextTr.tagName === 'TR') {
+        const nextInputs = nextTr.querySelectorAll('input[type="text"], input:not([type="hidden"]):not([type="checkbox"])');
+        if (nextInputs.length >= 2) {
+          if (preencherInputs(nextInputs[0], nextInputs[1], 'TR seguinte')) return resultado;
+        }
+      }
+    }
+    
+    // Tentar no próprio TD ou TD irmãs
+    const tdsIrmas = td.parentElement?.querySelectorAll('td') || [];
+    for (const tdIrma of tdsIrmas) {
+      const inputs = tdIrma.querySelectorAll('input[type="text"], input:not([type="hidden"]):not([type="checkbox"])');
+      if (inputs.length >= 2) {
+        if (preencherInputs(inputs[0], inputs[1], 'TD irmã')) return resultado;
+      }
+    }
+  }
+  
+  // ESTRATÉGIA 2: Buscar por name/id parcial
+  resultado.detalhes.push('Tentando fallback por name/id...');
+  
+  const padroes = [
+    // Padrão: prefixo_ini / prefixo_fim
+    [/venc.*orig.*ini/i, /venc.*orig.*fim/i],
+    [/dt_venc.*orig.*1/i, /dt_venc.*orig.*2/i],
+    [/vencimento.*original.*de/i, /vencimento.*original.*ate/i],
+  ];
+  
+  const todosInputs = Array.from(document.querySelectorAll('input[type="text"], input:not([type="hidden"]):not([type="checkbox"])'));
+  
+  for (const [padraoIni, padraoFim] of padroes) {
+    const inputIni = todosInputs.find(i => 
+      padraoIni.test(i.name || '') || padraoIni.test(i.id || '')
+    );
+    const inputFim = todosInputs.find(i => 
+      padraoFim.test(i.name || '') || padraoFim.test(i.id || '')
+    );
+    
+    if (inputIni && inputFim) {
+      if (preencherInputs(inputIni, inputFim, 'padrão regex')) return resultado;
+    }
+  }
+  
+  // ESTRATÉGIA 3: Buscar pares de inputs adjacentes com formato de data
+  resultado.detalhes.push('Tentando busca por inputs adjacentes...');
+  
+  for (let i = 0; i < todosInputs.length - 1; i++) {
+    const input1 = todosInputs[i];
+    const input2 = todosInputs[i + 1];
+    
+    // Verificar se estão próximos no DOM (mesmo container)
+    const container1 = input1.closest('td, div');
+    const container2 = input2.closest('td, div');
+    
+    // Verificar se há texto "à" entre eles (comum no portal)
+    const pai = input1.parentElement;
+    if (pai && pai.textContent?.includes('à')) {
+      // Verificar contexto - procurar "vencimento" ou "original" nas proximidades
+      const contexto = pai.closest('tr')?.textContent?.toLowerCase() || '';
+      if (contexto.includes('vencimento') && contexto.includes('original')) {
+        resultado.detalhes.push(`Contexto encontrado: "${contexto.substring(0, 100)}"`);
+        if (preencherInputs(input1, input2, 'contexto "à"')) return resultado;
+      }
+    }
+  }
+  
+  // ESTRATÉGIA 4: Log de todos os inputs para debug
+  resultado.detalhes.push(`Total de inputs de texto na página: ${todosInputs.length}`);
+  todosInputs.slice(0, 20).forEach((input, idx) => {
+    resultado.detalhes.push(`  Input ${idx}: name="${input.name}" id="${input.id}" value="${input.value}"`);
+  });
+  
+  return resultado;
+}, { inicio, fim });
 ```
 
-Modificar o step de execução para priorizar inputs sobre secrets:
+### Melhorias Adicionais
 
-```yaml
-- name: Executar robô de cobrança
-  env:
-    HINOVA_URL: ${{ github.event.inputs.hinova_url || secrets.HINOVA_URL }}
-    HINOVA_USER: ${{ github.event.inputs.hinova_user || secrets.HINOVA_USER }}
-    HINOVA_PASS: ${{ github.event.inputs.hinova_pass || secrets.HINOVA_PASS }}
-    HINOVA_CODIGO_CLIENTE: ${{ github.event.inputs.hinova_codigo_cliente || secrets.HINOVA_CODIGO_CLIENTE }}
-    HINOVA_LAYOUT: ${{ github.event.inputs.hinova_layout || secrets.HINOVA_LAYOUT }}
-    # ... demais variáveis
-```
+1. **Log Detalhado de Debug**: Quando falhar, mostrar os primeiros 20 inputs encontrados para facilitar diagnóstico
+
+2. **Screenshot de Alta Qualidade**: Capturar screenshot full-page quando falhar
+
+3. **Dump de HTML Parcial**: Salvar apenas a seção do formulário ao invés da página inteira
 
 ---
 
-### 2. Atualizar Edge Function `disparar-github-workflow`
+## Resumo das Mudanças
 
-**Arquivo:** `supabase/functions/disparar-github-workflow/index.ts`
-
-Modificar para enviar as credenciais do banco como inputs do workflow:
-
-```typescript
-// Após buscar config do banco (linha ~63):
-const githubResponse = await fetch(workflowDispatchUrl, {
-  method: 'POST',
-  headers: { /* ... */ },
-  body: JSON.stringify({
-    ref: 'main',
-    inputs: {
-      corretora_id: corretora_id,
-      execucao_id: execucao?.id || '',
-      // NOVOS: Passar credenciais do banco
-      hinova_url: config.hinova_url || '',
-      hinova_user: config.hinova_user || '',
-      hinova_pass: config.hinova_pass || '',
-      hinova_codigo_cliente: config.hinova_codigo_cliente || '',
-      hinova_layout: config.layout_relatorio || 'BI - VANGARD COBRANÇA',
-    },
-  }),
-});
-```
-
----
-
-### 3. Criar Edge Function de Validação de Credenciais
-
-**Novo arquivo:** `supabase/functions/testar-hinova-login/index.ts`
-
-Como o portal Hinova usa formulário de login (não API REST), criaremos uma Edge Function que:
-
-1. Recebe URL, usuário e senha
-2. Faz uma requisição HTTP ao portal
-3. Analisa a resposta para validar se as credenciais estão corretas
-
-Abordagem: Verificar se a URL é acessível e se retorna a página de login esperada.
-
-```typescript
-// Validação básica:
-// 1. Testar se a URL responde (HTTP 200)
-// 2. Verificar se contém elementos do portal Hinova
-// 3. Opcionalmente, simular envio de formulário para validar credenciais
-```
-
-**Nota técnica:** Validação completa de login via formulário seria complexa em Edge Function. A alternativa mais segura é validar a URL e o formato das credenciais, deixando a validação real para a primeira execução do robô.
-
----
-
-### 4. Adicionar Botão "Testar Conexão" na Interface
-
-**Arquivo:** `src/components/cobranca/CobrancaAutomacaoConfig.tsx`
-
-Adicionar um botão ao lado das credenciais que:
-
-1. Valida localmente se os campos estão preenchidos
-2. Chama a Edge Function de teste
-3. Exibe feedback visual (sucesso/erro)
-
-```tsx
-<Button
-  variant="outline"
-  size="sm"
-  onClick={handleTestarConexao}
-  disabled={!config.hinova_url || !config.hinova_user || !config.hinova_pass}
->
-  <CheckCircle className="h-4 w-4 mr-2" />
-  Testar Conexão
-</Button>
-```
-
----
-
-## Considerações de Segurança
-
-1. **Credenciais no banco:** Já estão armazenadas na tabela `cobranca_automacao_config` com os campos `hinova_user` e `hinova_pass`
-
-2. **Transmissão para GitHub:** Os inputs do workflow_dispatch são criptografados em trânsito e não ficam visíveis em logs públicos
-
-3. **Logs de auditoria:** A Edge Function já registra em `bi_audit_logs` para rastreabilidade
-
-4. **Fallback para Secrets:** Se a configuração no banco estiver vazia, o workflow continua usando os Secrets do repositório (retrocompatibilidade)
-
----
-
-## Resumo das Alterações
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `.github/workflows/cobranca-hinova.yml` | Adicionar inputs para credenciais; priorizar inputs sobre secrets |
-| `supabase/functions/disparar-github-workflow/index.ts` | Incluir credenciais do banco nos inputs do workflow |
-| `supabase/functions/testar-hinova-login/index.ts` | Nova Edge Function para validar URL/credenciais |
-| `src/components/cobranca/CobrancaAutomacaoConfig.tsx` | Adicionar botão "Testar Conexão" |
-| `supabase/config.toml` | Registrar nova Edge Function |
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `scripts/robo-cobranca-hinova.cjs` | Modificar | Implementar 4 estratégias de busca em cascata para "Data Vencimento Original" |
+| `scripts/robo-cobranca-hinova.cjs` | Adicionar | Log detalhado de todos os inputs quando falhar |
+| `scripts/robo-cobranca-hinova.cjs` | Melhorar | Normalização de texto (acentos, espaços, case) |
 
 ---
 
 ## Benefícios
 
-- Cada associação pode configurar suas próprias credenciais Hinova
-- URLs de portais diferentes são suportadas (sgav4_valecar, sgav4_asspas, etc.)
-- Configuração centralizada na interface, sem necessidade de editar Secrets do GitHub
-- Retrocompatibilidade com configurações existentes via fallback
-
+- **Resiliência**: Múltiplas estratégias garantem que mudanças pequenas no portal não quebrem a automação
+- **Debug**: Logs detalhados facilitam diagnóstico de problemas futuros
+- **Manutenção**: Código estruturado facilita adicionar novas estratégias se necessário
