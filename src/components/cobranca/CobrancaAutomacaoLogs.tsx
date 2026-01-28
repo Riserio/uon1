@@ -28,7 +28,8 @@ import {
   Upload,
   Trash2,
   ExternalLink,
-  Github
+  Github,
+  AlertCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -66,6 +67,7 @@ interface ExecucaoLog {
 export default function CobrancaAutomacaoLogs({ configId, corretoraId }: CobrancaAutomacaoLogsProps) {
   const [logs, setLogs] = useState<ExecucaoLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (configId) {
@@ -114,6 +116,7 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
   };
 
   const handleDeleteLog = async (logId: string) => {
+    setDeletingId(logId);
     try {
       const { error } = await supabase
         .from("cobranca_automacao_execucoes")
@@ -122,9 +125,35 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
 
       if (error) throw error;
       toast.success("Registro excluído com sucesso");
-      loadLogs();
+      setLogs(prev => prev.filter(log => log.id !== logId));
     } catch (error: any) {
       console.error("Erro ao excluir log:", error);
+      toast.error("Erro ao excluir: " + (error.message || "Erro desconhecido"));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    try {
+      // Deletar apenas logs que não estão em execução
+      const idsToDelete = logs.filter(l => l.status !== 'executando').map(l => l.id);
+      
+      if (idsToDelete.length === 0) {
+        toast.info("Não há registros para excluir");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("cobranca_automacao_execucoes")
+        .delete()
+        .in("id", idsToDelete);
+
+      if (error) throw error;
+      toast.success(`${idsToDelete.length} registro(s) excluído(s)`);
+      loadLogs();
+    } catch (error: any) {
+      console.error("Erro ao excluir logs:", error);
       toast.error("Erro ao excluir: " + (error.message || "Erro desconhecido"));
     }
   };
@@ -133,30 +162,30 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
     switch (status) {
       case "sucesso":
         return (
-          <Badge className="bg-green-500/20 text-green-600 border-green-500/30">
-            <CheckCircle className="h-3 w-3 mr-1" />
+          <Badge className="bg-green-500/20 text-green-600 border-green-500/30 gap-1">
+            <CheckCircle className="h-3 w-3" />
             Sucesso
           </Badge>
         );
       case "erro":
         return (
-          <Badge className="bg-red-500/20 text-red-600 border-red-500/30">
-            <XCircle className="h-3 w-3 mr-1" />
+          <Badge className="bg-red-500/20 text-red-600 border-red-500/30 gap-1">
+            <XCircle className="h-3 w-3" />
             Erro
           </Badge>
         );
       case "executando":
         return (
-          <Badge className="bg-yellow-500/20 text-yellow-600 border-yellow-500/30">
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          <Badge className="bg-yellow-500/20 text-yellow-600 border-yellow-500/30 gap-1">
+            <Loader2 className="h-3 w-3 animate-spin" />
             Executando
           </Badge>
         );
       case "parado":
       case "cancelled":
         return (
-          <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">
-            <XCircle className="h-3 w-3 mr-1" />
+          <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30 gap-1">
+            <AlertCircle className="h-3 w-3" />
             {status === 'cancelled' ? 'Cancelado' : 'Parado'}
           </Badge>
         );
@@ -187,11 +216,11 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
 
   const getEtapaLabel = (etapa: string | null) => {
     const etapas: { [key: string]: string } = {
-      'login': 'Login',
-      'filtros': 'Aplicando filtros',
-      'download': 'Baixando arquivo',
-      'processamento': 'Processando dados',
-      'importacao': 'Importando registros',
+      'login': 'Fazendo login...',
+      'filtros': 'Aplicando filtros...',
+      'download': 'Baixando arquivo...',
+      'processamento': 'Processando dados...',
+      'importacao': 'Importando registros...',
     };
     return etapas[etapa || ''] || etapa || 'Iniciando...';
   };
@@ -206,63 +235,101 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
     );
   }
 
+  const hasNonExecutingLogs = logs.some(l => l.status !== 'executando');
+
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             <History className="h-5 w-5 text-primary" />
             Histórico de Execuções
+            {logs.length > 0 && (
+              <Badge variant="secondary" className="ml-2">{logs.length}</Badge>
+            )}
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={loadLogs}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            {hasNonExecutingLogs && logs.length > 1 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Limpar
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Limpar histórico</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Tem certeza que deseja excluir todos os registros do histórico? Execuções em andamento não serão afetadas.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Excluir tudo
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            <Button variant="ghost" size="sm" onClick={loadLogs}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0">
         {logs.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <History className="h-12 w-12 mx-auto mb-4 opacity-30" />
             <p>Nenhuma execução registrada</p>
+            <p className="text-sm mt-1">Execute a automação para ver o histórico aqui</p>
           </div>
         ) : (
-          <ScrollArea className="h-[400px] pr-4">
-            <div className="space-y-3">
+          <ScrollArea className="h-[450px] pr-4">
+            <div className="space-y-2">
               {logs.map((log) => (
                 <div
                   key={log.id}
-                  className={`p-4 rounded-lg border ${
+                  className={`p-3 rounded-lg border transition-colors ${
                     log.status === "sucesso"
-                      ? "bg-green-500/5 border-green-500/20"
+                      ? "bg-green-500/5 border-green-500/20 hover:bg-green-500/10"
                       : log.status === "erro"
-                      ? "bg-red-500/5 border-red-500/20"
+                      ? "bg-red-500/5 border-red-500/20 hover:bg-red-500/10"
                       : log.status === "executando"
                       ? "bg-yellow-500/5 border-yellow-500/20"
-                      : log.status === "parado"
-                      ? "bg-orange-500/5 border-orange-500/20"
-                      : "bg-muted/30"
+                      : log.status === "parado" || log.status === "cancelled"
+                      ? "bg-orange-500/5 border-orange-500/20 hover:bg-orange-500/10"
+                      : "bg-muted/30 hover:bg-muted/50"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                      {/* Header: Status + Data */}
+                      <div className="flex items-center gap-2 flex-wrap">
                         {getStatusBadge(log.status)}
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {format(new Date(log.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          {format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                         </span>
+                        {log.tipo_disparo && (
+                          <Badge variant="outline" className="text-xs">
+                            {log.tipo_disparo === 'manual' ? 'Manual' : 'Agendado'}
+                          </Badge>
+                        )}
                       </div>
                       
                       {/* Etapa atual para execuções em andamento */}
                       {log.status === "executando" && log.etapa_atual && (
-                        <p className="text-sm text-muted-foreground mb-3">
+                        <p className="text-sm text-yellow-600 mt-2 font-medium">
                           {getEtapaLabel(log.etapa_atual)}
                         </p>
                       )}
 
                       {/* Barra de progresso do download */}
                       {log.status === "executando" && (log.progresso_download !== null && log.progresso_download > 0 || log.bytes_baixados) && (
-                        <div className="mb-3 space-y-1">
+                        <div className="mt-2 space-y-1">
                           <div className="flex items-center justify-between text-xs">
                             <span className="flex items-center gap-1 text-blue-600">
                               <Download className="h-3 w-3" />
@@ -281,16 +348,13 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                               }
                             </span>
                           </div>
-                          <Progress 
-                            value={log.progresso_download || 0} 
-                            className="h-2"
-                          />
+                          <Progress value={log.progresso_download || 0} className="h-1.5" />
                         </div>
                       )}
 
                       {/* Barra de progresso da importação */}
                       {log.status === "executando" && (log.progresso_importacao !== null && log.progresso_importacao > 0 || log.registros_processados) && (
-                        <div className="mb-3 space-y-1">
+                        <div className="mt-2 space-y-1">
                           <div className="flex items-center justify-between text-xs">
                             <span className="flex items-center gap-1 text-green-600">
                               <Upload className="h-3 w-3" />
@@ -302,33 +366,32 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                                 : ''
                               }
                               {log.registros_processados !== null && log.registros_total && log.registros_total > 0
-                                ? ` (${log.registros_processados.toLocaleString('pt-BR')} / ${log.registros_total.toLocaleString('pt-BR')} registros)`
+                                ? ` (${log.registros_processados.toLocaleString('pt-BR')} / ${log.registros_total.toLocaleString('pt-BR')})`
                                 : log.registros_processados 
                                   ? ` (${log.registros_processados.toLocaleString('pt-BR')} registros)`
                                   : ''
                               }
                             </span>
                           </div>
-                          <Progress 
-                            value={log.progresso_importacao || 0} 
-                            className="h-2"
-                          />
+                          <Progress value={log.progresso_importacao || 0} className="h-1.5" />
                         </div>
                       )}
 
-                      {log.mensagem && (
-                        <p className="text-sm mb-2">{log.mensagem}</p>
+                      {/* Mensagem */}
+                      {log.mensagem && log.status !== "executando" && (
+                        <p className="text-sm mt-2 text-muted-foreground">{log.mensagem}</p>
                       )}
                       
+                      {/* Erro */}
                       {log.erro && (
-                        <p className="text-sm text-red-600 mb-2 font-mono text-xs bg-red-500/10 p-2 rounded">
+                        <p className="text-xs text-red-600 mt-2 font-mono bg-red-500/10 p-2 rounded max-h-20 overflow-y-auto">
                           {log.erro}
                         </p>
                       )}
                       
                       {/* Métricas finais para execuções concluídas */}
                       {log.status !== "executando" && (
-                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
                           {log.registros_processados !== null && log.registros_processados > 0 && (
                             <span className="flex items-center gap-1">
                               <FileSpreadsheet className="h-3 w-3" />
@@ -347,36 +410,39 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                               {formatDuration(log.duracao_segundos)}
                             </span>
                           )}
-                          {log.nome_arquivo && (
-                            <span className="flex items-center gap-1 truncate max-w-[200px]">
-                              <FileSpreadsheet className="h-3 w-3" />
-                              {log.nome_arquivo}
-                            </span>
-                          )}
                         </div>
                       )}
                     </div>
                     
-                    {/* Ações: GitHub link e Delete */}
-                    <div className="flex flex-col gap-2 items-end shrink-0">
+                    {/* Ações */}
+                    <div className="flex items-center gap-1 shrink-0">
                       {log.github_run_url && (
                         <a
                           href={log.github_run_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                          title="Ver no GitHub"
                         >
-                          <Github className="h-3 w-3" />
-                          Ver no GitHub
-                          <ExternalLink className="h-3 w-3" />
+                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <Github className="h-3.5 w-3.5" />
+                          </Button>
                         </a>
                       )}
                       
                       {log.status !== "executando" && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive">
-                              <Trash2 className="h-3 w-3" />
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              disabled={deletingId === log.id}
+                            >
+                              {deletingId === log.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
@@ -388,7 +454,10 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteLog(log.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                              <AlertDialogAction 
+                                onClick={() => handleDeleteLog(log.id)} 
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
                                 Excluir
                               </AlertDialogAction>
                             </AlertDialogFooter>
