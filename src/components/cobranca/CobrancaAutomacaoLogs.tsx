@@ -28,8 +28,9 @@ import {
   Upload,
   Trash2,
   Github,
-  AlertCircle,
-  StopCircle
+  StopCircle,
+  Square,
+  AlertTriangle
 } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -81,10 +82,20 @@ const getRealStatus = (log: ExecucaoLog): string => {
   return log.status;
 };
 
+// Verificar se é um erro de GitHub (não conseguiu executar)
+const isGitHubError = (log: ExecucaoLog): boolean => {
+  const erro = log.erro?.toLowerCase() || '';
+  return erro.includes('github') || 
+         erro.includes('workflow') || 
+         erro.includes('dispatch') ||
+         (log.etapa_atual === 'disparo' && log.status === 'erro');
+};
+
 export default function CobrancaAutomacaoLogs({ configId, corretoraId }: CobrancaAutomacaoLogsProps) {
   const [logs, setLogs] = useState<ExecucaoLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [stoppingId, setStoppingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (configId) {
@@ -156,6 +167,71 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
     }
   };
 
+  const handleStopExecution = async (log: ExecucaoLog) => {
+    if (!log.id) return;
+
+    setStoppingId(log.id);
+    try {
+      // Se temos um github_run_id, tentar cancelar no GitHub primeiro
+      if (log.github_run_id) {
+        const { data: cancelData, error: cancelError } = await supabase.functions.invoke('disparar-github-workflow', {
+          body: { action: 'cancel', run_id: log.github_run_id }
+        });
+        
+        if (cancelError) {
+          console.warn("Erro ao cancelar no GitHub:", cancelError);
+        } else if (cancelData?.success) {
+          console.log("Solicitação de cancelamento enviada ao GitHub");
+        }
+      }
+
+      // Atualizar status para "parado" no banco
+      const { error: updateError } = await supabase
+        .from("cobranca_automacao_execucoes")
+        .update({
+          status: 'parado',
+          erro: 'Execução interrompida pelo usuário',
+          finalizado_at: new Date().toISOString(),
+        })
+        .eq("id", log.id);
+
+      if (updateError) throw updateError;
+
+      // Atualizar config também
+      await supabase
+        .from("cobranca_automacao_config")
+        .update({
+          ultimo_status: 'parado',
+          ultimo_erro: 'Execução interrompida pelo usuário',
+        })
+        .eq("id", configId);
+
+      // Registrar log de auditoria
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from("bi_audit_logs").insert({
+        modulo: "cobranca",
+        acao: "execucao_parada",
+        descricao: `Execução da automação Hinova interrompida`,
+        corretora_id: corretoraId,
+        user_id: user?.id || '',
+        user_nome: user?.email || "Usuário",
+        dados_novos: {
+          execucao_id: log.id,
+          github_run_id: log.github_run_id,
+          motivo: 'Interrupção manual pelo usuário',
+        },
+      });
+
+      toast.success("Execução interrompida com sucesso");
+      loadLogs();
+    } catch (error: any) {
+      console.error("Erro ao parar execução:", error);
+      toast.error("Erro ao parar: " + (error.message || "Erro desconhecido"));
+    } finally {
+      setStoppingId(null);
+    }
+  };
+
   const handleDeleteLog = async (logId: string) => {
     setDeletingId(logId);
     try {
@@ -201,6 +277,7 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
 
   const getStatusBadge = (log: ExecucaoLog) => {
     const status = getRealStatus(log);
+    const isGitError = isGitHubError(log);
     
     switch (status) {
       case "sucesso":
@@ -213,8 +290,8 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
       case "erro":
         return (
           <Badge className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30 gap-1 text-xs">
-            <XCircle className="h-3 w-3" />
-            Erro
+            {isGitError ? <Github className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+            {isGitError ? 'Erro GitHub' : 'Erro'}
           </Badge>
         );
       case "executando":
@@ -259,6 +336,7 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
 
   const getEtapaLabel = (etapa: string | null) => {
     const etapas: { [key: string]: string } = {
+      'disparo': 'Disparando workflow...',
       'login': 'Fazendo login...',
       'filtros': 'Aplicando filtros...',
       'download': 'Baixando arquivo...',
@@ -335,6 +413,7 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
               {logs.map((log) => {
                 const realStatus = getRealStatus(log);
                 const isRunning = realStatus === 'executando';
+                const isGitError = isGitHubError(log);
                 
                 return (
                   <div
@@ -366,8 +445,9 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                         )}
                       </div>
                       
-                      {/* Ações */}
+                      {/* Ações - sempre visíveis */}
                       <div className="flex items-center gap-1 shrink-0">
+                        {/* Link GitHub */}
                         {log.github_run_url && (
                           <a
                             href={log.github_run_url}
@@ -380,7 +460,46 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                             </Button>
                           </a>
                         )}
+
+                        {/* Botão Parar - apenas para execuções em andamento */}
+                        {isRunning && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-6 w-6 text-orange-600 hover:text-orange-700 hover:bg-orange-100"
+                                disabled={stoppingId === log.id}
+                                title="Parar execução"
+                              >
+                                {stoppingId === log.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Square className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Parar execução</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Tem certeza que deseja interromper esta execução? O workflow será cancelado no GitHub.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction 
+                                  onClick={() => handleStopExecution(log)} 
+                                  className="bg-orange-600 text-white hover:bg-orange-700"
+                                >
+                                  Parar
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                         
+                        {/* Botão Excluir - para todas execuções que não estão rodando */}
                         {!isRunning && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -389,6 +508,7 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                                 size="icon" 
                                 className="h-6 w-6 text-muted-foreground hover:text-destructive"
                                 disabled={deletingId === log.id}
+                                title="Excluir registro"
                               >
                                 {deletingId === log.id ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -480,8 +600,25 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                       </div>
                     )}
 
-                    {/* Mensagem de erro */}
-                    {log.erro && !isRunning && (
+                    {/* Mensagem de erro GitHub */}
+                    {isGitError && !isRunning && (
+                      <div className="mt-2 p-2 rounded bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="h-3.5 w-3.5 text-red-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-[11px] font-medium text-red-700 dark:text-red-400">
+                              Falha ao executar no GitHub Actions
+                            </p>
+                            <p className="text-[10px] text-red-600 dark:text-red-400 mt-0.5">
+                              {log.erro || 'Não foi possível iniciar o workflow'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mensagem de erro genérico */}
+                    {log.erro && !isRunning && !isGitError && (
                       <p className="text-[10px] text-red-600 dark:text-red-400 mt-1.5 line-clamp-2">
                         {log.erro}
                       </p>
