@@ -601,6 +601,42 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       .sort((a, b) => b.percentual - a.percentual)
       .slice(0, 10);
 
+    // Ranking de Inadimplência por Cooperativa (total emitido vs abertos)
+    const cooperativasInadimplencia: Record<string, { total: number; abertos: number; valor: number }> = {};
+    boletosFiltrados.forEach(b => {
+      const cooperativa = b.cooperativa || 'N/I';
+      if (cooperativa !== 'N/I') {
+        if (!cooperativasInadimplencia[cooperativa]) {
+          cooperativasInadimplencia[cooperativa] = { total: 0, abertos: 0, valor: 0 };
+        }
+        cooperativasInadimplencia[cooperativa].total += 1;
+        if (b.situacao && b.situacao.toUpperCase() === 'ABERTO') {
+          cooperativasInadimplencia[cooperativa].abertos += 1;
+          cooperativasInadimplencia[cooperativa].valor += b.valor || 0;
+        }
+      }
+    });
+    
+    const cooperativasInadimplenciaData = Object.entries(cooperativasInadimplencia)
+      .filter(([_, data]) => data.total >= 5) // Mínimo de 5 boletos para ser relevante
+      .map(([name, data]) => ({
+        name,
+        total: data.total,
+        abertos: data.abertos,
+        valor: data.valor,
+        percentual: data.total > 0 ? (data.abertos / data.total) * 100 : 0
+      }));
+    
+    // Menor inadimplência por cooperativa
+    const cooperativasMenorInadimplencia = [...cooperativasInadimplenciaData]
+      .sort((a, b) => a.percentual - b.percentual)
+      .slice(0, 10);
+    
+    // Maior inadimplência por cooperativa
+    const cooperativasMaiorInadimplencia = [...cooperativasInadimplenciaData]
+      .sort((a, b) => b.percentual - a.percentual)
+      .slice(0, 10);
+
     return {
       totalBoletos,
       totalValor,
@@ -619,6 +655,8 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       cooperativasAbertosData,
       regionaisMenorInadimplencia,
       regionaisMaiorInadimplencia,
+      cooperativasMenorInadimplencia,
+      cooperativasMaiorInadimplencia,
       percentualInadimplencia: totalBoletos > 0 ? (boletosAbertos.length / totalBoletos) * 100 : 0
     };
   }, [boletos, inadimplenciaConfig, inadimplenciaHistorico]);
@@ -1080,7 +1118,74 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
         </Card>
       </div>
 
-      {/* Rankings de Regionais */}
+      {/* Rankings de Inadimplência por Cooperativa */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="h-5 w-5 text-green-500" />
+              Menor Inadimplência (Cooperativa)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-[350px] overflow-y-auto">
+              {stats.cooperativasMenorInadimplencia.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum dado disponível
+                </p>
+              ) : (
+                stats.cooperativasMenorInadimplencia.map((item, index) => (
+                  <div key={item.name} className="flex items-center gap-3 p-2 bg-green-500/10 rounded-lg">
+                    <span className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold">
+                      {index + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate text-sm">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.abertos} de {item.total} boletos</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-green-600">{item.percentual.toFixed(1)}%</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+              Maior Inadimplência (Cooperativa)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-[350px] overflow-y-auto">
+              {stats.cooperativasMaiorInadimplencia.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum dado disponível
+                </p>
+              ) : (
+                stats.cooperativasMaiorInadimplencia.map((item, index) => (
+                  <div key={item.name} className="flex items-center gap-3 p-2 bg-red-500/10 rounded-lg">
+                    <span className="w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center text-xs font-bold">
+                      {index + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate text-sm">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.abertos} de {item.total} boletos</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-red-600">{item.percentual.toFixed(1)}%</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
