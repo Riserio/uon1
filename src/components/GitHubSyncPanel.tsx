@@ -154,6 +154,14 @@ export function GitHubSyncPanel() {
 
   const handleExecutar = async (config: SyncConfig) => {
     setExecutingId(config.id);
+    
+    // Atualizar imediatamente o status local para "executando"
+    setConfigs((prev) =>
+      prev.map((c) =>
+        c.id === config.id ? { ...c, ultimo_status: "executando", ultimo_erro: null } : c
+      )
+    );
+    
     try {
       const { data, error } = await supabase.functions.invoke("disparar-github-workflow", {
         body: {
@@ -166,17 +174,20 @@ export function GitHubSyncPanel() {
 
       if (data?.success) {
         toast.success("Sincronização iniciada com sucesso!");
-        loadConfigs();
         // Recarregar logs se estiver expandido
         if (expandedConfigId === config.id) {
           loadExecutionLogs(config.id);
         }
       } else {
         toast.error(data?.message || "Erro ao iniciar sincronização");
+        // Reverter status local em caso de erro
+        loadConfigs();
       }
     } catch (error: any) {
       console.error("Erro ao executar:", error);
       toast.error(error.message || "Erro ao iniciar sincronização");
+      // Reverter status local em caso de erro
+      loadConfigs();
     } finally {
       setExecutingId(null);
     }
@@ -240,6 +251,7 @@ export function GitHubSyncPanel() {
   const inactiveConfigs = configs.filter(c => !c.ativo);
   const withSuccess = configs.filter(c => c.ultimo_status === "sucesso");
   const withErrors = configs.filter(c => c.ultimo_status === "erro");
+  const executing = configs.filter(c => c.ultimo_status === "executando");
 
   return (
     <Card className="border-2">
@@ -261,13 +273,19 @@ export function GitHubSyncPanel() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-4 mt-4">
+        <div className="grid grid-cols-5 gap-3 mt-4">
+          {executing.length > 0 && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center border-2 border-blue-300 animate-pulse">
+              <p className="text-2xl font-bold text-blue-600">{executing.length}</p>
+              <p className="text-xs text-muted-foreground">Em Execução</p>
+            </div>
+          )}
           <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
             <p className="text-2xl font-bold text-green-600">{withSuccess.length}</p>
             <p className="text-xs text-muted-foreground">Sucesso</p>
           </div>
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center">
-            <p className="text-2xl font-bold text-blue-600">{activeConfigs.length}</p>
+          <div className="bg-slate-50 dark:bg-slate-900/20 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-slate-600">{activeConfigs.length}</p>
             <p className="text-xs text-muted-foreground">Ativas</p>
           </div>
           <div className="bg-gray-50 dark:bg-gray-900/20 rounded-lg p-3 text-center">
