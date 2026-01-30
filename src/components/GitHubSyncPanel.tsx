@@ -553,10 +553,10 @@ export function GitHubSyncPanel() {
                               className={`p-3 rounded border-l-4 ${getLogStatusColor(log.status)}`}
                             >
                               <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1 min-w-0">
+                                <div className="flex-1">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     {getStatusBadge(log.status)}
-                                    <span className="text-xs text-muted-foreground">
+                                    <span className="text-xs text-muted-foreground whitespace-nowrap">
                                       {format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                                     </span>
                                   </div>
@@ -568,12 +568,12 @@ export function GitHubSyncPanel() {
                                   )}
                                   
                                   {log.status === "sucesso" && (
-                                    <div className="text-xs text-green-700 mt-1 whitespace-nowrap">
+                                    <div className="text-xs text-green-700 mt-1">
                                       {log.registros_processados !== null && (
-                                        <span>✓ {log.registros_processados.toLocaleString('pt-BR')} registros processados</span>
+                                        <span className="whitespace-nowrap">✓ {log.registros_processados.toLocaleString('pt-BR')} registros processados</span>
                                       )}
                                       {log.nome_arquivo && (
-                                        <span className="ml-2">• {log.nome_arquivo}</span>
+                                        <span className="ml-2 truncate">• {log.nome_arquivo}</span>
                                       )}
                                     </div>
                                   )}
