@@ -61,6 +61,8 @@ export function GitHubSyncPanel() {
   const [expandedConfigId, setExpandedConfigId] = useState<string | null>(null);
   const [executionLogs, setExecutionLogs] = useState<{ [key: string]: ExecutionLog[] }>({});
   const [loadingLogs, setLoadingLogs] = useState<{ [key: string]: boolean }>({});
+  const [executingPending, setExecutingPending] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     loadConfigs();
@@ -138,11 +140,40 @@ export function GitHubSyncPanel() {
       }));
 
       setConfigs(formatted);
+      
+      // Calcular quantas estão pendentes (ativas mas não executaram hoje com sucesso)
+      await checkPendingExecutions(formatted);
     } catch (error) {
       console.error("Erro ao carregar configurações:", error);
       toast.error("Erro ao carregar configurações de sincronização");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkPendingExecutions = async (configList: SyncConfig[]) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const activeConfigIds = configList.filter(c => c.ativo).map(c => c.id);
+      
+      if (activeConfigIds.length === 0) {
+        setPendingCount(0);
+        return;
+      }
+
+      // Buscar execuções de hoje com sucesso ou executando
+      const { data: todayExecutions } = await supabase
+        .from("cobranca_automacao_execucoes")
+        .select("config_id, status")
+        .in("config_id", activeConfigIds)
+        .gte("created_at", `${today}T00:00:00`)
+        .in("status", ["sucesso", "executando"]);
+
+      const executedConfigIds = new Set((todayExecutions || []).map(e => e.config_id));
+      const pending = activeConfigIds.filter(id => !executedConfigIds.has(id));
+      setPendingCount(pending.length);
+    } catch (error) {
+      console.error("Erro ao verificar pendentes:", error);
     }
   };
 
@@ -235,6 +266,45 @@ export function GitHubSyncPanel() {
     }
   };
 
+  const handleExecutarPendentes = async () => {
+    if (pendingCount === 0) {
+      toast.info("Não há execuções pendentes para hoje");
+      return;
+    }
+
+    setExecutingPending(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("scheduler-cobranca-hinova", {
+        body: { force: true },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        const disparados = data.disparados || 0;
+        const erros = data.erros || 0;
+        
+        if (disparados > 0) {
+          toast.success(`${disparados} sincronização(ões) iniciada(s)${erros > 0 ? ` (${erros} com erro)` : ''}`);
+        } else if (erros > 0) {
+          toast.error(`${erros} erro(s) ao iniciar sincronizações`);
+        } else {
+          toast.info("Nenhuma sincronização pendente encontrada");
+        }
+        
+        loadConfigs();
+      } else {
+        toast.error(data?.message || "Erro ao executar pendentes");
+      }
+    } catch (error: any) {
+      console.error("Erro ao executar pendentes:", error);
+      toast.error(error.message || "Erro ao executar sincronizações pendentes");
+    } finally {
+      setExecutingPending(false);
+    }
+  };
+
   const getStatusBadge = (status: string | null) => {
     if (!status) {
       return <Badge variant="secondary">Nunca executado</Badge>;
@@ -308,10 +378,28 @@ export function GitHubSyncPanel() {
               Associações configuradas para sincronização automática de cobrança
             </CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={loadConfigs} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Atualizar
-          </Button>
+          <div className="flex items-center gap-2">
+            {pendingCount > 0 && (
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={handleExecutarPendentes} 
+                disabled={executingPending || loading}
+                className="bg-orange-500 hover:bg-orange-600"
+              >
+                {executingPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                Executar {pendingCount} Pendente{pendingCount > 1 ? 's' : ''}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={loadConfigs} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              Atualizar
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
