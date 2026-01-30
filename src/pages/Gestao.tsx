@@ -1,31 +1,28 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, Settings, UserCircle, Briefcase } from "lucide-react";
+import { Clock, UserCircle, Briefcase } from "lucide-react";
 import GestaoJornada from "@/components/gestao/GestaoJornada";
 import Usuarios from "@/pages/Usuarios";
-import Configuracoes from "@/pages/Configuracoes";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function Gestao() {
   const { userRole } = useAuth();
 
-  const isAdmin = userRole === "admin" || userRole === "superintendente";
   const canManageUsers = userRole === "admin" || userRole === "administrativo" || userRole === "superintendente";
 
   const defaultTab = canManageUsers ? "usuarios" : "jornada";
   const [activeTab, setActiveTab] = useState(defaultTab);
 
   useEffect(() => {
-    if (!isAdmin && activeTab !== "jornada" && activeTab !== "usuarios") {
-      setActiveTab("jornada");
+    if (activeTab !== "jornada" && activeTab !== "usuarios") {
+      setActiveTab(defaultTab);
     }
-  }, [isAdmin, activeTab]);
+  }, [activeTab, defaultTab]);
 
   const tabs = [
     { id: "usuarios", label: "Usuários", shortLabel: "Usuários", icon: UserCircle, visible: canManageUsers, description: "Gerenciar usuários e funcionários" },
     { id: "jornada", label: "Jornada", shortLabel: "Jornada", icon: Clock, visible: true, description: "Controle de ponto" },
-    { id: "configuracoes", label: "Configurações", shortLabel: "Config", icon: Settings, visible: isAdmin, description: "Ajustes do sistema" },
   ].filter(tab => tab.visible);
 
   return (
@@ -102,16 +99,6 @@ export default function Gestao() {
               <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
                 <CardContent className="p-6">
                   <Usuarios />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
-
-          {isAdmin && (
-            <TabsContent value="configuracoes" className="mt-0 animate-in fade-in-50 duration-300">
-              <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <Configuracoes />
                 </CardContent>
               </Card>
             </TabsContent>

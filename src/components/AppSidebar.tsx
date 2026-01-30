@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, Mail, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, Mail, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Palette, Briefcase } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -282,8 +282,18 @@ export function AppSidebar() {
                 {canView("gestao") && <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink to="/gestao" activeClassName="bg-primary text-primary-foreground">
-                        <Settings className="h-4 w-4" />
+                        <Briefcase className="h-4 w-4" />
                         {!collapsed && <span>Gestão</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>}
+
+                {/* Configurações */}
+                {canView("configuracoes") && <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/configuracoes" activeClassName="bg-primary text-primary-foreground">
+                        <Settings className="h-4 w-4" />
+                        {!collapsed && <span>Configurações</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>}

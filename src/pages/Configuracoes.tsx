@@ -7,11 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Palette, Image as ImageIcon, Globe, Code } from "lucide-react";
-import { ApiIntegrationsConfig } from "@/components/ApiIntegrationsConfig";
-import { SubdominioConfigDialog } from "@/components/SubdominioConfigDialog";
+import { Palette, Image as ImageIcon, GitBranch, Settings } from "lucide-react";
+import { GitHubSyncPanel } from "@/components/GitHubSyncPanel";
 
 interface ConfigColors {
   primary: string;
@@ -54,7 +52,6 @@ export default function Configuracoes() {
     logo: config.logo_url || "",
     login: "",
   });
-  const [subdominioDialogOpen, setSubdominioDialogOpen] = useState(false);
 
   useEffect(() => {
     setTempColors(config.colors);
@@ -139,16 +136,16 @@ export default function Configuracoes() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
               <div className="p-2 rounded-lg bg-primary/10">
-                <Palette className="h-7 w-7 text-primary" />
+                <Settings className="h-7 w-7 text-primary" />
               </div>
               Configurações do Sistema
             </h1>
-            <p className="text-muted-foreground mt-1">Personalize a aparência da aplicação</p>
+            <p className="text-muted-foreground mt-1">Personalize a aparência e integrações da aplicação</p>
           </div>
         </div>
 
         <Tabs defaultValue="colors" className="w-full">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4 mb-8">
+          <TabsList className="grid w-full max-w-lg grid-cols-3 mb-8">
             <TabsTrigger value="colors" className="gap-2">
               <Palette className="h-4 w-4" />
               Cores
@@ -157,13 +154,9 @@ export default function Configuracoes() {
               <ImageIcon className="h-4 w-4" />
               Imagens
             </TabsTrigger>
-            <TabsTrigger value="subdomain" className="gap-2">
-              <Globe className="h-4 w-4" />
-              Subdomínio
-            </TabsTrigger>
-            <TabsTrigger value="api" className="gap-2">
-              <Code className="h-4 w-4" />
-              API
+            <TabsTrigger value="sync" className="gap-2">
+              <GitBranch className="h-4 w-4" />
+              Sincronização
             </TabsTrigger>
           </TabsList>
 
@@ -412,110 +405,11 @@ export default function Configuracoes() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="subdomain" className="space-y-6">
-            <Card className="border-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="h-5 w-5" />
-                  Subdomínio Personalizado
-                </CardTitle>
-                <CardDescription>
-                  Configure um subdomínio personalizado para aplicar a marca do seu parceiro
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  O subdomínio personalizado permite que você e seus parceiros acessem o sistema com uma URL
-                  personalizada, como <strong>parceiro.uon1.com.br</strong>
-                </p>
-                <Button onClick={() => setSubdominioDialogOpen(true)} className="w-full md:w-auto">
-                  <Globe className="h-4 w-4 mr-2" />
-                  Configurar Subdomínio
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="api" className="space-y-6">
-            <ApiIntegrationsConfig />
-            
-            <Card className="border-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Code className="h-5 w-5" />
-                  API de Integração
-                </CardTitle>
-                <CardDescription>
-                  Endpoints disponíveis para integração com sistemas externos
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="font-semibold mb-2">Base URL</h3>
-                    <code className="block bg-muted p-3 rounded-lg text-sm">
-                      https://mnoczwmqgignmylbvpgp.supabase.co/functions/v1
-                    </code>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h3 className="font-semibold">Endpoints Disponíveis</h3>
-                    
-                    <div className="border rounded-lg p-4 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Badge>POST</Badge>
-                        <code className="text-sm">/portal-lancamentos</code>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Criar lançamentos financeiros via API
-                      </p>
-                    </div>
-
-                    <div className="border rounded-lg p-4 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">GET</Badge>
-                        <code className="text-sm">/portal-lancamentos</code>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Listar lançamentos financeiros
-                      </p>
-                    </div>
-
-                    <div className="border rounded-lg p-4 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">PUT</Badge>
-                        <code className="text-sm">/portal-lancamentos</code>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Atualizar lançamentos financeiros
-                      </p>
-                    </div>
-
-                    <div className="border rounded-lg p-4 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="destructive">DELETE</Badge>
-                        <code className="text-sm">/portal-lancamentos</code>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Excluir lançamentos financeiros
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                    <h4 className="font-semibold mb-2 text-blue-900 dark:text-blue-100">Autenticação</h4>
-                    <p className="text-sm text-blue-800 dark:text-blue-200">
-                      Os endpoints requerem autenticação JWT. Inclua o token no header Authorization: Bearer TOKEN
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <TabsContent value="sync" className="space-y-6">
+            <GitHubSyncPanel />
           </TabsContent>
         </Tabs>
       </div>
-
-      <SubdominioConfigDialog open={subdominioDialogOpen} onOpenChange={setSubdominioDialogOpen} />
     </div>
   );
 }
