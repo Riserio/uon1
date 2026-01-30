@@ -598,6 +598,7 @@ export type Database = {
           hinova_pass: string
           hinova_url: string
           hinova_user: string
+          hora_agendada: string | null
           id: string
           layout_relatorio: string | null
           ultima_execucao: string | null
@@ -619,6 +620,7 @@ export type Database = {
           hinova_pass?: string
           hinova_url?: string
           hinova_user?: string
+          hora_agendada?: string | null
           id?: string
           layout_relatorio?: string | null
           ultima_execucao?: string | null
@@ -640,6 +642,7 @@ export type Database = {
           hinova_pass?: string
           hinova_url?: string
           hinova_user?: string
+          hora_agendada?: string | null
           id?: string
           layout_relatorio?: string | null
           ultima_execucao?: string | null
