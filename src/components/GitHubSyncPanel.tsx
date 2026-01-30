@@ -23,6 +23,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { getNextDailyRunBrasilia } from "@/lib/cobrancaSchedule";
 
 interface SyncConfig {
   id: string;
@@ -378,6 +379,14 @@ export function GitHubSyncPanel() {
                             <Clock className="h-3 w-3" />
                             Última execução:{" "}
                             {format(new Date(config.ultima_execucao), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </p>
+                        )}
+
+                        {config.ativo && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                            <Clock className="h-3 w-3" />
+                            Próxima execução diária:{" "}
+                            {format(getNextDailyRunBrasilia(), "dd/MM/yyyy HH:mm", { locale: ptBR })} (Brasília)
                           </p>
                         )}
                         {config.ultimo_status === "erro" && config.ultimo_erro && (

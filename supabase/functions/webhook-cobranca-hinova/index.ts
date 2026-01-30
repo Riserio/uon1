@@ -87,6 +87,19 @@ const COLUMN_MAP: { [key: string]: string } = {
   "quantidade_dias_atraso": "qtde_dias_atraso_vencimento_original",
 };
 
+const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
+function normalizeGithubRunId(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const str = String(value).trim();
+  return str.length > 0 ? str : null;
+}
+
+function isUuidString(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 // Parse de data no formato DD/MM/YYYY ou YYYY-MM-DD
 function parseDate(value: any): string | null {
   if (!value) return null;
@@ -229,6 +242,9 @@ serve(async (req) => {
       error_message,
     } = body;
 
+    const githubRunIdStr = normalizeGithubRunId(github_run_id);
+    const execucaoIdCandidate = isUuidString(execucao_id) ? execucao_id : null;
+
     // ============================================
     // Ação: Iniciar execução (para sincronizações automáticas)
     // ============================================
@@ -250,6 +266,39 @@ serve(async (req) => {
         );
       }
 
+      // Evitar duplicidade quando o mesmo run notifica mais de uma vez
+      if (githubRunIdStr) {
+        const { data: existing } = await supabase
+          .from("cobranca_automacao_execucoes")
+          .select("id")
+          .eq("config_id", config.id)
+          .eq("github_run_id", githubRunIdStr)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existing?.id) {
+          await supabase
+            .from("cobranca_automacao_execucoes")
+            .update({ status: "executando", etapa_atual: "login" })
+            .eq("id", existing.id);
+
+          await supabase
+            .from("cobranca_automacao_config")
+            .update({
+              ultimo_status: "executando",
+              ultimo_erro: null,
+              ultima_execucao: new Date().toISOString(),
+            })
+            .eq("id", config.id);
+
+          return new Response(
+            JSON.stringify({ success: true, execucao_id: existing.id }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
       // Criar registro de execução
       const { data: execucao, error: execError } = await supabase
         .from("cobranca_automacao_execucoes")
@@ -259,7 +308,7 @@ serve(async (req) => {
           status: 'executando',
           etapa_atual: 'login',
           tipo_disparo: 'automatico',
-          github_run_id: github_run_id || null,
+          github_run_id: githubRunIdStr,
           github_run_url: github_run_url || null,
         })
         .select()
@@ -282,6 +331,21 @@ serve(async (req) => {
           ultima_execucao: new Date().toISOString(),
         })
         .eq("id", config.id);
+
+      // Registrar no BI (início da execução automática)
+      await supabase.from("bi_audit_logs").insert({
+        modulo: "cobranca",
+        acao: "execucao_automatica_iniciada",
+        descricao: `Execução automática iniciada${githubRunIdStr ? ` (run ${githubRunIdStr})` : ""}`,
+        corretora_id: corretora_id,
+        user_id: SYSTEM_USER_ID,
+        user_nome: "Sistema (Automação)",
+        dados_novos: {
+          execucao_id: execucao.id,
+          github_run_id: githubRunIdStr,
+          github_run_url: github_run_url || null,
+        },
+      });
 
       console.log("Execução criada:", execucao.id);
       return new Response(
@@ -314,19 +378,22 @@ serve(async (req) => {
           })
           .eq("id", config.id);
 
-        // Atualizar execução se tiver ID
-        if (execucao_id) {
-          await supabase
+        // Resolver execução alvo (UUID válido > github_run_id > última em andamento)
+        let targetId: string | null = execucaoIdCandidate;
+
+        if (!targetId && githubRunIdStr) {
+          const { data: existingByRun } = await supabase
             .from("cobranca_automacao_execucoes")
-            .update({
-              status: 'erro',
-              erro: error_message || 'Erro desconhecido',
-              finalizado_at: new Date().toISOString(),
-            })
-            .eq("id", execucao_id);
-        } else {
-          // Se não veio execucao_id, tentamos atualizar a última execução em andamento.
-          // Se não existir nenhuma, criamos um registro de histórico assim mesmo.
+            .select("id")
+            .eq("config_id", config.id)
+            .eq("github_run_id", githubRunIdStr)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          targetId = existingByRun?.id ?? null;
+        }
+
+        if (!targetId) {
           const { data: lastRunning } = await supabase
             .from("cobranca_automacao_execucoes")
             .select("id")
@@ -335,33 +402,51 @@ serve(async (req) => {
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-
-          if (lastRunning?.id) {
-            await supabase
-              .from("cobranca_automacao_execucoes")
-              .update({
-                status: 'erro',
-                erro: error_message || 'Erro desconhecido',
-                finalizado_at: new Date().toISOString(),
-                etapa_atual: 'erro',
-              })
-              .eq("id", lastRunning.id);
-          } else {
-            await supabase
-              .from("cobranca_automacao_execucoes")
-              .insert({
-                config_id: config.id,
-                corretora_id: corretora_id,
-                status: 'erro',
-                erro: error_message || 'Erro desconhecido',
-                finalizado_at: new Date().toISOString(),
-                etapa_atual: 'erro',
-                tipo_disparo: 'automatico',
-                github_run_id: github_run_id || null,
-                github_run_url: github_run_url || null,
-              });
-          }
+          targetId = lastRunning?.id ?? null;
         }
+
+        if (targetId) {
+          await supabase
+            .from("cobranca_automacao_execucoes")
+            .update({
+              status: "erro",
+              erro: error_message || "Erro desconhecido",
+              finalizado_at: new Date().toISOString(),
+              etapa_atual: "erro",
+              github_run_id: githubRunIdStr,
+              github_run_url: github_run_url || null,
+            })
+            .eq("id", targetId);
+        } else {
+          await supabase
+            .from("cobranca_automacao_execucoes")
+            .insert({
+              config_id: config.id,
+              corretora_id: corretora_id,
+              status: "erro",
+              erro: error_message || "Erro desconhecido",
+              finalizado_at: new Date().toISOString(),
+              etapa_atual: "erro",
+              tipo_disparo: "automatico",
+              github_run_id: githubRunIdStr,
+              github_run_url: github_run_url || null,
+            });
+        }
+
+        // Registrar no BI (erro)
+        await supabase.from("bi_audit_logs").insert({
+          modulo: "cobranca",
+          acao: "execucao_automatica_erro",
+          descricao: `Execução automática com erro${githubRunIdStr ? ` (run ${githubRunIdStr})` : ""}: ${error_message || "Erro desconhecido"}`,
+          corretora_id: corretora_id,
+          user_id: SYSTEM_USER_ID,
+          user_nome: "Sistema (Automação)",
+          dados_novos: {
+            github_run_id: githubRunIdStr,
+            github_run_url: github_run_url || null,
+            erro: error_message || null,
+          },
+        });
       }
 
       return new Response(
@@ -373,7 +458,66 @@ serve(async (req) => {
     // ============================================
     // Atualização de progresso (sem inserção de dados)
     // ============================================
-    if (update_progress && execucao_id) {
+    if (update_progress) {
+      let targetId: string | null = execucaoIdCandidate;
+
+      // Fallback para github_run_id/corretora_id quando EXECUCAO_ID vem vazio/ inválido
+      if (!targetId && corretora_id) {
+        const { data: config } = await supabase
+          .from("cobranca_automacao_config")
+          .select("id")
+          .eq("corretora_id", corretora_id)
+          .maybeSingle();
+
+        if (config?.id && githubRunIdStr) {
+          const { data: existingByRun } = await supabase
+            .from("cobranca_automacao_execucoes")
+            .select("id")
+            .eq("config_id", config.id)
+            .eq("github_run_id", githubRunIdStr)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          targetId = existingByRun?.id ?? null;
+        }
+
+        if (!targetId && config?.id) {
+          const { data: lastRunning } = await supabase
+            .from("cobranca_automacao_execucoes")
+            .select("id")
+            .eq("config_id", config.id)
+            .eq("status", "executando")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          targetId = lastRunning?.id ?? null;
+        }
+
+        if (!targetId && config?.id) {
+          const { data: created } = await supabase
+            .from("cobranca_automacao_execucoes")
+            .insert({
+              config_id: config.id,
+              corretora_id: corretora_id,
+              status: "executando",
+              etapa_atual: etapa_atual || "progresso",
+              tipo_disparo: "automatico",
+              github_run_id: githubRunIdStr,
+              github_run_url: github_run_url || null,
+            })
+            .select("id")
+            .single();
+          targetId = created?.id ?? null;
+        }
+      }
+
+      if (!targetId) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Não foi possível identificar a execução para atualizar o progresso" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const updateData: Record<string, unknown> = {};
       
       if (progresso_download !== undefined) updateData.progresso_download = progresso_download;
@@ -388,7 +532,7 @@ serve(async (req) => {
       const { error: updateError } = await supabase
         .from("cobranca_automacao_execucoes")
         .update(updateData)
-        .eq("id", execucao_id);
+        .eq("id", targetId);
       
       if (updateError) {
         console.error("Erro ao atualizar progresso:", updateError);
@@ -443,6 +587,63 @@ serve(async (req) => {
         JSON.stringify({ success: false, message: "Dados não fornecidos ou vazios" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // ============================================
+    // Resolver/garantir execução (para aparecer no histórico mesmo em automáticos)
+    // ============================================
+    const { data: configExec } = await supabase
+      .from("cobranca_automacao_config")
+      .select("id")
+      .eq("corretora_id", corretoraId)
+      .maybeSingle();
+
+    const configId = configExec?.id ?? null;
+    let targetExecucaoId: string | null = execucaoIdCandidate;
+
+    if (!targetExecucaoId && configId && githubRunIdStr) {
+      const { data: existingByRun } = await supabase
+        .from("cobranca_automacao_execucoes")
+        .select("id")
+        .eq("config_id", configId)
+        .eq("github_run_id", githubRunIdStr)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      targetExecucaoId = existingByRun?.id ?? null;
+    }
+
+    if (!targetExecucaoId && configId) {
+      const { data: lastRunning } = await supabase
+        .from("cobranca_automacao_execucoes")
+        .select("id")
+        .eq("config_id", configId)
+        .eq("status", "executando")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      targetExecucaoId = lastRunning?.id ?? null;
+    }
+
+    if (!targetExecucaoId && configId) {
+      const { data: created, error: createExecError } = await supabase
+        .from("cobranca_automacao_execucoes")
+        .insert({
+          config_id: configId,
+          corretora_id: corretoraId,
+          status: "executando",
+          etapa_atual: "importacao",
+          tipo_disparo: "automatico",
+          github_run_id: githubRunIdStr,
+          github_run_url: github_run_url || null,
+        })
+        .select("id")
+        .single();
+
+      if (createExecError) {
+        console.error("Erro ao criar execução automática (fallback):", createExecError);
+      }
+      targetExecucaoId = created?.id ?? null;
     }
 
     // ============================================
@@ -609,8 +810,8 @@ serve(async (req) => {
         processados += batch.length;
       }
 
-      // Atualizar progresso se temos execucao_id
-      if (execucao_id && dados.length > 0) {
+      // Atualizar progresso se temos execução resolvida
+      if (targetExecucaoId && dados.length > 0) {
         const progressoImportacao = Math.round((processados / dados.length) * 100);
         await supabase
           .from("cobranca_automacao_execucoes")
@@ -619,7 +820,7 @@ serve(async (req) => {
             registros_processados: processados,
             etapa_atual: 'importacao',
           })
-          .eq("id", execucao_id);
+          .eq("id", targetExecucaoId);
       }
     }
 
@@ -627,14 +828,7 @@ serve(async (req) => {
     // Atualizar status de sucesso na config e execução
     // ============================================
     
-    // Buscar config_id associado à corretora
-    const { data: config } = await supabase
-      .from("cobranca_automacao_config")
-      .select("id")
-      .eq("corretora_id", corretoraId)
-      .single();
-
-    if (config) {
+    if (configId) {
       // Atualizar config com status de sucesso
       await supabase
         .from("cobranca_automacao_config")
@@ -643,10 +837,10 @@ serve(async (req) => {
           ultimo_erro: null,
           ultima_execucao: new Date().toISOString(),
         })
-        .eq("id", config.id);
+        .eq("id", configId);
 
       // Atualizar execução mais recente com sucesso
-      if (execucao_id) {
+      if (targetExecucaoId) {
         await supabase
           .from("cobranca_automacao_execucoes")
           .update({
@@ -660,14 +854,14 @@ serve(async (req) => {
             progresso_importacao: 100,
             etapa_atual: 'concluido',
           })
-          .eq("id", execucao_id);
+          .eq("id", targetExecucaoId);
       } else {
         // Se não veio execucao_id (comum em agendamentos), tentamos fechar a última execução em andamento.
         // Se não existir, criamos um registro de histórico para não perder o log.
         const { data: lastRunning } = await supabase
           .from("cobranca_automacao_execucoes")
           .select("id")
-          .eq("config_id", config.id)
+          .eq("config_id", configId)
           .eq("status", "executando")
           .order("created_at", { ascending: false })
           .limit(1)
@@ -686,7 +880,7 @@ serve(async (req) => {
               progresso_download: 100,
               progresso_importacao: 100,
               etapa_atual: 'concluido',
-              github_run_id: github_run_id || null,
+              github_run_id: githubRunIdStr,
               github_run_url: github_run_url || null,
             })
             .eq("id", lastRunning.id);
@@ -694,7 +888,7 @@ serve(async (req) => {
           await supabase
             .from("cobranca_automacao_execucoes")
             .insert({
-              config_id: config.id,
+              config_id: configId,
               corretora_id: corretoraId,
               status: 'sucesso',
               erro: null,
@@ -706,7 +900,7 @@ serve(async (req) => {
               progresso_importacao: 100,
               etapa_atual: 'concluido',
               tipo_disparo: 'automatico',
-              github_run_id: github_run_id || null,
+              github_run_id: githubRunIdStr,
               github_run_url: github_run_url || null,
             });
         }
@@ -719,7 +913,7 @@ serve(async (req) => {
       acao: "importacao_automatica",
       descricao: `Importação automática via webhook: ${nomeArquivo} - ${processados} registros`,
       corretora_id: corretoraId,
-      user_id: "00000000-0000-0000-0000-000000000000", // Sistema
+        user_id: SYSTEM_USER_ID,
       user_nome: "Sistema (Webhook)",
       dados_novos: {
         importacao_id: importacao.id,
