@@ -517,8 +517,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     }, {});
     const regionaisPagosData = Object.entries(regionaisPagos)
       .map(([name, data]: [string, any]) => ({ name, qtde: data.qtde, valor: data.valor }))
-      .sort((a: any, b: any) => b.valor - a.valor)
-      .slice(0, 10);
+      .sort((a: any, b: any) => b.valor - a.valor);
 
     // Ranking Regionais - Abertos
     const regionaisAbertos = boletosAbertos.reduce((acc: any, b) => {
@@ -532,8 +531,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     }, {});
     const regionaisAbertosData = Object.entries(regionaisAbertos)
       .map(([name, data]: [string, any]) => ({ name, qtde: data.qtde, valor: data.valor }))
-      .sort((a: any, b: any) => b.valor - a.valor)
-      .slice(0, 10);
+      .sort((a: any, b: any) => b.valor - a.valor);
 
     // Ranking Cooperativas - Pagos
     const cooperativasPagos = boletosPagos.reduce((acc: any, b) => {
@@ -547,8 +545,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     }, {});
     const cooperativasPagosData = Object.entries(cooperativasPagos)
       .map(([name, data]: [string, any]) => ({ name, qtde: data.qtde, valor: data.valor }))
-      .sort((a: any, b: any) => b.valor - a.valor)
-      .slice(0, 10);
+      .sort((a: any, b: any) => b.valor - a.valor);
 
     // Ranking Cooperativas - Abertos
     const cooperativasAbertos = boletosAbertos.reduce((acc: any, b) => {
@@ -562,8 +559,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     }, {});
     const cooperativasAbertosData = Object.entries(cooperativasAbertos)
       .map(([name, data]: [string, any]) => ({ name, qtde: data.qtde, valor: data.valor }))
-      .sort((a: any, b: any) => b.valor - a.valor)
-      .slice(0, 10);
+      .sort((a: any, b: any) => b.valor - a.valor);
 
     // Ranking de Inadimplência por Regional (total emitido vs abertos)
     const regionaisInadimplencia: Record<string, { total: number; abertos: number; valor: number }> = {};
@@ -593,13 +589,11 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     
     // Menor inadimplência (ordenado do menor para maior)
     const regionaisMenorInadimplencia = [...regionaisInadimplenciaData]
-      .sort((a, b) => a.percentual - b.percentual)
-      .slice(0, 10);
+      .sort((a, b) => a.percentual - b.percentual);
     
     // Maior inadimplência (ordenado do maior para menor)
     const regionaisMaiorInadimplencia = [...regionaisInadimplenciaData]
-      .sort((a, b) => b.percentual - a.percentual)
-      .slice(0, 10);
+      .sort((a, b) => b.percentual - a.percentual);
 
     // Ranking de Inadimplência por Cooperativa (total emitido vs abertos)
     const cooperativasInadimplencia: Record<string, { total: number; abertos: number; valor: number }> = {};
@@ -629,13 +623,11 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     
     // Menor inadimplência por cooperativa
     const cooperativasMenorInadimplencia = [...cooperativasInadimplenciaData]
-      .sort((a, b) => a.percentual - b.percentual)
-      .slice(0, 10);
+      .sort((a, b) => a.percentual - b.percentual);
     
     // Maior inadimplência por cooperativa
     const cooperativasMaiorInadimplencia = [...cooperativasInadimplenciaData]
-      .sort((a, b) => b.percentual - a.percentual)
-      .slice(0, 10);
+      .sort((a, b) => b.percentual - a.percentual);
 
     return {
       totalBoletos,

@@ -217,12 +217,12 @@ export default function CobrancaInsights() {
     }
   }, [selectedAssociacao]);
 
-  // Realtime: atualizar dashboard quando nova importação for detectada
+  // Realtime: atualizar dashboard quando nova importação for detectada ou automação finalizar
   useEffect(() => {
     if (!selectedAssociacao) return;
 
     const channel = supabase
-      .channel(`cobranca-importacoes-${selectedAssociacao}`)
+      .channel(`cobranca-dashboard-${selectedAssociacao}`)
       .on(
         'postgres_changes',
         {
@@ -233,8 +233,11 @@ export default function CobrancaInsights() {
         },
         (payload) => {
           console.log('Nova importação detectada via realtime:', payload);
-          toast.info('Nova importação detectada! Atualizando dashboard...');
-          fetchBoletos();
+          // Se a nova importação já está ativa, atualizar imediatamente
+          if ((payload.new as any)?.ativo === true) {
+            toast.info('Nova importação detectada! Atualizando dashboard...');
+            fetchBoletos();
+          }
         }
       )
       .on(
@@ -251,6 +254,26 @@ export default function CobrancaInsights() {
           if (payload.new && (payload.new as any).ativo === true) {
             toast.info('Importação atualizada! Atualizando dashboard...');
             fetchBoletos();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'cobranca_automacao_execucoes',
+          filter: `corretora_id=eq.${selectedAssociacao}`,
+        },
+        (payload) => {
+          // Quando a automação finaliza com sucesso, atualizar o dashboard
+          if (payload.new && (payload.new as any).status === 'sucesso') {
+            console.log('Automação finalizada com sucesso via realtime:', payload);
+            toast.success('Sincronização automática concluída! Atualizando dashboard...');
+            // Pequeno delay para garantir que a importação foi ativada
+            setTimeout(() => {
+              fetchBoletos();
+            }, 1000);
           }
         }
       )
