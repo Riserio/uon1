@@ -2848,6 +2848,39 @@ async function rodarRobo() {
   }
   log('='.repeat(60));
   
+  // ============================================
+  // NOTIFICAR INÍCIO DA EXECUÇÃO (para sincronização automática)
+  // ============================================
+  let execucaoId = CONFIG.EXECUCAO_ID;
+  
+  if (!execucaoId && CONFIG.WEBHOOK_URL && CONFIG.CORRETORA_ID) {
+    try {
+      log('Notificando início da execução...', LOG_LEVELS.INFO);
+      const headers = { 'Content-Type': 'application/json' };
+      if (CONFIG.WEBHOOK_SECRET) headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
+      
+      const response = await axios.post(CONFIG.WEBHOOK_URL, {
+        action: 'start',
+        corretora_id: CONFIG.CORRETORA_ID,
+        github_run_id: CONFIG.GITHUB_RUN_ID || null,
+        github_run_url: CONFIG.GITHUB_RUN_URL || null,
+      }, { headers, timeout: 30000 });
+      
+      if (response.data?.execucao_id) {
+        execucaoId = response.data.execucao_id;
+        log(`Execução criada: ${execucaoId}`, LOG_LEVELS.SUCCESS);
+      }
+    } catch (e) {
+      log(`Erro ao notificar início: ${e.message}`, LOG_LEVELS.WARN);
+      // Continua mesmo sem conseguir notificar
+    }
+  }
+  
+  // Atualizar CONFIG com o execucao_id obtido
+  if (execucaoId && !CONFIG.EXECUCAO_ID) {
+    CONFIG.EXECUCAO_ID = execucaoId;
+  }
+  
   const { inicio, fim } = getDateRange();
   log(`Período: ${inicio} até ${fim}`);
   
@@ -4677,6 +4710,29 @@ async function rodarRobo() {
 }
 
 // ============================================
+// NOTIFICAR ERRO VIA WEBHOOK
+// ============================================
+async function notificarErro(mensagem) {
+  if (!CONFIG.WEBHOOK_URL || !CONFIG.CORRETORA_ID) return;
+  
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (CONFIG.WEBHOOK_SECRET) headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
+    
+    await axios.post(CONFIG.WEBHOOK_URL, {
+      action: 'error',
+      corretora_id: CONFIG.CORRETORA_ID,
+      execucao_id: CONFIG.EXECUCAO_ID || null,
+      error_message: mensagem,
+    }, { headers, timeout: 30000 });
+    
+    log('Erro notificado ao servidor', LOG_LEVELS.DEBUG);
+  } catch (e) {
+    log(`Erro ao notificar falha: ${e.message}`, LOG_LEVELS.WARN);
+  }
+}
+
+// ============================================
 // EXECUÇÃO
 // ============================================
 rodarRobo()
@@ -4686,10 +4742,11 @@ rodarRobo()
       process.exit(0);
     } else {
       log('Execução concluída com avisos', LOG_LEVELS.WARN);
-      process.exit(1);
+      notificarErro('Execução concluída com avisos').finally(() => process.exit(1));
     }
   })
-  .catch((error) => {
+  .catch(async (error) => {
     log(`Execução falhou: ${error.message}`, LOG_LEVELS.ERROR);
+    await notificarErro(error.message);
     process.exit(1);
   });
