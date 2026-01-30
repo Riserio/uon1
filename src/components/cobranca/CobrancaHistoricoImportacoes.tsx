@@ -282,7 +282,7 @@ export default function CobrancaHistoricoImportacoes({ corretoraId, onImportacao
                       )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                      <span>{imp.total_registros?.toLocaleString()} registros</span>
+                      <span className="whitespace-nowrap">{imp.total_registros?.toLocaleString('pt-BR')} registros</span>
                       <span>•</span>
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
