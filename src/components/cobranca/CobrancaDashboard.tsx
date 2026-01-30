@@ -763,107 +763,135 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
         </Card>
       </div>
 
-      {/* Boletos por Dia de Vencimento */}
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileText className="h-5 w-5 text-primary" />
-              Boletos Emitidos por Dia Venc.
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto">
-              {stats.diasVencimentoData.map((item) => (
-                <div key={item.dia} className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
-                  <span className="font-medium">{item.dia}</span>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">{item.qtde} boletos</p>
-                    <p className="text-xs text-blue-600">{formatCurrency(item.valor)}</p>
-                    <div className="flex gap-2 text-[10px] mt-0.5">
-                      <span className="text-green-600">{formatPercent(item.percPago)} pago</span>
-                      <span className="text-red-600">{formatPercent(item.percAberto)} aberto</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg border-2 border-primary/20 mt-2">
-                <span className="font-bold">Total</span>
-                <div className="text-right">
-                  <p className="font-bold">{stats.totalBoletos} boletos</p>
-                  <p className="text-sm text-blue-600 font-semibold">{formatCurrency(stats.totalValor)}</p>
-                </div>
+      {/* Boletos por Dia de Vencimento - Card Integrado */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Calendar className="h-5 w-5 text-primary" />
+            Boletos por Dia de Vencimento
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {/* Header com Totais */}
+          <div className="grid grid-cols-3 border-b bg-muted/30">
+            <div className="p-4 border-r">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-2 h-2 rounded-full bg-primary" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Emitidos</span>
+              </div>
+              <p className="text-xl font-bold">{stats.totalBoletos.toLocaleString('pt-BR')}</p>
+              <p className="text-sm text-primary font-medium">{formatCurrency(stats.totalValor)}</p>
+            </div>
+            <div className="p-4 border-r">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pagos</span>
+              </div>
+              <p className="text-xl font-bold text-green-600">{stats.qtdePagos.toLocaleString('pt-BR')}</p>
+              <p className="text-sm text-green-600 font-medium">{formatCurrency(stats.totalPago)}</p>
+            </div>
+            <div className="p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-2 h-2 rounded-full bg-red-500" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Em Aberto</span>
+              </div>
+              <p className="text-xl font-bold text-red-600">{stats.qtdeAbertos.toLocaleString('pt-BR')}</p>
+              <p className="text-sm text-red-600 font-medium">{formatCurrency(stats.totalAberto)}</p>
+            </div>
+          </div>
+          
+          {/* Tabela Integrada */}
+          <div className="max-h-[400px] overflow-y-auto">
+            <table className="w-full">
+              <thead className="bg-muted/50 sticky top-0 z-10">
+                <tr>
+                  <th className="text-left p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dia Venc.</th>
+                  <th className="text-center p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Emitidos</th>
+                  <th className="text-center p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pagos</th>
+                  <th className="text-center p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Em Aberto</th>
+                  <th className="text-right p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Taxa Pgto.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.diasVencimentoData.map((item, index) => {
+                  const pagosItem = stats.diasVencimentoPagosData.find(p => p.diaNum === item.diaNum);
+                  const abertosItem = stats.diasVencimentoAbertosData.find(a => a.diaNum === item.diaNum);
+                  const taxaPagamento = item.qtde > 0 ? (pagosItem?.qtde || 0) / item.qtde * 100 : 0;
+                  
+                  return (
+                    <tr 
+                      key={item.dia} 
+                      className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${index % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}
+                    >
+                      <td className="p-3">
+                        <span className="font-semibold text-sm">{item.dia}</span>
+                      </td>
+                      <td className="p-3 text-center">
+                        <div>
+                          <span className="font-medium">{item.qtde.toLocaleString('pt-BR')}</span>
+                          <p className="text-xs text-muted-foreground">{formatCurrency(item.valor)}</p>
+                        </div>
+                      </td>
+                      <td className="p-3 text-center">
+                        {pagosItem ? (
+                          <div>
+                            <span className="font-medium text-green-600">{pagosItem.qtde.toLocaleString('pt-BR')}</span>
+                            <p className="text-xs text-green-600/70">{formatCurrency(pagosItem.valor)}</p>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-center">
+                        {abertosItem && abertosItem.qtde > 0 ? (
+                          <div>
+                            <span className="font-medium text-red-600">{abertosItem.qtde.toLocaleString('pt-BR')}</span>
+                            <p className="text-xs text-red-600/70">{formatCurrency(abertosItem.valor)}</p>
+                          </div>
+                        ) : (
+                          <span className="text-green-600 text-sm">✓</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all ${taxaPagamento >= 80 ? 'bg-green-500' : taxaPagamento >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                              style={{ width: `${Math.min(100, taxaPagamento)}%` }}
+                            />
+                          </div>
+                          <span className={`text-xs font-semibold min-w-[45px] text-right ${taxaPagamento >= 80 ? 'text-green-600' : taxaPagamento >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                            {formatPercent(taxaPagamento)}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          
+          {/* Footer com legenda */}
+          <div className="p-3 bg-muted/30 border-t flex items-center justify-between text-xs text-muted-foreground">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-2 bg-green-500 rounded" />
+                <span>≥80% Pago</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-2 bg-yellow-500 rounded" />
+                <span>50-79% Pago</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-2 bg-red-500 rounded" />
+                <span>&lt;50% Pago</span>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              Boletos Pagos por Dia Venc.
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto">
-              {stats.diasVencimentoPagosData.map((item) => (
-                <div key={item.dia} className="flex items-center justify-between p-2 bg-green-500/10 rounded-lg">
-                  <span className="font-medium">{item.dia}</span>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">{item.qtde} boletos</p>
-                    <p className="text-xs text-green-600">{formatCurrency(item.valor)}</p>
-                    <div className="flex gap-2 text-[10px] mt-0.5">
-                      <span className="text-green-600 font-medium">{formatPercent(item.percPago)} pago</span>
-                      <span className="text-red-600">{formatPercent(item.percAberto)} aberto</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <div className="flex items-center justify-between p-3 bg-green-500/20 rounded-lg border-2 border-green-500/30 mt-2">
-                <span className="font-bold">Total Pagos</span>
-                <div className="text-right">
-                  <p className="font-bold">{stats.qtdePagos} boletos</p>
-                  <p className="text-sm text-green-600 font-semibold">{formatCurrency(stats.totalPago)}</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Clock className="h-5 w-5 text-red-500" />
-              Boletos em Aberto por Dia Venc.
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto">
-              {stats.diasVencimentoAbertosData.map((item) => (
-                <div key={item.dia} className="flex items-center justify-between p-2 bg-red-500/10 rounded-lg">
-                  <span className="font-medium">{item.dia}</span>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">{item.qtde} boletos</p>
-                    <p className="text-xs text-red-600">{formatCurrency(item.valor)}</p>
-                    <div className="flex gap-2 text-[10px] mt-0.5">
-                      <span className="text-green-600">{formatPercent(item.percPago)} pago</span>
-                      <span className="text-red-600 font-medium">{formatPercent(item.percAberto)} aberto</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <div className="flex items-center justify-between p-3 bg-red-500/20 rounded-lg border-2 border-red-500/30 mt-2">
-                <span className="font-bold">Total em Aberto</span>
-                <div className="text-right">
-                  <p className="font-bold">{stats.qtdeAbertos} boletos</p>
-                  <p className="text-sm text-red-600 font-semibold">{formatCurrency(stats.totalAberto)}</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            <span>{stats.diasVencimentoData.length} dias com vencimento</span>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Gráfico de Inadimplência com duas linhas */}
       <Card>
