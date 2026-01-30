@@ -224,7 +224,127 @@ serve(async (req) => {
       // GitHub run info
       github_run_id,
       github_run_url,
+      // Ação especial: start, error
+      action,
+      error_message,
     } = body;
+
+    // ============================================
+    // Ação: Iniciar execução (para sincronizações automáticas)
+    // ============================================
+    if (action === 'start' && corretora_id) {
+      console.log("Iniciando execução para corretora:", corretora_id);
+      
+      // Buscar config da corretora
+      const { data: config, error: configError } = await supabase
+        .from("cobranca_automacao_config")
+        .select("id")
+        .eq("corretora_id", corretora_id)
+        .single();
+
+      if (configError || !config) {
+        console.error("Config não encontrada para corretora:", corretora_id);
+        return new Response(
+          JSON.stringify({ success: false, message: "Configuração não encontrada" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Criar registro de execução
+      const { data: execucao, error: execError } = await supabase
+        .from("cobranca_automacao_execucoes")
+        .insert({
+          config_id: config.id,
+          corretora_id: corretora_id,
+          status: 'executando',
+          etapa_atual: 'login',
+          tipo_disparo: 'automatico',
+          github_run_id: github_run_id || null,
+          github_run_url: github_run_url || null,
+        })
+        .select()
+        .single();
+
+      if (execError) {
+        console.error("Erro ao criar execução:", execError);
+        return new Response(
+          JSON.stringify({ success: false, message: "Erro ao criar execução", error: execError.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Atualizar config com status executando
+      await supabase
+        .from("cobranca_automacao_config")
+        .update({
+          ultimo_status: 'executando',
+          ultimo_erro: null,
+          ultima_execucao: new Date().toISOString(),
+        })
+        .eq("id", config.id);
+
+      console.log("Execução criada:", execucao.id);
+      return new Response(
+        JSON.stringify({ success: true, execucao_id: execucao.id }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ============================================
+    // Ação: Registrar erro
+    // ============================================
+    if (action === 'error' && corretora_id) {
+      console.log("Registrando erro para corretora:", corretora_id, error_message);
+      
+      // Buscar config da corretora
+      const { data: config } = await supabase
+        .from("cobranca_automacao_config")
+        .select("id")
+        .eq("corretora_id", corretora_id)
+        .single();
+
+      if (config) {
+        // Atualizar config com erro
+        await supabase
+          .from("cobranca_automacao_config")
+          .update({
+            ultimo_status: 'erro',
+            ultimo_erro: error_message || 'Erro desconhecido',
+            ultima_execucao: new Date().toISOString(),
+          })
+          .eq("id", config.id);
+
+        // Atualizar execução se tiver ID
+        if (execucao_id) {
+          await supabase
+            .from("cobranca_automacao_execucoes")
+            .update({
+              status: 'erro',
+              erro: error_message || 'Erro desconhecido',
+              finalizado_at: new Date().toISOString(),
+            })
+            .eq("id", execucao_id);
+        } else {
+          // Atualizar a execução mais recente em status executando
+          await supabase
+            .from("cobranca_automacao_execucoes")
+            .update({
+              status: 'erro',
+              erro: error_message || 'Erro desconhecido',
+              finalizado_at: new Date().toISOString(),
+            })
+            .eq("config_id", config.id)
+            .eq("status", 'executando')
+            .order("created_at", { ascending: false })
+            .limit(1);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Erro registrado" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // ============================================
     // Atualização de progresso (sem inserção de dados)
