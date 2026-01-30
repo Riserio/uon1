@@ -23,7 +23,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { getNextDailyRunBrasilia } from "@/lib/cobrancaSchedule";
+import { getNextDailyRunBrasilia, cronUTCLabel, countdown } from "@/lib/cobrancaSchedule";
 
 interface SyncConfig {
   id: string;
@@ -31,6 +31,7 @@ interface SyncConfig {
   corretora_id: string;
   corretora_nome: string;
   hinova_url: string;
+  hora_agendada: string | null; // "HH:mm:ss"
   ultima_execucao: string | null;
   ultimo_status: string | null;
   ultimo_erro: string | null;
@@ -114,6 +115,7 @@ export function GitHubSyncPanel() {
           ativo,
           corretora_id,
           hinova_url,
+          hora_agendada,
           ultima_execucao,
           ultimo_status,
           ultimo_erro,
@@ -129,6 +131,7 @@ export function GitHubSyncPanel() {
         corretora_id: item.corretora_id,
         corretora_nome: item.corretoras?.nome || "Desconhecida",
         hinova_url: item.hinova_url,
+        hora_agendada: item.hora_agendada ?? "09:00:00",
         ultima_execucao: item.ultima_execucao,
         ultimo_status: item.ultimo_status,
         ultimo_erro: item.ultimo_erro,
@@ -383,11 +386,16 @@ export function GitHubSyncPanel() {
                         )}
 
                         {config.ativo && (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                            <Clock className="h-3 w-3" />
-                            Próxima execução diária:{" "}
-                            {format(getNextDailyRunBrasilia(), "dd/MM/yyyy HH:mm", { locale: ptBR })} (Brasília)
-                          </p>
+                          <div className="flex flex-col gap-0.5 mt-1">
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              Próxima:{" "}
+                              {format(getNextDailyRunBrasilia(config.hora_agendada), "dd/MM 'às' HH:mm", { locale: ptBR })} ({countdown(getNextDailyRunBrasilia(config.hora_agendada))})
+                            </p>
+                            <Badge variant="outline" className="w-fit text-[10px] px-1.5 py-0">
+                              Cron: {cronUTCLabel(config.hora_agendada)}
+                            </Badge>
+                          </div>
                         )}
                         {config.ultimo_status === "erro" && config.ultimo_erro && (
                           <p className="text-xs text-destructive flex items-center gap-1 mt-1">

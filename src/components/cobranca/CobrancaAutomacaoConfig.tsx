@@ -46,6 +46,7 @@ interface AutomacaoConfig {
   hinova_codigo_cliente: string;
   layout_relatorio: string;
   ativo: boolean;
+  hora_agendada: string; // "HH:mm" ou "HH:mm:ss"
   ultima_execucao?: string;
   ultimo_status?: string;
   ultimo_erro?: string;
@@ -71,6 +72,7 @@ const DEFAULT_CONFIG: Omit<AutomacaoConfig, 'corretora_id'> = {
   hinova_codigo_cliente: '',
   layout_relatorio: '',
   ativo: false,
+  hora_agendada: '09:00', // padrão 09:00 Brasília
   // Filtros padrão conforme screenshot
   filtro_periodo_tipo: 'mes_atual',
   filtro_data_inicio: null,
@@ -160,6 +162,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
           filtro_periodo_tipo: data.filtro_periodo_tipo || 'mes_atual',
           filtro_boletos_anteriores: data.filtro_boletos_anteriores || 'possui',
           filtro_referencia: data.filtro_referencia || 'vencimento_original',
+          hora_agendada: data.hora_agendada ? String(data.hora_agendada).slice(0, 5) : '09:00',
         });
         
         // Verificar se está executando baseado na execução real, não apenas no config
@@ -250,6 +253,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
         hinova_codigo_cliente: config.hinova_codigo_cliente,
         layout_relatorio: config.layout_relatorio,
         ativo: config.ativo,
+        hora_agendada: config.hora_agendada || '09:00',
         // Filtros
         filtro_periodo_tipo: config.filtro_periodo_tipo,
         filtro_data_inicio: config.filtro_periodo_tipo === 'customizado' ? config.filtro_data_inicio : null,
@@ -445,7 +449,7 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                 {corretoraNome} • Execução via GitHub Actions
               </CardDescription>
             </div>
-            <div className="flex flex-col items-end gap-1">
+            <div className="flex flex-col items-end gap-2">
               <div className="flex items-center gap-2">
                 <Label htmlFor="ativo-switch" className="text-sm">Execução Diária</Label>
                 <Switch
@@ -454,8 +458,20 @@ export default function CobrancaAutomacaoConfig({ corretoraId, corretoraNome }: 
                   onCheckedChange={(checked) => setConfig(prev => ({ ...prev, ativo: checked }))}
                 />
               </div>
+              {config.ativo && (
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="hora-input" className="text-xs text-muted-foreground">Horário (Brasília)</Label>
+                  <Input
+                    id="hora-input"
+                    type="time"
+                    value={config.hora_agendada}
+                    onChange={(e) => setConfig(prev => ({ ...prev, hora_agendada: e.target.value }))}
+                    className="w-24 h-7 text-xs"
+                  />
+                </div>
+              )}
               <span className="text-xs text-muted-foreground">
-                {config.ativo ? "Ativa às 09:00 (Brasília)" : "Desativada"}
+                {config.ativo ? `Ativa às ${config.hora_agendada || '09:00'} (Brasília)` : "Desativada"}
               </span>
             </div>
           </div>
