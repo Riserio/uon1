@@ -479,6 +479,66 @@ serve(async (req) => {
       }
     }
 
+    // ============================================
+    // Atualizar status de sucesso na config e execução
+    // ============================================
+    
+    // Buscar config_id associado à corretora
+    const { data: config } = await supabase
+      .from("cobranca_automacao_config")
+      .select("id")
+      .eq("corretora_id", corretoraId)
+      .single();
+
+    if (config) {
+      // Atualizar config com status de sucesso
+      await supabase
+        .from("cobranca_automacao_config")
+        .update({
+          ultimo_status: 'sucesso',
+          ultimo_erro: null,
+          ultima_execucao: new Date().toISOString(),
+        })
+        .eq("id", config.id);
+
+      // Atualizar execução mais recente com sucesso
+      if (execucao_id) {
+        await supabase
+          .from("cobranca_automacao_execucoes")
+          .update({
+            status: 'sucesso',
+            erro: null,
+            finalizado_at: new Date().toISOString(),
+            registros_processados: processados,
+            registros_total: dados.length,
+            nome_arquivo: nomeArquivo,
+            progresso_download: 100,
+            progresso_importacao: 100,
+            etapa_atual: 'concluido',
+          })
+          .eq("id", execucao_id);
+      } else {
+        // Se não tem execucao_id, atualizar a execução mais recente em status 'executando'
+        await supabase
+          .from("cobranca_automacao_execucoes")
+          .update({
+            status: 'sucesso',
+            erro: null,
+            finalizado_at: new Date().toISOString(),
+            registros_processados: processados,
+            registros_total: dados.length,
+            nome_arquivo: nomeArquivo,
+            progresso_download: 100,
+            progresso_importacao: 100,
+            etapa_atual: 'concluido',
+          })
+          .eq("config_id", config.id)
+          .eq("status", 'executando')
+          .order("created_at", { ascending: false })
+          .limit(1);
+      }
+    }
+
     // Registrar log de auditoria
     await supabase.from("bi_audit_logs").insert({
       modulo: "cobranca",
@@ -501,7 +561,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Chunk processado: ${processados} registros inseridos`,
+        message: `Importação concluída com sucesso: ${processados} registros`,
         importacao_id: importacao.id,
         total: typeof total_registros === 'number' && total_registros > 0 ? total_registros : dados.length,
         processados,
