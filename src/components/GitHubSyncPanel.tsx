@@ -169,9 +169,8 @@ export function GitHubSyncPanel() {
       setExpandedConfigId(null);
     } else {
       setExpandedConfigId(configId);
-      if (!executionLogs[configId]) {
-        loadExecutionLogs(configId);
-      }
+      // Sempre recarrega ao abrir para refletir execuções automáticas/manuais recentes
+      loadExecutionLogs(configId);
     }
   };
 
