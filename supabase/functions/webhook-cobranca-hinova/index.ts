@@ -325,18 +325,42 @@ serve(async (req) => {
             })
             .eq("id", execucao_id);
         } else {
-          // Atualizar a execução mais recente em status executando
-          await supabase
+          // Se não veio execucao_id, tentamos atualizar a última execução em andamento.
+          // Se não existir nenhuma, criamos um registro de histórico assim mesmo.
+          const { data: lastRunning } = await supabase
             .from("cobranca_automacao_execucoes")
-            .update({
-              status: 'erro',
-              erro: error_message || 'Erro desconhecido',
-              finalizado_at: new Date().toISOString(),
-            })
+            .select("id")
             .eq("config_id", config.id)
-            .eq("status", 'executando')
+            .eq("status", "executando")
             .order("created_at", { ascending: false })
-            .limit(1);
+            .limit(1)
+            .maybeSingle();
+
+          if (lastRunning?.id) {
+            await supabase
+              .from("cobranca_automacao_execucoes")
+              .update({
+                status: 'erro',
+                erro: error_message || 'Erro desconhecido',
+                finalizado_at: new Date().toISOString(),
+                etapa_atual: 'erro',
+              })
+              .eq("id", lastRunning.id);
+          } else {
+            await supabase
+              .from("cobranca_automacao_execucoes")
+              .insert({
+                config_id: config.id,
+                corretora_id: corretora_id,
+                status: 'erro',
+                erro: error_message || 'Erro desconhecido',
+                finalizado_at: new Date().toISOString(),
+                etapa_atual: 'erro',
+                tipo_disparo: 'automatico',
+                github_run_id: github_run_id || null,
+                github_run_url: github_run_url || null,
+              });
+          }
         }
       }
 
@@ -638,24 +662,54 @@ serve(async (req) => {
           })
           .eq("id", execucao_id);
       } else {
-        // Se não tem execucao_id, atualizar a execução mais recente em status 'executando'
-        await supabase
+        // Se não veio execucao_id (comum em agendamentos), tentamos fechar a última execução em andamento.
+        // Se não existir, criamos um registro de histórico para não perder o log.
+        const { data: lastRunning } = await supabase
           .from("cobranca_automacao_execucoes")
-          .update({
-            status: 'sucesso',
-            erro: null,
-            finalizado_at: new Date().toISOString(),
-            registros_processados: processados,
-            registros_total: dados.length,
-            nome_arquivo: nomeArquivo,
-            progresso_download: 100,
-            progresso_importacao: 100,
-            etapa_atual: 'concluido',
-          })
+          .select("id")
           .eq("config_id", config.id)
-          .eq("status", 'executando')
+          .eq("status", "executando")
           .order("created_at", { ascending: false })
-          .limit(1);
+          .limit(1)
+          .maybeSingle();
+
+        if (lastRunning?.id) {
+          await supabase
+            .from("cobranca_automacao_execucoes")
+            .update({
+              status: 'sucesso',
+              erro: null,
+              finalizado_at: new Date().toISOString(),
+              registros_processados: processados,
+              registros_total: dados.length,
+              nome_arquivo: nomeArquivo,
+              progresso_download: 100,
+              progresso_importacao: 100,
+              etapa_atual: 'concluido',
+              github_run_id: github_run_id || null,
+              github_run_url: github_run_url || null,
+            })
+            .eq("id", lastRunning.id);
+        } else {
+          await supabase
+            .from("cobranca_automacao_execucoes")
+            .insert({
+              config_id: config.id,
+              corretora_id: corretoraId,
+              status: 'sucesso',
+              erro: null,
+              finalizado_at: new Date().toISOString(),
+              registros_processados: processados,
+              registros_total: dados.length,
+              nome_arquivo: nomeArquivo,
+              progresso_download: 100,
+              progresso_importacao: 100,
+              etapa_atual: 'concluido',
+              tipo_disparo: 'automatico',
+              github_run_id: github_run_id || null,
+              github_run_url: github_run_url || null,
+            });
+        }
       }
     }
 
