@@ -62,7 +62,46 @@ export function GitHubSyncPanel() {
 
   useEffect(() => {
     loadConfigs();
-  }, []);
+    
+    // Subscrever a mudanças em tempo real nas execuções (automáticas ou manuais)
+    const channel = supabase
+      .channel('cobranca-automacao-sync')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cobranca_automacao_execucoes',
+        },
+        (payload) => {
+          console.log('Execução atualizada:', payload);
+          // Recarregar configs para atualizar status
+          loadConfigs();
+          
+          // Se temos um log expandido, atualizar também
+          if (expandedConfigId) {
+            loadExecutionLogs(expandedConfigId);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cobranca_automacao_config',
+        },
+        (payload) => {
+          console.log('Config atualizada:', payload);
+          loadConfigs();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [expandedConfigId]);
 
   const loadConfigs = async () => {
     try {
