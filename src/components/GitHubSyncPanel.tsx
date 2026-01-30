@@ -568,9 +568,9 @@ export function GitHubSyncPanel() {
                                   )}
                                   
                                   {log.status === "sucesso" && (
-                                    <div className="text-xs text-green-700 mt-1">
+                                    <div className="text-xs text-green-700 mt-1 whitespace-nowrap">
                                       {log.registros_processados !== null && (
-                                        <span>✓ {log.registros_processados} registros processados</span>
+                                        <span>✓ {log.registros_processados.toLocaleString('pt-BR')} registros processados</span>
                                       )}
                                       {log.nome_arquivo && (
                                         <span className="ml-2">• {log.nome_arquivo}</span>

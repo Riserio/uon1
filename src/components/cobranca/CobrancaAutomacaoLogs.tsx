@@ -628,20 +628,20 @@ export default function CobrancaAutomacaoLogs({ configId, corretoraId }: Cobranc
                     {!isRunning && realStatus === 'sucesso' && (
                       <div className="flex flex-wrap gap-3 mt-2 text-[10px] text-muted-foreground">
                         {log.registros_processados !== null && log.registros_processados > 0 && (
-                          <span className="flex items-center gap-1">
-                            <FileSpreadsheet className="h-2.5 w-2.5" />
+                          <span className="flex items-center gap-1 shrink-0 whitespace-nowrap">
+                            <FileSpreadsheet className="h-2.5 w-2.5 shrink-0" />
                             {log.registros_processados.toLocaleString('pt-BR')} registros
                           </span>
                         )}
                         {log.bytes_total !== null && log.bytes_total > 0 && (
-                          <span className="flex items-center gap-1">
-                            <Download className="h-2.5 w-2.5" />
+                          <span className="flex items-center gap-1 shrink-0 whitespace-nowrap">
+                            <Download className="h-2.5 w-2.5 shrink-0" />
                             {formatBytes(log.bytes_total)}
                           </span>
                         )}
                         {log.duracao_segundos !== null && (
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-2.5 w-2.5" />
+                          <span className="flex items-center gap-1 shrink-0 whitespace-nowrap">
+                            <Clock className="h-2.5 w-2.5 shrink-0" />
                             {formatDuration(log.duracao_segundos)}
                           </span>
                         )}
