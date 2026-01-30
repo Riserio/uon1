@@ -42,6 +42,20 @@ serve(async (req) => {
       );
     }
 
+    // Verificar se é uma chamada forçada (executar pendentes)
+    let forceMode = false;
+    let specificCorretoras: string[] = [];
+    
+    try {
+      const body = await req.json();
+      forceMode = body.force === true;
+      if (body.corretora_ids && Array.isArray(body.corretora_ids)) {
+        specificCorretoras = body.corretora_ids;
+      }
+    } catch {
+      // Body vazio é ok - modo normal do cron
+    }
+
     // Obter hora atual em Brasília (UTC-3)
     const nowUtc = new Date();
     const brasiliaOffset = -3 * 60; // -3 horas em minutos
@@ -51,17 +65,23 @@ serve(async (req) => {
     const currentMinute = brasiliaTime.getUTCMinutes();
     const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}:00`;
 
-    console.log(`[Scheduler] Verificando agendamentos para ${currentTimeStr} (Brasília)`);
+    console.log(`[Scheduler] Verificando agendamentos para ${currentTimeStr} (Brasília)${forceMode ? ' [MODO FORÇADO]' : ''}`);
 
-    // Buscar todas as configurações ativas que devem executar agora
-    // Considera uma janela de 5 minutos para tolerância
-    const { data: configs, error: configsError } = await supabase
+    // Buscar todas as configurações ativas
+    let query = supabase
       .from("cobranca_automacao_config")
       .select(`
         *,
         corretora:corretoras(nome, slug)
       `)
       .eq("ativo", true);
+    
+    // Se há corretoras específicas, filtrar
+    if (specificCorretoras.length > 0) {
+      query = query.in("corretora_id", specificCorretoras);
+    }
+    
+    const { data: configs, error: configsError } = await query;
 
     if (configsError) {
       console.error("[Scheduler] Erro ao buscar configurações:", configsError);
@@ -83,27 +103,29 @@ serve(async (req) => {
     const erros: string[] = [];
 
     for (const config of configs) {
-      // Verificar se o horário agendado corresponde ao horário atual
-      const horaAgendada = config.hora_agendada || "09:00:00";
-      const [agendadoHora, agendadoMinuto] = horaAgendada.split(":").map(Number);
+      // Verificar se o horário agendado corresponde ao horário atual (apenas se não for modo forçado)
+      if (!forceMode) {
+        const horaAgendada = config.hora_agendada || "09:00:00";
+        const [agendadoHora, agendadoMinuto] = horaAgendada.split(":").map(Number);
 
-      // Verificar se está dentro da janela de 1 minuto (scheduler roda a cada minuto)
-      if (currentHour !== agendadoHora || currentMinute !== agendadoMinuto) {
-        continue;
+        // Verificar se está dentro da janela de 1 minuto (scheduler roda a cada minuto)
+        if (currentHour !== agendadoHora || currentMinute !== agendadoMinuto) {
+          continue;
+        }
       }
 
-      // Verificar se já executou hoje (evitar duplicatas)
+      // Verificar se já executou hoje (evitar duplicatas) - verificar qualquer tipo de disparo com sucesso
       const hoje = new Date().toISOString().split('T')[0];
       const { data: execucoesHoje } = await supabase
         .from("cobranca_automacao_execucoes")
-        .select("id")
+        .select("id, status")
         .eq("config_id", config.id)
-        .eq("tipo_disparo", "agendado")
         .gte("created_at", `${hoje}T00:00:00`)
+        .in("status", ["sucesso", "executando"])
         .limit(1);
 
       if (execucoesHoje && execucoesHoje.length > 0) {
-        console.log(`[Scheduler] ${config.corretora?.nome || config.corretora_id} já executou hoje, pulando`);
+        console.log(`[Scheduler] ${config.corretora?.nome || config.corretora_id} já executou hoje com sucesso, pulando`);
         continue;
       }
 
@@ -113,6 +135,7 @@ serve(async (req) => {
         continue;
       }
 
+      const horaAgendadaConfig = config.hora_agendada || "09:00:00";
       console.log(`[Scheduler] Disparando para ${config.corretora?.nome || config.corretora_id}`);
 
       try {
@@ -124,7 +147,9 @@ serve(async (req) => {
             corretora_id: config.corretora_id,
             status: 'executando',
             etapa_atual: 'disparo',
-            mensagem: `Execução agendada automática (${horaAgendada} Brasília)`,
+            mensagem: forceMode 
+              ? `Execução forçada (pendente de ${horaAgendadaConfig} Brasília)` 
+              : `Execução agendada automática (${horaAgendadaConfig} Brasília)`,
             iniciado_por: null,
             tipo_disparo: 'agendado',
           })
@@ -250,7 +275,8 @@ serve(async (req) => {
             execucao_id: execucao.id,
             github_run_id: githubRunId,
             github_run_url: githubRunUrl,
-            hora_agendada: horaAgendada,
+            hora_agendada: horaAgendadaConfig,
+            modo_forcado: forceMode,
           },
         });
 
