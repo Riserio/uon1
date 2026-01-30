@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.disparar-github-workflow]
 verify_jwt = false
+
+[functions.scheduler-cobranca-hinova]
+verify_jwt = false
