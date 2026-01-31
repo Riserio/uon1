@@ -168,18 +168,16 @@ serve(async (req) => {
         })
         .eq("id", config.id);
 
-      // Formatar datas para DD/MM/YYYY (sempre mês atual)
+      // Formatar datas para DD/MM/YYYY
+      // Data início: sempre 01/01/2000 (histórico completo)
+      const dataInicio = '01/01/2000';
+      
+      // Data fim: último dia do mês atual
       const now = new Date();
       const year = now.getFullYear();
       const month = now.getMonth();
-      
-      // Primeiro dia do mês
-      const firstDay = new Date(year, month, 1);
-      const dataInicioMesAtual = `${String(firstDay.getDate()).padStart(2, '0')}/${String(firstDay.getMonth() + 1).padStart(2, '0')}/${firstDay.getFullYear()}`;
-      
-      // Último dia do mês
       const lastDay = new Date(year, month + 1, 0);
-      const dataFimMesAtual = `${String(lastDay.getDate()).padStart(2, '0')}/${String(lastDay.getMonth() + 1).padStart(2, '0')}/${lastDay.getFullYear()}`;
+      const dataFim = `${String(lastDay.getDate()).padStart(2, '0')}/${String(lastDay.getMonth() + 1).padStart(2, '0')}/${lastDay.getFullYear()}`;
 
       // Preparar inputs para o workflow
       const workflowInputs: WorkflowInput = {
@@ -188,13 +186,13 @@ serve(async (req) => {
         hinova_user: config.hinova_user,
         hinova_pass: config.hinova_pass,
         hinova_codigo_cliente: config.hinova_codigo_cliente || '',
-        data_inicio: dataInicioMesAtual,
-        data_fim: dataFimMesAtual,
+        data_inicio: dataInicio,
+        data_fim: dataFim,
         execucao_id: execucao.id,
         webhook_url: `${supabaseUrl}/functions/v1/webhook-sga-hinova`,
       };
 
-      console.log(`[Eventos GitHub Workflow] Disparando workflow para ${corretora_id} - Período: ${dataInicioMesAtual} até ${dataFimMesAtual}`);
+      console.log(`[Eventos GitHub Workflow] Disparando workflow para ${corretora_id} - Período: ${dataInicio} até ${dataFim}`);
 
       // Disparar workflow via GitHub API (nome atualizado)
       const dispatchUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/eventos-hinova.yml/dispatches`;
