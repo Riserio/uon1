@@ -6,13 +6,14 @@
  * Este script automatiza a extração do relatório 11.9.1 (Por Eventos)
  * do portal SGA Hinova e envia os dados para o webhook.
  * 
- * FLUXO:
- * ------
- * 1. Menu: Relatório > 11.9 - DE EVENTOS > 11.9.1 - POR EVENTOS
- * 2. Preencher: Data Cadastro Item (período)
- * 3. Selecionar: Layout "BI - VANGARD" em Dados Visualizados
- * 4. Selecionar: Forma de Exibição "Em Excel"
- * 5. Clicar em Gerar
+ * FLUXO SIMPLIFICADO:
+ * -------------------
+ * 1. Login no portal
+ * 2. Navegar DIRETAMENTE para URL do relatório (relatorioEvento.php)
+ * 3. Preencher: Data Cadastro Item (período)
+ * 4. Selecionar: Layout "BI - VANGARD" em Dados Visualizados
+ * 5. Selecionar: Forma de Exibição "Em Excel"
+ * 6. Clicar em Gerar
  * 
  * REQUISITOS:
  * -----------
@@ -59,6 +60,28 @@ const CONFIG = {
   DOWNLOAD_DIR: './downloads',
   DEBUG_DIR: './debug',
 };
+
+/**
+ * Deriva a URL do relatório de eventos a partir da URL de login
+ * Exemplo: https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php
+ *       -> https://eris.hinova.com.br/sga/sgav4_valecar/relatorio/relatorioEvento.php
+ */
+function deriveRelatorioUrl(loginUrl) {
+  try {
+    const url = new URL(loginUrl);
+    // Extrai o path base (ex: /sga/sgav4_valecar/)
+    const pathMatch = url.pathname.match(/^(\/sga\/[^\/]+\/)/);
+    if (pathMatch) {
+      return `${url.origin}${pathMatch[1]}relatorio/relatorioEvento.php`;
+    }
+    // Fallback: tentar substituir v5/login.php por relatorio/relatorioEvento.php
+    const fallbackPath = url.pathname.replace(/v5\/login\.php.*/, 'relatorio/relatorioEvento.php');
+    return `${url.origin}${fallbackPath}`;
+  } catch (e) {
+    console.error(`Erro ao derivar URL do relatório: ${e.message}`);
+    return null;
+  }
+}
 
 // Timeouts
 const TIMEOUTS = {
@@ -595,112 +618,29 @@ async function main() {
     log('Login realizado com sucesso!', LOG_LEVELS.SUCCESS);
 
     // ============================================
-    // ETAPA: NAVEGAR PARA RELATÓRIO DE EVENTOS
+    // ETAPA: NAVEGAR DIRETAMENTE PARA PÁGINA DO RELATÓRIO
     // ============================================
     setStep('NAVEGACAO');
     await updateProgress('executando', 'filtros');
-    log('Navegando para Relatório > 11.9 - DE EVENTOS > 11.9.1 - POR EVENTOS...', LOG_LEVELS.INFO);
-
-    // Clicar no menu Relatório
-    try {
-      const menuRelatorio = page.locator('a:has-text("Relatório"), a:has-text("Relatórios"), li:has-text("Relatório") > a').first();
-      await menuRelatorio.waitFor({ state: 'visible', timeout: 10000 });
-      await menuRelatorio.click();
-      await page.waitForTimeout(2000);
-      log('Menu Relatório aberto', LOG_LEVELS.SUCCESS);
-    } catch (e) {
-      log(`Erro ao abrir menu Relatório: ${e.message}`, LOG_LEVELS.WARN);
-    }
     
-    await saveDebugInfo(page, 'debug_sga_menu_relatorio');
+    const relatorioUrl = deriveRelatorioUrl(CONFIG.HINOVA_URL);
+    log(`Navegando diretamente para: ${relatorioUrl}`, LOG_LEVELS.INFO);
 
-    // Clicar em 11.9 - DE EVENTOS
     try {
-      // Tentar diferentes seletores para o menu 11.9
-      const seletoresMenu119 = [
-        'a:has-text("11.9 - DE EVENTOS")',
-        'a:has-text("11.9")',
-        'a:has-text("DE EVENTOS")',
-        'a:has-text("De Eventos")',
-        'a[href*="11.9"]',
-      ];
-      
-      let clicouMenu119 = false;
-      for (const seletor of seletoresMenu119) {
-        try {
-          const menu = page.locator(seletor).first();
-          if (await menu.isVisible({ timeout: 2000 }).catch(() => false)) {
-            await menu.click();
-            await page.waitForTimeout(1500);
-            clicouMenu119 = true;
-            log('Menu 11.9 - DE EVENTOS clicado', LOG_LEVELS.SUCCESS);
-            break;
-          }
-        } catch {}
-      }
-      
-      if (!clicouMenu119) {
-        log('Menu 11.9 não encontrado diretamente, tentando navegação via JS...', LOG_LEVELS.WARN);
-        await page.evaluate(() => {
-          const links = Array.from(document.querySelectorAll('a'));
-          const menu119 = links.find(a => 
-            a.textContent?.includes('11.9') || 
-            a.textContent?.toLowerCase().includes('de eventos')
-          );
-          if (menu119) menu119.click();
-        });
-        await page.waitForTimeout(1500);
-      }
-    } catch (e) {
-      log(`Erro ao clicar em 11.9: ${e.message}`, LOG_LEVELS.WARN);
-    }
-
-    await saveDebugInfo(page, 'debug_sga_menu_119');
-
-    // Clicar em 11.9.1 - POR EVENTOS
-    try {
-      const seletoresMenu1191 = [
-        'a:has-text("11.9.1 - POR EVENTOS")',
-        'a:has-text("11.9.1")',
-        'a:has-text("POR EVENTOS")',
-        'a:has-text("Por Eventos")',
-        'a[href*="11.9.1"]',
-      ];
-      
-      let clicouMenu1191 = false;
-      for (const seletor of seletoresMenu1191) {
-        try {
-          const menu = page.locator(seletor).first();
-          if (await menu.isVisible({ timeout: 2000 }).catch(() => false)) {
-            await menu.click();
-            clicouMenu1191 = true;
-            log('Menu 11.9.1 - POR EVENTOS clicado', LOG_LEVELS.SUCCESS);
-            break;
-          }
-        } catch {}
-      }
-      
-      if (!clicouMenu1191) {
-        log('Menu 11.9.1 não encontrado diretamente, tentando via JS...', LOG_LEVELS.WARN);
-        await page.evaluate(() => {
-          const links = Array.from(document.querySelectorAll('a'));
-          const menu1191 = links.find(a => 
-            a.textContent?.includes('11.9.1') || 
-            a.textContent?.toLowerCase().includes('por eventos')
-          );
-          if (menu1191) menu1191.click();
-        });
-      }
-      
-      // Aguardar página carregar
+      await page.goto(relatorioUrl, { 
+        waitUntil: 'domcontentloaded',
+        timeout: TIMEOUTS.PAGE_LOAD 
+      });
       await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+      await page.waitForTimeout(3000);
+      log('Página do relatório carregada', LOG_LEVELS.SUCCESS);
     } catch (e) {
-      log(`Erro ao clicar em 11.9.1: ${e.message}`, LOG_LEVELS.WARN);
+      log(`Erro ao navegar para relatório: ${e.message}`, LOG_LEVELS.WARN);
+      await saveDebugInfo(page, 'debug_sga_navegacao_erro');
     }
 
-    await page.waitForTimeout(5000);
+    await fecharPopups(page);
     await saveDebugInfo(page, 'debug_sga_relatorio_eventos');
-    log('Página de relatório 11.9.1 - POR EVENTOS aberta', LOG_LEVELS.SUCCESS);
 
     // ============================================
     // PASSO 1: PREENCHER DATA CADASTRO ITEM
