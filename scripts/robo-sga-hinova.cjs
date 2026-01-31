@@ -367,6 +367,154 @@ async function trySelectHinovaLayout(page) {
 }
 
 // ============================================
+// SELEÇÃO DE FORMA DE EXIBIÇÃO EXCEL (RÁDIO)
+// ============================================
+// Mesma estratégia usada no robô de Cobrança: tenta no frame principal e em iframes,
+// e dispara eventos (click/input/change) para o portal reconhecer a alteração.
+async function selecionarFormaExibicaoEmExcel(page) {
+  log('Selecionando Forma de Exibição: Em Excel', LOG_LEVELS.INFO);
+
+  const tryInFrame = async (frame) => {
+    try {
+      const result = await frame.evaluate(() => {
+        const setRadioChecked = (radio) => {
+          try {
+            if (!radio || radio.disabled) return false;
+
+            // Desmarcar irmãos do mesmo grupo
+            if (radio.name) {
+              const siblings = document.querySelectorAll(`input[type="radio"][name="${radio.name}"]`);
+              siblings.forEach((r) => {
+                if (r !== radio && r.checked) {
+                  r.checked = false;
+                  r.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+              });
+            }
+
+            radio.checked = true;
+            radio.dispatchEvent(new Event('click', { bubbles: true }));
+            radio.dispatchEvent(new Event('input', { bubbles: true }));
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+
+            const form = radio.closest('form');
+            if (form) {
+              form.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            return true;
+          } catch {
+            return false;
+          }
+        };
+
+        const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+
+        // Estratégia 1: texto próximo (td/tr/label/div/etc)
+        for (const radio of radios) {
+          const containers = [
+            radio.closest('tr'),
+            radio.closest('td'),
+            radio.closest('label'),
+            radio.closest('div'),
+            radio.parentElement,
+            radio.closest('font'),
+            radio.closest('p'),
+          ].filter(Boolean);
+
+          for (const container of containers) {
+            const text = (container.textContent || '').toLowerCase();
+            if (/\bem\s*excel\b/i.test(text) || (text.includes('excel') && text.includes('em'))) {
+              if (setRadioChecked(radio)) {
+                return { success: true, method: 'nearText', radioValue: radio.value };
+              }
+            }
+          }
+        }
+
+        // Estratégia 2: pelo value/name
+        for (const radio of radios) {
+          const value = (radio.value || '').toLowerCase();
+          const name = (radio.name || '').toLowerCase();
+          if (value.includes('excel') || name.includes('excel') || value === 'xls' || value === 'xlsx') {
+            if (setRadioChecked(radio)) {
+              return { success: true, method: 'value', radioValue: radio.value };
+            }
+          }
+        }
+
+        // Estratégia 3: buscar texto "Em Excel" na página e selecionar o rádio na mesma linha
+        const textElements = document.querySelectorAll('td, span, label, font, div, p, b, strong');
+        for (const el of textElements) {
+          const text = (el.textContent || '').trim();
+          if (/^Em\s*Excel$/i.test(text) || /\bEm\s*Excel\b/i.test(text)) {
+            const tr = el.closest('tr');
+            if (tr) {
+              const radio = tr.querySelector('input[type="radio"]');
+              if (radio && setRadioChecked(radio)) {
+                return { success: true, method: 'sameRow', radioValue: radio.value };
+              }
+            }
+
+            const parent = el.parentElement;
+            if (parent) {
+              const radio = parent.querySelector('input[type="radio"]');
+              if (radio && setRadioChecked(radio)) {
+                return { success: true, method: 'parent', radioValue: radio.value };
+              }
+            }
+          }
+        }
+
+        // Estratégia 4: grupo de forma de exibição (pegar o 2º radio do grupo)
+        const formaExibicaoRadios = radios.filter((r) => {
+          const name = (r.name || '').toLowerCase();
+          return name.includes('forma') || name.includes('exib') || name.includes('tipo') || name.includes('output');
+        });
+
+        if (formaExibicaoRadios.length >= 2) {
+          const excelRadio = formaExibicaoRadios[1];
+          if (setRadioChecked(excelRadio)) {
+            return { success: true, method: 'groupSecond', radioValue: excelRadio.value };
+          }
+        }
+
+        return { success: false, totalRadios: radios.length };
+      });
+
+      if (result?.success) {
+        log(`Excel selecionado: ${result.method}`, LOG_LEVELS.SUCCESS);
+        return true;
+      }
+
+      log(`Não selecionou Excel neste frame (radios: ${result?.totalRadios ?? 'N/A'})`, LOG_LEVELS.DEBUG);
+      return false;
+    } catch (e) {
+      log(`Erro na seleção JavaScript (frame): ${e.message}`, LOG_LEVELS.DEBUG);
+      return false;
+    }
+  };
+
+  // Frame principal
+  if (await tryInFrame(page.mainFrame())) {
+    await page.waitForTimeout(500);
+    return true;
+  }
+
+  // Iframes
+  for (const frame of page.frames()) {
+    if (frame === page.mainFrame()) continue;
+    if (await tryInFrame(frame)) {
+      await page.waitForTimeout(500);
+      return true;
+    }
+  }
+
+  log('Não foi possível selecionar a opção Excel', LOG_LEVELS.WARN);
+  return false;
+}
+
+// ============================================
 // DISPENSAR CÓDIGO DE AUTENTICAÇÃO
 // ============================================
 async function dispensarCodigoAutenticacao(page) {
@@ -941,174 +1089,16 @@ async function main() {
     // ============================================
     // PASSO 3: SELECIONAR "EM EXCEL" NA FORMA DE EXIBIÇÃO
     // ============================================
-    // Mesma técnica robusta usada no robô de Cobrança
-    log('PASSO 3: Verificando/Selecionando Forma de Exibição "Em Excel"...', LOG_LEVELS.INFO);
+    // Usar o mesmo padrão do robô de Cobrança (texto próximo + value + varredura + iframes)
+    log('PASSO 3: Selecionando Forma de Exibição "Em Excel" (padrão Cobrança)...', LOG_LEVELS.INFO);
 
-    const selecionouExcel = await page.evaluate(() => {
-      const resultado = { 
-        sucesso: false,
-        jaEstavaSelecionado: false,
-        metodo: null,
-        detalhes: [],
-        diagnostico: {
-          radiosEncontrados: [],
-          textoRadios: []
-        }
-      };
-      
-      const normalizar = (texto) => {
-        return (texto || '')
-          .toUpperCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-      };
-      
-      const matchExcel = (texto) => {
-        const norm = normalizar(texto);
-        return norm.includes('EXCEL') || norm.includes('XLS');
-      };
-      
-      // ========================================
-      // VERIFICAR SE EXCEL JÁ ESTÁ SELECIONADO
-      // ========================================
-      const todosRadios = document.querySelectorAll('input[type="radio"]');
-      for (const radio of todosRadios) {
-        if (radio.checked) {
-          const label = radio.closest('label') || document.querySelector(`label[for="${radio.id}"]`);
-          const radioText = label?.textContent || radio.value || '';
-          if (matchExcel(radioText)) {
-            resultado.sucesso = true;
-            resultado.jaEstavaSelecionado = true;
-            resultado.metodo = 'JA_SELECIONADO';
-            resultado.detalhes.push(`Excel já estava selecionado: ${radioText.trim()}`);
-            return resultado;
-          }
-        }
-      }
-      
-      // Verificar selects também
-      const todosSelects = document.querySelectorAll('select');
-      for (const select of todosSelects) {
-        const selectedOption = select.options[select.selectedIndex];
-        if (selectedOption && matchExcel(selectedOption.text || selectedOption.value)) {
-          resultado.sucesso = true;
-          resultado.jaEstavaSelecionado = true;
-          resultado.metodo = 'JA_SELECIONADO_SELECT';
-          resultado.detalhes.push(`Excel já estava selecionado no select: ${selectedOption.text?.trim()}`);
-          return resultado;
-        }
-      }
-      
-      // ========================================
-      // ESTRATÉGIA 1: Procurar label "Forma de Exibição" e radio buttons próximos
-      // ========================================
-      const tds = document.querySelectorAll('td, th, div, label, span, b, strong');
-      for (const td of tds) {
-        const texto = normalizar(td.textContent || '');
-        
-        if (texto.includes('FORMA DE EXIBICAO') || texto.includes('FORMA EXIBICAO') || texto === 'EXIBICAO:') {
-          resultado.detalhes.push(`Label encontrado: "${(td.textContent || '').substring(0, 50)}"`);
-          
-          const row = td.closest('tr') || td.closest('div') || td.parentElement;
-          const radiosNaLinha = row?.querySelectorAll('input[type="radio"]') || [];
-          
-          for (const radio of radiosNaLinha) {
-            const label = radio.closest('label') || document.querySelector(`label[for="${radio.id}"]`);
-            const radioText = label?.textContent || radio.value || '';
-            
-            resultado.diagnostico.textoRadios.push(normalizar(radioText));
-            
-            if (matchExcel(radioText)) {
-              radio.checked = true;
-              radio.click();
-              radio.dispatchEvent(new Event('change', { bubbles: true }));
-              radio.dispatchEvent(new Event('input', { bubbles: true }));
-              resultado.sucesso = true;
-              resultado.metodo = 'LABEL_FORMA_EXIBICAO';
-              resultado.detalhes.push(`Excel selecionado: ${radioText.trim()}`);
-              return resultado;
-            }
-          }
-        }
-      }
-      
-      // ========================================
-      // ESTRATÉGIA 2: Radio buttons com value ou texto "excel"
-      // ========================================
-      resultado.detalhes.push(`Total de radios na página: ${todosRadios.length}`);
-      
-      for (const radio of todosRadios) {
-        const label = radio.closest('label') || document.querySelector(`label[for="${radio.id}"]`);
-        const radioText = label?.textContent || '';
-        const radioValue = radio.value || '';
-        const radioName = (radio.name || '').toLowerCase();
-        
-        resultado.diagnostico.radiosEncontrados.push({
-          name: radio.name,
-          value: radio.value,
-          texto: normalizar(radioText)
-        });
-        
-        if (matchExcel(radioText) || matchExcel(radioValue) ||
-            (radioName.includes('exib') && (radioValue.includes('2') || matchExcel(radioValue)))) {
-          radio.checked = true;
-          radio.click();
-          radio.dispatchEvent(new Event('change', { bubbles: true }));
-          radio.dispatchEvent(new Event('input', { bubbles: true }));
-          resultado.sucesso = true;
-          resultado.metodo = 'VARREDURA_RADIOS';
-          resultado.detalhes.push(`Excel selecionado via varredura: value=${radio.value}, texto=${radioText.trim()}`);
-          return resultado;
-        }
-      }
-      
-      // ========================================
-      // ESTRATÉGIA 3: Select de formato (fallback)
-      // ========================================
-      for (const select of todosSelects) {
-        const selectName = (select.name || select.id || '').toLowerCase();
-        if (selectName.includes('exib') || selectName.includes('format') || selectName.includes('tipo')) {
-          const options = Array.from(select.options);
-          for (let i = 0; i < options.length; i++) {
-            if (matchExcel(options[i].text || options[i].value)) {
-              select.selectedIndex = i;
-              select.dispatchEvent(new Event('change', { bubbles: true }));
-              resultado.sucesso = true;
-              resultado.metodo = 'SELECT_FORMATO';
-              resultado.detalhes.push(`Excel selecionado via select: ${options[i].text}`);
-              return resultado;
-            }
-          }
-        }
-      }
-      
-      return resultado;
-    });
-
-    for (const detalhe of selecionouExcel.detalhes) {
-      log(detalhe, LOG_LEVELS.DEBUG);
-    }
-
-    if (selecionouExcel.sucesso) {
-      if (selecionouExcel.jaEstavaSelecionado) {
-        log(`✅ PASSO 3 OK: Excel já estava selecionado`, LOG_LEVELS.SUCCESS);
-      } else {
-        log(`✅ PASSO 3 OK: Forma de Exibição "Em Excel" selecionada`, LOG_LEVELS.SUCCESS);
-        log(`   Método: ${selecionouExcel.metodo}`, LOG_LEVELS.DEBUG);
-      }
+    const excelOk = await selecionarFormaExibicaoEmExcel(page);
+    if (excelOk) {
+      log('✅ PASSO 3 OK: Forma de Exibição "Em Excel" selecionada', LOG_LEVELS.SUCCESS);
     } else {
-      // NÃO FALHAR - avisar apenas, pode estar pré-configurado
-      log(`⚠️ PASSO 3: Não foi possível confirmar seleção Excel`, LOG_LEVELS.WARN);
-      log(`   Radios encontrados: ${selecionouExcel.diagnostico.radiosEncontrados.length}`, LOG_LEVELS.DEBUG);
-      if (selecionouExcel.diagnostico.radiosEncontrados.length > 0) {
-        selecionouExcel.diagnostico.radiosEncontrados.forEach(r => {
-          log(`      Radio: name=${r.name}, value=${r.value}, texto=${r.texto}`, LOG_LEVELS.DEBUG);
-        });
-      }
+      log('⚠️ PASSO 3: Não foi possível selecionar Excel automaticamente', LOG_LEVELS.WARN);
       await saveDebugInfo(page, 'debug_sga_excel');
-      // Continuar mesmo assim - não lançar erro
+      // Continuar mesmo assim (sem hard error) para manter o comportamento atual
     }
 
     await page.waitForTimeout(1000);
