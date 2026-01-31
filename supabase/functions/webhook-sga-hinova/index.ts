@@ -238,7 +238,7 @@ serve(async (req) => {
       const { data: importacao, error: impError } = await supabase
         .from("sga_importacoes")
         .insert({
-          nome_arquivo: nome_arquivo || `SGA_Hinova_${new Date().toISOString()}.xlsx`,
+          nome_arquivo: nome_arquivo || `EVENTOS_${new Date().toISOString().slice(8,10)}${new Date().toISOString().slice(5,7)}${new Date().toISOString().slice(0,4)}.xlsx`,
           total_registros: dados.length,
           ativo: true,
           corretora_id: corretora_id,

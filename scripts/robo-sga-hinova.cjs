@@ -165,11 +165,12 @@ function getDownloadDirectory() {
   return dir;
 }
 
-function generateSemanticFilename(prefix, dataInicio, dataFim) {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-  const periodoInicio = dataInicio.replace(/\//g, '-');
-  const periodoFim = dataFim.replace(/\//g, '-');
-  return `${prefix}_${periodoInicio}_ate_${periodoFim}_${timestamp}.xlsx`;
+function generateSemanticFilename() {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
+  return `EVENTOS_${day}${month}${year}.xlsx`;
 }
 
 // ============================================
@@ -1047,7 +1048,7 @@ async function main() {
     }
 
     // Salvar arquivo
-    const semanticName = generateSemanticFilename('SGA_Eventos_Hinova', inicio, fim);
+    const semanticName = generateSemanticFilename();
     const filePath = path.join(downloadDir, semanticName);
 
     log(`Salvando arquivo: ${filePath}`, LOG_LEVELS.INFO);
