@@ -102,6 +102,14 @@ export function GitHubSyncPanel() {
         { event: '*', schema: 'public', table: 'cobranca_automacao_config' },
         () => loadCobrancaConfigs()
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'cobranca_importacoes' },
+        () => {
+          // Atualizar quando nova importação for criada (manual ou automática)
+          loadCobrancaConfigs();
+        }
+      )
       .subscribe();
 
     const eventosChannel = supabase
@@ -120,6 +128,14 @@ export function GitHubSyncPanel() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'sga_automacao_config' },
         () => loadEventosConfigs()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sga_importacoes' },
+        () => {
+          // Atualizar quando nova importação de eventos for criada
+          loadEventosConfigs();
+        }
       )
       .subscribe();
 
