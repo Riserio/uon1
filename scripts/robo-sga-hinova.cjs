@@ -689,12 +689,9 @@ async function preencherDataCadastroItem(page, inicio, fim) {
       const texto = normalizar(elemento.textContent || '');
 
       if (texto.includes('DATA CADASTRO ITEM') || texto === 'DATA CADASTRO ITEM:') {
-        res.detalhes.push(`Label encontrado: "${elemento.textContent?.trim()}"`);
-
         const linha = elemento.closest('tr') || elemento.closest('div') || elemento.parentElement;
         if (linha) {
           const inputs = linha.querySelectorAll('input[type="text"], input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"])');
-          res.detalhes.push(`Inputs encontrados: ${inputs.length}`);
 
           if (inputs.length >= 2) {
             inputs[0].value = inicio;
@@ -715,7 +712,6 @@ async function preencherDataCadastroItem(page, inicio, fim) {
 
     // Estratégia 2: fallback por name de input
     const inputsData = document.querySelectorAll('input[name*="data" i], input[placeholder*="data" i], input[id*="data" i]');
-    res.detalhes.push(`Inputs de data encontrados (fallback): ${inputsData.length}`);
 
     if (inputsData.length >= 2) {
       inputsData[0].value = inicio;
@@ -733,8 +729,11 @@ async function preencherDataCadastroItem(page, inicio, fim) {
     return res;
   }, { inicio, fim });
 
+  // Logar apenas detalhes relevantes (sem textos gigantes)
   for (const detalhe of resultado.detalhes) {
-    log(detalhe, LOG_LEVELS.DEBUG);
+    if (detalhe.length < 100) {
+      log(detalhe, LOG_LEVELS.DEBUG);
+    }
   }
 
   if (resultado.sucesso) {
