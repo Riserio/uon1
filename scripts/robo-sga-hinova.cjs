@@ -779,67 +779,209 @@ async function main() {
     // ============================================
     // PASSO 2: SELECIONAR LAYOUT "BI - VANGARD" EM DADOS VISUALIZADOS
     // ============================================
+    // Mesma técnica robusta usada no robô de Cobrança
     await updateProgress('executando', 'campos');
     log(`PASSO 2: Selecionando Layout "${CONFIG.HINOVA_LAYOUT}" em Dados Visualizados...`, LOG_LEVELS.INFO);
 
-    // Primeiro, verificar se há uma seção "Dados Visualizados" e clicar nela para expandir
-    try {
-      const secaoDados = page.locator('a:has-text("Dados Visualizados"), div:has-text("Dados Visualizados"), span:has-text("Dados Visualizados")').first();
-      if (await secaoDados.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await secaoDados.click().catch(() => {});
-        await page.waitForTimeout(1000);
-        log('Seção Dados Visualizados expandida', LOG_LEVELS.DEBUG);
+    const layoutSelecionado = await page.evaluate(({ layoutDesejado }) => {
+      const resultado = {
+        sucesso: false,
+        metodo: null,
+        valorSelecionado: null,
+        opcoesDisponiveis: [],
+        diagnostico: {
+          labelsLayout: [],
+          secaoDadosVisualizados: null,
+          selectsEncontrados: [],
+          totalSelects: 0,
+        }
+      };
+      
+      const normalizar = (texto) => {
+        return (texto || '')
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+      
+      const todosSelects = document.querySelectorAll('select');
+      resultado.diagnostico.totalSelects = todosSelects.length;
+      
+      // ========================================
+      // ESTRATÉGIA 1: Buscar label "Layout" e select na mesma linha/célula
+      // ========================================
+      const tds = document.querySelectorAll('td, th, div, label, span');
+      for (const td of tds) {
+        const texto = normalizar(td.textContent || '');
+        
+        // Procurar labels que contenham "Layout" ou "Dados Visualizados"
+        if (texto.includes('LAYOUT') || texto === 'LAYOUT:' || texto === 'LAYOUT') {
+          resultado.diagnostico.labelsLayout.push({
+            tag: td.tagName,
+            texto: (td.textContent || '').substring(0, 80)
+          });
+          
+          // Procurar select na mesma linha ou próximo
+          const row = td.closest('tr') || td.closest('div') || td.parentElement;
+          const selectInRow = row?.querySelector('select');
+          
+          if (selectInRow) {
+            const opcoes = Array.from(selectInRow.options).map(o => o.text?.trim() || '');
+            resultado.opcoesDisponiveis = opcoes;
+            
+            for (let i = 0; i < selectInRow.options.length; i++) {
+              const optText = normalizar(selectInRow.options[i].text || '');
+              // Buscar "BI" E "VANGARD" ou apenas "VANGARD"
+              if ((optText.includes('BI') && optText.includes('VANGARD')) || optText.includes('VANGARD')) {
+                selectInRow.selectedIndex = i;
+                selectInRow.dispatchEvent(new Event('input', { bubbles: true }));
+                selectInRow.dispatchEvent(new Event('change', { bubbles: true }));
+                resultado.sucesso = true;
+                resultado.metodo = 'LABEL_LAYOUT';
+                resultado.valorSelecionado = selectInRow.options[i].text?.trim();
+                return resultado;
+              }
+            }
+          }
+        }
       }
-    } catch {}
-
-    // Selecionar o layout no dropdown
-    const selecionouLayout = await page.evaluate(({ layout }) => {
-      const resultado = { sucesso: false, detalhes: [] };
       
-      // Procurar select de Layout
-      const selects = document.querySelectorAll('select');
-      resultado.detalhes.push(`Total de selects na página: ${selects.length}`);
-      
-      for (const select of selects) {
-        const options = Array.from(select.options);
-        const textos = options.map(o => o.text || o.value);
-        resultado.detalhes.push(`Select encontrado com opções: ${textos.slice(0, 5).join(', ')}...`);
+      // ========================================
+      // ESTRATÉGIA 2: Buscar seção "Dados Visualizados"
+      // ========================================
+      const secoes = document.querySelectorAll('td, th, div, fieldset, legend, a');
+      for (const secao of secoes) {
+        const texto = normalizar(secao.textContent || '');
         
-        // Procurar opção que contenha o layout desejado
-        const optionIndex = options.findIndex(o => {
-          const texto = (o.text || o.value || '').toLowerCase();
-          return texto.includes('vangard') || texto.includes(layout.toLowerCase());
+        if (texto.includes('DADOS VISUALIZADOS')) {
+          resultado.diagnostico.secaoDadosVisualizados = {
+            tag: secao.tagName,
+            texto: (secao.textContent || '').substring(0, 100)
+          };
+          
+          // Encontrar o container mais próximo
+          const container = secao.closest('table, div, fieldset, tr') || secao.parentElement;
+          const selects = container?.querySelectorAll('select') || [];
+          
+          for (const select of selects) {
+            const opcoes = Array.from(select.options).map(o => o.text?.trim() || '');
+            
+            for (let i = 0; i < select.options.length; i++) {
+              const optText = normalizar(select.options[i].text || '');
+              if ((optText.includes('BI') && optText.includes('VANGARD')) || optText.includes('VANGARD')) {
+                if (resultado.opcoesDisponiveis.length === 0) {
+                  resultado.opcoesDisponiveis = opcoes;
+                }
+                select.selectedIndex = i;
+                select.dispatchEvent(new Event('input', { bubbles: true }));
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                resultado.sucesso = true;
+                resultado.metodo = 'SECAO_DADOS_VISUALIZADOS';
+                resultado.valorSelecionado = select.options[i].text?.trim();
+                return resultado;
+              }
+            }
+          }
+        }
+      }
+      
+      // ========================================
+      // ESTRATÉGIA 3: Varrer TODOS os selects buscando a opção correta
+      // ========================================
+      for (const select of todosSelects) {
+        const opcoes = Array.from(select.options).map(o => o.text?.trim() || '');
+        
+        for (let i = 0; i < select.options.length; i++) {
+          const optText = normalizar(select.options[i].text || '');
+          // Buscar especificamente "BI - VANGARD" ou apenas "VANGARD"
+          if ((optText.includes('BI') && optText.includes('VANGARD')) || 
+              optText.includes('BI - VANGARD') ||
+              optText.includes('VANGARD')) {
+            if (resultado.opcoesDisponiveis.length === 0) {
+              resultado.opcoesDisponiveis = opcoes;
+            }
+            select.selectedIndex = i;
+            select.dispatchEvent(new Event('input', { bubbles: true }));
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            resultado.sucesso = true;
+            resultado.metodo = 'VARREDURA_OPCOES';
+            resultado.valorSelecionado = select.options[i].text?.trim();
+            return resultado;
+          }
+        }
+        
+        // Guardar para diagnóstico: selects que têm opções relevantes
+        const temLayoutOuVisualizacao = opcoes.some(o => {
+          const norm = normalizar(o);
+          return norm.includes('SELECIONE') || norm.includes('BI') || norm.includes('EVENTOS');
         });
+        if (temLayoutOuVisualizacao && opcoes.length > 1) {
+          resultado.diagnostico.selectsEncontrados.push({
+            name: select.name || select.id || 'sem_nome',
+            opcoes: opcoes.slice(0, 8)
+          });
+        }
+      }
+      
+      // ========================================
+      // ESTRATÉGIA 4: Fallback por atributos name/id
+      // ========================================
+      for (const select of todosSelects) {
+        const name = (select.name || select.id || '').toLowerCase();
         
-        if (optionIndex >= 0) {
-          select.selectedIndex = optionIndex;
-          select.dispatchEvent(new Event('change', { bubbles: true }));
-          resultado.sucesso = true;
-          resultado.detalhes.push(`Layout selecionado: ${options[optionIndex].text}`);
-          return resultado;
+        if (name.includes('layout') || name.includes('visualiza') || name.includes('dados')) {
+          const opcoes = Array.from(select.options).map(o => o.text?.trim() || '');
+          if (resultado.opcoesDisponiveis.length === 0) {
+            resultado.opcoesDisponiveis = opcoes;
+          }
+          
+          // Tentar selecionar BI - VANGARD
+          for (let i = 0; i < select.options.length; i++) {
+            const optText = normalizar(select.options[i].text || '');
+            if ((optText.includes('BI') && optText.includes('VANGARD')) || optText.includes('VANGARD')) {
+              select.selectedIndex = i;
+              select.dispatchEvent(new Event('input', { bubbles: true }));
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              resultado.sucesso = true;
+              resultado.metodo = 'FALLBACK_NAME_ID';
+              resultado.valorSelecionado = select.options[i].text?.trim();
+              return resultado;
+            }
+          }
         }
       }
       
       return resultado;
-    }, { layout: CONFIG.HINOVA_LAYOUT });
-
-    for (const detalhe of selecionouLayout.detalhes) {
-      log(detalhe, LOG_LEVELS.DEBUG);
-    }
-
-    if (selecionouLayout.sucesso) {
-      log(`✅ PASSO 2 OK: Layout "${CONFIG.HINOVA_LAYOUT}" selecionado`, LOG_LEVELS.SUCCESS);
+    }, { layoutDesejado: CONFIG.HINOVA_LAYOUT });
+    
+    // Validação do resultado
+    if (layoutSelecionado.sucesso) {
+      log(`✅ PASSO 2 OK: Layout selecionado!`, LOG_LEVELS.SUCCESS);
+      log(`   Método: ${layoutSelecionado.metodo}`, LOG_LEVELS.DEBUG);
+      log(`   Valor: "${layoutSelecionado.valorSelecionado}"`, LOG_LEVELS.SUCCESS);
     } else {
-      log(`⚠️ PASSO 2: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado`, LOG_LEVELS.WARN);
+      log(`❌ ERRO: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado!`, LOG_LEVELS.ERROR);
+      log(`   Opções disponíveis: ${layoutSelecionado.opcoesDisponiveis.join(', ') || 'NENHUMA'}`, LOG_LEVELS.ERROR);
       
-      // Tentar via Playwright locator
-      try {
-        const selectLayout = page.locator('select').filter({ hasText: /layout/i }).first();
-        if (await selectLayout.isVisible({ timeout: 3000 }).catch(() => false)) {
-          await selectLayout.selectOption({ label: new RegExp('vangard', 'i') });
-          log('Layout selecionado via Playwright', LOG_LEVELS.SUCCESS);
-        }
-      } catch {}
+      // Diagnóstico detalhado
+      if (layoutSelecionado.diagnostico.labelsLayout.length > 0) {
+        log(`   Labels "Layout" encontrados: ${JSON.stringify(layoutSelecionado.diagnostico.labelsLayout)}`, LOG_LEVELS.DEBUG);
+      }
+      if (layoutSelecionado.diagnostico.secaoDadosVisualizados) {
+        log(`   Seção "Dados Visualizados": ${JSON.stringify(layoutSelecionado.diagnostico.secaoDadosVisualizados)}`, LOG_LEVELS.DEBUG);
+      }
+      if (layoutSelecionado.diagnostico.selectsEncontrados.length > 0) {
+        log(`   Selects relevantes encontrados:`, LOG_LEVELS.DEBUG);
+        layoutSelecionado.diagnostico.selectsEncontrados.forEach(s => {
+          log(`      ${s.name}: [${s.opcoes.join(', ')}]`, LOG_LEVELS.DEBUG);
+        });
+      }
+      log(`   Total de selects na página: ${layoutSelecionado.diagnostico.totalSelects}`, LOG_LEVELS.DEBUG);
+      
+      await saveDebugInfo(page, 'debug_sga_layout_nao_encontrado');
+      throw new Error(`ERRO CRÍTICO: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado! Verifique a seção "Dados Visualizados" no portal.`);
     }
 
     await page.waitForTimeout(2000);
@@ -848,43 +990,115 @@ async function main() {
     // ============================================
     // PASSO 3: SELECIONAR "EM EXCEL" NA FORMA DE EXIBIÇÃO
     // ============================================
+    // Mesma técnica robusta usada no robô de Cobrança
     log('PASSO 3: Selecionando Forma de Exibição "Em Excel"...', LOG_LEVELS.INFO);
 
     const selecionouExcel = await page.evaluate(() => {
-      const resultado = { sucesso: false, detalhes: [] };
+      const resultado = { 
+        sucesso: false, 
+        metodo: null,
+        detalhes: [],
+        diagnostico: {
+          radiosEncontrados: [],
+          textoRadios: []
+        }
+      };
       
-      // Estratégia 1: Radio button "Em Excel"
-      const radios = document.querySelectorAll('input[type="radio"]');
-      resultado.detalhes.push(`Total de radios: ${radios.length}`);
+      const normalizar = (texto) => {
+        return (texto || '')
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
       
-      for (const radio of radios) {
-        const label = radio.closest('label') || document.querySelector(`label[for="${radio.id}"]`);
-        const texto = label?.textContent?.trim() || radio.value || '';
+      // ========================================
+      // ESTRATÉGIA 1: Procurar label "Forma de Exibição" e radio buttons próximos
+      // ========================================
+      const tds = document.querySelectorAll('td, th, div, label, span, b, strong');
+      for (const td of tds) {
+        const texto = normalizar(td.textContent || '');
         
-        if (texto.toLowerCase().includes('excel')) {
+        if (texto.includes('FORMA DE EXIBICAO') || texto.includes('FORMA EXIBICAO') || texto === 'EXIBICAO:') {
+          resultado.detalhes.push(`Label encontrado: "${(td.textContent || '').substring(0, 50)}"`);
+          
+          // Procurar radios na mesma linha ou container
+          const row = td.closest('tr') || td.closest('div') || td.parentElement;
+          const radiosNaLinha = row?.querySelectorAll('input[type="radio"]') || [];
+          
+          for (const radio of radiosNaLinha) {
+            const label = radio.closest('label') || document.querySelector(`label[for="${radio.id}"]`);
+            const radioText = normalizar(label?.textContent || radio.value || '');
+            
+            resultado.diagnostico.textoRadios.push(radioText);
+            
+            if (radioText.includes('EXCEL') || radioText.includes('XLS')) {
+              radio.checked = true;
+              radio.click();
+              radio.dispatchEvent(new Event('change', { bubbles: true }));
+              radio.dispatchEvent(new Event('input', { bubbles: true }));
+              resultado.sucesso = true;
+              resultado.metodo = 'LABEL_FORMA_EXIBICAO';
+              resultado.detalhes.push(`Excel selecionado: ${radioText}`);
+              return resultado;
+            }
+          }
+        }
+      }
+      
+      // ========================================
+      // ESTRATÉGIA 2: Radio buttons com value ou texto "excel"
+      // ========================================
+      const todosRadios = document.querySelectorAll('input[type="radio"]');
+      resultado.detalhes.push(`Total de radios na página: ${todosRadios.length}`);
+      
+      for (const radio of todosRadios) {
+        const label = radio.closest('label') || document.querySelector(`label[for="${radio.id}"]`);
+        const radioText = normalizar(label?.textContent || '');
+        const radioValue = normalizar(radio.value || '');
+        const radioName = (radio.name || '').toLowerCase();
+        
+        resultado.diagnostico.radiosEncontrados.push({
+          name: radio.name,
+          value: radio.value,
+          texto: radioText
+        });
+        
+        // Verificar se é o radio de Excel
+        if (radioText.includes('EXCEL') || radioText.includes('XLS') ||
+            radioValue.includes('EXCEL') || radioValue.includes('XLS') ||
+            (radioName.includes('exib') && (radioValue.includes('2') || radioValue.includes('EXCEL')))) {
           radio.checked = true;
+          radio.click();
           radio.dispatchEvent(new Event('change', { bubbles: true }));
-          radio.dispatchEvent(new Event('click', { bubbles: true }));
+          radio.dispatchEvent(new Event('input', { bubbles: true }));
           resultado.sucesso = true;
-          resultado.detalhes.push(`Radio Excel selecionado: ${texto}`);
+          resultado.metodo = 'VARREDURA_RADIOS';
+          resultado.detalhes.push(`Excel selecionado via varredura: value=${radio.value}, texto=${radioText}`);
           return resultado;
         }
       }
       
-      // Estratégia 2: Select de formato
+      // ========================================
+      // ESTRATÉGIA 3: Select de formato (fallback)
+      // ========================================
       const selects = document.querySelectorAll('select');
       for (const select of selects) {
-        const options = Array.from(select.options);
-        const optionExcel = options.findIndex(o => 
-          o.text?.toLowerCase().includes('excel') || o.value?.toLowerCase().includes('excel')
-        );
-        
-        if (optionExcel >= 0) {
-          select.selectedIndex = optionExcel;
-          select.dispatchEvent(new Event('change', { bubbles: true }));
-          resultado.sucesso = true;
-          resultado.detalhes.push(`Excel selecionado via select: ${options[optionExcel].text}`);
-          return resultado;
+        const selectName = (select.name || select.id || '').toLowerCase();
+        if (selectName.includes('exib') || selectName.includes('format') || selectName.includes('tipo')) {
+          const options = Array.from(select.options);
+          for (let i = 0; i < options.length; i++) {
+            const optText = normalizar(options[i].text || options[i].value || '');
+            if (optText.includes('EXCEL') || optText.includes('XLS')) {
+              select.selectedIndex = i;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              resultado.sucesso = true;
+              resultado.metodo = 'SELECT_FORMATO';
+              resultado.detalhes.push(`Excel selecionado via select: ${options[i].text}`);
+              return resultado;
+            }
+          }
         }
       }
       
@@ -896,21 +1110,21 @@ async function main() {
     }
 
     if (selecionouExcel.sucesso) {
-      log('✅ PASSO 3 OK: Forma de Exibição "Em Excel" selecionada', LOG_LEVELS.SUCCESS);
+      log(`✅ PASSO 3 OK: Forma de Exibição "Em Excel" selecionada`, LOG_LEVELS.SUCCESS);
+      log(`   Método: ${selecionouExcel.metodo}`, LOG_LEVELS.DEBUG);
     } else {
-      log('⚠️ PASSO 3: Não foi possível selecionar Excel automaticamente', LOG_LEVELS.WARN);
-      
-      // Tentar via Playwright
-      try {
-        const radioExcel = page.locator('input[type="radio"]').filter({ hasText: /excel/i }).first();
-        if (await radioExcel.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await radioExcel.check();
-          log('Excel selecionado via Playwright', LOG_LEVELS.SUCCESS);
-        }
-      } catch {}
+      log(`❌ ERRO: Forma de Exibição "Em Excel" não encontrada!`, LOG_LEVELS.ERROR);
+      log(`   Radios encontrados: ${selecionouExcel.diagnostico.radiosEncontrados.length}`, LOG_LEVELS.DEBUG);
+      if (selecionouExcel.diagnostico.textoRadios.length > 0) {
+        log(`   Textos dos radios: ${selecionouExcel.diagnostico.textoRadios.join(', ')}`, LOG_LEVELS.DEBUG);
+      }
+      await saveDebugInfo(page, 'debug_sga_excel_nao_encontrado');
+      throw new Error('ERRO CRÍTICO: Forma de Exibição "Em Excel" não encontrada!');
     }
 
+    await page.waitForTimeout(1000);
     await saveDebugInfo(page, 'debug_sga_excel');
+
 
     // ============================================
     // ETAPA: GERAR RELATÓRIO E DOWNLOAD
