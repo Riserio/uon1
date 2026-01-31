@@ -27,6 +27,25 @@ const path = require('path');
 // CONFIGURAÇÃO
 // ============================================
 
+// Função para obter primeiro e último dia do mês atual
+function getCurrentMonthDates() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  
+  // Primeiro dia do mês
+  const firstDay = new Date(year, month, 1);
+  const firstDayStr = `${String(firstDay.getDate()).padStart(2, '0')}/${String(firstDay.getMonth() + 1).padStart(2, '0')}/${firstDay.getFullYear()}`;
+  
+  // Último dia do mês
+  const lastDay = new Date(year, month + 1, 0);
+  const lastDayStr = `${String(lastDay.getDate()).padStart(2, '0')}/${String(lastDay.getMonth() + 1).padStart(2, '0')}/${lastDay.getFullYear()}`;
+  
+  return { firstDayStr, lastDayStr };
+}
+
+const { firstDayStr, lastDayStr } = getCurrentMonthDates();
+
 function deriveRelatorioUrl(loginUrl) {
   try {
     const url = new URL(loginUrl);
@@ -51,8 +70,9 @@ const CONFIG = {
   HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '',
   HINOVA_LAYOUT: process.env.HINOVA_LAYOUT || 'BI - VANGARD',
   
-  DATA_INICIO: process.env.DATA_INICIO || '01/01/2000',
-  DATA_FIM: process.env.DATA_FIM || new Date().toLocaleDateString('pt-BR'),
+  // Datas - sempre o mês atual
+  DATA_INICIO: process.env.DATA_INICIO || firstDayStr,
+  DATA_FIM: process.env.DATA_FIM || lastDayStr,
   
   WEBHOOK_URL: process.env.WEBHOOK_URL || '',
   WEBHOOK_SECRET: process.env.WEBHOOK_SECRET || '',

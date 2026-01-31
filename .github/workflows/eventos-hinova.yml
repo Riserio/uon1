@@ -1,4 +1,4 @@
-name: SGA Hinova - Importação de Eventos
+name: Eventos Hinova - Importação de Eventos
 
 on:
   # Agendamento diário às 09:00 (horário de Brasília = 12:00 UTC)
@@ -29,11 +29,11 @@ on:
         required: false
         type: string
       data_inicio:
-        description: 'Data inicial (DD/MM/YYYY)'
+        description: 'Data inicial (DD/MM/YYYY) - padrão: 1º dia do mês'
         required: false
         type: string
       data_fim:
-        description: 'Data final (DD/MM/YYYY)'
+        description: 'Data final (DD/MM/YYYY) - padrão: último dia do mês'
         required: false
         type: string
       execucao_id:
@@ -64,13 +64,13 @@ jobs:
           npm install playwright axios xlsx
           npx playwright install chromium --with-deps
       
-      - name: Executar robô de eventos SGA
+      - name: Executar robô de eventos
         env:
           HINOVA_URL: ${{ inputs.hinova_url || secrets.HINOVA_URL }}
           HINOVA_CODIGO_CLIENTE: ${{ inputs.hinova_codigo_cliente || secrets.HINOVA_CODIGO_CLIENTE }}
           HINOVA_USER: ${{ inputs.hinova_user || secrets.HINOVA_USER }}
           HINOVA_PASS: ${{ inputs.hinova_pass || secrets.HINOVA_PASS }}
-          DATA_INICIO: ${{ inputs.data_inicio || '01/01/2000' }}
+          DATA_INICIO: ${{ inputs.data_inicio }}
           DATA_FIM: ${{ inputs.data_fim }}
           WEBHOOK_URL: ${{ inputs.webhook_url || secrets.WEBHOOK_URL_SGA }}
           WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
@@ -84,9 +84,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: debug-screenshots-sga
+          name: debug-screenshots-eventos
           path: |
             erro_sga.png
             debug_sga_*.png
+            debug/
           if-no-files-found: ignore
           retention-days: 7

@@ -168,12 +168,18 @@ serve(async (req) => {
         })
         .eq("id", config.id);
 
-      // Formatar datas para DD/MM/YYYY
-      const formatDate = (dateStr: string | null) => {
-        if (!dateStr) return '';
-        const date = new Date(dateStr);
-        return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-      };
+      // Formatar datas para DD/MM/YYYY (sempre mês atual)
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      
+      // Primeiro dia do mês
+      const firstDay = new Date(year, month, 1);
+      const dataInicioMesAtual = `${String(firstDay.getDate()).padStart(2, '0')}/${String(firstDay.getMonth() + 1).padStart(2, '0')}/${firstDay.getFullYear()}`;
+      
+      // Último dia do mês
+      const lastDay = new Date(year, month + 1, 0);
+      const dataFimMesAtual = `${String(lastDay.getDate()).padStart(2, '0')}/${String(lastDay.getMonth() + 1).padStart(2, '0')}/${lastDay.getFullYear()}`;
 
       // Preparar inputs para o workflow
       const workflowInputs: WorkflowInput = {
@@ -182,16 +188,16 @@ serve(async (req) => {
         hinova_user: config.hinova_user,
         hinova_pass: config.hinova_pass,
         hinova_codigo_cliente: config.hinova_codigo_cliente || '',
-        data_inicio: formatDate(config.filtro_data_cadastro_inicio) || '01/01/2000',
-        data_fim: formatDate(config.filtro_data_cadastro_fim) || formatDate(new Date().toISOString()),
+        data_inicio: dataInicioMesAtual,
+        data_fim: dataFimMesAtual,
         execucao_id: execucao.id,
         webhook_url: `${supabaseUrl}/functions/v1/webhook-sga-hinova`,
       };
 
-      console.log(`[SGA GitHub Workflow] Disparando workflow para ${corretora_id}`);
+      console.log(`[Eventos GitHub Workflow] Disparando workflow para ${corretora_id} - Período: ${dataInicioMesAtual} até ${dataFimMesAtual}`);
 
-      // Disparar workflow via GitHub API
-      const dispatchUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/sga-hinova.yml/dispatches`;
+      // Disparar workflow via GitHub API (nome atualizado)
+      const dispatchUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/eventos-hinova.yml/dispatches`;
       
       const dispatchResponse = await fetch(dispatchUrl, {
         method: 'POST',
@@ -237,7 +243,7 @@ serve(async (req) => {
       // Aguardar e buscar o run_id
       await new Promise(resolve => setTimeout(resolve, 3000));
 
-      const runsUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/sga-hinova.yml/runs?per_page=1`;
+      const runsUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/eventos-hinova.yml/runs?per_page=1`;
       const runsResponse = await fetch(runsUrl, {
         headers: {
           'Authorization': `Bearer ${githubPat}`,
