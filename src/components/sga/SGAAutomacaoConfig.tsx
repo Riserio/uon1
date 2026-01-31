@@ -6,9 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Clock, History, Square, Calendar, Github } from "lucide-react";
+import { Settings, Save, Loader2, Eye, EyeOff, RefreshCw, CheckCircle, XCircle, History, Square, Info, Github } from "lucide-react";
 import { toast } from "sonner";
-import { format, subMonths, startOfMonth } from "date-fns";
+import { format, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import SGAAutomacaoLogs from "./SGAAutomacaoLogs";
@@ -30,8 +30,6 @@ interface AutomacaoConfig {
   ultima_execucao?: string;
   ultimo_status?: string;
   ultimo_erro?: string;
-  filtro_data_cadastro_inicio?: string | null;
-  filtro_data_cadastro_fim?: string | null;
 }
 
 interface CurrentExecution {
@@ -47,8 +45,6 @@ const DEFAULT_CONFIG: Omit<AutomacaoConfig, 'corretora_id'> = {
   hinova_codigo_cliente: '',
   ativo: false,
   hora_agendada: '09:00',
-  filtro_data_cadastro_inicio: format(startOfMonth(subMonths(new Date(), 12)), 'yyyy-MM-dd'),
-  filtro_data_cadastro_fim: format(new Date(), 'yyyy-MM-dd'),
 };
 
 export default function SGAAutomacaoConfig({ corretoraId, corretoraNome }: SGAAutomacaoConfigProps) {
@@ -188,8 +184,6 @@ export default function SGAAutomacaoConfig({ corretoraId, corretoraNome }: SGAAu
         hinova_codigo_cliente: config.hinova_codigo_cliente,
         ativo: config.ativo,
         hora_agendada: config.hora_agendada || '09:00',
-        filtro_data_cadastro_inicio: config.filtro_data_cadastro_inicio,
-        filtro_data_cadastro_fim: config.filtro_data_cadastro_fim,
       };
 
       if (config.id) {
@@ -330,11 +324,11 @@ export default function SGAAutomacaoConfig({ corretoraId, corretoraNome }: SGAAu
     }
   };
 
+  // Calcular período exibido (fixo: 01/01/2000 até último dia do mês atual)
   const getPeriodoExibicao = () => {
-    if (config.filtro_data_cadastro_inicio && config.filtro_data_cadastro_fim) {
-      return `${format(new Date(config.filtro_data_cadastro_inicio), 'dd/MM/yyyy')} - ${format(new Date(config.filtro_data_cadastro_fim), 'dd/MM/yyyy')}`;
-    }
-    return 'Não definido';
+    const hoje = new Date();
+    const fim = endOfMonth(hoje);
+    return `01/01/2000 - ${format(fim, 'dd/MM/yyyy')}`;
   };
 
   if (loading) {
@@ -358,11 +352,11 @@ export default function SGAAutomacaoConfig({ corretoraId, corretoraNome }: SGAAu
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Settings className="h-5 w-5 text-primary" />
-                Automação SGA Hinova
+                Automação Eventos Hinova
                 <Github className="h-4 w-4 text-muted-foreground" />
               </CardTitle>
               <CardDescription className="mt-1">
-                {corretoraNome} • Relatório de Eventos (12.9.1)
+                {corretoraNome} • Execução via GitHub Actions
               </CardDescription>
             </div>
             <div className="flex flex-col items-end gap-2">
@@ -498,7 +492,7 @@ export default function SGAAutomacaoConfig({ corretoraId, corretoraNome }: SGAAu
             <CardHeader>
               <CardTitle className="text-base">Credenciais Hinova</CardTitle>
               <CardDescription>
-                Configure as credenciais de acesso ao portal SGA Hinova
+                Configure as credenciais de acesso ao portal Hinova
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -556,49 +550,32 @@ export default function SGAAutomacaoConfig({ corretoraId, corretoraNome }: SGAAu
                 </div>
               </div>
 
-              {/* Filtros de período */}
-              <div className="border-t pt-4 mt-4">
-                <h4 className="font-medium mb-3 flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Período do Relatório (Data Cadastro Item)
-                </h4>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="data_inicio">Data Inicial</Label>
-                    <Input
-                      id="data_inicio"
-                      type="date"
-                      value={config.filtro_data_cadastro_inicio || ''}
-                      onChange={(e) => setConfig(prev => ({ ...prev, filtro_data_cadastro_inicio: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="data_fim">Data Final</Label>
-                    <Input
-                      id="data_fim"
-                      type="date"
-                      value={config.filtro_data_cadastro_fim || ''}
-                      onChange={(e) => setConfig(prev => ({ ...prev, filtro_data_cadastro_fim: e.target.value }))}
-                    />
+              {/* Info sobre período automático */}
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-900">
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 text-blue-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-sm text-blue-800 dark:text-blue-300">
+                      Período do Relatório (Automático)
+                    </h4>
+                    <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                      O robô extrai automaticamente todos os eventos desde <strong>01/01/2000</strong> até o <strong>último dia do mês atual</strong> ({getPeriodoExibicao()}).
+                      Isso garante que todo o histórico seja importado a cada execução.
+                    </p>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Período atual: {getPeriodoExibicao()}
-                </p>
               </div>
 
               {/* Info sobre campos selecionados */}
-              <div className="border-t pt-4 mt-4">
-                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-900">
-                  <h4 className="font-medium text-sm text-blue-800 dark:text-blue-300 mb-2">
-                    Campos Selecionados Automaticamente
-                  </h4>
-                  <p className="text-xs text-blue-700 dark:text-blue-400">
-                    O robô seleciona automaticamente todos os campos do relatório 12.9.1: Evento Estado, Data Cadastro Item, 
-                    Data Evento, Motivo Evento, Tipo Evento, Situação Evento, Modelo Veículo, Placa, Valor Reparo, 
-                    Custo Evento, Cooperativa, Regional, Voluntário, e mais 25 campos adicionais.
-                  </p>
-                </div>
+              <div className="p-3 bg-muted/50 rounded-lg border">
+                <h4 className="font-medium text-sm mb-2">
+                  Campos Selecionados Automaticamente
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  O robô seleciona automaticamente todos os campos do relatório 12.9.1: Evento Estado, Data Cadastro Item, 
+                  Data Evento, Motivo Evento, Tipo Evento, Situação Evento, Modelo Veículo, Placa, Valor Reparo, 
+                  Custo Evento, Cooperativa, Regional, Voluntário, e mais 25 campos adicionais.
+                </p>
               </div>
 
               <div className="flex justify-end pt-4 border-t">
