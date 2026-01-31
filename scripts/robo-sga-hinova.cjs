@@ -31,6 +31,7 @@ const CONFIG = {
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
   HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '',
+  HINOVA_LAYOUT: process.env.HINOVA_LAYOUT || 'BI - VANGARD',
   
   // Período do relatório
   DATA_INICIO: process.env.DATA_INICIO || '01/01/2000',
@@ -93,6 +94,20 @@ const CAMPOS_EVENTO = [
   'Tipo Veículo Veículo Terceiro',
 ];
 
+// Timeouts
+const TIMEOUTS = {
+  PAGE_LOAD: 60000,
+  LOGIN_RETRY_WAIT: 5000,
+  DOWNLOAD_WAIT: 300000, // 5 minutos
+  POPUP_CLOSE: 500,
+};
+
+// Limites
+const LIMITS = {
+  MAX_LOGIN_RETRIES: 20,
+  MAX_POPUP_CLOSE_ATTEMPTS: 10,
+};
+
 // ============================================
 // LOGGING
 // ============================================
@@ -104,6 +119,12 @@ const LOG_LEVELS = {
   DEBUG: 'DEBUG',
 };
 
+let currentStep = 'INIT';
+
+function setStep(step) {
+  currentStep = step;
+}
+
 function log(msg, level = LOG_LEVELS.INFO) {
   const timestamp = new Date().toISOString();
   const emoji = {
@@ -114,6 +135,17 @@ function log(msg, level = LOG_LEVELS.INFO) {
     DEBUG: '🔍',
   }[level] || '📌';
   console.log(`[${timestamp}] ${emoji} [${level}] ${msg}`);
+}
+
+// ============================================
+// UTIL: Normalização de texto
+// ============================================
+function normalizeText(str) {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
 }
 
 // ============================================
@@ -154,35 +186,222 @@ async function updateProgress(status, etapa, extras = {}) {
 // ============================================
 // DEBUG
 // ============================================
-async function saveDebugInfo(page, prefix) {
+async function saveDebugInfo(page, prefix, errorMessage = null) {
   try {
     if (!fs.existsSync(CONFIG.DEBUG_DIR)) {
       fs.mkdirSync(CONFIG.DEBUG_DIR, { recursive: true });
     }
-    const screenshot = path.join(CONFIG.DEBUG_DIR, `${prefix}.png`);
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    
+    // Screenshot
+    const screenshot = path.join(CONFIG.DEBUG_DIR, `${prefix}_${timestamp}.png`);
     await page.screenshot({ path: screenshot, fullPage: true });
     log(`Screenshot salvo: ${screenshot}`, LOG_LEVELS.DEBUG);
+    
+    // HTML
+    try {
+      const html = await page.content();
+      const htmlPath = path.join(CONFIG.DEBUG_DIR, `${prefix}_${timestamp}.html`);
+      fs.writeFileSync(htmlPath, html.substring(0, 500000)); // Limitar a 500KB
+      log(`HTML salvo: ${htmlPath}`, LOG_LEVELS.DEBUG);
+    } catch {}
+    
+    // URL
+    const urlPath = path.join(CONFIG.DEBUG_DIR, `url_${prefix}_${timestamp}.txt`);
+    const urlInfo = `URL: ${page.url()}\nTimestamp: ${new Date().toISOString()}\nStep: ${currentStep}\nError: ${errorMessage || 'N/A'}`;
+    fs.writeFileSync(urlPath, urlInfo);
+    
   } catch (e) {
-    log(`Erro ao salvar debug: ${e.message}`, LOG_LEVELS.WARN);
+    log(`Erro ao salvar debug info: ${e.message}`, LOG_LEVELS.WARN);
   }
 }
 
 // ============================================
-// FUNÇÕES AUXILIARES
+// FECHAR POPUPS/MODAIS
 // ============================================
-function normalizeText(str) {
-  return String(str || '')
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .trim();
+async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPTS) {
+  let popupFechado = true;
+  let tentativas = 0;
+  
+  while (popupFechado && tentativas < maxTentativas) {
+    popupFechado = false;
+    tentativas++;
+    
+    if (tentativas > maxTentativas) {
+      log(`Limite de tentativas de fechar popup atingido (${maxTentativas})`, LOG_LEVELS.WARN);
+      break;
+    }
+    
+    try {
+      await page.waitForTimeout(TIMEOUTS.POPUP_CLOSE);
+      
+      const seletoresFechar = [
+        'button:has-text("Fechar")',
+        'a:has-text("Fechar")',
+        '.btn:has-text("Fechar")',
+        'input[value="Fechar"]',
+        'button:has-text("Continuar e Fechar")',
+        'a:has-text("Continuar e Fechar")',
+        'button:has-text("Continuar")',
+        'button:has-text("OK")',
+        '.btn:has-text("OK")',
+        '.modal.show button.close',
+        '.modal.show .btn-close',
+        '.modal.show [data-dismiss="modal"]',
+        '.modal button.close',
+        '.modal .btn-close',
+        '.modal .close',
+        'button.close',
+        '.close',
+        '[data-dismiss="modal"]',
+        '[data-bs-dismiss="modal"]',
+        '[aria-label="Close"]',
+        '.modal-header button',
+        '.swal2-confirm',
+        '.swal2-close',
+        '.bootbox .btn-primary',
+        '.bootbox .btn-default',
+      ];
+      
+      for (const seletor of seletoresFechar) {
+        try {
+          const botoes = await page.$$(seletor);
+          for (const botao of botoes) {
+            const isVisible = await botao.isVisible().catch(() => false);
+            if (isVisible) {
+              log(`Popup detectado - fechando via: ${seletor}`, LOG_LEVELS.DEBUG);
+              await botao.click({ force: true }).catch(() => {});
+              await page.waitForTimeout(1000);
+              popupFechado = true;
+              break;
+            }
+          }
+          if (popupFechado) break;
+        } catch {
+          // Continuar tentando
+        }
+      }
+    } catch (e) {
+      // Ignorar erro
+    }
+  }
 }
 
-async function waitForPageLoad(page, timeout = 30000) {
+// ============================================
+// SELEÇÃO DE LAYOUT/SISTEMA (CRÍTICO!)
+// ============================================
+/**
+ * Tenta selecionar o layout/sistema no portal Hinova.
+ * O portal exibe um modal de seleção que bloqueia o login se não preenchido.
+ */
+async function trySelectHinovaLayout(page) {
+  const desired = normalizeText(CONFIG.HINOVA_LAYOUT);
+  if (!desired) return false;
+  
+  log(`Tentando selecionar layout: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.DEBUG);
+
+  // 1) Tentar select tradicional
   try {
-    await page.waitForLoadState('networkidle', { timeout });
-  } catch {
-    await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
+    const select = page
+      .locator(
+        'select[name*="layout" i], select[id*="layout" i], select[name*="sistema" i], select[id*="sistema" i], select[name*="perfil" i], select[id*="perfil" i]'
+      )
+      .first();
+
+    if (await select.isVisible().catch(() => false)) {
+      const optionTexts = await select.locator('option').allTextContents().catch(() => []);
+      const idx = optionTexts.findIndex((t) => {
+        const nt = normalizeText(t);
+        return nt.includes('vangard') || nt.includes(desired);
+      });
+
+      if (idx >= 0) {
+        const option = select.locator('option').nth(idx);
+        const value = (await option.getAttribute('value').catch(() => null)) ?? optionTexts[idx];
+        await select.selectOption(value).catch(() => null);
+        log(`Layout selecionado via <select>: ${optionTexts[idx]}`, LOG_LEVELS.SUCCESS);
+        return true;
+      }
+    }
+  } catch {}
+
+  // 2) Tentar input (autocomplete/datalist)
+  try {
+    const input = page
+      .locator(
+        'input[placeholder*="Sistema" i], input[placeholder*="Layout" i], input[placeholder*="Perfil" i], input[placeholder*="Relat" i], input[placeholder*="Empresa" i]'
+      )
+      .first();
+    if (await input.isVisible().catch(() => false)) {
+      await input.click({ force: true }).catch(() => null);
+      await input.fill(CONFIG.HINOVA_LAYOUT).catch(() => null);
+      await input.press('Enter').catch(() => null);
+      log(`Layout preenchido via input: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.SUCCESS);
+      return true;
+    }
+  } catch {}
+
+  // 3) Fallback: se houver 4+ inputs visíveis, preencher o último vazio
+  try {
+    const ok = await page
+      .evaluate(({ layout }) => {
+        const isVisible = (el) => {
+          const r = el.getBoundingClientRect();
+          const style = window.getComputedStyle(el);
+          return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+        };
+
+        const inputs = Array.from(
+          document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])')
+        ).filter(isVisible);
+
+        if (inputs.length < 4) return false;
+
+        // Preferir o último input vazio (muito comum ser o campo de layout)
+        const candidate = [...inputs].reverse().find((i) => !i.value);
+        if (!candidate) return false;
+        candidate.value = layout;
+        candidate.dispatchEvent(new Event('input', { bubbles: true }));
+        candidate.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      }, { layout: CONFIG.HINOVA_LAYOUT })
+      .catch(() => false);
+
+    if (ok) {
+      log(`Layout preenchido via fallback (último input): ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.SUCCESS);
+      return true;
+    }
+  } catch {}
+
+  return false;
+}
+
+// ============================================
+// DISPENSAR CÓDIGO DE AUTENTICAÇÃO
+// ============================================
+async function dispensarCodigoAutenticacao(page) {
+  try {
+    const selector = 'input[placeholder*="Autenticação"], input[placeholder*="autenticação"]';
+    const campoAuth = await page.$(selector);
+    if (!campoAuth) return false;
+    
+    await campoAuth.evaluate((el) => {
+      el.value = '';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }).catch(() => {});
+    
+    await campoAuth.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(200);
+    await page.click('body', { position: { x: 20, y: 20 }, force: true }).catch(() => {});
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(200);
+    
+    log('Código de autenticação dispensado', LOG_LEVELS.DEBUG);
+    return true;
+  } catch (e) {
+    return false;
   }
 }
 
@@ -198,7 +417,7 @@ async function main() {
     throw new Error('HINOVA_USER e HINOVA_PASS são obrigatórios');
   }
 
-  // Atualizar status para login
+  // Notificar início
   await updateProgress('executando', 'login');
 
   const browser = await chromium.launch({ 
@@ -209,51 +428,210 @@ async function main() {
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    acceptDownloads: true,
   });
 
+  context.setDefaultTimeout(30000);
+  context.setDefaultNavigationTimeout(TIMEOUTS.PAGE_LOAD);
+
   const page = await context.newPage();
+  page.setDefaultTimeout(30000);
+  page.setDefaultNavigationTimeout(TIMEOUTS.PAGE_LOAD);
 
   try {
-    // 1. LOGIN
-    log(`Acessando portal: ${CONFIG.HINOVA_URL}`, LOG_LEVELS.INFO);
-    await page.goto(CONFIG.HINOVA_URL, { waitUntil: 'networkidle', timeout: 60000 });
-    await saveDebugInfo(page, 'debug_sga_antes_login');
-
-    // Preencher login
-    log('Preenchendo credenciais...', LOG_LEVELS.INFO);
+    // ============================================
+    // ETAPA: LOGIN
+    // ============================================
+    setStep('LOGIN');
     
-    // Código do cliente (se houver)
-    if (CONFIG.HINOVA_CODIGO_CLIENTE) {
-      const codigoInput = page.locator('input[name*="codigo" i], input[name*="cliente" i], input[placeholder*="código" i]').first();
-      if (await codigoInput.isVisible().catch(() => false)) {
-        await codigoInput.fill(CONFIG.HINOVA_CODIGO_CLIENTE);
+    let navegacaoOk = false;
+    for (let tentativa = 1; tentativa <= 3 && !navegacaoOk; tentativa++) {
+      try {
+        log(`Tentativa ${tentativa} de acessar portal: ${CONFIG.HINOVA_URL}`);
+        await page.goto(CONFIG.HINOVA_URL, { 
+          waitUntil: 'domcontentloaded',
+          timeout: TIMEOUTS.PAGE_LOAD 
+        });
+        navegacaoOk = true;
+      } catch (e) {
+        log(`Erro: ${e.message}`, LOG_LEVELS.WARN);
+        if (tentativa === 3) throw e;
+        await page.waitForTimeout(5000);
       }
     }
-
-    // Usuário
-    const userInput = page.locator('input[name*="login" i], input[name*="usuario" i], input[type="text"]').first();
-    await userInput.fill(CONFIG.HINOVA_USER);
-
-    // Senha
-    const passInput = page.locator('input[type="password"]').first();
-    await passInput.fill(CONFIG.HINOVA_PASS);
-
-    // Submit
-    const submitBtn = page.locator('input[type="submit"], button[type="submit"], button:has-text("Entrar"), button:has-text("Login")').first();
-    await submitBtn.click();
-
-    await waitForPageLoad(page, 30000);
-    await saveDebugInfo(page, 'debug_sga_apos_login');
-
-    // Verificar se login foi bem sucedido
-    const loginError = await page.locator('text=incorreto, text=inválido, text=erro, .alert-danger, .error').first().isVisible().catch(() => false);
-    if (loginError) {
-      throw new Error('Falha no login - credenciais inválidas');
+    
+    await saveDebugInfo(page, 'debug_sga_antes_login');
+    
+    log('Aguardando formulário de login...');
+    await page.waitForTimeout(3000);
+    
+    try {
+      await page.waitForSelector('input[placeholder="Usuário"], input[type="password"]', {
+        timeout: 30000
+      });
+      log('Formulário de login carregado', LOG_LEVELS.SUCCESS);
+    } catch {
+      log('Campos de login não encontrados pelo seletor padrão', LOG_LEVELS.WARN);
     }
+    
+    await fecharPopups(page);
+    
+    // Preencher credenciais
+    log('Preenchendo credenciais...');
+    
+    // Preencher código cliente (se houver)
+    if (CONFIG.HINOVA_CODIGO_CLIENTE) {
+      try {
+        await page.fill('input[placeholder=""]', CONFIG.HINOVA_CODIGO_CLIENTE, { timeout: 5000 });
+        log('Código cliente preenchido', LOG_LEVELS.DEBUG);
+      } catch (e) {
+        log('Campo código cliente não encontrado (pode ser opcional)', LOG_LEVELS.DEBUG);
+      }
+    }
+    
+    // Preencher usuário
+    try {
+      await page.fill('input[placeholder="Usuário"]', CONFIG.HINOVA_USER, { timeout: 5000 });
+      log('Usuário preenchido', LOG_LEVELS.DEBUG);
+    } catch (e) {
+      log(`Erro ao preencher usuário: ${e.message}`, LOG_LEVELS.WARN);
+    }
+    
+    // Preencher senha
+    try {
+      await page.fill('input[placeholder="Senha"]', CONFIG.HINOVA_PASS, { timeout: 5000 });
+      log('Senha preenchida', LOG_LEVELS.DEBUG);
+    } catch (e) {
+      log(`Erro ao preencher senha: ${e.message}`, LOG_LEVELS.WARN);
+    }
+    
+    // Aguardar um pouco
+    await page.waitForTimeout(500);
+    
+    // Fallback: preencher via JavaScript
+    log('Verificando/complementando credenciais via JavaScript...', LOG_LEVELS.DEBUG);
+    await page.evaluate(({ codigoCliente, usuario, senha }) => {
+      const allInputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])'));
+      
+      if (allInputs.length >= 3) {
+        if (codigoCliente && !allInputs[0].value) {
+          allInputs[0].value = codigoCliente;
+          allInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        
+        if (!allInputs[1].value || allInputs[1].value === allInputs[1].placeholder) {
+          allInputs[1].value = usuario;
+          allInputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        
+        if (!allInputs[2].value || allInputs[2].value === allInputs[2].placeholder) {
+          allInputs[2].value = senha;
+          allInputs[2].dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+    }, { codigoCliente: CONFIG.HINOVA_CODIGO_CLIENTE, usuario: CONFIG.HINOVA_USER, senha: CONFIG.HINOVA_PASS });
+    
+    log('Credenciais preenchidas com sucesso', LOG_LEVELS.SUCCESS);
 
+    // ========= CRÍTICO: Selecionar Layout/Sistema =========
+    const layoutOk = await trySelectHinovaLayout(page);
+    if (!layoutOk) {
+      log('Campo de layout/perfil não identificado no login (seguindo assim mesmo)', LOG_LEVELS.WARN);
+    }
+    
+    // Clicar no botão Entrar com múltiplas tentativas
+    let loginSucesso = false;
+    
+    const isAindaNaLogin = async () => {
+      const relatorioVisible = await page.locator('text=Relatório').first().isVisible().catch(() => false);
+      if (relatorioVisible) return false;
+      
+      const esqueceuVisible = await page.locator('text=Esqueci minha senha').first().isVisible().catch(() => false);
+      const codigoClienteVisible = await page.locator('text=Código cliente').first().isVisible().catch(() => false);
+      if (esqueceuVisible || codigoClienteVisible) return true;
+      
+      const pwdVisible = await page.locator('input[type="password"]').first().isVisible().catch(() => false);
+      const url = page.url?.() || '';
+      const urlPareceLogin = /login/i.test(url);
+      
+      return pwdVisible || urlPareceLogin;
+    };
+    
+    for (let tentativa = 1; tentativa <= LIMITS.MAX_LOGIN_RETRIES; tentativa++) {
+      log(`Tentativa ${tentativa}/${LIMITS.MAX_LOGIN_RETRIES} - Clicando em Entrar...`);
+      
+      try {
+        const clicarEntrar = async () => {
+          const btnSelector = 'button:has-text("Entrar"), input[value="Entrar"], .btn-primary, button.btn, #btn-login';
+          const btnEntrar = await page.$(btnSelector);
+          
+          if (btnEntrar) {
+            await btnEntrar.evaluate((el) => el.click()).catch(() => {});
+            await btnEntrar.click({ force: true }).catch(() => {});
+          } else {
+            await page.click('button:has-text("Entrar")', { force: true, timeout: 1000 }).catch(() => {});
+          }
+        };
+        
+        await clicarEntrar();
+        await Promise.race([
+          page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => null),
+          page.waitForTimeout(1500),
+        ]);
+        
+        await dispensarCodigoAutenticacao(page);
+        await Promise.race([
+          page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
+          page.waitForTimeout(1200),
+        ]);
+        
+        await clicarEntrar();
+        await Promise.race([
+          page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
+          page.waitForTimeout(1200),
+        ]);
+        
+        await page.keyboard.press('Enter').catch(() => {});
+        
+        await Promise.race([
+          page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: TIMEOUTS.LOGIN_RETRY_WAIT }).catch(() => null),
+          page.waitForLoadState('networkidle', { timeout: TIMEOUTS.LOGIN_RETRY_WAIT }).catch(() => null),
+          page.waitForTimeout(TIMEOUTS.LOGIN_RETRY_WAIT),
+        ]);
+        
+        const aindaNaLogin = await isAindaNaLogin();
+        if (!aindaNaLogin) {
+          loginSucesso = true;
+          log(`Login bem sucedido na tentativa ${tentativa}!`, LOG_LEVELS.SUCCESS);
+          break;
+        }
+        
+        const erroMsg = await page.$eval('.alert-danger, .error, .erro, .message-error', (el) => el.textContent).catch(() => null);
+        if (erroMsg) {
+          log(`Erro detectado: ${String(erroMsg).trim()}`, LOG_LEVELS.WARN);
+        }
+        
+        log(`Tentativa ${tentativa} falhou - ainda na página de login`, LOG_LEVELS.WARN);
+        await page.waitForTimeout(600);
+      } catch (err) {
+        log(`Erro na tentativa ${tentativa}: ${err.message}`, LOG_LEVELS.WARN);
+        await page.waitForTimeout(600);
+      }
+    }
+    
+    if (!loginSucesso) {
+      await saveDebugInfo(page, 'debug_sga_login_falhou');
+      throw new Error(`Login falhou após ${LIMITS.MAX_LOGIN_RETRIES} tentativas`);
+    }
+    
+    await saveDebugInfo(page, 'debug_sga_apos_login');
+    await fecharPopups(page);
     log('Login realizado com sucesso!', LOG_LEVELS.SUCCESS);
 
-    // 2. NAVEGAR PARA RELATÓRIO DE EVENTOS
+    // ============================================
+    // ETAPA: NAVEGAR PARA RELATÓRIO DE EVENTOS
+    // ============================================
+    setStep('NAVEGACAO');
     await updateProgress('executando', 'filtros');
     log('Navegando para Relatório > 12.9 > 12.9.1...', LOG_LEVELS.INFO);
 
@@ -261,93 +639,138 @@ async function main() {
     const menuRelatorio = page.locator('a:has-text("Relatório"), a:has-text("Relatórios"), li:has-text("Relatório") > a').first();
     if (await menuRelatorio.isVisible().catch(() => false)) {
       await menuRelatorio.click();
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(2000);
     }
+    
+    await saveDebugInfo(page, 'debug_sga_menu_relatorio');
 
     // Clicar em 12.9 - De Eventos
     const menuEventos = page.locator('a:has-text("12.9"), a:has-text("De Eventos"), a:has-text("Eventos")').first();
     if (await menuEventos.isVisible().catch(() => false)) {
       await menuEventos.click();
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(2000);
     }
 
     // Clicar em 12.9.1 - Por Eventos
     const menuPorEventos = page.locator('a:has-text("12.9.1"), a:has-text("Por Eventos")').first();
     if (await menuPorEventos.isVisible().catch(() => false)) {
       await menuPorEventos.click();
-      await waitForPageLoad(page);
+      await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
     }
 
+    await page.waitForTimeout(5000);
     await saveDebugInfo(page, 'debug_sga_relatorio_eventos');
+    log('Página de relatório de eventos aberta', LOG_LEVELS.SUCCESS);
 
-    // 3. PREENCHER FILTROS
-    log('Preenchendo filtros de período...', LOG_LEVELS.INFO);
+    // ============================================
+    // ETAPA: PREENCHER FILTROS
+    // ============================================
+    setStep('FILTROS');
+    log(`Preenchendo filtros de período: ${CONFIG.DATA_INICIO} até ${CONFIG.DATA_FIM}`, LOG_LEVELS.INFO);
 
-    // Data Cadastro Item - Início
-    const dataInicio = page.locator('input[name*="data_inicio" i], input[name*="datacadastro" i], input[placeholder*="inicial" i]').first();
-    if (await dataInicio.isVisible().catch(() => false)) {
-      await dataInicio.fill(CONFIG.DATA_INICIO);
+    // Preencher Data Cadastro Item
+    const preencheuDatas = await page.evaluate(({ inicio, fim }) => {
+      const resultado = { sucesso: false, detalhes: [] };
+      
+      // Procurar labels contendo "Data Cadastro Item"
+      const todosElementos = document.querySelectorAll('td, th, label, span, div');
+      
+      for (const elemento of todosElementos) {
+        const texto = elemento.textContent?.trim() || '';
+        
+        if (texto.includes('Data Cadastro Item') || texto.includes('Data Cadastro')) {
+          resultado.detalhes.push(`Label encontrado: "${texto}"`);
+          
+          const linha = elemento.closest('tr');
+          if (linha) {
+            const inputs = linha.querySelectorAll('input[type="text"], input:not([type])');
+            resultado.detalhes.push(`Inputs na linha: ${inputs.length}`);
+            
+            if (inputs.length >= 2) {
+              inputs[0].value = inicio;
+              inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+              inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+              
+              inputs[1].value = fim;
+              inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+              inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
+              
+              resultado.sucesso = true;
+              resultado.detalhes.push(`Datas preenchidas: ${inicio} e ${fim}`);
+              return resultado;
+            }
+          }
+        }
+      }
+      
+      return resultado;
+    }, { inicio: CONFIG.DATA_INICIO, fim: CONFIG.DATA_FIM });
+
+    for (const detalhe of preencheuDatas.detalhes) {
+      log(detalhe, LOG_LEVELS.DEBUG);
+    }
+    
+    if (preencheuDatas.sucesso) {
+      log(`✅ Data Cadastro Item preenchida: ${CONFIG.DATA_INICIO} até ${CONFIG.DATA_FIM}`, LOG_LEVELS.SUCCESS);
+    } else {
+      log('⚠️ Não foi possível preencher Data Cadastro Item - tentando continuar...', LOG_LEVELS.WARN);
     }
 
-    // Data Cadastro Item - Fim
-    const dataFim = page.locator('input[name*="data_fim" i], input[name*="datafim" i], input[placeholder*="final" i]').first();
-    if (await dataFim.isVisible().catch(() => false)) {
-      await dataFim.fill(CONFIG.DATA_FIM);
-    }
-
-    await saveDebugInfo(page, 'debug_sga_filtros_periodo');
-
-    // 4. SELECIONAR CAMPOS (DADOS VISUALIZADOS)
+    // ============================================
+    // ETAPA: SELECIONAR CAMPOS (DADOS VISUALIZADOS)
+    // ============================================
     await updateProgress('executando', 'campos');
     log('Selecionando campos do relatório...', LOG_LEVELS.INFO);
 
     // Clicar na aba "Dados Visualizados" ou "Dados do Evento"
-    const abaDados = page.locator('a:has-text("Dados Visualizados"), a:has-text("Dados do Evento"), tab:has-text("Dados")').first();
+    const abaDados = page.locator('a:has-text("Dados Visualizados"), a:has-text("Dados do Evento"), [href*="dados"]').first();
     if (await abaDados.isVisible().catch(() => false)) {
       await abaDados.click();
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(2000);
     }
 
-    // Selecionar cada campo
-    for (const campo of CAMPOS_EVENTO) {
-      try {
-        // Tentar checkbox com label
-        const checkbox = page.locator(`input[type="checkbox"][name*="${normalizeText(campo).replace(/\s/g, '')}" i], label:has-text("${campo}") input[type="checkbox"]`).first();
-        if (await checkbox.isVisible().catch(() => false)) {
-          const isChecked = await checkbox.isChecked().catch(() => false);
-          if (!isChecked) {
-            await checkbox.check();
-            log(`Campo selecionado: ${campo}`, LOG_LEVELS.DEBUG);
-          }
-        }
-      } catch (e) {
-        log(`Campo não encontrado: ${campo}`, LOG_LEVELS.DEBUG);
-      }
-    }
-
-    // Alternativa: Selecionar TODOS se disponível
+    // Tentar selecionar todos os campos
     const selectAll = page.locator('input[type="checkbox"][name*="todos" i], a:has-text("Selecionar Todos"), button:has-text("Todos")').first();
     if (await selectAll.isVisible().catch(() => false)) {
-      if (await selectAll.getAttribute('type') === 'checkbox') {
+      if ((await selectAll.getAttribute('type')) === 'checkbox') {
         await selectAll.check();
       } else {
         await selectAll.click();
       }
-      log('Opção "Selecionar Todos" ativada', LOG_LEVELS.INFO);
+      log('Opção "Selecionar Todos" ativada', LOG_LEVELS.SUCCESS);
+    } else {
+      // Selecionar campos individualmente
+      for (const campo of CAMPOS_EVENTO) {
+        try {
+          const checkbox = page.locator(`label:has-text("${campo}") input[type="checkbox"], input[type="checkbox"][value*="${campo}" i]`).first();
+          if (await checkbox.isVisible().catch(() => false)) {
+            const isChecked = await checkbox.isChecked().catch(() => false);
+            if (!isChecked) {
+              await checkbox.check();
+              log(`Campo selecionado: ${campo}`, LOG_LEVELS.DEBUG);
+            }
+          }
+        } catch (e) {
+          // Campo não encontrado, continuar
+        }
+      }
     }
 
     await saveDebugInfo(page, 'debug_sga_campos');
 
-    // 5. SELECIONAR FORMATO EXCEL
+    // ============================================
+    // ETAPA: SELECIONAR FORMATO EXCEL
+    // ============================================
     log('Selecionando formato Excel...', LOG_LEVELS.INFO);
 
-    const formatoExcel = page.locator('input[value*="excel" i], input[value*="xls" i], label:has-text("Excel") input, select option:has-text("Excel")').first();
+    const formatoExcel = page.locator('input[value*="excel" i], input[value*="xls" i], label:has-text("Excel") input').first();
     if (await formatoExcel.isVisible().catch(() => false)) {
-      if (await formatoExcel.getAttribute('type') === 'radio' || await formatoExcel.getAttribute('type') === 'checkbox') {
+      if ((await formatoExcel.getAttribute('type')) === 'radio' || (await formatoExcel.getAttribute('type')) === 'checkbox') {
         await formatoExcel.check();
       } else {
         await formatoExcel.click();
       }
+      log('Formato Excel selecionado', LOG_LEVELS.SUCCESS);
     }
 
     // Tentar select de formato
@@ -358,27 +781,32 @@ async function main() {
 
     await saveDebugInfo(page, 'debug_sga_formato');
 
-    // 6. GERAR RELATÓRIO
+    // ============================================
+    // ETAPA: GERAR RELATÓRIO E DOWNLOAD
+    // ============================================
+    setStep('DOWNLOAD');
     await updateProgress('executando', 'download');
     log('Gerando relatório...', LOG_LEVELS.INFO);
 
     // Configurar listener de download
-    const downloadPromise = page.waitForEvent('download', { timeout: 300000 });
+    const downloadPromise = page.waitForEvent('download', { timeout: TIMEOUTS.DOWNLOAD_WAIT });
 
     // Clicar no botão gerar
     const btnGerar = page.locator('input[type="submit"]:has-text("Gerar"), button:has-text("Gerar"), input[value*="Gerar" i], button:has-text("Exportar")').first();
     if (await btnGerar.isVisible().catch(() => false)) {
       await btnGerar.click();
+      log('Botão Gerar clicado', LOG_LEVELS.DEBUG);
     }
 
     log('Aguardando download...', LOG_LEVELS.INFO);
 
-    // 7. PROCESSAR DOWNLOAD
+    // Aguardar download
     let download;
     try {
       download = await downloadPromise;
       log(`Download iniciado: ${download.suggestedFilename()}`, LOG_LEVELS.SUCCESS);
     } catch (e) {
+      await saveDebugInfo(page, 'debug_sga_timeout_download');
       throw new Error(`Timeout aguardando download: ${e.message}`);
     }
 
@@ -400,7 +828,10 @@ async function main() {
       bytes_total: stats.size,
     });
 
-    // 8. PROCESSAR EXCEL
+    // ============================================
+    // ETAPA: PROCESSAR EXCEL
+    // ============================================
+    setStep('PROCESSAMENTO');
     log('Processando arquivo Excel...', LOG_LEVELS.INFO);
 
     const workbook = XLSX.readFile(filepath, { type: 'file' });
@@ -420,7 +851,10 @@ async function main() {
       return;
     }
 
-    // 9. ENVIAR PARA WEBHOOK
+    // ============================================
+    // ETAPA: ENVIAR PARA WEBHOOK
+    // ============================================
+    setStep('IMPORTACAO');
     await updateProgress('executando', 'importacao', {
       nome_arquivo: filename,
       registros_total: dados.length,
@@ -452,7 +886,7 @@ async function main() {
 
   } catch (error) {
     log(`ERRO: ${error.message}`, LOG_LEVELS.ERROR);
-    await saveDebugInfo(page, 'debug_sga_erro');
+    await saveDebugInfo(page, 'debug_sga_erro', error.message);
 
     await updateProgress('erro', 'erro', {
       erro: error.message,
