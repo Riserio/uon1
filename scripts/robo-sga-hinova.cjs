@@ -783,8 +783,109 @@ function validateDownloadedFile(filePath, contentType) {
 }
 
 // ============================================
-// PROCESSAR ARQUIVO EXCEL
+// PROCESSAR ARQUIVO (EXCEL OU HTML)
 // ============================================
+
+// Função para extrair texto de célula HTML removendo tags
+function extrairTexto(html) {
+  if (!html) return '';
+  return html
+    .replace(/<[^>]+>/g, '') // Remove tags HTML
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Função para processar tabela HTML do Hinova
+function processarTabelaHtml(htmlContent) {
+  log('Processando arquivo HTML do Hinova...', LOG_LEVELS.INFO);
+  
+  const registros = [];
+  
+  // Extrair headers da tabela
+  const theadMatch = htmlContent.match(/<thead[^>]*>([\s\S]*?)<\/thead>/i);
+  if (!theadMatch) {
+    log('Não encontrou <thead> no HTML', LOG_LEVELS.WARN);
+    return [];
+  }
+  
+  const headerMatch = theadMatch[1].match(/<th[^>]*>(.*?)<\/th>/gi);
+  if (!headerMatch) {
+    log('Não encontrou <th> no HTML', LOG_LEVELS.WARN);
+    return [];
+  }
+  
+  const headers = headerMatch.map(th => {
+    const texto = th.replace(/<\/?th[^>]*>/gi, '').trim();
+    return extrairTexto(texto);
+  }).filter(h => h && h !== 'AÇÕES'); // Remove coluna de ações
+  
+  log(`Headers encontrados (${headers.length}): ${headers.slice(0, 10).join(', ')}...`, LOG_LEVELS.DEBUG);
+  
+  // Extrair tbody
+  const tbodyMatch = htmlContent.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
+  if (!tbodyMatch) {
+    log('Não encontrou <tbody> no HTML', LOG_LEVELS.WARN);
+    return [];
+  }
+  
+  const tbodyContent = tbodyMatch[1];
+  
+  // Extrair todas as linhas <tr>
+  // O HTML do Hinova pode ter <tr><tr> consecutivos ou <tr> com </tr>
+  const trMatches = tbodyContent.match(/<tr[^>]*>[\s\S]*?(?=<tr|$)/gi);
+  
+  if (!trMatches) {
+    log('Não encontrou linhas <tr> no tbody', LOG_LEVELS.WARN);
+    return [];
+  }
+  
+  log(`Linhas TR encontradas: ${trMatches.length}`, LOG_LEVELS.DEBUG);
+  
+  for (const trContent of trMatches) {
+    // Extrair células <td>
+    const tdMatches = trContent.match(/<td[^>]*>([\s\S]*?)(?:<\/td>|(?=<td))/gi);
+    
+    if (!tdMatches || tdMatches.length === 0) continue;
+    
+    const valores = tdMatches.map(td => {
+      const conteudo = td.replace(/<\/?td[^>]*>/gi, '');
+      return extrairTexto(conteudo);
+    });
+    
+    // Verificar se tem dados suficientes (mínimo 10 colunas preenchidas)
+    const valoresNaoVazios = valores.filter(v => v && v.length > 0);
+    if (valoresNaoVazios.length < 5) continue;
+    
+    // Criar objeto com headers
+    const registro = {};
+    for (let i = 0; i < headers.length && i < valores.length; i++) {
+      const header = headers[i];
+      if (header && header !== 'AÇÕES') {
+        registro[header] = valores[i] || '';
+      }
+    }
+    
+    // Só adicionar se tiver dados relevantes
+    if (Object.keys(registro).length > 5) {
+      registros.push(registro);
+    }
+  }
+  
+  log(`Registros extraídos do HTML: ${registros.length}`, LOG_LEVELS.SUCCESS);
+  
+  if (registros.length > 0) {
+    log(`Primeiro registro: ${JSON.stringify(registros[0]).substring(0, 300)}`, LOG_LEVELS.DEBUG);
+  }
+  
+  return registros;
+}
+
 async function processarArquivo(filePath) {
   log(`Processando arquivo: ${filePath}`, LOG_LEVELS.INFO);
 
@@ -793,25 +894,41 @@ async function processarArquivo(filePath) {
     const fileSize = buffer.length;
     log(`Tamanho do arquivo: ${formatBytes(fileSize)}`, LOG_LEVELS.DEBUG);
     
-    // Verificar se é HTML disfarçado de Excel
-    const primeirosBytes = buffer.toString('utf8', 0, 500);
-    if (primeirosBytes.includes('<html') || primeirosBytes.includes('<!DOCTYPE') || primeirosBytes.includes('<HTML')) {
-      log('⚠️ Arquivo é HTML disfarçado de Excel - pode ser página de erro', LOG_LEVELS.WARN);
-      log(`Conteúdo inicial: ${primeirosBytes.substring(0, 200)}`, LOG_LEVELS.DEBUG);
+    // Converter para string para análise
+    const conteudo = buffer.toString('utf8');
+    const primeirosBytes = conteudo.substring(0, 1000);
+    
+    // Verificar se é HTML (Hinova exporta como HTML disfarçado de .xls)
+    const isHtml = primeirosBytes.toLowerCase().includes('<html') || 
+                   primeirosBytes.toLowerCase().includes('<!doctype') ||
+                   primeirosBytes.toLowerCase().includes('<table');
+    
+    if (isHtml) {
+      log('Arquivo detectado como HTML - usando parser específico do Hinova', LOG_LEVELS.INFO);
       
-      // Tentar processar como HTML table (Hinova às vezes exporta assim)
-      const workbook = XLSX.read(buffer, { type: 'buffer', raw: true });
-      const sheetName = workbook.SheetNames[0];
-      if (sheetName) {
-        const sheet = workbook.Sheets[sheetName];
-        const dados = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
-        log(`Arquivo HTML processado: ${dados.length} registros`, LOG_LEVELS.SUCCESS);
+      // Verificar se é página de erro
+      if (conteudo.includes('Nenhum registro encontrado') || 
+          conteudo.includes('nenhum registro') ||
+          conteudo.includes('Erro') && conteudo.includes('sistema')) {
+        log('⚠️ Arquivo contém mensagem de erro ou sem registros', LOG_LEVELS.WARN);
+        log(`Conteúdo: ${primeirosBytes}`, LOG_LEVELS.DEBUG);
+        return [];
+      }
+      
+      // Usar parser HTML específico
+      const dados = processarTabelaHtml(conteudo);
+      
+      if (dados.length > 0) {
+        log(`HTML processado com sucesso: ${dados.length} registros`, LOG_LEVELS.SUCCESS);
         return dados;
       }
-      return [];
+      
+      // Fallback: tentar XLSX mesmo assim
+      log('Parser HTML não encontrou dados, tentando XLSX...', LOG_LEVELS.WARN);
     }
     
-    // Processar como Excel normal
+    // Processar como Excel (XLSX ou XLS binário)
+    log('Processando como Excel...', LOG_LEVELS.DEBUG);
     const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true, raw: false });
     
     log(`Sheets encontradas: ${workbook.SheetNames.join(', ')}`, LOG_LEVELS.DEBUG);
