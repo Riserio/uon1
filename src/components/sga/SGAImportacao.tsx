@@ -5,13 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import SGAHistoricoImportacoes from "./SGAHistoricoImportacoes";
 import SGAAutomacaoConfig from "./SGAAutomacaoConfig";
 import { useBIAuditLog } from "@/hooks/useBIAuditLog";
+import { useAuth } from "@/hooks/useAuth";
 
 // Template columns for SGA
 const SGA_TEMPLATE_COLUMNS = [
@@ -22,40 +23,17 @@ const SGA_TEMPLATE_COLUMNS = [
   "TIPO EVENTO",
   "SITUACAO EVENTO",
   "MODELO VEICULO",
-  "MODELO VEICULO TERCEIRO",
   "PLACA",
-  "PLACA TERCEIRO",
-  "DATA ULTIMA ALTERACAO SITUACAO",
   "VALOR REPARO",
-  "DATA CONCLUSAO",
   "CUSTO EVENTO",
-  "DATA ALTERACAO",
-  "DATA PREVISAO ENTREGA",
-  "SOLICITOU CARRO RESERVA",
-  "ENVOLVIMENTO TERCEIRO",
-  "PASSIVEL RESSARCIMENTO",
-  "VALOR MAO DE OBRA",
-  "CLASSIFICACAO",
-  "PARTICIPACAO",
-  "ENVOLVIMENTO",
-  "PREVISAO VALOR REPARO",
-  "USUARIO ALTERACAO",
-  "DATA CADASTRO EVENTO",
   "COOPERATIVA",
-  "VALOR PROTEGIDO VEICULO",
-  "SITUACAO ANALISE EVENTO",
-  "REGIONAL",
-  "ANO FABRICACAO",
-  "VOLUNTARIO",
-  "REGIONAL VEICULO",
-  "ASSOCIADO ESTADO",
-  "EVENTO CIDADE"
+  "REGIONAL"
 ];
 
 const downloadSGATemplate = () => {
   const ws = XLSX.utils.aoa_to_sheet([
     SGA_TEMPLATE_COLUMNS,
-    ["MG", "01/01/2024", "15/01/2024", "Colisão", "Sinistro", "Em Análise", "FIAT ARGO", "", "ABC1234", "", "20/01/2024", "5000.00", "", "3500.00", "20/01/2024", "30/01/2024", "Não", "Sim", "Não", "1500.00", "Parcial", "500.00", "Condutor", "6000.00", "admin", "01/01/2024", "Cooperativa A", "45000.00", "Aprovado", "Regional Sul", "2022", "Não", "Regional Sul", "MG", "Belo Horizonte"]
+    ["MG", "01/01/2024", "15/01/2024", "Colisão", "Sinistro", "Em Análise", "FIAT ARGO", "ABC1234", "5000.00", "3500.00", "Cooperativa A", "Regional Sul"]
   ]);
   
   const wb = XLSX.utils.book_new();
@@ -118,10 +96,8 @@ const normalizeHeader = (header: string): string => {
 
 // Função para encontrar valor no row considerando variações de header
 const getValueFromRow = (row: any, targetHeader: string): any => {
-  // Primeiro tenta o header exato
   if (row[targetHeader] !== undefined) return row[targetHeader];
   
-  // Depois tenta normalizado (case-insensitive e espaços)
   const normalizedTarget = normalizeHeader(targetHeader);
   for (const key of Object.keys(row)) {
     if (normalizeHeader(key) === normalizedTarget) {
@@ -136,16 +112,13 @@ const getValueFromRow = (row: any, targetHeader: string): any => {
 const parseExcelDate = (value: any): string | null => {
   if (!value) return null;
   
-  // Se for número (serial date do Excel)
   if (typeof value === "number") {
-    // Validar range razoável (1900-2100 corresponde a serial 1-73050)
     if (value < 1 || value > 100000) {
       console.warn("Serial date fora do range:", value);
       return null;
     }
     try {
       const date = new Date((value - 25569) * 86400 * 1000);
-      // Validar se a data resultante é válida
       if (isNaN(date.getTime()) || date.getFullYear() < 1900 || date.getFullYear() > 2100) {
         return null;
       }
@@ -155,13 +128,10 @@ const parseExcelDate = (value: any): string | null => {
     }
   }
   
-  // Se for string no formato DD/MM/YYYY ou DD/MM/YY (brasileiro)
   if (typeof value === "string") {
-    // Tentar formato DD/MM/YYYY ou DD/MM/YY
     const parts = value.split("/");
     if (parts.length === 3) {
       const [p1, p2, p3] = parts;
-      // Assumir formato DD/MM/YYYY (brasileiro)
       const day = parseInt(p1);
       const month = parseInt(p2);
       let year = parseInt(p3);
@@ -180,9 +150,7 @@ const parseExcelDate = (value: any): string | null => {
 const formatExcelDateForPreview = (value: any): string => {
   if (!value) return "";
   
-  // Se for número (serial date do Excel)
   if (typeof value === "number") {
-    // Validar range razoável
     if (value < 1 || value > 100000) {
       return String(value);
     }
@@ -216,7 +184,6 @@ const parseMoneyValue = (value: any): number => {
   if (!value) return 0;
   if (typeof value === "number") return value;
   
-  // Remover "R$", espaços e converter vírgula para ponto
   const cleaned = String(value)
     .replace(/R\$\s*/g, "")
     .replace(/\./g, "")
@@ -229,11 +196,15 @@ const parseMoneyValue = (value: any): number => {
 
 export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraNome }: SGAImportacaoProps) {
   const { registrarLog } = useBIAuditLog();
+  const { userRole } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [preview, setPreview] = useState<any[]>([]);
+  const [showAutomacaoDialog, setShowAutomacaoDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isAdmin = userRole === "admin" || userRole === "superintendente";
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -242,7 +213,6 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
     setFile(selectedFile);
     setPreview([]);
 
-    // Ler preview das primeiras linhas
     try {
       const buffer = await selectedFile.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
@@ -252,7 +222,6 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
       console.log("Preview headers:", Object.keys(jsonData[0] || {}));
       console.log("Preview data:", jsonData.slice(0, 2));
       
-      // Pegar apenas 5 primeiras linhas como preview
       setPreview(jsonData.slice(0, 5));
     } catch (error) {
       console.error("Erro ao ler preview:", error);
@@ -275,24 +244,12 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
     setProgress(0);
 
     try {
-      // Ler arquivo completo
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
       
       console.log("Import headers:", Object.keys(jsonData[0] || {}));
-      console.log("Sample data:", jsonData[0]);
-      
-      // Debug: procurar colunas que podem ser cidade
-      const headers = Object.keys(jsonData[0] || {});
-      const cidadeHeaders = headers.filter(h => 
-        normalizeHeader(h).includes("CIDADE") || normalizeHeader(h).includes("CITY")
-      );
-      console.log("Colunas de cidade encontradas:", cidadeHeaders);
-      if (cidadeHeaders.length > 0) {
-        console.log("Valor da primeira linha para cidade:", jsonData[0][cidadeHeaders[0]]);
-      }
 
       if (!jsonData.length) {
         toast.error("Arquivo vazio ou sem dados válidos");
@@ -336,35 +293,26 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
         
         const records = batch.map((row: any) => {
           const record: any = { importacao_id: importacao.id };
-          
-          // Usar Set para evitar duplicatas de dbCol (ex: EVENTO CIDADE, CIDADE EVENTO, CIDADE -> evento_cidade)
           const processedDbCols = new Set<string>();
           
           Object.entries(COLUMN_MAP).forEach(([excelCol, dbCol]) => {
-            // Pular se já processamos este campo do banco
             if (processedDbCols.has(dbCol)) return;
             
-            // Usar função case-insensitive para encontrar o valor
             const value = getValueFromRow(row, excelCol);
             
-            // Se encontrou valor, marcar como processado
             if (value !== undefined && value !== null && value !== "") {
               processedDbCols.add(dbCol);
             }
             
-            // Campos de data
             if (dbCol.startsWith("data_")) {
               record[dbCol] = parseExcelDate(value);
             }
-            // Campos de valor monetário
             else if (["valor_reparo", "custo_evento", "valor_mao_de_obra", "participacao", "previsao_valor_reparo", "valor_protegido_veiculo"].includes(dbCol)) {
               record[dbCol] = parseMoneyValue(value);
             }
-            // Ano fabricação
             else if (dbCol === "ano_fabricacao") {
               record[dbCol] = value ? parseInt(String(value)) || null : null;
             }
-            // Texto normal
             else {
               record[dbCol] = value || null;
             }
@@ -432,176 +380,180 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="manual" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="manual" className="gap-2">
-            <Upload className="h-4 w-4" />
-            Importar Planilha
-          </TabsTrigger>
-          <TabsTrigger value="automatico" className="gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Sincronização Automática
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="manual" className="mt-4 space-y-6">
-          {/* Upload Card */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Upload className="h-5 w-5 text-primary" />
-                  Importar Planilha do SGA
-                </CardTitle>
-                <Button variant="outline" size="sm" onClick={downloadSGATemplate}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Baixar Modelo
-                </Button>
-              </div>
-              <CardDescription>
-                Importando dados para: <span className="font-semibold text-foreground">{corretoraNome}</span>
-                <br />
-                Selecione um arquivo Excel (.xlsx) exportado do SGA. A nova importação irá sobrepor os dados anteriores desta associação.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="file">Arquivo Excel</Label>
-                <Input
-                  ref={fileInputRef}
-                  id="file"
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleFileSelect}
-                  disabled={importing}
-                />
-              </div>
-
-              {file && (
-                <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                  <FileSpreadsheet className="h-8 w-8 text-green-600" />
-                  <div className="flex-1">
-                    <p className="font-medium">{file.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                  {preview.length > 0 && (
-                    <div className="flex items-center gap-1 text-green-600">
-                      <CheckCircle2 className="h-4 w-4" />
-                      <span className="text-sm">Válido</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {importing && (
-                <div className="space-y-2">
-                  <Progress value={progress} className="h-2" />
-                  <p className="text-sm text-muted-foreground text-center">
-                    Importando... {progress}%
-                  </p>
-                </div>
-              )}
-
-              <Button
-                onClick={handleImport}
-                disabled={!file || importing}
-                className="w-full"
-              >
-                {importing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Importando...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Importar Dados
-                  </>
-                )}
+      {/* Upload Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-primary" />
+              Importar Planilha
+            </CardTitle>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={downloadSGATemplate}>
+                <Download className="h-4 w-4 mr-2" />
+                Baixar Modelo
               </Button>
-            </CardContent>
-          </Card>
+              {isAdmin && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowAutomacaoDialog(true)}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Automação Hinova</span>
+                  <span className="sm:hidden">Automação</span>
+                </Button>
+              )}
+            </div>
+          </div>
+          <CardDescription>
+            Importando para: <span className="font-semibold text-foreground">{corretoraNome}</span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="file">Arquivo Excel</Label>
+            <Input
+              ref={fileInputRef}
+              id="file"
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileSelect}
+              disabled={importing}
+            />
+          </div>
 
-          {/* Preview */}
-          {preview.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Preview dos Dados (5 primeiras linhas)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b">
-                        {Object.keys(preview[0]).slice(0, 8).map((col) => (
-                          <th key={col} className="p-2 text-left font-medium text-muted-foreground">
-                            {col}
-                          </th>
-                        ))}
-                        <th className="p-2 text-left font-medium text-muted-foreground">...</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.map((row, i) => {
-                        const keys = Object.keys(row);
-                        return (
-                          <tr key={i} className="border-b">
-                            {keys.slice(0, 8).map((key, j) => {
-                              const val = row[key];
-                              // Formatar datas no preview
-                              const isDateColumn = DATE_COLUMNS.some(dc => 
-                                normalizeHeader(key) === normalizeHeader(dc)
-                              );
-                              const displayVal = isDateColumn ? formatExcelDateForPreview(val) : String(val);
-                              return (
-                                <td key={j} className="p-2 truncate max-w-[150px]">
-                                  {displayVal}
-                                </td>
-                              );
-                            })}
-                            <td className="p-2 text-muted-foreground">...</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+          {file && (
+            <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+              <FileSpreadsheet className="h-8 w-8 text-green-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium truncate">{file.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {(file.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+              </div>
+              {preview.length > 0 && (
+                <div className="flex items-center gap-1 text-green-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span className="text-sm">Válido</span>
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </div>
           )}
 
-          {/* Info */}
-          <Card className="border-yellow-500/20 bg-yellow-500/5">
-            <CardContent className="p-4">
-              <div className="flex gap-3">
-                <AlertCircle className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-medium text-yellow-600">Importante</p>
-                  <p className="text-muted-foreground mt-1">
-                    Ao importar uma nova planilha, ela se tornará a fonte de dados ativa para <strong>{corretoraNome}</strong>. 
-                    As importações anteriores ficam salvas no histórico e podem ser reativadas a qualquer momento.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {importing && (
+            <div className="space-y-2">
+              <Progress value={progress} className="h-2" />
+              <p className="text-sm text-muted-foreground text-center">
+                Importando... {progress}%
+              </p>
+            </div>
+          )}
 
-          {/* Histórico de Importações */}
-          <SGAHistoricoImportacoes 
-            onActivate={onImportSuccess} 
-            corretoraId={corretoraId}
-          />
-        </TabsContent>
+          <Button
+            onClick={handleImport}
+            disabled={!file || importing}
+            className="w-full"
+          >
+            {importing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Importando...
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4 mr-2" />
+                Importar Dados
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="automatico" className="mt-4">
+      {/* Dialog de Automação Hinova */}
+      <Dialog open={showAutomacaoDialog} onOpenChange={setShowAutomacaoDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-primary" />
+              Automação SGA Hinova
+            </DialogTitle>
+          </DialogHeader>
           <SGAAutomacaoConfig 
-            corretoraId={corretoraId} 
+            corretoraId={corretoraId}
             corretoraNome={corretoraNome}
           />
-        </TabsContent>
-      </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview */}
+      {preview.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Preview (5 primeiras linhas)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b">
+                    {Object.keys(preview[0]).slice(0, 6).map((col) => (
+                      <th key={col} className="p-2 text-left font-medium text-muted-foreground">
+                        {col}
+                      </th>
+                    ))}
+                    <th className="p-2 text-left font-medium text-muted-foreground">...</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.map((row, i) => {
+                    const keys = Object.keys(row);
+                    return (
+                      <tr key={i} className="border-b">
+                        {keys.slice(0, 6).map((key, j) => {
+                          const val = row[key];
+                          const isDateColumn = DATE_COLUMNS.some(dc => 
+                            normalizeHeader(key) === normalizeHeader(dc)
+                          );
+                          const displayVal = isDateColumn ? formatExcelDateForPreview(val) : String(val);
+                          return (
+                            <td key={j} className="p-2 truncate max-w-[120px]">
+                              {displayVal}
+                            </td>
+                          );
+                        })}
+                        <td className="p-2 text-muted-foreground">...</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Info - Colunas esperadas */}
+      <Card className="border-blue-500/20 bg-blue-500/5">
+        <CardContent className="p-4">
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-blue-700">Colunas esperadas:</p>
+            <div className="flex flex-wrap gap-2">
+              {SGA_TEMPLATE_COLUMNS.map((col) => (
+                <span key={col} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">
+                  {col}
+                </span>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Histórico de Importações */}
+      <SGAHistoricoImportacoes 
+        corretoraId={corretoraId} 
+        onActivate={onImportSuccess}
+      />
     </div>
   );
 }
