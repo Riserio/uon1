@@ -3703,6 +3703,158 @@ export type Database = {
           },
         ]
       }
+      sga_automacao_config: {
+        Row: {
+          ativo: boolean
+          corretora_id: string
+          created_at: string
+          filtro_data_cadastro_fim: string | null
+          filtro_data_cadastro_inicio: string | null
+          hinova_codigo_cliente: string | null
+          hinova_pass: string
+          hinova_url: string
+          hinova_user: string
+          hora_agendada: string | null
+          id: string
+          ultima_execucao: string | null
+          ultimo_erro: string | null
+          ultimo_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          corretora_id: string
+          created_at?: string
+          filtro_data_cadastro_fim?: string | null
+          filtro_data_cadastro_inicio?: string | null
+          hinova_codigo_cliente?: string | null
+          hinova_pass?: string
+          hinova_url?: string
+          hinova_user?: string
+          hora_agendada?: string | null
+          id?: string
+          ultima_execucao?: string | null
+          ultimo_erro?: string | null
+          ultimo_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          corretora_id?: string
+          created_at?: string
+          filtro_data_cadastro_fim?: string | null
+          filtro_data_cadastro_inicio?: string | null
+          hinova_codigo_cliente?: string | null
+          hinova_pass?: string
+          hinova_url?: string
+          hinova_user?: string
+          hora_agendada?: string | null
+          id?: string
+          ultima_execucao?: string | null
+          ultimo_erro?: string | null
+          ultimo_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sga_automacao_config_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: true
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sga_automacao_execucoes: {
+        Row: {
+          bytes_baixados: number | null
+          bytes_total: number | null
+          config_id: string
+          corretora_id: string
+          created_at: string
+          duracao_segundos: number | null
+          erro: string | null
+          etapa_atual: string | null
+          filtros_aplicados: Json | null
+          finalizado_at: string | null
+          github_run_id: string | null
+          github_run_url: string | null
+          id: string
+          iniciado_por: string | null
+          mensagem: string | null
+          nome_arquivo: string | null
+          progresso_download: number | null
+          progresso_importacao: number | null
+          registros_processados: number | null
+          registros_total: number | null
+          status: string
+          tipo_disparo: string | null
+        }
+        Insert: {
+          bytes_baixados?: number | null
+          bytes_total?: number | null
+          config_id: string
+          corretora_id: string
+          created_at?: string
+          duracao_segundos?: number | null
+          erro?: string | null
+          etapa_atual?: string | null
+          filtros_aplicados?: Json | null
+          finalizado_at?: string | null
+          github_run_id?: string | null
+          github_run_url?: string | null
+          id?: string
+          iniciado_por?: string | null
+          mensagem?: string | null
+          nome_arquivo?: string | null
+          progresso_download?: number | null
+          progresso_importacao?: number | null
+          registros_processados?: number | null
+          registros_total?: number | null
+          status?: string
+          tipo_disparo?: string | null
+        }
+        Update: {
+          bytes_baixados?: number | null
+          bytes_total?: number | null
+          config_id?: string
+          corretora_id?: string
+          created_at?: string
+          duracao_segundos?: number | null
+          erro?: string | null
+          etapa_atual?: string | null
+          filtros_aplicados?: Json | null
+          finalizado_at?: string | null
+          github_run_id?: string | null
+          github_run_url?: string | null
+          id?: string
+          iniciado_por?: string | null
+          mensagem?: string | null
+          nome_arquivo?: string | null
+          progresso_download?: number | null
+          progresso_importacao?: number | null
+          registros_processados?: number | null
+          registros_total?: number | null
+          status?: string
+          tipo_disparo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sga_automacao_execucoes_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "sga_automacao_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sga_automacao_execucoes_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sga_eventos: {
         Row: {
           ano_fabricacao: number | null
