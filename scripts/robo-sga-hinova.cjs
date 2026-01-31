@@ -790,15 +790,74 @@ async function processarArquivo(filePath) {
 
   try {
     const buffer = fs.readFileSync(filePath);
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const fileSize = buffer.length;
+    log(`Tamanho do arquivo: ${formatBytes(fileSize)}`, LOG_LEVELS.DEBUG);
+    
+    // Verificar se é HTML disfarçado de Excel
+    const primeirosBytes = buffer.toString('utf8', 0, 500);
+    if (primeirosBytes.includes('<html') || primeirosBytes.includes('<!DOCTYPE') || primeirosBytes.includes('<HTML')) {
+      log('⚠️ Arquivo é HTML disfarçado de Excel - pode ser página de erro', LOG_LEVELS.WARN);
+      log(`Conteúdo inicial: ${primeirosBytes.substring(0, 200)}`, LOG_LEVELS.DEBUG);
+      
+      // Tentar processar como HTML table (Hinova às vezes exporta assim)
+      const workbook = XLSX.read(buffer, { type: 'buffer', raw: true });
+      const sheetName = workbook.SheetNames[0];
+      if (sheetName) {
+        const sheet = workbook.Sheets[sheetName];
+        const dados = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+        log(`Arquivo HTML processado: ${dados.length} registros`, LOG_LEVELS.SUCCESS);
+        return dados;
+      }
+      return [];
+    }
+    
+    // Processar como Excel normal
+    const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true, raw: false });
+    
+    log(`Sheets encontradas: ${workbook.SheetNames.join(', ')}`, LOG_LEVELS.DEBUG);
+    
     const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+      log('Nenhuma sheet encontrada no arquivo', LOG_LEVELS.WARN);
+      return [];
+    }
+    
     const sheet = workbook.Sheets[sheetName];
-    const dados = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    
+    // Tentar diferentes estratégias de leitura
+    let dados = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+    
+    // Se não encontrou dados, tentar com header na primeira linha
+    if (dados.length === 0) {
+      log('Tentando leitura alternativa (range A1)...', LOG_LEVELS.DEBUG);
+      dados = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1, raw: false });
+      
+      // Se tem dados no formato array, converter para objetos
+      if (dados.length > 1) {
+        const headers = dados[0];
+        log(`Headers encontrados: ${JSON.stringify(headers).substring(0, 200)}`, LOG_LEVELS.DEBUG);
+        dados = dados.slice(1).map(row => {
+          const obj = {};
+          headers.forEach((h, i) => {
+            obj[h || `col_${i}`] = row[i] || '';
+          });
+          return obj;
+        });
+      } else {
+        dados = [];
+      }
+    }
+    
+    // Log das primeiras linhas para debug
+    if (dados.length > 0) {
+      log(`Primeira linha: ${JSON.stringify(dados[0]).substring(0, 300)}`, LOG_LEVELS.DEBUG);
+    }
 
     log(`Arquivo processado: ${dados.length} registros`, LOG_LEVELS.SUCCESS);
     return dados;
   } catch (e) {
     log(`Erro ao processar arquivo: ${e.message}`, LOG_LEVELS.ERROR);
+    log(`Stack: ${e.stack}`, LOG_LEVELS.DEBUG);
     throw e;
   }
 }
@@ -983,23 +1042,40 @@ async function main() {
     // ============================================
     setStep('FILTROS');
 
+    log(`=== CONFIGURAÇÃO DE FILTROS ===`, LOG_LEVELS.INFO);
+    log(`Data Início: ${inicio}`, LOG_LEVELS.INFO);
+    log(`Data Fim: ${fim}`, LOG_LEVELS.INFO);
+    log(`Layout desejado: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.INFO);
+
     // PASSO 1: Data Cadastro Item
-    await preencherDataCadastroItem(page, inicio, fim);
+    const datasOk = await preencherDataCadastroItem(page, inicio, fim);
+    if (!datasOk) {
+      log('⚠️ ALERTA: Datas podem não ter sido preenchidas corretamente!', LOG_LEVELS.WARN);
+    }
     await saveDebugInfo(page, context, 'Após datas');
 
     // PASSO 2: Layout
     await updateProgress('executando', 'campos');
     const layoutOk = await selecionarLayoutRelatorio(page);
     if (!layoutOk) {
-      log('⚠️ Prosseguindo sem layout (pode já estar pré-selecionado)', LOG_LEVELS.WARN);
+      log('⚠️ ALERTA: Layout pode não ter sido selecionado - verificar opções disponíveis no portal!', LOG_LEVELS.WARN);
     }
     await page.waitForTimeout(2000);
     await saveDebugInfo(page, context, 'Após layout');
 
     // PASSO 3: Em Excel
-    await selecionarFormaExibicaoEmExcel(page);
+    const excelOk = await selecionarFormaExibicaoEmExcel(page);
+    if (!excelOk) {
+      log('⚠️ ALERTA: Forma de exibição Excel pode não ter sido selecionada!', LOG_LEVELS.WARN);
+    }
     await page.waitForTimeout(1000);
     await saveDebugInfo(page, context, 'Após excel');
+    
+    // Log final dos filtros
+    log(`=== RESUMO FILTROS ===`, LOG_LEVELS.INFO);
+    log(`Datas: ${datasOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
+    log(`Layout: ${layoutOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
+    log(`Excel: ${excelOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
 
     // ============================================
     // ETAPA: DOWNLOAD
@@ -1062,6 +1138,17 @@ async function main() {
     }
 
     log(`Validação OK: ${validation.fileType.toUpperCase()} (${formatBytes(validation.size)})`, LOG_LEVELS.SUCCESS);
+
+    // Se arquivo for HTML, verificar se é erro do portal
+    if (validation.isHtml || validation.fileType === 'html') {
+      const htmlContent = fs.readFileSync(filePath, 'utf8');
+      if (htmlContent.includes('Nenhum registro') || htmlContent.includes('nenhum registro') || 
+          htmlContent.includes('Não foram encontrados') || htmlContent.includes('não encontrado') ||
+          htmlContent.includes('Erro') || htmlContent.includes('erro')) {
+        log('⚠️ Portal retornou mensagem de erro ou nenhum registro', LOG_LEVELS.WARN);
+        log(`Conteúdo: ${htmlContent.substring(0, 500)}`, LOG_LEVELS.DEBUG);
+      }
+    }
 
     // Processar arquivo
     const dados = await processarArquivo(filePath);
