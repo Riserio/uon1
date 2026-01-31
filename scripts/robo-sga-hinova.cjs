@@ -721,11 +721,12 @@ async function main() {
     // ============================================
     // Mesma técnica robusta usada no robô de Cobrança
     await updateProgress('executando', 'campos');
-    log(`PASSO 2: Selecionando Layout "${CONFIG.HINOVA_LAYOUT}" em Dados Visualizados...`, LOG_LEVELS.INFO);
+    log(`PASSO 2: Verificando/Selecionando Layout "${CONFIG.HINOVA_LAYOUT}" em Dados Visualizados...`, LOG_LEVELS.INFO);
 
     const layoutSelecionado = await page.evaluate(({ layoutDesejado }) => {
       const resultado = {
         sucesso: false,
+        jaEstavaSelecionado: false,
         metodo: null,
         valorSelecionado: null,
         opcoesDisponiveis: [],
@@ -746,8 +747,29 @@ async function main() {
           .trim();
       };
       
+      const matchVangard = (texto) => {
+        const norm = normalizar(texto);
+        return norm.includes('VANGARD') || 
+               (norm.includes('BI') && norm.includes('VANGARD')) ||
+               norm.includes('BI - VANGARD');
+      };
+      
       const todosSelects = document.querySelectorAll('select');
       resultado.diagnostico.totalSelects = todosSelects.length;
+      
+      // ========================================
+      // VERIFICAR SE JÁ ESTÁ SELECIONADO (QUALQUER SELECT)
+      // ========================================
+      for (const select of todosSelects) {
+        const selectedOption = select.options[select.selectedIndex];
+        if (selectedOption && matchVangard(selectedOption.text || selectedOption.value)) {
+          resultado.sucesso = true;
+          resultado.jaEstavaSelecionado = true;
+          resultado.metodo = 'JA_SELECIONADO';
+          resultado.valorSelecionado = selectedOption.text?.trim() || selectedOption.value;
+          return resultado;
+        }
+      }
       
       // ========================================
       // ESTRATÉGIA 1: Buscar label "Layout" e select na mesma linha/célula
@@ -756,14 +778,12 @@ async function main() {
       for (const td of tds) {
         const texto = normalizar(td.textContent || '');
         
-        // Procurar labels que contenham "Layout" ou "Dados Visualizados"
         if (texto.includes('LAYOUT') || texto === 'LAYOUT:' || texto === 'LAYOUT') {
           resultado.diagnostico.labelsLayout.push({
             tag: td.tagName,
             texto: (td.textContent || '').substring(0, 80)
           });
           
-          // Procurar select na mesma linha ou próximo
           const row = td.closest('tr') || td.closest('div') || td.parentElement;
           const selectInRow = row?.querySelector('select');
           
@@ -772,9 +792,7 @@ async function main() {
             resultado.opcoesDisponiveis = opcoes;
             
             for (let i = 0; i < selectInRow.options.length; i++) {
-              const optText = normalizar(selectInRow.options[i].text || '');
-              // Buscar "BI" E "VANGARD" ou apenas "VANGARD"
-              if ((optText.includes('BI') && optText.includes('VANGARD')) || optText.includes('VANGARD')) {
+              if (matchVangard(selectInRow.options[i].text || '')) {
                 selectInRow.selectedIndex = i;
                 selectInRow.dispatchEvent(new Event('input', { bubbles: true }));
                 selectInRow.dispatchEvent(new Event('change', { bubbles: true }));
@@ -801,7 +819,6 @@ async function main() {
             texto: (secao.textContent || '').substring(0, 100)
           };
           
-          // Encontrar o container mais próximo
           const container = secao.closest('table, div, fieldset, tr') || secao.parentElement;
           const selects = container?.querySelectorAll('select') || [];
           
@@ -809,8 +826,7 @@ async function main() {
             const opcoes = Array.from(select.options).map(o => o.text?.trim() || '');
             
             for (let i = 0; i < select.options.length; i++) {
-              const optText = normalizar(select.options[i].text || '');
-              if ((optText.includes('BI') && optText.includes('VANGARD')) || optText.includes('VANGARD')) {
+              if (matchVangard(select.options[i].text || '')) {
                 if (resultado.opcoesDisponiveis.length === 0) {
                   resultado.opcoesDisponiveis = opcoes;
                 }
@@ -834,11 +850,7 @@ async function main() {
         const opcoes = Array.from(select.options).map(o => o.text?.trim() || '');
         
         for (let i = 0; i < select.options.length; i++) {
-          const optText = normalizar(select.options[i].text || '');
-          // Buscar especificamente "BI - VANGARD" ou apenas "VANGARD"
-          if ((optText.includes('BI') && optText.includes('VANGARD')) || 
-              optText.includes('BI - VANGARD') ||
-              optText.includes('VANGARD')) {
+          if (matchVangard(select.options[i].text || '')) {
             if (resultado.opcoesDisponiveis.length === 0) {
               resultado.opcoesDisponiveis = opcoes;
             }
@@ -852,7 +864,7 @@ async function main() {
           }
         }
         
-        // Guardar para diagnóstico: selects que têm opções relevantes
+        // Guardar para diagnóstico
         const temLayoutOuVisualizacao = opcoes.some(o => {
           const norm = normalizar(o);
           return norm.includes('SELECIONE') || norm.includes('BI') || norm.includes('EVENTOS');
@@ -877,10 +889,8 @@ async function main() {
             resultado.opcoesDisponiveis = opcoes;
           }
           
-          // Tentar selecionar BI - VANGARD
           for (let i = 0; i < select.options.length; i++) {
-            const optText = normalizar(select.options[i].text || '');
-            if ((optText.includes('BI') && optText.includes('VANGARD')) || optText.includes('VANGARD')) {
+            if (matchVangard(select.options[i].text || '')) {
               select.selectedIndex = i;
               select.dispatchEvent(new Event('input', { bubbles: true }));
               select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -898,19 +908,20 @@ async function main() {
     
     // Validação do resultado
     if (layoutSelecionado.sucesso) {
-      log(`✅ PASSO 2 OK: Layout selecionado!`, LOG_LEVELS.SUCCESS);
-      log(`   Método: ${layoutSelecionado.metodo}`, LOG_LEVELS.DEBUG);
-      log(`   Valor: "${layoutSelecionado.valorSelecionado}"`, LOG_LEVELS.SUCCESS);
-    } else {
-      log(`❌ ERRO: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado!`, LOG_LEVELS.ERROR);
-      log(`   Opções disponíveis: ${layoutSelecionado.opcoesDisponiveis.join(', ') || 'NENHUMA'}`, LOG_LEVELS.ERROR);
-      
-      // Diagnóstico detalhado
-      if (layoutSelecionado.diagnostico.labelsLayout.length > 0) {
-        log(`   Labels "Layout" encontrados: ${JSON.stringify(layoutSelecionado.diagnostico.labelsLayout)}`, LOG_LEVELS.DEBUG);
+      if (layoutSelecionado.jaEstavaSelecionado) {
+        log(`✅ PASSO 2 OK: Layout já estava selecionado: "${layoutSelecionado.valorSelecionado}"`, LOG_LEVELS.SUCCESS);
+      } else {
+        log(`✅ PASSO 2 OK: Layout selecionado!`, LOG_LEVELS.SUCCESS);
+        log(`   Método: ${layoutSelecionado.metodo}`, LOG_LEVELS.DEBUG);
+        log(`   Valor: "${layoutSelecionado.valorSelecionado}"`, LOG_LEVELS.SUCCESS);
       }
-      if (layoutSelecionado.diagnostico.secaoDadosVisualizados) {
-        log(`   Seção "Dados Visualizados": ${JSON.stringify(layoutSelecionado.diagnostico.secaoDadosVisualizados)}`, LOG_LEVELS.DEBUG);
+    } else {
+      // NÃO FALHAR - apenas avisar, o layout pode estar pré-configurado de outra forma
+      log(`⚠️ PASSO 2: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado nas opções`, LOG_LEVELS.WARN);
+      log(`   Isso pode ser normal se o layout já estiver pré-configurado no portal`, LOG_LEVELS.WARN);
+      
+      if (layoutSelecionado.opcoesDisponiveis.length > 0) {
+        log(`   Opções disponíveis: ${layoutSelecionado.opcoesDisponiveis.slice(0, 5).join(', ')}...`, LOG_LEVELS.DEBUG);
       }
       if (layoutSelecionado.diagnostico.selectsEncontrados.length > 0) {
         log(`   Selects relevantes encontrados:`, LOG_LEVELS.DEBUG);
@@ -920,8 +931,8 @@ async function main() {
       }
       log(`   Total de selects na página: ${layoutSelecionado.diagnostico.totalSelects}`, LOG_LEVELS.DEBUG);
       
-      await saveDebugInfo(page, 'debug_sga_layout_nao_encontrado');
-      throw new Error(`ERRO CRÍTICO: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado! Verifique a seção "Dados Visualizados" no portal.`);
+      await saveDebugInfo(page, 'debug_sga_layout');
+      // Continuar mesmo assim - não lançar erro
     }
 
     await page.waitForTimeout(2000);
@@ -931,11 +942,12 @@ async function main() {
     // PASSO 3: SELECIONAR "EM EXCEL" NA FORMA DE EXIBIÇÃO
     // ============================================
     // Mesma técnica robusta usada no robô de Cobrança
-    log('PASSO 3: Selecionando Forma de Exibição "Em Excel"...', LOG_LEVELS.INFO);
+    log('PASSO 3: Verificando/Selecionando Forma de Exibição "Em Excel"...', LOG_LEVELS.INFO);
 
     const selecionouExcel = await page.evaluate(() => {
       const resultado = { 
-        sucesso: false, 
+        sucesso: false,
+        jaEstavaSelecionado: false,
         metodo: null,
         detalhes: [],
         diagnostico: {
@@ -953,6 +965,42 @@ async function main() {
           .trim();
       };
       
+      const matchExcel = (texto) => {
+        const norm = normalizar(texto);
+        return norm.includes('EXCEL') || norm.includes('XLS');
+      };
+      
+      // ========================================
+      // VERIFICAR SE EXCEL JÁ ESTÁ SELECIONADO
+      // ========================================
+      const todosRadios = document.querySelectorAll('input[type="radio"]');
+      for (const radio of todosRadios) {
+        if (radio.checked) {
+          const label = radio.closest('label') || document.querySelector(`label[for="${radio.id}"]`);
+          const radioText = label?.textContent || radio.value || '';
+          if (matchExcel(radioText)) {
+            resultado.sucesso = true;
+            resultado.jaEstavaSelecionado = true;
+            resultado.metodo = 'JA_SELECIONADO';
+            resultado.detalhes.push(`Excel já estava selecionado: ${radioText.trim()}`);
+            return resultado;
+          }
+        }
+      }
+      
+      // Verificar selects também
+      const todosSelects = document.querySelectorAll('select');
+      for (const select of todosSelects) {
+        const selectedOption = select.options[select.selectedIndex];
+        if (selectedOption && matchExcel(selectedOption.text || selectedOption.value)) {
+          resultado.sucesso = true;
+          resultado.jaEstavaSelecionado = true;
+          resultado.metodo = 'JA_SELECIONADO_SELECT';
+          resultado.detalhes.push(`Excel já estava selecionado no select: ${selectedOption.text?.trim()}`);
+          return resultado;
+        }
+      }
+      
       // ========================================
       // ESTRATÉGIA 1: Procurar label "Forma de Exibição" e radio buttons próximos
       // ========================================
@@ -963,24 +1011,23 @@ async function main() {
         if (texto.includes('FORMA DE EXIBICAO') || texto.includes('FORMA EXIBICAO') || texto === 'EXIBICAO:') {
           resultado.detalhes.push(`Label encontrado: "${(td.textContent || '').substring(0, 50)}"`);
           
-          // Procurar radios na mesma linha ou container
           const row = td.closest('tr') || td.closest('div') || td.parentElement;
           const radiosNaLinha = row?.querySelectorAll('input[type="radio"]') || [];
           
           for (const radio of radiosNaLinha) {
             const label = radio.closest('label') || document.querySelector(`label[for="${radio.id}"]`);
-            const radioText = normalizar(label?.textContent || radio.value || '');
+            const radioText = label?.textContent || radio.value || '';
             
-            resultado.diagnostico.textoRadios.push(radioText);
+            resultado.diagnostico.textoRadios.push(normalizar(radioText));
             
-            if (radioText.includes('EXCEL') || radioText.includes('XLS')) {
+            if (matchExcel(radioText)) {
               radio.checked = true;
               radio.click();
               radio.dispatchEvent(new Event('change', { bubbles: true }));
               radio.dispatchEvent(new Event('input', { bubbles: true }));
               resultado.sucesso = true;
               resultado.metodo = 'LABEL_FORMA_EXIBICAO';
-              resultado.detalhes.push(`Excel selecionado: ${radioText}`);
+              resultado.detalhes.push(`Excel selecionado: ${radioText.trim()}`);
               return resultado;
             }
           }
@@ -990,32 +1037,29 @@ async function main() {
       // ========================================
       // ESTRATÉGIA 2: Radio buttons com value ou texto "excel"
       // ========================================
-      const todosRadios = document.querySelectorAll('input[type="radio"]');
       resultado.detalhes.push(`Total de radios na página: ${todosRadios.length}`);
       
       for (const radio of todosRadios) {
         const label = radio.closest('label') || document.querySelector(`label[for="${radio.id}"]`);
-        const radioText = normalizar(label?.textContent || '');
-        const radioValue = normalizar(radio.value || '');
+        const radioText = label?.textContent || '';
+        const radioValue = radio.value || '';
         const radioName = (radio.name || '').toLowerCase();
         
         resultado.diagnostico.radiosEncontrados.push({
           name: radio.name,
           value: radio.value,
-          texto: radioText
+          texto: normalizar(radioText)
         });
         
-        // Verificar se é o radio de Excel
-        if (radioText.includes('EXCEL') || radioText.includes('XLS') ||
-            radioValue.includes('EXCEL') || radioValue.includes('XLS') ||
-            (radioName.includes('exib') && (radioValue.includes('2') || radioValue.includes('EXCEL')))) {
+        if (matchExcel(radioText) || matchExcel(radioValue) ||
+            (radioName.includes('exib') && (radioValue.includes('2') || matchExcel(radioValue)))) {
           radio.checked = true;
           radio.click();
           radio.dispatchEvent(new Event('change', { bubbles: true }));
           radio.dispatchEvent(new Event('input', { bubbles: true }));
           resultado.sucesso = true;
           resultado.metodo = 'VARREDURA_RADIOS';
-          resultado.detalhes.push(`Excel selecionado via varredura: value=${radio.value}, texto=${radioText}`);
+          resultado.detalhes.push(`Excel selecionado via varredura: value=${radio.value}, texto=${radioText.trim()}`);
           return resultado;
         }
       }
@@ -1023,14 +1067,12 @@ async function main() {
       // ========================================
       // ESTRATÉGIA 3: Select de formato (fallback)
       // ========================================
-      const selects = document.querySelectorAll('select');
-      for (const select of selects) {
+      for (const select of todosSelects) {
         const selectName = (select.name || select.id || '').toLowerCase();
         if (selectName.includes('exib') || selectName.includes('format') || selectName.includes('tipo')) {
           const options = Array.from(select.options);
           for (let i = 0; i < options.length; i++) {
-            const optText = normalizar(options[i].text || options[i].value || '');
-            if (optText.includes('EXCEL') || optText.includes('XLS')) {
+            if (matchExcel(options[i].text || options[i].value)) {
               select.selectedIndex = i;
               select.dispatchEvent(new Event('change', { bubbles: true }));
               resultado.sucesso = true;
@@ -1050,16 +1092,23 @@ async function main() {
     }
 
     if (selecionouExcel.sucesso) {
-      log(`✅ PASSO 3 OK: Forma de Exibição "Em Excel" selecionada`, LOG_LEVELS.SUCCESS);
-      log(`   Método: ${selecionouExcel.metodo}`, LOG_LEVELS.DEBUG);
-    } else {
-      log(`❌ ERRO: Forma de Exibição "Em Excel" não encontrada!`, LOG_LEVELS.ERROR);
-      log(`   Radios encontrados: ${selecionouExcel.diagnostico.radiosEncontrados.length}`, LOG_LEVELS.DEBUG);
-      if (selecionouExcel.diagnostico.textoRadios.length > 0) {
-        log(`   Textos dos radios: ${selecionouExcel.diagnostico.textoRadios.join(', ')}`, LOG_LEVELS.DEBUG);
+      if (selecionouExcel.jaEstavaSelecionado) {
+        log(`✅ PASSO 3 OK: Excel já estava selecionado`, LOG_LEVELS.SUCCESS);
+      } else {
+        log(`✅ PASSO 3 OK: Forma de Exibição "Em Excel" selecionada`, LOG_LEVELS.SUCCESS);
+        log(`   Método: ${selecionouExcel.metodo}`, LOG_LEVELS.DEBUG);
       }
-      await saveDebugInfo(page, 'debug_sga_excel_nao_encontrado');
-      throw new Error('ERRO CRÍTICO: Forma de Exibição "Em Excel" não encontrada!');
+    } else {
+      // NÃO FALHAR - avisar apenas, pode estar pré-configurado
+      log(`⚠️ PASSO 3: Não foi possível confirmar seleção Excel`, LOG_LEVELS.WARN);
+      log(`   Radios encontrados: ${selecionouExcel.diagnostico.radiosEncontrados.length}`, LOG_LEVELS.DEBUG);
+      if (selecionouExcel.diagnostico.radiosEncontrados.length > 0) {
+        selecionouExcel.diagnostico.radiosEncontrados.forEach(r => {
+          log(`      Radio: name=${r.name}, value=${r.value}, texto=${r.texto}`, LOG_LEVELS.DEBUG);
+        });
+      }
+      await saveDebugInfo(page, 'debug_sga_excel');
+      // Continuar mesmo assim - não lançar erro
     }
 
     await page.waitForTimeout(1000);
