@@ -3859,6 +3859,7 @@ export type Database = {
         Row: {
           ano_fabricacao: number | null
           associado_estado: string | null
+          categoria_veiculo: string | null
           classificacao: string | null
           cooperativa: string | null
           created_at: string | null
@@ -3874,6 +3875,7 @@ export type Database = {
           envolvimento_terceiro: string | null
           evento_cidade: string | null
           evento_estado: string | null
+          evento_logradouro: string | null
           id: string
           importacao_id: string
           modelo_veiculo: string | null
@@ -3884,12 +3886,14 @@ export type Database = {
           placa: string | null
           placa_terceiro: string | null
           previsao_valor_reparo: number | null
+          protocolo: string | null
           regional: string | null
           regional_veiculo: string | null
           situacao_analise_evento: string | null
           situacao_evento: string | null
           solicitou_carro_reserva: string | null
           tipo_evento: string | null
+          tipo_veiculo_terceiro: string | null
           usuario_alteracao: string | null
           valor_mao_de_obra: number | null
           valor_protegido_veiculo: number | null
@@ -3899,6 +3903,7 @@ export type Database = {
         Insert: {
           ano_fabricacao?: number | null
           associado_estado?: string | null
+          categoria_veiculo?: string | null
           classificacao?: string | null
           cooperativa?: string | null
           created_at?: string | null
@@ -3914,6 +3919,7 @@ export type Database = {
           envolvimento_terceiro?: string | null
           evento_cidade?: string | null
           evento_estado?: string | null
+          evento_logradouro?: string | null
           id?: string
           importacao_id: string
           modelo_veiculo?: string | null
@@ -3924,12 +3930,14 @@ export type Database = {
           placa?: string | null
           placa_terceiro?: string | null
           previsao_valor_reparo?: number | null
+          protocolo?: string | null
           regional?: string | null
           regional_veiculo?: string | null
           situacao_analise_evento?: string | null
           situacao_evento?: string | null
           solicitou_carro_reserva?: string | null
           tipo_evento?: string | null
+          tipo_veiculo_terceiro?: string | null
           usuario_alteracao?: string | null
           valor_mao_de_obra?: number | null
           valor_protegido_veiculo?: number | null
@@ -3939,6 +3947,7 @@ export type Database = {
         Update: {
           ano_fabricacao?: number | null
           associado_estado?: string | null
+          categoria_veiculo?: string | null
           classificacao?: string | null
           cooperativa?: string | null
           created_at?: string | null
@@ -3954,6 +3963,7 @@ export type Database = {
           envolvimento_terceiro?: string | null
           evento_cidade?: string | null
           evento_estado?: string | null
+          evento_logradouro?: string | null
           id?: string
           importacao_id?: string
           modelo_veiculo?: string | null
@@ -3964,12 +3974,14 @@ export type Database = {
           placa?: string | null
           placa_terceiro?: string | null
           previsao_valor_reparo?: number | null
+          protocolo?: string | null
           regional?: string | null
           regional_veiculo?: string | null
           situacao_analise_evento?: string | null
           situacao_evento?: string | null
           solicitou_carro_reserva?: string | null
           tipo_evento?: string | null
+          tipo_veiculo_terceiro?: string | null
           usuario_alteracao?: string | null
           valor_mao_de_obra?: number | null
           valor_protegido_veiculo?: number | null
