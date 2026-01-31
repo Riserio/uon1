@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   GitBranch, 
   RefreshCw, 
@@ -18,7 +19,9 @@ import {
   History,
   ChevronDown,
   ChevronUp,
-  ExternalLink
+  ExternalLink,
+  Wallet,
+  Calendar
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -31,7 +34,7 @@ interface SyncConfig {
   corretora_id: string;
   corretora_nome: string;
   hinova_url: string;
-  hora_agendada: string | null; // "HH:mm:ss"
+  hora_agendada: string | null;
   ultima_execucao: string | null;
   ultimo_status: string | null;
   ultimo_erro: string | null;
@@ -54,73 +57,86 @@ interface ExecutionLog {
   etapa_atual: string | null;
 }
 
+type RobotType = "cobranca" | "eventos";
+
 export function GitHubSyncPanel() {
-  const [configs, setConfigs] = useState<SyncConfig[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<RobotType>("cobranca");
+  
+  // Cobrança state
+  const [cobrancaConfigs, setCobrancaConfigs] = useState<SyncConfig[]>([]);
+  const [cobrancaLoading, setCobrancaLoading] = useState(true);
+  const [cobrancaPendingCount, setCobrancaPendingCount] = useState(0);
+  
+  // Eventos state
+  const [eventosConfigs, setEventosConfigs] = useState<SyncConfig[]>([]);
+  const [eventosLoading, setEventosLoading] = useState(true);
+  const [eventosPendingCount, setEventosPendingCount] = useState(0);
+  
+  // Shared state
   const [executingId, setExecutingId] = useState<string | null>(null);
   const [expandedConfigId, setExpandedConfigId] = useState<string | null>(null);
   const [executionLogs, setExecutionLogs] = useState<{ [key: string]: ExecutionLog[] }>({});
   const [loadingLogs, setLoadingLogs] = useState<{ [key: string]: boolean }>({});
   const [executingPending, setExecutingPending] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
+  const [executingAllPending, setExecutingAllPending] = useState(false);
 
   useEffect(() => {
-    loadConfigs();
+    loadCobrancaConfigs();
+    loadEventosConfigs();
     
-    // Subscrever a mudanças em tempo real nas execuções (automáticas ou manuais)
-    const channel = supabase
+    // Subscrever a mudanças em tempo real
+    const cobrancaChannel = supabase
       .channel('cobranca-automacao-sync')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'cobranca_automacao_execucoes',
-        },
-        (payload) => {
-          console.log('Execução atualizada:', payload);
-          // Recarregar configs para atualizar status
-          loadConfigs();
-          
-          // Se temos um log expandido, atualizar também
-          if (expandedConfigId) {
-            loadExecutionLogs(expandedConfigId);
+        { event: '*', schema: 'public', table: 'cobranca_automacao_execucoes' },
+        () => {
+          loadCobrancaConfigs();
+          if (expandedConfigId && activeTab === "cobranca") {
+            loadExecutionLogs(expandedConfigId, "cobranca");
           }
         }
       )
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'cobranca_automacao_config',
-        },
-        (payload) => {
-          console.log('Config atualizada:', payload);
-          loadConfigs();
+        { event: '*', schema: 'public', table: 'cobranca_automacao_config' },
+        () => loadCobrancaConfigs()
+      )
+      .subscribe();
+
+    const eventosChannel = supabase
+      .channel('eventos-automacao-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sga_automacao_execucoes' },
+        () => {
+          loadEventosConfigs();
+          if (expandedConfigId && activeTab === "eventos") {
+            loadExecutionLogs(expandedConfigId, "eventos");
+          }
         }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sga_automacao_config' },
+        () => loadEventosConfigs()
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(cobrancaChannel);
+      supabase.removeChannel(eventosChannel);
     };
-  }, [expandedConfigId]);
+  }, [expandedConfigId, activeTab]);
 
-  const loadConfigs = async () => {
+  const loadCobrancaConfigs = async () => {
     try {
-      setLoading(true);
+      setCobrancaLoading(true);
       const { data, error } = await supabase
         .from("cobranca_automacao_config")
         .select(`
-          id,
-          ativo,
-          corretora_id,
-          hinova_url,
-          hora_agendada,
-          ultima_execucao,
-          ultimo_status,
-          ultimo_erro,
+          id, ativo, corretora_id, hinova_url, hora_agendada,
+          ultima_execucao, ultimo_status, ultimo_erro,
           corretoras!cobranca_automacao_config_corretora_id_fkey(nome)
         `)
         .order("corretoras(nome)");
@@ -139,31 +155,67 @@ export function GitHubSyncPanel() {
         ultimo_erro: item.ultimo_erro,
       }));
 
-      setConfigs(formatted);
-      
-      // Calcular quantas estão pendentes (ativas mas não executaram hoje com sucesso)
-      await checkPendingExecutions(formatted);
+      setCobrancaConfigs(formatted);
+      await checkPendingExecutions(formatted, "cobranca");
     } catch (error) {
-      console.error("Erro ao carregar configurações:", error);
-      toast.error("Erro ao carregar configurações de sincronização");
+      console.error("Erro ao carregar configurações de cobrança:", error);
+      toast.error("Erro ao carregar configurações de cobrança");
     } finally {
-      setLoading(false);
+      setCobrancaLoading(false);
     }
   };
 
-  const checkPendingExecutions = async (configList: SyncConfig[]) => {
+  const loadEventosConfigs = async () => {
+    try {
+      setEventosLoading(true);
+      const { data, error } = await supabase
+        .from("sga_automacao_config")
+        .select(`
+          id, ativo, corretora_id, hinova_url, hora_agendada,
+          ultima_execucao, ultimo_status, ultimo_erro,
+          corretoras!sga_automacao_config_corretora_id_fkey(nome)
+        `)
+        .order("corretoras(nome)");
+
+      if (error) throw error;
+
+      const formatted = (data || []).map((item: any) => ({
+        id: item.id,
+        ativo: item.ativo,
+        corretora_id: item.corretora_id,
+        corretora_nome: item.corretoras?.nome || "Desconhecida",
+        hinova_url: item.hinova_url,
+        hora_agendada: item.hora_agendada ?? "09:00:00",
+        ultima_execucao: item.ultima_execucao,
+        ultimo_status: item.ultimo_status,
+        ultimo_erro: item.ultimo_erro,
+      }));
+
+      setEventosConfigs(formatted);
+      await checkPendingExecutions(formatted, "eventos");
+    } catch (error) {
+      console.error("Erro ao carregar configurações de eventos:", error);
+      toast.error("Erro ao carregar configurações de eventos");
+    } finally {
+      setEventosLoading(false);
+    }
+  };
+
+  const checkPendingExecutions = async (configList: SyncConfig[], type: RobotType) => {
     try {
       const today = new Date().toISOString().split('T')[0];
       const activeConfigIds = configList.filter(c => c.ativo).map(c => c.id);
       
       if (activeConfigIds.length === 0) {
-        setPendingCount(0);
+        if (type === "cobranca") setCobrancaPendingCount(0);
+        else setEventosPendingCount(0);
         return;
       }
 
-      // Buscar execuções de hoje com sucesso ou executando
+      const tableName = type === "cobranca" ? "cobranca_automacao_execucoes" : "sga_automacao_execucoes";
+      
       const { data: todayExecutions } = await supabase
-        .from("cobranca_automacao_execucoes")
+        .from(tableName)
         .select("config_id, status")
         .in("config_id", activeConfigIds)
         .gte("created_at", `${today}T00:00:00`)
@@ -171,25 +223,28 @@ export function GitHubSyncPanel() {
 
       const executedConfigIds = new Set((todayExecutions || []).map(e => e.config_id));
       const pending = activeConfigIds.filter(id => !executedConfigIds.has(id));
-      setPendingCount(pending.length);
+      
+      if (type === "cobranca") setCobrancaPendingCount(pending.length);
+      else setEventosPendingCount(pending.length);
     } catch (error) {
       console.error("Erro ao verificar pendentes:", error);
     }
   };
 
-  const loadExecutionLogs = async (configId: string) => {
+  const loadExecutionLogs = async (configId: string, type: RobotType) => {
     try {
       setLoadingLogs((prev) => ({ ...prev, [configId]: true }));
       
+      const tableName = type === "cobranca" ? "cobranca_automacao_execucoes" : "sga_automacao_execucoes";
+      
       const { data, error } = await supabase
-        .from("cobranca_automacao_execucoes")
+        .from(tableName)
         .select("*")
         .eq("config_id", configId)
         .order("created_at", { ascending: false })
         .limit(10);
 
       if (error) throw error;
-
       setExecutionLogs((prev) => ({ ...prev, [configId]: data || [] }));
     } catch (error) {
       console.error("Erro ao carregar logs:", error);
@@ -199,44 +254,47 @@ export function GitHubSyncPanel() {
     }
   };
 
-  const handleToggleExpand = (configId: string) => {
+  const handleToggleExpand = (configId: string, type: RobotType) => {
     if (expandedConfigId === configId) {
       setExpandedConfigId(null);
     } else {
       setExpandedConfigId(configId);
-      // Sempre recarrega ao abrir para refletir execuções automáticas/manuais recentes
-      loadExecutionLogs(configId);
+      loadExecutionLogs(configId, type);
     }
   };
 
-  const handleToggleAtivo = async (id: string, currentAtivo: boolean) => {
+  const handleToggleAtivo = async (id: string, currentAtivo: boolean, type: RobotType) => {
+    const tableName = type === "cobranca" ? "cobranca_automacao_config" : "sga_automacao_config";
     try {
       const { error } = await supabase
-        .from("cobranca_automacao_config")
+        .from(tableName)
         .update({ ativo: !currentAtivo })
         .eq("id", id);
 
       if (error) throw error;
       toast.success(`Sincronização ${!currentAtivo ? "ativada" : "desativada"}`);
-      loadConfigs();
+      if (type === "cobranca") loadCobrancaConfigs();
+      else loadEventosConfigs();
     } catch (error) {
       console.error("Erro ao alterar status:", error);
       toast.error("Erro ao alterar status");
     }
   };
 
-  const handleExecutar = async (config: SyncConfig) => {
+  const handleExecutar = async (config: SyncConfig, type: RobotType) => {
     setExecutingId(config.id);
     
-    // Atualizar imediatamente o status local para "executando"
+    const setConfigs = type === "cobranca" ? setCobrancaConfigs : setEventosConfigs;
     setConfigs((prev) =>
       prev.map((c) =>
         c.id === config.id ? { ...c, ultimo_status: "executando", ultimo_erro: null } : c
       )
     );
     
+    const functionName = type === "cobranca" ? "disparar-github-workflow" : "disparar-sga-workflow";
+    
     try {
-      const { data, error } = await supabase.functions.invoke("disparar-github-workflow", {
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
           action: "dispatch",
           corretora_id: config.corretora_id,
@@ -247,26 +305,27 @@ export function GitHubSyncPanel() {
 
       if (data?.success) {
         toast.success("Sincronização iniciada com sucesso!");
-        // Recarregar logs se estiver expandido
         if (expandedConfigId === config.id) {
-          loadExecutionLogs(config.id);
+          loadExecutionLogs(config.id, type);
         }
       } else {
         toast.error(data?.message || "Erro ao iniciar sincronização");
-        // Reverter status local em caso de erro
-        loadConfigs();
+        if (type === "cobranca") loadCobrancaConfigs();
+        else loadEventosConfigs();
       }
     } catch (error: any) {
       console.error("Erro ao executar:", error);
       toast.error(error.message || "Erro ao iniciar sincronização");
-      // Reverter status local em caso de erro
-      loadConfigs();
+      if (type === "cobranca") loadCobrancaConfigs();
+      else loadEventosConfigs();
     } finally {
       setExecutingId(null);
     }
   };
 
-  const handleExecutarPendentes = async () => {
+  const handleExecutarPendentes = async (type: RobotType) => {
+    const pendingCount = type === "cobranca" ? cobrancaPendingCount : eventosPendingCount;
+    
     if (pendingCount === 0) {
       toast.info("Não há execuções pendentes para hoje");
       return;
@@ -274,8 +333,10 @@ export function GitHubSyncPanel() {
 
     setExecutingPending(true);
     
+    const functionName = type === "cobranca" ? "scheduler-cobranca-hinova" : "scheduler-sga-hinova";
+    
     try {
-      const { data, error } = await supabase.functions.invoke("scheduler-cobranca-hinova", {
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: { force: true },
       });
 
@@ -293,7 +354,8 @@ export function GitHubSyncPanel() {
           toast.info("Nenhuma sincronização pendente encontrada");
         }
         
-        loadConfigs();
+        if (type === "cobranca") loadCobrancaConfigs();
+        else loadEventosConfigs();
       } else {
         toast.error(data?.message || "Erro ao executar pendentes");
       }
@@ -302,6 +364,68 @@ export function GitHubSyncPanel() {
       toast.error(error.message || "Erro ao executar sincronizações pendentes");
     } finally {
       setExecutingPending(false);
+    }
+  };
+
+  const handleExecutarTodosPendentes = async () => {
+    const totalPending = cobrancaPendingCount + eventosPendingCount;
+    
+    if (totalPending === 0) {
+      toast.info("Não há execuções pendentes para hoje");
+      return;
+    }
+
+    setExecutingAllPending(true);
+    
+    try {
+      let totalDisparados = 0;
+      let totalErros = 0;
+
+      // Executar cobrança se houver pendentes
+      if (cobrancaPendingCount > 0) {
+        try {
+          const { data, error } = await supabase.functions.invoke("scheduler-cobranca-hinova", {
+            body: { force: true },
+          });
+          if (!error && data?.success) {
+            totalDisparados += data.disparados || 0;
+            totalErros += data.erros || 0;
+          }
+        } catch (e) {
+          totalErros++;
+          console.error("Erro ao executar cobrança:", e);
+        }
+      }
+
+      // Executar eventos se houver pendentes
+      if (eventosPendingCount > 0) {
+        try {
+          const { data, error } = await supabase.functions.invoke("scheduler-sga-hinova", {
+            body: { force: true },
+          });
+          if (!error && data?.success) {
+            totalDisparados += data.disparados || 0;
+            totalErros += data.erros || 0;
+          }
+        } catch (e) {
+          totalErros++;
+          console.error("Erro ao executar eventos:", e);
+        }
+      }
+
+      if (totalDisparados > 0) {
+        toast.success(`${totalDisparados} sincronização(ões) iniciada(s)${totalErros > 0 ? ` (${totalErros} com erro)` : ''}`);
+      } else if (totalErros > 0) {
+        toast.error(`${totalErros} erro(s) ao iniciar sincronizações`);
+      }
+      
+      loadCobrancaConfigs();
+      loadEventosConfigs();
+    } catch (error: any) {
+      console.error("Erro ao executar todos pendentes:", error);
+      toast.error(error.message || "Erro ao executar sincronizações pendentes");
+    } finally {
+      setExecutingAllPending(false);
     }
   };
 
@@ -359,31 +483,53 @@ export function GitHubSyncPanel() {
     }
   };
 
-  const activeConfigs = configs.filter(c => c.ativo);
-  const inactiveConfigs = configs.filter(c => !c.ativo);
-  const withSuccess = configs.filter(c => c.ultimo_status === "sucesso");
-  const withErrors = configs.filter(c => c.ultimo_status === "erro");
-  const executing = configs.filter(c => c.ultimo_status === "executando");
+  const renderStats = (configs: SyncConfig[]) => {
+    const activeConfigs = configs.filter(c => c.ativo);
+    const inactiveConfigs = configs.filter(c => !c.ativo);
+    const withSuccess = configs.filter(c => c.ultimo_status === "sucesso");
+    const withErrors = configs.filter(c => c.ultimo_status === "erro");
+    const executing = configs.filter(c => c.ultimo_status === "executando");
 
-  return (
-    <Card className="border-2">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <GitBranch className="h-5 w-5" />
-              Sincronização GitHub
-            </CardTitle>
-            <CardDescription>
-              Associações configuradas para sincronização automática de cobrança
-            </CardDescription>
+    return (
+      <div className="grid grid-cols-5 gap-3">
+        {executing.length > 0 && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center border-2 border-blue-300 animate-pulse">
+            <p className="text-2xl font-bold text-blue-600">{executing.length}</p>
+            <p className="text-xs text-muted-foreground">Em Execução</p>
           </div>
+        )}
+        <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-green-600">{withSuccess.length}</p>
+          <p className="text-xs text-muted-foreground">Sucesso</p>
+        </div>
+        <div className="bg-slate-50 dark:bg-slate-900/20 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-slate-600">{activeConfigs.length}</p>
+          <p className="text-xs text-muted-foreground">Ativas</p>
+        </div>
+        <div className="bg-gray-50 dark:bg-gray-900/20 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-gray-600">{inactiveConfigs.length}</p>
+          <p className="text-xs text-muted-foreground">Inativas</p>
+        </div>
+        <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-red-600">{withErrors.length}</p>
+          <p className="text-xs text-muted-foreground">Com Erro</p>
+        </div>
+      </div>
+    );
+  };
+
+  const renderConfigList = (configs: SyncConfig[], type: RobotType, loading: boolean, pendingCount: number) => {
+    const loadConfigs = type === "cobranca" ? loadCobrancaConfigs : loadEventosConfigs;
+    
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {pendingCount > 0 && (
               <Button 
                 variant="default" 
                 size="sm" 
-                onClick={handleExecutarPendentes} 
+                onClick={() => handleExecutarPendentes(type)} 
                 disabled={executingPending || loading}
                 className="bg-orange-500 hover:bg-orange-600"
               >
@@ -395,40 +541,15 @@ export function GitHubSyncPanel() {
                 Executar {pendingCount} Pendente{pendingCount > 1 ? 's' : ''}
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={loadConfigs} disabled={loading}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-              Atualizar
-            </Button>
           </div>
+          <Button variant="outline" size="sm" onClick={loadConfigs} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            Atualizar
+          </Button>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-5 gap-3 mt-4">
-          {executing.length > 0 && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center border-2 border-blue-300 animate-pulse">
-              <p className="text-2xl font-bold text-blue-600">{executing.length}</p>
-              <p className="text-xs text-muted-foreground">Em Execução</p>
-            </div>
-          )}
-          <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
-            <p className="text-2xl font-bold text-green-600">{withSuccess.length}</p>
-            <p className="text-xs text-muted-foreground">Sucesso</p>
-          </div>
-          <div className="bg-slate-50 dark:bg-slate-900/20 rounded-lg p-3 text-center">
-            <p className="text-2xl font-bold text-slate-600">{activeConfigs.length}</p>
-            <p className="text-xs text-muted-foreground">Ativas</p>
-          </div>
-          <div className="bg-gray-50 dark:bg-gray-900/20 rounded-lg p-3 text-center">
-            <p className="text-2xl font-bold text-gray-600">{inactiveConfigs.length}</p>
-            <p className="text-xs text-muted-foreground">Inativas</p>
-          </div>
-          <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 text-center">
-            <p className="text-2xl font-bold text-red-600">{withErrors.length}</p>
-            <p className="text-xs text-muted-foreground">Com Erro</p>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
+        {renderStats(configs)}
+
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -438,24 +559,23 @@ export function GitHubSyncPanel() {
             Nenhuma associação configurada para sincronização.
           </div>
         ) : (
-          <div className="space-y-3 max-h-[600px] overflow-y-auto">
+          <div className="space-y-3 max-h-[500px] overflow-y-auto">
             {configs.map((config) => (
               <Collapsible
                 key={config.id}
                 open={expandedConfigId === config.id}
-                onOpenChange={() => handleToggleExpand(config.id)}
+                onOpenChange={() => handleToggleExpand(config.id, type)}
               >
                 <div
                   className={`border rounded-lg transition-colors ${
                     config.ativo ? "bg-card" : "bg-muted/50"
                   }`}
                 >
-                  {/* Main Row */}
                   <div className="flex items-center justify-between p-4">
                     <div className="flex items-center gap-4 flex-1 min-w-0">
                       <Switch
                         checked={config.ativo}
-                        onCheckedChange={() => handleToggleAtivo(config.id, config.ativo)}
+                        onCheckedChange={() => handleToggleAtivo(config.id, config.ativo, type)}
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -508,7 +628,7 @@ export function GitHubSyncPanel() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleExecutar(config)}
+                        onClick={() => handleExecutar(config, type)}
                         disabled={!config.ativo || executingId === config.id || config.ultimo_status === "executando"}
                       >
                         {executingId === config.id ? (
@@ -521,7 +641,6 @@ export function GitHubSyncPanel() {
                     </div>
                   </div>
 
-                  {/* Execution History */}
                   <CollapsibleContent>
                     <div className="border-t px-4 py-3 bg-muted/30">
                       <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
@@ -530,7 +649,7 @@ export function GitHubSyncPanel() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => loadExecutionLogs(config.id)}
+                          onClick={() => loadExecutionLogs(config.id, type)}
                           disabled={loadingLogs[config.id]}
                         >
                           <RefreshCw className={`h-3 w-3 ${loadingLogs[config.id] ? "animate-spin" : ""}`} />
@@ -614,6 +733,84 @@ export function GitHubSyncPanel() {
             ))}
           </div>
         )}
+      </div>
+    );
+  };
+
+  const totalPending = cobrancaPendingCount + eventosPendingCount;
+  const totalWithErrors = cobrancaConfigs.filter(c => c.ultimo_status === "erro").length + 
+                          eventosConfigs.filter(c => c.ultimo_status === "erro").length;
+
+  return (
+    <Card className="border-2">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <GitBranch className="h-5 w-5" />
+              Sincronização GitHub
+            </CardTitle>
+            <CardDescription>
+              Gerenciamento centralizado das automações Hinova
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            {totalPending > 0 && (
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={handleExecutarTodosPendentes} 
+                disabled={executingAllPending || cobrancaLoading || eventosLoading}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                {executingAllPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                Executar Todos ({totalPending})
+              </Button>
+            )}
+            {totalWithErrors > 0 && totalPending === 0 && (
+              <Badge variant="destructive" className="text-sm py-1 px-3">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                {totalWithErrors} com erro
+              </Badge>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as RobotType)}>
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="cobranca" className="flex items-center gap-2">
+              <Wallet className="h-4 w-4" />
+              Cobrança
+              {cobrancaPendingCount > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                  {cobrancaPendingCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="eventos" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Eventos
+              {eventosPendingCount > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                  {eventosPendingCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="cobranca">
+            {renderConfigList(cobrancaConfigs, "cobranca", cobrancaLoading, cobrancaPendingCount)}
+          </TabsContent>
+          
+          <TabsContent value="eventos">
+            {renderConfigList(eventosConfigs, "eventos", eventosLoading, eventosPendingCount)}
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
