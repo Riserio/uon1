@@ -1,0 +1,92 @@
+name: SGA Hinova - Importação de Eventos
+
+on:
+  # Agendamento diário às 09:00 (horário de Brasília = 12:00 UTC)
+  schedule:
+    - cron: '0 12 * * *'
+  
+  # Permite execução manual pelo GitHub ou via API
+  workflow_dispatch:
+    inputs:
+      corretora_id:
+        description: 'ID da corretora/associação'
+        required: false
+        type: string
+      hinova_url:
+        description: 'URL do portal Hinova'
+        required: false
+        type: string
+      hinova_user:
+        description: 'Usuário Hinova'
+        required: false
+        type: string
+      hinova_pass:
+        description: 'Senha Hinova'
+        required: false
+        type: string
+      hinova_codigo_cliente:
+        description: 'Código do cliente Hinova'
+        required: false
+        type: string
+      data_inicio:
+        description: 'Data inicial (DD/MM/YYYY)'
+        required: false
+        type: string
+      data_fim:
+        description: 'Data final (DD/MM/YYYY)'
+        required: false
+        type: string
+      execucao_id:
+        description: 'ID da execução no banco'
+        required: false
+        type: string
+      webhook_url:
+        description: 'URL do webhook para callback'
+        required: false
+        type: string
+
+jobs:
+  importar-eventos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Instalar dependências
+        run: |
+          npm install playwright axios xlsx
+          npx playwright install chromium --with-deps
+      
+      - name: Executar robô de eventos SGA
+        env:
+          HINOVA_URL: ${{ inputs.hinova_url || secrets.HINOVA_URL }}
+          HINOVA_CODIGO_CLIENTE: ${{ inputs.hinova_codigo_cliente || secrets.HINOVA_CODIGO_CLIENTE }}
+          HINOVA_USER: ${{ inputs.hinova_user || secrets.HINOVA_USER }}
+          HINOVA_PASS: ${{ inputs.hinova_pass || secrets.HINOVA_PASS }}
+          DATA_INICIO: ${{ inputs.data_inicio || '01/01/2000' }}
+          DATA_FIM: ${{ inputs.data_fim }}
+          WEBHOOK_URL: ${{ inputs.webhook_url || secrets.WEBHOOK_URL_SGA }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+          CORRETORA_ID: ${{ inputs.corretora_id || secrets.CORRETORA_ID }}
+          EXECUCAO_ID: ${{ inputs.execucao_id }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/robo-sga-hinova.cjs
+      
+      - name: Upload screenshots de debug (se houver)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots-sga
+          path: |
+            erro_sga.png
+            debug_sga_*.png
+          if-no-files-found: ignore
+          retention-days: 7

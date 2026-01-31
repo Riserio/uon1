@@ -5,10 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Download } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import SGAHistoricoImportacoes from "./SGAHistoricoImportacoes";
+import SGAAutomacaoConfig from "./SGAAutomacaoConfig";
 import { useBIAuditLog } from "@/hooks/useBIAuditLog";
 
 // Template columns for SGA
@@ -430,154 +432,176 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
 
   return (
     <div className="space-y-6">
-      {/* Upload Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5 text-primary" />
-              Importar Planilha do SGA
-            </CardTitle>
-            <Button variant="outline" size="sm" onClick={downloadSGATemplate}>
-              <Download className="h-4 w-4 mr-2" />
-              Baixar Modelo
-            </Button>
-          </div>
-          <CardDescription>
-            Importando dados para: <span className="font-semibold text-foreground">{corretoraNome}</span>
-            <br />
-            Selecione um arquivo Excel (.xlsx) exportado do SGA. A nova importação irá sobrepor os dados anteriores desta associação.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="file">Arquivo Excel</Label>
-            <Input
-              ref={fileInputRef}
-              id="file"
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleFileSelect}
-              disabled={importing}
-            />
-          </div>
+      <Tabs defaultValue="manual" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="manual" className="gap-2">
+            <Upload className="h-4 w-4" />
+            Importar Planilha
+          </TabsTrigger>
+          <TabsTrigger value="automatico" className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Sincronização Automática
+          </TabsTrigger>
+        </TabsList>
 
-          {file && (
-            <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-              <FileSpreadsheet className="h-8 w-8 text-green-600" />
-              <div className="flex-1">
-                <p className="font-medium">{file.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {(file.size / 1024 / 1024).toFixed(2)} MB
-                </p>
+        <TabsContent value="manual" className="mt-4 space-y-6">
+          {/* Upload Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-primary" />
+                  Importar Planilha do SGA
+                </CardTitle>
+                <Button variant="outline" size="sm" onClick={downloadSGATemplate}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Baixar Modelo
+                </Button>
               </div>
-              {preview.length > 0 && (
-                <div className="flex items-center gap-1 text-green-600">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span className="text-sm">Válido</span>
+              <CardDescription>
+                Importando dados para: <span className="font-semibold text-foreground">{corretoraNome}</span>
+                <br />
+                Selecione um arquivo Excel (.xlsx) exportado do SGA. A nova importação irá sobrepor os dados anteriores desta associação.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="file">Arquivo Excel</Label>
+                <Input
+                  ref={fileInputRef}
+                  id="file"
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileSelect}
+                  disabled={importing}
+                />
+              </div>
+
+              {file && (
+                <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                  <FileSpreadsheet className="h-8 w-8 text-green-600" />
+                  <div className="flex-1">
+                    <p className="font-medium">{file.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {(file.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                  {preview.length > 0 && (
+                    <div className="flex items-center gap-1 text-green-600">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span className="text-sm">Válido</span>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
 
-          {importing && (
-            <div className="space-y-2">
-              <Progress value={progress} className="h-2" />
-              <p className="text-sm text-muted-foreground text-center">
-                Importando... {progress}%
-              </p>
-            </div>
-          )}
+              {importing && (
+                <div className="space-y-2">
+                  <Progress value={progress} className="h-2" />
+                  <p className="text-sm text-muted-foreground text-center">
+                    Importando... {progress}%
+                  </p>
+                </div>
+              )}
 
-          <Button
-            onClick={handleImport}
-            disabled={!file || importing}
-            className="w-full"
-          >
-            {importing ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Importando...
-              </>
-            ) : (
-              <>
-                <Upload className="h-4 w-4 mr-2" />
-                Importar Dados
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
+              <Button
+                onClick={handleImport}
+                disabled={!file || importing}
+                className="w-full"
+              >
+                {importing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Importando...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Importar Dados
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
 
-      {/* Preview */}
-      {preview.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Preview dos Dados (5 primeiras linhas)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b">
-                    {Object.keys(preview[0]).slice(0, 8).map((col) => (
-                      <th key={col} className="p-2 text-left font-medium text-muted-foreground">
-                        {col}
-                      </th>
-                    ))}
-                    <th className="p-2 text-left font-medium text-muted-foreground">...</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {preview.map((row, i) => {
-                    const keys = Object.keys(row);
-                    return (
-                      <tr key={i} className="border-b">
-                        {keys.slice(0, 8).map((key, j) => {
-                          const val = row[key];
-                          // Formatar datas no preview
-                          const isDateColumn = DATE_COLUMNS.some(dc => 
-                            normalizeHeader(key) === normalizeHeader(dc)
-                          );
-                          const displayVal = isDateColumn ? formatExcelDateForPreview(val) : String(val);
-                          return (
-                            <td key={j} className="p-2 truncate max-w-[150px]">
-                              {displayVal}
-                            </td>
-                          );
-                        })}
-                        <td className="p-2 text-muted-foreground">...</td>
+          {/* Preview */}
+          {preview.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Preview dos Dados (5 primeiras linhas)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b">
+                        {Object.keys(preview[0]).slice(0, 8).map((col) => (
+                          <th key={col} className="p-2 text-left font-medium text-muted-foreground">
+                            {col}
+                          </th>
+                        ))}
+                        <th className="p-2 text-left font-medium text-muted-foreground">...</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                    </thead>
+                    <tbody>
+                      {preview.map((row, i) => {
+                        const keys = Object.keys(row);
+                        return (
+                          <tr key={i} className="border-b">
+                            {keys.slice(0, 8).map((key, j) => {
+                              const val = row[key];
+                              // Formatar datas no preview
+                              const isDateColumn = DATE_COLUMNS.some(dc => 
+                                normalizeHeader(key) === normalizeHeader(dc)
+                              );
+                              const displayVal = isDateColumn ? formatExcelDateForPreview(val) : String(val);
+                              return (
+                                <td key={j} className="p-2 truncate max-w-[150px]">
+                                  {displayVal}
+                                </td>
+                              );
+                            })}
+                            <td className="p-2 text-muted-foreground">...</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Info */}
-      <Card className="border-yellow-500/20 bg-yellow-500/5">
-        <CardContent className="p-4">
-          <div className="flex gap-3">
-            <AlertCircle className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <p className="font-medium text-yellow-600">Importante</p>
-              <p className="text-muted-foreground mt-1">
-                Ao importar uma nova planilha, ela se tornará a fonte de dados ativa para <strong>{corretoraNome}</strong>. 
-                As importações anteriores ficam salvas no histórico e podem ser reativadas a qualquer momento.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          {/* Info */}
+          <Card className="border-yellow-500/20 bg-yellow-500/5">
+            <CardContent className="p-4">
+              <div className="flex gap-3">
+                <AlertCircle className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-yellow-600">Importante</p>
+                  <p className="text-muted-foreground mt-1">
+                    Ao importar uma nova planilha, ela se tornará a fonte de dados ativa para <strong>{corretoraNome}</strong>. 
+                    As importações anteriores ficam salvas no histórico e podem ser reativadas a qualquer momento.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Histórico de Importações */}
-      <SGAHistoricoImportacoes 
-        onActivate={onImportSuccess} 
-        corretoraId={corretoraId}
-      />
+          {/* Histórico de Importações */}
+          <SGAHistoricoImportacoes 
+            onActivate={onImportSuccess} 
+            corretoraId={corretoraId}
+          />
+        </TabsContent>
+
+        <TabsContent value="automatico" className="mt-4">
+          <SGAAutomacaoConfig 
+            corretoraId={corretoraId} 
+            corretoraNome={corretoraNome}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
