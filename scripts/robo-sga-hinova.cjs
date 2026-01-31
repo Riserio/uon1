@@ -3,8 +3,16 @@
  * Robô de Automação - SGA Hinova (Eventos)
  * =========================================
  * 
- * Este script automatiza a extração do relatório 12.9.1 (Por Eventos)
+ * Este script automatiza a extração do relatório 11.9.1 (Por Eventos)
  * do portal SGA Hinova e envia os dados para o webhook.
+ * 
+ * FLUXO:
+ * ------
+ * 1. Menu: Relatório > 11.9 - DE EVENTOS > 11.9.1 - POR EVENTOS
+ * 2. Preencher: Data Cadastro Item (período)
+ * 3. Selecionar: Layout "BI - VANGARD" em Dados Visualizados
+ * 4. Selecionar: Forma de Exibição "Em Excel"
+ * 5. Clicar em Gerar
  * 
  * REQUISITOS:
  * -----------
@@ -51,48 +59,6 @@ const CONFIG = {
   DOWNLOAD_DIR: './downloads',
   DEBUG_DIR: './debug',
 };
-
-// Campos a selecionar no relatório (conforme especificação)
-const CAMPOS_EVENTO = [
-  'Evento Estado',
-  'Data Cadastro Item',
-  'Data Evento',
-  'Motivo Evento',
-  'Tipo Evento',
-  'Situação Evento',
-  'Modelo Veículo',
-  'Modelo Veículo Terceiro',
-  'Placa',
-  'Placa Terceiro',
-  'Data Última Alteração Situação',
-  'Valor Reparo',
-  'Data Conclusão',
-  'Custo Evento',
-  'Data Alteração',
-  'Data Previsão Entrega',
-  'Solicitou Carro Reserva',
-  'Envolvimento Terceiro',
-  'Passível Ressarcimento',
-  'Valor Mão de Obra',
-  'Classificação',
-  'Participação',
-  'Envolvimento',
-  'Previsão Valor Reparo',
-  'Usuário Alteração',
-  'Data Cadastro Evento',
-  'Cooperativa',
-  'Valor Protegido Veículo',
-  'Situação Análise Evento',
-  'Regional',
-  'Ano Fabricação',
-  'Voluntário',
-  'Regional Veículo',
-  'Associado Estado',
-  'Protocolo',
-  'Evento Logradouro',
-  'Categoria Veículo',
-  'Tipo Veículo Veículo Terceiro',
-];
 
 // Timeouts
 const TIMEOUTS = {
@@ -633,60 +599,135 @@ async function main() {
     // ============================================
     setStep('NAVEGACAO');
     await updateProgress('executando', 'filtros');
-    log('Navegando para Relatório > 12.9 > 12.9.1...', LOG_LEVELS.INFO);
+    log('Navegando para Relatório > 11.9 - DE EVENTOS > 11.9.1 - POR EVENTOS...', LOG_LEVELS.INFO);
 
     // Clicar no menu Relatório
-    const menuRelatorio = page.locator('a:has-text("Relatório"), a:has-text("Relatórios"), li:has-text("Relatório") > a').first();
-    if (await menuRelatorio.isVisible().catch(() => false)) {
+    try {
+      const menuRelatorio = page.locator('a:has-text("Relatório"), a:has-text("Relatórios"), li:has-text("Relatório") > a').first();
+      await menuRelatorio.waitFor({ state: 'visible', timeout: 10000 });
       await menuRelatorio.click();
       await page.waitForTimeout(2000);
+      log('Menu Relatório aberto', LOG_LEVELS.SUCCESS);
+    } catch (e) {
+      log(`Erro ao abrir menu Relatório: ${e.message}`, LOG_LEVELS.WARN);
     }
     
     await saveDebugInfo(page, 'debug_sga_menu_relatorio');
 
-    // Clicar em 12.9 - De Eventos
-    const menuEventos = page.locator('a:has-text("12.9"), a:has-text("De Eventos"), a:has-text("Eventos")').first();
-    if (await menuEventos.isVisible().catch(() => false)) {
-      await menuEventos.click();
-      await page.waitForTimeout(2000);
+    // Clicar em 11.9 - DE EVENTOS
+    try {
+      // Tentar diferentes seletores para o menu 11.9
+      const seletoresMenu119 = [
+        'a:has-text("11.9 - DE EVENTOS")',
+        'a:has-text("11.9")',
+        'a:has-text("DE EVENTOS")',
+        'a:has-text("De Eventos")',
+        'a[href*="11.9"]',
+      ];
+      
+      let clicouMenu119 = false;
+      for (const seletor of seletoresMenu119) {
+        try {
+          const menu = page.locator(seletor).first();
+          if (await menu.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await menu.click();
+            await page.waitForTimeout(1500);
+            clicouMenu119 = true;
+            log('Menu 11.9 - DE EVENTOS clicado', LOG_LEVELS.SUCCESS);
+            break;
+          }
+        } catch {}
+      }
+      
+      if (!clicouMenu119) {
+        log('Menu 11.9 não encontrado diretamente, tentando navegação via JS...', LOG_LEVELS.WARN);
+        await page.evaluate(() => {
+          const links = Array.from(document.querySelectorAll('a'));
+          const menu119 = links.find(a => 
+            a.textContent?.includes('11.9') || 
+            a.textContent?.toLowerCase().includes('de eventos')
+          );
+          if (menu119) menu119.click();
+        });
+        await page.waitForTimeout(1500);
+      }
+    } catch (e) {
+      log(`Erro ao clicar em 11.9: ${e.message}`, LOG_LEVELS.WARN);
     }
 
-    // Clicar em 12.9.1 - Por Eventos
-    const menuPorEventos = page.locator('a:has-text("12.9.1"), a:has-text("Por Eventos")').first();
-    if (await menuPorEventos.isVisible().catch(() => false)) {
-      await menuPorEventos.click();
+    await saveDebugInfo(page, 'debug_sga_menu_119');
+
+    // Clicar em 11.9.1 - POR EVENTOS
+    try {
+      const seletoresMenu1191 = [
+        'a:has-text("11.9.1 - POR EVENTOS")',
+        'a:has-text("11.9.1")',
+        'a:has-text("POR EVENTOS")',
+        'a:has-text("Por Eventos")',
+        'a[href*="11.9.1"]',
+      ];
+      
+      let clicouMenu1191 = false;
+      for (const seletor of seletoresMenu1191) {
+        try {
+          const menu = page.locator(seletor).first();
+          if (await menu.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await menu.click();
+            clicouMenu1191 = true;
+            log('Menu 11.9.1 - POR EVENTOS clicado', LOG_LEVELS.SUCCESS);
+            break;
+          }
+        } catch {}
+      }
+      
+      if (!clicouMenu1191) {
+        log('Menu 11.9.1 não encontrado diretamente, tentando via JS...', LOG_LEVELS.WARN);
+        await page.evaluate(() => {
+          const links = Array.from(document.querySelectorAll('a'));
+          const menu1191 = links.find(a => 
+            a.textContent?.includes('11.9.1') || 
+            a.textContent?.toLowerCase().includes('por eventos')
+          );
+          if (menu1191) menu1191.click();
+        });
+      }
+      
+      // Aguardar página carregar
       await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+    } catch (e) {
+      log(`Erro ao clicar em 11.9.1: ${e.message}`, LOG_LEVELS.WARN);
     }
 
     await page.waitForTimeout(5000);
     await saveDebugInfo(page, 'debug_sga_relatorio_eventos');
-    log('Página de relatório de eventos aberta', LOG_LEVELS.SUCCESS);
+    log('Página de relatório 11.9.1 - POR EVENTOS aberta', LOG_LEVELS.SUCCESS);
 
     // ============================================
-    // ETAPA: PREENCHER FILTROS
+    // PASSO 1: PREENCHER DATA CADASTRO ITEM
     // ============================================
     setStep('FILTROS');
-    log(`Preenchendo filtros de período: ${CONFIG.DATA_INICIO} até ${CONFIG.DATA_FIM}`, LOG_LEVELS.INFO);
+    log(`PASSO 1: Preenchendo Data Cadastro Item: ${CONFIG.DATA_INICIO} até ${CONFIG.DATA_FIM}`, LOG_LEVELS.INFO);
 
-    // Preencher Data Cadastro Item
     const preencheuDatas = await page.evaluate(({ inicio, fim }) => {
       const resultado = { sucesso: false, detalhes: [] };
       
-      // Procurar labels contendo "Data Cadastro Item"
-      const todosElementos = document.querySelectorAll('td, th, label, span, div');
+      // Estratégia 1: Procurar por labels "Data Cadastro Item" e inputs próximos
+      const todosElementos = document.querySelectorAll('td, th, label, span, div, b, strong');
       
       for (const elemento of todosElementos) {
         const texto = elemento.textContent?.trim() || '';
         
-        if (texto.includes('Data Cadastro Item') || texto.includes('Data Cadastro')) {
+        if (texto.includes('Data Cadastro Item') || texto === 'Data Cadastro Item') {
           resultado.detalhes.push(`Label encontrado: "${texto}"`);
           
-          const linha = elemento.closest('tr');
+          // Procurar inputs na mesma linha/tabela
+          const linha = elemento.closest('tr') || elemento.closest('div') || elemento.parentElement;
           if (linha) {
-            const inputs = linha.querySelectorAll('input[type="text"], input:not([type])');
-            resultado.detalhes.push(`Inputs na linha: ${inputs.length}`);
+            const inputs = linha.querySelectorAll('input[type="text"], input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"])');
+            resultado.detalhes.push(`Inputs encontrados: ${inputs.length}`);
             
             if (inputs.length >= 2) {
+              // Primeiro input = data início, segundo = data fim
               inputs[0].value = inicio;
               inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
               inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
@@ -696,11 +737,28 @@ async function main() {
               inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
               
               resultado.sucesso = true;
-              resultado.detalhes.push(`Datas preenchidas: ${inicio} e ${fim}`);
+              resultado.detalhes.push(`Datas preenchidas: ${inicio} a ${fim}`);
               return resultado;
             }
           }
         }
+      }
+      
+      // Estratégia 2: Procurar inputs de data pelo placeholder ou name
+      const inputsData = document.querySelectorAll('input[name*="data" i], input[placeholder*="data" i], input[id*="data" i]');
+      resultado.detalhes.push(`Inputs de data encontrados (fallback): ${inputsData.length}`);
+      
+      if (inputsData.length >= 2) {
+        inputsData[0].value = inicio;
+        inputsData[0].dispatchEvent(new Event('input', { bubbles: true }));
+        inputsData[0].dispatchEvent(new Event('change', { bubbles: true }));
+        
+        inputsData[1].value = fim;
+        inputsData[1].dispatchEvent(new Event('input', { bubbles: true }));
+        inputsData[1].dispatchEvent(new Event('change', { bubbles: true }));
+        
+        resultado.sucesso = true;
+        resultado.detalhes.push(`Datas preenchidas via fallback: ${inicio} a ${fim}`);
       }
       
       return resultado;
@@ -711,75 +769,148 @@ async function main() {
     }
     
     if (preencheuDatas.sucesso) {
-      log(`✅ Data Cadastro Item preenchida: ${CONFIG.DATA_INICIO} até ${CONFIG.DATA_FIM}`, LOG_LEVELS.SUCCESS);
+      log(`✅ PASSO 1 OK: Data Cadastro Item preenchida: ${CONFIG.DATA_INICIO} até ${CONFIG.DATA_FIM}`, LOG_LEVELS.SUCCESS);
     } else {
-      log('⚠️ Não foi possível preencher Data Cadastro Item - tentando continuar...', LOG_LEVELS.WARN);
+      log('⚠️ PASSO 1: Não foi possível preencher Data Cadastro Item automaticamente', LOG_LEVELS.WARN);
     }
 
+    await saveDebugInfo(page, 'debug_sga_datas');
+
     // ============================================
-    // ETAPA: SELECIONAR CAMPOS (DADOS VISUALIZADOS)
+    // PASSO 2: SELECIONAR LAYOUT "BI - VANGARD" EM DADOS VISUALIZADOS
     // ============================================
     await updateProgress('executando', 'campos');
-    log('Selecionando campos do relatório...', LOG_LEVELS.INFO);
+    log(`PASSO 2: Selecionando Layout "${CONFIG.HINOVA_LAYOUT}" em Dados Visualizados...`, LOG_LEVELS.INFO);
 
-    // Clicar na aba "Dados Visualizados" ou "Dados do Evento"
-    const abaDados = page.locator('a:has-text("Dados Visualizados"), a:has-text("Dados do Evento"), [href*="dados"]').first();
-    if (await abaDados.isVisible().catch(() => false)) {
-      await abaDados.click();
-      await page.waitForTimeout(2000);
-    }
-
-    // Tentar selecionar todos os campos
-    const selectAll = page.locator('input[type="checkbox"][name*="todos" i], a:has-text("Selecionar Todos"), button:has-text("Todos")').first();
-    if (await selectAll.isVisible().catch(() => false)) {
-      if ((await selectAll.getAttribute('type')) === 'checkbox') {
-        await selectAll.check();
-      } else {
-        await selectAll.click();
+    // Primeiro, verificar se há uma seção "Dados Visualizados" e clicar nela para expandir
+    try {
+      const secaoDados = page.locator('a:has-text("Dados Visualizados"), div:has-text("Dados Visualizados"), span:has-text("Dados Visualizados")').first();
+      if (await secaoDados.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await secaoDados.click().catch(() => {});
+        await page.waitForTimeout(1000);
+        log('Seção Dados Visualizados expandida', LOG_LEVELS.DEBUG);
       }
-      log('Opção "Selecionar Todos" ativada', LOG_LEVELS.SUCCESS);
-    } else {
-      // Selecionar campos individualmente
-      for (const campo of CAMPOS_EVENTO) {
-        try {
-          const checkbox = page.locator(`label:has-text("${campo}") input[type="checkbox"], input[type="checkbox"][value*="${campo}" i]`).first();
-          if (await checkbox.isVisible().catch(() => false)) {
-            const isChecked = await checkbox.isChecked().catch(() => false);
-            if (!isChecked) {
-              await checkbox.check();
-              log(`Campo selecionado: ${campo}`, LOG_LEVELS.DEBUG);
-            }
-          }
-        } catch (e) {
-          // Campo não encontrado, continuar
+    } catch {}
+
+    // Selecionar o layout no dropdown
+    const selecionouLayout = await page.evaluate(({ layout }) => {
+      const resultado = { sucesso: false, detalhes: [] };
+      
+      // Procurar select de Layout
+      const selects = document.querySelectorAll('select');
+      resultado.detalhes.push(`Total de selects na página: ${selects.length}`);
+      
+      for (const select of selects) {
+        const options = Array.from(select.options);
+        const textos = options.map(o => o.text || o.value);
+        resultado.detalhes.push(`Select encontrado com opções: ${textos.slice(0, 5).join(', ')}...`);
+        
+        // Procurar opção que contenha o layout desejado
+        const optionIndex = options.findIndex(o => {
+          const texto = (o.text || o.value || '').toLowerCase();
+          return texto.includes('vangard') || texto.includes(layout.toLowerCase());
+        });
+        
+        if (optionIndex >= 0) {
+          select.selectedIndex = optionIndex;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          resultado.sucesso = true;
+          resultado.detalhes.push(`Layout selecionado: ${options[optionIndex].text}`);
+          return resultado;
         }
       }
+      
+      return resultado;
+    }, { layout: CONFIG.HINOVA_LAYOUT });
+
+    for (const detalhe of selecionouLayout.detalhes) {
+      log(detalhe, LOG_LEVELS.DEBUG);
     }
 
-    await saveDebugInfo(page, 'debug_sga_campos');
+    if (selecionouLayout.sucesso) {
+      log(`✅ PASSO 2 OK: Layout "${CONFIG.HINOVA_LAYOUT}" selecionado`, LOG_LEVELS.SUCCESS);
+    } else {
+      log(`⚠️ PASSO 2: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado`, LOG_LEVELS.WARN);
+      
+      // Tentar via Playwright locator
+      try {
+        const selectLayout = page.locator('select').filter({ hasText: /layout/i }).first();
+        if (await selectLayout.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await selectLayout.selectOption({ label: new RegExp('vangard', 'i') });
+          log('Layout selecionado via Playwright', LOG_LEVELS.SUCCESS);
+        }
+      } catch {}
+    }
+
+    await page.waitForTimeout(2000);
+    await saveDebugInfo(page, 'debug_sga_layout');
 
     // ============================================
-    // ETAPA: SELECIONAR FORMATO EXCEL
+    // PASSO 3: SELECIONAR "EM EXCEL" NA FORMA DE EXIBIÇÃO
     // ============================================
-    log('Selecionando formato Excel...', LOG_LEVELS.INFO);
+    log('PASSO 3: Selecionando Forma de Exibição "Em Excel"...', LOG_LEVELS.INFO);
 
-    const formatoExcel = page.locator('input[value*="excel" i], input[value*="xls" i], label:has-text("Excel") input').first();
-    if (await formatoExcel.isVisible().catch(() => false)) {
-      if ((await formatoExcel.getAttribute('type')) === 'radio' || (await formatoExcel.getAttribute('type')) === 'checkbox') {
-        await formatoExcel.check();
-      } else {
-        await formatoExcel.click();
+    const selecionouExcel = await page.evaluate(() => {
+      const resultado = { sucesso: false, detalhes: [] };
+      
+      // Estratégia 1: Radio button "Em Excel"
+      const radios = document.querySelectorAll('input[type="radio"]');
+      resultado.detalhes.push(`Total de radios: ${radios.length}`);
+      
+      for (const radio of radios) {
+        const label = radio.closest('label') || document.querySelector(`label[for="${radio.id}"]`);
+        const texto = label?.textContent?.trim() || radio.value || '';
+        
+        if (texto.toLowerCase().includes('excel')) {
+          radio.checked = true;
+          radio.dispatchEvent(new Event('change', { bubbles: true }));
+          radio.dispatchEvent(new Event('click', { bubbles: true }));
+          resultado.sucesso = true;
+          resultado.detalhes.push(`Radio Excel selecionado: ${texto}`);
+          return resultado;
+        }
       }
-      log('Formato Excel selecionado', LOG_LEVELS.SUCCESS);
+      
+      // Estratégia 2: Select de formato
+      const selects = document.querySelectorAll('select');
+      for (const select of selects) {
+        const options = Array.from(select.options);
+        const optionExcel = options.findIndex(o => 
+          o.text?.toLowerCase().includes('excel') || o.value?.toLowerCase().includes('excel')
+        );
+        
+        if (optionExcel >= 0) {
+          select.selectedIndex = optionExcel;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          resultado.sucesso = true;
+          resultado.detalhes.push(`Excel selecionado via select: ${options[optionExcel].text}`);
+          return resultado;
+        }
+      }
+      
+      return resultado;
+    });
+
+    for (const detalhe of selecionouExcel.detalhes) {
+      log(detalhe, LOG_LEVELS.DEBUG);
     }
 
-    // Tentar select de formato
-    const selectFormato = page.locator('select[name*="formato" i], select[name*="exibicao" i]').first();
-    if (await selectFormato.isVisible().catch(() => false)) {
-      await selectFormato.selectOption({ label: /excel/i }).catch(() => {});
+    if (selecionouExcel.sucesso) {
+      log('✅ PASSO 3 OK: Forma de Exibição "Em Excel" selecionada', LOG_LEVELS.SUCCESS);
+    } else {
+      log('⚠️ PASSO 3: Não foi possível selecionar Excel automaticamente', LOG_LEVELS.WARN);
+      
+      // Tentar via Playwright
+      try {
+        const radioExcel = page.locator('input[type="radio"]').filter({ hasText: /excel/i }).first();
+        if (await radioExcel.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await radioExcel.check();
+          log('Excel selecionado via Playwright', LOG_LEVELS.SUCCESS);
+        }
+      } catch {}
     }
 
-    await saveDebugInfo(page, 'debug_sga_formato');
+    await saveDebugInfo(page, 'debug_sga_excel');
 
     // ============================================
     // ETAPA: GERAR RELATÓRIO E DOWNLOAD
