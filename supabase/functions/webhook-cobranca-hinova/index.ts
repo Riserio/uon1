@@ -812,12 +812,30 @@ serve(async (req) => {
 
       // Atualizar progresso se temos execução resolvida
       if (targetExecucaoId && dados.length > 0) {
-        const progressoImportacao = Math.round((processados / dados.length) * 100);
+        // Buscar registros já processados de chunks anteriores
+        const { data: currentExec } = await supabase
+          .from("cobranca_automacao_execucoes")
+          .select("registros_processados")
+          .eq("id", targetExecucaoId)
+          .single();
+        
+        const baseProcessados = currentExec?.registros_processados || 0;
+        // Se estamos no mesmo chunk (baseProcessados não mudou desde o início), usar processados
+        // Caso contrário, acumular
+        const totalProcessadosAgora = baseProcessados + processados;
+        
+        // Usar total_registros do payload para calcular progresso global
+        const totalGeral = (typeof total_registros === 'number' && total_registros > 0) 
+          ? total_registros 
+          : dados.length;
+        
+        const progressoImportacao = Math.round((totalProcessadosAgora / totalGeral) * 100);
         await supabase
           .from("cobranca_automacao_execucoes")
           .update({
             progresso_importacao: progressoImportacao,
-            registros_processados: processados,
+            registros_processados: totalProcessadosAgora,
+            registros_total: totalGeral,
             etapa_atual: 'importacao',
           })
           .eq("id", targetExecucaoId);
@@ -841,18 +859,36 @@ serve(async (req) => {
 
       // Atualizar execução mais recente com sucesso
       if (targetExecucaoId) {
+        // Primeiro, pegar registros já processados anteriormente (para modo chunk)
+        const { data: currentExec } = await supabase
+          .from("cobranca_automacao_execucoes")
+          .select("registros_processados")
+          .eq("id", targetExecucaoId)
+          .single();
+        
+        const previousProcessados = currentExec?.registros_processados || 0;
+        const totalProcessados = previousProcessados + processados;
+        
+        // total_registros do payload tem o valor correto (total global)
+        const totalGeral = (typeof total_registros === 'number' && total_registros > 0) 
+          ? total_registros 
+          : totalProcessados;
+        
+        // Verificar se é o último chunk
+        const isLastChunk = !chunk_total || !chunk_index || chunk_index >= chunk_total;
+        
         await supabase
           .from("cobranca_automacao_execucoes")
           .update({
-            status: 'sucesso',
+            status: isLastChunk ? 'sucesso' : 'executando',
             erro: null,
-            finalizado_at: new Date().toISOString(),
-            registros_processados: processados,
-            registros_total: dados.length,
+            finalizado_at: isLastChunk ? new Date().toISOString() : null,
+            registros_processados: totalProcessados,
+            registros_total: totalGeral,
             nome_arquivo: nomeArquivo,
             progresso_download: 100,
-            progresso_importacao: 100,
-            etapa_atual: 'concluido',
+            progresso_importacao: isLastChunk ? 100 : Math.round((totalProcessados / totalGeral) * 100),
+            etapa_atual: isLastChunk ? 'concluido' : 'importacao',
           })
           .eq("id", targetExecucaoId);
       } else {
@@ -860,31 +896,39 @@ serve(async (req) => {
         // Se não existir, criamos um registro de histórico para não perder o log.
         const { data: lastRunning } = await supabase
           .from("cobranca_automacao_execucoes")
-          .select("id")
+          .select("id, registros_processados")
           .eq("config_id", configId)
           .eq("status", "executando")
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
 
+        const previousProcessados = lastRunning?.registros_processados || 0;
+        const totalProcessados = previousProcessados + processados;
+        const totalGeral = (typeof total_registros === 'number' && total_registros > 0) 
+          ? total_registros 
+          : totalProcessados;
+        const isLastChunk = !chunk_total || !chunk_index || chunk_index >= chunk_total;
+
         if (lastRunning?.id) {
           await supabase
             .from("cobranca_automacao_execucoes")
             .update({
-              status: 'sucesso',
+              status: isLastChunk ? 'sucesso' : 'executando',
               erro: null,
-              finalizado_at: new Date().toISOString(),
-              registros_processados: processados,
-              registros_total: dados.length,
+              finalizado_at: isLastChunk ? new Date().toISOString() : null,
+              registros_processados: totalProcessados,
+              registros_total: totalGeral,
               nome_arquivo: nomeArquivo,
               progresso_download: 100,
-              progresso_importacao: 100,
-              etapa_atual: 'concluido',
+              progresso_importacao: isLastChunk ? 100 : Math.round((totalProcessados / totalGeral) * 100),
+              etapa_atual: isLastChunk ? 'concluido' : 'importacao',
               github_run_id: githubRunIdStr,
               github_run_url: github_run_url || null,
             })
             .eq("id", lastRunning.id);
-        } else {
+        } else if (isLastChunk) {
+          // Só cria novo registro se for o último chunk
           await supabase
             .from("cobranca_automacao_execucoes")
             .insert({
@@ -893,8 +937,8 @@ serve(async (req) => {
               status: 'sucesso',
               erro: null,
               finalizado_at: new Date().toISOString(),
-              registros_processados: processados,
-              registros_total: dados.length,
+              registros_processados: totalProcessados,
+              registros_total: totalGeral,
               nome_arquivo: nomeArquivo,
               progresso_download: 100,
               progresso_importacao: 100,
