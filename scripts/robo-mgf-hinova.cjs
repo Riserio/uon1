@@ -1576,59 +1576,96 @@ async function gerarEBaixarRelatorio(page, context) {
   page.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
   
   await saveDebugInfo(page, 'antes_gerar');
-  
-  // Encontrar botão Gerar
-  const btnSelectors = [
-    'button:has-text("Gerar")',
-    'input[type="submit"][value*="Gerar"]',
-    'input[type="button"][value*="Gerar"]',
-    'a:has-text("Gerar")',
-    'button:has-text("Pesquisar")',
-    'input[type="submit"][value*="Pesquisar"]',
-    'button:has-text("Consultar")',
-    'button.btn-primary',
-    'button.btn-success',
-    'input.btn-primary[type="submit"]',
-    '#btnGerar',
-    '#btnPesquisar',
-  ];
-  
-  let gerarBtn = null;
-  for (const selector of btnSelectors) {
-    const btn = page.locator(selector).first();
-    if (await btn.isVisible({ timeout: 1000 }).catch(() => false)) {
-      const btnText = await btn.textContent().catch(() => '') || await btn.getAttribute('value').catch(() => '');
-      log(`Botão encontrado: ${selector} - "${btnText?.trim()}"`, LOG_LEVELS.DEBUG);
-      gerarBtn = btn;
-      break;
-    }
-  }
-  
-  if (!gerarBtn) {
-    // Fallback: qualquer submit visível
-    const allSubmits = await page.locator('input[type="submit"], button[type="submit"]').all();
-    for (const btn of allSubmits) {
-      if (await btn.isVisible().catch(() => false)) {
-        const btnText = await btn.getAttribute('value').catch(() => '') || await btn.textContent().catch(() => '');
-        log(`Fallback - Botão submit encontrado: "${btnText}"`, LOG_LEVELS.DEBUG);
-        gerarBtn = btn;
-        break;
+
+  // Alguns portais Hinova exibem um botão "Liberar" (destrava filtros) e só depois o botão real de geração.
+  // Se clicarmos no botão errado, nenhum download é disparado e ficamos aguardando indefinidamente.
+  const clickOptionalButton = async (keywords, label) => {
+    const lowered = keywords.map((k) => k.toLowerCase());
+    const candidates = page.locator('button, input[type="submit"], input[type="button"], a');
+    const count = await candidates.count().catch(() => 0);
+    for (let i = 0; i < count; i++) {
+      const el = candidates.nth(i);
+      const visible = await el.isVisible().catch(() => false);
+      if (!visible) continue;
+      const text = (
+        (await el.textContent().catch(() => '')) ||
+        (await el.getAttribute('value').catch(() => '')) ||
+        ''
+      ).trim();
+      const t = text.toLowerCase();
+      if (!t) continue;
+      if (lowered.some((k) => t.includes(k))) {
+        log(`Botão opcional detectado (${label}): "${text}"`, LOG_LEVELS.DEBUG);
+        await el.click({ timeout: 15000, force: true }).catch(() => {});
+        await page.waitForTimeout(1500);
+        return true;
       }
     }
-  }
+    return false;
+  };
+
+  const findActionButton = async () => {
+    // Preferir botões explícitos de geração/exportação.
+    const prefer = ['gerar', 'exportar', 'baixar', 'download', 'imprimir', 'excel', 'xls', 'xlsx', 'liberar'];
+    const exclude = ['fechar', 'cancelar', 'voltar', 'sair', 'limpar', 'reset'];
+
+    const candidates = page.locator('button, input[type="submit"], input[type="button"], a');
+    const count = await candidates.count().catch(() => 0);
+
+    const scored = [];
+    for (let i = 0; i < count; i++) {
+      const el = candidates.nth(i);
+      const visible = await el.isVisible().catch(() => false);
+      if (!visible) continue;
+      const text = (
+        (await el.textContent().catch(() => '')) ||
+        (await el.getAttribute('value').catch(() => '')) ||
+        ''
+      ).trim();
+      if (!text) continue;
+      const t = text.toLowerCase();
+      if (exclude.some((k) => t.includes(k))) continue;
+
+      let score = 0;
+      if (t.includes('gerar')) score += 50;
+      if (t.includes('export')) score += 40;
+      if (t.includes('baix')) score += 35;
+      if (t.includes('download')) score += 35;
+      if (t.includes('excel') || t.includes('xls')) score += 30;
+      if (t.includes('pesquisar') || t.includes('consultar')) score += 10;
+      if (t.includes('liberar')) score -= 100; // nunca tratar "Liberar" como botão final de download
+      if (prefer.some((k) => t.includes(k))) score += 1;
+
+      scored.push({ el, text, score });
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+    const best = scored[0];
+    if (!best || best.score <= 0) return null;
+    log(`Botão de ação selecionado: "${best.text}" (score=${best.score})`, LOG_LEVELS.DEBUG);
+    return best.el;
+  };
+  
+  // 1) Se houver botão "Liberar", clicar (sem iniciar download ainda)
+  await clickOptionalButton(['liberar'], 'LIBERAR');
+
+  // 2) Encontrar o botão real de geração/exportação (NÃO usar btn-primary genérico)
+  let gerarBtn = await findActionButton();
   
   if (!gerarBtn) {
     await saveDebugInfo(page, 'botao_nao_encontrado');
     throw new Error('Botão Gerar/Pesquisar não encontrado na página');
   }
-  
+
+  // Preparar captura ANTES do clique para não perder downloads rápidos
+  const downloadPromise = aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
+
   // Clicar e aguardar download usando sistema híbrido
-  log('Clicando no botão Gerar...', LOG_LEVELS.INFO);
+  log('Clicando no botão Gerar/Exportar...', LOG_LEVELS.INFO);
   await gerarBtn.click({ timeout: 15000, force: true });
-  log('Botão Gerar clicado', LOG_LEVELS.SUCCESS);
-  
-  // Usar sistema híbrido de download
-  const result = await aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
+  log('Botão de geração clicado', LOG_LEVELS.SUCCESS);
+
+  const result = await downloadPromise;
   
   if (!result.success) {
     await saveDebugInfo(page, 'download_falhou');
