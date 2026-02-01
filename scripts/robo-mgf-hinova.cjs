@@ -1,0 +1,703 @@
+#!/usr/bin/env node
+/**
+ * Robô de Automação - MGF Hinova (Lançamentos Financeiros)
+ * ========================================================
+ * 
+ * FLUXO:
+ * 1. Login no portal Hinova
+ * 2. Navegar para MGF > Relatórios > 5.1 de Lançamentos
+ * 3. Selecionar Centro de Custo/Departamento (apenas com "EVENTOS")
+ * 4. Selecionar Layout "BI VANGARD FINANCEIROS EVENTOS"
+ * 5. Selecionar tipo de relatório "Em Excel"
+ * 6. Gerar e baixar relatório
+ * 7. Enviar dados via webhook
+ * 
+ * REQUISITOS:
+ * -----------
+ * npm install playwright axios xlsx
+ * npx playwright install chromium
+ */
+
+const { chromium } = require('playwright');
+const axios = require('axios');
+const XLSX = require('xlsx');
+const fs = require('fs');
+const path = require('path');
+
+// ============================================
+// CONFIGURAÇÃO
+// ============================================
+
+function deriveRelatorioUrl(loginUrl) {
+  try {
+    const url = new URL(loginUrl);
+    const pathParts = url.pathname.split('/');
+    const basePathParts = pathParts.filter(p => 
+      p && !p.includes('login') && !p.includes('Principal') && p !== 'v5'
+    );
+    const basePath = '/' + basePathParts.join('/');
+    return `${url.origin}${basePath}/mgf/relatorio/relatorioLancamento.php`;
+  } catch (e) {
+    return 'https://eris.hinova.com.br/sga/sgav4_valecar/mgf/relatorio/relatorioLancamento.php';
+  }
+}
+
+const HINOVA_URL = process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php';
+
+const CONFIG = {
+  HINOVA_URL: HINOVA_URL,
+  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || deriveRelatorioUrl(HINOVA_URL),
+  HINOVA_USER: process.env.HINOVA_USER || '',
+  HINOVA_PASS: process.env.HINOVA_PASS || '',
+  HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '',
+  HINOVA_LAYOUT: process.env.HINOVA_LAYOUT || 'BI VANGARD FINANCEIROS EVENTOS',
+  
+  // Centros de custo a marcar (contém "EVENTOS")
+  CENTROS_CUSTO_EVENTOS: ['EVENTOS', 'EVENTOS NAO PROVISIONADO', 'EVENTOS RATEAVEIS', 'EVENTOS NÃO PROVISIONADO', 'EVENTOS RATEÁVEIS'],
+  
+  WEBHOOK_URL: process.env.WEBHOOK_URL || '',
+  WEBHOOK_SECRET: process.env.WEBHOOK_SECRET || '',
+  
+  CORRETORA_ID: process.env.CORRETORA_ID || '',
+  EXECUCAO_ID: process.env.EXECUCAO_ID || '',
+  GITHUB_RUN_ID: process.env.GITHUB_RUN_ID || '',
+  GITHUB_RUN_URL: process.env.GITHUB_RUN_URL || '',
+  
+  DOWNLOAD_BASE_DIR: process.env.DOWNLOAD_DIR || './downloads',
+  DEBUG_DIR: process.env.DEBUG_DIR || './debug',
+};
+
+// ============================================
+// CONSTANTES
+// ============================================
+const TIMEOUTS = {
+  PAGE_LOAD: 90000,
+  LOGIN_RETRY_WAIT: 8000,
+  DOWNLOAD_EVENT: 3 * 60000,
+  DOWNLOAD_TOTAL: 40 * 60000,
+  DOWNLOAD_SAVE: 40 * 60000,
+  DOWNLOAD_IDLE: 40 * 60000,
+  DOWNLOAD_HARD: 55 * 60000,
+  POPUP_CLOSE: 800,
+};
+
+const LIMITS = {
+  MAX_LOGIN_RETRIES: 20,
+  MAX_POPUP_CLOSE_ATTEMPTS: 10,
+  MAX_DOWNLOAD_RETRIES: 3,
+};
+
+// ============================================
+// LOGGING
+// ============================================
+const LOG_LEVELS = {
+  INFO: 'INFO',
+  WARN: 'WARN',
+  ERROR: 'ERROR',
+  SUCCESS: 'SUCCESS',
+  DEBUG: 'DEBUG',
+};
+
+let currentStep = 'INIT';
+
+function setStep(step) {
+  currentStep = step;
+}
+
+function log(msg, level = LOG_LEVELS.INFO) {
+  const timestamp = new Date().toISOString();
+  const emoji = {
+    INFO: '📌',
+    WARN: '⚠️',
+    ERROR: '❌',
+    SUCCESS: '✅',
+    DEBUG: '🔍',
+  }[level] || '📌';
+  console.log(`[${timestamp}] ${emoji} [${level}] ${msg}`);
+}
+
+// ============================================
+// UTILS
+// ============================================
+function normalizeText(str) {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function getDownloadDirectory() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const dir = path.join(CONFIG.DOWNLOAD_BASE_DIR, String(year), month);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
+function generateSemanticFilename() {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
+  return `MGF_${day}${month}${year}.xlsx`;
+}
+
+// ============================================
+// WEBHOOK
+// ============================================
+async function sendWebhook(payload) {
+  if (!CONFIG.WEBHOOK_URL) {
+    log('WEBHOOK_URL não configurado', LOG_LEVELS.WARN);
+    return;
+  }
+
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (CONFIG.WEBHOOK_SECRET) {
+      headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
+    }
+
+    await axios.post(CONFIG.WEBHOOK_URL, payload, { headers, timeout: 120000 });
+    log('Webhook enviado com sucesso', LOG_LEVELS.SUCCESS);
+  } catch (error) {
+    log(`Erro ao enviar webhook: ${error.message}`, LOG_LEVELS.ERROR);
+  }
+}
+
+async function updateProgress(status, etapa, extras = {}) {
+  await sendWebhook({
+    corretora_id: CONFIG.CORRETORA_ID,
+    execucao_id: CONFIG.EXECUCAO_ID,
+    github_run_id: CONFIG.GITHUB_RUN_ID,
+    github_run_url: CONFIG.GITHUB_RUN_URL,
+    update_progress: true,
+    status,
+    etapa_atual: etapa,
+    ...extras,
+  });
+}
+
+async function notifyStart() {
+  await sendWebhook({
+    corretora_id: CONFIG.CORRETORA_ID,
+    execucao_id: CONFIG.EXECUCAO_ID,
+    github_run_id: CONFIG.GITHUB_RUN_ID,
+    github_run_url: CONFIG.GITHUB_RUN_URL,
+    action: 'start',
+  });
+}
+
+async function notifyError(message) {
+  await sendWebhook({
+    corretora_id: CONFIG.CORRETORA_ID,
+    execucao_id: CONFIG.EXECUCAO_ID,
+    github_run_id: CONFIG.GITHUB_RUN_ID,
+    github_run_url: CONFIG.GITHUB_RUN_URL,
+    action: 'error',
+    error_message: message,
+  });
+}
+
+// ============================================
+// DEBUG
+// ============================================
+async function saveDebugInfo(page, prefix = 'debug') {
+  try {
+    const debugDir = CONFIG.DEBUG_DIR;
+    if (!fs.existsSync(debugDir)) {
+      fs.mkdirSync(debugDir, { recursive: true });
+    }
+    
+    const timestamp = Date.now();
+    const screenshotPath = path.join(debugDir, `${prefix}_${timestamp}.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+    
+    const htmlPath = path.join(debugDir, `${prefix}_${timestamp}.html`);
+    const html = await page.content().catch(() => '');
+    if (html) {
+      fs.writeFileSync(htmlPath, html.substring(0, 50000));
+    }
+    
+    log(`Debug salvo: ${screenshotPath}`, LOG_LEVELS.DEBUG);
+  } catch (e) {
+    log(`Erro ao salvar debug: ${e.message}`, LOG_LEVELS.WARN);
+  }
+}
+
+// ============================================
+// PROCESSAMENTO DE ARQUIVO
+// ============================================
+function extrairTexto(html) {
+  return String(html || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(n))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function processarTabelaHtml(htmlContent) {
+  log('Processando arquivo como tabela HTML...', LOG_LEVELS.INFO);
+  
+  // Extrair headers do thead
+  const theadMatch = htmlContent.match(/<thead[^>]*>([\s\S]*?)<\/thead>/i);
+  let headers = [];
+  
+  if (theadMatch) {
+    const headerMatches = theadMatch[1].match(/<th[^>]*>([\s\S]*?)<\/th>/gi) || [];
+    headers = headerMatches.map(th => extrairTexto(th));
+    log(`Headers encontrados: ${headers.length}`, LOG_LEVELS.DEBUG);
+  }
+  
+  // Extrair dados do tbody
+  const tbodyMatch = htmlContent.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
+  const registros = [];
+  
+  if (tbodyMatch) {
+    const rowMatches = tbodyMatch[1].match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [];
+    log(`Linhas encontradas no tbody: ${rowMatches.length}`, LOG_LEVELS.DEBUG);
+    
+    for (const row of rowMatches) {
+      const cellMatches = row.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || [];
+      const values = cellMatches.map(td => extrairTexto(td));
+      
+      if (values.length > 0 && values.some(v => v.length > 0)) {
+        const record = {};
+        headers.forEach((h, i) => {
+          if (h && values[i] !== undefined) {
+            record[h] = values[i];
+          }
+        });
+        registros.push(record);
+      }
+    }
+  }
+  
+  log(`Registros extraídos da tabela HTML: ${registros.length}`, LOG_LEVELS.SUCCESS);
+  return registros;
+}
+
+function processarArquivo(filePath) {
+  log(`Processando arquivo: ${filePath}`, LOG_LEVELS.INFO);
+  
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Arquivo não encontrado: ${filePath}`);
+  }
+  
+  const fileBuffer = fs.readFileSync(filePath);
+  const fileSize = fileBuffer.length;
+  log(`Tamanho do arquivo: ${formatBytes(fileSize)}`, LOG_LEVELS.DEBUG);
+  
+  // Detectar tipo de arquivo
+  const header = fileBuffer.slice(0, 100).toString('utf8');
+  const isHtml = header.includes('<html') || header.includes('<table') || header.includes('<!DOCTYPE');
+  
+  if (isHtml) {
+    log('Arquivo detectado como HTML', LOG_LEVELS.INFO);
+    const htmlContent = fileBuffer.toString('utf8');
+    
+    // Verificar se é erro do portal
+    if (htmlContent.includes('Nenhum registro encontrado') || htmlContent.includes('Sem dados')) {
+      log('Portal retornou "Nenhum registro encontrado"', LOG_LEVELS.WARN);
+      return [];
+    }
+    
+    return processarTabelaHtml(htmlContent);
+  }
+  
+  // Tentar processar como Excel
+  try {
+    log('Processando como arquivo Excel...', LOG_LEVELS.INFO);
+    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+    
+    if (jsonData.length > 0) {
+      log(`Registros extraídos do Excel: ${jsonData.length}`, LOG_LEVELS.SUCCESS);
+      return jsonData;
+    }
+    
+    // Tentar ler como raw para detectar HTML disfarçado
+    const rawData = XLSX.utils.sheet_to_csv(firstSheet);
+    if (rawData.includes('<html') || rawData.includes('<table')) {
+      log('Excel contém HTML, processando como HTML...', LOG_LEVELS.INFO);
+      return processarTabelaHtml(rawData);
+    }
+    
+    return jsonData;
+  } catch (e) {
+    log(`Erro ao processar Excel: ${e.message}`, LOG_LEVELS.WARN);
+    
+    // Fallback: tentar como HTML
+    const content = fileBuffer.toString('utf8');
+    if (content.includes('<table')) {
+      return processarTabelaHtml(content);
+    }
+    
+    throw e;
+  }
+}
+
+// ============================================
+// LOGIN
+// ============================================
+async function realizarLogin(page) {
+  setStep('LOGIN');
+  log(`Acessando: ${CONFIG.HINOVA_URL}`, LOG_LEVELS.INFO);
+  
+  await page.goto(CONFIG.HINOVA_URL, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
+  await page.waitForTimeout(2000);
+  
+  // Preencher credenciais
+  const userInput = page.locator('input[name="usuario"], input[name="login"], input[id*="usuario"], input[id*="login"], input[type="text"]').first();
+  const passInput = page.locator('input[name="senha"], input[name="password"], input[type="password"]').first();
+  
+  if (await userInput.isVisible()) {
+    await userInput.fill(CONFIG.HINOVA_USER);
+    log('Usuário preenchido', LOG_LEVELS.DEBUG);
+  }
+  
+  if (await passInput.isVisible()) {
+    await passInput.fill(CONFIG.HINOVA_PASS);
+    log('Senha preenchida', LOG_LEVELS.DEBUG);
+  }
+  
+  // Preencher código do cliente se houver
+  if (CONFIG.HINOVA_CODIGO_CLIENTE) {
+    const codigoInput = page.locator('input[name*="codigo"], input[id*="codigo"], input[placeholder*="Código"]').first();
+    if (await codigoInput.isVisible().catch(() => false)) {
+      await codigoInput.fill(CONFIG.HINOVA_CODIGO_CLIENTE);
+      log('Código do cliente preenchido', LOG_LEVELS.DEBUG);
+    }
+  }
+  
+  // Clicar no botão de login
+  const loginBtn = page.locator('button[type="submit"], input[type="submit"], button:has-text("Entrar"), button:has-text("Login"), a:has-text("Entrar")').first();
+  await loginBtn.click();
+  log('Botão de login clicado', LOG_LEVELS.INFO);
+  
+  await page.waitForTimeout(5000);
+  
+  // Verificar se login foi bem sucedido
+  const currentUrl = page.url();
+  if (currentUrl.includes('login')) {
+    // Pode haver seleção de perfil/layout
+    await saveDebugInfo(page, 'apos_login');
+  }
+  
+  log('Login realizado com sucesso', LOG_LEVELS.SUCCESS);
+}
+
+// ============================================
+// NAVEGAÇÃO E FILTROS
+// ============================================
+async function navegarParaRelatorio(page) {
+  setStep('NAVEGACAO');
+  log(`Navegando para: ${CONFIG.HINOVA_RELATORIO_URL}`, LOG_LEVELS.INFO);
+  
+  await page.goto(CONFIG.HINOVA_RELATORIO_URL, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
+  await page.waitForTimeout(3000);
+  
+  log('Página de relatório carregada', LOG_LEVELS.SUCCESS);
+  await saveDebugInfo(page, 'pagina_relatorio');
+}
+
+async function configurarFiltros(page) {
+  setStep('FILTROS');
+  log('Configurando filtros...', LOG_LEVELS.INFO);
+  
+  // 1. Desmarcar "TODOS" no Centro de Custo/Departamento primeiro
+  const todosCentroCusto = page.locator('input[type="checkbox"]').filter({ hasText: /todos/i }).first();
+  if (await todosCentroCusto.isVisible().catch(() => false)) {
+    if (await todosCentroCusto.isChecked()) {
+      await todosCentroCusto.uncheck();
+      log('Desmarcado checkbox TODOS do Centro de Custo', LOG_LEVELS.DEBUG);
+      await page.waitForTimeout(500);
+    }
+  }
+  
+  // 2. Desmarcar todos os checkboxes de Centro de Custo
+  const allCentroCustoCheckboxes = await page.locator('input[type="checkbox"][name*="centro"], input[type="checkbox"][name*="custo"], input[type="checkbox"][name*="departamento"]').all();
+  for (const cb of allCentroCustoCheckboxes) {
+    try {
+      if (await cb.isChecked()) {
+        await cb.uncheck();
+      }
+    } catch {}
+  }
+  
+  // 3. Marcar apenas os centros de custo com "EVENTOS"
+  log('Marcando centros de custo com EVENTOS...', LOG_LEVELS.INFO);
+  let centrosMarcados = 0;
+  
+  // Buscar todos os checkboxes e seus labels
+  const checkboxes = await page.locator('input[type="checkbox"]').all();
+  
+  for (const checkbox of checkboxes) {
+    try {
+      // Pegar o texto do label associado
+      const parentLabel = checkbox.locator('xpath=..').first();
+      const labelText = await parentLabel.textContent().catch(() => '');
+      const normalizedLabel = normalizeText(labelText);
+      
+      // Verificar se contém "eventos"
+      if (normalizedLabel.includes('evento')) {
+        await checkbox.check();
+        centrosMarcados++;
+        log(`Marcado centro de custo: ${labelText.trim().substring(0, 50)}`, LOG_LEVELS.DEBUG);
+        await page.waitForTimeout(200);
+      }
+    } catch (e) {
+      // Continuar com próximo checkbox
+    }
+  }
+  
+  log(`Total de centros de custo marcados: ${centrosMarcados}`, LOG_LEVELS.INFO);
+  
+  if (centrosMarcados === 0) {
+    // Fallback: tentar buscar por texto direto
+    for (const centro of CONFIG.CENTROS_CUSTO_EVENTOS) {
+      try {
+        const checkbox = page.locator(`input[type="checkbox"]`).filter({ hasText: centro }).first();
+        if (await checkbox.isVisible().catch(() => false)) {
+          await checkbox.check();
+          centrosMarcados++;
+          log(`Marcado centro de custo (fallback): ${centro}`, LOG_LEVELS.DEBUG);
+        }
+      } catch {}
+    }
+  }
+  
+  // 4. Selecionar Layout "BI VANGARD FINANCEIROS EVENTOS"
+  log('Selecionando layout...', LOG_LEVELS.INFO);
+  const layoutSelect = page.locator('select[name*="layout"], select[id*="layout"], select[name*="dados"]').first();
+  
+  if (await layoutSelect.isVisible().catch(() => false)) {
+    const options = await layoutSelect.locator('option').allTextContents();
+    const targetOption = options.find(opt => normalizeText(opt).includes('vangard') && normalizeText(opt).includes('financeiro'));
+    
+    if (targetOption) {
+      await layoutSelect.selectOption({ label: targetOption });
+      log(`Layout selecionado: ${targetOption}`, LOG_LEVELS.SUCCESS);
+    } else {
+      // Tentar selecionar por valor parcial
+      await layoutSelect.selectOption({ label: CONFIG.HINOVA_LAYOUT }).catch(() => {});
+      log(`Tentativa de selecionar layout: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.INFO);
+    }
+    
+    await page.waitForTimeout(1000);
+  }
+  
+  // 5. Selecionar tipo de relatório "Em Excel"
+  log('Selecionando formato Excel...', LOG_LEVELS.INFO);
+  const excelRadio = page.locator('input[type="radio"][value*="excel"], input[type="radio"][value*="xls"]').first();
+  
+  if (await excelRadio.isVisible().catch(() => false)) {
+    await excelRadio.check();
+    log('Formato Excel selecionado via radio', LOG_LEVELS.SUCCESS);
+  } else {
+    // Tentar select
+    const formatSelect = page.locator('select[name*="tipo"], select[name*="formato"], select[name*="exibicao"]').first();
+    if (await formatSelect.isVisible().catch(() => false)) {
+      const options = await formatSelect.locator('option').allTextContents();
+      const excelOption = options.find(opt => normalizeText(opt).includes('excel'));
+      if (excelOption) {
+        await formatSelect.selectOption({ label: excelOption });
+        log(`Formato selecionado: ${excelOption}`, LOG_LEVELS.SUCCESS);
+      }
+    }
+  }
+  
+  await saveDebugInfo(page, 'filtros_configurados');
+  log('Filtros configurados', LOG_LEVELS.SUCCESS);
+}
+
+// ============================================
+// DOWNLOAD
+// ============================================
+async function gerarEBaixarRelatorio(page) {
+  setStep('DOWNLOAD');
+  log('Gerando relatório...', LOG_LEVELS.INFO);
+  
+  const downloadDir = getDownloadDirectory();
+  const filename = generateSemanticFilename();
+  const filePath = path.join(downloadDir, filename);
+  
+  log(`Diretório de download: ${downloadDir}`, LOG_LEVELS.INFO);
+  
+  // Configurar listener de download
+  const downloadPromise = page.waitForEvent('download', { timeout: TIMEOUTS.DOWNLOAD_EVENT });
+  
+  // Clicar no botão Gerar
+  const gerarBtn = page.locator('button:has-text("Gerar"), input[type="submit"][value*="Gerar"], a:has-text("Gerar"), button:has-text("Pesquisar"), input[value*="Pesquisar"]').first();
+  
+  await gerarBtn.click();
+  log('Botão Gerar clicado', LOG_LEVELS.SUCCESS);
+  
+  // Aguardar download
+  log('Aguardando download...', LOG_LEVELS.INFO);
+  
+  try {
+    const download = await downloadPromise;
+    const suggestedName = download.suggestedFilename();
+    log(`Download iniciado: ${suggestedName}`, LOG_LEVELS.SUCCESS);
+    
+    // Salvar arquivo
+    await download.saveAs(filePath);
+    log(`Arquivo salvo: ${filePath}`, LOG_LEVELS.SUCCESS);
+    
+    // Validar arquivo
+    if (fs.existsSync(filePath)) {
+      const stats = fs.statSync(filePath);
+      log(`Validação OK: ${formatBytes(stats.size)}`, LOG_LEVELS.SUCCESS);
+      return filePath;
+    }
+  } catch (e) {
+    log(`Erro no download: ${e.message}`, LOG_LEVELS.ERROR);
+    await saveDebugInfo(page, 'erro_download');
+    throw e;
+  }
+  
+  throw new Error('Falha ao baixar arquivo');
+}
+
+// ============================================
+// MAIN
+// ============================================
+async function main() {
+  log('============================================================', LOG_LEVELS.SUCCESS);
+  log('ROBÔ MGF HINOVA - INICIANDO', LOG_LEVELS.SUCCESS);
+  log('============================================================', LOG_LEVELS.SUCCESS);
+  
+  // Notificar início
+  await notifyStart();
+  await updateProgress('executando', 'login');
+  
+  let browser;
+  let filePath;
+  
+  try {
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+    
+    const context = await browser.newContext({
+      viewport: { width: 1920, height: 1080 },
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    });
+    
+    const page = await context.newPage();
+    
+    // Login
+    await realizarLogin(page);
+    await updateProgress('executando', 'navegacao');
+    
+    // Navegar para relatório
+    await navegarParaRelatorio(page);
+    await updateProgress('executando', 'filtros');
+    
+    // Configurar filtros
+    await configurarFiltros(page);
+    await updateProgress('executando', 'download');
+    
+    // Gerar e baixar relatório
+    filePath = await gerarEBaixarRelatorio(page);
+    await updateProgress('executando', 'processamento');
+    
+    // Processar arquivo
+    log('Processando arquivo...', LOG_LEVELS.INFO);
+    const registros = processarArquivo(filePath);
+    log(`Arquivo processado: ${registros.length} registros`, LOG_LEVELS.SUCCESS);
+    
+    if (registros.length === 0) {
+      log('⚠️ Arquivo processado, mas sem registros', LOG_LEVELS.WARN);
+    }
+    
+    await updateProgress('executando', 'importacao');
+    
+    // Enviar registros em lotes
+    log(`Enviando ${registros.length} registros via webhook...`, LOG_LEVELS.INFO);
+    
+    const batchSize = 100;
+    const totalBatches = Math.ceil(registros.length / batchSize) || 1;
+    
+    for (let i = 0; i < totalBatches; i++) {
+      const batch = registros.slice(i * batchSize, (i + 1) * batchSize);
+      
+      await sendWebhook({
+        corretora_id: CONFIG.CORRETORA_ID,
+        execucao_id: CONFIG.EXECUCAO_ID,
+        github_run_id: CONFIG.GITHUB_RUN_ID,
+        github_run_url: CONFIG.GITHUB_RUN_URL,
+        dados: batch,
+        nome_arquivo: path.basename(filePath),
+        total_registros: registros.length,
+        chunk_index: i,
+        chunk_total: totalBatches,
+      });
+      
+      const progresso = Math.round(((i + 1) / totalBatches) * 100);
+      log(`Batch ${i + 1}/${totalBatches} enviado (${progresso}%)`, LOG_LEVELS.INFO);
+    }
+    
+    // Sucesso final
+    await sendWebhook({
+      corretora_id: CONFIG.CORRETORA_ID,
+      execucao_id: CONFIG.EXECUCAO_ID,
+      github_run_id: CONFIG.GITHUB_RUN_ID,
+      github_run_url: CONFIG.GITHUB_RUN_URL,
+      update_progress: true,
+      status: 'sucesso',
+      etapa_atual: 'concluido',
+      registros_total: registros.length,
+      registros_processados: registros.length,
+      progresso_importacao: 100,
+      nome_arquivo: path.basename(filePath),
+    });
+    
+    log('============================================================', LOG_LEVELS.SUCCESS);
+    log('ROBÔ MGF HINOVA - CONCLUÍDO COM SUCESSO', LOG_LEVELS.SUCCESS);
+    log(`Total de registros: ${registros.length}`, LOG_LEVELS.SUCCESS);
+    log('============================================================', LOG_LEVELS.SUCCESS);
+    
+    // Limpar debug em caso de sucesso
+    try {
+      if (fs.existsSync(CONFIG.DEBUG_DIR)) {
+        fs.rmSync(CONFIG.DEBUG_DIR, { recursive: true, force: true });
+        log('Debug files removidos (sucesso)', LOG_LEVELS.DEBUG);
+      }
+    } catch {}
+    
+  } catch (error) {
+    log(`ERRO FATAL: ${error.message}`, LOG_LEVELS.ERROR);
+    await notifyError(error.message);
+    throw error;
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+}
+
+// Executar
+main().catch((err) => {
+  console.error('Erro fatal:', err);
+  process.exit(1);
+});
