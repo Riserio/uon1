@@ -469,63 +469,61 @@ export default function Emails() {
           </div>
         </div>
 
-        <Tabs defaultValue="dashboard" className="space-y-6">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-4 gap-4">
-            <TabsList className="grid w-full grid-cols-4 md:grid-cols-10 gap-1.5 h-auto p-1.5 bg-muted">
-              <TabsTrigger value="dashboard" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                <BarChart3 className="h-4 w-4" />
-                <span className="hidden sm:inline">Dashboard</span>
-              </TabsTrigger>
-              <TabsTrigger value="resend" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                <Settings className="h-4 w-4" />
-                <span className="hidden sm:inline">Resend</span>
-              </TabsTrigger>
-              <TabsTrigger value="smtp" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                <Mail className="h-4 w-4" />
-                <span className="hidden sm:inline">SMTP</span>
-              </TabsTrigger>
-              <TabsTrigger value="templates" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                <FileText className="h-4 w-4" />
-                <span className="hidden sm:inline">Templates</span>
-              </TabsTrigger>
-              <TabsTrigger value="regras" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                <Target className="h-4 w-4" />
-                <span className="hidden sm:inline">Regras</span>
-              </TabsTrigger>
-              <TabsTrigger value="historico" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                <History className="h-4 w-4" />
-                <span className="hidden sm:inline">Histórico</span>
-              </TabsTrigger>
-              <TabsTrigger value="whatsapp-config" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
-                <MessageCircle className="h-4 w-4" />
-                <span className="hidden sm:inline">WhatsApp</span>
-              </TabsTrigger>
-              <TabsTrigger value="whatsapp-templates" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
-                <FileText className="h-4 w-4" />
-                <span className="hidden sm:inline">WA Templates</span>
-              </TabsTrigger>
-              <TabsTrigger value="whatsapp-envio" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
-                <Send className="h-4 w-4" />
-                <span className="hidden sm:inline">WA Envio</span>
-              </TabsTrigger>
-              <TabsTrigger value="whatsapp-historico" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
-                <History className="h-4 w-4" />
-                <span className="hidden sm:inline">WA Histórico</span>
-              </TabsTrigger>
-            </TabsList>
-            <div className="flex items-center gap-3 bg-muted/50 px-4 py-2.5 rounded-lg border shrink-0">
-              <Label className="text-sm font-medium cursor-pointer whitespace-nowrap" htmlFor="email-auto-toggle">
-                Envio Automático
-              </Label>
-              <Checkbox
-                id="email-auto-toggle"
-                checked={emailAuto.enabled}
-                onCheckedChange={handleToggleEmailAuto}
-              />
-            </div>
-          </div>
+        <Tabs defaultValue="email" className="space-y-6">
+          <TabsList className="grid w-full max-w-md grid-cols-2 h-12">
+            <TabsTrigger value="email" className="gap-2 h-10 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Mail className="h-5 w-5" />
+              E-mail
+            </TabsTrigger>
+            <TabsTrigger value="whatsapp" className="gap-2 h-10 text-base data-[state=active]:bg-green-600 data-[state=active]:text-white">
+              <MessageCircle className="h-5 w-5" />
+              WhatsApp
+            </TabsTrigger>
+          </TabsList>
 
-          <TabsContent value="dashboard">
+          {/* E-mail Tab Content */}
+          <TabsContent value="email" className="space-y-6">
+            <Tabs defaultValue="dashboard" className="space-y-4">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 gap-1.5 h-auto p-1.5 bg-muted">
+                  <TabsTrigger value="dashboard" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <BarChart3 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Dashboard</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="resend" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <Settings className="h-4 w-4" />
+                    <span className="hidden sm:inline">Resend</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="smtp" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <Mail className="h-4 w-4" />
+                    <span className="hidden sm:inline">SMTP</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="templates" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <FileText className="h-4 w-4" />
+                    <span className="hidden sm:inline">Templates</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="regras" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <Target className="h-4 w-4" />
+                    <span className="hidden sm:inline">Regras</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="historico" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <History className="h-4 w-4" />
+                    <span className="hidden sm:inline">Histórico</span>
+                  </TabsTrigger>
+                </TabsList>
+                <div className="flex items-center gap-3 bg-muted/50 px-4 py-2.5 rounded-lg border shrink-0">
+                  <Label className="text-sm font-medium cursor-pointer whitespace-nowrap" htmlFor="email-auto-toggle">
+                    Envio Automático
+                  </Label>
+                  <Checkbox
+                    id="email-auto-toggle"
+                    checked={emailAuto.enabled}
+                    onCheckedChange={handleToggleEmailAuto}
+                  />
+                </div>
+              </div>
+
+              <TabsContent value="dashboard">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <Card>
                 <CardHeader className="pb-3">
@@ -1235,22 +1233,47 @@ export default function Emails() {
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* WhatsApp Tabs */}
-          <TabsContent value="whatsapp-config">
-            <WhatsAppConfig />
+            </Tabs>
           </TabsContent>
 
-          <TabsContent value="whatsapp-templates">
-            <WhatsAppTemplates />
-          </TabsContent>
+          {/* WhatsApp Tab Content */}
+          <TabsContent value="whatsapp" className="space-y-6">
+            <Tabs defaultValue="config" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1.5 h-auto p-1.5 bg-muted">
+                <TabsTrigger value="config" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
+                  <Settings className="h-4 w-4" />
+                  <span className="hidden sm:inline">Configuração</span>
+                </TabsTrigger>
+                <TabsTrigger value="templates" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
+                  <FileText className="h-4 w-4" />
+                  <span className="hidden sm:inline">Templates</span>
+                </TabsTrigger>
+                <TabsTrigger value="envio" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
+                  <Send className="h-4 w-4" />
+                  <span className="hidden sm:inline">Envio Manual</span>
+                </TabsTrigger>
+                <TabsTrigger value="historico" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
+                  <History className="h-4 w-4" />
+                  <span className="hidden sm:inline">Histórico</span>
+                </TabsTrigger>
+              </TabsList>
 
-          <TabsContent value="whatsapp-envio">
-            <WhatsAppEnvioManual />
-          </TabsContent>
+              <TabsContent value="config">
+                <WhatsAppConfig />
+              </TabsContent>
 
-          <TabsContent value="whatsapp-historico">
-            <WhatsAppHistorico />
+              <TabsContent value="templates">
+                <WhatsAppTemplates />
+              </TabsContent>
+
+              <TabsContent value="envio">
+                <WhatsAppEnvioManual />
+              </TabsContent>
+
+              <TabsContent value="historico">
+                <WhatsAppHistorico />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
       </div>
