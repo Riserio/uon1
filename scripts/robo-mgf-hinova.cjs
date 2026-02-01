@@ -648,56 +648,65 @@ async function configurarFiltros(page) {
   setStep('FILTROS');
   log('Configurando filtros...', LOG_LEVELS.INFO);
   
-  // 1. Desmarcar "TODOS" no Centro de Custo/Departamento primeiro
-  const todosCentroCusto = page.locator('input[type="checkbox"]').filter({ hasText: /todos/i }).first();
-  if (await todosCentroCusto.isVisible().catch(() => false)) {
-    if (await todosCentroCusto.isChecked()) {
-      await todosCentroCusto.uncheck();
-      log('Desmarcado checkbox TODOS do Centro de Custo', LOG_LEVELS.DEBUG);
-      await page.waitForTimeout(500);
-    }
-  }
+  // 1. Buscar todos os checkboxes de Centro de Custo/Departamento
+  log('Processando checkboxes de Centro de Custo...', LOG_LEVELS.INFO);
   
-  // 2. Desmarcar todos os checkboxes de Centro de Custo
-  const allCentroCustoCheckboxes = await page.locator('input[type="checkbox"][name*="centro"], input[type="checkbox"][name*="custo"], input[type="checkbox"][name*="departamento"]').all();
-  for (const cb of allCentroCustoCheckboxes) {
-    try {
-      if (await cb.isChecked()) {
-        await cb.uncheck();
-      }
-    } catch {}
-  }
-  
-  // 3. Marcar apenas os centros de custo com "EVENTOS"
-  log('Marcando centros de custo com EVENTOS...', LOG_LEVELS.INFO);
-  let centrosMarcados = 0;
-  
-  // Buscar todos os checkboxes e seus labels
   const checkboxes = await page.locator('input[type="checkbox"]').all();
+  let centrosMarcados = 0;
+  let centrosDesmarcados = 0;
   
   for (const checkbox of checkboxes) {
     try {
-      // Pegar o texto do label associado
+      // Pegar o texto do label associado (pai direto ou label próximo)
       const parentLabel = checkbox.locator('xpath=..').first();
-      const labelText = await parentLabel.textContent().catch(() => '');
+      let labelText = await parentLabel.textContent().catch(() => '');
+      
+      // Se o texto estiver vazio, tentar buscar label por for
+      if (!labelText.trim()) {
+        const id = await checkbox.getAttribute('id').catch(() => null);
+        if (id) {
+          const labelFor = page.locator(`label[for="${id}"]`).first();
+          labelText = await labelFor.textContent().catch(() => '');
+        }
+      }
+      
       const normalizedLabel = normalizeText(labelText);
       
-      // Verificar se contém "eventos"
-      if (normalizedLabel.includes('evento')) {
-        await checkbox.check();
+      // Ignorar checkboxes sem texto relevante ou que sejam "TODOS"
+      if (!normalizedLabel || normalizedLabel === 'todos') continue;
+      
+      // Verificar se contém "evento" no nome
+      const contemEventos = normalizedLabel.includes('evento');
+      const isChecked = await checkbox.isChecked().catch(() => false);
+      
+      if (contemEventos) {
+        // MARCAR se contém EVENTOS
+        if (!isChecked) {
+          await checkbox.check();
+          log(`✓ Marcado: ${labelText.trim().substring(0, 50)}`, LOG_LEVELS.DEBUG);
+        }
         centrosMarcados++;
-        log(`Marcado centro de custo: ${labelText.trim().substring(0, 50)}`, LOG_LEVELS.DEBUG);
-        await page.waitForTimeout(200);
+      } else {
+        // DESMARCAR se NÃO contém EVENTOS
+        if (isChecked) {
+          await checkbox.uncheck();
+          log(`✗ Desmarcado: ${labelText.trim().substring(0, 50)}`, LOG_LEVELS.DEBUG);
+          centrosDesmarcados++;
+        }
       }
+      
+      await page.waitForTimeout(100);
     } catch (e) {
       // Continuar com próximo checkbox
     }
   }
   
-  log(`Total de centros de custo marcados: ${centrosMarcados}`, LOG_LEVELS.INFO);
+  log(`Centros de custo com EVENTOS marcados: ${centrosMarcados}`, LOG_LEVELS.SUCCESS);
+  log(`Centros de custo sem EVENTOS desmarcados: ${centrosDesmarcados}`, LOG_LEVELS.INFO);
   
+  // Fallback se nenhum foi marcado
   if (centrosMarcados === 0) {
-    // Fallback: tentar buscar por texto direto
+    log('Nenhum centro marcado automaticamente, tentando fallback...', LOG_LEVELS.WARN);
     for (const centro of CONFIG.CENTROS_CUSTO_EVENTOS) {
       try {
         const checkbox = page.locator(`input[type="checkbox"]`).filter({ hasText: centro }).first();
