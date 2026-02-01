@@ -21,7 +21,8 @@ import {
   ChevronUp,
   ExternalLink,
   Wallet,
-  Calendar
+  Calendar,
+  DollarSign
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -57,7 +58,7 @@ interface ExecutionLog {
   etapa_atual: string | null;
 }
 
-type RobotType = "cobranca" | "eventos";
+type RobotType = "cobranca" | "eventos" | "mgf";
 
 export function GitHubSyncPanel() {
   const [activeTab, setActiveTab] = useState<RobotType>("cobranca");
@@ -72,6 +73,11 @@ export function GitHubSyncPanel() {
   const [eventosLoading, setEventosLoading] = useState(true);
   const [eventosPendingCount, setEventosPendingCount] = useState(0);
   
+  // MGF state
+  const [mgfConfigs, setMgfConfigs] = useState<SyncConfig[]>([]);
+  const [mgfLoading, setMgfLoading] = useState(true);
+  const [mgfPendingCount, setMgfPendingCount] = useState(0);
+  
   // Shared state
   const [executingId, setExecutingId] = useState<string | null>(null);
   const [expandedConfigId, setExpandedConfigId] = useState<string | null>(null);
@@ -83,6 +89,7 @@ export function GitHubSyncPanel() {
   useEffect(() => {
     loadCobrancaConfigs();
     loadEventosConfigs();
+    loadMgfConfigs();
     
     // Subscrever a mudanças em tempo real
     const cobrancaChannel = supabase
@@ -106,7 +113,6 @@ export function GitHubSyncPanel() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'cobranca_importacoes' },
         () => {
-          // Atualizar quando nova importação for criada (manual ou automática)
           loadCobrancaConfigs();
         }
       )
@@ -133,8 +139,33 @@ export function GitHubSyncPanel() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'sga_importacoes' },
         () => {
-          // Atualizar quando nova importação de eventos for criada
           loadEventosConfigs();
+        }
+      )
+      .subscribe();
+
+    const mgfChannel = supabase
+      .channel('mgf-automacao-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'mgf_automacao_execucoes' },
+        () => {
+          loadMgfConfigs();
+          if (expandedConfigId && activeTab === "mgf") {
+            loadExecutionLogs(expandedConfigId, "mgf");
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'mgf_automacao_config' },
+        () => loadMgfConfigs()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'mgf_importacoes' },
+        () => {
+          loadMgfConfigs();
         }
       )
       .subscribe();
@@ -142,6 +173,7 @@ export function GitHubSyncPanel() {
     return () => {
       supabase.removeChannel(cobrancaChannel);
       supabase.removeChannel(eventosChannel);
+      supabase.removeChannel(mgfChannel);
     };
   }, [expandedConfigId, activeTab]);
 
@@ -217,6 +249,42 @@ export function GitHubSyncPanel() {
     }
   };
 
+  const loadMgfConfigs = async () => {
+    try {
+      setMgfLoading(true);
+      const { data, error } = await supabase
+        .from("mgf_automacao_config")
+        .select(`
+          id, ativo, corretora_id, hinova_url, hora_agendada,
+          ultima_execucao, ultimo_status, ultimo_erro,
+          corretoras!mgf_automacao_config_corretora_id_fkey(nome)
+        `)
+        .order("corretoras(nome)");
+
+      if (error) throw error;
+
+      const formatted = (data || []).map((item: any) => ({
+        id: item.id,
+        ativo: item.ativo,
+        corretora_id: item.corretora_id,
+        corretora_nome: item.corretoras?.nome || "Desconhecida",
+        hinova_url: item.hinova_url,
+        hora_agendada: item.hora_agendada ?? "09:00:00",
+        ultima_execucao: item.ultima_execucao,
+        ultimo_status: item.ultimo_status,
+        ultimo_erro: item.ultimo_erro,
+      }));
+
+      setMgfConfigs(formatted);
+      await checkPendingExecutions(formatted, "mgf");
+    } catch (error) {
+      console.error("Erro ao carregar configurações de MGF:", error);
+      toast.error("Erro ao carregar configurações de MGF");
+    } finally {
+      setMgfLoading(false);
+    }
+  };
+
   const checkPendingExecutions = async (configList: SyncConfig[], type: RobotType) => {
     try {
       const today = new Date().toISOString().split('T')[0];
@@ -224,11 +292,16 @@ export function GitHubSyncPanel() {
       
       if (activeConfigIds.length === 0) {
         if (type === "cobranca") setCobrancaPendingCount(0);
-        else setEventosPendingCount(0);
+        else if (type === "eventos") setEventosPendingCount(0);
+        else setMgfPendingCount(0);
         return;
       }
 
-      const tableName = type === "cobranca" ? "cobranca_automacao_execucoes" : "sga_automacao_execucoes";
+      const tableName = type === "cobranca" 
+        ? "cobranca_automacao_execucoes" 
+        : type === "eventos" 
+          ? "sga_automacao_execucoes" 
+          : "mgf_automacao_execucoes";
       
       const { data: todayExecutions } = await supabase
         .from(tableName)
@@ -241,7 +314,8 @@ export function GitHubSyncPanel() {
       const pending = activeConfigIds.filter(id => !executedConfigIds.has(id));
       
       if (type === "cobranca") setCobrancaPendingCount(pending.length);
-      else setEventosPendingCount(pending.length);
+      else if (type === "eventos") setEventosPendingCount(pending.length);
+      else setMgfPendingCount(pending.length);
     } catch (error) {
       console.error("Erro ao verificar pendentes:", error);
     }
@@ -251,7 +325,11 @@ export function GitHubSyncPanel() {
     try {
       setLoadingLogs((prev) => ({ ...prev, [configId]: true }));
       
-      const tableName = type === "cobranca" ? "cobranca_automacao_execucoes" : "sga_automacao_execucoes";
+      const tableName = type === "cobranca" 
+        ? "cobranca_automacao_execucoes" 
+        : type === "eventos" 
+          ? "sga_automacao_execucoes" 
+          : "mgf_automacao_execucoes";
       
       const { data, error } = await supabase
         .from(tableName)
@@ -280,7 +358,11 @@ export function GitHubSyncPanel() {
   };
 
   const handleToggleAtivo = async (id: string, currentAtivo: boolean, type: RobotType) => {
-    const tableName = type === "cobranca" ? "cobranca_automacao_config" : "sga_automacao_config";
+    const tableName = type === "cobranca" 
+      ? "cobranca_automacao_config" 
+      : type === "eventos" 
+        ? "sga_automacao_config" 
+        : "mgf_automacao_config";
     try {
       const { error } = await supabase
         .from(tableName)
@@ -290,7 +372,8 @@ export function GitHubSyncPanel() {
       if (error) throw error;
       toast.success(`Sincronização ${!currentAtivo ? "ativada" : "desativada"}`);
       if (type === "cobranca") loadCobrancaConfigs();
-      else loadEventosConfigs();
+      else if (type === "eventos") loadEventosConfigs();
+      else loadMgfConfigs();
     } catch (error) {
       console.error("Erro ao alterar status:", error);
       toast.error("Erro ao alterar status");
@@ -300,14 +383,22 @@ export function GitHubSyncPanel() {
   const handleExecutar = async (config: SyncConfig, type: RobotType) => {
     setExecutingId(config.id);
     
-    const setConfigs = type === "cobranca" ? setCobrancaConfigs : setEventosConfigs;
+    const setConfigs = type === "cobranca" 
+      ? setCobrancaConfigs 
+      : type === "eventos" 
+        ? setEventosConfigs 
+        : setMgfConfigs;
     setConfigs((prev) =>
       prev.map((c) =>
         c.id === config.id ? { ...c, ultimo_status: "executando", ultimo_erro: null } : c
       )
     );
     
-    const functionName = type === "cobranca" ? "disparar-github-workflow" : "disparar-sga-workflow";
+    const functionName = type === "cobranca" 
+      ? "disparar-github-workflow" 
+      : type === "eventos" 
+        ? "disparar-sga-workflow" 
+        : "disparar-mgf-workflow";
     
     try {
       const { data, error } = await supabase.functions.invoke(functionName, {
@@ -327,20 +418,26 @@ export function GitHubSyncPanel() {
       } else {
         toast.error(data?.message || "Erro ao iniciar sincronização");
         if (type === "cobranca") loadCobrancaConfigs();
-        else loadEventosConfigs();
+        else if (type === "eventos") loadEventosConfigs();
+        else loadMgfConfigs();
       }
     } catch (error: any) {
       console.error("Erro ao executar:", error);
       toast.error(error.message || "Erro ao iniciar sincronização");
       if (type === "cobranca") loadCobrancaConfigs();
-      else loadEventosConfigs();
+      else if (type === "eventos") loadEventosConfigs();
+      else loadMgfConfigs();
     } finally {
       setExecutingId(null);
     }
   };
 
   const handleExecutarPendentes = async (type: RobotType) => {
-    const pendingCount = type === "cobranca" ? cobrancaPendingCount : eventosPendingCount;
+    const pendingCount = type === "cobranca" 
+      ? cobrancaPendingCount 
+      : type === "eventos" 
+        ? eventosPendingCount 
+        : mgfPendingCount;
     
     if (pendingCount === 0) {
       toast.info("Não há execuções pendentes para hoje");
@@ -349,7 +446,11 @@ export function GitHubSyncPanel() {
 
     setExecutingPending(true);
     
-    const functionName = type === "cobranca" ? "scheduler-cobranca-hinova" : "scheduler-sga-hinova";
+    const functionName = type === "cobranca" 
+      ? "scheduler-cobranca-hinova" 
+      : type === "eventos" 
+        ? "scheduler-sga-hinova" 
+        : "scheduler-mgf-hinova";
     
     try {
       const { data, error } = await supabase.functions.invoke(functionName, {
@@ -371,7 +472,8 @@ export function GitHubSyncPanel() {
         }
         
         if (type === "cobranca") loadCobrancaConfigs();
-        else loadEventosConfigs();
+        else if (type === "eventos") loadEventosConfigs();
+        else loadMgfConfigs();
       } else {
         toast.error(data?.message || "Erro ao executar pendentes");
       }
@@ -384,7 +486,7 @@ export function GitHubSyncPanel() {
   };
 
   const handleExecutarTodosPendentes = async () => {
-    const totalPending = cobrancaPendingCount + eventosPendingCount;
+    const totalPending = cobrancaPendingCount + eventosPendingCount + mgfPendingCount;
     
     if (totalPending === 0) {
       toast.info("Não há execuções pendentes para hoje");
@@ -429,6 +531,22 @@ export function GitHubSyncPanel() {
         }
       }
 
+      // Executar MGF se houver pendentes
+      if (mgfPendingCount > 0) {
+        try {
+          const { data, error } = await supabase.functions.invoke("scheduler-mgf-hinova", {
+            body: { force: true },
+          });
+          if (!error && data?.success) {
+            totalDisparados += data.disparados || 0;
+            totalErros += data.erros || 0;
+          }
+        } catch (e) {
+          totalErros++;
+          console.error("Erro ao executar MGF:", e);
+        }
+      }
+
       if (totalDisparados > 0) {
         toast.success(`${totalDisparados} sincronização(ões) iniciada(s)${totalErros > 0 ? ` (${totalErros} com erro)` : ''}`);
       } else if (totalErros > 0) {
@@ -437,6 +555,7 @@ export function GitHubSyncPanel() {
       
       loadCobrancaConfigs();
       loadEventosConfigs();
+      loadMgfConfigs();
     } catch (error: any) {
       console.error("Erro ao executar todos pendentes:", error);
       toast.error(error.message || "Erro ao executar sincronizações pendentes");
@@ -535,7 +654,11 @@ export function GitHubSyncPanel() {
   };
 
   const renderConfigList = (configs: SyncConfig[], type: RobotType, loading: boolean, pendingCount: number) => {
-    const loadConfigs = type === "cobranca" ? loadCobrancaConfigs : loadEventosConfigs;
+    const loadConfigs = type === "cobranca" 
+      ? loadCobrancaConfigs 
+      : type === "eventos" 
+        ? loadEventosConfigs 
+        : loadMgfConfigs;
     
     return (
       <div className="space-y-4">
@@ -753,9 +876,10 @@ export function GitHubSyncPanel() {
     );
   };
 
-  const totalPending = cobrancaPendingCount + eventosPendingCount;
+  const totalPending = cobrancaPendingCount + eventosPendingCount + mgfPendingCount;
   const totalWithErrors = cobrancaConfigs.filter(c => c.ultimo_status === "erro").length + 
-                          eventosConfigs.filter(c => c.ultimo_status === "erro").length;
+                          eventosConfigs.filter(c => c.ultimo_status === "erro").length +
+                          mgfConfigs.filter(c => c.ultimo_status === "erro").length;
 
   return (
     <Card className="border-2">
@@ -776,7 +900,7 @@ export function GitHubSyncPanel() {
                 variant="default" 
                 size="sm" 
                 onClick={handleExecutarTodosPendentes} 
-                disabled={executingAllPending || cobrancaLoading || eventosLoading}
+                disabled={executingAllPending || cobrancaLoading || eventosLoading || mgfLoading}
                 className="bg-purple-600 hover:bg-purple-700"
               >
                 {executingAllPending ? (
@@ -798,7 +922,7 @@ export function GitHubSyncPanel() {
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as RobotType)}>
-          <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="cobranca" className="flex items-center gap-2">
               <Wallet className="h-4 w-4" />
               Cobrança
@@ -817,6 +941,15 @@ export function GitHubSyncPanel() {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="mgf" className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              MGF
+              {mgfPendingCount > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                  {mgfPendingCount}
+                </Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="cobranca">
@@ -825,6 +958,10 @@ export function GitHubSyncPanel() {
           
           <TabsContent value="eventos">
             {renderConfigList(eventosConfigs, "eventos", eventosLoading, eventosPendingCount)}
+          </TabsContent>
+          
+          <TabsContent value="mgf">
+            {renderConfigList(mgfConfigs, "mgf", mgfLoading, mgfPendingCount)}
           </TabsContent>
         </Tabs>
       </CardContent>
