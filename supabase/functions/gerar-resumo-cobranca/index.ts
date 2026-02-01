@@ -39,13 +39,36 @@ serve(async (req) => {
       throw new Error('Nenhuma importação ativa encontrada');
     }
 
-    // Get all boletos from active import
-    const { data: boletos, error: boletosError } = await supabase
-      .from('cobranca_boletos')
-      .select('*')
-      .eq('importacao_id', importacao.id);
+    // Get ALL boletos from active import (no limit)
+    // Using pagination to get all records
+    let allBoletos: any[] = [];
+    let offset = 0;
+    const batchSize = 1000;
+    let hasMore = true;
 
-    if (boletosError) throw boletosError;
+    while (hasMore) {
+      const { data: batchBoletos, error: batchError } = await supabase
+        .from('cobranca_boletos')
+        .select('*')
+        .eq('importacao_id', importacao.id)
+        .range(offset, offset + batchSize - 1);
+
+      if (batchError) {
+        console.error('[gerar-resumo-cobranca] Error fetching boletos:', batchError);
+        throw batchError;
+      }
+
+      if (batchBoletos && batchBoletos.length > 0) {
+        allBoletos = [...allBoletos, ...batchBoletos];
+        offset += batchSize;
+        hasMore = batchBoletos.length === batchSize;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    const boletos = allBoletos;
+    console.log(`[gerar-resumo-cobranca] Total boletos carregados: ${boletos.length}`);
 
     // Calculate metrics
     const totalGerados = boletos?.length || 0;
