@@ -286,6 +286,7 @@ async function downloadViaAxiosStream({
   let receivedBytes = 0;
   let lastLoggedPercent = -1;
   let lastLoggedAt = 0;
+  let firstByteLogged = false;
 
   const logProgress = (force = false) => {
     const now = Date.now();
@@ -345,6 +346,10 @@ async function downloadViaAxiosStream({
 
     const progressTransform = new Transform({
       transform(chunk, encoding, callback) {
+        if (!firstByteLogged && chunk && chunk.length) {
+          firstByteLogged = true;
+          log('🚀 DOWNLOAD INICIADO (HTTP): primeiro byte recebido do servidor', LOG_LEVELS.SUCCESS);
+        }
         receivedBytes += chunk.length;
         resetIdleTimer();
         logProgress(false);
@@ -948,7 +953,7 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
     }
     
     try {
-      log(`Nova aba detectada: configurando listener de download...`, LOG_LEVELS.DEBUG);
+      log(`Nova aba/popup detectado: configurando listener de download... (url=${newPage.url() || 'n/a'})`, LOG_LEVELS.DEBUG);
       
       const onNewPageDownload = async (download) => {
         if (controller.isCaptured()) return;
@@ -1068,9 +1073,18 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
   };
   
   context.on('page', onNewPage);
+
+  // Alguns portais disparam via window.open (popup). Isso é equivalente a nova aba.
+  const onPopup = (popupPage) => {
+    if (popupPage && popupPage !== mainPage) {
+      processarNovaAba(popupPage);
+    }
+  };
+  mainPage.on('popup', onPopup);
   
   controller.addCleanup(() => {
     try { context.removeListener('page', onNewPage); } catch {}
+    try { mainPage.removeListener('popup', onPopup); } catch {}
   });
 }
 
@@ -1338,6 +1352,189 @@ async function navegarParaRelatorio(page) {
   await saveDebugInfo(page, 'pagina_relatorio');
 }
 
+// ============================================
+// SELEÇÃO RÍGIDA DE LAYOUT (MESMO PADRÃO DO COBRANÇA)
+// - Procura em TODOS os frames
+// - Seleciona pelo nome exato CONFIG.HINOVA_LAYOUT quando possível
+// - Se falhar, ABORTA (não pode prosseguir sem layout)
+// ============================================
+async function selecionarLayoutRelatorioMGF(page) {
+  const desiredRaw = String(CONFIG.HINOVA_LAYOUT || '').trim();
+  const desired = normalizeText(desiredRaw);
+
+  if (!desired) {
+    return { ok: false, reason: 'layout_vazio' };
+  }
+
+  const frames = [page.mainFrame(), ...page.frames().filter((f) => f !== page.mainFrame())];
+
+  const tryInFrameEvaluate = async (frame) => {
+    try {
+      return await frame.evaluate(({ desiredRaw, desired }) => {
+        const normalizar = (t) =>
+          (t || '')
+            .toString()
+            .normalize('NFD')
+            .replace(/\p{Diacritic}/gu, '')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        const isVisible = (el) => {
+          try {
+            const r = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+          } catch {
+            return false;
+          }
+        };
+
+        const resultado = {
+          ok: false,
+          method: null,
+          selected: null,
+          selectName: null,
+          optionsDisponiveis: [],
+          diagnostics: {
+            selects: [],
+            inputs: [],
+          },
+        };
+
+        const selects = Array.from(document.querySelectorAll('select')).filter(isVisible);
+        const scoreSelect = (s) => {
+          const id = normalizar(s.id || '');
+          const name = normalizar(s.name || '');
+          const attrs = `${id} ${name}`;
+          let score = 0;
+          if (attrs.includes('layout')) score += 20;
+          if (attrs.includes('visualiz')) score += 20;
+          if (attrs.includes('dados')) score += 15;
+          if (attrs.includes('sistema')) score += 10;
+          if (attrs.includes('perfil')) score += 10;
+          return score;
+        };
+
+        // Ordenar selects por “parece layout”
+        const rankedSelects = selects
+          .map((s) => ({ s, score: scoreSelect(s) }))
+          .sort((a, b) => b.score - a.score)
+          .map((x) => x.s);
+
+        for (const select of rankedSelects) {
+          const options = Array.from(select.options || []);
+          const optionTexts = options.map((o) => (o.textContent || o.value || '').trim());
+          const normOptions = optionTexts.map(normalizar);
+
+          resultado.diagnostics.selects.push({
+            name: select.name || null,
+            id: select.id || null,
+            score: scoreSelect(select),
+            options: optionTexts.slice(0, 30),
+          });
+
+          if (resultado.optionsDisponiveis.length === 0) {
+            resultado.optionsDisponiveis = optionTexts.slice(0, 80);
+          }
+
+          // 1) Match exato/contém do layout desejado
+          let idx = normOptions.findIndex((t) => t === desired || t.includes(desired) || desired.includes(t));
+
+          // 2) Fallback: BI + VANGARD + (FINANCEIROS/EVENTOS)
+          if (idx < 0) {
+            idx = normOptions.findIndex((t) => t.includes('bi') && t.includes('vangard') && (t.includes('finance') || t.includes('evento')));
+          }
+
+          if (idx >= 0) {
+            select.selectedIndex = idx;
+            select.dispatchEvent(new Event('input', { bubbles: true }));
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+
+            const selectedText = optionTexts[idx] || options[idx]?.value || null;
+            const selectedNorm = normalizar(selectedText || '');
+            const ok = !!selectedNorm && (selectedNorm.includes('vangard') || selectedNorm.includes(desired));
+
+            if (ok) {
+              resultado.ok = true;
+              resultado.method = 'select';
+              resultado.selected = selectedText;
+              resultado.selectName = select.name || select.id || null;
+              return resultado;
+            }
+          }
+        }
+
+        // Apenas diagnóstico de inputs (para log/debug)
+        const inputs = Array.from(
+          document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"])')
+        ).filter(isVisible);
+        for (const input of inputs.slice(0, 12)) {
+          resultado.diagnostics.inputs.push({
+            name: input.getAttribute('name'),
+            id: input.getAttribute('id'),
+            placeholder: input.getAttribute('placeholder'),
+          });
+        }
+
+        return resultado;
+      }, { desiredRaw, desired });
+    } catch {
+      return { ok: false, reason: 'evaluate_failed' };
+    }
+  };
+
+  const tryInFrameInput = async (frame) => {
+    // Autocomplete/datalist/inputs que existem em alguns portais
+    const input = frame
+      .locator(
+        'input[placeholder*="Dados" i], input[placeholder*="Visual" i], input[placeholder*="Layout" i], input[placeholder*="Sistema" i], input[placeholder*="Perfil" i]'
+      )
+      .first();
+
+    if (!(await input.isVisible().catch(() => false))) return false;
+
+    try {
+      await input.click({ force: true }).catch(() => null);
+      await input.fill(desiredRaw).catch(() => null);
+      await input.press('Enter').catch(() => null);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // 1) Selecionar em algum frame
+  let lastDiagnostics = null;
+  for (const frame of frames) {
+    const res = await tryInFrameEvaluate(frame);
+    if (res?.diagnostics) lastDiagnostics = res;
+    if (res?.ok) {
+      return { ok: true, method: res.method, selected: res.selected, frameUrl: frame.url() };
+    }
+  }
+
+  // 2) Tentar via input (autocomplete) e reavaliar
+  for (const frame of frames) {
+    const typed = await tryInFrameInput(frame);
+    if (!typed) continue;
+    await page.waitForTimeout(1500);
+    const res = await tryInFrameEvaluate(frame);
+    if (res?.ok) {
+      return { ok: true, method: `input+${res.method}`, selected: res.selected, frameUrl: frame.url() };
+    }
+    if (res?.diagnostics) lastDiagnostics = res;
+  }
+
+  return {
+    ok: false,
+    reason: 'layout_nao_encontrado',
+    desired: desiredRaw,
+    optionsDisponiveis: lastDiagnostics?.optionsDisponiveis || [],
+    diagnostics: lastDiagnostics?.diagnostics || null,
+  };
+}
+
 async function configurarFiltros(page) {
   setStep('FILTROS');
   log('Configurando filtros...', LOG_LEVELS.INFO);
@@ -1453,42 +1650,22 @@ async function configurarFiltros(page) {
   
   // 2. SELECIONAR LAYOUT
   log('📋 Selecionando layout...', LOG_LEVELS.INFO);
-  
-  const layoutResult = await page.evaluate(() => {
-    const normalize = (s) =>
-      (s || '')
-        .toString()
-        .normalize('NFD')
-        .replace(/\p{Diacritic}/gu, '')
-        .toUpperCase()
-        .replace(/\s+/g, ' ')
-        .trim();
-    
-    const selects = document.querySelectorAll('select');
-    
-    for (const select of selects) {
-      const options = Array.from(select.options);
-      
-      for (let i = 0; i < options.length; i++) {
-        const optText = normalize(options[i].text || '');
-        
-        if ((optText.includes('VANGARD') && (optText.includes('FINANCEIRO') || optText.includes('EVENTO'))) ||
-            optText.includes('BI VANGARD')) {
-          select.selectedIndex = i;
-          select.dispatchEvent(new Event('input', { bubbles: true }));
-          select.dispatchEvent(new Event('change', { bubbles: true }));
-          return { ok: true, selected: options[i].text };
-        }
-      }
-    }
-    
-    return { ok: false };
-  });
-  
-  if (layoutResult?.ok) {
-    log(`✅ Layout selecionado: ${layoutResult.selected}`, LOG_LEVELS.SUCCESS);
+
+  const layoutSel = await selecionarLayoutRelatorioMGF(page);
+  if (layoutSel?.ok) {
+    log(`✅ Layout selecionado (MGF): ${layoutSel.selected}`, LOG_LEVELS.SUCCESS);
+    log(`   Método: ${layoutSel.method} | Frame: ${layoutSel.frameUrl || 'main'}`, LOG_LEVELS.DEBUG);
+
+    // Mesmo padrão do Cobrança: aguardar carregamento pós-layout (campos dinâmicos)
+    log('⏳ Aguardando configurações do layout carregarem...', LOG_LEVELS.INFO);
+    await page.waitForTimeout(20000);
   } else {
-    log('⚠️ Layout não encontrado automaticamente', LOG_LEVELS.WARN);
+    log(`❌ ERRO CRÍTICO: Layout "${CONFIG.HINOVA_LAYOUT}" não selecionado no MGF`, LOG_LEVELS.ERROR);
+    if (layoutSel?.optionsDisponiveis?.length) {
+      log(`   Opções (amostra): ${layoutSel.optionsDisponiveis.slice(0, 25).join(' | ')}`, LOG_LEVELS.DEBUG);
+    }
+    await saveDebugInfo(page, 'layout_nao_encontrado');
+    throw new Error(`ERRO CRÍTICO: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado/selecionado. Sem isso, o relatório vem errado ou o download nem inicia.`);
   }
   
   await page.waitForTimeout(1000);
@@ -1671,78 +1848,92 @@ async function gerarEBaixarRelatorio(page, context) {
 
   // Alguns portais Hinova exibem um botão "Liberar" (destrava filtros) e só depois o botão real de geração.
   // Se clicarmos no botão errado, nenhum download é disparado e ficamos aguardando indefinidamente.
-  const clickOptionalButton = async (keywords, label) => {
+  const frames = [page.mainFrame(), ...page.frames().filter((f) => f !== page.mainFrame())];
+
+  const clickOptionalButtonAcrossFrames = async (keywords, label) => {
     const lowered = keywords.map((k) => k.toLowerCase());
-    const candidates = page.locator('button, input[type="submit"], input[type="button"], a');
-    const count = await candidates.count().catch(() => 0);
-    for (let i = 0; i < count; i++) {
-      const el = candidates.nth(i);
-      const visible = await el.isVisible().catch(() => false);
-      if (!visible) continue;
-      const text = (
-        (await el.textContent().catch(() => '')) ||
-        (await el.getAttribute('value').catch(() => '')) ||
-        ''
-      ).trim();
-      const t = text.toLowerCase();
-      if (!t) continue;
-      if (lowered.some((k) => t.includes(k))) {
-        log(`Botão opcional detectado (${label}): "${text}"`, LOG_LEVELS.DEBUG);
-        await el.click({ timeout: 15000, force: true }).catch(() => {});
-        await page.waitForTimeout(1500);
-        return true;
+    const exclude = ['fechar', 'cancelar', 'voltar', 'sair', 'limpar', 'reset'];
+
+    for (const frame of frames) {
+      const candidates = frame.locator('button, input[type="submit"], input[type="button"], a');
+      const count = await candidates.count().catch(() => 0);
+      for (let i = 0; i < count; i++) {
+        const el = candidates.nth(i);
+        const visible = await el.isVisible().catch(() => false);
+        if (!visible) continue;
+
+        const text = (
+          (await el.textContent().catch(() => '')) ||
+          (await el.getAttribute('value').catch(() => '')) ||
+          ''
+        ).trim();
+
+        const t = text.toLowerCase();
+        if (!t) continue;
+        if (exclude.some((k) => t.includes(k))) continue;
+
+        if (lowered.some((k) => t.includes(k))) {
+          log(`Botão opcional detectado (${label}): "${text}" (frame=${frame.url() || 'main'})`, LOG_LEVELS.DEBUG);
+          await el.click({ timeout: 15000, force: true }).catch(() => {});
+          await page.waitForTimeout(1500);
+          return true;
+        }
       }
     }
     return false;
   };
 
-  const findActionButton = async () => {
-    // Preferir botões explícitos de geração/exportação.
-    const prefer = ['gerar', 'exportar', 'baixar', 'download', 'imprimir', 'excel', 'xls', 'xlsx', 'liberar'];
+  const findActionButtonAcrossFrames = async () => {
+    const prefer = ['gerar', 'exportar', 'baixar', 'download', 'imprimir', 'excel', 'xls', 'xlsx'];
     const exclude = ['fechar', 'cancelar', 'voltar', 'sair', 'limpar', 'reset'];
 
-    const candidates = page.locator('button, input[type="submit"], input[type="button"], a');
-    const count = await candidates.count().catch(() => 0);
+    let best = null;
 
-    const scored = [];
-    for (let i = 0; i < count; i++) {
-      const el = candidates.nth(i);
-      const visible = await el.isVisible().catch(() => false);
-      if (!visible) continue;
-      const text = (
-        (await el.textContent().catch(() => '')) ||
-        (await el.getAttribute('value').catch(() => '')) ||
-        ''
-      ).trim();
-      if (!text) continue;
-      const t = text.toLowerCase();
-      if (exclude.some((k) => t.includes(k))) continue;
+    for (const frame of frames) {
+      const candidates = frame.locator('button, input[type="submit"], input[type="button"], a');
+      const count = await candidates.count().catch(() => 0);
 
-      let score = 0;
-      if (t.includes('gerar')) score += 50;
-      if (t.includes('export')) score += 40;
-      if (t.includes('baix')) score += 35;
-      if (t.includes('download')) score += 35;
-      if (t.includes('excel') || t.includes('xls')) score += 30;
-      if (t.includes('pesquisar') || t.includes('consultar')) score += 10;
-      if (t.includes('liberar')) score -= 100; // nunca tratar "Liberar" como botão final de download
-      if (prefer.some((k) => t.includes(k))) score += 1;
+      for (let i = 0; i < count; i++) {
+        const el = candidates.nth(i);
+        const visible = await el.isVisible().catch(() => false);
+        if (!visible) continue;
 
-      scored.push({ el, text, score });
+        const text = (
+          (await el.textContent().catch(() => '')) ||
+          (await el.getAttribute('value').catch(() => '')) ||
+          ''
+        ).trim();
+
+        if (!text) continue;
+        const t = text.toLowerCase();
+        if (exclude.some((k) => t.includes(k))) continue;
+
+        let score = 0;
+        if (t.includes('gerar')) score += 50;
+        if (t.includes('export')) score += 40;
+        if (t.includes('baix')) score += 35;
+        if (t.includes('download')) score += 35;
+        if (t.includes('excel') || t.includes('xls')) score += 30;
+        if (t.includes('pesquisar') || t.includes('consultar')) score += 10;
+        if (t.includes('liberar')) score -= 100; // nunca tratar "Liberar" como botão final
+        if (prefer.some((k) => t.includes(k))) score += 1;
+
+        if (!best || score > best.score) {
+          best = { el, text, score, frameUrl: frame.url() };
+        }
+      }
     }
 
-    scored.sort((a, b) => b.score - a.score);
-    const best = scored[0];
     if (!best || best.score <= 0) return null;
-    log(`Botão de ação selecionado: "${best.text}" (score=${best.score})`, LOG_LEVELS.DEBUG);
+    log(`Botão de ação selecionado: "${best.text}" (score=${best.score}) (frame=${best.frameUrl || 'main'})`, LOG_LEVELS.DEBUG);
     return best.el;
   };
   
   // 1) Se houver botão "Liberar", clicar (sem iniciar download ainda)
-  await clickOptionalButton(['liberar'], 'LIBERAR');
+  await clickOptionalButtonAcrossFrames(['liberar'], 'LIBERAR');
 
   // 2) Encontrar o botão real de geração/exportação (NÃO usar btn-primary genérico)
-  let gerarBtn = await findActionButton();
+  let gerarBtn = await findActionButtonAcrossFrames();
   
   if (!gerarBtn) {
     await saveDebugInfo(page, 'botao_nao_encontrado');
@@ -1752,10 +1943,23 @@ async function gerarEBaixarRelatorio(page, context) {
   // Preparar captura ANTES do clique para não perder downloads rápidos
   const downloadPromise = aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
 
+  // Sinal extra (somente log): se abrir popup/nova aba ou disparar download nos primeiros segundos
+  const popupSignal = page
+    .waitForEvent('popup', { timeout: 8000 })
+    .then((p) => log(`🚀 DOWNLOAD INICIADO (UI): popup/nova aba criada (url=${p.url() || 'n/a'})`, LOG_LEVELS.SUCCESS))
+    .catch(() => null);
+  const downloadSignal = page
+    .waitForEvent('download', { timeout: 8000 })
+    .then(() => log('🚀 DOWNLOAD INICIADO (UI): evento de download disparado', LOG_LEVELS.SUCCESS))
+    .catch(() => null);
+
   // Clicar e aguardar download usando sistema híbrido
   log('Clicando no botão Gerar/Exportar...', LOG_LEVELS.INFO);
   await gerarBtn.click({ timeout: 15000, force: true });
   log('Botão de geração clicado', LOG_LEVELS.SUCCESS);
+
+  // Evitar warning de promise não aguardada; são apenas sinais de log.
+  await Promise.race([popupSignal, downloadSignal, page.waitForTimeout(8000)]).catch(() => null);
 
   const result = await downloadPromise;
   
