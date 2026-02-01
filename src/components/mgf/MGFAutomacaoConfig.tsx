@@ -14,6 +14,7 @@ import MGFAutomacaoLogs from "./MGFAutomacaoLogs";
 interface MGFAutomacaoConfigProps {
   corretoraId: string;
   corretoraNome?: string;
+  onSuccess?: () => void;
 }
 
 // Centros de custo com EVENTOS que serão selecionados
