@@ -737,72 +737,166 @@ async function configurarFiltros(page) {
   
   // ============================================
   // 3. SELECIONAR FORMATO "EM EXCEL"
+  // (MESMA FUNÇÃO DO ROBÔ DE COBRANÇA)
   // ============================================
   log('📋 Selecionando formato Excel...', LOG_LEVELS.INFO);
   
-  const excelResult = await page.evaluate(() => {
-    const normalize = (s) =>
-      (s || '')
-        .toString()
-        .normalize('NFD')
-        .replace(/\p{Diacritic}/gu, '')
-        .toUpperCase()
-        .replace(/\s+/g, ' ')
-        .trim();
-    
-    // Tentar via radio button
-    const radios = document.querySelectorAll('input[type="radio"]');
-    for (const radio of radios) {
-      const label = radio.closest('label');
-      const labelText = normalize(label?.textContent || radio.value || '');
-      
-      if (labelText.includes('EXCEL') || labelText.includes('XLS')) {
-        radio.checked = true;
-        radio.dispatchEvent(new Event('input', { bubbles: true }));
-        radio.dispatchEvent(new Event('change', { bubbles: true }));
-        radio.dispatchEvent(new Event('click', { bubbles: true }));
-        return { ok: true, method: 'radio', label: labelText };
-      }
-    }
-    
-    // Tentar via select
-    const selects = document.querySelectorAll('select');
-    for (const select of selects) {
-      const options = Array.from(select.options);
-      
-      for (let i = 0; i < options.length; i++) {
-        const optText = normalize(options[i].text || '');
-        
-        if (optText.includes('EXCEL') || optText.includes('XLS')) {
-          select.selectedIndex = i;
-          select.dispatchEvent(new Event('input', { bubbles: true }));
-          select.dispatchEvent(new Event('change', { bubbles: true }));
-          return { ok: true, method: 'select', label: options[i].text };
-        }
-      }
-    }
-    
-    // Tentar via clique em label/botão
-    const clickables = document.querySelectorAll('label, button, a, span');
-    for (const el of clickables) {
-      const text = normalize(el.textContent || '');
-      if (text.includes('EXCEL') || text === 'EM EXCEL') {
-        el.click();
-        return { ok: true, method: 'click', label: text };
-      }
-    }
-    
-    return { ok: false };
-  });
+  const excelSelecionado = await selecionarFormaExibicaoEmExcel(page);
   
-  if (excelResult?.ok) {
-    log(`✅ Formato Excel selecionado via ${excelResult.method}: ${excelResult.label}`, LOG_LEVELS.SUCCESS);
-  } else {
-    log('⚠️ Formato Excel não encontrado automaticamente', LOG_LEVELS.WARN);
+  if (!excelSelecionado) {
+    log('⚠️ Não foi possível selecionar formato Excel automaticamente', LOG_LEVELS.WARN);
+    await saveDebugInfo(page, 'excel_nao_selecionado');
   }
   
   await saveDebugInfo(page, 'filtros_configurados');
   log('Filtros configurados', LOG_LEVELS.SUCCESS);
+}
+
+// ============================================
+// SELEÇÃO DE FORMATO EXCEL 
+// (IDÊNTICO AO ROBÔ DE COBRANÇA)
+// ============================================
+async function selecionarFormaExibicaoEmExcel(page) {
+  log('Selecionando Forma de Exibição: Em Excel', LOG_LEVELS.INFO);
+  
+  const tryInFrame = async (frame) => {
+    try {
+      const result = await frame.evaluate(() => {
+        const setRadioChecked = (radio) => {
+          try {
+            if (radio.disabled) return false;
+            
+            if (radio.name) {
+              const siblings = document.querySelectorAll(`input[type="radio"][name="${radio.name}"]`);
+              siblings.forEach(r => {
+                if (r !== radio && r.checked) {
+                  r.checked = false;
+                  r.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+              });
+            }
+            
+            radio.checked = true;
+            radio.dispatchEvent(new Event('click', { bubbles: true }));
+            radio.dispatchEvent(new Event('input', { bubbles: true }));
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            const form = radio.closest('form');
+            if (form) {
+              form.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            
+            return true;
+          } catch (e) {
+            return false;
+          }
+        };
+
+        const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+        
+        // Estratégia 1: Buscar por texto próximo
+        for (const radio of radios) {
+          const containers = [
+            radio.closest('tr'),
+            radio.closest('td'),
+            radio.closest('label'),
+            radio.closest('div'),
+            radio.parentElement,
+            radio.closest('font'),
+            radio.closest('p'),
+          ].filter(Boolean);
+          
+          for (const container of containers) {
+            const text = (container.textContent || '').toLowerCase();
+            
+            if (/\bem\s*excel\b/i.test(text) || (text.includes('excel') && text.includes('em'))) {
+              if (setRadioChecked(radio)) {
+                return { success: true, method: 'nearText', radioValue: radio.value };
+              }
+            }
+          }
+        }
+        
+        // Estratégia 2: Buscar pelo valor do radio
+        for (const radio of radios) {
+          const value = (radio.value || '').toLowerCase();
+          const name = (radio.name || '').toLowerCase();
+          
+          if (value.includes('excel') || name.includes('excel') || value === 'xls' || value === 'xlsx') {
+            if (setRadioChecked(radio)) {
+              return { success: true, method: 'value', radioValue: radio.value };
+            }
+          }
+        }
+        
+        // Estratégia 3: Buscar texto "Em Excel" na página
+        const textElements = document.querySelectorAll('td, span, label, font, div, p, b, strong');
+        for (const el of textElements) {
+          const text = (el.textContent || '').trim();
+          
+          if (/^Em\s*Excel$/i.test(text) || /\bEm\s*Excel\b/i.test(text)) {
+            const tr = el.closest('tr');
+            if (tr) {
+              const radio = tr.querySelector('input[type="radio"]');
+              if (radio && setRadioChecked(radio)) {
+                return { success: true, method: 'sameRow', radioValue: radio.value };
+              }
+            }
+            
+            const parent = el.parentElement;
+            if (parent) {
+              const radio = parent.querySelector('input[type="radio"]');
+              if (radio && setRadioChecked(radio)) {
+                return { success: true, method: 'parent', radioValue: radio.value };
+              }
+            }
+          }
+        }
+        
+        // Estratégia 4: Grupo de forma exibição
+        const formaExibicaoRadios = radios.filter(r => {
+          const name = (r.name || '').toLowerCase();
+          return name.includes('forma') || name.includes('exib') || name.includes('tipo') || name.includes('output');
+        });
+        
+        if (formaExibicaoRadios.length >= 2) {
+          const excelRadio = formaExibicaoRadios[1];
+          if (setRadioChecked(excelRadio)) {
+            return { success: true, method: 'groupSecond', radioValue: excelRadio.value };
+          }
+        }
+        
+        return { success: false, totalRadios: radios.length };
+      });
+      
+      if (result.success) {
+        log(`Excel selecionado: ${result.method}`, LOG_LEVELS.SUCCESS);
+        await page.waitForTimeout(500);
+        return true;
+      }
+      
+    } catch (e) {
+      log(`Erro na seleção JavaScript: ${e.message}`, LOG_LEVELS.DEBUG);
+    }
+
+    return false;
+  };
+
+  // Tentar no frame principal
+  if (await tryInFrame(page.mainFrame())) {
+    return true;
+  }
+
+  // Tentar em iframes
+  for (const frame of page.frames()) {
+    if (frame === page.mainFrame()) continue;
+    if (await tryInFrame(frame)) {
+      return true;
+    }
+  }
+
+  log('Fallback: Excel não encontrado via JavaScript', LOG_LEVELS.WARN);
+  return false;
 }
 
 // ============================================
