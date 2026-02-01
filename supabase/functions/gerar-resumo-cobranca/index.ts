@@ -140,9 +140,9 @@ serve(async (req) => {
       new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 
     // Build message with standard header
-    const resumo = `*Resumo VANGARD da sua operação*
+    const resumo = `*Resumo VANGARD da sua operação!*
 
-Olá, o BI de indicadores de resultados da sua associação foi atualizado.
+O BI de indicadores de resultados da sua associação foi atualizado.
 
 Seguem abaixo informações importantes para sua gestão:
 

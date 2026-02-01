@@ -101,9 +101,9 @@ serve(async (req) => {
     });
 
     // Build message with standard header
-    const resumo = `*Resumo VANGARD da sua operação*
+    const resumo = `*Resumo VANGARD da sua operação!*
 
-Olá, o BI de indicadores de resultados da sua associação foi atualizado.
+O BI de indicadores de resultados da sua associação foi atualizado.
 
 Seguem abaixo informações importantes para sua gestão:
 
