@@ -70,10 +70,22 @@ serve(async (req) => {
     const boletos = allBoletos;
     console.log(`[gerar-resumo-cobranca] Total boletos carregados: ${boletos.length}`);
 
+    // Helper function for case-insensitive status check
+    const isAberto = (situacao: string | null) => {
+      if (!situacao) return false;
+      return situacao.toUpperCase() === 'ABERTO';
+    };
+
+    const isBaixado = (situacao: string | null) => {
+      if (!situacao) return false;
+      const upper = situacao.toUpperCase();
+      return upper === 'BAIXADO' || upper.includes('BAIXADO');
+    };
+
     // Calculate metrics
     const totalGerados = boletos?.length || 0;
-    const boletosAbertos = boletos?.filter(b => b.situacao === 'Aberto') || [];
-    const boletosBaixados = boletos?.filter(b => b.situacao !== 'Aberto') || [];
+    const boletosAbertos = boletos?.filter(b => isAberto(b.situacao)) || [];
+    const boletosBaixados = boletos?.filter(b => isBaixado(b.situacao)) || [];
     
     const totalAbertos = boletosAbertos.length;
     const totalBaixados = boletosBaixados.length;
@@ -90,7 +102,7 @@ serve(async (req) => {
     const diasVencimento = [5, 10, 15, 20];
     const boletosPorDia = diasVencimento.map(dia => {
       const gerados = boletos?.filter(b => b.dia_vencimento_veiculo === dia).length || 0;
-      const abertos = boletos?.filter(b => b.dia_vencimento_veiculo === dia && b.situacao === 'Aberto').length || 0;
+      const abertos = boletos?.filter(b => b.dia_vencimento_veiculo === dia && isAberto(b.situacao)).length || 0;
       return `${dia} – Total Gerado (${gerados}) – Total em aberto (${abertos})`;
     }).join('\n');
 
@@ -102,7 +114,7 @@ serve(async (req) => {
         cooperativaStats[coop] = { total: 0, abertos: 0 };
       }
       cooperativaStats[coop].total++;
-      if (b.situacao === 'Aberto') {
+      if (isAberto(b.situacao)) {
         cooperativaStats[coop].abertos++;
       }
     });
