@@ -52,10 +52,15 @@ function deriveRelatorioUrl(loginUrl) {
 }
 
 const HINOVA_URL = String(process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php').trim();
+const HINOVA_RELATORIO_URL_DERIVED = deriveRelatorioUrl(HINOVA_URL);
+
+// Log imediato na carga do script para debug de URL
+console.log(`[MGF CONFIG] HINOVA_URL: "${HINOVA_URL}"`);
+console.log(`[MGF CONFIG] Derived relatorio URL: "${HINOVA_RELATORIO_URL_DERIVED}"`);
 
 const CONFIG = {
   HINOVA_URL: HINOVA_URL,
-  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || deriveRelatorioUrl(HINOVA_URL),
+  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || HINOVA_RELATORIO_URL_DERIVED,
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
   HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '',
@@ -72,6 +77,9 @@ const CONFIG = {
   DOWNLOAD_BASE_DIR: process.env.DOWNLOAD_DIR || './downloads',
   DEBUG_DIR: process.env.DEBUG_DIR || './debug',
 };
+
+console.log(`[MGF CONFIG] HINOVA_LAYOUT env: "${process.env.HINOVA_LAYOUT || 'não definido'}"`);
+console.log(`[MGF CONFIG] Final HINOVA_LAYOUT: "${CONFIG.HINOVA_LAYOUT}"`);
 
 // ============================================
 // CONSTANTES (IDÊNTICAS AO ROBÔ DE COBRANÇA)
