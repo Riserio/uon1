@@ -22,9 +22,18 @@ serve(async (req) => {
       throw new Error('corretora_id é obrigatório');
     }
 
-    // Get current month reference
+    // Get current month reference - filter by current month only
     const now = new Date();
     const mesReferencia = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    
+    // Calculate first and last day of current month
+    const primeiroDiaMes = new Date(now.getFullYear(), now.getMonth(), 1);
+    const ultimoDiaMes = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    
+    const dataInicio = primeiroDiaMes.toISOString().split('T')[0];
+    const dataFim = ultimoDiaMes.toISOString().split('T')[0];
+    
+    console.log(`[gerar-resumo-eventos] Filtrando eventos do mês: ${dataInicio} até ${dataFim}`);
 
     // Get active import for this corretora
     const { data: importacao } = await supabase
@@ -38,7 +47,7 @@ serve(async (req) => {
       throw new Error('Nenhuma importação ativa encontrada');
     }
 
-    // Get ALL events from active import (no limit)
+    // Get events from active import filtered by current month
     // Using pagination to get all records
     let allEventos: any[] = [];
     let offset = 0;
@@ -48,8 +57,10 @@ serve(async (req) => {
     while (hasMore) {
       const { data: batchEventos, error: batchError } = await supabase
         .from('sga_eventos')
-        .select('motivo_evento, evento_cidade, cooperativa')
+        .select('motivo_evento, evento_cidade, cooperativa, data_cadastro_evento')
         .eq('importacao_id', importacao.id)
+        .gte('data_cadastro_evento', dataInicio)
+        .lte('data_cadastro_evento', dataFim)
         .range(offset, offset + batchSize - 1);
 
       if (batchError) {
