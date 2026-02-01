@@ -3,13 +3,15 @@
  * Robô de Automação - MGF Hinova (Lançamentos Financeiros)
  * ========================================================
  * 
+ * SEGUE O MESMO PADRÃO DO ROBÔ DE COBRANÇA PARA MÁXIMA ESTABILIDADE
+ * 
  * FLUXO:
  * 1. Login no portal Hinova (com tratamento de modais)
  * 2. Navegar para MGF > Relatórios > 5.1 de Lançamentos
  * 3. Selecionar Centro de Custo/Departamento (apenas com "EVENTOS")
  * 4. Selecionar Layout "BI VANGARD FINANCEIROS EVENTOS"
  * 5. Selecionar tipo de relatório "Em Excel"
- * 6. Gerar e baixar relatório
+ * 6. Gerar e baixar relatório (usando estratégia híbrida como cobrança)
  * 7. Enviar dados via webhook
  * 
  * REQUISITOS:
@@ -52,9 +54,6 @@ const CONFIG = {
   HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '',
   HINOVA_LAYOUT: process.env.HINOVA_LAYOUT || 'BI VANGARD FINANCEIROS EVENTOS',
   
-  // Centros de custo a marcar (contém "EVENTOS")
-  CENTROS_CUSTO_EVENTOS: ['EVENTOS', 'EVENTOS NAO PROVISIONADO', 'EVENTOS RATEAVEIS', 'EVENTOS NÃO PROVISIONADO', 'EVENTOS RATEÁVEIS'],
-  
   WEBHOOK_URL: process.env.WEBHOOK_URL || '',
   WEBHOOK_SECRET: process.env.WEBHOOK_SECRET || '',
   
@@ -68,7 +67,7 @@ const CONFIG = {
 };
 
 // ============================================
-// CONSTANTES
+// CONSTANTES (MESMAS DO ROBÔ DE COBRANÇA)
 // ============================================
 const TIMEOUTS = {
   PAGE_LOAD: 90000,
@@ -86,6 +85,7 @@ const LIMITS = {
   MAX_LOGIN_RETRIES: 20,
   MAX_POPUP_CLOSE_ATTEMPTS: 10,
   MAX_DOWNLOAD_RETRIES: 3,
+  MIN_FILE_SIZE_BYTES: 100,
 };
 
 // ============================================
@@ -152,7 +152,8 @@ function generateSemanticFilename() {
   const day = String(now.getDate()).padStart(2, '0');
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const year = now.getFullYear();
-  return `MGF_${day}${month}${year}.xlsx`;
+  const timestamp = Date.now();
+  return `MGF_Hinova_${day}${month}${year}_${timestamp}.xlsx`;
 }
 
 // ============================================
@@ -307,7 +308,6 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
           const fechou = await page.evaluate(() => {
             let fechou = false;
             
-            // Fechar modais Bootstrap visíveis
             const modals = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"], #myModal.show');
             modals.forEach(modal => {
               const closeBtn = modal.querySelector('.close, button.close, .btn-close, [data-dismiss="modal"]');
@@ -317,7 +317,6 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
               }
             });
             
-            // Esconder modais diretamente
             if (!fechou) {
               modals.forEach(modal => {
                 modal.style.display = 'none';
@@ -326,7 +325,6 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
               });
             }
             
-            // Remover backdrop
             const backdrops = document.querySelectorAll('.modal-backdrop');
             backdrops.forEach(b => b.remove());
             
@@ -367,7 +365,6 @@ function extrairTexto(html) {
 function processarTabelaHtml(htmlContent) {
   log('Processando arquivo como tabela HTML...', LOG_LEVELS.INFO);
   
-  // Extrair headers do thead
   const theadMatch = htmlContent.match(/<thead[^>]*>([\s\S]*?)<\/thead>/i);
   let headers = [];
   
@@ -377,7 +374,6 @@ function processarTabelaHtml(htmlContent) {
     log(`Headers encontrados: ${headers.length}`, LOG_LEVELS.DEBUG);
   }
   
-  // Extrair dados do tbody
   const tbodyMatch = htmlContent.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
   const registros = [];
   
@@ -416,7 +412,6 @@ function processarArquivo(filePath) {
   const fileSize = fileBuffer.length;
   log(`Tamanho do arquivo: ${formatBytes(fileSize)}`, LOG_LEVELS.DEBUG);
   
-  // Detectar tipo de arquivo
   const header = fileBuffer.slice(0, 100).toString('utf8');
   const isHtml = header.includes('<html') || header.includes('<table') || header.includes('<!DOCTYPE');
   
@@ -424,7 +419,6 @@ function processarArquivo(filePath) {
     log('Arquivo detectado como HTML', LOG_LEVELS.INFO);
     const htmlContent = fileBuffer.toString('utf8');
     
-    // Verificar se é erro do portal
     if (htmlContent.includes('Nenhum registro encontrado') || htmlContent.includes('Sem dados')) {
       log('Portal retornou "Nenhum registro encontrado"', LOG_LEVELS.WARN);
       return [];
@@ -433,7 +427,6 @@ function processarArquivo(filePath) {
     return processarTabelaHtml(htmlContent);
   }
   
-  // Tentar processar como Excel
   try {
     log('Processando como arquivo Excel...', LOG_LEVELS.INFO);
     const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
@@ -445,7 +438,6 @@ function processarArquivo(filePath) {
       return jsonData;
     }
     
-    // Tentar ler como raw para detectar HTML disfarçado
     const rawData = XLSX.utils.sheet_to_csv(firstSheet);
     if (rawData.includes('<html') || rawData.includes('<table')) {
       log('Excel contém HTML, processando como HTML...', LOG_LEVELS.INFO);
@@ -456,7 +448,6 @@ function processarArquivo(filePath) {
   } catch (e) {
     log(`Erro ao processar Excel: ${e.message}`, LOG_LEVELS.WARN);
     
-    // Fallback: tentar como HTML
     const content = fileBuffer.toString('utf8');
     if (content.includes('<table')) {
       return processarTabelaHtml(content);
@@ -467,64 +458,7 @@ function processarArquivo(filePath) {
 }
 
 // ============================================
-// SELEÇÃO DE LAYOUT
-// ============================================
-async function trySelectHinovaLayout(page) {
-  const desired = normalizeText(CONFIG.HINOVA_LAYOUT);
-  if (!desired) return false;
-
-  // 1) Tentar select tradicional
-  try {
-    const select = page
-      .locator(
-        'select[name*="layout" i], select[id*="layout" i], select[name*="sistema" i], select[id*="sistema" i], select[name*="perfil" i], select[id*="perfil" i]'
-      )
-      .first();
-
-    if (await select.isVisible().catch(() => false)) {
-      const optionTexts = await select.locator('option').allTextContents().catch(() => []);
-      const idx = optionTexts.findIndex((t) => {
-        const nt = normalizeText(t);
-        return nt.includes('vangard') || nt.includes(desired);
-      });
-
-      if (idx >= 0) {
-        const option = select.locator('option').nth(idx);
-        const value = (await option.getAttribute('value').catch(() => null)) ?? optionTexts[idx];
-        await select.selectOption(value).catch(() => null);
-        log(`Layout selecionado via <select>: ${optionTexts[idx]}`, LOG_LEVELS.DEBUG);
-        return true;
-      }
-    }
-  } catch {}
-
-  // 2) Tentar input (autocomplete/datalist)
-  try {
-    const input = page
-      .locator(
-        'input[placeholder*="Sistema" i], input[placeholder*="Layout" i], input[placeholder*="Perfil" i], input[placeholder*="Relat" i], input[placeholder*="Empresa" i]'
-      )
-      .first();
-    if (await input.isVisible().catch(() => false)) {
-      await input.click({ force: true }).catch(() => null);
-      await input.fill(CONFIG.HINOVA_LAYOUT).catch(() => null);
-      await page.waitForTimeout(500);
-      
-      // Tentar clicar em opção do autocomplete
-      const acOption = page.locator(`li:has-text("VANGARD"), .autocomplete-item:has-text("VANGARD"), .dropdown-item:has-text("VANGARD")`).first();
-      if (await acOption.isVisible({ timeout: 1000 }).catch(() => false)) {
-        await acOption.click().catch(() => null);
-        log('Layout selecionado via autocomplete', LOG_LEVELS.DEBUG);
-        return true;
-      }
-    }
-  } catch {}
-
-  return false;
-}
-
-// ============================================
-// LOGIN
+// LOGIN (MESMO PADRÃO DO ROBÔ DE COBRANÇA)
 // ============================================
 async function realizarLogin(page) {
   setStep('LOGIN');
@@ -533,7 +467,6 @@ async function realizarLogin(page) {
   await page.goto(CONFIG.HINOVA_URL, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
   await page.waitForTimeout(2000);
   
-  // Fechar popups iniciais
   await fecharPopups(page);
   
   // Preencher credenciais
@@ -559,10 +492,6 @@ async function realizarLogin(page) {
     }
   }
   
-  // Tentar selecionar layout se disponível
-  await trySelectHinovaLayout(page);
-  
-  // Fechar popups antes de clicar em login
   await fecharPopups(page);
   
   // Clicar no botão de login com retry
@@ -584,10 +513,8 @@ async function realizarLogin(page) {
   
   for (let tentativa = 1; tentativa <= LIMITS.MAX_LOGIN_RETRIES; tentativa++) {
     try {
-      // Fechar popups antes de cada tentativa
       await fecharPopups(page);
       
-      // Verificar se ainda está na página de login
       if (!(await isAindaNaLogin())) {
         loginSucesso = true;
         break;
@@ -595,19 +522,15 @@ async function realizarLogin(page) {
       
       log(`Tentativa de login ${tentativa}/${LIMITS.MAX_LOGIN_RETRIES}...`, LOG_LEVELS.INFO);
       
-      // Tentar clicar no botão
       await loginBtn.click({ timeout: 5000 }).catch(async () => {
-        // Se falhou, pode ter popup - fechar e tentar com force
         await fecharPopups(page);
         await loginBtn.click({ force: true, timeout: 5000 }).catch(() => {});
       });
       
       await page.waitForTimeout(TIMEOUTS.LOGIN_RETRY_WAIT);
       
-      // Fechar popups pós-login
       await fecharPopups(page);
       
-      // Verificar se login funcionou
       if (!(await isAindaNaLogin())) {
         loginSucesso = true;
         break;
@@ -637,7 +560,6 @@ async function navegarParaRelatorio(page) {
   await page.goto(CONFIG.HINOVA_RELATORIO_URL, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
   await page.waitForTimeout(3000);
   
-  // Fechar popups
   await fecharPopups(page);
   
   log('Página de relatório carregada', LOG_LEVELS.SUCCESS);
@@ -648,259 +570,235 @@ async function configurarFiltros(page) {
   setStep('FILTROS');
   log('Configurando filtros...', LOG_LEVELS.INFO);
   
-  // 1. Marcar/desmarcar SOMENTE os checkboxes do bloco de "Centro de Custo"
-  // (em lote via JS, para evitar ficar minutos clicando em centenas de inputs)
-  log('Processando checkboxes de Centro de Custo...', LOG_LEVELS.INFO);
-
-  const scopeCandidates = [
-    {
-      name: 'fieldset: Centro de Custo',
-      locator: page.locator('fieldset', { hasText: /Centro\s+de\s+Custo/i }).first(),
-    },
-    {
-      name: 'div: Centro de Custo',
-      locator: page
-        .locator('div', { hasText: /Centro\s+de\s+Custo/i })
-        .filter({ has: page.locator('input[type="checkbox"]') })
-        .first(),
-    },
-    {
-      name: 'form: Centro de Custo',
-      locator: page
-        .locator('form', { hasText: /Centro\s+de\s+Custo/i })
-        .filter({ has: page.locator('input[type="checkbox"]') })
-        .first(),
-    },
-  ];
-
-  let scopeLocator = null;
-  for (const candidate of scopeCandidates) {
-    try {
-      if ((await candidate.locator.count()) === 0) continue;
-      if (!(await candidate.locator.isVisible().catch(() => false))) continue;
-
-      const cbCount = await candidate.locator.locator('input[type="checkbox"]').count().catch(() => 0);
-      // heurística para evitar pegar containers genéricos gigantes
-      if (cbCount > 0 && cbCount < 400) {
-        scopeLocator = candidate.locator;
-        log(`Escopo de Centro de Custo detectado: ${candidate.name} (${cbCount} checkboxes)`, LOG_LEVELS.DEBUG);
-        break;
+  // ============================================
+  // 1. CONFIGURAR CHECKBOXES DE CENTRO DE CUSTO
+  // Marcar APENAS os que contêm "EVENTOS", desmarcar os demais
+  // ============================================
+  log('📋 Configurando checkboxes de Centro de Custo (apenas EVENTOS)...', LOG_LEVELS.INFO);
+  
+  const batchResult = await page.evaluate(() => {
+    const normalize = (s) =>
+      (s || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toUpperCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+    
+    // Encontrar o container de Centro de Custo
+    const findCentroCustoContainer = () => {
+      const allElements = document.querySelectorAll('fieldset, div, table, form');
+      
+      for (const el of allElements) {
+        const text = normalize(el.textContent || '');
+        if (text.includes('CENTRO DE CUSTO') || text.includes('CENTRO CUSTO') || text.includes('DEPARTAMENTO')) {
+          const checkboxes = el.querySelectorAll('input[type="checkbox"]');
+          if (checkboxes.length > 0 && checkboxes.length < 500) {
+            return el;
+          }
+        }
       }
-    } catch {}
-  }
-
-  const batchResult = await (async () => {
-    // Se não achou escopo por locators, tenta descobrir via DOM (ainda assim sem sair desmarcando a página inteira)
-    if (!scopeLocator) {
-      log('Escopo de Centro de Custo não encontrado por seletor; tentando detecção automática...', LOG_LEVELS.WARN);
-
-      return await page.evaluate(() => {
-        const normalize = (s) =>
-          (s || '')
-            .toString()
-            .normalize('NFD')
-            .replace(/\p{Diacritic}/gu, '')
-            .toLowerCase()
-            .replace(/\s+/g, ' ')
-            .trim();
-
-        const findBestContainer = () => {
-          const nodes = Array.from(document.querySelectorAll('*'));
-          const anchors = nodes.filter((el) => {
-            const txt = (el.textContent || '').trim();
-            return txt && /Centro\s+de\s+Custo/i.test(txt) && el.children.length === 0;
-          });
-
-          let best = null;
-          let bestScore = Infinity;
-
-          for (const anchor of anchors) {
-            let el = anchor;
-            for (let depth = 0; el && depth < 10; depth += 1) {
-              const cbs = el.querySelectorAll('input[type="checkbox"]');
-              if (cbs.length > 0 && cbs.length < 400) {
-                const score = cbs.length + depth * 25;
-                if (score < bestScore) {
-                  best = el;
-                  bestScore = score;
-                }
-                break;
-              }
-              el = el.parentElement;
-            }
+      
+      // Fallback: procurar por labels/textos específicos
+      const labels = document.querySelectorAll('td, th, label, span');
+      for (const label of labels) {
+        const text = normalize(label.textContent || '');
+        if (text === 'CENTRO DE CUSTO:' || text === 'CENTRO DE CUSTO' || text === 'DEPARTAMENTO:') {
+          const container = label.closest('table') || label.closest('fieldset') || label.closest('div');
+          if (container) {
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+            if (checkboxes.length > 0) return container;
           }
-
-          return best;
-        };
-
-        const container = findBestContainer();
-        if (!container) {
-          return { ok: false, reason: 'container_not_found' };
         }
-
-        const labelTextFor = (input) => {
-          // 1) label[for]
-          const id = input.getAttribute('id');
-          if (id) {
-            const lb = document.querySelector(`label[for="${CSS.escape(id)}"]`);
-            if (lb && lb.textContent) return lb.textContent;
-          }
-          // 2) wrapper label
-          const label = input.closest('label');
-          if (label && label.textContent) return label.textContent;
-          // 3) parent text
-          const parent = input.parentElement;
-          if (parent && parent.textContent) return parent.textContent;
-          return '';
-        };
-
-        const inputs = Array.from(container.querySelectorAll('input[type="checkbox"]'));
-        let marcados = 0;
-        let desmarcados = 0;
-        let alterados = 0;
-
-        for (const input of inputs) {
-          const t = normalize(labelTextFor(input));
-          if (!t || t === 'todos') continue;
-
-          const shouldCheck = t.includes('evento');
-          if (input.checked !== shouldCheck) {
-            input.checked = shouldCheck;
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            alterados += 1;
-          }
-          if (shouldCheck) marcados += 1;
-          else desmarcados += 1;
-        }
-
-        return {
-          ok: true,
-          used: 'auto_container',
-          total: inputs.length,
-          marcados,
-          desmarcados,
-          alterados,
-        };
-      });
+      }
+      
+      return null;
+    };
+    
+    const container = findCentroCustoContainer();
+    if (!container) {
+      return { ok: false, reason: 'container_not_found' };
     }
-
-    // Caminho principal (rápido): atuar só dentro do escopo identificado
-    return await scopeLocator.evaluate((root) => {
-      const normalize = (s) =>
-        (s || '')
-          .toString()
-          .normalize('NFD')
-          .replace(/\p{Diacritic}/gu, '')
-          .toLowerCase()
-          .replace(/\s+/g, ' ')
-          .trim();
-
-      const labelTextFor = (input) => {
-        const id = input.getAttribute('id');
-        if (id) {
-          const lb = document.querySelector(`label[for="${CSS.escape(id)}"]`);
-          if (lb && lb.textContent) return lb.textContent;
-        }
-        const label = input.closest('label');
-        if (label && label.textContent) return label.textContent;
-        const parent = input.parentElement;
-        if (parent && parent.textContent) return parent.textContent;
-        return '';
-      };
-
-      const inputs = Array.from(root.querySelectorAll('input[type="checkbox"]'));
-      let marcados = 0;
-      let desmarcados = 0;
-      let alterados = 0;
-
-      for (const input of inputs) {
-        const t = normalize(labelTextFor(input));
-        if (!t || t === 'todos') continue;
-
-        const shouldCheck = t.includes('evento');
-        if (input.checked !== shouldCheck) {
-          input.checked = shouldCheck;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-          alterados += 1;
-        }
-        if (shouldCheck) marcados += 1;
-        else desmarcados += 1;
+    
+    const labelTextFor = (input) => {
+      // 1) label[for]
+      const id = input.getAttribute('id');
+      if (id) {
+        const lb = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+        if (lb && lb.textContent) return lb.textContent;
       }
-
-      return {
-        ok: true,
-        used: 'scoped_container',
-        total: inputs.length,
-        marcados,
-        desmarcados,
-        alterados,
-      };
-    });
-  })();
-
+      // 2) wrapper label
+      const label = input.closest('label');
+      if (label && label.textContent) return label.textContent;
+      // 3) parent text
+      const parent = input.parentElement;
+      if (parent && parent.textContent) return parent.textContent;
+      // 4) next sibling text
+      const next = input.nextSibling;
+      if (next && next.textContent) return next.textContent;
+      return '';
+    };
+    
+    const checkboxes = Array.from(container.querySelectorAll('input[type="checkbox"]'));
+    let marcados = 0;
+    let desmarcados = 0;
+    let alterados = 0;
+    const detalhes = [];
+    
+    for (const input of checkboxes) {
+      const labelText = normalize(labelTextFor(input));
+      if (!labelText || labelText === 'TODOS') continue;
+      
+      // Marcar APENAS se contém "EVENTOS"
+      const shouldCheck = labelText.includes('EVENTO');
+      
+      if (input.checked !== shouldCheck) {
+        input.checked = shouldCheck;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        alterados++;
+      }
+      
+      if (shouldCheck) {
+        marcados++;
+        detalhes.push(`✓ ${labelText}`);
+      } else {
+        desmarcados++;
+      }
+    }
+    
+    return {
+      ok: true,
+      total: checkboxes.length,
+      marcados,
+      desmarcados,
+      alterados,
+      detalhes: detalhes.slice(0, 10), // Primeiros 10 para log
+    };
+  });
+  
   if (!batchResult?.ok) {
-    await saveDebugInfo(page, 'centro_custo_escopo_nao_encontrado');
-    throw new Error('Não foi possível identificar o bloco de Centro de Custo para aplicar o filtro de EVENTOS.');
-  }
-
-  log(
-    `Centro de Custo aplicado (${batchResult.used}): total=${batchResult.total}, marcados=${batchResult.marcados}, desmarcados=${batchResult.desmarcados}, alterados=${batchResult.alterados}`,
-    LOG_LEVELS.SUCCESS
-  );
-
-  // Pequena pausa para a página reagir a eventos de change/input (quando existir dependência)
-  await page.waitForTimeout(500);
-  
-  // 4. Selecionar Layout "BI VANGARD FINANCEIROS EVENTOS"
-  log('Selecionando layout...', LOG_LEVELS.INFO);
-  const layoutSelect = page.locator('select[name*="layout"], select[id*="layout"], select[name*="dados"]').first();
-  
-  if (await layoutSelect.isVisible().catch(() => false)) {
-    const options = await layoutSelect.locator('option').allTextContents();
-    const targetOption = options.find(opt => normalizeText(opt).includes('vangard') && normalizeText(opt).includes('financeiro'));
-    
-    if (targetOption) {
-      await layoutSelect.selectOption({ label: targetOption });
-      log(`Layout selecionado: ${targetOption}`, LOG_LEVELS.SUCCESS);
-    } else {
-      // Tentar selecionar por valor parcial
-      await layoutSelect.selectOption({ label: CONFIG.HINOVA_LAYOUT }).catch(() => {});
-      log(`Tentativa de selecionar layout: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.INFO);
-    }
-    
-    await page.waitForTimeout(1000);
-  }
-  
-  // 5. Selecionar tipo de relatório "Em Excel"
-  log('Selecionando formato Excel...', LOG_LEVELS.INFO);
-  const excelRadio = page.locator('input[type="radio"][value*="excel"], input[type="radio"][value*="xls"]').first();
-  
-  if (await excelRadio.isVisible().catch(() => false)) {
-    await excelRadio.check();
-    log('Formato Excel selecionado via radio', LOG_LEVELS.SUCCESS);
+    log(`⚠️ Container de Centro de Custo não encontrado: ${batchResult?.reason}`, LOG_LEVELS.WARN);
+    await saveDebugInfo(page, 'centro_custo_nao_encontrado');
   } else {
-    // Tentar select
-    const formatSelect = page.locator('select[name*="tipo"], select[name*="formato"], select[name*="exibicao"]').first();
-    if (await formatSelect.isVisible().catch(() => false)) {
-      const options = await formatSelect.locator('option').allTextContents();
-      const excelOption = options.find(opt => normalizeText(opt).includes('excel'));
-      if (excelOption) {
-        await formatSelect.selectOption({ label: excelOption });
-        log(`Formato selecionado: ${excelOption}`, LOG_LEVELS.SUCCESS);
-      }
-    } else {
-      // Último recurso: clicar no label/botão/link que contenha "EXCEL"
-      const excelClickable = page
-        .locator('label:has-text("EXCEL"), button:has-text("EXCEL"), a:has-text("EXCEL"), text=/Em\\s+Excel/i')
-        .first();
-
-      if (await excelClickable.isVisible().catch(() => false)) {
-        await excelClickable.click({ timeout: 5000 }).catch(() => {});
-        log('Formato Excel selecionado via clique em texto/label', LOG_LEVELS.SUCCESS);
+    log(`✅ Centro de Custo configurado: total=${batchResult.total}, marcados=${batchResult.marcados}, desmarcados=${batchResult.desmarcados}, alterados=${batchResult.alterados}`, LOG_LEVELS.SUCCESS);
+    if (batchResult.detalhes?.length > 0) {
+      log(`   Marcados: ${batchResult.detalhes.join(', ')}`, LOG_LEVELS.DEBUG);
+    }
+  }
+  
+  await page.waitForTimeout(1000);
+  
+  // ============================================
+  // 2. SELECIONAR LAYOUT "BI VANGARD FINANCEIROS EVENTOS"
+  // ============================================
+  log('📋 Selecionando layout...', LOG_LEVELS.INFO);
+  
+  const layoutResult = await page.evaluate(() => {
+    const normalize = (s) =>
+      (s || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toUpperCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+    
+    const selects = document.querySelectorAll('select');
+    
+    for (const select of selects) {
+      const options = Array.from(select.options);
+      
+      for (let i = 0; i < options.length; i++) {
+        const optText = normalize(options[i].text || '');
+        
+        // Procurar layout com VANGARD e FINANCEIRO (ou EVENTOS)
+        if ((optText.includes('VANGARD') && (optText.includes('FINANCEIRO') || optText.includes('EVENTO'))) ||
+            optText.includes('BI VANGARD')) {
+          select.selectedIndex = i;
+          select.dispatchEvent(new Event('input', { bubbles: true }));
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          return { ok: true, selected: options[i].text };
+        }
       }
     }
+    
+    return { ok: false };
+  });
+  
+  if (layoutResult?.ok) {
+    log(`✅ Layout selecionado: ${layoutResult.selected}`, LOG_LEVELS.SUCCESS);
+  } else {
+    log('⚠️ Layout não encontrado automaticamente, tentando via input...', LOG_LEVELS.WARN);
+  }
+  
+  await page.waitForTimeout(1000);
+  
+  // ============================================
+  // 3. SELECIONAR FORMATO "EM EXCEL"
+  // ============================================
+  log('📋 Selecionando formato Excel...', LOG_LEVELS.INFO);
+  
+  const excelResult = await page.evaluate(() => {
+    const normalize = (s) =>
+      (s || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toUpperCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+    
+    // Tentar via radio button
+    const radios = document.querySelectorAll('input[type="radio"]');
+    for (const radio of radios) {
+      const label = radio.closest('label');
+      const labelText = normalize(label?.textContent || radio.value || '');
+      
+      if (labelText.includes('EXCEL') || labelText.includes('XLS')) {
+        radio.checked = true;
+        radio.dispatchEvent(new Event('input', { bubbles: true }));
+        radio.dispatchEvent(new Event('change', { bubbles: true }));
+        radio.dispatchEvent(new Event('click', { bubbles: true }));
+        return { ok: true, method: 'radio', label: labelText };
+      }
+    }
+    
+    // Tentar via select
+    const selects = document.querySelectorAll('select');
+    for (const select of selects) {
+      const options = Array.from(select.options);
+      
+      for (let i = 0; i < options.length; i++) {
+        const optText = normalize(options[i].text || '');
+        
+        if (optText.includes('EXCEL') || optText.includes('XLS')) {
+          select.selectedIndex = i;
+          select.dispatchEvent(new Event('input', { bubbles: true }));
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          return { ok: true, method: 'select', label: options[i].text };
+        }
+      }
+    }
+    
+    // Tentar via clique em label/botão
+    const clickables = document.querySelectorAll('label, button, a, span');
+    for (const el of clickables) {
+      const text = normalize(el.textContent || '');
+      if (text.includes('EXCEL') || text === 'EM EXCEL') {
+        el.click();
+        return { ok: true, method: 'click', label: text };
+      }
+    }
+    
+    return { ok: false };
+  });
+  
+  if (excelResult?.ok) {
+    log(`✅ Formato Excel selecionado via ${excelResult.method}: ${excelResult.label}`, LOG_LEVELS.SUCCESS);
+  } else {
+    log('⚠️ Formato Excel não encontrado automaticamente', LOG_LEVELS.WARN);
   }
   
   await saveDebugInfo(page, 'filtros_configurados');
@@ -908,106 +806,154 @@ async function configurarFiltros(page) {
 }
 
 // ============================================
-// DOWNLOAD
+// DOWNLOAD (MESMO PADRÃO DO ROBÔ DE COBRANÇA)
 // ============================================
-async function gerarEBaixarRelatorio(page) {
+async function gerarEBaixarRelatorio(page, context) {
   setStep('DOWNLOAD');
   log('Gerando relatório...', LOG_LEVELS.INFO);
   
   const downloadDir = getDownloadDirectory();
-  const filename = generateSemanticFilename();
-  const filePath = path.join(downloadDir, filename);
+  const semanticName = generateSemanticFilename();
+  const filePath = path.join(downloadDir, semanticName);
   
   log(`Diretório de download: ${downloadDir}`, LOG_LEVELS.INFO);
+  log(`Nome do arquivo: ${semanticName}`, LOG_LEVELS.DEBUG);
+  
+  // Aumentar timeout durante download
+  context.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
+  page.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
   
   // Salvar screenshot antes de tentar gerar
   await saveDebugInfo(page, 'antes_gerar');
   
-  // Lista de seletores possíveis para o botão Gerar/Pesquisar
-  const btnSelectors = [
-    'button:has-text("Gerar")',
-    'input[type="submit"][value*="Gerar"]',
-    'input[type="button"][value*="Gerar"]',
-    'a:has-text("Gerar")',
-    'button:has-text("Pesquisar")',
-    'input[type="submit"][value*="Pesquisar"]',
-    'input[type="button"][value*="Pesquisar"]',
-    'button:has-text("Consultar")',
-    'input[value*="Consultar"]',
-    'button:has-text("Buscar")',
-    'input[value*="Buscar"]',
-    'button.btn-primary',
-    'button.btn-success',
-    'input.btn-primary[type="submit"]',
-    'input.btn-success[type="submit"]',
-    '#btnGerar',
-    '#btnPesquisar',
-    'button[name="gerar"]',
-    'input[name="gerar"]',
-  ];
+  let downloadSucesso = false;
   
-  // Tentar encontrar o botão
-  let gerarBtn = null;
-  for (const selector of btnSelectors) {
-    const btn = page.locator(selector).first();
-    if (await btn.isVisible({ timeout: 1000 }).catch(() => false)) {
-      gerarBtn = btn;
-      const btnText = await btn.textContent().catch(() => '') || await btn.getAttribute('value').catch(() => '');
-      log(`Botão encontrado: ${selector} - "${btnText.trim()}"`, LOG_LEVELS.DEBUG);
-      break;
-    }
-  }
-  
-  if (!gerarBtn) {
-    // Último recurso: buscar qualquer botão submit visível
-    const allSubmits = await page.locator('input[type="submit"], button[type="submit"]').all();
-    for (const btn of allSubmits) {
-      if (await btn.isVisible().catch(() => false)) {
-        gerarBtn = btn;
-        const btnText = await btn.getAttribute('value').catch(() => '') || await btn.textContent().catch(() => '');
-        log(`Fallback - Botão submit encontrado: "${btnText}"`, LOG_LEVELS.DEBUG);
-        break;
+  for (let tentativa = 1; tentativa <= LIMITS.MAX_DOWNLOAD_RETRIES && !downloadSucesso; tentativa++) {
+    log(`Tentativa de download ${tentativa}/${LIMITS.MAX_DOWNLOAD_RETRIES}...`, LOG_LEVELS.INFO);
+    
+    try {
+      // ============================================
+      // CLICAR NO BOTÃO GERAR (MULTI-ESTRATÉGIA)
+      // ============================================
+      const clicarGerar = async () => {
+        const btnSelectors = [
+          'button:has-text("Gerar")',
+          'input[type="submit"][value*="Gerar"]',
+          'input[type="button"][value*="Gerar"]',
+          'a:has-text("Gerar")',
+          'button:has-text("Pesquisar")',
+          'input[type="submit"][value*="Pesquisar"]',
+          'button:has-text("Consultar")',
+          'input[value*="Consultar"]',
+          'button:has-text("Buscar")',
+          'button.btn-primary',
+          'button.btn-success',
+          'input.btn-primary[type="submit"]',
+          'input.btn-success[type="submit"]',
+          '#btnGerar',
+          '#btnPesquisar',
+        ];
+        
+        for (const selector of btnSelectors) {
+          const btn = page.locator(selector).first();
+          if (await btn.isVisible({ timeout: 1000 }).catch(() => false)) {
+            const btnText = await btn.textContent().catch(() => '') || await btn.getAttribute('value').catch(() => '');
+            log(`Botão encontrado: ${selector} - "${btnText?.trim()}"`, LOG_LEVELS.DEBUG);
+            return btn;
+          }
+        }
+        
+        // Fallback: qualquer submit visível
+        const allSubmits = await page.locator('input[type="submit"], button[type="submit"]').all();
+        for (const btn of allSubmits) {
+          if (await btn.isVisible().catch(() => false)) {
+            const btnText = await btn.getAttribute('value').catch(() => '') || await btn.textContent().catch(() => '');
+            log(`Fallback - Botão submit encontrado: "${btnText}"`, LOG_LEVELS.DEBUG);
+            return btn;
+          }
+        }
+        
+        return null;
+      };
+      
+      const gerarBtn = await clicarGerar();
+      
+      if (!gerarBtn) {
+        await saveDebugInfo(page, 'botao_nao_encontrado');
+        throw new Error('Botão Gerar/Pesquisar não encontrado na página');
+      }
+      
+      // ============================================
+      // CONFIGURAR LISTENER DE DOWNLOAD ANTES DO CLIQUE
+      // (MESMA ESTRATÉGIA DO ROBÔ DE COBRANÇA)
+      // ============================================
+      log('Configurando listener de download...', LOG_LEVELS.DEBUG);
+      
+      const downloadPromise = page.waitForEvent('download', { timeout: TIMEOUTS.DOWNLOAD_TOTAL });
+      
+      // Clicar no botão
+      await gerarBtn.click({ timeout: 15000, force: true });
+      log('Botão Gerar clicado', LOG_LEVELS.SUCCESS);
+      
+      // ============================================
+      // AGUARDAR DOWNLOAD
+      // ============================================
+      log(`Aguardando download (timeout: ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)...`, LOG_LEVELS.INFO);
+      
+      const download = await downloadPromise;
+      const suggestedName = download.suggestedFilename();
+      log(`Download iniciado: ${suggestedName}`, LOG_LEVELS.SUCCESS);
+      
+      // Salvar arquivo
+      log(`Salvando arquivo: ${filePath}`, LOG_LEVELS.INFO);
+      await download.saveAs(filePath);
+      
+      // Validar arquivo
+      if (!fs.existsSync(filePath)) {
+        throw new Error('Arquivo não foi salvo');
+      }
+      
+      const stats = fs.statSync(filePath);
+      if (stats.size < LIMITS.MIN_FILE_SIZE_BYTES) {
+        throw new Error(`Arquivo muito pequeno: ${stats.size} bytes`);
+      }
+      
+      log(`✅ Arquivo salvo: ${filePath} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
+      downloadSucesso = true;
+      
+    } catch (downloadError) {
+      log(`Erro na tentativa ${tentativa}: ${downloadError.message}`, LOG_LEVELS.ERROR);
+      await saveDebugInfo(page, `erro_download_tentativa_${tentativa}`);
+      
+      if (tentativa < LIMITS.MAX_DOWNLOAD_RETRIES) {
+        log('Preparando nova tentativa...', LOG_LEVELS.INFO);
+        await page.waitForTimeout(5000);
+        await fecharPopups(page);
+        
+        // Recarregar página se necessário
+        const urlAtual = page.url();
+        if (!urlAtual.includes('relatorioLancamento')) {
+          log('Recarregando página de relatório...', LOG_LEVELS.INFO);
+          await page.goto(CONFIG.HINOVA_RELATORIO_URL, { 
+            waitUntil: 'networkidle',
+            timeout: TIMEOUTS.PAGE_LOAD
+          });
+          await fecharPopups(page);
+          await page.waitForTimeout(3000);
+          
+          // Re-configurar filtros
+          await configurarFiltros(page);
+        }
       }
     }
   }
   
-  if (!gerarBtn) {
-    await saveDebugInfo(page, 'botao_nao_encontrado');
-    throw new Error('Botão Gerar/Pesquisar não encontrado na página');
+  if (!downloadSucesso) {
+    await saveDebugInfo(page, 'download_falhou_todas_tentativas');
+    throw new Error('Download falhou após todas as tentativas');
   }
   
-  // Configurar listener de download ANTES do clique
-  const downloadPromise = page.waitForEvent('download', { timeout: TIMEOUTS.DOWNLOAD_EVENT });
-  
-  // Clicar no botão
-  await gerarBtn.click();
-  log('Botão Gerar clicado', LOG_LEVELS.SUCCESS);
-  
-  // Aguardar download
-  log('Aguardando download...', LOG_LEVELS.INFO);
-  
-  try {
-    const download = await downloadPromise;
-    const suggestedName = download.suggestedFilename();
-    log(`Download iniciado: ${suggestedName}`, LOG_LEVELS.SUCCESS);
-    
-    // Salvar arquivo
-    await download.saveAs(filePath);
-    log(`Arquivo salvo: ${filePath}`, LOG_LEVELS.SUCCESS);
-    
-    // Validar arquivo
-    if (fs.existsSync(filePath)) {
-      const stats = fs.statSync(filePath);
-      log(`Validação OK: ${formatBytes(stats.size)}`, LOG_LEVELS.SUCCESS);
-      return filePath;
-    }
-  } catch (e) {
-    log(`Erro no download: ${e.message}`, LOG_LEVELS.ERROR);
-    await saveDebugInfo(page, 'erro_download');
-    throw e;
-  }
-  
-  throw new Error('Falha ao baixar arquivo');
+  return filePath;
 }
 
 // ============================================
@@ -1023,20 +969,29 @@ async function main() {
   await updateProgress('executando', 'login');
   
   let browser;
+  let context;
+  let page;
   let filePath;
   
   try {
     browser = await chromium.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-popup-blocking'],
     });
     
-    const context = await browser.newContext({
+    context = await browser.newContext({
       viewport: { width: 1920, height: 1080 },
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      acceptDownloads: true,
+      navigationTimeout: TIMEOUTS.PAGE_LOAD,
     });
     
-    const page = await context.newPage();
+    // Timeout padrão moderado para operações normais
+    context.setDefaultTimeout(30000);
+    
+    page = await context.newPage();
+    page.setDefaultTimeout(30000);
+    page.setDefaultNavigationTimeout(TIMEOUTS.PAGE_LOAD);
     
     // Login
     await realizarLogin(page);
@@ -1050,8 +1005,8 @@ async function main() {
     await configurarFiltros(page);
     await updateProgress('executando', 'download');
     
-    // Gerar e baixar relatório
-    filePath = await gerarEBaixarRelatorio(page);
+    // Gerar e baixar relatório (passando context para ajustar timeout)
+    filePath = await gerarEBaixarRelatorio(page, context);
     await updateProgress('executando', 'processamento');
     
     // Processar arquivo
@@ -1118,6 +1073,14 @@ async function main() {
       }
     } catch {}
     
+    // Limpar arquivo de download após sucesso
+    try {
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        log('Arquivo temporário removido', LOG_LEVELS.DEBUG);
+      }
+    } catch {}
+    
   } catch (error) {
     log(`ERRO FATAL: ${error.message}`, LOG_LEVELS.ERROR);
     await notifyError(error.message);
@@ -1125,6 +1088,7 @@ async function main() {
   } finally {
     if (browser) {
       await browser.close();
+      log('Browser fechado', LOG_LEVELS.DEBUG);
     }
   }
 }
