@@ -4571,95 +4571,97 @@ async function rodarRobo() {
         // (Hinova às vezes exporta colunas vazias mesmo com layout BI)
         // ============================================
         const aplicarFallbacks = (rows) => {
+          const DIA_VENC_PADRAO = 'Dia Vencimento Veiculo';
+          const DIAS_ATRASO_PADRAO = 'Qtde Dias em Atraso Vencimento Original';
+
           const hoje = new Date();
           hoje.setHours(0, 0, 0, 0);
-          
+
+          const findKey = (row, predicate) => {
+            return Object.keys(row).find((k) => predicate(k.toLowerCase())) || null;
+          };
+
+          const parseDateToDate = (value) => {
+            if (!value) return null;
+            const strData = String(value).trim();
+            // DD/MM/YYYY
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(strData)) {
+              const [d, m, y] = strData.split('/');
+              const dt = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+              return isNaN(dt.getTime()) ? null : dt;
+            }
+            // YYYY-MM-DD (ou YYYY-MM-DDTHH...)
+            if (/^\d{4}-\d{2}-\d{2}/.test(strData)) {
+              const [y, m, d] = strData.split('T')[0].split('-');
+              const dt = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+              return isNaN(dt.getTime()) ? null : dt;
+            }
+            return null;
+          };
+
           for (const row of rows) {
-            // 1. Dia Vencimento Veículo = dia do mês de Data Vencimento
-            const diaVencKey = Object.keys(row).find(k => 
-              k.toLowerCase().includes('dia vencimento veiculo') || 
-              k.toLowerCase().includes('dia_vencimento_veiculo')
-            );
-            const dataVencKey = Object.keys(row).find(k => 
-              k.toLowerCase() === 'data vencimento' || 
-              k.toLowerCase() === 'data_vencimento'
-            );
-            
-            if (diaVencKey && dataVencKey) {
-              const valorDiaVenc = row[diaVencKey];
-              if (valorDiaVenc === null || valorDiaVenc === undefined || String(valorDiaVenc).trim() === '') {
-                const dataVenc = row[dataVencKey];
-                if (dataVenc) {
-                  const strData = String(dataVenc).trim();
-                  let dia = null;
-                  
-                  // Formato DD/MM/YYYY
-                  if (/^\d{2}\/\d{2}\/\d{4}$/.test(strData)) {
-                    dia = parseInt(strData.split('/')[0], 10);
-                  }
-                  // Formato YYYY-MM-DD
-                  else if (/^\d{4}-\d{2}-\d{2}/.test(strData)) {
-                    dia = parseInt(strData.split('-')[2], 10);
-                  }
-                  
-                  if (dia && dia >= 1 && dia <= 31) {
-                    row[diaVencKey] = dia;
-                  }
-                }
+            // Chaves fonte (tanto com espaço quanto underscore)
+            const dataVencKey =
+              findKey(row, (k) =>
+                (k === 'data vencimento' || k === 'data_vencimento' || k.includes('data vencimento')) &&
+                !k.includes('original')
+              ) ||
+              null;
+            const dataVencOrigKey =
+              findKey(row, (k) => k.includes('data vencimento original') || k.includes('data_vencimento_original')) ||
+              null;
+            const dataPagKey =
+              findKey(row, (k) => k.includes('data pagamento') || k.includes('data_pagamento')) ||
+              null;
+
+            // 1) Dia Vencimento Veículo
+            const diaVencKey =
+              findKey(row, (k) => k.includes('dia vencimento veiculo') || k.includes('dia_vencimento_veiculo')) ||
+              DIA_VENC_PADRAO;
+
+            if (!(diaVencKey in row)) row[diaVencKey] = null;
+            const valorDiaVenc = row[diaVencKey];
+
+            if ((valorDiaVenc === null || valorDiaVenc === undefined || String(valorDiaVenc).trim() === '') && (dataVencKey || dataVencOrigKey)) {
+              const base = dataVencKey ? row[dataVencKey] : row[dataVencOrigKey];
+              const dt = parseDateToDate(base);
+              if (dt) {
+                const dia = dt.getDate();
+                if (dia >= 1 && dia <= 31) row[diaVencKey] = dia;
               }
             }
-            
-            // 2. Dias em Atraso = diferença entre hoje e Data Vencimento Original
-            const diasAtrasoKey = Object.keys(row).find(k => 
-              k.toLowerCase().includes('dias') && k.toLowerCase().includes('atraso')
-            );
-            const dataVencOrigKey = Object.keys(row).find(k => 
-              k.toLowerCase().includes('data vencimento original') || 
-              k.toLowerCase().includes('data_vencimento_original')
-            );
-            const dataPagKey = Object.keys(row).find(k => 
-              k.toLowerCase().includes('data pagamento') || 
-              k.toLowerCase().includes('data_pagamento')
-            );
-            
-            if (diasAtrasoKey) {
-              const valorDiasAtraso = row[diasAtrasoKey];
-              
-              // Se tem data de pagamento, boleto está pago - dias de atraso = 0
-              if (dataPagKey && row[dataPagKey] && String(row[dataPagKey]).trim() !== '') {
-                if (valorDiasAtraso === null || valorDiasAtraso === undefined || String(valorDiasAtraso).trim() === '') {
-                  row[diasAtrasoKey] = 0;
-                }
+
+            // 2) Dias em Atraso
+            // IMPORTANTE: o portal às vezes nem exporta essa coluna; então criamos sempre a chave padrão.
+            const diasAtrasoKey =
+              findKey(row, (k) => k.includes('dias') && k.includes('atraso')) ||
+              DIAS_ATRASO_PADRAO;
+
+            if (!(diasAtrasoKey in row)) row[diasAtrasoKey] = null;
+            const valorDiasAtraso = row[diasAtrasoKey];
+
+            // Pago => atraso 0
+            const temPagamento = !!(dataPagKey && row[dataPagKey] && String(row[dataPagKey]).trim() !== '');
+            if (temPagamento) {
+              if (valorDiasAtraso === null || valorDiasAtraso === undefined || String(valorDiasAtraso).trim() === '') {
+                row[diasAtrasoKey] = 0;
               }
-              // Se não tem pagamento, calcular dias de atraso
-              else if (dataVencOrigKey && (valorDiasAtraso === null || valorDiasAtraso === undefined || String(valorDiasAtraso).trim() === '')) {
-                const dataVencOrig = row[dataVencOrigKey];
-                if (dataVencOrig) {
-                  const strData = String(dataVencOrig).trim();
-                  let dataRef = null;
-                  
-                  // Formato DD/MM/YYYY
-                  if (/^\d{2}\/\d{2}\/\d{4}$/.test(strData)) {
-                    const [d, m, y] = strData.split('/');
-                    dataRef = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
-                  }
-                  // Formato YYYY-MM-DD
-                  else if (/^\d{4}-\d{2}-\d{2}/.test(strData)) {
-                    const [y, m, d] = strData.split('-');
-                    dataRef = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
-                  }
-                  
-                  if (dataRef && !isNaN(dataRef.getTime())) {
-                    dataRef.setHours(0, 0, 0, 0);
-                    const diffMs = hoje.getTime() - dataRef.getTime();
-                    const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                    row[diasAtrasoKey] = Math.max(0, diffDias);
-                  }
-                }
+              continue;
+            }
+
+            // Não pago => diferença (preferir vencimento original; senão usar vencimento)
+            if (valorDiasAtraso === null || valorDiasAtraso === undefined || String(valorDiasAtraso).trim() === '') {
+              const base = dataVencOrigKey ? row[dataVencOrigKey] : dataVencKey ? row[dataVencKey] : null;
+              const dt = parseDateToDate(base);
+              if (dt) {
+                dt.setHours(0, 0, 0, 0);
+                const diffMs = hoje.getTime() - dt.getTime();
+                const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                row[diasAtrasoKey] = Math.max(0, diffDias);
               }
             }
           }
-          
+
           return rows;
         };
         
