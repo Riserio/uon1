@@ -50,3 +50,9 @@ verify_jwt = false
 
 [functions.webhook-sga-hinova]
 verify_jwt = false
+
+[functions.disparar-mgf-workflow]
+verify_jwt = false
+
+[functions.webhook-mgf-hinova]
+verify_jwt = false
