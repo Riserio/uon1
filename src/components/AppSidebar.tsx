@@ -221,12 +221,12 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
 
-                {/* E-mails */}
+                {/* E-mails / WhatsApp */}
                 {canView("emails") && <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink to="/emails" activeClassName="bg-primary text-primary-foreground">
                         <Mail className="h-4 w-4" />
-                        {!collapsed && <span>E-mails</span>}
+                        {!collapsed && <span>E-mails / WhatsApp</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>}

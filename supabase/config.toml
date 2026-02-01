@@ -56,3 +56,12 @@ verify_jwt = false
 
 [functions.webhook-mgf-hinova]
 verify_jwt = false
+
+[functions.enviar-whatsapp]
+verify_jwt = false
+
+[functions.gerar-resumo-cobranca]
+verify_jwt = true
+
+[functions.gerar-resumo-eventos]
+verify_jwt = true
