@@ -49,7 +49,7 @@ serve(async (req) => {
     // Calculate metrics
     const totalEventos = eventos?.length || 0;
 
-    // Count by type
+    // Count by type using motivo_evento field
     const tipoContagem: Record<string, number> = {
       'Colisão': 0,
       'Vidros': 0,
@@ -58,22 +58,22 @@ serve(async (req) => {
     };
 
     eventos?.forEach(e => {
-      const tipo = (e.tipo_sinistro || '').toLowerCase();
-      if (tipo.includes('colisão') || tipo.includes('colisao')) {
+      const motivo = (e.motivo_evento || '').toUpperCase();
+      if (motivo.includes('COLISÃO') || motivo.includes('COLISAO') || motivo.includes('CAPOTAMENTO')) {
         tipoContagem['Colisão']++;
-      } else if (tipo.includes('vidro')) {
+      } else if (motivo.includes('VIDRO') || motivo.includes('PARA-BRISA') || motivo.includes('PARABRISA') || motivo.includes('LANTERNA') || motivo.includes('FAROL') || motivo.includes('RETROVISOR')) {
         tipoContagem['Vidros']++;
-      } else if (tipo.includes('furto') || tipo.includes('roubo')) {
+      } else if (motivo.includes('FURTO') || motivo.includes('ROUBO')) {
         tipoContagem['Furto/Roubo']++;
       } else {
         tipoContagem['Outros']++;
       }
     });
 
-    // Count by city
+    // Count by city using evento_cidade field
     const cidadeContagem: Record<string, number> = {};
     eventos?.forEach(e => {
-      const cidade = e.cidade_sinistro || 'Não informada';
+      const cidade = e.evento_cidade || 'Não informada';
       cidadeContagem[cidade] = (cidadeContagem[cidade] || 0) + 1;
     });
 
