@@ -5291,8 +5291,12 @@ export type Database = {
           envio_automatico_mgf: boolean | null
           horario_envio: string | null
           id: string
+          n8n_ativo: boolean | null
+          n8n_webhook_url: string | null
           nome_exibicao: string | null
           telefone_whatsapp: string
+          ultimo_envio_automatico: string | null
+          ultimo_erro_envio: string | null
           updated_at: string | null
         }
         Insert: {
@@ -5305,8 +5309,12 @@ export type Database = {
           envio_automatico_mgf?: boolean | null
           horario_envio?: string | null
           id?: string
+          n8n_ativo?: boolean | null
+          n8n_webhook_url?: string | null
           nome_exibicao?: string | null
           telefone_whatsapp: string
+          ultimo_envio_automatico?: string | null
+          ultimo_erro_envio?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -5319,8 +5327,12 @@ export type Database = {
           envio_automatico_mgf?: boolean | null
           horario_envio?: string | null
           id?: string
+          n8n_ativo?: boolean | null
+          n8n_webhook_url?: string | null
           nome_exibicao?: string | null
           telefone_whatsapp?: string
+          ultimo_envio_automatico?: string | null
+          ultimo_erro_envio?: string | null
           updated_at?: string | null
         }
         Relationships: [
