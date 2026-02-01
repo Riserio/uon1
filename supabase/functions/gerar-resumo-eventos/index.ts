@@ -38,13 +38,36 @@ serve(async (req) => {
       throw new Error('Nenhuma importação ativa encontrada');
     }
 
-    // Get all events from active import
-    const { data: eventos, error: eventosError } = await supabase
-      .from('sga_eventos')
-      .select('*')
-      .eq('importacao_id', importacao.id);
+    // Get ALL events from active import (no limit)
+    // Using pagination to get all records
+    let allEventos: any[] = [];
+    let offset = 0;
+    const batchSize = 1000;
+    let hasMore = true;
 
-    if (eventosError) throw eventosError;
+    while (hasMore) {
+      const { data: batchEventos, error: batchError } = await supabase
+        .from('sga_eventos')
+        .select('motivo_evento, evento_cidade, cooperativa')
+        .eq('importacao_id', importacao.id)
+        .range(offset, offset + batchSize - 1);
+
+      if (batchError) {
+        console.error('[gerar-resumo-eventos] Error fetching eventos:', batchError);
+        throw batchError;
+      }
+
+      if (batchEventos && batchEventos.length > 0) {
+        allEventos = [...allEventos, ...batchEventos];
+        offset += batchSize;
+        hasMore = batchEventos.length === batchSize;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    const eventos = allEventos;
+    console.log(`[gerar-resumo-eventos] Total eventos carregados: ${eventos.length}`);
 
     // Calculate metrics
     const totalEventos = eventos?.length || 0;
