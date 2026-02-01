@@ -525,6 +525,12 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
         '#myModal .close',
         '#myModal button.close',
         '#myModal [data-dismiss="modal"]',
+        // Seletores específicos para popup de suporte Hinova
+        '.modal button:has-text("Fechar")',
+        '.modal input[value="Fechar"]',
+        'form button:has-text("Fechar")',
+        'div[class*="modal"] button:has-text("Fechar")',
+        'div[class*="dialog"] button:has-text("Fechar")',
       ];
       
       for (const seletor of seletoresFechar) {
@@ -540,20 +546,50 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
         } catch {}
       }
       
-      // Fallback JavaScript
+      // Fallback JavaScript - busca específica para popup de suporte Hinova
       if (!popupFechado) {
         const fechouViaJS = await page.evaluate(() => {
           let fechou = false;
           
-          const allElements = document.querySelectorAll('button, a, input[type="button"], input[type="submit"], .btn');
-          for (const el of allElements) {
-            const texto = (el.textContent || el.value || '').toLowerCase().trim();
-            if (texto === 'fechar' || texto.includes('fechar')) {
-              const style = window.getComputedStyle(el);
-              if (style.display !== 'none' && style.visibility !== 'hidden') {
-                el.click();
-                fechou = true;
-                break;
+          // Buscar especificamente pelo popup de suporte Hinova
+          // Texto característico: "suporte", "liberar o usuário", "quanto tempo"
+          const allTextElements = document.querySelectorAll('div, td, span, p, label, form');
+          for (const el of allTextElements) {
+            const text = (el.textContent || '').toLowerCase();
+            if (text.includes('suporte') || text.includes('liberar o usuário') || text.includes('quanto tempo')) {
+              // Encontrou popup de suporte - buscar botão Fechar no container
+              const container = el.closest('div, table, form, .modal');
+              if (container) {
+                const buttons = container.querySelectorAll('button, input[type="button"], a, .btn');
+                for (const btn of buttons) {
+                  const btnText = (btn.textContent || btn.value || '').toLowerCase().trim();
+                  if (btnText === 'fechar' || btnText.includes('fechar')) {
+                    const style = window.getComputedStyle(btn);
+                    if (style.display !== 'none' && style.visibility !== 'hidden') {
+                      btn.click();
+                      fechou = true;
+                      console.log('[MGF] Popup de suporte Hinova fechado');
+                      break;
+                    }
+                  }
+                }
+              }
+              if (fechou) break;
+            }
+          }
+          
+          // Fallback genérico: buscar qualquer botão "Fechar" visível
+          if (!fechou) {
+            const allElements = document.querySelectorAll('button, a, input[type="button"], input[type="submit"], .btn');
+            for (const el of allElements) {
+              const texto = (el.textContent || el.value || '').toLowerCase().trim();
+              if (texto === 'fechar' || texto.includes('fechar')) {
+                const style = window.getComputedStyle(el);
+                if (style.display !== 'none' && style.visibility !== 'hidden') {
+                  el.click();
+                  fechou = true;
+                  break;
+                }
               }
             }
           }
@@ -584,6 +620,34 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
     } catch (e) {
       // Silenciar
     }
+  }
+}
+
+// ============================================
+// AGUARDAR COM VERIFICAÇÃO DE POPUPS (NOVO)
+// ============================================
+/**
+ * Aguarda um tempo específico enquanto verifica e fecha popups periodicamente.
+ * Útil para esperas longas onde popups podem aparecer a qualquer momento.
+ */
+async function aguardarComFecharPopups(page, tempoMs, intervaloMs = 3000) {
+  const inicio = Date.now();
+  let iteracoes = 0;
+  
+  while (Date.now() - inicio < tempoMs) {
+    // Verificação rápida de popups (máximo 2 tentativas por iteração)
+    await fecharPopups(page, 2);
+    iteracoes++;
+    
+    const tempoRestante = tempoMs - (Date.now() - inicio);
+    if (tempoRestante <= 0) break;
+    
+    // Aguardar o intervalo ou o tempo restante (o que for menor)
+    await page.waitForTimeout(Math.min(intervaloMs, tempoRestante));
+  }
+  
+  if (iteracoes > 1) {
+    log(`Aguardou ${Math.round(tempoMs / 1000)}s com ${iteracoes} verificações de popups`, LOG_LEVELS.DEBUG);
   }
 }
 
@@ -1563,6 +1627,9 @@ async function configurarFiltros(page) {
   setStep('FILTROS');
   log('Configurando filtros...', LOG_LEVELS.INFO);
   
+  // Verificar popups antes de iniciar configuração
+  await fecharPopups(page, 2);
+  
   // 1. CONFIGURAR CHECKBOXES DE CENTRO DE CUSTO
   log('📋 Configurando checkboxes de Centro de Custo (apenas EVENTOS)...', LOG_LEVELS.INFO);
   
@@ -1670,6 +1737,8 @@ async function configurarFiltros(page) {
     }
   }
   
+  // Verificar popups após configurar Centro de Custo
+  await fecharPopups(page, 2);
   await page.waitForTimeout(1000);
   
   // 2. SELECIONAR LAYOUT
@@ -1680,9 +1749,9 @@ async function configurarFiltros(page) {
     log(`✅ Layout selecionado (MGF): ${layoutSel.selected}`, LOG_LEVELS.SUCCESS);
     log(`   Método: ${layoutSel.method} | Frame: ${layoutSel.frameUrl || 'main'}`, LOG_LEVELS.DEBUG);
 
-    // Mesmo padrão do Cobrança: aguardar carregamento pós-layout (campos dinâmicos)
-    log('⏳ Aguardando configurações do layout carregarem...', LOG_LEVELS.INFO);
-    await page.waitForTimeout(20000);
+    // Aguardar carregamento com verificação contínua de popups (crítico!)
+    log('⏳ Aguardando configurações do layout carregarem (verificando popups)...', LOG_LEVELS.INFO);
+    await aguardarComFecharPopups(page, 20000, 3000);
   } else {
     log(`❌ ERRO CRÍTICO: Layout "${CONFIG.HINOVA_LAYOUT}" não selecionado no MGF`, LOG_LEVELS.ERROR);
     if (layoutSel?.optionsDisponiveis?.length) {
@@ -1692,6 +1761,8 @@ async function configurarFiltros(page) {
     throw new Error(`ERRO CRÍTICO: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado/selecionado. Sem isso, o relatório vem errado ou o download nem inicia.`);
   }
   
+  // Verificar popups antes de continuar
+  await fecharPopups(page, 2);
   await page.waitForTimeout(1000);
   
   // 3. SELECIONAR FORMATO EXCEL
@@ -1703,6 +1774,9 @@ async function configurarFiltros(page) {
     log('⚠️ Não foi possível selecionar formato Excel automaticamente', LOG_LEVELS.WARN);
   }
   
+  // Verificar popups finais antes de prosseguir para geração
+  await fecharPopups(page, 2);
+  
   await saveDebugInfo(page, 'filtros_configurados');
   log('Filtros configurados', LOG_LEVELS.SUCCESS);
 }
@@ -1712,6 +1786,9 @@ async function configurarFiltros(page) {
 // ============================================
 async function selecionarFormaExibicaoEmExcel(page) {
   log('Selecionando Forma de Exibição: Em Excel', LOG_LEVELS.INFO);
+  
+  // Verificar popups antes de selecionar formato
+  await fecharPopups(page, 2);
   
   const tryInFrame = async (frame) => {
     try {
@@ -1858,6 +1935,9 @@ async function gerarEBaixarRelatorio(page, context) {
   setStep('DOWNLOAD');
   log('Gerando relatório...', LOG_LEVELS.INFO);
 
+  // Verificar popups antes de iniciar geração do relatório
+  await fecharPopups(page, 3);
+
   // DEBUG CRÍTICO: confirmar se o portal realmente disparou a requisição de geração do relatório
   // (mesmo quando não abre popup e não dispara evento de download).
   const netTag = '[MGF NET]';
@@ -1988,6 +2068,9 @@ async function gerarEBaixarRelatorio(page, context) {
   // 1) Se houver botão "Liberar", clicar (sem iniciar download ainda)
   await clickOptionalButtonAcrossFrames(['liberar'], 'LIBERAR');
 
+  // Verificar popups que podem ter aparecido após clicar em Liberar
+  await fecharPopups(page, 2);
+
   // 2) Encontrar o botão real de geração/exportação (NÃO usar btn-primary genérico)
   let gerarBtn = await findActionButtonAcrossFrames();
   
@@ -1995,6 +2078,9 @@ async function gerarEBaixarRelatorio(page, context) {
     await saveDebugInfo(page, 'botao_nao_encontrado');
     throw new Error('Botão Gerar/Pesquisar não encontrado na página');
   }
+
+  // Verificar popups finais antes do clique de geração
+  await fecharPopups(page, 2);
 
   // Preparar captura ANTES do clique para não perder downloads rápidos
   const downloadPromise = aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
