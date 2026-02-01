@@ -339,10 +339,11 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
             <Button 
               variant="outline" 
               onClick={handleTestN8N} 
-              disabled={testing || !config.n8n_webhook_url}
+              disabled={testing || !config.n8n_webhook_url || !config.id}
+              title={!config.id ? 'Salve a configuração primeiro' : ''}
             >
               <TestTube className="h-4 w-4 mr-2" />
-              {testing ? 'Testando...' : 'Testar Integração'}
+              {testing ? 'Testando...' : !config.id ? 'Salve primeiro' : 'Testar Integração'}
             </Button>
           </div>
 
