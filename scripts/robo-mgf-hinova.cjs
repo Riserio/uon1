@@ -648,76 +648,210 @@ async function configurarFiltros(page) {
   setStep('FILTROS');
   log('Configurando filtros...', LOG_LEVELS.INFO);
   
-  // 1. Buscar todos os checkboxes de Centro de Custo/Departamento
+  // 1. Marcar/desmarcar SOMENTE os checkboxes do bloco de "Centro de Custo"
+  // (em lote via JS, para evitar ficar minutos clicando em centenas de inputs)
   log('Processando checkboxes de Centro de Custo...', LOG_LEVELS.INFO);
-  
-  const checkboxes = await page.locator('input[type="checkbox"]').all();
-  let centrosMarcados = 0;
-  let centrosDesmarcados = 0;
-  
-  for (const checkbox of checkboxes) {
+
+  const scopeCandidates = [
+    {
+      name: 'fieldset: Centro de Custo',
+      locator: page.locator('fieldset', { hasText: /Centro\s+de\s+Custo/i }).first(),
+    },
+    {
+      name: 'div: Centro de Custo',
+      locator: page
+        .locator('div', { hasText: /Centro\s+de\s+Custo/i })
+        .filter({ has: page.locator('input[type="checkbox"]') })
+        .first(),
+    },
+    {
+      name: 'form: Centro de Custo',
+      locator: page
+        .locator('form', { hasText: /Centro\s+de\s+Custo/i })
+        .filter({ has: page.locator('input[type="checkbox"]') })
+        .first(),
+    },
+  ];
+
+  let scopeLocator = null;
+  for (const candidate of scopeCandidates) {
     try {
-      // Pegar o texto do label associado (pai direto ou label próximo)
-      const parentLabel = checkbox.locator('xpath=..').first();
-      let labelText = await parentLabel.textContent().catch(() => '');
-      
-      // Se o texto estiver vazio, tentar buscar label por for
-      if (!labelText.trim()) {
-        const id = await checkbox.getAttribute('id').catch(() => null);
+      if ((await candidate.locator.count()) === 0) continue;
+      if (!(await candidate.locator.isVisible().catch(() => false))) continue;
+
+      const cbCount = await candidate.locator.locator('input[type="checkbox"]').count().catch(() => 0);
+      // heurística para evitar pegar containers genéricos gigantes
+      if (cbCount > 0 && cbCount < 400) {
+        scopeLocator = candidate.locator;
+        log(`Escopo de Centro de Custo detectado: ${candidate.name} (${cbCount} checkboxes)`, LOG_LEVELS.DEBUG);
+        break;
+      }
+    } catch {}
+  }
+
+  const batchResult = await (async () => {
+    // Se não achou escopo por locators, tenta descobrir via DOM (ainda assim sem sair desmarcando a página inteira)
+    if (!scopeLocator) {
+      log('Escopo de Centro de Custo não encontrado por seletor; tentando detecção automática...', LOG_LEVELS.WARN);
+
+      return await page.evaluate(() => {
+        const normalize = (s) =>
+          (s || '')
+            .toString()
+            .normalize('NFD')
+            .replace(/\p{Diacritic}/gu, '')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        const findBestContainer = () => {
+          const nodes = Array.from(document.querySelectorAll('*'));
+          const anchors = nodes.filter((el) => {
+            const txt = (el.textContent || '').trim();
+            return txt && /Centro\s+de\s+Custo/i.test(txt) && el.children.length === 0;
+          });
+
+          let best = null;
+          let bestScore = Infinity;
+
+          for (const anchor of anchors) {
+            let el = anchor;
+            for (let depth = 0; el && depth < 10; depth += 1) {
+              const cbs = el.querySelectorAll('input[type="checkbox"]');
+              if (cbs.length > 0 && cbs.length < 400) {
+                const score = cbs.length + depth * 25;
+                if (score < bestScore) {
+                  best = el;
+                  bestScore = score;
+                }
+                break;
+              }
+              el = el.parentElement;
+            }
+          }
+
+          return best;
+        };
+
+        const container = findBestContainer();
+        if (!container) {
+          return { ok: false, reason: 'container_not_found' };
+        }
+
+        const labelTextFor = (input) => {
+          // 1) label[for]
+          const id = input.getAttribute('id');
+          if (id) {
+            const lb = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+            if (lb && lb.textContent) return lb.textContent;
+          }
+          // 2) wrapper label
+          const label = input.closest('label');
+          if (label && label.textContent) return label.textContent;
+          // 3) parent text
+          const parent = input.parentElement;
+          if (parent && parent.textContent) return parent.textContent;
+          return '';
+        };
+
+        const inputs = Array.from(container.querySelectorAll('input[type="checkbox"]'));
+        let marcados = 0;
+        let desmarcados = 0;
+        let alterados = 0;
+
+        for (const input of inputs) {
+          const t = normalize(labelTextFor(input));
+          if (!t || t === 'todos') continue;
+
+          const shouldCheck = t.includes('evento');
+          if (input.checked !== shouldCheck) {
+            input.checked = shouldCheck;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            alterados += 1;
+          }
+          if (shouldCheck) marcados += 1;
+          else desmarcados += 1;
+        }
+
+        return {
+          ok: true,
+          used: 'auto_container',
+          total: inputs.length,
+          marcados,
+          desmarcados,
+          alterados,
+        };
+      });
+    }
+
+    // Caminho principal (rápido): atuar só dentro do escopo identificado
+    return await scopeLocator.evaluate((root) => {
+      const normalize = (s) =>
+        (s || '')
+          .toString()
+          .normalize('NFD')
+          .replace(/\p{Diacritic}/gu, '')
+          .toLowerCase()
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      const labelTextFor = (input) => {
+        const id = input.getAttribute('id');
         if (id) {
-          const labelFor = page.locator(`label[for="${id}"]`).first();
-          labelText = await labelFor.textContent().catch(() => '');
+          const lb = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+          if (lb && lb.textContent) return lb.textContent;
         }
+        const label = input.closest('label');
+        if (label && label.textContent) return label.textContent;
+        const parent = input.parentElement;
+        if (parent && parent.textContent) return parent.textContent;
+        return '';
+      };
+
+      const inputs = Array.from(root.querySelectorAll('input[type="checkbox"]'));
+      let marcados = 0;
+      let desmarcados = 0;
+      let alterados = 0;
+
+      for (const input of inputs) {
+        const t = normalize(labelTextFor(input));
+        if (!t || t === 'todos') continue;
+
+        const shouldCheck = t.includes('evento');
+        if (input.checked !== shouldCheck) {
+          input.checked = shouldCheck;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          alterados += 1;
+        }
+        if (shouldCheck) marcados += 1;
+        else desmarcados += 1;
       }
-      
-      const normalizedLabel = normalizeText(labelText);
-      
-      // Ignorar checkboxes sem texto relevante ou que sejam "TODOS"
-      if (!normalizedLabel || normalizedLabel === 'todos') continue;
-      
-      // Verificar se contém "evento" no nome
-      const contemEventos = normalizedLabel.includes('evento');
-      const isChecked = await checkbox.isChecked().catch(() => false);
-      
-      if (contemEventos) {
-        // MARCAR se contém EVENTOS
-        if (!isChecked) {
-          await checkbox.check();
-          log(`✓ Marcado: ${labelText.trim().substring(0, 50)}`, LOG_LEVELS.DEBUG);
-        }
-        centrosMarcados++;
-      } else {
-        // DESMARCAR se NÃO contém EVENTOS
-        if (isChecked) {
-          await checkbox.uncheck();
-          log(`✗ Desmarcado: ${labelText.trim().substring(0, 50)}`, LOG_LEVELS.DEBUG);
-          centrosDesmarcados++;
-        }
-      }
-      
-      await page.waitForTimeout(100);
-    } catch (e) {
-      // Continuar com próximo checkbox
-    }
+
+      return {
+        ok: true,
+        used: 'scoped_container',
+        total: inputs.length,
+        marcados,
+        desmarcados,
+        alterados,
+      };
+    });
+  })();
+
+  if (!batchResult?.ok) {
+    await saveDebugInfo(page, 'centro_custo_escopo_nao_encontrado');
+    throw new Error('Não foi possível identificar o bloco de Centro de Custo para aplicar o filtro de EVENTOS.');
   }
-  
-  log(`Centros de custo com EVENTOS marcados: ${centrosMarcados}`, LOG_LEVELS.SUCCESS);
-  log(`Centros de custo sem EVENTOS desmarcados: ${centrosDesmarcados}`, LOG_LEVELS.INFO);
-  
-  // Fallback se nenhum foi marcado
-  if (centrosMarcados === 0) {
-    log('Nenhum centro marcado automaticamente, tentando fallback...', LOG_LEVELS.WARN);
-    for (const centro of CONFIG.CENTROS_CUSTO_EVENTOS) {
-      try {
-        const checkbox = page.locator(`input[type="checkbox"]`).filter({ hasText: centro }).first();
-        if (await checkbox.isVisible().catch(() => false)) {
-          await checkbox.check();
-          centrosMarcados++;
-          log(`Marcado centro de custo (fallback): ${centro}`, LOG_LEVELS.DEBUG);
-        }
-      } catch {}
-    }
-  }
+
+  log(
+    `Centro de Custo aplicado (${batchResult.used}): total=${batchResult.total}, marcados=${batchResult.marcados}, desmarcados=${batchResult.desmarcados}, alterados=${batchResult.alterados}`,
+    LOG_LEVELS.SUCCESS
+  );
+
+  // Pequena pausa para a página reagir a eventos de change/input (quando existir dependência)
+  await page.waitForTimeout(500);
   
   // 4. Selecionar Layout "BI VANGARD FINANCEIROS EVENTOS"
   log('Selecionando layout...', LOG_LEVELS.INFO);
@@ -755,6 +889,16 @@ async function configurarFiltros(page) {
       if (excelOption) {
         await formatSelect.selectOption({ label: excelOption });
         log(`Formato selecionado: ${excelOption}`, LOG_LEVELS.SUCCESS);
+      }
+    } else {
+      // Último recurso: clicar no label/botão/link que contenha "EXCEL"
+      const excelClickable = page
+        .locator('label:has-text("EXCEL"), button:has-text("EXCEL"), a:has-text("EXCEL"), text=/Em\\s+Excel/i')
+        .first();
+
+      if (await excelClickable.isVisible().catch(() => false)) {
+        await excelClickable.click({ timeout: 5000 }).catch(() => {});
+        log('Formato Excel selecionado via clique em texto/label', LOG_LEVELS.SUCCESS);
       }
     }
   }
