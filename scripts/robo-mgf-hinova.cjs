@@ -3,7 +3,11 @@
  * Robô de Automação - MGF Hinova (Lançamentos Financeiros)
  * ========================================================
  * 
- * SEGUE O MESMO PADRÃO DO ROBÔ DE COBRANÇA PARA MÁXIMA ESTABILIDADE
+ * SEGUE EXATAMENTE O MESMO PADRÃO DO ROBÔ DE COBRANÇA PARA MÁXIMA ESTABILIDADE
+ * - Sistema de download híbrido com múltiplos watchers
+ * - HTTP Stream como fallback
+ * - Monitor de progresso do arquivo
+ * - Heartbeat durante downloads longos
  * 
  * FLUXO:
  * 1. Login no portal Hinova (com tratamento de modais)
@@ -25,6 +29,8 @@ const axios = require('axios');
 const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
+const { pipeline } = require('stream/promises');
+const { Transform } = require('stream');
 
 // ============================================
 // CONFIGURAÇÃO
@@ -67,7 +73,7 @@ const CONFIG = {
 };
 
 // ============================================
-// CONSTANTES (MESMAS DO ROBÔ DE COBRANÇA)
+// CONSTANTES (IDÊNTICAS AO ROBÔ DE COBRANÇA)
 // ============================================
 const TIMEOUTS = {
   PAGE_LOAD: 90000,
@@ -78,7 +84,7 @@ const TIMEOUTS = {
   DOWNLOAD_IDLE: 40 * 60000,
   DOWNLOAD_HARD: 55 * 60000,
   POPUP_CLOSE: 800,
-  ACTION_DELAY: 500,
+  FILE_PROGRESS_INTERVAL: 5000,
 };
 
 const LIMITS = {
@@ -89,7 +95,7 @@ const LIMITS = {
 };
 
 // ============================================
-// LOGGING
+// LOGGING (IDÊNTICO AO ROBÔ DE COBRANÇA)
 // ============================================
 const LOG_LEVELS = {
   INFO: 'INFO',
@@ -103,6 +109,7 @@ let currentStep = 'INIT';
 
 function setStep(step) {
   currentStep = step;
+  log(`Iniciando etapa: ${step}`);
 }
 
 function log(msg, level = LOG_LEVELS.INFO) {
@@ -118,7 +125,7 @@ function log(msg, level = LOG_LEVELS.INFO) {
 }
 
 // ============================================
-// UTILS
+// UTILS (IDÊNTICO AO ROBÔ DE COBRANÇA)
 // ============================================
 function normalizeText(str) {
   return String(str || '')
@@ -129,11 +136,15 @@ function normalizeText(str) {
 }
 
 function formatBytes(bytes) {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let v = bytes;
+  let idx = 0;
+  while (v >= 1024 && idx < units.length - 1) {
+    v /= 1024;
+    idx++;
+  }
+  return `${v.toFixed(idx === 0 ? 0 : 2)} ${units[idx]}`;
 }
 
 function getDownloadDirectory() {
@@ -154,6 +165,226 @@ function generateSemanticFilename() {
   const year = now.getFullYear();
   const timestamp = Date.now();
   return `MGF_Hinova_${day}${month}${year}_${timestamp}.xlsx`;
+}
+
+// ============================================
+// MONITOR DE PROGRESSO (IDÊNTICO AO ROBÔ DE COBRANÇA)
+// ============================================
+function monitorFileProgress(filePath, expectedSize = 0, intervalMs = TIMEOUTS.FILE_PROGRESS_INTERVAL) {
+  const startTime = Date.now();
+  let lastLoggedPercent = -1;
+  let lastSize = 0;
+  
+  const interval = setInterval(() => {
+    const possiblePaths = [
+      filePath,
+      filePath + '.crdownload',
+      filePath + '.part',
+      filePath + '.download',
+    ];
+    
+    for (const p of possiblePaths) {
+      try {
+        if (fs.existsSync(p)) {
+          const size = fs.statSync(p).size;
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          const speed = size / Math.max(1, elapsed);
+          
+          if (size === lastSize && elapsed > 10) continue;
+          lastSize = size;
+          
+          if (expectedSize > 0) {
+            const pct = Math.min(100, Math.floor((size / expectedSize) * 100));
+            if (pct >= lastLoggedPercent + 5 || lastLoggedPercent === -1) {
+              lastLoggedPercent = pct;
+              const barSize = 20;
+              const filled = Math.round((pct / 100) * barSize);
+              const empty = barSize - filled;
+              const bar = '█'.repeat(filled) + '░'.repeat(empty);
+              log(`   ⬇️ Download [${bar}] ${pct}% (${formatBytes(size)} / ${formatBytes(expectedSize)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.INFO);
+            }
+          } else {
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            log(`   ⬇️ Download: ${formatBytes(size)} recebidos • ${formatBytes(speed)}/s (${minutes}m ${seconds}s)`, LOG_LEVELS.INFO);
+          }
+          return;
+        }
+      } catch {
+        // Arquivo pode estar sendo escrito
+      }
+    }
+  }, intervalMs);
+  
+  return () => {
+    clearInterval(interval);
+  };
+}
+
+// ============================================
+// FUNÇÕES AUXILIARES HTTP (IDÊNTICAS AO ROBÔ DE COBRANÇA)
+// ============================================
+async function buildCookieHeader(context, url) {
+  try {
+    const cookies = await context.cookies(url);
+    if (!cookies || cookies.length === 0) return '';
+    return cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+  } catch {
+    return '';
+  }
+}
+
+function pickHeadersForHttpReplay(headers = {}) {
+  const allow = ['user-agent', 'accept', 'accept-language', 'referer', 'origin', 'content-type'];
+  const out = {};
+  for (const [k, v] of Object.entries(headers)) {
+    const key = String(k || '').toLowerCase();
+    if (allow.includes(key) && v) out[key] = v;
+  }
+  out['accept-encoding'] = 'identity';
+  return out;
+}
+
+/**
+ * Download via HTTP stream puro (IDÊNTICO AO ROBÔ DE COBRANÇA)
+ */
+async function downloadViaAxiosStream({
+  url,
+  method = 'GET',
+  headers = {},
+  data,
+  filePath,
+  expectedBytes = 0,
+  idleTimeoutMs = TIMEOUTS.DOWNLOAD_IDLE,
+  hardTimeoutMs = TIMEOUTS.DOWNLOAD_HARD,
+}) {
+  if (!url) throw new Error('URL de download vazia');
+  if (!filePath) throw new Error('filePath vazio');
+
+  const startedAt = Date.now();
+  const abortController = new AbortController();
+  const tempFilePath = filePath + '.tmp';
+
+  let hardTimer = null;
+  if (hardTimeoutMs && hardTimeoutMs > 0) {
+    hardTimer = setTimeout(() => {
+      abortController.abort(new Error(`Timeout rígido de download (${Math.round(hardTimeoutMs / 60000)} min)`));
+    }, hardTimeoutMs);
+  }
+
+  let idleTimer = null;
+  const resetIdleTimer = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    if (idleTimeoutMs && idleTimeoutMs > 0) {
+      idleTimer = setTimeout(() => {
+        abortController.abort(new Error(`Download travado (sem bytes por ${Math.round(idleTimeoutMs / 60000)} min)`));
+      }, idleTimeoutMs);
+    }
+  };
+  resetIdleTimer();
+
+  let receivedBytes = 0;
+  let lastLoggedPercent = -1;
+  let lastLoggedAt = 0;
+
+  const logProgress = (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastLoggedAt < 15000) return;
+    lastLoggedAt = now;
+
+    const elapsedSec = Math.max(1, Math.floor((now - startedAt) / 1000));
+    const speed = receivedBytes / elapsedSec;
+
+    if (expectedBytes > 0) {
+      const pct = Math.min(100, Math.floor((receivedBytes / expectedBytes) * 100));
+      if (!force && pct < lastLoggedPercent + 5) return;
+      lastLoggedPercent = pct;
+      const barSize = 20;
+      const filled = Math.round((pct / 100) * barSize);
+      const empty = barSize - filled;
+      const bar = '█'.repeat(filled) + '░'.repeat(empty);
+      log(`   ⬇️ Download [${bar}] ${pct}% (${formatBytes(receivedBytes)} / ${formatBytes(expectedBytes)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.INFO);
+    } else {
+      log(`   ⬇️ Download: ${formatBytes(receivedBytes)} recebidos • ${formatBytes(speed)}/s`, LOG_LEVELS.INFO);
+    }
+  };
+
+  const clearTimers = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    if (hardTimer) clearTimeout(hardTimer);
+    idleTimer = null;
+    hardTimer = null;
+  };
+
+  try {
+    log(`Iniciando download HTTP stream: ${method} ${url.substring(0, 80)}...`, LOG_LEVELS.DEBUG);
+    
+    const response = await axios({
+      url,
+      method,
+      headers,
+      data,
+      responseType: 'stream',
+      maxRedirects: 10,
+      timeout: 0,
+      signal: abortController.signal,
+      validateStatus: (s) => s >= 200 && s < 400,
+    });
+
+    const contentLengthHeader = response.headers?.['content-length'];
+    const responseLen = parseInt(contentLengthHeader || '0', 10);
+    if (!expectedBytes && responseLen > 0) expectedBytes = responseLen;
+
+    if (expectedBytes > 0) {
+      log(`Tamanho esperado: ${formatBytes(expectedBytes)}`, LOG_LEVELS.DEBUG);
+    }
+
+    const writeStream = fs.createWriteStream(tempFilePath, {
+      highWaterMark: 8 * 1024 * 1024,
+    });
+
+    const progressTransform = new Transform({
+      transform(chunk, encoding, callback) {
+        receivedBytes += chunk.length;
+        resetIdleTimer();
+        logProgress(false);
+        callback(null, chunk);
+      },
+      highWaterMark: 8 * 1024 * 1024,
+    });
+
+    await pipeline(response.data, progressTransform, writeStream);
+
+    logProgress(true);
+    clearTimers();
+
+    if (!fs.existsSync(tempFilePath)) {
+      throw new Error('FALHA: Arquivo temporário não existe após streaming HTTP');
+    }
+    const stats = fs.statSync(tempFilePath);
+    if (stats.size <= 0) {
+      throw new Error(`FALHA: Arquivo temporário vazio (${stats.size} bytes)`);
+    }
+
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    fs.renameSync(tempFilePath, filePath);
+
+    const elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
+    log(`Download HTTP concluído: ${formatBytes(stats.size)} em ${elapsedSec}s`, LOG_LEVELS.SUCCESS);
+
+    return { filePath, size: stats.size };
+
+  } catch (error) {
+    clearTimers();
+    try {
+      if (fs.existsSync(tempFilePath)) {
+        fs.unlinkSync(tempFilePath);
+      }
+    } catch {}
+    throw error;
+  }
 }
 
 // ============================================
@@ -249,11 +480,6 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
     popupFechado = false;
     tentativas++;
     
-    if (tentativas > maxTentativas) {
-      log(`Limite de tentativas de fechar popup atingido (${maxTentativas})`, LOG_LEVELS.WARN);
-      break;
-    }
-    
     try {
       await page.waitForTimeout(TIMEOUTS.POPUP_CLOSE);
       
@@ -262,9 +488,7 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
         'a:has-text("Fechar")',
         '.btn:has-text("Fechar")',
         'input[value="Fechar"]',
-        'input[type="button"][value="Fechar"]',
         'button:has-text("Continuar e Fechar")',
-        'a:has-text("Continuar e Fechar")',
         'button:has-text("Continuar")',
         'button:has-text("OK")',
         '.btn:has-text("OK")',
@@ -302,13 +526,26 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
         } catch {}
       }
       
-      // Fallback: tentar fechar via JavaScript
+      // Fallback JavaScript
       if (!popupFechado) {
-        try {
-          const fechou = await page.evaluate(() => {
-            let fechou = false;
-            
-            const modals = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"], #myModal.show');
+        const fechouViaJS = await page.evaluate(() => {
+          let fechou = false;
+          
+          const allElements = document.querySelectorAll('button, a, input[type="button"], input[type="submit"], .btn');
+          for (const el of allElements) {
+            const texto = (el.textContent || el.value || '').toLowerCase().trim();
+            if (texto === 'fechar' || texto.includes('fechar')) {
+              const style = window.getComputedStyle(el);
+              if (style.display !== 'none' && style.visibility !== 'hidden') {
+                el.click();
+                fechou = true;
+                break;
+              }
+            }
+          }
+          
+          if (!fechou) {
+            const modals = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"]');
             modals.forEach(modal => {
               const closeBtn = modal.querySelector('.close, button.close, .btn-close, [data-dismiss="modal"]');
               if (closeBtn) {
@@ -316,149 +553,595 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
                 fechou = true;
               }
             });
-            
-            if (!fechou) {
-              modals.forEach(modal => {
-                modal.style.display = 'none';
-                modal.classList.remove('show', 'in');
-                fechou = true;
-              });
-            }
-            
-            const backdrops = document.querySelectorAll('.modal-backdrop');
-            backdrops.forEach(b => b.remove());
-            
-            return fechou;
-          });
-          
-          if (fechou) {
-            log('Popup/modal fechado via JavaScript', LOG_LEVELS.DEBUG);
-            popupFechado = true;
           }
-        } catch {}
+          
+          const overlays = document.querySelectorAll('.modal-backdrop');
+          overlays.forEach(o => o.remove());
+          
+          return fechou;
+        }).catch(() => false);
+        
+        if (fechouViaJS) {
+          popupFechado = true;
+          await page.waitForTimeout(1000);
+        }
       }
       
     } catch (e) {
-      log(`Erro ao fechar popup: ${e.message}`, LOG_LEVELS.DEBUG);
+      // Silenciar
+    }
+  }
+}
+
+// ============================================
+// DOWNLOAD CONTROLLER (IDÊNTICO AO ROBÔ DE COBRANÇA)
+// ============================================
+class DownloadController {
+  constructor() {
+    this.captured = false;
+    this.result = null;
+    this.fileResult = null;
+    this.error = null;
+    this.cleanupFunctions = [];
+    this.monitorInterval = null;
+    this.startTime = Date.now();
+    this.onCompleteCallback = null;
+  }
+  
+  addCleanup(fn) {
+    this.cleanupFunctions.push(fn);
+  }
+  
+  setCaptured(result) {
+    if (this.captured) return false;
+    this.captured = true;
+    this.result = result;
+    log(`Download capturado! Fonte: ${result.source}`, LOG_LEVELS.SUCCESS);
+    this.cleanup();
+    return true;
+  }
+  
+  setFileResult(fileResult) {
+    this.fileResult = fileResult;
+    if (this.onCompleteCallback) {
+      this.onCompleteCallback();
     }
   }
   
-  return tentativas > 0;
-}
-
-// ============================================
-// PROCESSAMENTO DE ARQUIVO
-// ============================================
-function extrairTexto(html) {
-  return String(html || '')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(n))
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function processarTabelaHtml(htmlContent) {
-  log('Processando arquivo como tabela HTML...', LOG_LEVELS.INFO);
-  
-  const theadMatch = htmlContent.match(/<thead[^>]*>([\s\S]*?)<\/thead>/i);
-  let headers = [];
-  
-  if (theadMatch) {
-    const headerMatches = theadMatch[1].match(/<th[^>]*>([\s\S]*?)<\/th>/gi) || [];
-    headers = headerMatches.map(th => extrairTexto(th));
-    log(`Headers encontrados: ${headers.length}`, LOG_LEVELS.DEBUG);
+  setError(error) {
+    this.error = error;
+    if (this.onCompleteCallback) {
+      this.onCompleteCallback();
+    }
   }
   
-  const tbodyMatch = htmlContent.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
-  const registros = [];
+  setOnComplete(callback) {
+    this.onCompleteCallback = callback;
+  }
   
-  if (tbodyMatch) {
-    const rowMatches = tbodyMatch[1].match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [];
-    log(`Linhas encontradas no tbody: ${rowMatches.length}`, LOG_LEVELS.DEBUG);
+  isCaptured() {
+    return this.captured;
+  }
+  
+  isComplete() {
+    return this.fileResult !== null || this.error !== null;
+  }
+  
+  getResult() {
+    return this.result;
+  }
+  
+  getFileResult() {
+    return this.fileResult;
+  }
+  
+  getError() {
+    return this.error;
+  }
+  
+  cleanup() {
+    if (this.monitorInterval) {
+      clearInterval(this.monitorInterval);
+      this.monitorInterval = null;
+    }
     
-    for (const row of rowMatches) {
-      const cellMatches = row.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || [];
-      const values = cellMatches.map(td => extrairTexto(td));
-      
-      if (values.length > 0 && values.some(v => v.length > 0)) {
-        const record = {};
-        headers.forEach((h, i) => {
-          if (h && values[i] !== undefined) {
-            record[h] = values[i];
-          }
-        });
-        registros.push(record);
+    for (const fn of this.cleanupFunctions) {
+      try {
+        fn();
+      } catch (e) {
+        // Ignorar
       }
     }
+    this.cleanupFunctions = [];
+    log(`Cleanup concluído`, LOG_LEVELS.DEBUG);
   }
   
-  log(`Registros extraídos da tabela HTML: ${registros.length}`, LOG_LEVELS.SUCCESS);
-  return registros;
-}
-
-function processarArquivo(filePath) {
-  log(`Processando arquivo: ${filePath}`, LOG_LEVELS.INFO);
-  
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Arquivo não encontrado: ${filePath}`);
-  }
-  
-  const fileBuffer = fs.readFileSync(filePath);
-  const fileSize = fileBuffer.length;
-  log(`Tamanho do arquivo: ${formatBytes(fileSize)}`, LOG_LEVELS.DEBUG);
-  
-  const header = fileBuffer.slice(0, 100).toString('utf8');
-  const isHtml = header.includes('<html') || header.includes('<table') || header.includes('<!DOCTYPE');
-  
-  if (isHtml) {
-    log('Arquivo detectado como HTML', LOG_LEVELS.INFO);
-    const htmlContent = fileBuffer.toString('utf8');
-    
-    if (htmlContent.includes('Nenhum registro encontrado') || htmlContent.includes('Sem dados')) {
-      log('Portal retornou "Nenhum registro encontrado"', LOG_LEVELS.WARN);
-      return [];
-    }
-    
-    return processarTabelaHtml(htmlContent);
-  }
-  
-  try {
-    log('Processando como arquivo Excel...', LOG_LEVELS.INFO);
-    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
-    
-    if (jsonData.length > 0) {
-      log(`Registros extraídos do Excel: ${jsonData.length}`, LOG_LEVELS.SUCCESS);
-      return jsonData;
-    }
-    
-    const rawData = XLSX.utils.sheet_to_csv(firstSheet);
-    if (rawData.includes('<html') || rawData.includes('<table')) {
-      log('Excel contém HTML, processando como HTML...', LOG_LEVELS.INFO);
-      return processarTabelaHtml(rawData);
-    }
-    
-    return jsonData;
-  } catch (e) {
-    log(`Erro ao processar Excel: ${e.message}`, LOG_LEVELS.WARN);
-    
-    const content = fileBuffer.toString('utf8');
-    if (content.includes('<table')) {
-      return processarTabelaHtml(content);
-    }
-    
-    throw e;
+  startProgressMonitor() {
+    this.monitorInterval = setInterval(() => {
+      if (this.captured || this.isComplete()) {
+        clearInterval(this.monitorInterval);
+        return;
+      }
+      const elapsed = Date.now() - this.startTime;
+      const minutos = Math.floor(elapsed / 60000);
+      const segundos = Math.floor((elapsed % 60000) / 1000);
+      log(`Aguardando download... ${minutos}m ${segundos}s`, LOG_LEVELS.DEBUG);
+    }, 30000);
   }
 }
 
 // ============================================
-// LOGIN (MESMO PADRÃO DO ROBÔ DE COBRANÇA)
+// VERIFICA SE RESPOSTA HTTP É EXCEL
+// ============================================
+function isExcelResponse(response) {
+  try {
+    if (!response) return false;
+    const status = response.status();
+    if (status < 200 || status >= 400) return false;
+    
+    const headers = response.headers() || {};
+    const contentType = String(headers['content-type'] || '').toLowerCase();
+    const contentDisposition = String(headers['content-disposition'] || '').toLowerCase();
+    const url = String(response.url?.() || '').toLowerCase();
+    const contentLength = parseInt(headers['content-length'] || '0', 10);
+    
+    if (contentType.includes('spreadsheet') || 
+        contentType.includes('excel') || 
+        contentType.includes('vnd.ms-excel') ||
+        contentType.includes('vnd.openxmlformats-officedocument.spreadsheetml')) {
+      return true;
+    }
+    
+    if (contentDisposition.includes('.xlsx') || contentDisposition.includes('.xls')) {
+      return true;
+    }
+    
+    if (url.includes('.xlsx') || url.includes('.xls')) {
+      return true;
+    }
+    
+    if (contentType.includes('octet-stream') && contentDisposition.includes('attachment')) {
+      if (contentDisposition.includes('xls') || contentLength > 1000) {
+        return true;
+      }
+    }
+    
+    if (contentType.includes('download') || contentType.includes('force-download')) {
+      return true;
+    }
+    
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// ============================================
+// PROCESSAR DOWNLOAD IMEDIATO (IDÊNTICO AO ROBÔ DE COBRANÇA)
+// ============================================
+async function processarDownloadImediato(download, downloadDir, semanticName) {
+  const filePath = path.join(downloadDir, semanticName);
+  const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
+
+  let expectedSize = 0;
+  try {
+    const request = download.request?.();
+    if (request) {
+      const response = await request.response?.();
+      if (response) {
+        const headers = response.headers?.() || {};
+        expectedSize = parseInt(headers['content-length'] || '0', 10);
+      }
+    }
+  } catch (e) {
+    // Ignorar
+  }
+
+  if (expectedSize > 0) {
+    log(`Download capturado - Tamanho: ${formatBytes(expectedSize)}`, LOG_LEVELS.SUCCESS);
+  } else {
+    log(`Download capturado - Tamanho: desconhecido (streaming)`, LOG_LEVELS.SUCCESS);
+  }
+
+  log(`Salvando: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
+  log(`⏳ O portal pode demorar vários minutos para gerar o relatório...`, LOG_LEVELS.INFO);
+
+  const stopMonitor = monitorFileProgress(filePath, expectedSize);
+  const startTime = Date.now();
+
+  const HEARTBEAT_INTERVAL = 15000;
+  const heartbeatInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    
+    const possiblePaths = [filePath, filePath + '.crdownload', filePath + '.part'];
+    let fileSize = 0;
+    for (const p of possiblePaths) {
+      try {
+        if (fs.existsSync(p)) {
+          fileSize = fs.statSync(p).size;
+          break;
+        }
+      } catch {}
+    }
+    
+    if (fileSize > 0) {
+      const speed = fileSize / Math.max(1, elapsed);
+      if (expectedSize > 0) {
+        const pct = Math.min(100, Math.floor((fileSize / expectedSize) * 100));
+        const barSize = 20;
+        const filled = Math.round((pct / 100) * barSize);
+        const empty = barSize - filled;
+        const bar = '█'.repeat(filled) + '░'.repeat(empty);
+        log(`⏳ Download [${bar}] ${pct}% (${formatBytes(fileSize)} / ${formatBytes(expectedSize)}) • ${formatBytes(speed)}/s (${minutes}m ${seconds}s)`, LOG_LEVELS.INFO);
+      } else {
+        log(`⏳ Recebendo dados... ${formatBytes(fileSize)} • ${formatBytes(speed)}/s (${minutes}m ${seconds}s)`, LOG_LEVELS.INFO);
+      }
+    } else {
+      log(`⏳ Aguardando servidor Hinova gerar relatório... (${minutes}m ${seconds}s)`, LOG_LEVELS.INFO);
+    }
+  }, HEARTBEAT_INTERVAL);
+
+  let timeoutId = null;
+  
+  try {
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(`Timeout de ${Math.floor(TIMEOUTS.DOWNLOAD_HARD / 60000)} minutos atingido aguardando download do portal`));
+      }, TIMEOUTS.DOWNLOAD_HARD);
+    });
+    
+    const savePromise = download.saveAs(filePath);
+    
+    await Promise.race([savePromise, timeoutPromise]);
+    
+    if (timeoutId) clearTimeout(timeoutId);
+    
+  } catch (err) {
+    if (timeoutId) clearTimeout(timeoutId);
+    throw err;
+  } finally {
+    clearInterval(heartbeatInterval);
+    stopMonitor();
+  }
+
+  if (!fs.existsSync(filePath)) {
+    throw new Error('FALHA: Arquivo não existe após saveAs');
+  }
+  const stats = fs.statSync(filePath);
+  if (stats.size <= 0) {
+    throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
+  }
+
+  const totalTime = Math.floor((Date.now() - startTime) / 1000);
+  log(`Download concluído em ${Math.floor(totalTime / 60)}m ${totalTime % 60}s`, LOG_LEVELS.SUCCESS);
+  log(`Arquivo salvo com sucesso: ${semanticName} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
+  return { filePath, size: stats.size };
+}
+
+// ============================================
+// WATCHERS DE DOWNLOAD (IDÊNTICOS AO ROBÔ DE COBRANÇA)
+// ============================================
+
+function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName) {
+  const pagesAttached = new Set();
+  
+  const onDownload = async (download) => {
+    if (controller.isCaptured()) return;
+    
+    const filename = download.suggestedFilename?.() || '';
+    log(`✅ Download CAPTURADO via Playwright (globalDownload): ${filename}`, LOG_LEVELS.SUCCESS);
+    
+    const wasCaptured = controller.setCaptured({ 
+      type: 'download', 
+      download, 
+      source: 'globalDownload' 
+    });
+    
+    if (!wasCaptured) return;
+    
+    try {
+      log(`📥 Usando download.saveAs() - PRIORIDADE TOTAL para download do browser`, LOG_LEVELS.INFO);
+      const result = await processarDownloadImediato(download, downloadDir, semanticName);
+      controller.setFileResult(result);
+    } catch (e) {
+      log(`Erro ao salvar download via saveAs: ${e.message}`, LOG_LEVELS.ERROR);
+      controller.setError(e);
+    }
+  };
+  
+  const attachToPage = (page) => {
+    if (!page || pagesAttached.has(page)) return;
+    pagesAttached.add(page);
+    page.on('download', onDownload);
+  };
+  
+  const onNewPage = (page) => {
+    if (controller.isCaptured()) return;
+    attachToPage(page);
+  };
+  
+  for (const p of context.pages()) {
+    attachToPage(p);
+  }
+  
+  context.on('page', onNewPage);
+  
+  controller.addCleanup(() => {
+    try { context.removeListener('page', onNewPage); } catch {}
+    for (const p of pagesAttached) {
+      try { p.removeListener('download', onDownload); } catch {}
+    }
+  });
+}
+
+function criarWatcherDownloadPaginaPrincipal(context, page, controller, downloadDir, semanticName) {
+  const onDownload = async (download) => {
+    if (controller.isCaptured()) return;
+    
+    const filename = download.suggestedFilename?.() || '';
+    log(`✅ Download CAPTURADO via Playwright (mainPage): ${filename}`, LOG_LEVELS.SUCCESS);
+    
+    const wasCaptured = controller.setCaptured({ 
+      type: 'download', 
+      download, 
+      source: 'mainPage' 
+    });
+    
+    if (!wasCaptured) return;
+    
+    try {
+      log(`📥 Usando download.saveAs() - PRIORIDADE TOTAL para download do browser`, LOG_LEVELS.INFO);
+      const result = await processarDownloadImediato(download, downloadDir, semanticName);
+      controller.setFileResult(result);
+    } catch (e) {
+      log(`Erro ao salvar download via saveAs: ${e.message}`, LOG_LEVELS.ERROR);
+      controller.setError(e);
+    }
+  };
+  
+  page.on('download', onDownload);
+  
+  controller.addCleanup(() => {
+    try { page.removeListener('download', onDownload); } catch {}
+  });
+}
+
+function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanticName) {
+  const processarNovaAba = async (newPage) => {
+    if (controller.isCaptured()) {
+      try { await newPage.close(); } catch {}
+      return;
+    }
+    
+    try {
+      log(`Nova aba detectada: configurando listener de download...`, LOG_LEVELS.DEBUG);
+      
+      const onNewPageDownload = async (download) => {
+        if (controller.isCaptured()) return;
+        
+        const filename = download.suggestedFilename?.() || '';
+        log(`✅ Download CAPTURADO via Playwright (newTab): ${filename}`, LOG_LEVELS.SUCCESS);
+        
+        const wasCaptured = controller.setCaptured({ 
+          type: 'download', 
+          download, 
+          source: 'newTab', 
+          newPage 
+        });
+        
+        if (!wasCaptured) return;
+        
+        try {
+          log(`📥 Usando download.saveAs() - PRIORIDADE TOTAL para download do browser`, LOG_LEVELS.INFO);
+          const result = await processarDownloadImediato(download, downloadDir, semanticName);
+          controller.setFileResult(result);
+          newPage.close().catch(() => {});
+        } catch (e) {
+          log(`Erro ao salvar download via saveAs: ${e.message}`, LOG_LEVELS.ERROR);
+          controller.setError(e);
+        }
+      };
+      
+      newPage.on('download', onNewPageDownload);
+      
+      await Promise.race([
+        newPage.waitForLoadState('domcontentloaded', { timeout: 8000 }),
+        new Promise(resolve => setTimeout(resolve, 8000)),
+      ]).catch(() => {});
+      
+      if (controller.isCaptured()) {
+        try { newPage.removeListener('download', onNewPageDownload); } catch {}
+        return;
+      }
+      
+      const seletoresDownload = [
+        'a[href*=".xlsx"]', 'a[href*=".xls"]',
+        'a:has-text("Baixar")', 'button:has-text("Baixar")',
+      ];
+      
+      for (const seletor of seletoresDownload) {
+        if (controller.isCaptured()) break;
+        const el = await newPage.$(seletor).catch(() => null);
+        if (el && (await el.isVisible().catch(() => false))) {
+          await el.click({ timeout: 3000 }).catch(() => {});
+          break;
+        }
+      }
+      
+      controller.addCleanup(() => {
+        try { newPage.removeListener('download', onNewPageDownload); } catch {}
+      });
+      
+    } catch (err) {
+      // Ignorar
+    }
+  };
+  
+  const onNewPage = (newPage) => {
+    if (newPage !== mainPage) {
+      processarNovaAba(newPage);
+    }
+  };
+  
+  context.on('page', onNewPage);
+  
+  controller.addCleanup(() => {
+    try { context.removeListener('page', onNewPage); } catch {}
+  });
+}
+
+function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName) {
+  const pagesAttached = new Set();
+  
+  const onResponse = async (response) => {
+    if (controller.isCaptured()) return;
+    
+    if (isExcelResponse(response)) {
+      const headers = response.headers() || {};
+      const contentLength = parseInt(headers['content-length'] || '0', 10);
+      
+      if (controller.isCaptured()) {
+        log(`Download já capturado via Playwright - ignorando HTTP stream`, LOG_LEVELS.DEBUG);
+        return;
+      }
+      
+      const wasCaptured = controller.setCaptured({ 
+        type: 'httpResponse', 
+        response, 
+        source: 'httpStream' 
+      });
+      
+      if (!wasCaptured) return;
+      
+      log(`✅ Download capturado via HTTP stream (fallback)`, LOG_LEVELS.SUCCESS);
+      if (contentLength > 0) {
+        log(`Tamanho esperado: ${(contentLength / 1024).toFixed(2)} KB`, LOG_LEVELS.DEBUG);
+      }
+      
+      try {
+        const filePath = path.join(downloadDir, semanticName);
+        const startTime = Date.now();
+
+        log(`⬇️ Baixando via HTTP stream (com progresso)...`, LOG_LEVELS.INFO);
+
+        const request = response.request?.();
+        const url = response.url?.();
+        const method = request?.method?.() || 'GET';
+        const requestHeaders = pickHeadersForHttpReplay(request?.headers?.() || {});
+        const cookieHeader = await buildCookieHeader(context, url);
+        if (cookieHeader) requestHeaders['cookie'] = cookieHeader;
+
+        const postData = request?.postData?.();
+        const result = await downloadViaAxiosStream({
+          url,
+          method,
+          headers: requestHeaders,
+          data: method !== 'GET' ? postData : undefined,
+          filePath,
+          expectedBytes: contentLength,
+          idleTimeoutMs: TIMEOUTS.DOWNLOAD_IDLE,
+          hardTimeoutMs: TIMEOUTS.DOWNLOAD_HARD,
+        });
+
+        const downloadTime = Math.floor((Date.now() - startTime) / 1000);
+        log(`✅ Download HTTP concluído em ${downloadTime}s (${formatBytes(result.size)})`, LOG_LEVELS.SUCCESS);
+        
+        if (!fs.existsSync(filePath)) {
+          throw new Error('FALHA: Arquivo não existe após salvamento HTTP');
+        }
+        
+        controller.setFileResult({ filePath, size: result.size });
+      } catch (e) {
+        log(`❌ Erro ao salvar via HTTP: ${e.message}`, LOG_LEVELS.ERROR);
+        controller.setError(e);
+      }
+    }
+  };
+  
+  const attachToPage = (page) => {
+    if (!page || pagesAttached.has(page)) return;
+    pagesAttached.add(page);
+    page.on('response', onResponse);
+  };
+  
+  const onNewPage = (page) => {
+    if (controller.isCaptured()) return;
+    attachToPage(page);
+  };
+  
+  for (const p of context.pages()) {
+    attachToPage(p);
+  }
+  
+  context.on('page', onNewPage);
+  
+  controller.addCleanup(() => {
+    try { context.removeListener('page', onNewPage); } catch {}
+    for (const p of pagesAttached) {
+      try { p.removeListener('response', onResponse); } catch {}
+    }
+  });
+}
+
+// ============================================
+// AGUARDAR DOWNLOAD HÍBRIDO (IDÊNTICO AO ROBÔ DE COBRANÇA)
+// ============================================
+async function aguardarDownloadHibrido(context, page, downloadDir, semanticName, timeoutMs) {
+  log(`Iniciando captura de download...`, LOG_LEVELS.INFO);
+  log(`Arquivo destino: ${path.join(downloadDir, semanticName)}`, LOG_LEVELS.DEBUG);
+  log(`PRIORIDADE: Download Playwright (saveAs) > HTTP Stream (fallback)`, LOG_LEVELS.DEBUG);
+  
+  const controller = new DownloadController();
+  
+  // Ordem: Playwright primeiro, HTTP stream como fallback
+  criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName);
+  criarWatcherDownloadPaginaPrincipal(context, page, controller, downloadDir, semanticName);
+  criarWatcherNovaAba(context, page, controller, downloadDir, semanticName);
+  criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName);
+  
+  controller.startProgressMonitor();
+  
+  return new Promise((resolve) => {
+    let resolved = false;
+    
+    const doResolve = (result) => {
+      if (resolved) return;
+      resolved = true;
+      controller.cleanup();
+      resolve(result);
+    };
+    
+    controller.setOnComplete(() => {
+      if (controller.getError()) {
+        doResolve({ success: false, error: controller.getError() });
+      } else if (controller.getFileResult()) {
+        const fileResult = controller.getFileResult();
+        doResolve({ 
+          success: true, 
+          filePath: fileResult.filePath, 
+          size: fileResult.size,
+          source: controller.getResult()?.source 
+        });
+      }
+    });
+    
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        log(`Timeout de ${timeoutMs / 60000} min - nenhum download capturado`, LOG_LEVELS.WARN);
+        doResolve({ success: false, error: new Error('Timeout - nenhum download capturado') });
+      }
+    }, timeoutMs);
+    
+    controller.addCleanup(() => {
+      clearTimeout(timeoutId);
+    });
+  });
+}
+
+// ============================================
+// LOGIN (IDÊNTICO AO ROBÔ DE COBRANÇA)
 // ============================================
 async function realizarLogin(page) {
   setStep('LOGIN');
@@ -469,7 +1152,6 @@ async function realizarLogin(page) {
   
   await fecharPopups(page);
   
-  // Preencher credenciais
   const userInput = page.locator('input[name="usuario"], input[name="login"], input[id*="usuario"], input[id*="login"], input[type="text"]').first();
   const passInput = page.locator('input[name="senha"], input[name="password"], input[type="password"]').first();
   
@@ -483,7 +1165,6 @@ async function realizarLogin(page) {
     log('Senha preenchida', LOG_LEVELS.DEBUG);
   }
   
-  // Preencher código do cliente se houver
   if (CONFIG.HINOVA_CODIGO_CLIENTE) {
     const codigoInput = page.locator('input[name*="codigo"], input[id*="codigo"], input[placeholder*="Código"]').first();
     if (await codigoInput.isVisible().catch(() => false)) {
@@ -494,7 +1175,6 @@ async function realizarLogin(page) {
   
   await fecharPopups(page);
   
-  // Clicar no botão de login com retry
   const loginBtn = page.locator('button[type="submit"], input[type="submit"], button:has-text("Entrar"), button:has-text("Login"), a:has-text("Entrar")').first();
   
   let loginSucesso = false;
@@ -570,10 +1250,7 @@ async function configurarFiltros(page) {
   setStep('FILTROS');
   log('Configurando filtros...', LOG_LEVELS.INFO);
   
-  // ============================================
   // 1. CONFIGURAR CHECKBOXES DE CENTRO DE CUSTO
-  // Marcar APENAS os que contêm "EVENTOS", desmarcar os demais
-  // ============================================
   log('📋 Configurando checkboxes de Centro de Custo (apenas EVENTOS)...', LOG_LEVELS.INFO);
   
   const batchResult = await page.evaluate(() => {
@@ -586,7 +1263,6 @@ async function configurarFiltros(page) {
         .replace(/\s+/g, ' ')
         .trim();
     
-    // Encontrar o container de Centro de Custo
     const findCentroCustoContainer = () => {
       const allElements = document.querySelectorAll('fieldset, div, table, form');
       
@@ -600,7 +1276,6 @@ async function configurarFiltros(page) {
         }
       }
       
-      // Fallback: procurar por labels/textos específicos
       const labels = document.querySelectorAll('td, th, label, span');
       for (const label of labels) {
         const text = normalize(label.textContent || '');
@@ -622,19 +1297,15 @@ async function configurarFiltros(page) {
     }
     
     const labelTextFor = (input) => {
-      // 1) label[for]
       const id = input.getAttribute('id');
       if (id) {
         const lb = document.querySelector(`label[for="${CSS.escape(id)}"]`);
         if (lb && lb.textContent) return lb.textContent;
       }
-      // 2) wrapper label
       const label = input.closest('label');
       if (label && label.textContent) return label.textContent;
-      // 3) parent text
       const parent = input.parentElement;
       if (parent && parent.textContent) return parent.textContent;
-      // 4) next sibling text
       const next = input.nextSibling;
       if (next && next.textContent) return next.textContent;
       return '';
@@ -650,7 +1321,6 @@ async function configurarFiltros(page) {
       const labelText = normalize(labelTextFor(input));
       if (!labelText || labelText === 'TODOS') continue;
       
-      // Marcar APENAS se contém "EVENTOS"
       const shouldCheck = labelText.includes('EVENTO');
       
       if (input.checked !== shouldCheck) {
@@ -674,13 +1344,12 @@ async function configurarFiltros(page) {
       marcados,
       desmarcados,
       alterados,
-      detalhes: detalhes.slice(0, 10), // Primeiros 10 para log
+      detalhes: detalhes.slice(0, 10),
     };
   });
   
   if (!batchResult?.ok) {
     log(`⚠️ Container de Centro de Custo não encontrado: ${batchResult?.reason}`, LOG_LEVELS.WARN);
-    await saveDebugInfo(page, 'centro_custo_nao_encontrado');
   } else {
     log(`✅ Centro de Custo configurado: total=${batchResult.total}, marcados=${batchResult.marcados}, desmarcados=${batchResult.desmarcados}, alterados=${batchResult.alterados}`, LOG_LEVELS.SUCCESS);
     if (batchResult.detalhes?.length > 0) {
@@ -690,9 +1359,7 @@ async function configurarFiltros(page) {
   
   await page.waitForTimeout(1000);
   
-  // ============================================
-  // 2. SELECIONAR LAYOUT "BI VANGARD FINANCEIROS EVENTOS"
-  // ============================================
+  // 2. SELECIONAR LAYOUT
   log('📋 Selecionando layout...', LOG_LEVELS.INFO);
   
   const layoutResult = await page.evaluate(() => {
@@ -713,7 +1380,6 @@ async function configurarFiltros(page) {
       for (let i = 0; i < options.length; i++) {
         const optText = normalize(options[i].text || '');
         
-        // Procurar layout com VANGARD e FINANCEIRO (ou EVENTOS)
         if ((optText.includes('VANGARD') && (optText.includes('FINANCEIRO') || optText.includes('EVENTO'))) ||
             optText.includes('BI VANGARD')) {
           select.selectedIndex = i;
@@ -730,22 +1396,18 @@ async function configurarFiltros(page) {
   if (layoutResult?.ok) {
     log(`✅ Layout selecionado: ${layoutResult.selected}`, LOG_LEVELS.SUCCESS);
   } else {
-    log('⚠️ Layout não encontrado automaticamente, tentando via input...', LOG_LEVELS.WARN);
+    log('⚠️ Layout não encontrado automaticamente', LOG_LEVELS.WARN);
   }
   
   await page.waitForTimeout(1000);
   
-  // ============================================
-  // 3. SELECIONAR FORMATO "EM EXCEL"
-  // (MESMA FUNÇÃO DO ROBÔ DE COBRANÇA)
-  // ============================================
+  // 3. SELECIONAR FORMATO EXCEL
   log('📋 Selecionando formato Excel...', LOG_LEVELS.INFO);
   
   const excelSelecionado = await selecionarFormaExibicaoEmExcel(page);
   
   if (!excelSelecionado) {
     log('⚠️ Não foi possível selecionar formato Excel automaticamente', LOG_LEVELS.WARN);
-    await saveDebugInfo(page, 'excel_nao_selecionado');
   }
   
   await saveDebugInfo(page, 'filtros_configurados');
@@ -753,8 +1415,7 @@ async function configurarFiltros(page) {
 }
 
 // ============================================
-// SELEÇÃO DE FORMATO EXCEL 
-// (IDÊNTICO AO ROBÔ DE COBRANÇA)
+// SELEÇÃO DE FORMATO EXCEL (IDÊNTICO AO ROBÔ DE COBRANÇA)
 // ============================================
 async function selecionarFormaExibicaoEmExcel(page) {
   log('Selecionando Forma de Exibição: Em Excel', LOG_LEVELS.INFO);
@@ -882,12 +1543,10 @@ async function selecionarFormaExibicaoEmExcel(page) {
     return false;
   };
 
-  // Tentar no frame principal
   if (await tryInFrame(page.mainFrame())) {
     return true;
   }
 
-  // Tentar em iframes
   for (const frame of page.frames()) {
     if (frame === page.mainFrame()) continue;
     if (await tryInFrame(frame)) {
@@ -900,7 +1559,7 @@ async function selecionarFormaExibicaoEmExcel(page) {
 }
 
 // ============================================
-// DOWNLOAD (MESMO PADRÃO DO ROBÔ DE COBRANÇA)
+// GERAR E BAIXAR RELATÓRIO (USANDO SISTEMA HÍBRIDO)
 // ============================================
 async function gerarEBaixarRelatorio(page, context) {
   setStep('DOWNLOAD');
@@ -908,146 +1567,187 @@ async function gerarEBaixarRelatorio(page, context) {
   
   const downloadDir = getDownloadDirectory();
   const semanticName = generateSemanticFilename();
-  const filePath = path.join(downloadDir, semanticName);
   
   log(`Diretório de download: ${downloadDir}`, LOG_LEVELS.INFO);
   log(`Nome do arquivo: ${semanticName}`, LOG_LEVELS.DEBUG);
   
-  // Aumentar timeout durante download
+  // Aumentar timeout para download
   context.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
   page.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
   
-  // Salvar screenshot antes de tentar gerar
   await saveDebugInfo(page, 'antes_gerar');
   
-  let downloadSucesso = false;
+  // Encontrar botão Gerar
+  const btnSelectors = [
+    'button:has-text("Gerar")',
+    'input[type="submit"][value*="Gerar"]',
+    'input[type="button"][value*="Gerar"]',
+    'a:has-text("Gerar")',
+    'button:has-text("Pesquisar")',
+    'input[type="submit"][value*="Pesquisar"]',
+    'button:has-text("Consultar")',
+    'button.btn-primary',
+    'button.btn-success',
+    'input.btn-primary[type="submit"]',
+    '#btnGerar',
+    '#btnPesquisar',
+  ];
   
-  for (let tentativa = 1; tentativa <= LIMITS.MAX_DOWNLOAD_RETRIES && !downloadSucesso; tentativa++) {
-    log(`Tentativa de download ${tentativa}/${LIMITS.MAX_DOWNLOAD_RETRIES}...`, LOG_LEVELS.INFO);
-    
-    try {
-      // ============================================
-      // CLICAR NO BOTÃO GERAR (MULTI-ESTRATÉGIA)
-      // ============================================
-      const clicarGerar = async () => {
-        const btnSelectors = [
-          'button:has-text("Gerar")',
-          'input[type="submit"][value*="Gerar"]',
-          'input[type="button"][value*="Gerar"]',
-          'a:has-text("Gerar")',
-          'button:has-text("Pesquisar")',
-          'input[type="submit"][value*="Pesquisar"]',
-          'button:has-text("Consultar")',
-          'input[value*="Consultar"]',
-          'button:has-text("Buscar")',
-          'button.btn-primary',
-          'button.btn-success',
-          'input.btn-primary[type="submit"]',
-          'input.btn-success[type="submit"]',
-          '#btnGerar',
-          '#btnPesquisar',
-        ];
-        
-        for (const selector of btnSelectors) {
-          const btn = page.locator(selector).first();
-          if (await btn.isVisible({ timeout: 1000 }).catch(() => false)) {
-            const btnText = await btn.textContent().catch(() => '') || await btn.getAttribute('value').catch(() => '');
-            log(`Botão encontrado: ${selector} - "${btnText?.trim()}"`, LOG_LEVELS.DEBUG);
-            return btn;
-          }
-        }
-        
-        // Fallback: qualquer submit visível
-        const allSubmits = await page.locator('input[type="submit"], button[type="submit"]').all();
-        for (const btn of allSubmits) {
-          if (await btn.isVisible().catch(() => false)) {
-            const btnText = await btn.getAttribute('value').catch(() => '') || await btn.textContent().catch(() => '');
-            log(`Fallback - Botão submit encontrado: "${btnText}"`, LOG_LEVELS.DEBUG);
-            return btn;
-          }
-        }
-        
-        return null;
-      };
-      
-      const gerarBtn = await clicarGerar();
-      
-      if (!gerarBtn) {
-        await saveDebugInfo(page, 'botao_nao_encontrado');
-        throw new Error('Botão Gerar/Pesquisar não encontrado na página');
-      }
-      
-      // ============================================
-      // CONFIGURAR LISTENER DE DOWNLOAD ANTES DO CLIQUE
-      // (MESMA ESTRATÉGIA DO ROBÔ DE COBRANÇA)
-      // ============================================
-      log('Configurando listener de download...', LOG_LEVELS.DEBUG);
-      
-      const downloadPromise = page.waitForEvent('download', { timeout: TIMEOUTS.DOWNLOAD_TOTAL });
-      
-      // Clicar no botão
-      await gerarBtn.click({ timeout: 15000, force: true });
-      log('Botão Gerar clicado', LOG_LEVELS.SUCCESS);
-      
-      // ============================================
-      // AGUARDAR DOWNLOAD
-      // ============================================
-      log(`Aguardando download (timeout: ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)...`, LOG_LEVELS.INFO);
-      
-      const download = await downloadPromise;
-      const suggestedName = download.suggestedFilename();
-      log(`Download iniciado: ${suggestedName}`, LOG_LEVELS.SUCCESS);
-      
-      // Salvar arquivo
-      log(`Salvando arquivo: ${filePath}`, LOG_LEVELS.INFO);
-      await download.saveAs(filePath);
-      
-      // Validar arquivo
-      if (!fs.existsSync(filePath)) {
-        throw new Error('Arquivo não foi salvo');
-      }
-      
-      const stats = fs.statSync(filePath);
-      if (stats.size < LIMITS.MIN_FILE_SIZE_BYTES) {
-        throw new Error(`Arquivo muito pequeno: ${stats.size} bytes`);
-      }
-      
-      log(`✅ Arquivo salvo: ${filePath} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
-      downloadSucesso = true;
-      
-    } catch (downloadError) {
-      log(`Erro na tentativa ${tentativa}: ${downloadError.message}`, LOG_LEVELS.ERROR);
-      await saveDebugInfo(page, `erro_download_tentativa_${tentativa}`);
-      
-      if (tentativa < LIMITS.MAX_DOWNLOAD_RETRIES) {
-        log('Preparando nova tentativa...', LOG_LEVELS.INFO);
-        await page.waitForTimeout(5000);
-        await fecharPopups(page);
-        
-        // Recarregar página se necessário
-        const urlAtual = page.url();
-        if (!urlAtual.includes('relatorioLancamento')) {
-          log('Recarregando página de relatório...', LOG_LEVELS.INFO);
-          await page.goto(CONFIG.HINOVA_RELATORIO_URL, { 
-            waitUntil: 'networkidle',
-            timeout: TIMEOUTS.PAGE_LOAD
-          });
-          await fecharPopups(page);
-          await page.waitForTimeout(3000);
-          
-          // Re-configurar filtros
-          await configurarFiltros(page);
-        }
+  let gerarBtn = null;
+  for (const selector of btnSelectors) {
+    const btn = page.locator(selector).first();
+    if (await btn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      const btnText = await btn.textContent().catch(() => '') || await btn.getAttribute('value').catch(() => '');
+      log(`Botão encontrado: ${selector} - "${btnText?.trim()}"`, LOG_LEVELS.DEBUG);
+      gerarBtn = btn;
+      break;
+    }
+  }
+  
+  if (!gerarBtn) {
+    // Fallback: qualquer submit visível
+    const allSubmits = await page.locator('input[type="submit"], button[type="submit"]').all();
+    for (const btn of allSubmits) {
+      if (await btn.isVisible().catch(() => false)) {
+        const btnText = await btn.getAttribute('value').catch(() => '') || await btn.textContent().catch(() => '');
+        log(`Fallback - Botão submit encontrado: "${btnText}"`, LOG_LEVELS.DEBUG);
+        gerarBtn = btn;
+        break;
       }
     }
   }
   
-  if (!downloadSucesso) {
-    await saveDebugInfo(page, 'download_falhou_todas_tentativas');
-    throw new Error('Download falhou após todas as tentativas');
+  if (!gerarBtn) {
+    await saveDebugInfo(page, 'botao_nao_encontrado');
+    throw new Error('Botão Gerar/Pesquisar não encontrado na página');
   }
   
-  return filePath;
+  // Clicar e aguardar download usando sistema híbrido
+  log('Clicando no botão Gerar...', LOG_LEVELS.INFO);
+  await gerarBtn.click({ timeout: 15000, force: true });
+  log('Botão Gerar clicado', LOG_LEVELS.SUCCESS);
+  
+  // Usar sistema híbrido de download
+  const result = await aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
+  
+  if (!result.success) {
+    await saveDebugInfo(page, 'download_falhou');
+    throw result.error || new Error('Download falhou');
+  }
+  
+  log(`✅ Arquivo baixado: ${result.filePath} (${formatBytes(result.size)})`, LOG_LEVELS.SUCCESS);
+  return result.filePath;
+}
+
+// ============================================
+// PROCESSAMENTO DE ARQUIVO
+// ============================================
+function extrairTexto(html) {
+  return String(html || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(n))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function processarTabelaHtml(htmlContent) {
+  log('Processando arquivo como tabela HTML...', LOG_LEVELS.INFO);
+  
+  const theadMatch = htmlContent.match(/<thead[^>]*>([\s\S]*?)<\/thead>/i);
+  let headers = [];
+  
+  if (theadMatch) {
+    const headerMatches = theadMatch[1].match(/<th[^>]*>([\s\S]*?)<\/th>/gi) || [];
+    headers = headerMatches.map(th => extrairTexto(th));
+    log(`Headers encontrados: ${headers.length}`, LOG_LEVELS.DEBUG);
+  }
+  
+  const tbodyMatch = htmlContent.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
+  const registros = [];
+  
+  if (tbodyMatch) {
+    const rowMatches = tbodyMatch[1].match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [];
+    log(`Linhas encontradas no tbody: ${rowMatches.length}`, LOG_LEVELS.DEBUG);
+    
+    for (const row of rowMatches) {
+      const cellMatches = row.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || [];
+      const values = cellMatches.map(td => extrairTexto(td));
+      
+      if (values.length > 0 && values.some(v => v.length > 0)) {
+        const record = {};
+        headers.forEach((h, i) => {
+          if (h && values[i] !== undefined) {
+            record[h] = values[i];
+          }
+        });
+        registros.push(record);
+      }
+    }
+  }
+  
+  log(`Registros extraídos da tabela HTML: ${registros.length}`, LOG_LEVELS.SUCCESS);
+  return registros;
+}
+
+function processarArquivo(filePath) {
+  log(`Processando arquivo: ${filePath}`, LOG_LEVELS.INFO);
+  
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Arquivo não encontrado: ${filePath}`);
+  }
+  
+  const fileBuffer = fs.readFileSync(filePath);
+  const fileSize = fileBuffer.length;
+  log(`Tamanho do arquivo: ${formatBytes(fileSize)}`, LOG_LEVELS.DEBUG);
+  
+  const header = fileBuffer.slice(0, 100).toString('utf8');
+  const isHtml = header.includes('<html') || header.includes('<table') || header.includes('<!DOCTYPE');
+  
+  if (isHtml) {
+    log('Arquivo detectado como HTML', LOG_LEVELS.INFO);
+    const htmlContent = fileBuffer.toString('utf8');
+    
+    if (htmlContent.includes('Nenhum registro encontrado') || htmlContent.includes('Sem dados')) {
+      log('Portal retornou "Nenhum registro encontrado"', LOG_LEVELS.WARN);
+      return [];
+    }
+    
+    return processarTabelaHtml(htmlContent);
+  }
+  
+  try {
+    log('Processando como arquivo Excel...', LOG_LEVELS.INFO);
+    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+    
+    if (jsonData.length > 0) {
+      log(`Registros extraídos do Excel: ${jsonData.length}`, LOG_LEVELS.SUCCESS);
+      return jsonData;
+    }
+    
+    const rawData = XLSX.utils.sheet_to_csv(firstSheet);
+    if (rawData.includes('<html') || rawData.includes('<table')) {
+      log('Excel contém HTML, processando como HTML...', LOG_LEVELS.INFO);
+      return processarTabelaHtml(rawData);
+    }
+    
+    return jsonData;
+  } catch (e) {
+    log(`Erro ao processar Excel: ${e.message}`, LOG_LEVELS.WARN);
+    
+    const content = fileBuffer.toString('utf8');
+    if (content.includes('<table')) {
+      return processarTabelaHtml(content);
+    }
+    
+    throw e;
+  }
 }
 
 // ============================================
@@ -1058,7 +1758,6 @@ async function main() {
   log('ROBÔ MGF HINOVA - INICIANDO', LOG_LEVELS.SUCCESS);
   log('============================================================', LOG_LEVELS.SUCCESS);
   
-  // Notificar início
   await notifyStart();
   await updateProgress('executando', 'login');
   
@@ -1080,7 +1779,6 @@ async function main() {
       navigationTimeout: TIMEOUTS.PAGE_LOAD,
     });
     
-    // Timeout padrão moderado para operações normais
     context.setDefaultTimeout(30000);
     
     page = await context.newPage();
@@ -1099,7 +1797,7 @@ async function main() {
     await configurarFiltros(page);
     await updateProgress('executando', 'download');
     
-    // Gerar e baixar relatório (passando context para ajustar timeout)
+    // Gerar e baixar relatório
     filePath = await gerarEBaixarRelatorio(page, context);
     await updateProgress('executando', 'processamento');
     
@@ -1163,15 +1861,13 @@ async function main() {
     try {
       if (fs.existsSync(CONFIG.DEBUG_DIR)) {
         fs.rmSync(CONFIG.DEBUG_DIR, { recursive: true, force: true });
-        log('Debug files removidos (sucesso)', LOG_LEVELS.DEBUG);
       }
     } catch {}
     
-    // Limpar arquivo de download após sucesso
+    // Limpar arquivo de download
     try {
       if (filePath && fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
-        log('Arquivo temporário removido', LOG_LEVELS.DEBUG);
       }
     } catch {}
     
