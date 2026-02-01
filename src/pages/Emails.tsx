@@ -8,11 +8,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Mail, Plus, Trash2, Save, FileText, History, Settings, Target, AlertTriangle, BarChart3, Send, Clock, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { Mail, Plus, Trash2, Save, FileText, History, Settings, Target, AlertTriangle, BarChart3, Send, Clock, CheckCircle2, XCircle, RefreshCw, MessageCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
+import { WhatsAppConfig } from '@/components/whatsapp/WhatsAppConfig';
+import { WhatsAppTemplates } from '@/components/whatsapp/WhatsAppTemplates';
+import { WhatsAppEnvioManual } from '@/components/whatsapp/WhatsAppEnvioManual';
+import { WhatsAppHistorico } from '@/components/whatsapp/WhatsAppHistorico';
 
 interface ResendConfig {
   from_email: string;
@@ -457,9 +461,9 @@ export default function Emails() {
               <Mail className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Configuração de E-mails</h1>
+              <h1 className="text-2xl font-bold">E-mails / WhatsApp</h1>
               <p className="text-sm text-muted-foreground">
-                Gerencie templates de e-mail e acompanhe o histórico de envios
+                Gerencie templates e envios de e-mail e WhatsApp
               </p>
             </div>
           </div>
@@ -467,7 +471,7 @@ export default function Emails() {
 
         <Tabs defaultValue="dashboard" className="space-y-6">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-4 gap-4">
-            <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 gap-1.5 h-auto p-1.5 bg-muted">
+            <TabsList className="grid w-full grid-cols-4 md:grid-cols-10 gap-1.5 h-auto p-1.5 bg-muted">
               <TabsTrigger value="dashboard" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">Dashboard</span>
@@ -491,6 +495,22 @@ export default function Emails() {
               <TabsTrigger value="historico" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <History className="h-4 w-4" />
                 <span className="hidden sm:inline">Histórico</span>
+              </TabsTrigger>
+              <TabsTrigger value="whatsapp-config" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
+                <MessageCircle className="h-4 w-4" />
+                <span className="hidden sm:inline">WhatsApp</span>
+              </TabsTrigger>
+              <TabsTrigger value="whatsapp-templates" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline">WA Templates</span>
+              </TabsTrigger>
+              <TabsTrigger value="whatsapp-envio" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
+                <Send className="h-4 w-4" />
+                <span className="hidden sm:inline">WA Envio</span>
+              </TabsTrigger>
+              <TabsTrigger value="whatsapp-historico" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
+                <History className="h-4 w-4" />
+                <span className="hidden sm:inline">WA Histórico</span>
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-3 bg-muted/50 px-4 py-2.5 rounded-lg border shrink-0">
@@ -1214,6 +1234,23 @@ export default function Emails() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* WhatsApp Tabs */}
+          <TabsContent value="whatsapp-config">
+            <WhatsAppConfig />
+          </TabsContent>
+
+          <TabsContent value="whatsapp-templates">
+            <WhatsAppTemplates />
+          </TabsContent>
+
+          <TabsContent value="whatsapp-envio">
+            <WhatsAppEnvioManual />
+          </TabsContent>
+
+          <TabsContent value="whatsapp-historico">
+            <WhatsAppHistorico />
           </TabsContent>
         </Tabs>
       </div>

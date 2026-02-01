@@ -5280,6 +5280,215 @@ export type Database = {
           },
         ]
       }
+      whatsapp_config: {
+        Row: {
+          ativo: boolean | null
+          corretora_id: string | null
+          created_at: string | null
+          created_by: string | null
+          envio_automatico_cobranca: boolean | null
+          envio_automatico_eventos: boolean | null
+          envio_automatico_mgf: boolean | null
+          horario_envio: string | null
+          id: string
+          nome_exibicao: string | null
+          telefone_whatsapp: string
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          corretora_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          envio_automatico_cobranca?: boolean | null
+          envio_automatico_eventos?: boolean | null
+          envio_automatico_mgf?: boolean | null
+          horario_envio?: string | null
+          id?: string
+          nome_exibicao?: string | null
+          telefone_whatsapp: string
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          corretora_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          envio_automatico_cobranca?: boolean | null
+          envio_automatico_eventos?: boolean | null
+          envio_automatico_mgf?: boolean | null
+          horario_envio?: string | null
+          id?: string
+          nome_exibicao?: string | null
+          telefone_whatsapp?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_config_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: true
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_historico: {
+        Row: {
+          corretora_id: string | null
+          created_at: string | null
+          enviado_em: string | null
+          enviado_por: string | null
+          erro_mensagem: string | null
+          id: string
+          mensagem: string
+          status: string | null
+          telefone_destino: string
+          template_id: string | null
+          tipo: string
+        }
+        Insert: {
+          corretora_id?: string | null
+          created_at?: string | null
+          enviado_em?: string | null
+          enviado_por?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          mensagem: string
+          status?: string | null
+          telefone_destino: string
+          template_id?: string | null
+          tipo: string
+        }
+        Update: {
+          corretora_id?: string | null
+          created_at?: string | null
+          enviado_em?: string | null
+          enviado_por?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          mensagem?: string
+          status?: string | null
+          telefone_destino?: string
+          template_id?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_historico_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_historico_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_queue: {
+        Row: {
+          agendado_para: string | null
+          corretora_id: string | null
+          created_at: string | null
+          erro_mensagem: string | null
+          id: string
+          max_tentativas: number | null
+          mensagem: string
+          prioridade: number | null
+          status: string | null
+          telefone_destino: string
+          template_id: string | null
+          tentativas: number | null
+          tipo: string
+          updated_at: string | null
+        }
+        Insert: {
+          agendado_para?: string | null
+          corretora_id?: string | null
+          created_at?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          max_tentativas?: number | null
+          mensagem: string
+          prioridade?: number | null
+          status?: string | null
+          telefone_destino: string
+          template_id?: string | null
+          tentativas?: number | null
+          tipo: string
+          updated_at?: string | null
+        }
+        Update: {
+          agendado_para?: string | null
+          corretora_id?: string | null
+          created_at?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          max_tentativas?: number | null
+          mensagem?: string
+          prioridade?: number | null
+          status?: string | null
+          telefone_destino?: string
+          template_id?: string | null
+          tentativas?: number | null
+          tipo?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_queue_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_queue_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_templates: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          mensagem: string
+          nome: string
+          tipo: string
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          mensagem: string
+          nome: string
+          tipo: string
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          mensagem?: string
+          nome?: string
+          tipo?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
