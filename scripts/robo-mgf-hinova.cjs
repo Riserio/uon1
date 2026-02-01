@@ -684,6 +684,10 @@ function isExcelResponse(response) {
     const contentDisposition = String(headers['content-disposition'] || '').toLowerCase();
     const url = String(response.url?.() || '').toLowerCase();
     const contentLength = parseInt(headers['content-length'] || '0', 10);
+
+    // Método do request (importante para diferenciar o carregamento normal da página do disparo do relatório)
+    const request = response.request?.();
+    const method = (request?.method?.() || 'GET').toUpperCase();
     
     if (contentType.includes('spreadsheet') || 
         contentType.includes('excel') || 
@@ -707,6 +711,34 @@ function isExcelResponse(response) {
     }
     
     if (contentType.includes('download') || contentType.includes('force-download')) {
+      return true;
+    }
+
+    // ============================================================
+    // FALLBACK CRÍTICO (MGF): Hinova muitas vezes retorna o "Em Excel"
+    // como HTML (tabela) via POST, sem Content-Disposition e sem
+    // disparar evento de download do Playwright.
+    //
+    // Nesses casos, precisamos tratar a resposta como "arquivo" e
+    // baixá-la via HTTP stream (replay do request) para não travar.
+    // ============================================================
+    const isRelatorioLancamento = url.includes('relatoriolancamento.php');
+    const hasDownloadHintsInUrl = /\b(excel|xls|xlsx|export|download|gerar)\b/i.test(url);
+    const isHtmlLike = contentType.includes('text/html') || contentType.includes('text/plain');
+    const looksLikeAttachment = contentDisposition.includes('attachment');
+
+    // Regra: se for o endpoint do relatório e o request for POST, aceitar mesmo que seja HTML.
+    // Evita capturar o GET normal da tela (carregamento da página).
+    if (isRelatorioLancamento && method !== 'GET' && (looksLikeAttachment || isHtmlLike)) {
+      return true;
+    }
+
+    // Algumas instalações fazem GET com querystring indicando exportação.
+    if (isRelatorioLancamento && method === 'GET' && looksLikeAttachment) {
+      return true;
+    }
+
+    if (isRelatorioLancamento && hasDownloadHintsInUrl && (looksLikeAttachment || isHtmlLike) && (contentLength === 0 || contentLength > 1000)) {
       return true;
     }
     
@@ -999,8 +1031,18 @@ function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName
     if (controller.isCaptured()) return;
     
     if (isExcelResponse(response)) {
+      const req = response.request?.();
+      const method = (req?.method?.() || 'GET').toUpperCase();
       const headers = response.headers() || {};
       const contentLength = parseInt(headers['content-length'] || '0', 10);
+      const contentType = String(headers['content-type'] || '');
+      const contentDisposition = String(headers['content-disposition'] || '');
+      const url = String(response.url?.() || '');
+
+      log(
+        `Resposta candidata a download (fallback HTTP): ${method} ${url} | content-type="${contentType}" | content-disposition="${contentDisposition}" | len=${contentLength || 'n/a'}`,
+        LOG_LEVELS.DEBUG
+      );
       
       if (controller.isCaptured()) {
         log(`Download já capturado via Playwright - ignorando HTTP stream`, LOG_LEVELS.DEBUG);
