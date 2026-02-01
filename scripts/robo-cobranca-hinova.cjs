@@ -4650,6 +4650,7 @@ async function rodarRobo() {
             }
 
             // Não pago => diferença (preferir vencimento original; senão usar vencimento)
+            // Se ainda não venceu (data futura), dias em atraso = 0
             if (valorDiasAtraso === null || valorDiasAtraso === undefined || String(valorDiasAtraso).trim() === '') {
               const base = dataVencOrigKey ? row[dataVencOrigKey] : dataVencKey ? row[dataVencKey] : null;
               const dt = parseDateToDate(base);
@@ -4657,7 +4658,11 @@ async function rodarRobo() {
                 dt.setHours(0, 0, 0, 0);
                 const diffMs = hoje.getTime() - dt.getTime();
                 const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                row[diasAtrasoKey] = Math.max(0, diffDias);
+                // Se diffDias <= 0, ainda não venceu => atraso = 0
+                row[diasAtrasoKey] = diffDias > 0 ? diffDias : 0;
+              } else {
+                // Sem data de referência, assume 0
+                row[diasAtrasoKey] = 0;
               }
             }
           }
