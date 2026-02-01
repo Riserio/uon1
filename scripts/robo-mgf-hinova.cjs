@@ -978,9 +978,10 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
       
       newPage.on('download', onNewPageDownload);
       
+      // Aguardar carregamento inicial
       await Promise.race([
-        newPage.waitForLoadState('domcontentloaded', { timeout: 8000 }),
-        new Promise(resolve => setTimeout(resolve, 8000)),
+        newPage.waitForLoadState('domcontentloaded', { timeout: 15000 }),
+        new Promise(resolve => setTimeout(resolve, 15000)),
       ]).catch(() => {});
       
       if (controller.isCaptured()) {
@@ -988,6 +989,55 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
         return;
       }
       
+      // ============================================
+      // FALLBACK CRÍTICO: Nova aba carregou conteúdo inline (sem evento download)
+      // O portal Hinova às vezes abre o Excel/HTML direto na aba ao invés de disparar download.
+      // Precisamos verificar se a aba contém o relatório e salvá-lo manualmente.
+      // ============================================
+      const newPageUrl = newPage.url();
+      const isReportPage = /relatoriolancamento/i.test(newPageUrl) || /gerar|export|download|excel/i.test(newPageUrl);
+      
+      if (isReportPage || newPageUrl === 'about:blank') {
+        // Aguardar um pouco mais para ver se o download dispara
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        
+        if (controller.isCaptured()) {
+          try { newPage.removeListener('download', onNewPageDownload); } catch {}
+          return;
+        }
+        
+        // Verificar se o conteúdo da nova aba é o próprio relatório
+        try {
+          const pageContent = await newPage.content().catch(() => '');
+          const contentLength = pageContent.length;
+          
+          // Se a página tem conteúdo substancial (não é só uma página de carregamento)
+          // e parece ser HTML com tabela, podemos salvar diretamente
+          if (contentLength > 5000 && (pageContent.includes('<table') || pageContent.includes('<TABLE'))) {
+            log(`Nova aba contém tabela HTML (${formatBytes(contentLength)}) - salvando como arquivo...`, LOG_LEVELS.INFO);
+            
+            const wasCaptured = controller.setCaptured({ 
+              type: 'inlineContent', 
+              source: 'newTabInline', 
+              newPage 
+            });
+            
+            if (wasCaptured) {
+              const filePath = path.join(downloadDir, semanticName);
+              fs.writeFileSync(filePath, pageContent, 'utf8');
+              const stats = fs.statSync(filePath);
+              log(`✅ Conteúdo inline salvo: ${filePath} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
+              controller.setFileResult({ filePath, size: stats.size });
+              newPage.close().catch(() => {});
+              return;
+            }
+          }
+        } catch (e) {
+          log(`Erro ao verificar conteúdo inline da nova aba: ${e.message}`, LOG_LEVELS.DEBUG);
+        }
+      }
+      
+      // Tentar clicar em links de download na nova aba (comportamento original)
       const seletoresDownload = [
         'a[href*=".xlsx"]', 'a[href*=".xls"]',
         'a:has-text("Baixar")', 'button:has-text("Baixar")',
@@ -1007,7 +1057,7 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
       });
       
     } catch (err) {
-      // Ignorar
+      log(`Erro ao processar nova aba: ${err.message}`, LOG_LEVELS.DEBUG);
     }
   };
   
