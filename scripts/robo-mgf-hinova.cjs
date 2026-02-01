@@ -776,12 +776,66 @@ async function gerarEBaixarRelatorio(page) {
   
   log(`Diretório de download: ${downloadDir}`, LOG_LEVELS.INFO);
   
-  // Configurar listener de download
+  // Salvar screenshot antes de tentar gerar
+  await saveDebugInfo(page, 'antes_gerar');
+  
+  // Lista de seletores possíveis para o botão Gerar/Pesquisar
+  const btnSelectors = [
+    'button:has-text("Gerar")',
+    'input[type="submit"][value*="Gerar"]',
+    'input[type="button"][value*="Gerar"]',
+    'a:has-text("Gerar")',
+    'button:has-text("Pesquisar")',
+    'input[type="submit"][value*="Pesquisar"]',
+    'input[type="button"][value*="Pesquisar"]',
+    'button:has-text("Consultar")',
+    'input[value*="Consultar"]',
+    'button:has-text("Buscar")',
+    'input[value*="Buscar"]',
+    'button.btn-primary',
+    'button.btn-success',
+    'input.btn-primary[type="submit"]',
+    'input.btn-success[type="submit"]',
+    '#btnGerar',
+    '#btnPesquisar',
+    'button[name="gerar"]',
+    'input[name="gerar"]',
+  ];
+  
+  // Tentar encontrar o botão
+  let gerarBtn = null;
+  for (const selector of btnSelectors) {
+    const btn = page.locator(selector).first();
+    if (await btn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      gerarBtn = btn;
+      const btnText = await btn.textContent().catch(() => '') || await btn.getAttribute('value').catch(() => '');
+      log(`Botão encontrado: ${selector} - "${btnText.trim()}"`, LOG_LEVELS.DEBUG);
+      break;
+    }
+  }
+  
+  if (!gerarBtn) {
+    // Último recurso: buscar qualquer botão submit visível
+    const allSubmits = await page.locator('input[type="submit"], button[type="submit"]').all();
+    for (const btn of allSubmits) {
+      if (await btn.isVisible().catch(() => false)) {
+        gerarBtn = btn;
+        const btnText = await btn.getAttribute('value').catch(() => '') || await btn.textContent().catch(() => '');
+        log(`Fallback - Botão submit encontrado: "${btnText}"`, LOG_LEVELS.DEBUG);
+        break;
+      }
+    }
+  }
+  
+  if (!gerarBtn) {
+    await saveDebugInfo(page, 'botao_nao_encontrado');
+    throw new Error('Botão Gerar/Pesquisar não encontrado na página');
+  }
+  
+  // Configurar listener de download ANTES do clique
   const downloadPromise = page.waitForEvent('download', { timeout: TIMEOUTS.DOWNLOAD_EVENT });
   
-  // Clicar no botão Gerar
-  const gerarBtn = page.locator('button:has-text("Gerar"), input[type="submit"][value*="Gerar"], a:has-text("Gerar"), button:has-text("Pesquisar"), input[value*="Pesquisar"]').first();
-  
+  // Clicar no botão
   await gerarBtn.click();
   log('Botão Gerar clicado', LOG_LEVELS.SUCCESS);
   
