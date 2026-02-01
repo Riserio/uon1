@@ -41,11 +41,16 @@ serve(async (req) => {
       .single();
 
     if (configError || !config) {
-      throw new Error('Configuração de WhatsApp não encontrada ou inativa');
+      throw new Error('Configuração de WhatsApp não encontrada ou inativa para esta associação');
     }
 
-    if (!config.n8n_ativo || !config.n8n_webhook_url) {
-      throw new Error('Integração n8n não está configurada');
+    // Check specific missing configurations
+    if (!config.n8n_webhook_url) {
+      throw new Error('URL do webhook n8n não configurada. Insira a URL e salve antes de testar.');
+    }
+
+    if (!config.n8n_ativo) {
+      throw new Error('Integração n8n está desativada. Ative o toggle e salve antes de testar.');
     }
 
     // Get the phone number
