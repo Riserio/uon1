@@ -1,121 +1,107 @@
 
-# Plano: Aumentar Tempo de Espera e Implementar Espera Inteligente Após Seleção do Layout
 
-## Problema Identificado
+# Plano: Fechar automaticamente o popup de suporte Hinova no robô MGF
 
-Após selecionar o layout "BI - VANGARD COBRANÇA", o script aguarda apenas **10 segundos fixos** antes de prosseguir. Porém, as seções que aparecem apenas com este layout (como "Vencimento do Veículo", "Dias de Vencimento" e "Dias de Atraso") podem demorar mais para carregar completamente no portal Hinova.
+## Resumo do Problema
+O popup de suporte do Hinova aparece durante a execução do robô MGF. Este popup pergunta "quantos minutos gostaria de liberar o usuário para o suporte" e possui dois botões: **"Liberar"** e **"Fechar"**. O robô precisa clicar automaticamente em "Fechar" quando este popup aparecer.
 
-Isso explica por que os campos "Dias de Vencimento" e "Dias de Atraso" não estão sendo exportados no Excel — o script prossegue antes que essas configurações estejam disponíveis.
+## Análise Técnica
 
----
+### Popup Identificado
+- Texto: "Informe quantos minutos gostaria de liberar o usuário da Hinova para o suporte"
+- Dropdown: "Quanto tempo?"
+- Botões: "Liberar" (não clicar) e "Fechar" (clicar para fechar)
+
+### Situação Atual
+O robô já possui uma função `fecharPopups()` que busca botões com texto "Fechar", mas:
+1. Esta função só é chamada durante login e navegação inicial
+2. O popup de suporte pode aparecer a qualquer momento (durante configuração de filtros, espera do download, etc.)
+3. Há uma espera de 20 segundos após seleção de layout onde popups não são verificados
 
 ## Solução Proposta
 
-### 1. Aumentar o Tempo Base de Espera
+### 1. Adicionar seletores específicos para o popup de suporte
+Incluir seletores mais específicos para capturar o popup de suporte Hinova:
+- Botões que contêm texto "Fechar" próximo a texto sobre "suporte"
+- Seletores para caixas de diálogo com dropdown de tempo
 
-Aumentar o tempo fixo de **10 segundos para 20 segundos** como margem de segurança inicial.
+### 2. Chamar `fecharPopups` em pontos estratégicos adicionais
 
-### 2. Implementar Espera Inteligente por Elemento
+| Local no Código | Linha Aproximada | Contexto |
+|-----------------|------------------|----------|
+| `configurarFiltros` - início | ~1564 | Antes de configurar checkboxes |
+| `configurarFiltros` - após checkboxes | ~1673 | Após configurar Centro de Custo |
+| `configurarFiltros` - durante espera layout | ~1685 | Durante os 20s de espera |
+| `selecionarFormaExibicaoEmExcel` - início | ~1714 | Antes de selecionar Excel |
+| `gerarEBaixarRelatorio` - antes do clique | ~1989 | Antes de clicar no botão Gerar |
 
-Após os 20 segundos iniciais, o script deve **verificar ativamente** se elementos específicos do layout BI já estão visíveis antes de prosseguir:
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│           Espera Inteligente Após Layout BI                 │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  1. Selecionar layout "BI - VANGARD COBRANÇA"               │
-│                     ↓                                       │
-│  2. Aguardar 20 segundos (tempo base)                       │
-│                     ↓                                       │
-│  3. Verificar se "Vencimento do Veículo" apareceu           │
-│     ├── Se SIM → Configurações carregadas, prosseguir       │
-│     └── Se NÃO → Aguardar mais 5s e verificar novamente     │
-│                  (até 3 tentativas = +15s extra)            │
-│                     ↓                                       │
-│  4. Total máximo: 35 segundos                               │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 3. Logs de Diagnóstico
-
-Adicionar logs que informem:
-- Quanto tempo foi aguardado
-- Se a seção "Vencimento do Veículo" foi detectada
-- Se campos dinâmicos do layout foram identificados
-
----
-
-## Alterações no Código
-
-**Arquivo:** `scripts/robo-cobranca-hinova.cjs`
-
-**Localização:** Após a validação do layout (linha ~3303)
-
-**Código a implementar:**
+### 3. Criar sistema de verificação contínua durante esperas longas
+Implementar uma função que verifica e fecha popups periodicamente durante operações que demoram:
 
 ```javascript
-// ========================================
-// AGUARDAR CONFIGURAÇÕES CARREGAREM APÓS LAYOUT
-// ========================================
-log('⏳ Aguardando configurações do layout carregarem...', LOG_LEVELS.INFO);
-
-// Tempo base de 20 segundos
-await page.waitForTimeout(20000);
-
-// Verificar se elementos específicos do layout BI apareceram
-let layoutCarregado = false;
-const maxTentativas = 3;
-const intervaloExtra = 5000; // 5 segundos extras por tentativa
-
-for (let tentativa = 1; tentativa <= maxTentativas && !layoutCarregado; tentativa++) {
-  // Verificar se "Vencimento do Veículo" está visível (elemento exclusivo do layout BI)
-  const vencimentoVeiculoVisivel = await page.evaluate(() => {
-    const elementos = document.querySelectorAll('td, th, div, span, label');
-    for (const el of elementos) {
-      const texto = (el.textContent || '').toUpperCase();
-      if (texto.includes('VENCIMENTO DO VEÍCULO') || texto.includes('VENCIMENTO DO VEICULO')) {
-        return true;
-      }
-    }
-    return false;
-  });
-
-  if (vencimentoVeiculoVisivel) {
-    log('✅ Seção "Vencimento do Veículo" detectada - Layout BI carregado completamente!', LOG_LEVELS.SUCCESS);
-    layoutCarregado = true;
-  } else if (tentativa < maxTentativas) {
-    log(`⏳ Seção não detectada ainda. Aguardando mais ${intervaloExtra/1000}s... (tentativa ${tentativa}/${maxTentativas})`, LOG_LEVELS.INFO);
-    await page.waitForTimeout(intervaloExtra);
+async function aguardarComFecharPopups(page, tempoMs, intervaloMs = 3000) {
+  const inicio = Date.now();
+  while (Date.now() - inicio < tempoMs) {
+    await fecharPopups(page, 2); // Verificação rápida
+    await page.waitForTimeout(Math.min(intervaloMs, tempoMs - (Date.now() - inicio)));
   }
 }
-
-if (!layoutCarregado) {
-  log('⚠️ Seção "Vencimento do Veículo" não detectada após espera. Prosseguindo mesmo assim...', LOG_LEVELS.WARN);
-  log('   Os campos "Dias de Vencimento" e "Dias de Atraso" podem não estar disponíveis.', LOG_LEVELS.WARN);
-}
-
-log('✅ Tempo de espera concluído!', LOG_LEVELS.SUCCESS);
 ```
 
----
+### 4. Adicionar lógica específica para popup de suporte no fallback JavaScript
+Expandir a busca JavaScript para identificar especificamente o popup de suporte:
 
-## Resumo das Mudanças
+```javascript
+// Buscar por popup com texto sobre suporte e clicar em Fechar
+const suporteElements = document.querySelectorAll('div, td, span, p');
+for (const el of suporteElements) {
+  const text = (el.textContent || '').toLowerCase();
+  if (text.includes('suporte') || text.includes('liberar o usuário')) {
+    const container = el.closest('div, table, form');
+    if (container) {
+      const fecharBtn = container.querySelector('button, input[type="button"], a');
+      for (const btn of container.querySelectorAll('button, input[type="button"], a')) {
+        const btnText = (btn.textContent || btn.value || '').toLowerCase();
+        if (btnText === 'fechar' || btnText.includes('fechar')) {
+          btn.click();
+          fechou = true;
+          break;
+        }
+      }
+    }
+    if (fechou) break;
+  }
+}
+```
 
-| Aspecto | Antes | Depois |
-|---------|-------|--------|
-| **Tempo base** | 10 segundos fixos | 20 segundos base |
-| **Espera extra** | Nenhuma | Até +15 segundos (3 × 5s) |
-| **Total máximo** | 10 segundos | 35 segundos |
-| **Validação** | Nenhuma | Verifica se "Vencimento do Veículo" apareceu |
-| **Diagnóstico** | Básico | Logs detalhados sobre carregamento |
+## Arquivos a Modificar
 
----
+| Arquivo | Alteração |
+|---------|-----------|
+| `scripts/robo-mgf-hinova.cjs` | Adicionar seletores, nova função de espera, e chamadas em pontos estratégicos |
 
-## Resultado Esperado
+## Detalhes da Implementação
 
-1. O portal terá tempo suficiente para carregar todas as seções dependentes do layout BI
-2. As colunas "Dias de Vencimento" e "Dias de Atraso" serão incluídas no relatório Excel
-3. Se o carregamento demorar demais, um aviso será exibido nos logs para diagnóstico
-4. O script não ficará travado indefinidamente graças ao limite de 35 segundos
+### Modificação 1: Expandir lista de seletores (linhas 500-528)
+Adicionar seletores específicos para o popup de suporte do Hinova.
+
+### Modificação 2: Adicionar busca específica de popup de suporte no fallback JS (linhas 545-582)
+Incluir lógica para identificar popups com texto "suporte" ou "liberar o usuário" e fechar.
+
+### Modificação 3: Criar função `aguardarComFecharPopups` (após linha 588)
+Nova função utilitária para esperas longas com verificação periódica de popups.
+
+### Modificação 4: Substituir esperas longas pela nova função
+- Linha ~1673: Após configurar Centro de Custo
+- Linha ~1685: Espera de 20s após seleção de layout (mais crítico)
+- Linha ~1695: Após configuração de filtros
+
+### Modificação 5: Adicionar chamadas em `gerarEBaixarRelatorio` (linhas 1857+)
+Chamar `fecharPopups` antes do clique no botão Gerar.
+
+## Benefícios
+- O popup de suporte será fechado automaticamente em qualquer momento da execução
+- Esperas longas terão verificações periódicas de popups
+- O robô não ficará travado aguardando interação manual
+- Mantém consistência com os padrões de resiliência já estabelecidos
+
