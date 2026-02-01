@@ -4,7 +4,7 @@
  * ========================================================
  * 
  * FLUXO:
- * 1. Login no portal Hinova
+ * 1. Login no portal Hinova (com tratamento de modais)
  * 2. Navegar para MGF > Relatórios > 5.1 de Lançamentos
  * 3. Selecionar Centro de Custo/Departamento (apenas com "EVENTOS")
  * 4. Selecionar Layout "BI VANGARD FINANCEIROS EVENTOS"
@@ -79,6 +79,7 @@ const TIMEOUTS = {
   DOWNLOAD_IDLE: 40 * 60000,
   DOWNLOAD_HARD: 55 * 60000,
   POPUP_CLOSE: 800,
+  ACTION_DELAY: 500,
 };
 
 const LIMITS = {
@@ -237,6 +238,117 @@ async function saveDebugInfo(page, prefix = 'debug') {
 }
 
 // ============================================
+// FECHAR POPUPS E MODAIS
+// ============================================
+async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPTS) {
+  let popupFechado = true;
+  let tentativas = 0;
+  
+  while (popupFechado && tentativas < maxTentativas) {
+    popupFechado = false;
+    tentativas++;
+    
+    if (tentativas > maxTentativas) {
+      log(`Limite de tentativas de fechar popup atingido (${maxTentativas})`, LOG_LEVELS.WARN);
+      break;
+    }
+    
+    try {
+      await page.waitForTimeout(TIMEOUTS.POPUP_CLOSE);
+      
+      const seletoresFechar = [
+        'button:has-text("Fechar")',
+        'a:has-text("Fechar")',
+        '.btn:has-text("Fechar")',
+        'input[value="Fechar"]',
+        'input[type="button"][value="Fechar"]',
+        'button:has-text("Continuar e Fechar")',
+        'a:has-text("Continuar e Fechar")',
+        'button:has-text("Continuar")',
+        'button:has-text("OK")',
+        '.btn:has-text("OK")',
+        '.modal.show button.close',
+        '.modal.show .btn-close',
+        '.modal.show [data-dismiss="modal"]',
+        '.modal button.close',
+        '.modal .btn-close',
+        '.modal .close',
+        'button.close',
+        '.close',
+        '[data-dismiss="modal"]',
+        '[data-bs-dismiss="modal"]',
+        '[aria-label="Close"]',
+        '.modal-header button',
+        '.swal2-confirm',
+        '.swal2-close',
+        '.bootbox .btn-primary',
+        '.bootbox .btn-default',
+        '#myModal .close',
+        '#myModal button.close',
+        '#myModal [data-dismiss="modal"]',
+      ];
+      
+      for (const seletor of seletoresFechar) {
+        try {
+          const el = page.locator(seletor).first();
+          if (await el.isVisible({ timeout: 300 }).catch(() => false)) {
+            await el.click({ force: true, timeout: 2000 }).catch(() => {});
+            log(`Popup/modal fechado via: ${seletor}`, LOG_LEVELS.DEBUG);
+            popupFechado = true;
+            await page.waitForTimeout(500);
+            break;
+          }
+        } catch {}
+      }
+      
+      // Fallback: tentar fechar via JavaScript
+      if (!popupFechado) {
+        try {
+          const fechou = await page.evaluate(() => {
+            let fechou = false;
+            
+            // Fechar modais Bootstrap visíveis
+            const modals = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"], #myModal.show');
+            modals.forEach(modal => {
+              const closeBtn = modal.querySelector('.close, button.close, .btn-close, [data-dismiss="modal"]');
+              if (closeBtn) {
+                closeBtn.click();
+                fechou = true;
+              }
+            });
+            
+            // Esconder modais diretamente
+            if (!fechou) {
+              modals.forEach(modal => {
+                modal.style.display = 'none';
+                modal.classList.remove('show', 'in');
+                fechou = true;
+              });
+            }
+            
+            // Remover backdrop
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(b => b.remove());
+            
+            return fechou;
+          });
+          
+          if (fechou) {
+            log('Popup/modal fechado via JavaScript', LOG_LEVELS.DEBUG);
+            popupFechado = true;
+          }
+        } catch {}
+      }
+      
+    } catch (e) {
+      log(`Erro ao fechar popup: ${e.message}`, LOG_LEVELS.DEBUG);
+    }
+  }
+  
+  return tentativas > 0;
+}
+
+// ============================================
 // PROCESSAMENTO DE ARQUIVO
 // ============================================
 function extrairTexto(html) {
@@ -355,6 +467,63 @@ function processarArquivo(filePath) {
 }
 
 // ============================================
+// SELEÇÃO DE LAYOUT
+// ============================================
+async function trySelectHinovaLayout(page) {
+  const desired = normalizeText(CONFIG.HINOVA_LAYOUT);
+  if (!desired) return false;
+
+  // 1) Tentar select tradicional
+  try {
+    const select = page
+      .locator(
+        'select[name*="layout" i], select[id*="layout" i], select[name*="sistema" i], select[id*="sistema" i], select[name*="perfil" i], select[id*="perfil" i]'
+      )
+      .first();
+
+    if (await select.isVisible().catch(() => false)) {
+      const optionTexts = await select.locator('option').allTextContents().catch(() => []);
+      const idx = optionTexts.findIndex((t) => {
+        const nt = normalizeText(t);
+        return nt.includes('vangard') || nt.includes(desired);
+      });
+
+      if (idx >= 0) {
+        const option = select.locator('option').nth(idx);
+        const value = (await option.getAttribute('value').catch(() => null)) ?? optionTexts[idx];
+        await select.selectOption(value).catch(() => null);
+        log(`Layout selecionado via <select>: ${optionTexts[idx]}`, LOG_LEVELS.DEBUG);
+        return true;
+      }
+    }
+  } catch {}
+
+  // 2) Tentar input (autocomplete/datalist)
+  try {
+    const input = page
+      .locator(
+        'input[placeholder*="Sistema" i], input[placeholder*="Layout" i], input[placeholder*="Perfil" i], input[placeholder*="Relat" i], input[placeholder*="Empresa" i]'
+      )
+      .first();
+    if (await input.isVisible().catch(() => false)) {
+      await input.click({ force: true }).catch(() => null);
+      await input.fill(CONFIG.HINOVA_LAYOUT).catch(() => null);
+      await page.waitForTimeout(500);
+      
+      // Tentar clicar em opção do autocomplete
+      const acOption = page.locator(`li:has-text("VANGARD"), .autocomplete-item:has-text("VANGARD"), .dropdown-item:has-text("VANGARD")`).first();
+      if (await acOption.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await acOption.click().catch(() => null);
+        log('Layout selecionado via autocomplete', LOG_LEVELS.DEBUG);
+        return true;
+      }
+    }
+  } catch {}
+
+  return false;
+}
+
+// ============================================
 // LOGIN
 // ============================================
 async function realizarLogin(page) {
@@ -363,6 +532,9 @@ async function realizarLogin(page) {
   
   await page.goto(CONFIG.HINOVA_URL, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
   await page.waitForTimeout(2000);
+  
+  // Fechar popups iniciais
+  await fecharPopups(page);
   
   // Preencher credenciais
   const userInput = page.locator('input[name="usuario"], input[name="login"], input[id*="usuario"], input[id*="login"], input[type="text"]').first();
@@ -387,18 +559,69 @@ async function realizarLogin(page) {
     }
   }
   
-  // Clicar no botão de login
+  // Tentar selecionar layout se disponível
+  await trySelectHinovaLayout(page);
+  
+  // Fechar popups antes de clicar em login
+  await fecharPopups(page);
+  
+  // Clicar no botão de login com retry
   const loginBtn = page.locator('button[type="submit"], input[type="submit"], button:has-text("Entrar"), button:has-text("Login"), a:has-text("Entrar")').first();
-  await loginBtn.click();
-  log('Botão de login clicado', LOG_LEVELS.INFO);
   
-  await page.waitForTimeout(5000);
+  let loginSucesso = false;
   
-  // Verificar se login foi bem sucedido
-  const currentUrl = page.url();
-  if (currentUrl.includes('login')) {
-    // Pode haver seleção de perfil/layout
-    await saveDebugInfo(page, 'apos_login');
+  const isAindaNaLogin = async () => {
+    const relatorioVisible = await page.locator('text=Relatório').first().isVisible().catch(() => false);
+    if (relatorioVisible) return false;
+    
+    const esqueceuVisible = await page.locator('text=Esqueci minha senha').first().isVisible().catch(() => false);
+    const codigoClienteVisible = await page.locator('text=Código cliente').first().isVisible().catch(() => false);
+    if (esqueceuVisible || codigoClienteVisible) return true;
+    
+    const currentUrl = page.url();
+    return currentUrl.includes('login');
+  };
+  
+  for (let tentativa = 1; tentativa <= LIMITS.MAX_LOGIN_RETRIES; tentativa++) {
+    try {
+      // Fechar popups antes de cada tentativa
+      await fecharPopups(page);
+      
+      // Verificar se ainda está na página de login
+      if (!(await isAindaNaLogin())) {
+        loginSucesso = true;
+        break;
+      }
+      
+      log(`Tentativa de login ${tentativa}/${LIMITS.MAX_LOGIN_RETRIES}...`, LOG_LEVELS.INFO);
+      
+      // Tentar clicar no botão
+      await loginBtn.click({ timeout: 5000 }).catch(async () => {
+        // Se falhou, pode ter popup - fechar e tentar com force
+        await fecharPopups(page);
+        await loginBtn.click({ force: true, timeout: 5000 }).catch(() => {});
+      });
+      
+      await page.waitForTimeout(TIMEOUTS.LOGIN_RETRY_WAIT);
+      
+      // Fechar popups pós-login
+      await fecharPopups(page);
+      
+      // Verificar se login funcionou
+      if (!(await isAindaNaLogin())) {
+        loginSucesso = true;
+        break;
+      }
+      
+    } catch (e) {
+      log(`Erro na tentativa ${tentativa}: ${e.message}`, LOG_LEVELS.WARN);
+      await fecharPopups(page);
+    }
+  }
+  
+  if (!loginSucesso) {
+    await saveDebugInfo(page, 'login_falhou');
+    throw new Error('Login falhou após múltiplas tentativas');
   }
   
   log('Login realizado com sucesso', LOG_LEVELS.SUCCESS);
@@ -413,6 +636,9 @@ async function navegarParaRelatorio(page) {
   
   await page.goto(CONFIG.HINOVA_RELATORIO_URL, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
   await page.waitForTimeout(3000);
+  
+  // Fechar popups
+  await fecharPopups(page);
   
   log('Página de relatório carregada', LOG_LEVELS.SUCCESS);
   await saveDebugInfo(page, 'pagina_relatorio');
