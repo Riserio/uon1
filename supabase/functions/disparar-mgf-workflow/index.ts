@@ -12,6 +12,7 @@ interface WorkflowInput {
   hinova_user: string;
   hinova_pass: string;
   hinova_codigo_cliente: string;
+  hinova_layout: string;
   execucao_id: string;
   webhook_url: string;
 }
@@ -173,6 +174,7 @@ serve(async (req) => {
         hinova_user: config.hinova_user,
         hinova_pass: config.hinova_pass,
         hinova_codigo_cliente: config.hinova_codigo_cliente || '',
+        hinova_layout: config.layout_relatorio || '',
         execucao_id: execucao.id,
         webhook_url: `${supabaseUrl}/functions/v1/webhook-mgf-hinova`,
       };

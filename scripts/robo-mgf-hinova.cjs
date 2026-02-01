@@ -38,7 +38,8 @@ const { Transform } = require('stream');
 
 function deriveRelatorioUrl(loginUrl) {
   try {
-    const url = new URL(loginUrl);
+    const cleaned = String(loginUrl || '').trim();
+    const url = new URL(cleaned);
     const pathParts = url.pathname.split('/');
     const basePathParts = pathParts.filter(p => 
       p && !p.includes('login') && !p.includes('Principal') && p !== 'v5'
@@ -50,7 +51,7 @@ function deriveRelatorioUrl(loginUrl) {
   }
 }
 
-const HINOVA_URL = process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php';
+const HINOVA_URL = String(process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php').trim();
 
 const CONFIG = {
   HINOVA_URL: HINOVA_URL,
@@ -1341,12 +1342,27 @@ async function realizarLogin(page) {
 // ============================================
 async function navegarParaRelatorio(page) {
   setStep('NAVEGACAO');
-  log(`Navegando para: ${CONFIG.HINOVA_RELATORIO_URL}`, LOG_LEVELS.INFO);
+  const targetUrl = String(CONFIG.HINOVA_RELATORIO_URL || '').trim();
+  log(`Navegando para: ${targetUrl}`, LOG_LEVELS.INFO);
   
-  await page.goto(CONFIG.HINOVA_RELATORIO_URL, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
-  await page.waitForTimeout(3000);
+  const resp = await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
+  await page.waitForTimeout(2500);
   
   await fecharPopups(page);
+
+  const finalUrl = String(page.url() || '');
+  const status = resp?.status?.() ?? null;
+  log(`URL final após navegação: ${finalUrl} (status=${status ?? 'n/a'})`, LOG_LEVELS.DEBUG);
+
+  const finalLower = finalUrl.toLowerCase();
+  if (finalLower.includes('login.php')) {
+    await saveDebugInfo(page, 'redirect_login');
+    throw new Error(`Navegação para relatório falhou: redirecionou para login (${finalUrl})`);
+  }
+  if (!finalLower.includes('relatoriolancamento.php')) {
+    await saveDebugInfo(page, 'url_relatorio_incorreta');
+    throw new Error(`Navegação para relatório falhou: URL inesperada (${finalUrl}). Verifique se o caminho do MGF é /mgf/relatorio/relatorioLancamento.php neste ambiente.`);
+  }
   
   log('Página de relatório carregada', LOG_LEVELS.SUCCESS);
   await saveDebugInfo(page, 'pagina_relatorio');
@@ -1833,6 +1849,38 @@ async function selecionarFormaExibicaoEmExcel(page) {
 async function gerarEBaixarRelatorio(page, context) {
   setStep('DOWNLOAD');
   log('Gerando relatório...', LOG_LEVELS.INFO);
+
+  // DEBUG CRÍTICO: confirmar se o portal realmente disparou a requisição de geração do relatório
+  // (mesmo quando não abre popup e não dispara evento de download).
+  const netTag = '[MGF NET]';
+  const onReq = (req) => {
+    try {
+      const url = String(req.url() || '');
+      if (!url.toLowerCase().includes('relatoriolancamento.php')) return;
+      log(`${netTag} request: ${req.method()} ${url}`, LOG_LEVELS.DEBUG);
+    } catch {}
+  };
+  const onResp = (res) => {
+    try {
+      const url = String(res.url() || '');
+      if (!url.toLowerCase().includes('relatoriolancamento.php')) return;
+      const req = res.request?.();
+      const method = req?.method?.() || 'GET';
+      const headers = res.headers?.() || {};
+      const ct = String(headers['content-type'] || '');
+      const cd = String(headers['content-disposition'] || '');
+      const len = String(headers['content-length'] || '');
+      log(`${netTag} response: ${method} ${url} status=${res.status?.() ?? 'n/a'} ct="${ct}" cd="${cd}" len=${len || 'n/a'}`, LOG_LEVELS.DEBUG);
+    } catch {}
+  };
+  page.on('request', onReq);
+  page.on('response', onResp);
+  const cleanupNet = () => {
+    try { page.removeListener('request', onReq); } catch {}
+    try { page.removeListener('response', onResp); } catch {}
+  };
+
+  try {
   
   const downloadDir = getDownloadDirectory();
   const semanticName = generateSemanticFilename();
@@ -1970,6 +2018,9 @@ async function gerarEBaixarRelatorio(page, context) {
   
   log(`✅ Arquivo baixado: ${result.filePath} (${formatBytes(result.size)})`, LOG_LEVELS.SUCCESS);
   return result.filePath;
+  } finally {
+    cleanupNet();
+  }
 }
 
 // ============================================
