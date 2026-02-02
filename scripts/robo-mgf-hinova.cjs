@@ -484,32 +484,33 @@ async function saveDebugInfo(page, prefix = 'debug') {
 }
 
 // ============================================
-// FECHAR POPUPS E MODAIS
+// FECHAR POPUPS E MODAIS (PADRÃO COBRANÇA - REFATORADO)
 // ============================================
-async function isPopupSuporteHinovaVisivel(page) {
+/**
+ * Detecta se o popup de suporte Hinova está visível.
+ * Este popup é problemático porque o botão "Fechar" é um submit que redireciona!
+ */
+async function isPopupSuporteHinova(page) {
   try {
     return await page.evaluate(() => {
-      const norm = (s) => String(s || '').toLowerCase();
-      const bodyText = norm(document.body?.innerText || document.body?.textContent || '');
-
-      const hasKeyword =
+      const bodyText = (document.body?.innerText || document.body?.textContent || '').toLowerCase();
+      
+      // Texto característico do popup de suporte
+      const hasSuporte =
         bodyText.includes('liberar o usu') ||
         bodyText.includes('liberar o usuário') ||
         bodyText.includes('quanto tempo') ||
         bodyText.includes('para o suporte') ||
-        bodyText.includes('suporte');
-
-      if (!hasKeyword) return false;
-
-      // Heurística adicional: normalmente esse popup tem botão "Liberar" e/ou select de tempo
-      const hasLiberar = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"]')).some(
-        (el) => norm(el.textContent || el.value || '').includes('liberar')
-      );
-      const hasTempo = Array.from(document.querySelectorAll('select, label, span')).some((el) => {
-        const t = norm(el.textContent || '');
-        return t.includes('quanto tempo') || t.includes('minuto');
-      });
-
+        (bodyText.includes('suporte') && bodyText.includes('minuto'));
+      
+      if (!hasSuporte) return false;
+      
+      // Confirmar: tem botão "Liberar" ou select de tempo?
+      const hasLiberar = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"]'))
+        .some(el => (el.textContent || el.value || '').toLowerCase().includes('liberar'));
+      const hasTempo = Array.from(document.querySelectorAll('select, label'))
+        .some(el => (el.textContent || '').toLowerCase().includes('minuto'));
+      
       return hasLiberar || hasTempo;
     });
   } catch {
@@ -517,6 +518,49 @@ async function isPopupSuporteHinovaVisivel(page) {
   }
 }
 
+/**
+ * Fecha o popup de suporte Hinova SEM clicar no botão "Fechar".
+ * O botão "Fechar" deste popup é um submit que redireciona para fecharMovimentoCaixa.php!
+ * Usa: ESC, remoção de backdrop, CSS display:none.
+ */
+async function fecharPopupSuporteHinova(page) {
+  try {
+    const fechou = await page.evaluate(() => {
+      // 1. Simular ESC
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+      
+      // 2. Remover backdrops
+      document.querySelectorAll('.modal-backdrop, .fade.show, .modal-backdrop.fade').forEach(b => b.remove());
+      
+      // 3. Esconder modais via CSS (NÃO clicar em nada!)
+      const modais = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"]');
+      modais.forEach(m => {
+        m.classList.remove('show', 'in');
+        m.style.display = 'none';
+      });
+      
+      // 4. Limpar body
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+      
+      return modais.length > 0;
+    });
+    
+    // Também tentar ESC via Playwright
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(500);
+    
+    return fechou;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fechar popups genéricos (NÃO popup de suporte).
+ * Segue padrão do robô de Cobrança.
+ */
 async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPTS) {
   let popupFechado = true;
   let tentativas = 0;
@@ -525,25 +569,32 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
     popupFechado = false;
     tentativas++;
     
+    if (tentativas > maxTentativas) {
+      log(`Limite de tentativas de fechar popup atingido (${maxTentativas})`, LOG_LEVELS.WARN);
+      break;
+    }
+    
     try {
       await page.waitForTimeout(TIMEOUTS.POPUP_CLOSE);
-
-      // CRÍTICO: se for o popup de suporte Hinova, NÃO clicar no botão "Fechar" (isso navega!).
-      // Deve ser fechado apenas com ESC/backdrop/X/CSS (padrão Cobrança).
-      if (await isPopupSuporteHinovaVisivel(page)) {
-        await fecharPopupsSemNavegar(page);
-        log('Popup de suporte Hinova detectado; fechado sem navegação', LOG_LEVELS.DEBUG);
+      
+      // CRÍTICO: Verificar se é o popup de suporte PRIMEIRO
+      // Se for, usar método especial que não clica em "Fechar"
+      if (await isPopupSuporteHinova(page)) {
+        log('Popup de suporte Hinova detectado - fechando via ESC/CSS', LOG_LEVELS.DEBUG);
+        await fecharPopupSuporteHinova(page);
         popupFechado = true;
-        await page.waitForTimeout(500);
         continue;
       }
       
+      // Para outros popups, usar seletores padrão do Cobrança
       const seletoresFechar = [
         'button:has-text("Fechar")',
         'a:has-text("Fechar")',
         '.btn:has-text("Fechar")',
         'input[value="Fechar"]',
+        'input[type="button"][value="Fechar"]',
         'button:has-text("Continuar e Fechar")',
+        'a:has-text("Continuar e Fechar")',
         'button:has-text("Continuar")',
         'button:has-text("OK")',
         '.btn:has-text("OK")',
@@ -563,71 +614,69 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
         '.swal2-close',
         '.bootbox .btn-primary',
         '.bootbox .btn-default',
-        '#myModal .close',
-        '#myModal button.close',
-        '#myModal [data-dismiss="modal"]',
-        // Seletores específicos para popup de suporte Hinova
-        '.modal button:has-text("Fechar")',
-        '.modal input[value="Fechar"]',
-        'form button:has-text("Fechar")',
-        'div[class*="modal"] button:has-text("Fechar")',
-        'div[class*="dialog"] button:has-text("Fechar")',
       ];
       
       for (const seletor of seletoresFechar) {
         try {
-          const el = page.locator(seletor).first();
-          if (await el.isVisible({ timeout: 300 }).catch(() => false)) {
-            await el.click({ force: true, timeout: 2000 }).catch(() => {});
-            log(`Popup/modal fechado via: ${seletor}`, LOG_LEVELS.DEBUG);
-            popupFechado = true;
-            await page.waitForTimeout(500);
-            break;
+          const botoes = await page.$$(seletor);
+          for (const botao of botoes) {
+            const isVisible = await botao.isVisible().catch(() => false);
+            if (isVisible) {
+              // Verificar novamente se não é popup de suporte antes de clicar
+              if (await isPopupSuporteHinova(page)) {
+                log('Popup de suporte detectado durante loop - usando ESC/CSS', LOG_LEVELS.DEBUG);
+                await fecharPopupSuporteHinova(page);
+                popupFechado = true;
+                break;
+              }
+              
+              log(`Popup detectado - fechando via: ${seletor}`, LOG_LEVELS.DEBUG);
+              await botao.click({ force: true }).catch(() => {});
+              await page.waitForTimeout(1000);
+              popupFechado = true;
+              break;
+            }
           }
-        } catch {}
+          if (popupFechado) break;
+        } catch {
+          // Continuar tentando
+        }
       }
       
-      // Fallback JavaScript - busca específica para popup de suporte Hinova
+      // Fallback via JavaScript (exceto para popup de suporte)
       if (!popupFechado) {
         const fechouViaJS = await page.evaluate(() => {
           let fechou = false;
           
-          // IMPORTANTE: não clicar no botão "Fechar" do popup de suporte (causa navegação/submit).
-          // Se detectar texto típico, esconder o modal e remover backdrop.
-          const txt = (document.body?.innerText || '').toLowerCase();
+          // Verificar se é popup de suporte - se for, NÃO clicar em nada
+          const bodyText = (document.body?.innerText || '').toLowerCase();
           const isSuporte =
-            txt.includes('liberar o usu') ||
-            txt.includes('liberar o usuário') ||
-            txt.includes('quanto tempo') ||
-            txt.includes('para o suporte');
-
+            bodyText.includes('liberar o usu') ||
+            bodyText.includes('quanto tempo') ||
+            bodyText.includes('para o suporte');
+          
           if (isSuporte) {
-            // ESC + remover backdrop + esconder modais
+            // Fechar via CSS apenas
             document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
-            document.querySelectorAll('.modal-backdrop, .fade.show').forEach((b) => b.remove());
-            document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"], div[class*="modal"]').forEach((m) => {
-              try {
-                m.classList.remove('show', 'in');
-                m.style.display = 'none';
-              } catch {}
+            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+            document.querySelectorAll('.modal.show, .modal.in').forEach(m => {
+              m.classList.remove('show', 'in');
+              m.style.display = 'none';
             });
             document.body.classList.remove('modal-open');
-            fechou = true;
-            console.log('[MGF] Popup de suporte Hinova escondido (sem navegação)');
+            return true;
           }
           
-          // Fallback genérico: buscar qualquer botão "Fechar" visível
-          if (!fechou) {
-            const allElements = document.querySelectorAll('button, a, input[type="button"], input[type="submit"], .btn');
-            for (const el of allElements) {
-              const texto = (el.textContent || el.value || '').toLowerCase().trim();
-              if (texto === 'fechar' || texto.includes('fechar')) {
-                const style = window.getComputedStyle(el);
-                if (style.display !== 'none' && style.visibility !== 'hidden') {
-                  el.click();
-                  fechou = true;
-                  break;
-                }
+          // Para outros popups, clicar normalmente
+          const allElements = document.querySelectorAll('button, a, input[type="button"], input[type="submit"], .btn');
+          for (const el of allElements) {
+            const texto = (el.textContent || el.value || '').toLowerCase().trim();
+            if (texto === 'fechar' || texto.includes('fechar')) {
+              const style = window.getComputedStyle(el);
+              if (style.display !== 'none' && style.visibility !== 'hidden') {
+                el.click();
+                fechou = true;
+                break;
               }
             }
           }
@@ -643,8 +692,16 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
             });
           }
           
-          const overlays = document.querySelectorAll('.modal-backdrop');
-          overlays.forEach(o => o.remove());
+          if (!fechou) {
+            const swalClose = document.querySelector('.swal2-close, .swal2-confirm');
+            if (swalClose) {
+              swalClose.click();
+              fechou = true;
+            }
+          }
+          
+          // Remover backdrops
+          document.querySelectorAll('.modal-backdrop').forEach(o => o.remove());
           
           return fechou;
         }).catch(() => false);
@@ -662,110 +719,24 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
 }
 
 // ============================================
-// FECHAR POPUPS SEM NAVEGAR (NOVO)
-// ============================================
-/**
- * Fecha popups sem clicar em botões que podem causar navegação.
- * Usa apenas o botão X, backdrop ou tecla ESC.
- * Específico para o popup de suporte Hinova que redireciona ao clicar em "Fechar".
- */
-async function fecharPopupsSemNavegar(page) {
-  try {
-    // Tentar fechar via backdrop (clicar fora do modal)
-    const fechouViaJS = await page.evaluate(() => {
-      let fechou = false;
-      
-      // 1. Tentar fechar via tecla ESC simulada
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
-      
-      // 2. Remover backdrop diretamente (isso pode fechar o modal)
-      const backdrops = document.querySelectorAll('.modal-backdrop, .fade.show');
-      backdrops.forEach(b => b.remove());
-      
-      // 3. Buscar e clicar APENAS no botão X (não o botão "Fechar" do form)
-      const seletoresX = [
-        '.modal .close',
-        '.modal .btn-close',
-        '.modal button.close',
-        '.modal [aria-label="Close"]',
-        '.modal button[aria-label="Fechar"]',
-        '.modal-header .close',
-        '.modal-header button.close',
-        '.modal-header .btn-close',
-        '#myModal .close',
-        '#myModal button.close',
-      ];
-      
-      for (const sel of seletoresX) {
-        const btn = document.querySelector(sel);
-        if (btn) {
-          const style = window.getComputedStyle(btn);
-          const isVisible = style.display !== 'none' && style.visibility !== 'hidden';
-          // Verificar se NÃO é o botão "Fechar" do form (geralmente tem texto)
-          const texto = (btn.textContent || '').trim().toLowerCase();
-          const isOnlyX = texto === '' || texto === '×' || texto === 'x' || texto === '&times;';
-          if (isVisible && (isOnlyX || btn.classList.contains('close') || btn.classList.contains('btn-close'))) {
-            btn.click();
-            fechou = true;
-            console.log('[MGF] Popup fechado via botão X');
-            break;
-          }
-        }
-      }
-      
-      // 4. Esconder modais diretamente via CSS (último recurso)
-      if (!fechou) {
-        const modais = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"]');
-        modais.forEach(m => {
-          m.classList.remove('show', 'in');
-          m.style.display = 'none';
-          fechou = true;
-          console.log('[MGF] Modal escondido via CSS');
-        });
-      }
-      
-      // 5. Remover classe modal-open do body
-      document.body.classList.remove('modal-open');
-      
-      return fechou;
-    }).catch(() => false);
-    
-    if (fechouViaJS) {
-      log('Popup fechado sem navegação (via X ou CSS)', LOG_LEVELS.DEBUG);
-      await page.waitForTimeout(500);
-    }
-    
-    // Fallback: tentar pressionar ESC via Playwright
-    await page.keyboard.press('Escape').catch(() => {});
-    await page.waitForTimeout(300);
-    
-  } catch (e) {
-    log(`Erro ao fechar popup sem navegar: ${e.message}`, LOG_LEVELS.DEBUG);
-  }
-}
-
-// ============================================
-// AGUARDAR COM VERIFICAÇÃO DE POPUPS (NOVO)
+// AGUARDAR COM VERIFICAÇÃO DE POPUPS
 // ============================================
 /**
  * Aguarda um tempo específico enquanto verifica e fecha popups periodicamente.
- * Útil para esperas longas onde popups podem aparecer a qualquer momento.
+ * Padrão Cobrança: útil para esperas longas onde popups podem aparecer.
  */
 async function aguardarComFecharPopups(page, tempoMs, intervaloMs = 3000) {
   const inicio = Date.now();
   let iteracoes = 0;
   
   while (Date.now() - inicio < tempoMs) {
-    // Padrão Cobrança: primeiro fechar popups sem navegar (para o suporte Hinova)
-    await fecharPopupsSemNavegar(page);
-    // Depois fechamento genérico (já protegido contra o popup de suporte)
+    // Verificar e fechar popups (já protegido contra popup de suporte)
     await fecharPopups(page, 2);
     iteracoes++;
     
     const tempoRestante = tempoMs - (Date.now() - inicio);
     if (tempoRestante <= 0) break;
     
-    // Aguardar o intervalo ou o tempo restante (o que for menor)
     await page.waitForTimeout(Math.min(intervaloMs, tempoRestante));
   }
   
@@ -1533,7 +1504,7 @@ async function realizarLogin(page) {
 }
 
 // ============================================
-// NAVEGAÇÃO E FILTROS
+// NAVEGAÇÃO PARA RELATÓRIO (PADRÃO COBRANÇA)
 // ============================================
 async function navegarParaRelatorio(page) {
   setStep('NAVEGACAO');
@@ -1543,25 +1514,46 @@ async function navegarParaRelatorio(page) {
     throw new Error('HINOVA_RELATORIO_URL está vazio (não é possível navegar)');
   }
 
-  const gotoRelatorio = async (reason = '') => {
-    log(`Navegando para relatório MGF: ${targetUrl}${reason ? ` (${reason})` : ''}`, LOG_LEVELS.INFO);
-    await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
-    await page.waitForTimeout(2500);
-    // Fechar popups SEM navegação primeiro (suporte Hinova)
-    await fecharPopupsSemNavegar(page);
-    // Depois o fechamento genérico (já protegido contra suporte)
-    await fecharPopups(page, 2);
-    await page.waitForTimeout(500);
-  };
-
-  await gotoRelatorio();
-
-  // Se o portal redirecionou para fecharMovimentoCaixa (bug clássico), tentar recuperação automática.
+  log(`Navegando para Relatório MGF: ${targetUrl}`, LOG_LEVELS.INFO);
+  
+  // Fechar popups antes de navegar
+  await fecharPopups(page);
+  
+  // Navegar para a URL do relatório
+  await page.goto(targetUrl, { 
+    waitUntil: 'domcontentloaded',
+    timeout: TIMEOUTS.PAGE_LOAD
+  });
+  
+  log('Aguardando carregamento...', LOG_LEVELS.DEBUG);
+  await page.waitForTimeout(5000);
+  await fecharPopups(page);
+  
+  // Aguardar networkidle com fallback
+  await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {
+    log('NetworkIdle timeout - continuando...', LOG_LEVELS.WARN);
+  });
+  
+  await fecharPopups(page);
+  
+  // Verificar URL atual
   let urlAtual = String(page.url() || '').toLowerCase();
   log(`URL após navegação: ${urlAtual}`, LOG_LEVELS.DEBUG);
+  
+  // Se redirecionou para fecharMovimentoCaixa, é porque clicou em "Fechar" do popup de suporte
+  // Tentar recuperar navegando novamente
   if (urlAtual.includes('fecharmovimentocaixa.php') || urlAtual.includes('/movimentocaixa/fechar')) {
-    log('Detectado redirecionamento para fecharMovimentoCaixa.php; tentando voltar ao relatório...', LOG_LEVELS.WARN);
-    await gotoRelatorio('recovery');
+    log('AVISO: Redirecionou para fecharMovimentoCaixa.php - tentando recuperar...', LOG_LEVELS.WARN);
+    
+    // Aguardar um pouco e navegar novamente
+    await page.waitForTimeout(2000);
+    await page.goto(targetUrl, { 
+      waitUntil: 'domcontentloaded',
+      timeout: TIMEOUTS.PAGE_LOAD
+    });
+    await page.waitForTimeout(5000);
+    await fecharPopups(page);
+    
     urlAtual = String(page.url() || '').toLowerCase();
     log(`URL após recovery: ${urlAtual}`, LOG_LEVELS.DEBUG);
   }
@@ -1571,14 +1563,16 @@ async function navegarParaRelatorio(page) {
     await saveDebugInfo(page, 'redirect_login');
     throw new Error(`Navegação para relatório falhou: redirecionou para login (${page.url()})`);
   }
+  
   if (!urlAtual.includes('relatoriolancamento.php')) {
     await saveDebugInfo(page, 'url_relatorio_incorreta');
     throw new Error(
-      `Navegação para relatório falhou: URL inesperada (${page.url()}). Verifique se o caminho do MGF é /mgf/relatorio/relatorioLancamento.php neste ambiente.`
+      `Navegação para relatório falhou: URL inesperada (${page.url()}). ` +
+      `URL esperada: ${targetUrl}`
     );
   }
 
-  log('Página de relatório carregada', LOG_LEVELS.SUCCESS);
+  log('Página de relatório aberta', LOG_LEVELS.SUCCESS);
   await saveDebugInfo(page, 'pagina_relatorio');
 }
 
