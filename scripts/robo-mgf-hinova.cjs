@@ -1256,7 +1256,7 @@ async function realizarLogin(page) {
       }
     }
 
-    // Usuário
+    // Usuário (não usar input[type=text] genérico para não sobrescrever "Código Cliente")
     try {
       const userSelectors = [
         'input[placeholder*="Usuário" i]',
@@ -1264,8 +1264,6 @@ async function realizarLogin(page) {
         'input[id*="usuario" i]',
         'input[name*="login" i]',
         'input[id*="login" i]',
-        // fallback mais genérico por último
-        'input[type="text"]',
       ];
       for (const sel of userSelectors) {
         const loc = page.locator(sel).first();
@@ -1342,17 +1340,10 @@ async function realizarLogin(page) {
   const dispensarCodigoAutenticacao = async () => {
     try {
       const selector = 'input[placeholder*="Autenticação" i]';
-      const campoAuth = await page.$(selector);
-      if (!campoAuth) return false;
+      const campoAuth = page.locator(selector).first();
+      if (!(await campoAuth.isVisible().catch(() => false))) return false;
 
-      await campoAuth
-        .evaluate((el) => {
-          el.value = '';
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-        })
-        .catch(() => {});
-
+      await campoAuth.fill('').catch(() => {});
       await campoAuth.click({ force: true }).catch(() => {});
       await page.waitForTimeout(200);
       await page.click('body', { position: { x: 20, y: 20 }, force: true }).catch(() => {});
@@ -1381,14 +1372,28 @@ async function realizarLogin(page) {
   };
 
   const clicarEntrar = async () => {
-    const btnSelector = 'button:has-text("Entrar"), input[value="Entrar"], .btn-primary, button.btn, #btn-login, input[type="submit"], button[type="submit"]';
-    const btn = await page.$(btnSelector);
-    if (btn) {
-      await btn.evaluate((el) => el.click()).catch(() => {});
+    const btnSelector =
+      'button:has-text("Entrar"), input[value="Entrar"], .btn-primary, button.btn, #btn-login, input[type="submit"], button[type="submit"]';
+    const btn = page.locator(btnSelector).first();
+    if (await btn.isVisible().catch(() => false)) {
       await btn.click({ force: true }).catch(() => {});
       return;
     }
-    await page.click('button:has-text("Entrar")', { force: true, timeout: 1000 }).catch(() => {});
+    await page.locator('button:has-text("Entrar")').first().click({ force: true, timeout: 1000 }).catch(() => {});
+  };
+
+  const validarLoginAbrindoRelatorio = async () => {
+    try {
+      await page.goto(CONFIG.HINOVA_RELATORIO_URL, {
+        waitUntil: 'domcontentloaded',
+        timeout: TIMEOUTS.PAGE_LOAD,
+      });
+      await page.waitForTimeout(1500);
+      const url = String(page.url() || '').toLowerCase();
+      return !url.includes('login.php') && url.includes('relatoriolancamento.php');
+    } catch {
+      return false;
+    }
   };
   
   for (let tentativa = 1; tentativa <= LIMITS.MAX_LOGIN_RETRIES && !loginSucesso; tentativa++) {
@@ -1406,8 +1411,8 @@ async function realizarLogin(page) {
 
       await preencherCredenciais();
 
-      // O portal pode exigir layout/sistema na própria tela de login
-      await trySelectHinovaLayout(page);
+      // IMPORTANTE (MGF): layout NÃO é selecionado no login.
+      // O layout (BI VANGARD) será selecionado apenas na tela do relatório.
 
       // Clique/Enter resiliente (padrão Cobrança)
       await clicarEntrar();
@@ -1438,12 +1443,16 @@ async function realizarLogin(page) {
 
       await fecharPopups(page);
 
-      const aindaNaLogin = await isAindaNaLogin();
-      if (!aindaNaLogin) {
+      // Validação final (padrão Cobrança): se abrir o relatório sem voltar para login, consideramos logado.
+      const okAbrirRelatorio = await validarLoginAbrindoRelatorio();
+      if (okAbrirRelatorio) {
         loginSucesso = true;
-        log(`Login bem sucedido na tentativa ${tentativa}!`, LOG_LEVELS.SUCCESS);
+        log(`Login bem sucedido na tentativa ${tentativa} (validação via relatório)`, LOG_LEVELS.SUCCESS);
         break;
       }
+
+      // Se ainda estamos na login, seguimos tentando.
+      const aindaNaLogin = await isAindaNaLogin();
 
       const erroMsg = await page
         .$eval('.alert-danger, .error, .erro, .message-error', (el) => el.textContent)
