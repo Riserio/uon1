@@ -3,21 +3,12 @@
  * Robô de Automação - MGF Hinova (Lançamentos Financeiros)
  * ========================================================
  * 
- * SEGUE EXATAMENTE O MESMO PADRÃO DO ROBÔ DE COBRANÇA PARA MÁXIMA ESTABILIDADE
- * - Sistema de download híbrido com múltiplos watchers
- * - HTTP Stream como fallback
- * - Monitor de progresso do arquivo
- * - Heartbeat durante downloads longos
- * 
- * FLUXO:
- * 1. Login no portal Hinova (com tratamento de modais)
- * 2. Navegar DIRETO para /mgf/relatorio/relatorioLancamento.php
- * 3. Selecionar Layout "BI VANGARD FINANCEIROS EVENTOS"
- * 4. Selecionar Centro de Custo/Departamento (apenas com "EVENTOS")
- * 5. Selecionar tipo de relatório "Em Excel"
- * 6. Clicar em "Gerar Relatório"
- * 7. Baixar arquivo (usando estratégia híbrida como cobrança)
- * 8. Enviar dados via webhook
+ * CÓPIA IDÊNTICA DO ROBÔ DE COBRANÇA, ALTERANDO APENAS:
+ * - URL do relatório (MGF)
+ * - Seleção de Centro de Custo (apenas EVENTOS)
+ * - Layout BI VANGARD FINANCEIROS EVENTOS
+ * - Range de datas (01/01/2000 até hoje)
+ * - Nome do arquivo (MGF)
  * 
  * REQUISITOS:
  * -----------
@@ -32,12 +23,13 @@ const fs = require('fs');
 const path = require('path');
 const { pipeline } = require('stream/promises');
 const { Transform } = require('stream');
+const readline = require('readline');
 
 // ============================================
-// CONFIGURAÇÃO (IDÊNTICA AO ROBÔ DE COBRANÇA)
+// CONFIGURAÇÃO - IDÊNTICA À COBRANÇA
 // ============================================
 
-// Função para derivar URL do relatório MGF a partir da URL de login (IGUAL À COBRANÇA)
+// Função para derivar URL do relatório MGF a partir da URL de login
 function deriveRelatorioUrl(loginUrl) {
   try {
     const url = new URL(loginUrl);
@@ -56,15 +48,13 @@ function deriveRelatorioUrl(loginUrl) {
   }
 }
 
-const HINOVA_URL = String(process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php').trim();
+const HINOVA_URL = process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php';
 
 const CONFIG = {
   HINOVA_URL: HINOVA_URL,
-  // URL do relatório MGF derivada dinamicamente da URL de login (IGUAL À COBRANÇA)
   HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || deriveRelatorioUrl(HINOVA_URL),
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
-  // Código do cliente: mantém compatibilidade (IGUAL À COBRANÇA)
   HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '2363',
   HINOVA_LAYOUT: process.env.HINOVA_LAYOUT || 'BI VANGARD FINANCEIROS EVENTOS',
   
@@ -80,12 +70,19 @@ const CONFIG = {
   DEBUG_DIR: process.env.DEBUG_DIR || './debug',
 };
 
-console.log(`[MGF CONFIG] HINOVA_URL: "${HINOVA_URL}"`);
-console.log(`[MGF CONFIG] HINOVA_RELATORIO_URL: "${CONFIG.HINOVA_RELATORIO_URL}"`);
-console.log(`[MGF CONFIG] HINOVA_LAYOUT: "${CONFIG.HINOVA_LAYOUT}"`);
+// ============================================
+// LOGIN: helpers (mantidos próximos ao topo por reutilização)
+// ============================================
+function normalizeText(str) {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+}
 
 // ============================================
-// CONSTANTES (IDÊNTICAS AO ROBÔ DE COBRANÇA)
+// CONSTANTES DE TIMEOUT E CONTROLE
 // ============================================
 const TIMEOUTS = {
   PAGE_LOAD: 90000,
@@ -101,52 +98,66 @@ const TIMEOUTS = {
 
 const LIMITS = {
   MAX_LOGIN_RETRIES: 20,
-  MAX_POPUP_CLOSE_ATTEMPTS: 10,
   MAX_DOWNLOAD_RETRIES: 3,
+  MAX_POPUP_CLOSE_ATTEMPTS: 10,
+  MAX_LOOP_ITERATIONS: 100,
   MIN_FILE_SIZE_BYTES: 100,
 };
 
 // ============================================
-// LOGGING (IDÊNTICO AO ROBÔ DE COBRANÇA)
+// SISTEMA DE LOGS PADRONIZADO
 // ============================================
 const LOG_LEVELS = {
   INFO: 'INFO',
   WARN: 'WARN',
   ERROR: 'ERROR',
-  SUCCESS: 'SUCCESS',
   DEBUG: 'DEBUG',
+  SUCCESS: 'SUCCESS',
 };
 
 let currentStep = 'INIT';
 
-function setStep(step) {
-  currentStep = step;
-  log(`Iniciando etapa: ${step}`);
+// ============================================
+// UTIL: Promise com timeout (evita hangs)
+// ============================================
+async function withTimeout(promise, timeoutMs, timeoutMessage) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
-function log(msg, level = LOG_LEVELS.INFO) {
+function log(message, level = LOG_LEVELS.INFO) {
   const timestamp = new Date().toISOString();
-  const emoji = {
-    INFO: '📌',
-    WARN: '⚠️',
-    ERROR: '❌',
-    SUCCESS: '✅',
-    DEBUG: '🔍',
-  }[level] || '📌';
-  console.log(`[${timestamp}] ${emoji} [${level}] ${msg}`);
+  const prefix = `[${timestamp}] [${level}] [${currentStep}]`;
+  
+  switch (level) {
+    case LOG_LEVELS.ERROR:
+      console.error(`${prefix} ❌ ${message}`);
+      break;
+    case LOG_LEVELS.WARN:
+      console.warn(`${prefix} ⚠️ ${message}`);
+      break;
+    case LOG_LEVELS.SUCCESS:
+      console.log(`${prefix} ✅ ${message}`);
+      break;
+    case LOG_LEVELS.DEBUG:
+      console.log(`${prefix} 🔍 ${message}`);
+      break;
+    default:
+      console.log(`${prefix} ${message}`);
+  }
 }
 
 // ============================================
-// UTILS (IDÊNTICO AO ROBÔ DE COBRANÇA)
+// UTIL: Progresso de download/upload
 // ============================================
-function normalizeText(str) {
-  return String(str || '')
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .trim();
-}
-
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB'];
@@ -159,29 +170,6 @@ function formatBytes(bytes) {
   return `${v.toFixed(idx === 0 ? 0 : 2)} ${units[idx]}`;
 }
 
-function getDownloadDirectory() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const dir = path.join(CONFIG.DOWNLOAD_BASE_DIR, String(year), month);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  return dir;
-}
-
-function generateSemanticFilename() {
-  const now = new Date();
-  const day = String(now.getDate()).padStart(2, '0');
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const year = now.getFullYear();
-  const timestamp = Date.now();
-  return `MGF_Hinova_${day}${month}${year}_${timestamp}.xlsx`;
-}
-
-// ============================================
-// MONITOR DE PROGRESSO (IDÊNTICO AO ROBÔ DE COBRANÇA)
-// ============================================
 function monitorFileProgress(filePath, expectedSize = 0, intervalMs = TIMEOUTS.FILE_PROGRESS_INTERVAL) {
   const startTime = Date.now();
   let lastLoggedPercent = -1;
@@ -233,9 +221,6 @@ function monitorFileProgress(filePath, expectedSize = 0, intervalMs = TIMEOUTS.F
   };
 }
 
-// ============================================
-// FUNÇÕES AUXILIARES HTTP (IDÊNTICAS AO ROBÔ DE COBRANÇA)
-// ============================================
 async function buildCookieHeader(context, url) {
   try {
     const cookies = await context.cookies(url);
@@ -247,7 +232,14 @@ async function buildCookieHeader(context, url) {
 }
 
 function pickHeadersForHttpReplay(headers = {}) {
-  const allow = ['user-agent', 'accept', 'accept-language', 'referer', 'origin', 'content-type'];
+  const allow = [
+    'user-agent',
+    'accept',
+    'accept-language',
+    'referer',
+    'origin',
+    'content-type',
+  ];
   const out = {};
   for (const [k, v] of Object.entries(headers)) {
     const key = String(k || '').toLowerCase();
@@ -257,9 +249,6 @@ function pickHeadersForHttpReplay(headers = {}) {
   return out;
 }
 
-/**
- * Download via HTTP stream puro (IDÊNTICO AO ROBÔ DE COBRANÇA)
- */
 async function downloadViaAxiosStream({
   url,
   method = 'GET',
@@ -298,7 +287,6 @@ async function downloadViaAxiosStream({
   let receivedBytes = 0;
   let lastLoggedPercent = -1;
   let lastLoggedAt = 0;
-  let firstByteLogged = false;
 
   const logProgress = (force = false) => {
     const now = Date.now();
@@ -350,6 +338,8 @@ async function downloadViaAxiosStream({
 
     if (expectedBytes > 0) {
       log(`Tamanho esperado: ${formatBytes(expectedBytes)}`, LOG_LEVELS.DEBUG);
+    } else {
+      log(`Tamanho desconhecido (streaming sem content-length)`, LOG_LEVELS.DEBUG);
     }
 
     const writeStream = fs.createWriteStream(tempFilePath, {
@@ -358,10 +348,6 @@ async function downloadViaAxiosStream({
 
     const progressTransform = new Transform({
       transform(chunk, encoding, callback) {
-        if (!firstByteLogged && chunk && chunk.length) {
-          firstByteLogged = true;
-          log('🚀 DOWNLOAD INICIADO (HTTP): primeiro byte recebido do servidor', LOG_LEVELS.SUCCESS);
-        }
         receivedBytes += chunk.length;
         resetIdleTimer();
         logProgress(false);
@@ -370,7 +356,11 @@ async function downloadViaAxiosStream({
       highWaterMark: 8 * 1024 * 1024,
     });
 
-    await pipeline(response.data, progressTransform, writeStream);
+    await pipeline(
+      response.data,
+      progressTransform,
+      writeStream
+    );
 
     logProgress(true);
     clearTimers();
@@ -395,104 +385,288 @@ async function downloadViaAxiosStream({
 
   } catch (error) {
     clearTimers();
+    
     try {
       if (fs.existsSync(tempFilePath)) {
         fs.unlinkSync(tempFilePath);
+        log(`Arquivo temporário removido após erro`, LOG_LEVELS.DEBUG);
       }
     } catch {}
+    
     throw error;
   }
 }
 
+function setStep(step) {
+  currentStep = step;
+  log(`Iniciando etapa: ${step}`);
+}
+
 // ============================================
-// WEBHOOK
+// GESTÃO DE DIRETÓRIOS
 // ============================================
-async function sendWebhook(payload) {
-  if (!CONFIG.WEBHOOK_URL) {
-    log('WEBHOOK_URL não configurado', LOG_LEVELS.WARN);
-    return;
+function getDownloadDirectory() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  
+  const dirPath = path.join(CONFIG.DOWNLOAD_BASE_DIR, String(year), month);
+  
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+    log(`Diretório criado: ${dirPath}`, LOG_LEVELS.DEBUG);
   }
+  
+  return dirPath;
+}
 
-  try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (CONFIG.WEBHOOK_SECRET) {
-      headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
-    }
-
-    await axios.post(CONFIG.WEBHOOK_URL, payload, { headers, timeout: 120000 });
-    log('Webhook enviado com sucesso', LOG_LEVELS.SUCCESS);
-  } catch (error) {
-    log(`Erro ao enviar webhook: ${error.message}`, LOG_LEVELS.ERROR);
+function getDebugDirectory() {
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0];
+  const dirPath = path.join(CONFIG.DEBUG_DIR, dateStr);
+  
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
   }
+  
+  return dirPath;
 }
 
-async function updateProgress(status, etapa, extras = {}) {
-  await sendWebhook({
-    corretora_id: CONFIG.CORRETORA_ID,
-    execucao_id: CONFIG.EXECUCAO_ID,
-    github_run_id: CONFIG.GITHUB_RUN_ID,
-    github_run_url: CONFIG.GITHUB_RUN_URL,
-    update_progress: true,
-    status,
-    etapa_atual: etapa,
-    ...extras,
-  });
-}
-
-async function notifyStart() {
-  await sendWebhook({
-    corretora_id: CONFIG.CORRETORA_ID,
-    execucao_id: CONFIG.EXECUCAO_ID,
-    github_run_id: CONFIG.GITHUB_RUN_ID,
-    github_run_url: CONFIG.GITHUB_RUN_URL,
-    action: 'start',
-  });
-}
-
-async function notifyError(message) {
-  await sendWebhook({
-    corretora_id: CONFIG.CORRETORA_ID,
-    execucao_id: CONFIG.EXECUCAO_ID,
-    github_run_id: CONFIG.GITHUB_RUN_ID,
-    github_run_url: CONFIG.GITHUB_RUN_URL,
-    action: 'error',
-    error_message: message,
-  });
+function generateSemanticFilename() {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
+  
+  return `MGF_${day}${month}${year}.xlsx`;
 }
 
 // ============================================
-// DEBUG
+// SALVAMENTO DE DIAGNÓSTICO
 // ============================================
-async function saveDebugInfo(page, prefix = 'debug') {
+async function saveDebugInfo(page, context, errorMessage = null) {
+  const debugDir = getDebugDirectory();
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  
   try {
-    const debugDir = CONFIG.DEBUG_DIR;
-    if (!fs.existsSync(debugDir)) {
-      fs.mkdirSync(debugDir, { recursive: true });
-    }
+    const screenshotPath = path.join(debugDir, `screenshot_${currentStep}_${timestamp}.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+    log(`Screenshot salvo: ${screenshotPath}`, LOG_LEVELS.DEBUG);
     
-    const timestamp = Date.now();
-    const screenshotPath = path.join(debugDir, `${prefix}_${timestamp}.png`);
-    await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+    const htmlPath = path.join(debugDir, `page_${currentStep}_${timestamp}.html`);
+    const html = await page.content().catch(() => 'Erro ao obter HTML');
+    fs.writeFileSync(htmlPath, html);
+    log(`HTML salvo: ${htmlPath}`, LOG_LEVELS.DEBUG);
     
-    const htmlPath = path.join(debugDir, `${prefix}_${timestamp}.html`);
-    const html = await page.content().catch(() => '');
-    if (html) {
-      fs.writeFileSync(htmlPath, html.substring(0, 50000));
-    }
+    const urlPath = path.join(debugDir, `url_${currentStep}_${timestamp}.txt`);
+    const urlInfo = `URL: ${page.url()}\nTimestamp: ${new Date().toISOString()}\nStep: ${currentStep}\nError: ${errorMessage || 'N/A'}`;
+    fs.writeFileSync(urlPath, urlInfo);
     
-    log(`Debug salvo: ${screenshotPath}`, LOG_LEVELS.DEBUG);
+    const pages = context.pages();
+    log(`Páginas abertas: ${pages.length}`, LOG_LEVELS.DEBUG);
+    pages.forEach((p, i) => {
+      log(`  Página ${i}: ${p.url()}`, LOG_LEVELS.DEBUG);
+    });
+    
   } catch (e) {
-    log(`Erro ao salvar debug: ${e.message}`, LOG_LEVELS.WARN);
+    log(`Erro ao salvar debug info: ${e.message}`, LOG_LEVELS.WARN);
   }
 }
 
 // ============================================
-// FECHAR POPUPS E MODAIS (PADRÃO COBRANÇA)
+// VALIDAÇÃO DE ARQUIVO (BINÁRIO PURO)
 // ============================================
-/**
- * Fechar popups genéricos - NÃO clica em botões que possam causar navegação
- * Usa ESC e remoção via CSS primeiro, depois botões seguros
- */
+const MAX_EXPECTED_FILE_SIZE = 50 * 1024 * 1024;
+
+const FILE_SIGNATURES = {
+  XLSX: [0x50, 0x4B, 0x03, 0x04],
+  XLS: [0xD0, 0xCF, 0x11, 0xE0],
+  HTML_DOCTYPE: [0x3C, 0x21, 0x44, 0x4F],
+  HTML_TAG: [0x3C, 0x68, 0x74, 0x6D],
+  HTML_TAG_UPPER: [0x3C, 0x48, 0x54, 0x4D],
+};
+
+function detectFileType(filePath) {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    const buffer = Buffer.alloc(16);
+    fs.readSync(fd, buffer, 0, 16, 0);
+    fs.closeSync(fd);
+    
+    const matchesSignature = (signature) => {
+      for (let i = 0; i < signature.length; i++) {
+        if (buffer[i] !== signature[i]) return false;
+      }
+      return true;
+    };
+    
+    if (matchesSignature(FILE_SIGNATURES.XLSX)) {
+      return { type: 'xlsx', binary: true };
+    }
+    
+    if (matchesSignature(FILE_SIGNATURES.XLS)) {
+      return { type: 'xls', binary: true };
+    }
+    
+    if (matchesSignature(FILE_SIGNATURES.HTML_DOCTYPE) ||
+        matchesSignature(FILE_SIGNATURES.HTML_TAG) ||
+        matchesSignature(FILE_SIGNATURES.HTML_TAG_UPPER)) {
+      return { type: 'html', binary: false };
+    }
+    
+    if (buffer[0] === 0x3C) {
+      return { type: 'html', binary: false };
+    }
+    
+    return { type: 'unknown', binary: true };
+  } catch (e) {
+    log(`Erro ao detectar tipo de arquivo: ${e.message}`, LOG_LEVELS.WARN);
+    return { type: 'unknown', binary: true };
+  }
+}
+
+function validateDownloadedFile(filePath, contentType = '') {
+  if (!fs.existsSync(filePath)) {
+    return { valid: false, error: 'Arquivo não existe', isErrorPage: false };
+  }
+  
+  const stats = fs.statSync(filePath);
+  
+  if (stats.size < LIMITS.MIN_FILE_SIZE_BYTES) {
+    return { valid: false, error: `Arquivo muito pequeno: ${stats.size} bytes`, isErrorPage: false };
+  }
+  
+  if (stats.size > MAX_EXPECTED_FILE_SIZE) {
+    log(`⚠️ ATENÇÃO: Arquivo muito grande (${formatBytes(stats.size)}) - pode indicar filtros não aplicados`, LOG_LEVELS.WARN);
+  }
+  
+  const fileType = detectFileType(filePath);
+  
+  const contentTypeLower = String(contentType).toLowerCase();
+  const isExcelContentType = contentTypeLower.includes('excel') || 
+                             contentTypeLower.includes('spreadsheet') ||
+                             contentTypeLower.includes('vnd.ms-excel');
+  
+  log(`Tipo detectado: ${fileType.type} (content-type: ${contentType || 'não informado'})`, LOG_LEVELS.DEBUG);
+  
+  if (fileType.type === 'html') {
+    const fd = fs.openSync(filePath, 'r');
+    const buffer = Buffer.alloc(Math.min(10240, stats.size));
+    fs.readSync(fd, buffer, 0, buffer.length, 0);
+    fs.closeSync(fd);
+    
+    const content = buffer.toString('utf-8').toLowerCase();
+    
+    const isErrorPage = content.includes('internal server error') ||
+                        content.includes('500 internal') ||
+                        content.includes('erro interno') ||
+                        content.includes('error 500') ||
+                        content.includes('exception') ||
+                        content.includes('fatal error') ||
+                        content.includes('erro ao gerar') ||
+                        content.includes('tempo esgotado') ||
+                        content.includes('timeout') ||
+                        (content.includes('<html') && !content.includes('<table') && !content.includes('<tr'));
+    
+    if (isErrorPage) {
+      log(`❌ Arquivo HTML é uma página de ERRO do portal`, LOG_LEVELS.ERROR);
+      return {
+        valid: false,
+        error: 'Página de erro do portal detectada - o relatório não foi gerado corretamente',
+        isErrorPage: true,
+        size: stats.size,
+        fileType: 'html',
+      };
+    }
+    
+    const hasTableStructure = content.includes('<table') && content.includes('<tr');
+    
+    if (!hasTableStructure) {
+      log(`⚠️ HTML sem estrutura de tabela detectado`, LOG_LEVELS.WARN);
+      if (stats.size < 50 * 1024) {
+        return {
+          valid: false,
+          error: 'HTML sem dados de relatório detectado',
+          isErrorPage: true,
+          size: stats.size,
+          fileType: 'html',
+        };
+      }
+    }
+    
+    log(`Arquivo detectado como HTML disfarçado de Excel (com tabelas)`, LOG_LEVELS.INFO);
+    return {
+      valid: true,
+      size: stats.size,
+      isHtml: true,
+      fileType: fileType.type,
+      isErrorPage: false,
+    };
+  }
+  
+  if (fileType.type === 'xlsx' || fileType.type === 'xls') {
+    return {
+      valid: true,
+      size: stats.size,
+      isHtml: false,
+      fileType: fileType.type,
+      isErrorPage: false,
+    };
+  }
+  
+  if (fileType.type === 'unknown' && isExcelContentType) {
+    log(`Tipo desconhecido mas content-type indica Excel - aceitando`, LOG_LEVELS.WARN);
+    return {
+      valid: true,
+      size: stats.size,
+      isHtml: false,
+      fileType: 'unknown',
+      isErrorPage: false,
+    };
+  }
+  
+  if (stats.size > 1024) {
+    log(`Arquivo de ${formatBytes(stats.size)} aceito sem detecção de tipo`, LOG_LEVELS.WARN);
+    return {
+      valid: true,
+      size: stats.size,
+      isHtml: false,
+      fileType: fileType.type,
+      isErrorPage: false,
+    };
+  }
+  
+  return { valid: false, error: `Tipo de arquivo não reconhecido: ${fileType.type}`, isErrorPage: false };
+}
+
+// ============================================
+// GESTÃO DE PÁGINAS EXTRAS
+// ============================================
+async function closeExtraPages(context, mainPage) {
+  const pages = context.pages();
+  let closed = 0;
+  
+  for (const p of pages) {
+    if (p !== mainPage) {
+      try {
+        await p.close();
+        closed++;
+      } catch (e) {
+        log(`Erro ao fechar página extra: ${e.message}`, LOG_LEVELS.WARN);
+      }
+    }
+  }
+  
+  if (closed > 0) {
+    log(`Fechadas ${closed} página(s) extra(s)`, LOG_LEVELS.DEBUG);
+  }
+  
+  return closed;
+}
+
+// ============================================
+// FECHAR POPUPS/MODAIS
+// ============================================
 async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPTS) {
   let popupFechado = true;
   let tentativas = 0;
@@ -509,49 +683,46 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
     try {
       await page.waitForTimeout(TIMEOUTS.POPUP_CLOSE);
       
-      // PRIMEIRA TENTATIVA: Via ESC e CSS (mais seguro - não causa navegação)
-      const fechouViaEscCss = await page.evaluate(() => {
-        let fechou = false;
+      // Detectar popup de suporte e fechar via ESC/CSS (sem clicar em botões)
+      const popupSuporte = await page.evaluate(() => {
+        const normalizar = (t) => (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const modais = document.querySelectorAll('.modal, .modal-dialog, [role="dialog"], .popup, .overlay');
         
-        // 1. Simular ESC
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
-        
-        // 2. Remover backdrops
-        document.querySelectorAll('.modal-backdrop, .fade.show, .modal-backdrop.fade').forEach(b => {
-          b.remove();
-          fechou = true;
-        });
-        
-        // 3. Esconder modais via CSS
-        const modais = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"]');
-        modais.forEach(m => {
-          m.classList.remove('show', 'in');
-          m.style.display = 'none';
-          fechou = true;
-        });
-        
-        // 4. Limpar body
-        if (document.body.classList.contains('modal-open')) {
-          document.body.classList.remove('modal-open');
-          document.body.style.overflow = '';
-          document.body.style.paddingRight = '';
-          fechou = true;
+        for (const modal of modais) {
+          const texto = normalizar(modal.textContent || '');
+          if (texto.includes('suporte') || texto.includes('quanto tempo') || texto.includes('liberar')) {
+            // Fechar via CSS para não disparar navegação
+            modal.style.display = 'none';
+            const backdrop = document.querySelector('.modal-backdrop, .overlay-backdrop');
+            if (backdrop) backdrop.remove();
+            return true;
+          }
         }
-        
-        return fechou;
-      });
+        return false;
+      }).catch(() => false);
       
-      if (fechouViaEscCss) {
-        log('Popup fechado via ESC/CSS', LOG_LEVELS.DEBUG);
+      if (popupSuporte) {
+        await page.keyboard.press('Escape').catch(() => {});
+        await page.waitForTimeout(200);
+        log('Popup de suporte fechado via ESC/CSS', LOG_LEVELS.DEBUG);
         popupFechado = true;
-        await page.waitForTimeout(500);
         continue;
       }
       
-      // SEGUNDA TENTATIVA: Botões seguros (X, close icons)
-      const seletoresSeguros = [
+      const seletoresFechar = [
+        'button:has-text("Fechar")',
+        'a:has-text("Fechar")',
+        '.btn:has-text("Fechar")',
+        'input[value="Fechar"]',
+        'input[type="button"][value="Fechar"]',
+        'button:has-text("Continuar e Fechar")',
+        'a:has-text("Continuar e Fechar")',
+        'button:has-text("Continuar")',
+        'button:has-text("OK")',
+        '.btn:has-text("OK")',
         '.modal.show button.close',
         '.modal.show .btn-close',
+        '.modal.show [data-dismiss="modal"]',
         '.modal button.close',
         '.modal .btn-close',
         '.modal .close',
@@ -560,10 +731,14 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
         '[data-dismiss="modal"]',
         '[data-bs-dismiss="modal"]',
         '[aria-label="Close"]',
+        '.modal-header button',
+        '.swal2-confirm',
         '.swal2-close',
+        '.bootbox .btn-primary',
+        '.bootbox .btn-default',
       ];
       
-      for (const seletor of seletoresSeguros) {
+      for (const seletor of seletoresFechar) {
         try {
           const botoes = await page.$$(seletor);
           for (const botao of botoes) {
@@ -571,7 +746,7 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
             if (isVisible) {
               log(`Popup detectado - fechando via: ${seletor}`, LOG_LEVELS.DEBUG);
               await botao.click({ force: true }).catch(() => {});
-              await page.waitForTimeout(500);
+              await page.waitForTimeout(1000);
               popupFechado = true;
               break;
             }
@@ -582,19 +757,207 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
         }
       }
       
-      // Também tentar ESC via Playwright
+      // Fallback via JavaScript
       if (!popupFechado) {
-        await page.keyboard.press('Escape').catch(() => {});
+        const fechouViaJS = await page.evaluate(() => {
+          let fechou = false;
+          
+          const allElements = document.querySelectorAll('button, a, input[type="button"], input[type="submit"], .btn');
+          for (const el of allElements) {
+            const texto = (el.textContent || el.value || '').toLowerCase().trim();
+            if (texto === 'fechar' || texto.includes('fechar')) {
+              const style = window.getComputedStyle(el);
+              if (style.display !== 'none' && style.visibility !== 'hidden') {
+                el.click();
+                fechou = true;
+                break;
+              }
+            }
+          }
+          
+          if (!fechou) {
+            const modals = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"]');
+            modals.forEach(modal => {
+              const closeBtn = modal.querySelector('.close, button.close, .btn-close, [data-dismiss="modal"]');
+              if (closeBtn) {
+                closeBtn.click();
+                fechou = true;
+              }
+            });
+          }
+          
+          if (!fechou) {
+            const swalClose = document.querySelector('.swal2-close, .swal2-confirm');
+            if (swalClose) {
+              swalClose.click();
+              fechou = true;
+            }
+          }
+          
+          const overlays = document.querySelectorAll('.modal-backdrop');
+          overlays.forEach(o => o.remove());
+          
+          return fechou;
+        }).catch(() => false);
+        
+        if (fechouViaJS) {
+          popupFechado = true;
+          await page.waitForTimeout(1000);
+        }
       }
       
     } catch (e) {
-      // Silenciar
+      // Silenciar erros
     }
+  }
+  
+  if (tentativas > 1) {
+    log(`Verificação de popups concluída (${tentativas} iterações)`, LOG_LEVELS.DEBUG);
   }
 }
 
 // ============================================
-// DOWNLOAD CONTROLLER (IDÊNTICO AO ROBÔ DE COBRANÇA)
+// SELEÇÃO DE FORMA DE EXIBIÇÃO EXCEL
+// ============================================
+async function selecionarFormaExibicaoEmExcel(page) {
+  log('Selecionando Forma de Exibição: Em Excel', LOG_LEVELS.INFO);
+  
+  const tryInFrame = async (frame) => {
+    try {
+      const result = await frame.evaluate(() => {
+        const setRadioChecked = (radio) => {
+          try {
+            if (radio.disabled) return false;
+            
+            if (radio.name) {
+              const siblings = document.querySelectorAll(`input[type="radio"][name="${radio.name}"]`);
+              siblings.forEach(r => {
+                if (r !== radio && r.checked) {
+                  r.checked = false;
+                  r.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+              });
+            }
+            
+            radio.checked = true;
+            radio.dispatchEvent(new Event('click', { bubbles: true }));
+            radio.dispatchEvent(new Event('input', { bubbles: true }));
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            const form = radio.closest('form');
+            if (form) {
+              form.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            
+            return true;
+          } catch (e) {
+            return false;
+          }
+        };
+
+        const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+        
+        for (const radio of radios) {
+          const containers = [
+            radio.closest('tr'),
+            radio.closest('td'),
+            radio.closest('label'),
+            radio.closest('div'),
+            radio.parentElement,
+            radio.closest('font'),
+            radio.closest('p'),
+          ].filter(Boolean);
+          
+          for (const container of containers) {
+            const text = (container.textContent || '').toLowerCase();
+            
+            if (/\bem\s*excel\b/i.test(text) || (text.includes('excel') && text.includes('em'))) {
+              if (setRadioChecked(radio)) {
+                return { success: true, method: 'nearText', radioValue: radio.value };
+              }
+            }
+          }
+        }
+        
+        for (const radio of radios) {
+          const value = (radio.value || '').toLowerCase();
+          const name = (radio.name || '').toLowerCase();
+          
+          if (value.includes('excel') || name.includes('excel') || value === 'xls' || value === 'xlsx') {
+            if (setRadioChecked(radio)) {
+              return { success: true, method: 'value', radioValue: radio.value };
+            }
+          }
+        }
+        
+        const textElements = document.querySelectorAll('td, span, label, font, div, p, b, strong');
+        for (const el of textElements) {
+          const text = (el.textContent || '').trim();
+          
+          if (/^Em\s*Excel$/i.test(text) || /\bEm\s*Excel\b/i.test(text)) {
+            const tr = el.closest('tr');
+            if (tr) {
+              const radio = tr.querySelector('input[type="radio"]');
+              if (radio && setRadioChecked(radio)) {
+                return { success: true, method: 'sameRow', radioValue: radio.value };
+              }
+            }
+            
+            const parent = el.parentElement;
+            if (parent) {
+              const radio = parent.querySelector('input[type="radio"]');
+              if (radio && setRadioChecked(radio)) {
+                return { success: true, method: 'parent', radioValue: radio.value };
+              }
+            }
+          }
+        }
+        
+        const formaExibicaoRadios = radios.filter(r => {
+          const name = (r.name || '').toLowerCase();
+          return name.includes('forma') || name.includes('exib') || name.includes('tipo') || name.includes('output');
+        });
+        
+        if (formaExibicaoRadios.length >= 2) {
+          const excelRadio = formaExibicaoRadios[1];
+          if (setRadioChecked(excelRadio)) {
+            return { success: true, method: 'groupSecond', radioValue: excelRadio.value };
+          }
+        }
+        
+        return { success: false, totalRadios: radios.length };
+      });
+      
+      if (result.success) {
+        log(`Excel selecionado: ${result.method}`, LOG_LEVELS.SUCCESS);
+        await page.waitForTimeout(500);
+        return true;
+      }
+      
+    } catch (e) {
+      log(`Erro na seleção JavaScript: ${e.message}`, LOG_LEVELS.DEBUG);
+    }
+
+    return false;
+  };
+
+  if (await tryInFrame(page.mainFrame())) {
+    return true;
+  }
+
+  for (const frame of page.frames()) {
+    if (frame === page.mainFrame()) continue;
+    if (await tryInFrame(frame)) {
+      return true;
+    }
+  }
+
+  log('Não foi possível selecionar a opção Excel', LOG_LEVELS.WARN);
+  return false;
+}
+
+// ============================================
+// SISTEMA DE DOWNLOAD COM EXECUÇÃO IMEDIATA
 // ============================================
 class DownloadController {
   constructor() {
@@ -617,6 +980,7 @@ class DownloadController {
     this.captured = true;
     this.result = result;
     log(`Download capturado! Fonte: ${result.source}`, LOG_LEVELS.SUCCESS);
+    log(`Cancelando todos os watchers...`, LOG_LEVELS.DEBUG);
     this.cleanup();
     return true;
   }
@@ -669,11 +1033,11 @@ class DownloadController {
       try {
         fn();
       } catch (e) {
-        // Ignorar
+        // Ignorar erros de cleanup
       }
     }
     this.cleanupFunctions = [];
-    log(`Cleanup concluído`, LOG_LEVELS.DEBUG);
+    log(`Cleanup concluído - todos os watchers removidos`, LOG_LEVELS.DEBUG);
   }
   
   startProgressMonitor() {
@@ -690,9 +1054,6 @@ class DownloadController {
   }
 }
 
-// ============================================
-// VERIFICA SE RESPOSTA HTTP É EXCEL
-// ============================================
 function isExcelResponse(response) {
   try {
     if (!response) return false;
@@ -704,9 +1065,6 @@ function isExcelResponse(response) {
     const contentDisposition = String(headers['content-disposition'] || '').toLowerCase();
     const url = String(response.url?.() || '').toLowerCase();
     const contentLength = parseInt(headers['content-length'] || '0', 10);
-
-    const request = response.request?.();
-    const method = (request?.method?.() || 'GET').toUpperCase();
     
     if (contentType.includes('spreadsheet') || 
         contentType.includes('excel') || 
@@ -732,19 +1090,6 @@ function isExcelResponse(response) {
     if (contentType.includes('download') || contentType.includes('force-download')) {
       return true;
     }
-
-    // FALLBACK MGF: Hinova muitas vezes retorna o "Em Excel" como HTML via POST
-    const isRelatorioLancamento = url.includes('relatoriolancamento.php');
-    const isHtmlLike = contentType.includes('text/html') || contentType.includes('text/plain');
-    const looksLikeAttachment = contentDisposition.includes('attachment');
-
-    if (isRelatorioLancamento && method !== 'GET' && (looksLikeAttachment || isHtmlLike)) {
-      return true;
-    }
-
-    if (isRelatorioLancamento && method === 'GET' && looksLikeAttachment) {
-      return true;
-    }
     
     return false;
   } catch {
@@ -752,9 +1097,116 @@ function isExcelResponse(response) {
   }
 }
 
-// ============================================
-// PROCESSAR DOWNLOAD IMEDIATO (IDÊNTICO AO ROBÔ DE COBRANÇA)
-// ============================================
+function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName) {
+  const pagesAttached = new Set();
+  
+  const onResponse = async (response) => {
+    if (controller.isCaptured()) return;
+    
+    if (isExcelResponse(response)) {
+      const headers = response.headers() || {};
+      const contentLength = parseInt(headers['content-length'] || '0', 10);
+      const contentDisposition = String(headers['content-disposition'] || '');
+      
+      let fileName = semanticName;
+      const fileNameMatch = contentDisposition.match(/filename[*]?=["']?([^"';\n]+)/i);
+      if (fileNameMatch) {
+        log(`Arquivo detectado via HTTP: ${fileNameMatch[1]}`, LOG_LEVELS.DEBUG);
+      }
+      
+      if (controller.isCaptured()) {
+        log(`Download já capturado via Playwright - ignorando HTTP stream`, LOG_LEVELS.DEBUG);
+        return;
+      }
+      
+      const wasCaptured = controller.setCaptured({ 
+        type: 'httpResponse', 
+        response, 
+        source: 'httpStream' 
+      });
+      
+      if (!wasCaptured) return;
+      
+      log(`✅ Download capturado via HTTP stream (fallback)`, LOG_LEVELS.SUCCESS);
+      if (contentLength > 0) {
+        log(`Tamanho esperado: ${(contentLength / 1024).toFixed(2)} KB`, LOG_LEVELS.DEBUG);
+      }
+      
+      try {
+        const filePath = path.join(downloadDir, semanticName);
+        const startTime = Date.now();
+
+        log(`⬇️ Baixando via HTTP stream (com progresso)...`, LOG_LEVELS.INFO);
+
+        const request = response.request?.();
+        const url = response.url?.();
+        const method = request?.method?.() || 'GET';
+        const requestHeaders = pickHeadersForHttpReplay(request?.headers?.() || {});
+        const cookieHeader = await buildCookieHeader(context, url);
+        if (cookieHeader) requestHeaders['cookie'] = cookieHeader;
+
+        const postData = request?.postData?.();
+        const result = await downloadViaAxiosStream({
+          url,
+          method,
+          headers: requestHeaders,
+          data: method !== 'GET' ? postData : undefined,
+          filePath,
+          expectedBytes: contentLength,
+          idleTimeoutMs: TIMEOUTS.DOWNLOAD_IDLE,
+          hardTimeoutMs: TIMEOUTS.DOWNLOAD_HARD,
+        });
+
+        const downloadTime = Math.floor((Date.now() - startTime) / 1000);
+        log(`✅ Download HTTP concluído em ${downloadTime}s (${formatBytes(result.size)})`, LOG_LEVELS.SUCCESS);
+        
+        if (!fs.existsSync(filePath)) {
+          throw new Error('FALHA: Arquivo não existe após salvamento HTTP');
+        }
+        
+        const stats = fs.statSync(filePath);
+        const contentTypeHeader = String(headers['content-type'] || '');
+
+        if (contentLength > 0 && stats.size !== contentLength) {
+          log(`⚠️ Tamanho difere: esperado ${contentLength}, recebido ${stats.size}`, LOG_LEVELS.WARN);
+        }
+
+        log(`✅ Arquivo salvo com sucesso: ${semanticName} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
+        log(`✅ Etapa DOWNLOAD concluída via HTTP Stream`, LOG_LEVELS.SUCCESS);
+        
+        controller.setFileResult({ filePath, size: stats.size, contentType: contentTypeHeader });
+      } catch (e) {
+        log(`❌ Erro ao salvar via HTTP: ${e.message}`, LOG_LEVELS.ERROR);
+        controller.setError(e);
+      }
+    }
+  };
+  
+  const attachToPage = (page) => {
+    if (!page || pagesAttached.has(page)) return;
+    pagesAttached.add(page);
+    page.on('response', onResponse);
+  };
+  
+  const onNewPage = (page) => {
+    if (controller.isCaptured()) return;
+    attachToPage(page);
+  };
+  
+  for (const p of context.pages()) {
+    attachToPage(p);
+  }
+  
+  context.on('page', onNewPage);
+  
+  controller.addCleanup(() => {
+    try { context.removeListener('page', onNewPage); } catch {}
+    for (const p of pagesAttached) {
+      try { p.removeListener('response', onResponse); } catch {}
+    }
+  });
+}
+
 async function processarDownloadImediato(download, downloadDir, semanticName) {
   const filePath = path.join(downloadDir, semanticName);
   const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
@@ -780,6 +1232,8 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
   }
 
   log(`Salvando: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
+
+  log(`Aguardando transmissão do portal (saveAs)...`, LOG_LEVELS.DEBUG);
   log(`⏳ O portal pode demorar vários minutos para gerar o relatório...`, LOG_LEVELS.INFO);
 
   const stopMonitor = monitorFileProgress(filePath, expectedSize);
@@ -793,10 +1247,12 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
     
     const possiblePaths = [filePath, filePath + '.crdownload', filePath + '.part'];
     let fileSize = 0;
+    let foundPath = null;
     for (const p of possiblePaths) {
       try {
         if (fs.existsSync(p)) {
           fileSize = fs.statSync(p).size;
+          foundPath = p;
           break;
         }
       } catch {}
@@ -856,13 +1312,11 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
 
   const totalTime = Math.floor((Date.now() - startTime) / 1000);
   log(`Download concluído em ${Math.floor(totalTime / 60)}m ${totalTime % 60}s`, LOG_LEVELS.SUCCESS);
-  log(`Arquivo salvo: ${semanticName} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
+  log(`Arquivo salvo com sucesso: ${semanticName} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
+  log(`✅ Etapa DOWNLOAD concluída`, LOG_LEVELS.SUCCESS);
   return { filePath, size: stats.size };
 }
 
-// ============================================
-// WATCHERS DE DOWNLOAD (PADRÃO COBRANÇA)
-// ============================================
 function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName) {
   const pagesAttached = new Set();
   
@@ -977,6 +1431,7 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
           log(`📥 Usando download.saveAs() - PRIORIDADE TOTAL para download do browser`, LOG_LEVELS.INFO);
           const result = await processarDownloadImediato(download, downloadDir, semanticName);
           controller.setFileResult(result);
+          
           newPage.close().catch(() => {});
         } catch (e) {
           log(`Erro ao salvar download via saveAs: ${e.message}`, LOG_LEVELS.ERROR);
@@ -986,17 +1441,30 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
       
       newPage.on('download', onNewPageDownload);
       
+      let loadCompleted = false;
+      const loadTimeout = setTimeout(() => { loadCompleted = true; }, 10000);
+      
+      const checkCaptured = setInterval(() => {
+        if (controller.isCaptured()) {
+          clearTimeout(loadTimeout);
+          clearInterval(checkCaptured);
+          loadCompleted = true;
+        }
+      }, 50);
+      
       await Promise.race([
         newPage.waitForLoadState('domcontentloaded', { timeout: 8000 }),
         new Promise(resolve => setTimeout(resolve, 8000)),
       ]).catch(() => {});
+      
+      clearTimeout(loadTimeout);
+      clearInterval(checkCaptured);
       
       if (controller.isCaptured()) {
         try { newPage.removeListener('download', onNewPageDownload); } catch {}
         return;
       }
       
-      // Procurar botões de download na nova aba
       const seletoresDownload = [
         'a[href*=".xlsx"]', 'a[href*=".xls"]',
         'a:has-text("Baixar")', 'button:has-text("Baixar")',
@@ -1016,7 +1484,7 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
       });
       
     } catch (err) {
-      // Ignorar
+      // Ignorar erros
     }
   };
   
@@ -1033,83 +1501,10 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
   });
 }
 
-function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName) {
-  const filePath = path.join(downloadDir, semanticName);
-  
-  const onResponse = async (response) => {
-    if (controller.isCaptured()) return;
-    
-    if (!isExcelResponse(response)) return;
-    
-    log(`🌐 Resposta Excel detectada via HTTP: ${response.url().substring(0, 80)}...`, LOG_LEVELS.INFO);
-    
-    // Aguardar um pouco para ver se o Playwright captura como download
-    await new Promise(r => setTimeout(r, 5000));
-    
-    if (controller.isCaptured()) {
-      log(`Download já capturado via Playwright - ignorando HTTP stream`, LOG_LEVELS.DEBUG);
-      return;
-    }
-    
-    const wasCaptured = controller.setCaptured({
-      type: 'httpResponse',
-      response,
-      source: 'httpWatcher',
-    });
-    
-    if (!wasCaptured) return;
-    
-    try {
-      const request = response.request();
-      const url = response.url();
-      const method = request.method();
-      const postData = request.postData?.() || null;
-      const headers = request.headers?.() || {};
-      const cookies = await buildCookieHeader(context, url);
-      
-      const httpHeaders = {
-        ...pickHeadersForHttpReplay(headers),
-        cookie: cookies,
-      };
-      
-      log(`Iniciando download via HTTP stream (fallback)...`, LOG_LEVELS.INFO);
-      
-      const result = await downloadViaAxiosStream({
-        url,
-        method,
-        headers: httpHeaders,
-        data: postData,
-        filePath,
-      });
-      
-      controller.setFileResult(result);
-    } catch (e) {
-      log(`Erro no download HTTP: ${e.message}`, LOG_LEVELS.ERROR);
-      controller.setError(e);
-    }
-  };
-  
-  const attachToPage = (page) => {
-    page.on('response', onResponse);
-    controller.addCleanup(() => {
-      try { page.removeListener('response', onResponse); } catch {}
-    });
-  };
-  
-  for (const p of context.pages()) {
-    attachToPage(p);
-  }
-  
-  context.on('page', (newPage) => {
-    if (!controller.isCaptured()) {
-      attachToPage(newPage);
-    }
-  });
-}
-
 async function aguardarDownloadHibrido(context, page, downloadDir, semanticName, timeoutMs) {
   log(`Iniciando captura de download...`, LOG_LEVELS.INFO);
   log(`Arquivo destino: ${path.join(downloadDir, semanticName)}`, LOG_LEVELS.DEBUG);
+  log(`PRIORIDADE: Download Playwright (saveAs) > HTTP Stream (fallback)`, LOG_LEVELS.DEBUG);
   
   const controller = new DownloadController();
   
@@ -1158,843 +1553,507 @@ async function aguardarDownloadHibrido(context, page, downloadDir, semanticName,
 }
 
 // ============================================
-// LOGIN (PADRÃO COBRANÇA)
+// FUNÇÕES AUXILIARES - MGF
 // ============================================
-async function trySelectHinovaLayout(page) {
-  const desired = normalizeText(CONFIG.HINOVA_LAYOUT);
-  if (!desired) return false;
-
-  // 1) Tentar select tradicional
-  try {
-    const select = page
-      .locator(
-        'select[name*="layout" i], select[id*="layout" i], select[name*="sistema" i], select[id*="sistema" i], select[name*="perfil" i], select[id*="perfil" i]'
-      )
-      .first();
-
-    if (await select.isVisible().catch(() => false)) {
-      const optionTexts = await select.locator('option').allTextContents().catch(() => []);
-      const idx = optionTexts.findIndex((t) => {
-        const nt = normalizeText(t);
-        return nt.includes('vangard') || nt.includes(desired);
-      });
-
-      if (idx >= 0) {
-        const option = select.locator('option').nth(idx);
-        const value = (await option.getAttribute('value').catch(() => null)) ?? optionTexts[idx];
-        await select.selectOption(value).catch(() => null);
-        log(`Layout selecionado via <select>: ${optionTexts[idx]}`, LOG_LEVELS.DEBUG);
-        return true;
-      }
-    }
-  } catch {}
-
-  // 2) Tentar input (autocomplete/datalist)
-  try {
-    const input = page
-      .locator(
-        'input[placeholder*="Sistema" i], input[placeholder*="Layout" i], input[placeholder*="Perfil" i], input[placeholder*="Relat" i], input[placeholder*="Empresa" i]'
-      )
-      .first();
-    if (await input.isVisible().catch(() => false)) {
-      await input.click({ force: true }).catch(() => null);
-      await input.fill(CONFIG.HINOVA_LAYOUT).catch(() => null);
-      await input.press('Enter').catch(() => null);
-      log(`Layout preenchido via input: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.DEBUG);
-      return true;
-    }
-  } catch {}
-
-  // 3) Fallback DOM: se houver 4+ inputs visíveis, preencher o último vazio
-  try {
-    const ok = await page
-      .evaluate(({ layout }) => {
-        const isVisible = (el) => {
-          const r = el.getBoundingClientRect();
-          const style = window.getComputedStyle(el);
-          return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
-        };
-
-        const inputs = Array.from(
-          document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])')
-        ).filter(isVisible);
-
-        if (inputs.length < 4) return false;
-
-        const candidate = [...inputs].reverse().find((i) => !i.value);
-        if (!candidate) return false;
-        candidate.value = layout;
-        candidate.dispatchEvent(new Event('input', { bubbles: true }));
-        candidate.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-      }, { layout: CONFIG.HINOVA_LAYOUT })
-      .catch(() => false);
-
-    if (ok) {
-      log(`Layout preenchido via fallback (último input): ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.DEBUG);
-      return true;
-    }
-  } catch {}
-
-  return false;
-}
-
-async function realizarLogin(page) {
-  setStep('LOGIN');
+function getDateRange() {
+  // MGF: histórico completo desde 01/01/2000 até último dia do mês atual
+  const hoje = new Date();
+  const primeiroDia = new Date(2000, 0, 1); // 01/01/2000
+  const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
   
-  let loginSucesso = false;
-
-  const preencherCredenciais = async () => {
-    // Código cliente (opcional dependendo do ambiente)
-    if (CONFIG.HINOVA_CODIGO_CLIENTE) {
-      const codigoSelectors = [
-        'input[placeholder*="Código" i]',
-        'input[placeholder*="cliente" i]',
-        'input[name*="codigo" i]',
-        'input[id*="codigo" i]',
-        'input[name*="cliente" i]',
-        'input[id*="cliente" i]',
-        // fallback legado
-        'input[placeholder=""]',
-      ];
-
-      let codigoPreenchido = false;
-      for (const sel of codigoSelectors) {
-        try {
-          const loc = page.locator(sel).first();
-          if (await loc.isVisible().catch(() => false)) {
-            await loc.fill(String(CONFIG.HINOVA_CODIGO_CLIENTE), { timeout: 5000 });
-            codigoPreenchido = true;
-            log(`Código cliente preenchido (${sel})`, LOG_LEVELS.DEBUG);
-            break;
-          }
-        } catch {}
-      }
-      if (!codigoPreenchido) {
-        log('Campo de código cliente não encontrado (pode ser opcional)', LOG_LEVELS.DEBUG);
-      }
-    }
-
-    // Usuário (não usar input[type=text] genérico para não sobrescrever "Código Cliente")
-    try {
-      const userSelectors = [
-        'input[placeholder*="Usuário" i]',
-        'input[name*="usuario" i]',
-        'input[id*="usuario" i]',
-        'input[name*="login" i]',
-        'input[id*="login" i]',
-      ];
-      for (const sel of userSelectors) {
-        const loc = page.locator(sel).first();
-        if (await loc.isVisible().catch(() => false)) {
-          await loc.fill(String(CONFIG.HINOVA_USER), { timeout: 5000 });
-          log(`Usuário preenchido (${sel})`, LOG_LEVELS.DEBUG);
-          break;
-        }
-      }
-    } catch (e) {
-      log(`Erro ao preencher usuário: ${e.message}`, LOG_LEVELS.WARN);
-    }
-
-    // Senha
-    try {
-      const passSelectors = [
-        'input[placeholder*="Senha" i]',
-        'input[name*="senha" i]',
-        'input[id*="senha" i]',
-        'input[type="password"]',
-      ];
-      for (const sel of passSelectors) {
-        const loc = page.locator(sel).first();
-        if (await loc.isVisible().catch(() => false)) {
-          await loc.fill(String(CONFIG.HINOVA_PASS), { timeout: 5000 });
-          log(`Senha preenchida (${sel})`, LOG_LEVELS.DEBUG);
-          break;
-        }
-      }
-    } catch (e) {
-      log(`Erro ao preencher senha: ${e.message}`, LOG_LEVELS.WARN);
-    }
-
-    // Fallback: preencher via JS (ordem típica: código, usuário, senha)
-    await page
-      .evaluate(({ codigoCliente, usuario, senha }) => {
-        const isVisible = (el) => {
-          const r = el.getBoundingClientRect();
-          const style = window.getComputedStyle(el);
-          return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
-        };
-
-        const allInputs = Array.from(
-          document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])')
-        ).filter(isVisible);
-
-        // Heurística: se existe password, preencher ele por tipo
-        const pwd = allInputs.find((i) => (i.getAttribute('type') || '').toLowerCase() === 'password');
-        if (pwd && senha && (!pwd.value || pwd.value === pwd.placeholder)) {
-          pwd.value = senha;
-          pwd.dispatchEvent(new Event('input', { bubbles: true }));
-          pwd.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-
-        // Preencher os 3 primeiros inputs visíveis (legado)
-        if (allInputs.length >= 3) {
-          if (codigoCliente && !allInputs[0].value) {
-            allInputs[0].value = codigoCliente;
-            allInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
-          }
-          if (usuario && (!allInputs[1].value || allInputs[1].value === allInputs[1].placeholder)) {
-            allInputs[1].value = usuario;
-            allInputs[1].dispatchEvent(new Event('input', { bubbles: true }));
-          }
-          if (senha && (!allInputs[2].value || allInputs[2].value === allInputs[2].placeholder)) {
-            allInputs[2].value = senha;
-            allInputs[2].dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        }
-      }, { codigoCliente: CONFIG.HINOVA_CODIGO_CLIENTE, usuario: CONFIG.HINOVA_USER, senha: CONFIG.HINOVA_PASS })
-      .catch(() => {});
-  };
-
-  const dispensarCodigoAutenticacao = async () => {
-    try {
-      const selector = 'input[placeholder*="Autenticação" i]';
-      const campoAuth = page.locator(selector).first();
-      if (!(await campoAuth.isVisible().catch(() => false))) return false;
-
-      await campoAuth.fill('').catch(() => {});
-      await campoAuth.click({ force: true }).catch(() => {});
-      await page.waitForTimeout(200);
-      await page.click('body', { position: { x: 20, y: 20 }, force: true }).catch(() => {});
-      await page.keyboard.press('Escape').catch(() => {});
-      await page.waitForTimeout(200);
-
-      log('Código de autenticação dispensado', LOG_LEVELS.DEBUG);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  const isAindaNaLogin = async () => {
-    const relatorioVisible = await page.locator('text=Relatório').first().isVisible().catch(() => false);
-    if (relatorioVisible) return false;
-
-    const esqueceuVisible = await page.locator('text=Esqueci minha senha').first().isVisible().catch(() => false);
-    const codigoClienteVisible = await page.locator('text=Código cliente').first().isVisible().catch(() => false);
-    if (esqueceuVisible || codigoClienteVisible) return true;
-
-    const pwdVisible = await page.locator('input[type="password"]').first().isVisible().catch(() => false);
-    const url = page.url?.() || '';
-    const urlPareceLogin = /login/i.test(url);
-    return pwdVisible || urlPareceLogin;
-  };
-
-  const clicarEntrar = async () => {
-    const btnSelector =
-      'button:has-text("Entrar"), input[value="Entrar"], .btn-primary, button.btn, #btn-login, input[type="submit"], button[type="submit"]';
-    const btn = page.locator(btnSelector).first();
-    if (await btn.isVisible().catch(() => false)) {
-      await btn.click({ force: true }).catch(() => {});
-      return;
-    }
-    await page.locator('button:has-text("Entrar")').first().click({ force: true, timeout: 1000 }).catch(() => {});
-  };
-
-  const validarLoginAbrindoRelatorio = async () => {
-    try {
-      await page.goto(CONFIG.HINOVA_RELATORIO_URL, {
-        waitUntil: 'domcontentloaded',
-        timeout: TIMEOUTS.PAGE_LOAD,
-      });
-      await page.waitForTimeout(1500);
-      const url = String(page.url() || '').toLowerCase();
-      return !url.includes('login.php') && url.includes('relatoriolancamento.php');
-    } catch {
-      return false;
-    }
+  const formatDate = (d) => {
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
   };
   
-  for (let tentativa = 1; tentativa <= LIMITS.MAX_LOGIN_RETRIES && !loginSucesso; tentativa++) {
-    log(`Tentativa de login ${tentativa}/${LIMITS.MAX_LOGIN_RETRIES}...`);
-    
-    try {
-      await fecharPopups(page);
-
-      // Garantir que estamos na tela de login (ou que o formulário existe)
-      await page
-        .waitForSelector('input[type="password"], input[placeholder*="Usuário" i], button:has-text("Entrar")', {
-          timeout: 15000,
-        })
-        .catch(() => {});
-
-      await preencherCredenciais();
-
-      // IMPORTANTE (MGF): layout NÃO é selecionado no login.
-      // O layout (BI VANGARD) será selecionado apenas na tela do relatório.
-
-      // Clique/Enter resiliente (padrão Cobrança)
-      await clicarEntrar();
-      await Promise.race([
-        page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => null),
-        page.waitForTimeout(1500),
-      ]);
-
-      await dispensarCodigoAutenticacao();
-      await Promise.race([
-        page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
-        page.waitForTimeout(1200),
-      ]);
-
-      await clicarEntrar();
-      await Promise.race([
-        page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
-        page.waitForTimeout(1200),
-      ]);
-
-      await page.keyboard.press('Enter').catch(() => {});
-
-      await Promise.race([
-        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: TIMEOUTS.LOGIN_RETRY_WAIT }).catch(() => null),
-        page.waitForLoadState('networkidle', { timeout: TIMEOUTS.LOGIN_RETRY_WAIT }).catch(() => null),
-        page.waitForTimeout(TIMEOUTS.LOGIN_RETRY_WAIT),
-      ]);
-
-      await fecharPopups(page);
-
-      // Validação final (padrão Cobrança): se abrir o relatório sem voltar para login, consideramos logado.
-      const okAbrirRelatorio = await validarLoginAbrindoRelatorio();
-      if (okAbrirRelatorio) {
-        loginSucesso = true;
-        log(`Login bem sucedido na tentativa ${tentativa} (validação via relatório)`, LOG_LEVELS.SUCCESS);
-        break;
-      }
-
-      // Se ainda estamos na login, seguimos tentando.
-      const aindaNaLogin = await isAindaNaLogin();
-
-      const erroMsg = await page
-        .$eval('.alert-danger, .error, .erro, .message-error', (el) => el.textContent)
-        .catch(() => null);
-      if (erroMsg) {
-        log(`Erro detectado: ${String(erroMsg).trim()}`, LOG_LEVELS.WARN);
-      }
-
-      log(`Tentativa ${tentativa} falhou - ainda na página de login`, LOG_LEVELS.WARN);
-      await page.waitForTimeout(600);
-      
-    } catch (e) {
-      log(`Erro na tentativa de login: ${e.message}`, LOG_LEVELS.WARN);
-      await page.waitForTimeout(600);
-    }
-  }
-  
-  if (!loginSucesso) {
-    throw new Error('Login falhou após múltiplas tentativas');
-  }
+  return {
+    inicio: formatDate(primeiroDia),
+    fim: formatDate(ultimoDia),
+  };
 }
 
 // ============================================
-// NAVEGAÇÃO PARA RELATÓRIO (DIRETO PARA A URL)
+// MAPEAMENTO DE COLUNAS MGF
 // ============================================
-async function navegarParaRelatorio(page) {
-  setStep('NAVEGACAO');
+const COLUMN_MAP = {
+  "DATA": "Data",
+  "DATA LANCAMENTO": "Data",
+  "DATA LANÇAMENTO": "Data",
+  "CENTRO DE CUSTO": "Centro de Custo",
+  "DEPARTAMENTO": "Departamento",
+  "DESCRICAO": "Descricao",
+  "DESCRIÇÃO": "Descricao",
+  "HISTORICO": "Historico",
+  "HISTÓRICO": "Historico",
+  "VALOR": "Valor",
+  "TIPO": "Tipo",
+  "ENTRADA": "Entrada",
+  "SAIDA": "Saida",
+  "SAÍDA": "Saida",
+  "SALDO": "Saldo",
+  "DOCUMENTO": "Documento",
+  "NUMERO DOCUMENTO": "Numero Documento",
+  "NÚMERO DOCUMENTO": "Numero Documento",
+  "CONTA": "Conta",
+  "BANCO": "Banco",
+  "CATEGORIA": "Categoria",
+  "SUBCATEGORIA": "Subcategoria",
+  "OBSERVACAO": "Observacao",
+  "OBSERVAÇÃO": "Observacao",
+  "STATUS": "Status",
+  "SITUACAO": "Situacao",
+  "SITUAÇÃO": "Situacao",
+};
 
-  const targetUrl = CONFIG.HINOVA_RELATORIO_URL;
-  log(`Navegando para Relatório MGF: ${targetUrl}`, LOG_LEVELS.INFO);
-  
-  // Fechar popups antes de navegar
-  await fecharPopups(page);
-  
-  // Navegar para a URL do relatório
-  await page.goto(targetUrl, { 
-    waitUntil: 'domcontentloaded',
-    timeout: TIMEOUTS.PAGE_LOAD
-  });
-  
-  log('Aguardando carregamento...', LOG_LEVELS.DEBUG);
-  await page.waitForTimeout(5000);
-  await fecharPopups(page);
-  
-  // Aguardar networkidle com fallback
-  await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {
-    log('NetworkIdle timeout - continuando...', LOG_LEVELS.WARN);
-  });
-  
-  await fecharPopups(page);
-  
-  // Verificar URL atual
-  const urlAtual = String(page.url() || '').toLowerCase();
-  log(`URL após navegação: ${urlAtual}`, LOG_LEVELS.DEBUG);
-  
-  // Verificação de redirecionamento para login
-  if (urlAtual.includes('login.php')) {
-    await saveDebugInfo(page, 'redirect_login');
-    throw new Error(`Navegação para relatório falhou: redirecionou para login`);
-  }
-  
-  // Verificação se está na página correta
-  if (!urlAtual.includes('relatoriolancamento.php')) {
-    await saveDebugInfo(page, 'url_incorreta');
-    throw new Error(`URL inesperada: ${page.url()}. Esperado: relatorioLancamento.php`);
-  }
-
-  log('Página de relatório aberta', LOG_LEVELS.SUCCESS);
-  await saveDebugInfo(page, 'pagina_relatorio');
+function normalizeHeader(header) {
+  return String(header).trim().toUpperCase().replace(/\s+/g, ' ');
 }
 
-// ============================================
-// CONFIGURAÇÃO DE FILTROS
-// ============================================
-async function configurarFiltros(page) {
-  setStep('FILTROS');
-  log('Configurando filtros...', LOG_LEVELS.INFO);
+function parseExcelDate(value) {
+  if (!value) return null;
   
-  await fecharPopups(page);
-  
-  // 1. SELECIONAR LAYOUT "BI VANGARD FINANCEIROS EVENTOS"
-  log('📋 Selecionando layout...', LOG_LEVELS.INFO);
-  
-  const layoutSelecionado = await page.evaluate(({ desiredLayout }) => {
-    const normalizar = (t) =>
-      (t || '')
-        .toString()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .replace(/\s+/g, ' ')
-        .trim();
-    
-    const desired = normalizar(desiredLayout);
-    
-    // Procurar selects que parecem ser de layout/visualização
-    const selects = Array.from(document.querySelectorAll('select'));
-    
-    for (const select of selects) {
-      const selectName = (select.name || select.id || '').toLowerCase();
-      const options = Array.from(select.options || []);
-      const optionTexts = options.map(o => (o.textContent || o.value || '').trim());
-      const normOptions = optionTexts.map(normalizar);
-      
-      // Procurar opção que contenha "bi vangard" e "eventos" ou "financeiro"
-      let idx = normOptions.findIndex(t => 
-        (t.includes('bi') && t.includes('vangard') && (t.includes('evento') || t.includes('financeiro'))) ||
-        t.includes(desired)
-      );
-      
-      if (idx >= 0) {
-        select.selectedIndex = idx;
-        select.dispatchEvent(new Event('input', { bubbles: true }));
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-        return { ok: true, selected: optionTexts[idx], selectName };
-      }
+  if (typeof value === 'number') {
+    const date = XLSX.SSF.parse_date_code(value);
+    if (date) {
+      const month = String(date.m).padStart(2, '0');
+      const day = String(date.d).padStart(2, '0');
+      return `${date.y}-${month}-${day}`;
     }
-    
-    return { ok: false };
-  }, { desiredLayout: CONFIG.HINOVA_LAYOUT });
-  
-  if (layoutSelecionado.ok) {
-    log(`✅ Layout selecionado: ${layoutSelecionado.selected}`, LOG_LEVELS.SUCCESS);
-    await page.waitForTimeout(3000); // Aguardar carregar opções do layout
-    await fecharPopups(page);
-  } else {
-    log(`⚠️ Layout não encontrado automaticamente, continuando...`, LOG_LEVELS.WARN);
-    await saveDebugInfo(page, 'layout_nao_encontrado');
   }
   
-  // 2. CONFIGURAR CHECKBOXES DE CENTRO DE CUSTO (APENAS EVENTOS)
-  log('📋 Configurando Centro de Custo (apenas EVENTOS)...', LOG_LEVELS.INFO);
+  const strValue = String(value).trim();
   
-  const centroCustoResult = await page.evaluate(() => {
-    const normalize = (s) =>
-      (s || '')
-        .toString()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toUpperCase()
-        .replace(/\s+/g, ' ')
-        .trim();
-    
-    const getLabelText = (input) => {
-      const id = input.getAttribute('id');
-      if (id) {
-        const lb = document.querySelector(`label[for="${CSS.escape(id)}"]`);
-        if (lb && lb.textContent) return lb.textContent;
-      }
-      const label = input.closest('label');
-      if (label && label.textContent) return label.textContent;
-      const parent = input.parentElement;
-      if (parent && parent.textContent) return parent.textContent;
-      const next = input.nextSibling;
-      if (next && next.textContent) return next.textContent;
-      return '';
-    };
-    
-    // Procurar container de Centro de Custo
-    let container = null;
-    const allElements = document.querySelectorAll('fieldset, div, table, form, td');
-    
-    for (const el of allElements) {
-      const text = normalize(el.textContent || '');
-      if (text.includes('CENTRO DE CUSTO') || text.includes('CENTRO CUSTO') || text.includes('DEPARTAMENTO')) {
-        const checkboxes = el.querySelectorAll('input[type="checkbox"]');
-        if (checkboxes.length > 0 && checkboxes.length < 500) {
-          container = el;
-          break;
-        }
-      }
-    }
-    
-    if (!container) {
-      // Fallback: procurar todos os checkboxes da página
-      container = document.body;
-    }
-    
-    const checkboxes = Array.from(container.querySelectorAll('input[type="checkbox"]'));
-    let marcados = 0;
-    let desmarcados = 0;
-    let alterados = 0;
-    const detalhes = [];
-    
-    for (const input of checkboxes) {
-      const labelText = normalize(getLabelText(input));
-      if (!labelText || labelText === 'TODOS') continue;
-      
-      // Marcar APENAS os que contêm "EVENTO"
-      const shouldCheck = labelText.includes('EVENTO');
-      
-      if (input.checked !== shouldCheck) {
-        input.checked = shouldCheck;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        alterados++;
-      }
-      
-      if (shouldCheck) {
-        marcados++;
-        detalhes.push(labelText.substring(0, 30));
-      } else {
-        desmarcados++;
-      }
-    }
-    
-    return {
-      ok: marcados > 0,
-      total: checkboxes.length,
-      marcados,
-      desmarcados,
-      alterados,
-      detalhes: detalhes.slice(0, 5),
-    };
-  });
-  
-  if (centroCustoResult.ok) {
-    log(`✅ Centro de Custo: ${centroCustoResult.marcados} EVENTOS marcados, ${centroCustoResult.desmarcados} outros desmarcados`, LOG_LEVELS.SUCCESS);
-    if (centroCustoResult.detalhes.length > 0) {
-      log(`   Marcados: ${centroCustoResult.detalhes.join(', ')}`, LOG_LEVELS.DEBUG);
-    }
-  } else {
-    log(`⚠️ Nenhum checkbox EVENTOS encontrado (total: ${centroCustoResult.total})`, LOG_LEVELS.WARN);
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(strValue)) {
+    const [day, month, year] = strValue.split('/');
+    return `${year}-${month}-${day}`;
   }
   
-  await fecharPopups(page);
-  await page.waitForTimeout(1000);
-  
-  // 3. SELECIONAR FORMATO "EM EXCEL"
-  log('📋 Selecionando formato Em Excel...', LOG_LEVELS.INFO);
-  
-  const excelSelecionado = await page.evaluate(() => {
-    // Procurar radio buttons
-    const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
-    
-    for (const radio of radios) {
-      // Pegar texto do container
-      const containers = [
-        radio.closest('tr'),
-        radio.closest('td'),
-        radio.closest('label'),
-        radio.closest('div'),
-        radio.parentElement,
-      ].filter(Boolean);
-      
-      for (const container of containers) {
-        const text = (container.textContent || '').toLowerCase();
-        if (text.includes('excel') && !text.includes('tela')) {
-          if (radio.disabled) continue;
-          
-          // Desmarcar outros do mesmo grupo
-          if (radio.name) {
-            const siblings = document.querySelectorAll(`input[type="radio"][name="${radio.name}"]`);
-            siblings.forEach(r => {
-              if (r !== radio && r.checked) {
-                r.checked = false;
-                r.dispatchEvent(new Event('change', { bubbles: true }));
-              }
-            });
-          }
-          
-          radio.checked = true;
-          radio.dispatchEvent(new Event('click', { bubbles: true }));
-          radio.dispatchEvent(new Event('input', { bubbles: true }));
-          radio.dispatchEvent(new Event('change', { bubbles: true }));
-          
-          return { ok: true, text: text.substring(0, 50) };
-        }
-      }
-    }
-    
-    return { ok: false };
-  });
-  
-  if (excelSelecionado.ok) {
-    log(`✅ Formato Excel selecionado`, LOG_LEVELS.SUCCESS);
-  } else {
-    log(`⚠️ Radio "Em Excel" não encontrado automaticamente`, LOG_LEVELS.WARN);
-  }
-  
-  await fecharPopups(page);
-  await saveDebugInfo(page, 'filtros_configurados');
-  log('Filtros configurados', LOG_LEVELS.SUCCESS);
-}
-
-// ============================================
-// GERAR RELATÓRIO E AGUARDAR DOWNLOAD
-// ============================================
-async function gerarRelatorio(page, context) {
-  setStep('GERACAO');
-  log('Gerando relatório...', LOG_LEVELS.INFO);
-  
-  await fecharPopups(page);
-  
-  // Preparar download
-  const downloadDir = getDownloadDirectory();
-  const semanticName = generateSemanticFilename();
-  
-  // Procurar e clicar no botão de gerar
-  const gerarResult = await page.evaluate(() => {
-    const normalize = (s) =>
-      (s || '')
-        .toString()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .trim();
-    
-    // Scoring de botões
-    const scoreButton = (el) => {
-      const text = normalize(el.textContent || el.value || '');
-      const name = normalize(el.name || '');
-      const id = normalize(el.id || '');
-      const combined = `${text} ${name} ${id}`;
-      
-      let score = 0;
-      
-      // Positivo
-      if (combined.includes('gerar')) score += 50;
-      if (combined.includes('relatorio')) score += 30;
-      if (combined.includes('exportar')) score += 40;
-      if (combined.includes('baixar')) score += 35;
-      if (combined.includes('excel')) score += 20;
-      
-      // Negativo (evitar botões errados)
-      if (combined.includes('fechar')) score -= 100;
-      if (combined.includes('liberar')) score -= 80;
-      if (combined.includes('cancelar')) score -= 80;
-      if (combined.includes('limpar')) score -= 60;
-      
-      return { el, score, text };
-    };
-    
-    const buttons = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"], a.btn'));
-    const scored = buttons.map(scoreButton).filter(b => b.score > 0);
-    scored.sort((a, b) => b.score - a.score);
-    
-    if (scored.length === 0) {
-      return { ok: false, reason: 'no_button_found' };
-    }
-    
-    const best = scored[0];
-    best.el.click();
-    
-    return { ok: true, clicked: best.text, score: best.score };
-  });
-  
-  if (!gerarResult.ok) {
-    await saveDebugInfo(page, 'botao_gerar_nao_encontrado');
-    throw new Error('Botão de gerar relatório não encontrado');
-  }
-  
-  log(`Botão clicado: "${gerarResult.clicked}" (score: ${gerarResult.score})`, LOG_LEVELS.SUCCESS);
-  
-  // Aguardar download
-  log('Aguardando download do relatório...', LOG_LEVELS.INFO);
-  
-  const downloadResult = await aguardarDownloadHibrido(
-    context,
-    page,
-    downloadDir,
-    semanticName,
-    TIMEOUTS.DOWNLOAD_HARD
-  );
-  
-  if (!downloadResult.success) {
-    await saveDebugInfo(page, 'download_falhou');
-    throw downloadResult.error || new Error('Download do relatório falhou');
-  }
-  
-  log(`Relatório baixado: ${downloadResult.filePath}`, LOG_LEVELS.SUCCESS);
-  return downloadResult;
-}
-
-// ============================================
-// PROCESSAMENTO DE ARQUIVO
-// ============================================
-function detectFileType(filePath) {
-  try {
-    const fd = fs.openSync(filePath, 'r');
-    const buffer = Buffer.alloc(8);
-    fs.readSync(fd, buffer, 0, 8, 0);
-    fs.closeSync(fd);
-    
-    // ZIP (XLSX)
-    if (buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04) {
-      return { type: 'xlsx' };
-    }
-    
-    // XLS (BIFF)
-    if (buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0) {
-      return { type: 'xls' };
-    }
-    
-    // HTML
-    const textStart = buffer.toString('utf8', 0, 8).toLowerCase();
-    if (textStart.includes('<') || textStart.includes('<!doctype') || textStart.includes('<html')) {
-      return { type: 'html' };
-    }
-    
-    return { type: 'unknown' };
-  } catch (e) {
-    return { type: 'unknown', error: e.message };
-  }
-}
-
-function parseMoneyValue(val) {
-  if (val === null || val === undefined || val === '') return null;
-  const str = String(val).replace(/\s/g, '');
-  if (str === '-' || str === '') return null;
-  
-  // Formato BR: 1.234,56
-  if (/^\d{1,3}(\.\d{3})*,\d{2}$/.test(str)) {
-    return parseFloat(str.replace(/\./g, '').replace(',', '.'));
-  }
-  
-  // Formato US: 1,234.56
-  if (/^\d{1,3}(,\d{3})*\.\d{2}$/.test(str)) {
-    return parseFloat(str.replace(/,/g, ''));
-  }
-  
-  // Simples: 1234.56 ou 1234,56
-  const clean = str.replace(/[^\d,.-]/g, '');
-  if (clean.includes(',') && !clean.includes('.')) {
-    return parseFloat(clean.replace(',', '.'));
-  }
-  
-  return parseFloat(clean) || null;
-}
-
-function parseExcelDate(val) {
-  if (!val || val === '-') return null;
-  
-  const str = String(val).trim();
-  
-  // DD/MM/YYYY
-  const brMatch = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (brMatch) {
-    return `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
-  }
-  
-  // YYYY-MM-DD
-  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (isoMatch) {
-    return str;
-  }
-  
-  // Excel serial number
-  if (typeof val === 'number' && val > 10000 && val < 100000) {
-    const date = new Date((val - 25569) * 86400 * 1000);
-    if (!isNaN(date.getTime())) {
-      return date.toISOString().split('T')[0];
-    }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(strValue)) {
+    return strValue;
   }
   
   return null;
 }
 
-// Mapeamento de colunas MGF
-const COLUMN_MAP = {
-  // Centro de Custo / Departamento
-  'centro de custo': 'Centro Custo',
-  'centro custo': 'Centro Custo',
-  'departamento': 'Departamento',
-  
-  // Valores
-  'valor': 'Valor',
-  'valor total': 'Valor Total',
-  
-  // Datas
-  'data': 'Data',
-  'data lancamento': 'Data Lancamento',
-  'data vencimento': 'Data Vencimento',
-  'data pagamento': 'Data Pagamento',
-  
-  // Identificação
-  'descricao': 'Descricao',
-  'historico': 'Historico',
-  'documento': 'Documento',
-  'numero': 'Numero',
-  
-  // Associado
-  'nome': 'Nome',
-  'placa': 'Placa',
-  'placas': 'Placas',
-  'voluntario': 'Voluntario',
-  'associado': 'Associado',
-  
-  // Outros
-  'tipo': 'Tipo',
-  'status': 'Status',
-  'situacao': 'Situacao',
-  'observacao': 'Observacao',
-};
-
-function normalizeHeader(header) {
-  return String(header || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, ' ')
+function parseMoneyValue(value) {
+  if (!value) return 0;
+  const strValue = String(value).trim();
+  const cleanValue = strValue
+    .replace(/R\$\s*/gi, '')
+    .replace(/\./g, '')
+    .replace(',', '.')
     .trim();
+  const parsed = parseFloat(cleanValue);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+async function processarHtmlRelatorioStream(filePath) {
+  setStep('PROCESSAMENTO_HTML');
+  log(`Processando arquivo HTML via streaming: ${filePath}`, LOG_LEVELS.INFO);
+  
+  const startTime = Date.now();
+  const fileSize = fs.statSync(filePath).size;
+  log(`📂 Tamanho do arquivo: ${(fileSize / 1024 / 1024).toFixed(2)} MB`, LOG_LEVELS.DEBUG);
+  
+  const dados = [];
+  let headersEncontrados = [];
+  let headerMapping = [];
+  let headerRowIndex = -1;
+  let currentRowIndex = 0;
+  let lastProgressLog = 0;
+  let bytesProcessed = 0;
+  
+  const sampleRows = [];
+  const MAX_SAMPLE_ROWS = 30;
+  
+  let buffer = '';
+  let insideRow = false;
+  
+  const rl = readline.createInterface({
+    input: fs.createReadStream(filePath, { encoding: 'utf-8', highWaterMark: 64 * 1024 }),
+    crlfDelay: Infinity,
+  });
+  
+  const isHeaderRow = (cells) => {
+    const rowText = cells.join(' ').toUpperCase();
+    const hasData = rowText.includes('DATA');
+    const hasOther = rowText.includes('VALOR') || 
+                     rowText.includes('CENTRO') || 
+                     rowText.includes('DEPARTAMENTO') ||
+                     rowText.includes('DESCRICAO') ||
+                     rowText.includes('DESCRIÇÃO') ||
+                     rowText.includes('HISTORICO') ||
+                     rowText.includes('HISTÓRICO');
+    return hasData && hasOther;
+  };
+  
+  const processRow = (rowHtml) => {
+    const cells = [];
+    const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+    let cellMatch;
+    
+    while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
+      let text = cellMatch[1]
+        .replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, '$1')
+        .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, '$1')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&#\d+;/g, '')
+        .trim();
+      cells.push(text);
+    }
+    
+    if (cells.length === 0) return;
+    
+    currentRowIndex++;
+    
+    if (sampleRows.length < MAX_SAMPLE_ROWS) {
+      sampleRows.push({ index: currentRowIndex, cells: cells.slice(0, 5) });
+    }
+    
+    if (headerRowIndex === -1 && currentRowIndex <= 500) {
+      if (isHeaderRow(cells)) {
+        headerRowIndex = currentRowIndex;
+        headersEncontrados = cells.map(h => normalizeHeader(h));
+        log(`🎯 Cabeçalho detectado na linha ${currentRowIndex}: ${cells.length} colunas`, LOG_LEVELS.SUCCESS);
+        log(`📋 Cabeçalhos: ${cells.slice(0, 8).join(' | ')}...`, LOG_LEVELS.DEBUG);
+        
+        for (let i = 0; i < headersEncontrados.length; i++) {
+          const normalized = headersEncontrados[i];
+          let mappedName = null;
+          
+          if (COLUMN_MAP[normalized]) {
+            mappedName = COLUMN_MAP[normalized];
+          } else {
+            for (const [key, value] of Object.entries(COLUMN_MAP)) {
+              if (normalized.includes(key) || key.includes(normalized)) {
+                mappedName = value;
+                break;
+              }
+            }
+          }
+          headerMapping.push(mappedName);
+        }
+        log(`Mapeamento: ${headerMapping.filter(Boolean).length} colunas reconhecidas`, LOG_LEVELS.DEBUG);
+        return;
+      }
+    }
+    
+    if (headerRowIndex === -1 && currentRowIndex === 501) {
+      log(`⚠️ Cabeçalho NÃO encontrado nas primeiras 500 linhas!`, LOG_LEVELS.WARN);
+      log(`📊 Amostra das primeiras ${sampleRows.length} linhas:`, LOG_LEVELS.DEBUG);
+      sampleRows.slice(0, 10).forEach(row => {
+        log(`   Linha ${row.index}: ${row.cells.join(' | ')}`, LOG_LEVELS.DEBUG);
+      });
+    }
+    
+    if (headerRowIndex === -1 || currentRowIndex <= headerRowIndex) return;
+    
+    const rowData = {};
+    let temDados = false;
+    
+    for (let j = 0; j < cells.length && j < headerMapping.length; j++) {
+      const mappedHeader = headerMapping[j];
+      if (!mappedHeader) continue;
+      
+      let value = cells[j];
+      
+      if (mappedHeader.includes('Data')) {
+        value = parseExcelDate(value);
+      } else if (mappedHeader === 'Valor' || mappedHeader === 'Entrada' || mappedHeader === 'Saida' || mappedHeader === 'Saldo') {
+        value = parseMoneyValue(value);
+      } else {
+        value = value ? String(value).trim() : null;
+      }
+      
+      if (value !== null && value !== '') {
+        rowData[mappedHeader] = value;
+        temDados = true;
+      }
+    }
+    
+    if (temDados) {
+      dados.push(rowData);
+    }
+  };
+  
+  for await (const line of rl) {
+    bytesProcessed += Buffer.byteLength(line, 'utf-8') + 1;
+    
+    const progress = Math.floor((bytesProcessed / fileSize) * 100);
+    if (progress >= lastProgressLog + 10) {
+      lastProgressLog = progress;
+      log(`⏳ Leitura HTML: ${progress}% (${dados.length} registros válidos)`, LOG_LEVELS.DEBUG);
+    }
+    
+    buffer += line + '\n';
+    
+    if (!insideRow && buffer.includes('<tr')) {
+      insideRow = true;
+    }
+    
+    if (insideRow && buffer.includes('</tr>')) {
+      const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+      let match;
+      let lastIndex = 0;
+      
+      while ((match = trRegex.exec(buffer)) !== null) {
+        processRow(match[1]);
+        lastIndex = match.index + match[0].length;
+      }
+      
+      buffer = buffer.substring(lastIndex);
+      insideRow = buffer.includes('<tr');
+    }
+    
+    if (buffer.length > 100 * 1024 && !insideRow) {
+      buffer = '';
+    }
+  }
+  
+  if (buffer.includes('<tr') && buffer.includes('</tr>')) {
+    const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let match;
+    while ((match = trRegex.exec(buffer)) !== null) {
+      processRow(match[1]);
+    }
+  }
+  
+  const totalTime = Math.floor((Date.now() - startTime) / 1000);
+  log(`✅ Processamento HTML concluído em ${totalTime}s`, LOG_LEVELS.SUCCESS);
+  log(`Registros válidos: ${dados.length} (${currentRowIndex} linhas <tr> processadas)`, LOG_LEVELS.SUCCESS);
+  
+  if (dados.length === 0) {
+    log(`🔍 DIAGNÓSTICO - Cabeçalho encontrado: ${headerRowIndex > 0 ? 'SIM na linha ' + headerRowIndex : 'NÃO'}`, LOG_LEVELS.WARN);
+    
+    if (headerRowIndex > 0) {
+      log(`📋 Headers mapeados: ${headerMapping.filter(Boolean).join(', ')}`, LOG_LEVELS.DEBUG);
+    } else {
+      log(`❌ Causa: Cabeçalho da tabela não foi detectado!`, LOG_LEVELS.ERROR);
+      log(`📊 Amostra das primeiras linhas processadas:`, LOG_LEVELS.DEBUG);
+      sampleRows.slice(0, 15).forEach(row => {
+        log(`   Linha ${row.index}: ${row.cells.join(' | ').substring(0, 100)}...`, LOG_LEVELS.DEBUG);
+      });
+    }
+  }
+  
+  return dados;
+}
+
+function processarHtmlRelatorio(filePath) {
+  const fileSize = fs.statSync(filePath).size;
+  const MAX_SYNC_SIZE = 400 * 1024 * 1024;
+  
+  if (fileSize > MAX_SYNC_SIZE) {
+    log(`Arquivo muito grande (${(fileSize / 1024 / 1024).toFixed(2)} MB) - usando streaming`, LOG_LEVELS.WARN);
+    return processarHtmlRelatorioStream(filePath);
+  }
+  
+  setStep('PROCESSAMENTO_HTML');
+  log(`Processando arquivo HTML: ${filePath}`, LOG_LEVELS.INFO);
+  
+  const startTime = Date.now();
+  
+  let content;
+  try {
+    content = fs.readFileSync(filePath, 'utf-8');
+  } catch (e) {
+    log(`Erro ao ler HTML: ${e.message}`, LOG_LEVELS.ERROR);
+    return processarHtmlRelatorioStream(filePath);
+  }
+  
+  const dados = [];
+  let headersEncontrados = [];
+  let lastProgressLog = 0;
+  
+  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  const rows = [];
+  let match;
+  
+  while ((match = rowRegex.exec(content)) !== null) {
+    const rowHtml = match[1];
+    const cells = [];
+    const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+    let cellMatch;
+    
+    while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
+      let text = cellMatch[1]
+        .replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, '$1')
+        .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, '$1')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&#\d+;/g, '')
+        .trim();
+      cells.push(text);
+    }
+    
+    if (cells.length > 0) {
+      rows.push(cells);
+    }
+  }
+  
+  content = null;
+  
+  log(`Total de linhas HTML encontradas: ${rows.length}`, LOG_LEVELS.DEBUG);
+  
+  if (rows.length === 0) {
+    log('Nenhuma linha encontrada no HTML', LOG_LEVELS.WARN);
+    return [];
+  }
+  
+  const isHeaderRow = (cells) => {
+    const rowText = cells.join(' ').toUpperCase();
+    const hasData = rowText.includes('DATA');
+    const hasOther = rowText.includes('VALOR') || 
+                     rowText.includes('CENTRO') || 
+                     rowText.includes('DEPARTAMENTO') ||
+                     rowText.includes('DESCRICAO') ||
+                     rowText.includes('DESCRIÇÃO') ||
+                     rowText.includes('HISTORICO') ||
+                     rowText.includes('HISTÓRICO');
+    return hasData && hasOther;
+  };
+
+  let headerRowIndex = -1;
+  for (let i = 0; i < Math.min(rows.length, 500); i++) {
+    if (isHeaderRow(rows[i])) {
+      headerRowIndex = i;
+      headersEncontrados = rows[i].map(h => normalizeHeader(h));
+      log(`🎯 Cabeçalho detectado na linha ${i}: ${rows[i].length} colunas`, LOG_LEVELS.SUCCESS);
+      log(`📋 Cabeçalhos: ${rows[i].slice(0, 8).join(' | ')}...`, LOG_LEVELS.DEBUG);
+      break;
+    }
+  }
+  
+  if (headerRowIndex === -1) {
+    log('⚠️ Cabeçalho NÃO encontrado nas primeiras 500 linhas!', LOG_LEVELS.WARN);
+    log(`📊 Amostra das primeiras linhas:`, LOG_LEVELS.DEBUG);
+    rows.slice(0, 10).forEach((row, idx) => {
+      log(`   Linha ${idx}: ${row.slice(0, 5).join(' | ')}`, LOG_LEVELS.DEBUG);
+    });
+    
+    headersEncontrados = [
+      'DATA', 'CENTRO DE CUSTO', 'DEPARTAMENTO', 'DESCRICAO',
+      'VALOR', 'TIPO', 'DOCUMENTO', 'HISTORICO',
+    ];
+    headerRowIndex = 0;
+  }
+  
+  const headerMapping = [];
+  for (let i = 0; i < headersEncontrados.length; i++) {
+    const normalized = headersEncontrados[i];
+    let mappedName = null;
+    
+    if (COLUMN_MAP[normalized]) {
+      mappedName = COLUMN_MAP[normalized];
+    } else {
+      for (const [key, value] of Object.entries(COLUMN_MAP)) {
+        if (normalized.includes(key) || key.includes(normalized)) {
+          mappedName = value;
+          break;
+        }
+      }
+    }
+    headerMapping.push(mappedName);
+  }
+  
+  log(`Mapeamento: ${headerMapping.filter(Boolean).length} colunas reconhecidas`, LOG_LEVELS.DEBUG);
+  
+  const dataStartIndex = headerRowIndex + 1;
+  const totalDataRows = rows.length - dataStartIndex;
+  
+  log(`🔄 Processando ${totalDataRows} registros HTML...`, LOG_LEVELS.INFO);
+  
+  for (let i = dataStartIndex; i < rows.length; i++) {
+    const cells = rows[i];
+    const rowData = {};
+    let temDados = false;
+    
+    for (let j = 0; j < cells.length && j < headerMapping.length; j++) {
+      const mappedHeader = headerMapping[j];
+      if (!mappedHeader) continue;
+      
+      let value = cells[j];
+      
+      if (mappedHeader.includes('Data')) {
+        value = parseExcelDate(value);
+      } else if (mappedHeader === 'Valor' || mappedHeader === 'Entrada' || mappedHeader === 'Saida' || mappedHeader === 'Saldo') {
+        value = parseMoneyValue(value);
+      } else {
+        value = value ? String(value).trim() : null;
+      }
+      
+      if (value !== null && value !== '') {
+        rowData[mappedHeader] = value;
+        temDados = true;
+      }
+    }
+    
+    if (temDados) {
+      dados.push(rowData);
+    }
+    
+    const progress = Math.floor(((i - dataStartIndex) / totalDataRows) * 100);
+    if (progress >= lastProgressLog + 25) {
+      lastProgressLog = progress;
+      log(`⏳ Processamento: ${progress}%`, LOG_LEVELS.DEBUG);
+    }
+  }
+  
+  const totalTime = Math.floor((Date.now() - startTime) / 1000);
+  log(`✅ Processamento HTML concluído em ${totalTime}s`, LOG_LEVELS.SUCCESS);
+  log(`Registros válidos: ${dados.length} de ${totalDataRows}`, LOG_LEVELS.SUCCESS);
+  
+  return dados;
+}
+
+async function processarArquivo(filePath) {
+  const fileType = detectFileType(filePath);
+  
+  if (fileType.type === 'html') {
+    log(`Formato detectado via magic bytes: HTML disfarçado de Excel`, LOG_LEVELS.INFO);
+    const result = processarHtmlRelatorio(filePath);
+    return result instanceof Promise ? await result : result;
+  }
+  
+  log(`Formato detectado via magic bytes: ${fileType.type.toUpperCase()} binário`, LOG_LEVELS.INFO);
+  return processarExcel(filePath);
 }
 
 function processarExcel(filePath) {
   setStep('PROCESSAMENTO_EXCEL');
   log(`Processando arquivo Excel: ${filePath}`);
   
+  const startTime = Date.now();
+  
+  log(`📂 Lendo arquivo...`, LOG_LEVELS.DEBUG);
   const workbook = XLSX.readFile(filePath);
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
+  
+  log(`📊 Convertendo para JSON...`, LOG_LEVELS.DEBUG);
   const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
   
   log(`Total de linhas brutas: ${rawData.length}`, LOG_LEVELS.DEBUG);
   
   if (rawData.length === 0) {
+    log('Arquivo Excel vazio!', LOG_LEVELS.WARN);
     return [];
   }
   
-  const headersOriginais = Object.keys(rawData[0]);
-  log(`Colunas: ${headersOriginais.length}`, LOG_LEVELS.DEBUG);
+  const primeiraLinha = rawData[0];
+  const headersOriginais = Object.keys(primeiraLinha);
+  log(`Colunas encontradas: ${headersOriginais.length}`, LOG_LEVELS.DEBUG);
   
+  log(`🔄 Mapeando colunas...`, LOG_LEVELS.DEBUG);
   const headerMapping = {};
   for (const header of headersOriginais) {
     const normalized = normalizeHeader(header);
@@ -2010,8 +2069,12 @@ function processarExcel(filePath) {
     }
   }
   
+  log(`🔄 Processando ${rawData.length} registros...`, LOG_LEVELS.INFO);
   const dados = [];
-  for (const row of rawData) {
+  let lastProgressLog = 0;
+  
+  for (let i = 0; i < rawData.length; i++) {
+    const row = rawData[i];
     const rowData = {};
     let temDados = false;
     
@@ -2020,7 +2083,7 @@ function processarExcel(filePath) {
       
       if (mappedHeader.includes('Data')) {
         value = parseExcelDate(value);
-      } else if (mappedHeader === 'Valor' || mappedHeader === 'Valor Total') {
+      } else if (mappedHeader === 'Valor' || mappedHeader === 'Entrada' || mappedHeader === 'Saida' || mappedHeader === 'Saldo') {
         value = parseMoneyValue(value);
       } else {
         value = value ? String(value).trim() : null;
@@ -2035,146 +2098,48 @@ function processarExcel(filePath) {
     if (temDados) {
       dados.push(rowData);
     }
+    
+    const progress = Math.floor((i / rawData.length) * 100);
+    if (progress >= lastProgressLog + 25) {
+      lastProgressLog = progress;
+      log(`⏳ Processamento: ${progress}% (${i}/${rawData.length} linhas)`, LOG_LEVELS.DEBUG);
+    }
   }
   
-  log(`Registros válidos: ${dados.length}`, LOG_LEVELS.SUCCESS);
+  const totalTime = Math.floor((Date.now() - startTime) / 1000);
+  log(`✅ Processamento concluído em ${totalTime}s`, LOG_LEVELS.SUCCESS);
+  log(`Registros válidos: ${dados.length} de ${rawData.length}`, LOG_LEVELS.SUCCESS);
+  
   return dados;
 }
 
-function processarHtml(filePath) {
-  setStep('PROCESSAMENTO_HTML');
-  log(`Processando arquivo HTML: ${filePath}`);
-  
-  const content = fs.readFileSync(filePath, 'utf-8');
-  
-  // Extrair tabelas
-  const tableMatch = content.match(/<table[^>]*>[\s\S]*?<\/table>/gi);
-  if (!tableMatch || tableMatch.length === 0) {
-    log('Nenhuma tabela encontrada no HTML', LOG_LEVELS.WARN);
-    return [];
-  }
-  
-  // Pegar a maior tabela
-  let largestTable = tableMatch[0];
-  for (const t of tableMatch) {
-    if (t.length > largestTable.length) {
-      largestTable = t;
-    }
-  }
-  
-  // Extrair linhas
-  const rowMatches = largestTable.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
-  const rows = [];
-  
-  for (const rowHtml of rowMatches) {
-    const cells = [];
-    const cellMatches = rowHtml.match(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi) || [];
-    for (const cellHtml of cellMatches) {
-      const text = cellHtml.replace(/<[^>]+>/g, '').trim();
-      cells.push(text);
-    }
-    if (cells.length > 0) {
-      rows.push(cells);
-    }
-  }
-  
-  log(`Linhas extraídas do HTML: ${rows.length}`, LOG_LEVELS.DEBUG);
-  
-  if (rows.length < 2) {
-    return [];
-  }
-  
-  // Primeira linha como header
-  const headers = rows[0].map(normalizeHeader);
-  
-  const headerMapping = [];
-  for (let i = 0; i < headers.length; i++) {
-    const h = headers[i];
-    if (COLUMN_MAP[h]) {
-      headerMapping[i] = COLUMN_MAP[h];
-    } else {
-      for (const [key, value] of Object.entries(COLUMN_MAP)) {
-        if (h.includes(key) || key.includes(h)) {
-          headerMapping[i] = value;
-          break;
-        }
-      }
-    }
-  }
-  
-  const dados = [];
-  for (let i = 1; i < rows.length; i++) {
-    const cells = rows[i];
-    const rowData = {};
-    let temDados = false;
-    
-    for (let j = 0; j < cells.length && j < headerMapping.length; j++) {
-      const mappedHeader = headerMapping[j];
-      if (!mappedHeader) continue;
-      
-      let value = cells[j];
-      
-      if (mappedHeader.includes('Data')) {
-        value = parseExcelDate(value);
-      } else if (mappedHeader === 'Valor' || mappedHeader === 'Valor Total') {
-        value = parseMoneyValue(value);
-      } else {
-        value = value ? String(value).trim() : null;
-      }
-      
-      if (value !== null && value !== '') {
-        rowData[mappedHeader] = value;
-        temDados = true;
-      }
-    }
-    
-    if (temDados) {
-      dados.push(rowData);
-    }
-  }
-  
-  log(`Registros válidos do HTML: ${dados.length}`, LOG_LEVELS.SUCCESS);
-  return dados;
-}
-
-async function processarArquivo(filePath) {
-  const fileType = detectFileType(filePath);
-  
-  if (fileType.type === 'html') {
-    log(`Formato detectado: HTML`, LOG_LEVELS.INFO);
-    return processarHtml(filePath);
-  }
-  
-  log(`Formato detectado: ${fileType.type.toUpperCase()}`, LOG_LEVELS.INFO);
-  return processarExcel(filePath);
-}
-
-// ============================================
-// ENVIAR WEBHOOK COM DADOS
-// ============================================
-async function enviarDados(dados, nomeArquivo) {
+async function enviarWebhook(dados, nomeArquivo) {
   setStep('IMPORTACAO');
-  
-  if (!CONFIG.WEBHOOK_URL) {
-    log('WEBHOOK_URL não configurado', LOG_LEVELS.WARN);
-    return false;
-  }
-  
+
+  const mesReferencia = new Date().toISOString().slice(0, 7);
   const headers = { 'Content-Type': 'application/json' };
   if (CONFIG.WEBHOOK_SECRET) headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
-  
-  const BATCH_SIZE = 1000;
+
+  const BATCH_SIZE = parseInt(process.env.WEBHOOK_BATCH_SIZE || '1000', 10);
   const total = dados.length;
   const totalChunks = Math.ceil(total / BATCH_SIZE);
   let importacaoId = null;
   let enviados = 0;
-  
-  log(`Enviando ${total} registros em ${totalChunks} lotes...`, LOG_LEVELS.INFO);
-  
+
+  log('', LOG_LEVELS.INFO);
+  log('═'.repeat(50), LOG_LEVELS.INFO);
+  log('📤 INICIANDO IMPORTAÇÃO PARA O SERVIDOR', LOG_LEVELS.INFO);
+  log('═'.repeat(50), LOG_LEVELS.INFO);
+  log(`   Total de registros: ${total.toLocaleString()}`, LOG_LEVELS.INFO);
+  log(`   Lotes: ${totalChunks} (${BATCH_SIZE} registros cada)`, LOG_LEVELS.INFO);
+  log('', LOG_LEVELS.INFO);
+
+  const startTime = Date.now();
+
   for (let offset = 0; offset < total; offset += BATCH_SIZE) {
     const chunkIndex = Math.floor(offset / BATCH_SIZE) + 1;
     const batch = dados.slice(offset, offset + BATCH_SIZE);
-    
+
     const payload = {
       corretora_id: CONFIG.CORRETORA_ID,
       importacao_id: importacaoId,
@@ -2183,39 +2148,58 @@ async function enviarDados(dados, nomeArquivo) {
       github_run_url: CONFIG.GITHUB_RUN_URL || null,
       dados: batch,
       nome_arquivo: nomeArquivo,
+      mes_referencia: mesReferencia,
       total_registros: total,
       chunk_index: chunkIndex,
       chunk_total: totalChunks,
     };
-    
+
+    const pctBefore = Math.floor((enviados / total) * 100);
+    log(`   📦 Lote ${chunkIndex}/${totalChunks}: enviando ${batch.length.toLocaleString()} registros...`, LOG_LEVELS.DEBUG);
+
     try {
       const response = await axios.post(CONFIG.WEBHOOK_URL, payload, {
         headers,
         timeout: 600000,
       });
-      
+
       if (!importacaoId && response.data?.importacao_id) {
         importacaoId = response.data.importacao_id;
+        log(`   🆔 Importação ID: ${importacaoId}`, LOG_LEVELS.DEBUG);
       }
-      
+
       enviados += batch.length;
       const pct = Math.min(100, Math.floor((enviados / total) * 100));
-      log(`   Lote ${chunkIndex}/${totalChunks}: ${pct}% (${enviados}/${total})`, LOG_LEVELS.INFO);
       
+      const barSize = 20;
+      const filled = Math.round((pct / 100) * barSize);
+      const empty = barSize - filled;
+      const bar = '█'.repeat(filled) + '░'.repeat(empty);
+      
+      log(`   [${bar}] ${pct}% (${enviados.toLocaleString()}/${total.toLocaleString()} registros)`, LOG_LEVELS.INFO);
     } catch (error) {
-      log(`Erro no lote ${chunkIndex}: ${error.message}`, LOG_LEVELS.ERROR);
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      log(`   ❌ Falha no lote ${chunkIndex}/${totalChunks} após ${elapsed}s`, LOG_LEVELS.ERROR);
+      log(`      Erro: ${error.response?.status || error.message}`, LOG_LEVELS.ERROR);
       return false;
     }
   }
-  
-  log(`Dados enviados com sucesso: ${enviados} registros`, LOG_LEVELS.SUCCESS);
+
+  const totalTime = Math.floor((Date.now() - startTime) / 1000);
+  log('', LOG_LEVELS.INFO);
+  log('═'.repeat(50), LOG_LEVELS.INFO);
+  log(`✅ IMPORTAÇÃO CONCLUÍDA COM SUCESSO!`, LOG_LEVELS.SUCCESS);
+  log(`   Tempo total: ${totalTime}s`, LOG_LEVELS.SUCCESS);
+  log(`   Registros importados: ${enviados.toLocaleString()}`, LOG_LEVELS.SUCCESS);
+  log(`   ID da importação: ${importacaoId || 'N/A'}`, LOG_LEVELS.SUCCESS);
+  log('═'.repeat(50), LOG_LEVELS.INFO);
   return true;
 }
 
 // ============================================
 // FUNÇÃO PRINCIPAL
 // ============================================
-async function main() {
+async function rodarRobo() {
   setStep('VALIDACAO');
   
   if (!CONFIG.HINOVA_USER || !CONFIG.HINOVA_PASS) {
@@ -2226,16 +2210,56 @@ async function main() {
   }
 
   log('='.repeat(60));
-  log('INICIANDO ROBÔ MGF HINOVA');
+  log('INICIANDO ROBÔ MGF HINOVA (Lançamentos Financeiros)');
   log('='.repeat(60));
   log(`URL Login: ${CONFIG.HINOVA_URL}`, LOG_LEVELS.INFO);
   log(`URL Relatório: ${CONFIG.HINOVA_RELATORIO_URL}`, LOG_LEVELS.INFO);
+  log(`Código Cliente: ${CONFIG.HINOVA_CODIGO_CLIENTE}`, LOG_LEVELS.INFO);
+  log(`Usuário: ${CONFIG.HINOVA_USER}`, LOG_LEVELS.INFO);
   log(`Layout: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.INFO);
   log(`Corretora ID: ${CONFIG.CORRETORA_ID}`, LOG_LEVELS.INFO);
+  if (CONFIG.EXECUCAO_ID) {
+    log(`Execução ID: ${CONFIG.EXECUCAO_ID}`, LOG_LEVELS.INFO);
+  }
+  if (CONFIG.GITHUB_RUN_ID) {
+    log(`GitHub Run ID: ${CONFIG.GITHUB_RUN_ID}`, LOG_LEVELS.INFO);
+    log(`GitHub Run URL: ${CONFIG.GITHUB_RUN_URL}`, LOG_LEVELS.INFO);
+  }
   log('='.repeat(60));
   
-  // Notificar início
-  await notifyStart();
+  // ============================================
+  // NOTIFICAR INÍCIO DA EXECUÇÃO
+  // ============================================
+  let execucaoId = CONFIG.EXECUCAO_ID;
+  
+  if (!execucaoId && CONFIG.WEBHOOK_URL && CONFIG.CORRETORA_ID) {
+    try {
+      log('Notificando início da execução...', LOG_LEVELS.INFO);
+      const headers = { 'Content-Type': 'application/json' };
+      if (CONFIG.WEBHOOK_SECRET) headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
+      
+      const response = await axios.post(CONFIG.WEBHOOK_URL, {
+        action: 'start',
+        corretora_id: CONFIG.CORRETORA_ID,
+        github_run_id: CONFIG.GITHUB_RUN_ID || null,
+        github_run_url: CONFIG.GITHUB_RUN_URL || null,
+      }, { headers, timeout: 30000 });
+      
+      if (response.data?.execucao_id) {
+        execucaoId = response.data.execucao_id;
+        log(`Execução criada: ${execucaoId}`, LOG_LEVELS.SUCCESS);
+      }
+    } catch (e) {
+      log(`Erro ao notificar início: ${e.message}`, LOG_LEVELS.WARN);
+    }
+  }
+  
+  if (execucaoId && !CONFIG.EXECUCAO_ID) {
+    CONFIG.EXECUCAO_ID = execucaoId;
+  }
+  
+  const { inicio, fim } = getDateRange();
+  log(`Período: ${inicio} até ${fim}`);
   
   let browser = null;
   let context = null;
@@ -2257,87 +2281,781 @@ async function main() {
     context.setDefaultNavigationTimeout(TIMEOUTS.PAGE_LOAD);
     
     page = await context.newPage();
+    
     page.setDefaultTimeout(30000);
     page.setDefaultNavigationTimeout(TIMEOUTS.PAGE_LOAD);
-    
-    // 1. LOGIN
-    setStep('LOGIN');
-    await page.goto(CONFIG.HINOVA_URL, { 
-      waitUntil: 'domcontentloaded',
-      timeout: TIMEOUTS.PAGE_LOAD 
+
+    context.on('download', (d) => {
+      try {
+        const name = d.suggestedFilename?.() || 'arquivo';
+        log(`[DEBUG] Evento download global: ${name}`, LOG_LEVELS.DEBUG);
+      } catch {}
     });
+
+    // ============================================
+    // ETAPA: LOGIN (IDÊNTICO À COBRANÇA)
+    // ============================================
+    setStep('LOGIN');
+    
+    let navegacaoOk = false;
+    for (let tentativa = 1; tentativa <= 3 && !navegacaoOk; tentativa++) {
+      try {
+        log(`Tentativa ${tentativa} de acessar portal...`);
+        await page.goto(CONFIG.HINOVA_URL, { 
+          waitUntil: 'domcontentloaded',
+          timeout: TIMEOUTS.PAGE_LOAD 
+        });
+        navegacaoOk = true;
+      } catch (e) {
+        log(`Erro: ${e.message}`, LOG_LEVELS.WARN);
+        if (tentativa === 3) throw e;
+        await page.waitForTimeout(5000);
+      }
+    }
+    
+    log('Aguardando formulário de login...');
     await page.waitForTimeout(3000);
-    await realizarLogin(page);
     
-    await updateProgress('executando', 'Login realizado');
+    try {
+      await page.waitForSelector('input[placeholder="Usuário"], input[type="password"]', {
+        timeout: 30000
+      });
+      log('Formulário de login carregado', LOG_LEVELS.SUCCESS);
+    } catch {
+      log('Campos de login não encontrados pelo seletor padrão', LOG_LEVELS.WARN);
+    }
     
-    // 2. NAVEGAR PARA RELATÓRIO
-    await navegarParaRelatorio(page);
-    await updateProgress('executando', 'Página do relatório aberta');
+    await fecharPopups(page);
     
-    // 3. CONFIGURAR FILTROS
-    await configurarFiltros(page);
-    await updateProgress('executando', 'Filtros configurados');
+    log('Preenchendo credenciais...');
     
-    // 4. GERAR E BAIXAR RELATÓRIO
-    const downloadResult = await gerarRelatorio(page, context);
-    await updateProgress('executando', 'Download concluído');
+    if (CONFIG.HINOVA_CODIGO_CLIENTE) {
+      try {
+        await page.fill('input[placeholder=""]', CONFIG.HINOVA_CODIGO_CLIENTE, { timeout: 5000 });
+        log('Código cliente preenchido', LOG_LEVELS.DEBUG);
+      } catch (e) {
+        log('Campo código cliente não encontrado (pode ser opcional)', LOG_LEVELS.DEBUG);
+      }
+    }
     
-    // 5. PROCESSAR ARQUIVO
-    setStep('PROCESSAMENTO');
-    const dados = await processarArquivo(downloadResult.filePath);
+    try {
+      await page.fill('input[placeholder="Usuário"]', CONFIG.HINOVA_USER, { timeout: 5000 });
+      log('Usuário preenchido', LOG_LEVELS.DEBUG);
+    } catch (e) {
+      log(`Erro ao preencher usuário: ${e.message}`, LOG_LEVELS.WARN);
+    }
+    
+    try {
+      await page.fill('input[placeholder="Senha"]', CONFIG.HINOVA_PASS, { timeout: 5000 });
+      log('Senha preenchida', LOG_LEVELS.DEBUG);
+    } catch (e) {
+      log(`Erro ao preencher senha: ${e.message}`, LOG_LEVELS.WARN);
+    }
+    
+    await page.waitForTimeout(500);
+    
+    log('Verificando/complementando credenciais via JavaScript...', LOG_LEVELS.DEBUG);
+    await page.evaluate(({ codigoCliente, usuario, senha }) => {
+      const allInputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])'));
+      
+      if (allInputs.length >= 3) {
+        if (codigoCliente && !allInputs[0].value) {
+          allInputs[0].value = codigoCliente;
+          allInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        
+        if (!allInputs[1].value || allInputs[1].value === allInputs[1].placeholder) {
+          allInputs[1].value = usuario;
+          allInputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        
+        if (!allInputs[2].value || allInputs[2].value === allInputs[2].placeholder) {
+          allInputs[2].value = senha;
+          allInputs[2].dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+    }, { codigoCliente: CONFIG.HINOVA_CODIGO_CLIENTE, usuario: CONFIG.HINOVA_USER, senha: CONFIG.HINOVA_PASS });
+    
+    log('Credenciais preenchidas com sucesso', LOG_LEVELS.SUCCESS);
+
+    // MGF: NÃO seleciona layout na tela de login (será feito na tela do relatório)
+    
+    const dispensarCodigoAutenticacao = async () => {
+      try {
+        const selector = 'input[placeholder*="Autenticação"], input[placeholder*="autenticação"]';
+        const campoAuth = await page.$(selector);
+        if (!campoAuth) return false;
+        
+        await campoAuth.evaluate((el) => {
+          el.value = '';
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }).catch(() => {});
+        
+        await campoAuth.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(200);
+        await page.click('body', { position: { x: 20, y: 20 }, force: true }).catch(() => {});
+        await page.keyboard.press('Escape').catch(() => {});
+        await page.waitForTimeout(200);
+        
+        log('Código de autenticação dispensado', LOG_LEVELS.DEBUG);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    };
+    
+    let loginSucesso = false;
+    
+    const isAindaNaLogin = async () => {
+      const relatorioVisible = await page.locator('text=Relatório').first().isVisible().catch(() => false);
+      if (relatorioVisible) return false;
+      
+      const esqueceuVisible = await page.locator('text=Esqueci minha senha').first().isVisible().catch(() => false);
+      const codigoClienteVisible = await page.locator('text=Código cliente').first().isVisible().catch(() => false);
+      if (esqueceuVisible || codigoClienteVisible) return true;
+      
+      const pwdVisible = await page.locator('input[type="password"]').first().isVisible().catch(() => false);
+      const url = page.url?.() || '';
+      const urlPareceLogin = /login/i.test(url);
+      
+      return pwdVisible || urlPareceLogin;
+    };
+    
+    for (let tentativa = 1; tentativa <= LIMITS.MAX_LOGIN_RETRIES; tentativa++) {
+      log(`Tentativa ${tentativa}/${LIMITS.MAX_LOGIN_RETRIES} - Clicando em Entrar...`);
+      
+      try {
+        const clicarEntrar = async () => {
+          const btnSelector = 'button:has-text("Entrar"), input[value="Entrar"], .btn-primary, button.btn, #btn-login';
+          const btnEntrar = await page.$(btnSelector);
+          
+          if (btnEntrar) {
+            await btnEntrar.evaluate((el) => el.click()).catch(() => {});
+            await btnEntrar.click({ force: true }).catch(() => {});
+          } else {
+            await page.click('button:has-text("Entrar")', { force: true, timeout: 1000 }).catch(() => {});
+          }
+        };
+        
+        await clicarEntrar();
+        await Promise.race([
+          page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => null),
+          page.waitForTimeout(1500),
+        ]);
+        
+        await dispensarCodigoAutenticacao();
+        await Promise.race([
+          page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
+          page.waitForTimeout(1200),
+        ]);
+        
+        await clicarEntrar();
+        await Promise.race([
+          page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
+          page.waitForTimeout(1200),
+        ]);
+        
+        await page.keyboard.press('Enter').catch(() => {});
+        
+        await Promise.race([
+          page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: TIMEOUTS.LOGIN_RETRY_WAIT }).catch(() => null),
+          page.waitForLoadState('networkidle', { timeout: TIMEOUTS.LOGIN_RETRY_WAIT }).catch(() => null),
+          page.waitForTimeout(TIMEOUTS.LOGIN_RETRY_WAIT),
+        ]);
+        
+        const aindaNaLogin = await isAindaNaLogin();
+        if (!aindaNaLogin) {
+          loginSucesso = true;
+          log(`Login bem sucedido na tentativa ${tentativa}!`, LOG_LEVELS.SUCCESS);
+          break;
+        }
+        
+        const erroMsg = await page.$eval('.alert-danger, .error, .erro, .message-error', (el) => el.textContent).catch(() => null);
+        if (erroMsg) {
+          log(`Erro detectado: ${String(erroMsg).trim()}`, LOG_LEVELS.WARN);
+        }
+        
+        log(`Tentativa ${tentativa} falhou - ainda na página de login`, LOG_LEVELS.WARN);
+        await page.waitForTimeout(600);
+      } catch (err) {
+        log(`Erro na tentativa ${tentativa}: ${err.message}`, LOG_LEVELS.WARN);
+        await page.waitForTimeout(600);
+      }
+    }
+    
+    if (!loginSucesso) {
+      await saveDebugInfo(page, context, 'Login falhou');
+      throw new Error(`Login falhou após ${LIMITS.MAX_LOGIN_RETRIES} tentativas`);
+    }
+    
+    await fecharPopups(page);
+    
+    // ============================================
+    // ETAPA: NAVEGAÇÃO PARA RELATÓRIO MGF
+    // ============================================
+    setStep('NAVEGACAO_RELATORIO');
+    
+    log('Navegando para Relatório de Lançamentos MGF...');
+    await fecharPopups(page);
+    
+    await page.goto(CONFIG.HINOVA_RELATORIO_URL, { 
+      waitUntil: 'domcontentloaded',
+      timeout: TIMEOUTS.PAGE_LOAD
+    });
+    
+    log('Aguardando carregamento...');
+    await page.waitForTimeout(5000);
+    await fecharPopups(page);
+    
+    await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {
+      log('NetworkIdle timeout - continuando...', LOG_LEVELS.WARN);
+    });
+    
+    await fecharPopups(page);
+    log('Página de relatório aberta', LOG_LEVELS.SUCCESS);
+    
+    // ============================================
+    // ETAPA: PREENCHIMENTO DE FILTROS MGF
+    // ============================================
+    setStep('FILTROS');
+    
+    log(`Preenchendo período: ${inicio} até ${fim}`);
+    
+    // Preencher datas
+    const preencheuDatas = await page.evaluate(({ inicio, fim }) => {
+      const resultado = { sucesso: false, detalhes: [] };
+      
+      const todosElementos = document.querySelectorAll('td, th, label, span, div');
+      
+      for (const elemento of todosElementos) {
+        const texto = elemento.textContent?.trim() || '';
+        
+        if (texto.includes('Data:') || texto === 'Data' || texto.includes('Período')) {
+          resultado.detalhes.push(`Label encontrado: "${texto}"`);
+          
+          const linha = elemento.closest('tr');
+          if (!linha) {
+            const container = elemento.parentElement;
+            const inputs = container?.querySelectorAll('input[type="text"], input:not([type])');
+            if (inputs && inputs.length >= 2) {
+              inputs[0].value = inicio;
+              inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+              inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+              
+              inputs[1].value = fim;
+              inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+              inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
+              
+              resultado.sucesso = true;
+              resultado.detalhes.push(`Preenchido via container`);
+              return resultado;
+            }
+            continue;
+          }
+          
+          const inputs = linha.querySelectorAll('input[type="text"], input:not([type])');
+          resultado.detalhes.push(`Inputs na linha: ${inputs.length}`);
+          
+          if (inputs.length >= 2) {
+            inputs[0].value = inicio;
+            inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+            inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+            
+            inputs[1].value = fim;
+            inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+            inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
+            
+            resultado.sucesso = true;
+            return resultado;
+          }
+        }
+      }
+      
+      // Fallback: preencher os primeiros 2 inputs de data encontrados
+      if (!resultado.sucesso) {
+        resultado.detalhes.push('Tentando fallback por inputs...');
+        const allInputs = document.querySelectorAll('input[type="text"], input:not([type])');
+        const dateInputs = Array.from(allInputs).filter(i => {
+          const ph = (i.placeholder || '').toLowerCase();
+          const n = (i.name || '').toLowerCase();
+          return ph.includes('data') || n.includes('data') || n.includes('dt_');
+        });
+        
+        if (dateInputs.length >= 2) {
+          dateInputs[0].value = inicio;
+          dateInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+          dateInputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+          
+          dateInputs[1].value = fim;
+          dateInputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+          dateInputs[1].dispatchEvent(new Event('change', { bubbles: true }));
+          
+          resultado.sucesso = true;
+          resultado.detalhes.push(`Preenchido via fallback: ${dateInputs.length} inputs de data`);
+        }
+      }
+      
+      return resultado;
+    }, { inicio, fim });
+    
+    for (const detalhe of preencheuDatas.detalhes) {
+      log(detalhe, LOG_LEVELS.DEBUG);
+    }
+    
+    if (preencheuDatas.sucesso) {
+      log(`✅ Período preenchido: ${inicio} até ${fim}`, LOG_LEVELS.SUCCESS);
+    } else {
+      log('⚠️ Não foi possível preencher datas automaticamente', LOG_LEVELS.WARN);
+    }
+    
+    await page.waitForTimeout(1000);
+    
+    // ============================================
+    // LAYOUT - BI VANGARD FINANCEIROS EVENTOS
+    // ============================================
+    log('═'.repeat(50), LOG_LEVELS.INFO);
+    log('📋 CONFIGURANDO LAYOUT DO RELATÓRIO', LOG_LEVELS.INFO);
+    log('═'.repeat(50), LOG_LEVELS.INFO);
+    log(`   Layout obrigatório: "${CONFIG.HINOVA_LAYOUT}"`, LOG_LEVELS.INFO);
+    
+    const layoutSelecionado = await page.evaluate(({ layoutDesejado }) => {
+      const resultado = {
+        sucesso: false,
+        metodo: null,
+        valorSelecionado: null,
+        opcoesDisponiveis: [],
+      };
+      
+      const normalizar = (texto) => {
+        return (texto || '')
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+      
+      const layoutNorm = normalizar(layoutDesejado);
+      
+      // Buscar todos os selects
+      const todosSelects = document.querySelectorAll('select');
+      for (const select of todosSelects) {
+        const opcoes = Array.from(select.options).map(o => o.text?.trim() || '');
+        
+        for (let i = 0; i < select.options.length; i++) {
+          const optText = normalizar(select.options[i].text || '');
+          
+          if (optText.includes('BI') && optText.includes('VANGARD')) {
+            if (resultado.opcoesDisponiveis.length === 0) {
+              resultado.opcoesDisponiveis = opcoes;
+            }
+            select.selectedIndex = i;
+            select.dispatchEvent(new Event('input', { bubbles: true }));
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            resultado.sucesso = true;
+            resultado.metodo = 'SELECT_BI_VANGARD';
+            resultado.valorSelecionado = select.options[i].text?.trim();
+            return resultado;
+          }
+        }
+        
+        // Guardar opções para diagnóstico
+        const temLayoutOuVisualizacao = opcoes.some(o => {
+          const norm = normalizar(o);
+          return norm.includes('SELECIONE') || norm.includes('VANGARD') || norm.includes('FINANCEIRO');
+        });
+        if (temLayoutOuVisualizacao && resultado.opcoesDisponiveis.length === 0) {
+          resultado.opcoesDisponiveis = opcoes;
+        }
+      }
+      
+      return resultado;
+    }, { layoutDesejado: CONFIG.HINOVA_LAYOUT });
+    
+    if (layoutSelecionado.sucesso) {
+      log(`✅ Layout selecionado com sucesso!`, LOG_LEVELS.SUCCESS);
+      log(`   Método: ${layoutSelecionado.metodo}`, LOG_LEVELS.DEBUG);
+      log(`   Valor: "${layoutSelecionado.valorSelecionado}"`, LOG_LEVELS.SUCCESS);
+      
+      log('⏳ Aguardando configurações do layout carregarem...', LOG_LEVELS.INFO);
+      await page.waitForTimeout(10000);
+    } else {
+      log(`⚠️ Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado automaticamente`, LOG_LEVELS.WARN);
+      log(`   Opções disponíveis: ${layoutSelecionado.opcoesDisponiveis.join(', ') || 'NENHUMA'}`, LOG_LEVELS.WARN);
+    }
+    
+    await page.waitForTimeout(1000);
+    
+    // ============================================
+    // CENTRO DE CUSTO: DESMARCAR TODOS, MARCAR APENAS EVENTOS
+    // ============================================
+    log('═'.repeat(50), LOG_LEVELS.INFO);
+    log('📋 CONFIGURANDO CENTRO DE CUSTO / DEPARTAMENTO', LOG_LEVELS.INFO);
+    log('═'.repeat(50), LOG_LEVELS.INFO);
+    log('   Desmarcar TODOS e marcar apenas os que contêm "EVENTOS"', LOG_LEVELS.INFO);
+    
+    const centroCustoConfigured = await page.evaluate(() => {
+      const resultado = {
+        sucesso: false,
+        desmarcados: [],
+        marcados: [],
+        diagnostico: {
+          totalCheckboxes: 0,
+          checkboxesEncontrados: [],
+        }
+      };
+      
+      const normalizar = (texto) => {
+        return (texto || '')
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim();
+      };
+      
+      // Procurar seção "Centro de Custo" ou "Departamento"
+      const tds = document.querySelectorAll('td, th, div, label');
+      let containerCentroCusto = null;
+      
+      for (const td of tds) {
+        const texto = normalizar(td.textContent || '');
+        if (texto.includes('CENTRO DE CUSTO') || texto.includes('DEPARTAMENTO')) {
+          const row = td.closest('tr');
+          const table = td.closest('table');
+          containerCentroCusto = row || table || td.parentElement;
+          break;
+        }
+      }
+      
+      // Pegar todos os checkboxes da seção (ou da página se não encontrou seção)
+      const checkboxes = containerCentroCusto 
+        ? containerCentroCusto.querySelectorAll('input[type="checkbox"]')
+        : document.querySelectorAll('input[type="checkbox"]');
+      
+      resultado.diagnostico.totalCheckboxes = checkboxes.length;
+      
+      for (const cb of checkboxes) {
+        const label = cb.closest('label');
+        const labelText = normalizar(label?.textContent || cb.value || '');
+        
+        resultado.diagnostico.checkboxesEncontrados.push({
+          value: cb.value,
+          labelText: labelText,
+          checked: cb.checked
+        });
+        
+        // Verificar se é um checkbox de Centro de Custo/Departamento
+        const isCentroCusto = labelText.includes('EVENTOS') || 
+                             labelText.includes('ADMINISTRATIVO') ||
+                             labelText.includes('COMERCIAL') ||
+                             labelText.includes('FINANCEIRO') ||
+                             labelText.includes('OPERACIONAL') ||
+                             labelText.includes('TODOS');
+        
+        if (!isCentroCusto) continue;
+        
+        // Se contém "EVENTOS", marcar; caso contrário, desmarcar
+        if (labelText.includes('EVENTOS')) {
+          if (!cb.checked) {
+            cb.checked = true;
+            cb.dispatchEvent(new Event('change', { bubbles: true }));
+            cb.dispatchEvent(new Event('click', { bubbles: true }));
+          }
+          resultado.marcados.push(labelText);
+          resultado.sucesso = true;
+        } else {
+          // Desmarcar os outros (incluindo TODOS)
+          if (cb.checked) {
+            cb.checked = false;
+            cb.dispatchEvent(new Event('change', { bubbles: true }));
+            cb.dispatchEvent(new Event('click', { bubbles: true }));
+          }
+          resultado.desmarcados.push(labelText);
+        }
+      }
+      
+      return resultado;
+    });
+    
+    if (centroCustoConfigured.sucesso) {
+      log(`✅ Centro de Custo configurado!`, LOG_LEVELS.SUCCESS);
+      log(`   Marcados: ${centroCustoConfigured.marcados.join(', ')}`, LOG_LEVELS.SUCCESS);
+      log(`   Desmarcados: ${centroCustoConfigured.desmarcados.join(', ')}`, LOG_LEVELS.DEBUG);
+    } else {
+      log(`⚠️ Centro de Custo não configurado automaticamente`, LOG_LEVELS.WARN);
+      log(`   Checkboxes encontrados: ${centroCustoConfigured.diagnostico.totalCheckboxes}`, LOG_LEVELS.DEBUG);
+    }
+    
+    await page.waitForTimeout(1000);
+    
+    // Forma de Exibição: Em Excel
+    await selecionarFormaExibicaoEmExcel(page);
+    
+    await page.waitForTimeout(1000);
+    
+    log('', LOG_LEVELS.INFO);
+    log('✅ Filtros configurados!', LOG_LEVELS.SUCCESS);
+    log('', LOG_LEVELS.INFO);
+    
+    // Salvar screenshot dos filtros
+    await saveDebugInfo(page, context, 'Pre-download: estado dos filtros');
+    
+    // ============================================
+    // ETAPA: DOWNLOAD
+    // ============================================
+    setStep('DOWNLOAD');
+    
+    log('Aumentando timeout para aguardar download longo...', LOG_LEVELS.DEBUG);
+    context.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
+    page.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
+    
+    const downloadDir = getDownloadDirectory();
+    log(`Diretório de download: ${downloadDir}`);
+    
+    let dados = [];
+    let nomeArquivoFinal = '';
+    let downloadSucesso = false;
+    
+    for (let tentativaDownload = 1; tentativaDownload <= LIMITS.MAX_DOWNLOAD_RETRIES && !downloadSucesso; tentativaDownload++) {
+      log(`Tentativa de download ${tentativaDownload}/${LIMITS.MAX_DOWNLOAD_RETRIES}...`);
+      
+      try {
+        await selecionarFormaExibicaoEmExcel(page);
+        await page.waitForTimeout(1000);
+        
+        const semanticName = generateSemanticFilename();
+        nomeArquivoFinal = semanticName;
+        
+        log('Iniciando estratégia híbrida de captura de download...');
+        
+        const capturaHibridaPromise = aguardarDownloadHibrido(
+          context, 
+          page, 
+          downloadDir, 
+          semanticName, 
+          TIMEOUTS.DOWNLOAD_TOTAL
+        );
+        
+        log('Clicando em Gerar Relatório...');
+        
+        const clicarGerarEmQualquerFrame = async () => {
+          const tentarNoFrame = async (frame) => {
+            const byRole = frame.getByRole('button', { name: /gerar/i });
+            const count = await byRole.count().catch(() => 0);
+            for (let i = 0; i < count; i++) {
+              const el = byRole.nth(i);
+              const visible = await el.isVisible().catch(() => false);
+              if (!visible) continue;
+              
+              const enabled = await el.isEnabled().catch(() => true);
+              if (!enabled) continue;
+              
+              await el.click({ timeout: 15000, force: true });
+              return `botão Gerar (frame: ${frame.url() || 'main'})`;
+            }
+            
+            const inputs = frame.locator('input[type="submit"], input[type="button"], input[type="image"]');
+            const ic = await inputs.count().catch(() => 0);
+            for (let i = 0; i < ic; i++) {
+              const el = inputs.nth(i);
+              const visible = await el.isVisible().catch(() => false);
+              if (!visible) continue;
+              
+              const value = (await el.getAttribute('value').catch(() => '')) || '';
+              const alt = (await el.getAttribute('alt').catch(() => '')) || '';
+              const label = `${value} ${alt}`.toLowerCase();
+              if (label.includes('gerar')) {
+                await el.click({ timeout: 15000, force: true });
+                return `input Gerar (value="${value}")`;
+              }
+            }
+            
+            return null;
+          };
+          
+          const mainClicked = await tentarNoFrame(page.mainFrame());
+          if (mainClicked) return mainClicked;
+          
+          for (const frame of page.frames()) {
+            if (frame === page.mainFrame()) continue;
+            const clicked = await tentarNoFrame(frame);
+            if (clicked) return clicked;
+          }
+          
+          return null;
+        };
+        
+        const clickInfo = await clicarGerarEmQualquerFrame();
+        if (!clickInfo) {
+          await saveDebugInfo(page, context, 'Botão Gerar não encontrado');
+          throw new Error('Botão "Gerar" não encontrado');
+        }
+        
+        log(`Clicou: ${clickInfo}`, LOG_LEVELS.SUCCESS);
+        
+        log(`Aguardando captura híbrida (timeout: ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)...`);
+        
+        const result = await capturaHibridaPromise;
+        
+        if (!result.success) {
+          await saveDebugInfo(page, context, result.error?.message || 'Nenhum download capturado');
+          throw result.error || new Error('Download falhou - nenhuma estratégia capturou o arquivo');
+        }
+        
+        log(`Download finalizado via estratégia: ${result.source}`, LOG_LEVELS.SUCCESS);
+        log(`Arquivo: ${result.filePath} (${(result.size / 1024).toFixed(2)} KB)`, LOG_LEVELS.INFO);
+        
+        const validation = validateDownloadedFile(result.filePath, result.contentType || '');
+        if (!validation.valid) {
+          throw new Error(`Arquivo inválido: ${validation.error}`);
+        }
+        
+        if (validation.isHtml) {
+          log(`Validação OK: HTML disfarçado de Excel (${formatBytes(validation.size)})`, LOG_LEVELS.SUCCESS);
+        } else {
+          log(`Validação OK: ${validation.fileType.toUpperCase()} (${formatBytes(validation.size)})`, LOG_LEVELS.SUCCESS);
+        }
+        
+        setStep('PROCESSAMENTO');
+        log('Processando arquivo...', LOG_LEVELS.INFO);
+        
+        dados = await processarArquivo(result.filePath);
+        
+        if (!Array.isArray(dados) || dados.length === 0) {
+          throw new Error('Nenhum dado válido extraído do arquivo');
+        }
+        
+        log(`✅ ${dados.length} registros extraídos`, LOG_LEVELS.SUCCESS);
+        
+        downloadSucesso = true;
+        
+        await closeExtraPages(context, page);
+        
+      } catch (downloadError) {
+        log(`Erro no download (tentativa ${tentativaDownload}): ${downloadError.message}`, LOG_LEVELS.ERROR);
+        await saveDebugInfo(page, context, downloadError.message);
+        
+        if (tentativaDownload < LIMITS.MAX_DOWNLOAD_RETRIES) {
+          log('Preparando nova tentativa...', LOG_LEVELS.INFO);
+          await page.waitForTimeout(5000);
+          await fecharPopups(page);
+          await closeExtraPages(context, page);
+          
+          const urlAtual = page.url();
+          if (!urlAtual.includes('relatorioLancamento')) {
+            log('Recarregando página de relatório...');
+            await page.goto(CONFIG.HINOVA_RELATORIO_URL, { 
+              waitUntil: 'domcontentloaded',
+              timeout: TIMEOUTS.PAGE_LOAD
+            });
+            await fecharPopups(page);
+            await page.waitForTimeout(3000);
+          }
+        }
+      }
+    }
+    
+    if (!downloadSucesso) {
+      await saveDebugInfo(page, context, 'Download falhou após todas as tentativas');
+      throw new Error('Download falhou após todas as tentativas');
+    }
+    
+    log(`Total de registros: ${dados.length}`, LOG_LEVELS.SUCCESS);
     
     if (dados.length === 0) {
-      throw new Error('Nenhum registro encontrado no arquivo');
+      log('Nenhum dado encontrado no Excel!', LOG_LEVELS.WARN);
+      await saveDebugInfo(page, context, 'Excel vazio');
+      return false;
     }
     
-    log(`Total de registros processados: ${dados.length}`, LOG_LEVELS.SUCCESS);
-    await updateProgress('executando', 'Arquivo processado', { registros_total: dados.length });
+    // ============================================
+    // ETAPA: ENVIO PARA WEBHOOK
+    // ============================================
+    const sucesso = await enviarWebhook(dados, nomeArquivoFinal);
     
-    // 6. ENVIAR DADOS
-    const nomeArquivo = path.basename(downloadResult.filePath);
-    const enviado = await enviarDados(dados, nomeArquivo);
-    
-    if (!enviado) {
-      throw new Error('Falha ao enviar dados via webhook');
-    }
-    
-    // 7. LIMPAR ARQUIVO
+    // ============================================
+    // LIMPEZA: REMOVER ARQUIVO TEMPORÁRIO
+    // ============================================
     try {
-      fs.unlinkSync(downloadResult.filePath);
-      log('Arquivo temporário removido', LOG_LEVELS.DEBUG);
-    } catch {}
+      const downloadFilePath = path.join(downloadDir, nomeArquivoFinal);
+      if (fs.existsSync(downloadFilePath)) {
+        fs.unlinkSync(downloadFilePath);
+        log(`Arquivo temporário removido: ${nomeArquivoFinal}`, LOG_LEVELS.DEBUG);
+      }
+    } catch (cleanupError) {
+      log(`Aviso: não foi possível remover arquivo temporário: ${cleanupError.message}`, LOG_LEVELS.WARN);
+    }
     
-    // Sucesso
-    await sendWebhook({
-      corretora_id: CONFIG.CORRETORA_ID,
-      execucao_id: CONFIG.EXECUCAO_ID,
-      github_run_id: CONFIG.GITHUB_RUN_ID,
-      github_run_url: CONFIG.GITHUB_RUN_URL,
-      action: 'complete',
-      registros_total: dados.length,
-    });
-    
-    log('='.repeat(60));
-    log('ROBÔ MGF HINOVA CONCLUÍDO COM SUCESSO', LOG_LEVELS.SUCCESS);
-    log('='.repeat(60));
+    return sucesso;
     
   } catch (error) {
-    log(`ERRO FATAL: ${error.message}`, LOG_LEVELS.ERROR);
-    await saveDebugInfo(page, 'erro_fatal').catch(() => {});
-    await notifyError(error.message);
+    log(`ERRO CRÍTICO: ${error.message}`, LOG_LEVELS.ERROR);
+    if (page && context) {
+      await saveDebugInfo(page, context, error.message);
+    }
     throw error;
     
   } finally {
-    if (browser) {
-      await browser.close().catch(() => {});
-      log('Browser fechado', LOG_LEVELS.DEBUG);
+    setStep('ENCERRAMENTO');
+    
+    try {
+      if (context) {
+        await closeExtraPages(context, page);
+      }
+      
+      if (browser) {
+        await browser.close();
+        log('Browser fechado', LOG_LEVELS.SUCCESS);
+      }
+    } catch (e) {
+      log(`Erro ao fechar browser: ${e.message}`, LOG_LEVELS.WARN);
     }
+    
+    log('='.repeat(60));
+    log('ROBÔ MGF FINALIZADO');
+    log('='.repeat(60));
   }
 }
 
-// Executar
-main().catch(error => {
-  console.error('Erro fatal:', error);
-  process.exit(1);
-});
+// ============================================
+// NOTIFICAR ERRO VIA WEBHOOK
+// ============================================
+async function notificarErro(mensagem) {
+  if (!CONFIG.WEBHOOK_URL || !CONFIG.CORRETORA_ID) return;
+  
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (CONFIG.WEBHOOK_SECRET) headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
+    
+    await axios.post(CONFIG.WEBHOOK_URL, {
+      action: 'error',
+      corretora_id: CONFIG.CORRETORA_ID,
+      execucao_id: CONFIG.EXECUCAO_ID || null,
+      error_message: mensagem,
+    }, { headers, timeout: 30000 });
+    
+    log('Erro notificado ao servidor', LOG_LEVELS.DEBUG);
+  } catch (e) {
+    log(`Erro ao notificar falha: ${e.message}`, LOG_LEVELS.WARN);
+  }
+}
+
+// ============================================
+// EXECUÇÃO
+// ============================================
+rodarRobo()
+  .then((sucesso) => {
+    if (sucesso) {
+      log('Execução concluída com sucesso!', LOG_LEVELS.SUCCESS);
+      process.exit(0);
+    } else {
+      log('Execução concluída com avisos', LOG_LEVELS.WARN);
+      notificarErro('Execução concluída com avisos').finally(() => process.exit(1));
+    }
+  })
+  .catch(async (error) => {
+    log(`Execução falhou: ${error.message}`, LOG_LEVELS.ERROR);
+    await notificarErro(error.message);
+    process.exit(1);
+  });
