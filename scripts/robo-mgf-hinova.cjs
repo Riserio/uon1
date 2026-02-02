@@ -1497,46 +1497,136 @@ async function realizarLogin(page) {
 // ============================================
 async function navegarParaRelatorio(page) {
   setStep('NAVEGACAO');
-  const targetUrl = String(CONFIG.HINOVA_RELATORIO_URL || '').trim();
-  log(`Navegando para: ${targetUrl}`, LOG_LEVELS.INFO);
   
-  // Navegar para a página de relatório
-  const resp = await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
-  await page.waitForTimeout(2500);
+  // FLUXO CORRETO: Primeiro ir para a página principal do MGF, depois clicar no menu 5.1
+  // Isso evita redirecionamentos indesejados do portal Hinova
   
-  // Verificar URL ANTES de fechar popups (para não perder a navegação)
+  // Derivar a URL da página principal do MGF a partir da URL de login
+  const loginUrl = String(CONFIG.HINOVA_URL || '').trim();
+  const baseMatch = loginUrl.match(/(https?:\/\/[^\/]+\/sga\/[^\/]+\/)/i);
+  
+  if (!baseMatch) {
+    throw new Error(`Não foi possível derivar o caminho base do MGF a partir de: ${loginUrl}`);
+  }
+  
+  const basePath = baseMatch[1];
+  const principalMGFUrl = `${basePath}mgf/principalMGF.php`;
+  const relatorioUrl = `${basePath}mgf/relatorio/relatorioLancamento.php`;
+  
+  log(`Navegando para página principal do MGF: ${principalMGFUrl}`, LOG_LEVELS.INFO);
+  
+  // Passo 1: Navegar para a página principal do MGF
+  await page.goto(principalMGFUrl, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
+  await page.waitForTimeout(2000);
+  
+  // Fechar popups de suporte que podem aparecer
+  await fecharPopupsSemNavegar(page);
+  await page.waitForTimeout(1000);
+  
+  // Verificar se estamos na página principal do MGF
   let urlAtual = String(page.url() || '').toLowerCase();
-  const status = resp?.status?.() ?? null;
-  log(`URL inicial após navegação: ${urlAtual} (status=${status ?? 'n/a'})`, LOG_LEVELS.DEBUG);
+  log(`URL após navegação inicial: ${urlAtual}`, LOG_LEVELS.DEBUG);
   
-  // Se já está na URL correta, fechar popups COM CUIDADO
-  // O popup de suporte do Hinova pode causar redirecionamento ao clicar em "Fechar"
-  // Por isso, precisamos fechar o popup de forma que não navegue para outra página
-  if (urlAtual.includes('relatoriolancamento.php')) {
-    log('URL correta detectada, fechando popups com cuidado...', LOG_LEVELS.DEBUG);
-    
-    // Fechar popup usando apenas o botão X ou backdrop, evitando o botão "Fechar" do form
-    await fecharPopupsSemNavegar(page);
-    
-    // Verificar se a URL mudou após fechar popup
-    urlAtual = String(page.url() || '').toLowerCase();
-    if (!urlAtual.includes('relatoriolancamento.php')) {
-      log(`URL mudou após fechar popup: ${urlAtual}. Re-navegando...`, LOG_LEVELS.WARN);
-      // Re-navegar para a URL correta
-      await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
-      await page.waitForTimeout(2500);
-      urlAtual = String(page.url() || '').toLowerCase();
+  if (urlAtual.includes('login.php')) {
+    await saveDebugInfo(page, 'redirect_login_mgf');
+    throw new Error(`Navegação para MGF falhou: redirecionou para login (${page.url()})`);
+  }
+  
+  // Passo 2: Clicar no menu 5.1 - Lançamentos
+  log(`Procurando menu 5.1 - Lançamentos...`, LOG_LEVELS.INFO);
+  
+  // Tentar encontrar o link do menu 5.1 em todos os frames
+  const frames = [page.mainFrame(), ...page.frames().filter((f) => f !== page.mainFrame())];
+  let menuClicado = false;
+  
+  for (const frame of frames) {
+    try {
+      // Buscar links que contenham "5.1" ou "Lançamento" ou naveguem para relatorioLancamento
+      const menuSelectors = [
+        'a[href*="relatorioLancamento"]',
+        'a:has-text("5.1")',
+        'a:has-text("Lançamento")',
+        'a:has-text("Lancamento")',
+        'a:has-text("5.1 - Lançamentos")',
+        'a:has-text("5.1 - Lancamentos")',
+      ];
+      
+      for (const selector of menuSelectors) {
+        try {
+          const menuLink = frame.locator(selector).first();
+          if (await menuLink.isVisible({ timeout: 2000 }).catch(() => false)) {
+            log(`Menu encontrado via: ${selector}`, LOG_LEVELS.DEBUG);
+            await menuLink.click({ timeout: 5000 });
+            menuClicado = true;
+            break;
+          }
+        } catch (e) {
+          // Continuar tentando outros seletores
+        }
+      }
+      
+      if (menuClicado) break;
+      
+      // Fallback: buscar via JavaScript no frame
+      if (!menuClicado) {
+        const clickResult = await frame.evaluate(() => {
+          const links = Array.from(document.querySelectorAll('a'));
+          for (const link of links) {
+            const text = (link.textContent || '').toLowerCase();
+            const href = (link.href || '').toLowerCase();
+            if (href.includes('relatoriolancamento') || 
+                text.includes('5.1') || 
+                (text.includes('lan') && text.includes('amento'))) {
+              link.click();
+              return { found: true, text: link.textContent, href: link.href };
+            }
+          }
+          return { found: false };
+        }).catch(() => ({ found: false }));
+        
+        if (clickResult.found) {
+          log(`Menu clicado via JS: ${clickResult.text} (${clickResult.href})`, LOG_LEVELS.DEBUG);
+          menuClicado = true;
+          break;
+        }
+      }
+    } catch (e) {
+      log(`Erro ao buscar menu no frame: ${e.message}`, LOG_LEVELS.DEBUG);
     }
   }
   
+  if (!menuClicado) {
+    // Último recurso: navegar diretamente para a URL do relatório
+    log(`Menu 5.1 não encontrado, navegando diretamente para: ${relatorioUrl}`, LOG_LEVELS.WARN);
+    await page.goto(relatorioUrl, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
+  }
+  
+  // Aguardar carregamento da página de relatório
+  await page.waitForTimeout(3000);
+  await fecharPopupsSemNavegar(page);
+  await page.waitForTimeout(1000);
+  
   // Verificação final
+  urlAtual = String(page.url() || '').toLowerCase();
+  log(`URL final após navegação: ${urlAtual}`, LOG_LEVELS.DEBUG);
+  
   if (urlAtual.includes('login.php')) {
     await saveDebugInfo(page, 'redirect_login');
     throw new Error(`Navegação para relatório falhou: redirecionou para login (${page.url()})`);
   }
+  
   if (!urlAtual.includes('relatoriolancamento.php')) {
-    await saveDebugInfo(page, 'url_relatorio_incorreta');
-    throw new Error(`Navegação para relatório falhou: URL inesperada (${page.url()}). Verifique se o caminho do MGF é /mgf/relatorio/relatorioLancamento.php neste ambiente.`);
+    // Tentar uma última vez navegar diretamente
+    log(`URL incorreta após clique no menu. Tentando navegação direta...`, LOG_LEVELS.WARN);
+    await page.goto(relatorioUrl, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
+    await page.waitForTimeout(2500);
+    await fecharPopupsSemNavegar(page);
+    
+    urlAtual = String(page.url() || '').toLowerCase();
+    if (!urlAtual.includes('relatoriolancamento.php')) {
+      await saveDebugInfo(page, 'url_relatorio_incorreta');
+      throw new Error(`Navegação para relatório falhou: URL inesperada (${page.url()}). Verifique se o caminho do MGF é /mgf/relatorio/relatorioLancamento.php neste ambiente.`);
+    }
   }
   
   log('Página de relatório carregada', LOG_LEVELS.SUCCESS);
