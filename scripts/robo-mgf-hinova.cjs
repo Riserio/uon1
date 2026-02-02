@@ -486,6 +486,37 @@ async function saveDebugInfo(page, prefix = 'debug') {
 // ============================================
 // FECHAR POPUPS E MODAIS
 // ============================================
+async function isPopupSuporteHinovaVisivel(page) {
+  try {
+    return await page.evaluate(() => {
+      const norm = (s) => String(s || '').toLowerCase();
+      const bodyText = norm(document.body?.innerText || document.body?.textContent || '');
+
+      const hasKeyword =
+        bodyText.includes('liberar o usu') ||
+        bodyText.includes('liberar o usuário') ||
+        bodyText.includes('quanto tempo') ||
+        bodyText.includes('para o suporte') ||
+        bodyText.includes('suporte');
+
+      if (!hasKeyword) return false;
+
+      // Heurística adicional: normalmente esse popup tem botão "Liberar" e/ou select de tempo
+      const hasLiberar = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"]')).some(
+        (el) => norm(el.textContent || el.value || '').includes('liberar')
+      );
+      const hasTempo = Array.from(document.querySelectorAll('select, label, span')).some((el) => {
+        const t = norm(el.textContent || '');
+        return t.includes('quanto tempo') || t.includes('minuto');
+      });
+
+      return hasLiberar || hasTempo;
+    });
+  } catch {
+    return false;
+  }
+}
+
 async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPTS) {
   let popupFechado = true;
   let tentativas = 0;
@@ -496,6 +527,16 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
     
     try {
       await page.waitForTimeout(TIMEOUTS.POPUP_CLOSE);
+
+      // CRÍTICO: se for o popup de suporte Hinova, NÃO clicar no botão "Fechar" (isso navega!).
+      // Deve ser fechado apenas com ESC/backdrop/X/CSS (padrão Cobrança).
+      if (await isPopupSuporteHinovaVisivel(page)) {
+        await fecharPopupsSemNavegar(page);
+        log('Popup de suporte Hinova detectado; fechado sem navegação', LOG_LEVELS.DEBUG);
+        popupFechado = true;
+        await page.waitForTimeout(500);
+        continue;
+      }
       
       const seletoresFechar = [
         'button:has-text("Fechar")',
@@ -551,31 +592,28 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
         const fechouViaJS = await page.evaluate(() => {
           let fechou = false;
           
-          // Buscar especificamente pelo popup de suporte Hinova
-          // Texto característico: "suporte", "liberar o usuário", "quanto tempo"
-          const allTextElements = document.querySelectorAll('div, td, span, p, label, form');
-          for (const el of allTextElements) {
-            const text = (el.textContent || '').toLowerCase();
-            if (text.includes('suporte') || text.includes('liberar o usuário') || text.includes('quanto tempo')) {
-              // Encontrou popup de suporte - buscar botão Fechar no container
-              const container = el.closest('div, table, form, .modal');
-              if (container) {
-                const buttons = container.querySelectorAll('button, input[type="button"], a, .btn');
-                for (const btn of buttons) {
-                  const btnText = (btn.textContent || btn.value || '').toLowerCase().trim();
-                  if (btnText === 'fechar' || btnText.includes('fechar')) {
-                    const style = window.getComputedStyle(btn);
-                    if (style.display !== 'none' && style.visibility !== 'hidden') {
-                      btn.click();
-                      fechou = true;
-                      console.log('[MGF] Popup de suporte Hinova fechado');
-                      break;
-                    }
-                  }
-                }
-              }
-              if (fechou) break;
-            }
+          // IMPORTANTE: não clicar no botão "Fechar" do popup de suporte (causa navegação/submit).
+          // Se detectar texto típico, esconder o modal e remover backdrop.
+          const txt = (document.body?.innerText || '').toLowerCase();
+          const isSuporte =
+            txt.includes('liberar o usu') ||
+            txt.includes('liberar o usuário') ||
+            txt.includes('quanto tempo') ||
+            txt.includes('para o suporte');
+
+          if (isSuporte) {
+            // ESC + remover backdrop + esconder modais
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+            document.querySelectorAll('.modal-backdrop, .fade.show').forEach((b) => b.remove());
+            document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"], div[class*="modal"]').forEach((m) => {
+              try {
+                m.classList.remove('show', 'in');
+                m.style.display = 'none';
+              } catch {}
+            });
+            document.body.classList.remove('modal-open');
+            fechou = true;
+            console.log('[MGF] Popup de suporte Hinova escondido (sem navegação)');
           }
           
           // Fallback genérico: buscar qualquer botão "Fechar" visível
@@ -718,7 +756,9 @@ async function aguardarComFecharPopups(page, tempoMs, intervaloMs = 3000) {
   let iteracoes = 0;
   
   while (Date.now() - inicio < tempoMs) {
-    // Verificação rápida de popups (máximo 2 tentativas por iteração)
+    // Padrão Cobrança: primeiro fechar popups sem navegar (para o suporte Hinova)
+    await fecharPopupsSemNavegar(page);
+    // Depois fechamento genérico (já protegido contra o popup de suporte)
     await fecharPopups(page, 2);
     iteracoes++;
     
@@ -1497,138 +1537,47 @@ async function realizarLogin(page) {
 // ============================================
 async function navegarParaRelatorio(page) {
   setStep('NAVEGACAO');
-  
-  // FLUXO CORRETO: Primeiro ir para a página principal do MGF, depois clicar no menu 5.1
-  // Isso evita redirecionamentos indesejados do portal Hinova
-  
-  // Derivar a URL da página principal do MGF a partir da URL de login
-  const loginUrl = String(CONFIG.HINOVA_URL || '').trim();
-  const baseMatch = loginUrl.match(/(https?:\/\/[^\/]+\/sga\/[^\/]+\/)/i);
-  
-  if (!baseMatch) {
-    throw new Error(`Não foi possível derivar o caminho base do MGF a partir de: ${loginUrl}`);
+
+  const targetUrl = String(CONFIG.HINOVA_RELATORIO_URL || '').trim();
+  if (!targetUrl) {
+    throw new Error('HINOVA_RELATORIO_URL está vazio (não é possível navegar)');
   }
-  
-  const basePath = baseMatch[1];
-  const principalMGFUrl = `${basePath}mgf/principalMGF.php`;
-  const relatorioUrl = `${basePath}mgf/relatorio/relatorioLancamento.php`;
-  
-  log(`Navegando para página principal do MGF: ${principalMGFUrl}`, LOG_LEVELS.INFO);
-  
-  // Passo 1: Navegar para a página principal do MGF
-  await page.goto(principalMGFUrl, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
-  await page.waitForTimeout(2000);
-  
-  // Fechar popups de suporte que podem aparecer
-  await fecharPopupsSemNavegar(page);
-  await page.waitForTimeout(1000);
-  
-  // Verificar se estamos na página principal do MGF
+
+  const gotoRelatorio = async (reason = '') => {
+    log(`Navegando para relatório MGF: ${targetUrl}${reason ? ` (${reason})` : ''}`, LOG_LEVELS.INFO);
+    await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
+    await page.waitForTimeout(2500);
+    // Fechar popups SEM navegação primeiro (suporte Hinova)
+    await fecharPopupsSemNavegar(page);
+    // Depois o fechamento genérico (já protegido contra suporte)
+    await fecharPopups(page, 2);
+    await page.waitForTimeout(500);
+  };
+
+  await gotoRelatorio();
+
+  // Se o portal redirecionou para fecharMovimentoCaixa (bug clássico), tentar recuperação automática.
   let urlAtual = String(page.url() || '').toLowerCase();
-  log(`URL após navegação inicial: ${urlAtual}`, LOG_LEVELS.DEBUG);
-  
-  if (urlAtual.includes('login.php')) {
-    await saveDebugInfo(page, 'redirect_login_mgf');
-    throw new Error(`Navegação para MGF falhou: redirecionou para login (${page.url()})`);
+  log(`URL após navegação: ${urlAtual}`, LOG_LEVELS.DEBUG);
+  if (urlAtual.includes('fecharmovimentocaixa.php') || urlAtual.includes('/movimentocaixa/fechar')) {
+    log('Detectado redirecionamento para fecharMovimentoCaixa.php; tentando voltar ao relatório...', LOG_LEVELS.WARN);
+    await gotoRelatorio('recovery');
+    urlAtual = String(page.url() || '').toLowerCase();
+    log(`URL após recovery: ${urlAtual}`, LOG_LEVELS.DEBUG);
   }
-  
-  // Passo 2: Clicar no menu 5.1 - Lançamentos
-  log(`Procurando menu 5.1 - Lançamentos...`, LOG_LEVELS.INFO);
-  
-  // Tentar encontrar o link do menu 5.1 em todos os frames
-  const frames = [page.mainFrame(), ...page.frames().filter((f) => f !== page.mainFrame())];
-  let menuClicado = false;
-  
-  for (const frame of frames) {
-    try {
-      // Buscar links que contenham "5.1" ou "Lançamento" ou naveguem para relatorioLancamento
-      const menuSelectors = [
-        'a[href*="relatorioLancamento"]',
-        'a:has-text("5.1")',
-        'a:has-text("Lançamento")',
-        'a:has-text("Lancamento")',
-        'a:has-text("5.1 - Lançamentos")',
-        'a:has-text("5.1 - Lancamentos")',
-      ];
-      
-      for (const selector of menuSelectors) {
-        try {
-          const menuLink = frame.locator(selector).first();
-          if (await menuLink.isVisible({ timeout: 2000 }).catch(() => false)) {
-            log(`Menu encontrado via: ${selector}`, LOG_LEVELS.DEBUG);
-            await menuLink.click({ timeout: 5000 });
-            menuClicado = true;
-            break;
-          }
-        } catch (e) {
-          // Continuar tentando outros seletores
-        }
-      }
-      
-      if (menuClicado) break;
-      
-      // Fallback: buscar via JavaScript no frame
-      if (!menuClicado) {
-        const clickResult = await frame.evaluate(() => {
-          const links = Array.from(document.querySelectorAll('a'));
-          for (const link of links) {
-            const text = (link.textContent || '').toLowerCase();
-            const href = (link.href || '').toLowerCase();
-            if (href.includes('relatoriolancamento') || 
-                text.includes('5.1') || 
-                (text.includes('lan') && text.includes('amento'))) {
-              link.click();
-              return { found: true, text: link.textContent, href: link.href };
-            }
-          }
-          return { found: false };
-        }).catch(() => ({ found: false }));
-        
-        if (clickResult.found) {
-          log(`Menu clicado via JS: ${clickResult.text} (${clickResult.href})`, LOG_LEVELS.DEBUG);
-          menuClicado = true;
-          break;
-        }
-      }
-    } catch (e) {
-      log(`Erro ao buscar menu no frame: ${e.message}`, LOG_LEVELS.DEBUG);
-    }
-  }
-  
-  if (!menuClicado) {
-    // Último recurso: navegar diretamente para a URL do relatório
-    log(`Menu 5.1 não encontrado, navegando diretamente para: ${relatorioUrl}`, LOG_LEVELS.WARN);
-    await page.goto(relatorioUrl, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
-  }
-  
-  // Aguardar carregamento da página de relatório
-  await page.waitForTimeout(3000);
-  await fecharPopupsSemNavegar(page);
-  await page.waitForTimeout(1000);
-  
+
   // Verificação final
-  urlAtual = String(page.url() || '').toLowerCase();
-  log(`URL final após navegação: ${urlAtual}`, LOG_LEVELS.DEBUG);
-  
   if (urlAtual.includes('login.php')) {
     await saveDebugInfo(page, 'redirect_login');
     throw new Error(`Navegação para relatório falhou: redirecionou para login (${page.url()})`);
   }
-  
   if (!urlAtual.includes('relatoriolancamento.php')) {
-    // Tentar uma última vez navegar diretamente
-    log(`URL incorreta após clique no menu. Tentando navegação direta...`, LOG_LEVELS.WARN);
-    await page.goto(relatorioUrl, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
-    await page.waitForTimeout(2500);
-    await fecharPopupsSemNavegar(page);
-    
-    urlAtual = String(page.url() || '').toLowerCase();
-    if (!urlAtual.includes('relatoriolancamento.php')) {
-      await saveDebugInfo(page, 'url_relatorio_incorreta');
-      throw new Error(`Navegação para relatório falhou: URL inesperada (${page.url()}). Verifique se o caminho do MGF é /mgf/relatorio/relatorioLancamento.php neste ambiente.`);
-    }
+    await saveDebugInfo(page, 'url_relatorio_incorreta');
+    throw new Error(
+      `Navegação para relatório falhou: URL inesperada (${page.url()}). Verifique se o caminho do MGF é /mgf/relatorio/relatorioLancamento.php neste ambiente.`
+    );
   }
-  
+
   log('Página de relatório carregada', LOG_LEVELS.SUCCESS);
   await saveDebugInfo(page, 'pagina_relatorio');
 }
