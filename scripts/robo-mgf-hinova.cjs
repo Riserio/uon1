@@ -29,13 +29,22 @@ const readline = require('readline');
 // CONFIGURAÇÃO - IDÊNTICA À COBRANÇA
 // ============================================
 
-// URL FIXA do relatório MGF - NÃO DERIVAR, USAR EXATAMENTE ESSA
+// URL de LOGIN: usar variável de ambiente ou default
+const HINOVA_LOGIN_URL = process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php';
+
+// URL FIXA do relatório MGF - SEMPRE navegar para essa após o login
 const MGF_RELATORIO_URL_FIXO = 'https://eris.hinova.com.br/sga/sgav4_valecar/mgf/relatorio/relatorioLancamento.php';
 
-const HINOVA_URL = process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php';
+// Centros de Custo permitidos (EXATAMENTE esses)
+const CENTROS_CUSTO_PERMITIDOS = [
+  'EVENTOS',
+  'EVENTOS NAO PROVISIONADO',
+  'EVENTOS RATEAVEIS',
+];
 
 const CONFIG = {
-  HINOVA_URL: HINOVA_URL,
+  // URL de login (dinâmica - vem da variável de ambiente)
+  HINOVA_URL: HINOVA_LOGIN_URL,
   // URL FIXA do relatório - NÃO mudar em hipótese alguma
   HINOVA_RELATORIO_URL: MGF_RELATORIO_URL_FIXO,
   HINOVA_USER: process.env.HINOVA_USER || '',
@@ -2556,14 +2565,15 @@ async function rodarRobo() {
     await page.waitForTimeout(1000);
     
     // ============================================
-    // CENTRO DE CUSTO: DESMARCAR TODOS, MARCAR APENAS EVENTOS
+    // CENTRO DE CUSTO: MARCAR APENAS OS 3 ESPECÍFICOS
+    // EVENTOS, EVENTOS NAO PROVISIONADO, EVENTOS RATEAVEIS
     // ============================================
     log('═'.repeat(50), LOG_LEVELS.INFO);
     log('📋 CONFIGURANDO CENTRO DE CUSTO / DEPARTAMENTO', LOG_LEVELS.INFO);
     log('═'.repeat(50), LOG_LEVELS.INFO);
-    log('   Desmarcar TODOS e marcar apenas os que contêm "EVENTOS"', LOG_LEVELS.INFO);
+    log('   Marcar APENAS: EVENTOS, EVENTOS NAO PROVISIONADO, EVENTOS RATEAVEIS', LOG_LEVELS.INFO);
     
-    const centroCustoConfigured = await page.evaluate(() => {
+    const centroCustoConfigured = await page.evaluate((centrosPermitidos) => {
       const resultado = {
         sucesso: false,
         desmarcados: [],
@@ -2579,33 +2589,51 @@ async function rodarRobo() {
           .toUpperCase()
           .normalize('NFD')
           .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, ' ')
           .trim();
       };
       
-      // Procurar seção "Centro de Custo" ou "Departamento"
-      const tds = document.querySelectorAll('td, th, div, label');
-      let containerCentroCusto = null;
+      // Normalizar a lista de centros permitidos
+      const centrosNormalizados = centrosPermitidos.map(c => normalizar(c));
       
-      for (const td of tds) {
-        const texto = normalizar(td.textContent || '');
-        if (texto.includes('CENTRO DE CUSTO') || texto.includes('DEPARTAMENTO')) {
-          const row = td.closest('tr');
-          const table = td.closest('table');
-          containerCentroCusto = row || table || td.parentElement;
-          break;
-        }
-      }
-      
-      // Pegar todos os checkboxes da seção (ou da página se não encontrou seção)
-      const checkboxes = containerCentroCusto 
-        ? containerCentroCusto.querySelectorAll('input[type="checkbox"]')
-        : document.querySelectorAll('input[type="checkbox"]');
+      // Pegar todos os checkboxes da página
+      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
       
       resultado.diagnostico.totalCheckboxes = checkboxes.length;
       
       for (const cb of checkboxes) {
+        // Obter texto do label de várias formas
         const label = cb.closest('label');
-        const labelText = normalizar(label?.textContent || cb.value || '');
+        const td = cb.closest('td');
+        const tr = cb.closest('tr');
+        
+        // Tentar obter o texto do label de diferentes maneiras
+        let labelText = '';
+        
+        // 1. Do label direto
+        if (label) {
+          labelText = label.textContent || '';
+        }
+        
+        // 2. Do próximo elemento sibling (comum em tabelas Hinova)
+        if (!labelText && cb.nextSibling) {
+          labelText = cb.nextSibling.textContent || '';
+        }
+        
+        // 3. Do td que contém o checkbox
+        if (!labelText && td) {
+          // Pegar só o texto depois do checkbox
+          const tdClone = td.cloneNode(true);
+          tdClone.querySelectorAll('input').forEach(i => i.remove());
+          labelText = tdClone.textContent || '';
+        }
+        
+        // 4. Do value do checkbox
+        if (!labelText) {
+          labelText = cb.value || '';
+        }
+        
+        labelText = normalizar(labelText);
         
         resultado.diagnostico.checkboxesEncontrados.push({
           value: cb.value,
@@ -2613,46 +2641,61 @@ async function rodarRobo() {
           checked: cb.checked
         });
         
-        // Verificar se é um checkbox de Centro de Custo/Departamento
-        const isCentroCusto = labelText.includes('EVENTOS') || 
-                             labelText.includes('ADMINISTRATIVO') ||
-                             labelText.includes('COMERCIAL') ||
-                             labelText.includes('FINANCEIRO') ||
-                             labelText.includes('OPERACIONAL') ||
-                             labelText.includes('TODOS');
+        // Verificar se é um dos centros de custo permitidos (EXATO)
+        const isPermitido = centrosNormalizados.some(permitido => {
+          // Match exato ou o label contém exatamente o termo
+          return labelText === permitido || 
+                 labelText.includes(permitido) ||
+                 permitido.includes(labelText);
+        });
         
-        if (!isCentroCusto) continue;
-        
-        // Se contém "EVENTOS", marcar; caso contrário, desmarcar
-        if (labelText.includes('EVENTOS')) {
+        // Se for um dos 3 centros específicos, MARCAR
+        if (isPermitido && labelText.includes('EVENTO')) {
           if (!cb.checked) {
             cb.checked = true;
-            cb.dispatchEvent(new Event('change', { bubbles: true }));
             cb.dispatchEvent(new Event('click', { bubbles: true }));
+            cb.dispatchEvent(new Event('change', { bubbles: true }));
+            cb.dispatchEvent(new Event('input', { bubbles: true }));
           }
           resultado.marcados.push(labelText);
           resultado.sucesso = true;
-        } else {
-          // Desmarcar os outros (incluindo TODOS)
+        } 
+        // Se é checkbox de centro de custo mas NÃO é um dos permitidos, DESMARCAR
+        else if (labelText.includes('ADMINISTRATIVO') ||
+                 labelText.includes('COMERCIAL') ||
+                 labelText.includes('FINANCEIRO') ||
+                 labelText.includes('OPERACIONAL') ||
+                 labelText.includes('TODOS') ||
+                 labelText.includes('RH') ||
+                 labelText.includes('DIRETORIA') ||
+                 labelText.includes('MARKETING') ||
+                 labelText.includes('JURIDICO') ||
+                 labelText.includes('TI') ||
+                 labelText.includes('SINISTROS') ||
+                 labelText.includes('COBRANCA')) {
           if (cb.checked) {
             cb.checked = false;
-            cb.dispatchEvent(new Event('change', { bubbles: true }));
             cb.dispatchEvent(new Event('click', { bubbles: true }));
+            cb.dispatchEvent(new Event('change', { bubbles: true }));
+            cb.dispatchEvent(new Event('input', { bubbles: true }));
           }
           resultado.desmarcados.push(labelText);
         }
       }
       
       return resultado;
-    });
+    }, CENTROS_CUSTO_PERMITIDOS);
     
     if (centroCustoConfigured.sucesso) {
       log(`✅ Centro de Custo configurado!`, LOG_LEVELS.SUCCESS);
       log(`   Marcados: ${centroCustoConfigured.marcados.join(', ')}`, LOG_LEVELS.SUCCESS);
-      log(`   Desmarcados: ${centroCustoConfigured.desmarcados.join(', ')}`, LOG_LEVELS.DEBUG);
+      if (centroCustoConfigured.desmarcados.length > 0) {
+        log(`   Desmarcados: ${centroCustoConfigured.desmarcados.join(', ')}`, LOG_LEVELS.DEBUG);
+      }
     } else {
       log(`⚠️ Centro de Custo não configurado automaticamente`, LOG_LEVELS.WARN);
       log(`   Checkboxes encontrados: ${centroCustoConfigured.diagnostico.totalCheckboxes}`, LOG_LEVELS.DEBUG);
+      log(`   Labels: ${centroCustoConfigured.diagnostico.checkboxesEncontrados.map(c => c.labelText).join(' | ')}`, LOG_LEVELS.DEBUG);
     }
     
     await page.waitForTimeout(1000);
