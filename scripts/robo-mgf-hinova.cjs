@@ -624,6 +624,89 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
 }
 
 // ============================================
+// FECHAR POPUPS SEM NAVEGAR (NOVO)
+// ============================================
+/**
+ * Fecha popups sem clicar em botões que podem causar navegação.
+ * Usa apenas o botão X, backdrop ou tecla ESC.
+ * Específico para o popup de suporte Hinova que redireciona ao clicar em "Fechar".
+ */
+async function fecharPopupsSemNavegar(page) {
+  try {
+    // Tentar fechar via backdrop (clicar fora do modal)
+    const fechouViaJS = await page.evaluate(() => {
+      let fechou = false;
+      
+      // 1. Tentar fechar via tecla ESC simulada
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+      
+      // 2. Remover backdrop diretamente (isso pode fechar o modal)
+      const backdrops = document.querySelectorAll('.modal-backdrop, .fade.show');
+      backdrops.forEach(b => b.remove());
+      
+      // 3. Buscar e clicar APENAS no botão X (não o botão "Fechar" do form)
+      const seletoresX = [
+        '.modal .close',
+        '.modal .btn-close',
+        '.modal button.close',
+        '.modal [aria-label="Close"]',
+        '.modal button[aria-label="Fechar"]',
+        '.modal-header .close',
+        '.modal-header button.close',
+        '.modal-header .btn-close',
+        '#myModal .close',
+        '#myModal button.close',
+      ];
+      
+      for (const sel of seletoresX) {
+        const btn = document.querySelector(sel);
+        if (btn) {
+          const style = window.getComputedStyle(btn);
+          const isVisible = style.display !== 'none' && style.visibility !== 'hidden';
+          // Verificar se NÃO é o botão "Fechar" do form (geralmente tem texto)
+          const texto = (btn.textContent || '').trim().toLowerCase();
+          const isOnlyX = texto === '' || texto === '×' || texto === 'x' || texto === '&times;';
+          if (isVisible && (isOnlyX || btn.classList.contains('close') || btn.classList.contains('btn-close'))) {
+            btn.click();
+            fechou = true;
+            console.log('[MGF] Popup fechado via botão X');
+            break;
+          }
+        }
+      }
+      
+      // 4. Esconder modais diretamente via CSS (último recurso)
+      if (!fechou) {
+        const modais = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"]');
+        modais.forEach(m => {
+          m.classList.remove('show', 'in');
+          m.style.display = 'none';
+          fechou = true;
+          console.log('[MGF] Modal escondido via CSS');
+        });
+      }
+      
+      // 5. Remover classe modal-open do body
+      document.body.classList.remove('modal-open');
+      
+      return fechou;
+    }).catch(() => false);
+    
+    if (fechouViaJS) {
+      log('Popup fechado sem navegação (via X ou CSS)', LOG_LEVELS.DEBUG);
+      await page.waitForTimeout(500);
+    }
+    
+    // Fallback: tentar pressionar ESC via Playwright
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(300);
+    
+  } catch (e) {
+    log(`Erro ao fechar popup sem navegar: ${e.message}`, LOG_LEVELS.DEBUG);
+  }
+}
+
+// ============================================
 // AGUARDAR COM VERIFICAÇÃO DE POPUPS (NOVO)
 // ============================================
 /**
@@ -1417,23 +1500,43 @@ async function navegarParaRelatorio(page) {
   const targetUrl = String(CONFIG.HINOVA_RELATORIO_URL || '').trim();
   log(`Navegando para: ${targetUrl}`, LOG_LEVELS.INFO);
   
+  // Navegar para a página de relatório
   const resp = await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
   await page.waitForTimeout(2500);
   
-  await fecharPopups(page);
-
-  const finalUrl = String(page.url() || '');
+  // Verificar URL ANTES de fechar popups (para não perder a navegação)
+  let urlAtual = String(page.url() || '').toLowerCase();
   const status = resp?.status?.() ?? null;
-  log(`URL final após navegação: ${finalUrl} (status=${status ?? 'n/a'})`, LOG_LEVELS.DEBUG);
-
-  const finalLower = finalUrl.toLowerCase();
-  if (finalLower.includes('login.php')) {
-    await saveDebugInfo(page, 'redirect_login');
-    throw new Error(`Navegação para relatório falhou: redirecionou para login (${finalUrl})`);
+  log(`URL inicial após navegação: ${urlAtual} (status=${status ?? 'n/a'})`, LOG_LEVELS.DEBUG);
+  
+  // Se já está na URL correta, fechar popups COM CUIDADO
+  // O popup de suporte do Hinova pode causar redirecionamento ao clicar em "Fechar"
+  // Por isso, precisamos fechar o popup de forma que não navegue para outra página
+  if (urlAtual.includes('relatoriolancamento.php')) {
+    log('URL correta detectada, fechando popups com cuidado...', LOG_LEVELS.DEBUG);
+    
+    // Fechar popup usando apenas o botão X ou backdrop, evitando o botão "Fechar" do form
+    await fecharPopupsSemNavegar(page);
+    
+    // Verificar se a URL mudou após fechar popup
+    urlAtual = String(page.url() || '').toLowerCase();
+    if (!urlAtual.includes('relatoriolancamento.php')) {
+      log(`URL mudou após fechar popup: ${urlAtual}. Re-navegando...`, LOG_LEVELS.WARN);
+      // Re-navegar para a URL correta
+      await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
+      await page.waitForTimeout(2500);
+      urlAtual = String(page.url() || '').toLowerCase();
+    }
   }
-  if (!finalLower.includes('relatoriolancamento.php')) {
+  
+  // Verificação final
+  if (urlAtual.includes('login.php')) {
+    await saveDebugInfo(page, 'redirect_login');
+    throw new Error(`Navegação para relatório falhou: redirecionou para login (${page.url()})`);
+  }
+  if (!urlAtual.includes('relatoriolancamento.php')) {
     await saveDebugInfo(page, 'url_relatorio_incorreta');
-    throw new Error(`Navegação para relatório falhou: URL inesperada (${finalUrl}). Verifique se o caminho do MGF é /mgf/relatorio/relatorioLancamento.php neste ambiente.`);
+    throw new Error(`Navegação para relatório falhou: URL inesperada (${page.url()}). Verifique se o caminho do MGF é /mgf/relatorio/relatorioLancamento.php neste ambiente.`);
   }
   
   log('Página de relatório carregada', LOG_LEVELS.SUCCESS);
