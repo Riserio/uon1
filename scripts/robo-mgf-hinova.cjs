@@ -11,12 +11,13 @@
  * 
  * FLUXO:
  * 1. Login no portal Hinova (com tratamento de modais)
- * 2. Navegar para MGF > Relatórios > 5.1 de Lançamentos
- * 3. Selecionar Centro de Custo/Departamento (apenas com "EVENTOS")
- * 4. Selecionar Layout "BI VANGARD FINANCEIROS EVENTOS"
+ * 2. Navegar DIRETO para /mgf/relatorio/relatorioLancamento.php
+ * 3. Selecionar Layout "BI VANGARD FINANCEIROS EVENTOS"
+ * 4. Selecionar Centro de Custo/Departamento (apenas com "EVENTOS")
  * 5. Selecionar tipo de relatório "Em Excel"
- * 6. Gerar e baixar relatório (usando estratégia híbrida como cobrança)
- * 7. Enviar dados via webhook
+ * 6. Clicar em "Gerar Relatório"
+ * 7. Baixar arquivo (usando estratégia híbrida como cobrança)
+ * 8. Enviar dados via webhook
  * 
  * REQUISITOS:
  * -----------
@@ -35,32 +36,14 @@ const { Transform } = require('stream');
 // ============================================
 // CONFIGURAÇÃO
 // ============================================
-
-function deriveRelatorioUrl(loginUrl) {
-  try {
-    const cleaned = String(loginUrl || '').trim();
-    const url = new URL(cleaned);
-    const pathParts = url.pathname.split('/');
-    const basePathParts = pathParts.filter(p => 
-      p && !p.includes('login') && !p.includes('Principal') && p !== 'v5'
-    );
-    const basePath = '/' + basePathParts.join('/');
-    return `${url.origin}${basePath}/mgf/relatorio/relatorioLancamento.php`;
-  } catch (e) {
-    return 'https://eris.hinova.com.br/sga/sgav4_valecar/mgf/relatorio/relatorioLancamento.php';
-  }
-}
-
 const HINOVA_URL = String(process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php').trim();
-const HINOVA_RELATORIO_URL_DERIVED = deriveRelatorioUrl(HINOVA_URL);
 
-// Log imediato na carga do script para debug de URL
-console.log(`[MGF CONFIG] HINOVA_URL: "${HINOVA_URL}"`);
-console.log(`[MGF CONFIG] Derived relatorio URL: "${HINOVA_RELATORIO_URL_DERIVED}"`);
+// URL FIXA do relatório MGF - SEMPRE essa
+const MGF_RELATORIO_URL = 'https://eris.hinova.com.br/sga/sgav4_valecar/mgf/relatorio/relatorioLancamento.php';
 
 const CONFIG = {
   HINOVA_URL: HINOVA_URL,
-  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || HINOVA_RELATORIO_URL_DERIVED,
+  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || MGF_RELATORIO_URL,
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
   HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '',
@@ -78,8 +61,9 @@ const CONFIG = {
   DEBUG_DIR: process.env.DEBUG_DIR || './debug',
 };
 
-console.log(`[MGF CONFIG] HINOVA_LAYOUT env: "${process.env.HINOVA_LAYOUT || 'não definido'}"`);
-console.log(`[MGF CONFIG] Final HINOVA_LAYOUT: "${CONFIG.HINOVA_LAYOUT}"`);
+console.log(`[MGF CONFIG] HINOVA_URL: "${HINOVA_URL}"`);
+console.log(`[MGF CONFIG] HINOVA_RELATORIO_URL: "${CONFIG.HINOVA_RELATORIO_URL}"`);
+console.log(`[MGF CONFIG] HINOVA_LAYOUT: "${CONFIG.HINOVA_LAYOUT}"`);
 
 // ============================================
 // CONSTANTES (IDÊNTICAS AO ROBÔ DE COBRANÇA)
@@ -484,82 +468,11 @@ async function saveDebugInfo(page, prefix = 'debug') {
 }
 
 // ============================================
-// FECHAR POPUPS E MODAIS (PADRÃO COBRANÇA - REFATORADO)
+// FECHAR POPUPS E MODAIS (PADRÃO COBRANÇA)
 // ============================================
 /**
- * Detecta se o popup de suporte Hinova está visível.
- * Este popup é problemático porque o botão "Fechar" é um submit que redireciona!
- */
-async function isPopupSuporteHinova(page) {
-  try {
-    return await page.evaluate(() => {
-      const bodyText = (document.body?.innerText || document.body?.textContent || '').toLowerCase();
-      
-      // Texto característico do popup de suporte
-      const hasSuporte =
-        bodyText.includes('liberar o usu') ||
-        bodyText.includes('liberar o usuário') ||
-        bodyText.includes('quanto tempo') ||
-        bodyText.includes('para o suporte') ||
-        (bodyText.includes('suporte') && bodyText.includes('minuto'));
-      
-      if (!hasSuporte) return false;
-      
-      // Confirmar: tem botão "Liberar" ou select de tempo?
-      const hasLiberar = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"]'))
-        .some(el => (el.textContent || el.value || '').toLowerCase().includes('liberar'));
-      const hasTempo = Array.from(document.querySelectorAll('select, label'))
-        .some(el => (el.textContent || '').toLowerCase().includes('minuto'));
-      
-      return hasLiberar || hasTempo;
-    });
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Fecha o popup de suporte Hinova SEM clicar no botão "Fechar".
- * O botão "Fechar" deste popup é um submit que redireciona para fecharMovimentoCaixa.php!
- * Usa: ESC, remoção de backdrop, CSS display:none.
- */
-async function fecharPopupSuporteHinova(page) {
-  try {
-    const fechou = await page.evaluate(() => {
-      // 1. Simular ESC
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
-      
-      // 2. Remover backdrops
-      document.querySelectorAll('.modal-backdrop, .fade.show, .modal-backdrop.fade').forEach(b => b.remove());
-      
-      // 3. Esconder modais via CSS (NÃO clicar em nada!)
-      const modais = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"]');
-      modais.forEach(m => {
-        m.classList.remove('show', 'in');
-        m.style.display = 'none';
-      });
-      
-      // 4. Limpar body
-      document.body.classList.remove('modal-open');
-      document.body.style.overflow = '';
-      document.body.style.paddingRight = '';
-      
-      return modais.length > 0;
-    });
-    
-    // Também tentar ESC via Playwright
-    await page.keyboard.press('Escape').catch(() => {});
-    await page.waitForTimeout(500);
-    
-    return fechou;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Fechar popups genéricos (NÃO popup de suporte).
- * Segue padrão do robô de Cobrança.
+ * Fechar popups genéricos - NÃO clica em botões que possam causar navegação
+ * Usa ESC e remoção via CSS primeiro, depois botões seguros
  */
 async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPTS) {
   let popupFechado = true;
@@ -577,30 +490,49 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
     try {
       await page.waitForTimeout(TIMEOUTS.POPUP_CLOSE);
       
-      // CRÍTICO: Verificar se é o popup de suporte PRIMEIRO
-      // Se for, usar método especial que não clica em "Fechar"
-      if (await isPopupSuporteHinova(page)) {
-        log('Popup de suporte Hinova detectado - fechando via ESC/CSS', LOG_LEVELS.DEBUG);
-        await fecharPopupSuporteHinova(page);
+      // PRIMEIRA TENTATIVA: Via ESC e CSS (mais seguro - não causa navegação)
+      const fechouViaEscCss = await page.evaluate(() => {
+        let fechou = false;
+        
+        // 1. Simular ESC
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+        
+        // 2. Remover backdrops
+        document.querySelectorAll('.modal-backdrop, .fade.show, .modal-backdrop.fade').forEach(b => {
+          b.remove();
+          fechou = true;
+        });
+        
+        // 3. Esconder modais via CSS
+        const modais = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"]');
+        modais.forEach(m => {
+          m.classList.remove('show', 'in');
+          m.style.display = 'none';
+          fechou = true;
+        });
+        
+        // 4. Limpar body
+        if (document.body.classList.contains('modal-open')) {
+          document.body.classList.remove('modal-open');
+          document.body.style.overflow = '';
+          document.body.style.paddingRight = '';
+          fechou = true;
+        }
+        
+        return fechou;
+      });
+      
+      if (fechouViaEscCss) {
+        log('Popup fechado via ESC/CSS', LOG_LEVELS.DEBUG);
         popupFechado = true;
+        await page.waitForTimeout(500);
         continue;
       }
       
-      // Para outros popups, usar seletores padrão do Cobrança
-      const seletoresFechar = [
-        'button:has-text("Fechar")',
-        'a:has-text("Fechar")',
-        '.btn:has-text("Fechar")',
-        'input[value="Fechar"]',
-        'input[type="button"][value="Fechar"]',
-        'button:has-text("Continuar e Fechar")',
-        'a:has-text("Continuar e Fechar")',
-        'button:has-text("Continuar")',
-        'button:has-text("OK")',
-        '.btn:has-text("OK")',
+      // SEGUNDA TENTATIVA: Botões seguros (X, close icons)
+      const seletoresSeguros = [
         '.modal.show button.close',
         '.modal.show .btn-close',
-        '.modal.show [data-dismiss="modal"]',
         '.modal button.close',
         '.modal .btn-close',
         '.modal .close',
@@ -609,30 +541,18 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
         '[data-dismiss="modal"]',
         '[data-bs-dismiss="modal"]',
         '[aria-label="Close"]',
-        '.modal-header button',
-        '.swal2-confirm',
         '.swal2-close',
-        '.bootbox .btn-primary',
-        '.bootbox .btn-default',
       ];
       
-      for (const seletor of seletoresFechar) {
+      for (const seletor of seletoresSeguros) {
         try {
           const botoes = await page.$$(seletor);
           for (const botao of botoes) {
             const isVisible = await botao.isVisible().catch(() => false);
             if (isVisible) {
-              // Verificar novamente se não é popup de suporte antes de clicar
-              if (await isPopupSuporteHinova(page)) {
-                log('Popup de suporte detectado durante loop - usando ESC/CSS', LOG_LEVELS.DEBUG);
-                await fecharPopupSuporteHinova(page);
-                popupFechado = true;
-                break;
-              }
-              
               log(`Popup detectado - fechando via: ${seletor}`, LOG_LEVELS.DEBUG);
               await botao.click({ force: true }).catch(() => {});
-              await page.waitForTimeout(1000);
+              await page.waitForTimeout(500);
               popupFechado = true;
               break;
             }
@@ -643,105 +563,14 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
         }
       }
       
-      // Fallback via JavaScript (exceto para popup de suporte)
+      // Também tentar ESC via Playwright
       if (!popupFechado) {
-        const fechouViaJS = await page.evaluate(() => {
-          let fechou = false;
-          
-          // Verificar se é popup de suporte - se for, NÃO clicar em nada
-          const bodyText = (document.body?.innerText || '').toLowerCase();
-          const isSuporte =
-            bodyText.includes('liberar o usu') ||
-            bodyText.includes('quanto tempo') ||
-            bodyText.includes('para o suporte');
-          
-          if (isSuporte) {
-            // Fechar via CSS apenas
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
-            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
-            document.querySelectorAll('.modal.show, .modal.in').forEach(m => {
-              m.classList.remove('show', 'in');
-              m.style.display = 'none';
-            });
-            document.body.classList.remove('modal-open');
-            return true;
-          }
-          
-          // Para outros popups, clicar normalmente
-          const allElements = document.querySelectorAll('button, a, input[type="button"], input[type="submit"], .btn');
-          for (const el of allElements) {
-            const texto = (el.textContent || el.value || '').toLowerCase().trim();
-            if (texto === 'fechar' || texto.includes('fechar')) {
-              const style = window.getComputedStyle(el);
-              if (style.display !== 'none' && style.visibility !== 'hidden') {
-                el.click();
-                fechou = true;
-                break;
-              }
-            }
-          }
-          
-          if (!fechou) {
-            const modals = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"]');
-            modals.forEach(modal => {
-              const closeBtn = modal.querySelector('.close, button.close, .btn-close, [data-dismiss="modal"]');
-              if (closeBtn) {
-                closeBtn.click();
-                fechou = true;
-              }
-            });
-          }
-          
-          if (!fechou) {
-            const swalClose = document.querySelector('.swal2-close, .swal2-confirm');
-            if (swalClose) {
-              swalClose.click();
-              fechou = true;
-            }
-          }
-          
-          // Remover backdrops
-          document.querySelectorAll('.modal-backdrop').forEach(o => o.remove());
-          
-          return fechou;
-        }).catch(() => false);
-        
-        if (fechouViaJS) {
-          popupFechado = true;
-          await page.waitForTimeout(1000);
-        }
+        await page.keyboard.press('Escape').catch(() => {});
       }
       
     } catch (e) {
       // Silenciar
     }
-  }
-}
-
-// ============================================
-// AGUARDAR COM VERIFICAÇÃO DE POPUPS
-// ============================================
-/**
- * Aguarda um tempo específico enquanto verifica e fecha popups periodicamente.
- * Padrão Cobrança: útil para esperas longas onde popups podem aparecer.
- */
-async function aguardarComFecharPopups(page, tempoMs, intervaloMs = 3000) {
-  const inicio = Date.now();
-  let iteracoes = 0;
-  
-  while (Date.now() - inicio < tempoMs) {
-    // Verificar e fechar popups (já protegido contra popup de suporte)
-    await fecharPopups(page, 2);
-    iteracoes++;
-    
-    const tempoRestante = tempoMs - (Date.now() - inicio);
-    if (tempoRestante <= 0) break;
-    
-    await page.waitForTimeout(Math.min(intervaloMs, tempoRestante));
-  }
-  
-  if (iteracoes > 1) {
-    log(`Aguardou ${Math.round(tempoMs / 1000)}s com ${iteracoes} verificações de popups`, LOG_LEVELS.DEBUG);
   }
 }
 
@@ -857,7 +686,6 @@ function isExcelResponse(response) {
     const url = String(response.url?.() || '').toLowerCase();
     const contentLength = parseInt(headers['content-length'] || '0', 10);
 
-    // Método do request (importante para diferenciar o carregamento normal da página do disparo do relatório)
     const request = response.request?.();
     const method = (request?.method?.() || 'GET').toUpperCase();
     
@@ -886,31 +714,16 @@ function isExcelResponse(response) {
       return true;
     }
 
-    // ============================================================
-    // FALLBACK CRÍTICO (MGF): Hinova muitas vezes retorna o "Em Excel"
-    // como HTML (tabela) via POST, sem Content-Disposition e sem
-    // disparar evento de download do Playwright.
-    //
-    // Nesses casos, precisamos tratar a resposta como "arquivo" e
-    // baixá-la via HTTP stream (replay do request) para não travar.
-    // ============================================================
+    // FALLBACK MGF: Hinova muitas vezes retorna o "Em Excel" como HTML via POST
     const isRelatorioLancamento = url.includes('relatoriolancamento.php');
-    const hasDownloadHintsInUrl = /\b(excel|xls|xlsx|export|download|gerar)\b/i.test(url);
     const isHtmlLike = contentType.includes('text/html') || contentType.includes('text/plain');
     const looksLikeAttachment = contentDisposition.includes('attachment');
 
-    // Regra: se for o endpoint do relatório e o request for POST, aceitar mesmo que seja HTML.
-    // Evita capturar o GET normal da tela (carregamento da página).
     if (isRelatorioLancamento && method !== 'GET' && (looksLikeAttachment || isHtmlLike)) {
       return true;
     }
 
-    // Algumas instalações fazem GET com querystring indicando exportação.
     if (isRelatorioLancamento && method === 'GET' && looksLikeAttachment) {
-      return true;
-    }
-
-    if (isRelatorioLancamento && hasDownloadHintsInUrl && (looksLikeAttachment || isHtmlLike) && (contentLength === 0 || contentLength > 1000)) {
       return true;
     }
     
@@ -1018,16 +831,19 @@ async function processarDownloadImediato(download, downloadDir, semanticName) {
     throw new Error(`FALHA: Arquivo vazio (${stats.size} bytes)`);
   }
 
+  if (expectedSize > 0 && stats.size !== expectedSize) {
+    log(`⚠️ Tamanho difere: esperado ${formatBytes(expectedSize)}, recebido ${formatBytes(stats.size)}`, LOG_LEVELS.WARN);
+  }
+
   const totalTime = Math.floor((Date.now() - startTime) / 1000);
   log(`Download concluído em ${Math.floor(totalTime / 60)}m ${totalTime % 60}s`, LOG_LEVELS.SUCCESS);
-  log(`Arquivo salvo com sucesso: ${semanticName} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
+  log(`Arquivo salvo: ${semanticName} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
   return { filePath, size: stats.size };
 }
 
 // ============================================
-// WATCHERS DE DOWNLOAD (IDÊNTICOS AO ROBÔ DE COBRANÇA)
+// WATCHERS DE DOWNLOAD (PADRÃO COBRANÇA)
 // ============================================
-
 function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName) {
   const pagesAttached = new Set();
   
@@ -1063,6 +879,7 @@ function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticNa
   
   const onNewPage = (page) => {
     if (controller.isCaptured()) return;
+    log(`Watcher Download: nova página detectada`, LOG_LEVELS.DEBUG);
     attachToPage(page);
   };
   
@@ -1120,7 +937,7 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
     }
     
     try {
-      log(`Nova aba/popup detectado: configurando listener de download... (url=${newPage.url() || 'n/a'})`, LOG_LEVELS.DEBUG);
+      log(`Nova aba detectada: configurando listener de download...`, LOG_LEVELS.DEBUG);
       
       const onNewPageDownload = async (download) => {
         if (controller.isCaptured()) return;
@@ -1150,10 +967,9 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
       
       newPage.on('download', onNewPageDownload);
       
-      // Aguardar carregamento inicial
       await Promise.race([
-        newPage.waitForLoadState('domcontentloaded', { timeout: 15000 }),
-        new Promise(resolve => setTimeout(resolve, 15000)),
+        newPage.waitForLoadState('domcontentloaded', { timeout: 8000 }),
+        new Promise(resolve => setTimeout(resolve, 8000)),
       ]).catch(() => {});
       
       if (controller.isCaptured()) {
@@ -1161,55 +977,7 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
         return;
       }
       
-      // ============================================
-      // FALLBACK CRÍTICO: Nova aba carregou conteúdo inline (sem evento download)
-      // O portal Hinova às vezes abre o Excel/HTML direto na aba ao invés de disparar download.
-      // Precisamos verificar se a aba contém o relatório e salvá-lo manualmente.
-      // ============================================
-      const newPageUrl = newPage.url();
-      const isReportPage = /relatoriolancamento/i.test(newPageUrl) || /gerar|export|download|excel/i.test(newPageUrl);
-      
-      if (isReportPage || newPageUrl === 'about:blank') {
-        // Aguardar um pouco mais para ver se o download dispara
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        
-        if (controller.isCaptured()) {
-          try { newPage.removeListener('download', onNewPageDownload); } catch {}
-          return;
-        }
-        
-        // Verificar se o conteúdo da nova aba é o próprio relatório
-        try {
-          const pageContent = await newPage.content().catch(() => '');
-          const contentLength = pageContent.length;
-          
-          // Se a página tem conteúdo substancial (não é só uma página de carregamento)
-          // e parece ser HTML com tabela, podemos salvar diretamente
-          if (contentLength > 5000 && (pageContent.includes('<table') || pageContent.includes('<TABLE'))) {
-            log(`Nova aba contém tabela HTML (${formatBytes(contentLength)}) - salvando como arquivo...`, LOG_LEVELS.INFO);
-            
-            const wasCaptured = controller.setCaptured({ 
-              type: 'inlineContent', 
-              source: 'newTabInline', 
-              newPage 
-            });
-            
-            if (wasCaptured) {
-              const filePath = path.join(downloadDir, semanticName);
-              fs.writeFileSync(filePath, pageContent, 'utf8');
-              const stats = fs.statSync(filePath);
-              log(`✅ Conteúdo inline salvo: ${filePath} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
-              controller.setFileResult({ filePath, size: stats.size });
-              newPage.close().catch(() => {});
-              return;
-            }
-          }
-        } catch (e) {
-          log(`Erro ao verificar conteúdo inline da nova aba: ${e.message}`, LOG_LEVELS.DEBUG);
-        }
-      }
-      
-      // Tentar clicar em links de download na nova aba (comportamento original)
+      // Procurar botões de download na nova aba
       const seletoresDownload = [
         'a[href*=".xlsx"]', 'a[href*=".xls"]',
         'a:has-text("Baixar")', 'button:has-text("Baixar")',
@@ -1229,7 +997,7 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
       });
       
     } catch (err) {
-      log(`Erro ao processar nova aba: ${err.message}`, LOG_LEVELS.DEBUG);
+      // Ignorar
     }
   };
   
@@ -1240,135 +1008,92 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
   };
   
   context.on('page', onNewPage);
-
-  // Alguns portais disparam via window.open (popup). Isso é equivalente a nova aba.
-  const onPopup = (popupPage) => {
-    if (popupPage && popupPage !== mainPage) {
-      processarNovaAba(popupPage);
-    }
-  };
-  mainPage.on('popup', onPopup);
   
   controller.addCleanup(() => {
     try { context.removeListener('page', onNewPage); } catch {}
-    try { mainPage.removeListener('popup', onPopup); } catch {}
   });
 }
 
 function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName) {
-  const pagesAttached = new Set();
+  const filePath = path.join(downloadDir, semanticName);
   
   const onResponse = async (response) => {
     if (controller.isCaptured()) return;
     
-    if (isExcelResponse(response)) {
-      const req = response.request?.();
-      const method = (req?.method?.() || 'GET').toUpperCase();
-      const headers = response.headers() || {};
-      const contentLength = parseInt(headers['content-length'] || '0', 10);
-      const contentType = String(headers['content-type'] || '');
-      const contentDisposition = String(headers['content-disposition'] || '');
-      const url = String(response.url?.() || '');
-
-      log(
-        `Resposta candidata a download (fallback HTTP): ${method} ${url} | content-type="${contentType}" | content-disposition="${contentDisposition}" | len=${contentLength || 'n/a'}`,
-        LOG_LEVELS.DEBUG
-      );
+    if (!isExcelResponse(response)) return;
+    
+    log(`🌐 Resposta Excel detectada via HTTP: ${response.url().substring(0, 80)}...`, LOG_LEVELS.INFO);
+    
+    // Aguardar um pouco para ver se o Playwright captura como download
+    await new Promise(r => setTimeout(r, 5000));
+    
+    if (controller.isCaptured()) {
+      log(`Download já capturado via Playwright - ignorando HTTP stream`, LOG_LEVELS.DEBUG);
+      return;
+    }
+    
+    const wasCaptured = controller.setCaptured({
+      type: 'httpResponse',
+      response,
+      source: 'httpWatcher',
+    });
+    
+    if (!wasCaptured) return;
+    
+    try {
+      const request = response.request();
+      const url = response.url();
+      const method = request.method();
+      const postData = request.postData?.() || null;
+      const headers = request.headers?.() || {};
+      const cookies = await buildCookieHeader(context, url);
       
-      if (controller.isCaptured()) {
-        log(`Download já capturado via Playwright - ignorando HTTP stream`, LOG_LEVELS.DEBUG);
-        return;
-      }
+      const httpHeaders = {
+        ...pickHeadersForHttpReplay(headers),
+        cookie: cookies,
+      };
       
-      const wasCaptured = controller.setCaptured({ 
-        type: 'httpResponse', 
-        response, 
-        source: 'httpStream' 
+      log(`Iniciando download via HTTP stream (fallback)...`, LOG_LEVELS.INFO);
+      
+      const result = await downloadViaAxiosStream({
+        url,
+        method,
+        headers: httpHeaders,
+        data: postData,
+        filePath,
       });
       
-      if (!wasCaptured) return;
-      
-      log(`✅ Download capturado via HTTP stream (fallback)`, LOG_LEVELS.SUCCESS);
-      if (contentLength > 0) {
-        log(`Tamanho esperado: ${(contentLength / 1024).toFixed(2)} KB`, LOG_LEVELS.DEBUG);
-      }
-      
-      try {
-        const filePath = path.join(downloadDir, semanticName);
-        const startTime = Date.now();
-
-        log(`⬇️ Baixando via HTTP stream (com progresso)...`, LOG_LEVELS.INFO);
-
-        const request = response.request?.();
-        const url = response.url?.();
-        const method = request?.method?.() || 'GET';
-        const requestHeaders = pickHeadersForHttpReplay(request?.headers?.() || {});
-        const cookieHeader = await buildCookieHeader(context, url);
-        if (cookieHeader) requestHeaders['cookie'] = cookieHeader;
-
-        const postData = request?.postData?.();
-        const result = await downloadViaAxiosStream({
-          url,
-          method,
-          headers: requestHeaders,
-          data: method !== 'GET' ? postData : undefined,
-          filePath,
-          expectedBytes: contentLength,
-          idleTimeoutMs: TIMEOUTS.DOWNLOAD_IDLE,
-          hardTimeoutMs: TIMEOUTS.DOWNLOAD_HARD,
-        });
-
-        const downloadTime = Math.floor((Date.now() - startTime) / 1000);
-        log(`✅ Download HTTP concluído em ${downloadTime}s (${formatBytes(result.size)})`, LOG_LEVELS.SUCCESS);
-        
-        if (!fs.existsSync(filePath)) {
-          throw new Error('FALHA: Arquivo não existe após salvamento HTTP');
-        }
-        
-        controller.setFileResult({ filePath, size: result.size });
-      } catch (e) {
-        log(`❌ Erro ao salvar via HTTP: ${e.message}`, LOG_LEVELS.ERROR);
-        controller.setError(e);
-      }
+      controller.setFileResult(result);
+    } catch (e) {
+      log(`Erro no download HTTP: ${e.message}`, LOG_LEVELS.ERROR);
+      controller.setError(e);
     }
   };
   
   const attachToPage = (page) => {
-    if (!page || pagesAttached.has(page)) return;
-    pagesAttached.add(page);
     page.on('response', onResponse);
-  };
-  
-  const onNewPage = (page) => {
-    if (controller.isCaptured()) return;
-    attachToPage(page);
+    controller.addCleanup(() => {
+      try { page.removeListener('response', onResponse); } catch {}
+    });
   };
   
   for (const p of context.pages()) {
     attachToPage(p);
   }
   
-  context.on('page', onNewPage);
-  
-  controller.addCleanup(() => {
-    try { context.removeListener('page', onNewPage); } catch {}
-    for (const p of pagesAttached) {
-      try { p.removeListener('response', onResponse); } catch {}
+  context.on('page', (newPage) => {
+    if (!controller.isCaptured()) {
+      attachToPage(newPage);
     }
   });
 }
 
-// ============================================
-// AGUARDAR DOWNLOAD HÍBRIDO (IDÊNTICO AO ROBÔ DE COBRANÇA)
-// ============================================
 async function aguardarDownloadHibrido(context, page, downloadDir, semanticName, timeoutMs) {
   log(`Iniciando captura de download...`, LOG_LEVELS.INFO);
   log(`Arquivo destino: ${path.join(downloadDir, semanticName)}`, LOG_LEVELS.DEBUG);
-  log(`PRIORIDADE: Download Playwright (saveAs) > HTTP Stream (fallback)`, LOG_LEVELS.DEBUG);
   
   const controller = new DownloadController();
   
-  // Ordem: Playwright primeiro, HTTP stream como fallback
   criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName);
   criarWatcherDownloadPaginaPrincipal(context, page, controller, downloadDir, semanticName);
   criarWatcherNovaAba(context, page, controller, downloadDir, semanticName);
@@ -1414,106 +1139,111 @@ async function aguardarDownloadHibrido(context, page, downloadDir, semanticName,
 }
 
 // ============================================
-// LOGIN (IDÊNTICO AO ROBÔ DE COBRANÇA)
+// LOGIN (PADRÃO COBRANÇA)
 // ============================================
+async function trySelectHinovaLayout(page) {
+  const desired = normalizeText(CONFIG.HINOVA_LAYOUT);
+  if (!desired) return false;
+
+  try {
+    const select = page
+      .locator('select[name*="layout" i], select[id*="layout" i], select[name*="sistema" i], select[id*="sistema" i], select[name*="perfil" i], select[id*="perfil" i]')
+      .first();
+
+    if (await select.isVisible().catch(() => false)) {
+      const optionTexts = await select.locator('option').allTextContents().catch(() => []);
+      const idx = optionTexts.findIndex((t) => {
+        const nt = normalizeText(t);
+        return nt.includes('vangard') || nt.includes(desired);
+      });
+
+      if (idx >= 0) {
+        const option = select.locator('option').nth(idx);
+        const value = (await option.getAttribute('value').catch(() => null)) ?? optionTexts[idx];
+        await select.selectOption(value).catch(() => null);
+        log(`Layout selecionado via <select>: ${optionTexts[idx]}`, LOG_LEVELS.DEBUG);
+        return true;
+      }
+    }
+  } catch {}
+
+  return false;
+}
+
 async function realizarLogin(page) {
   setStep('LOGIN');
-  log(`Acessando: ${CONFIG.HINOVA_URL}`, LOG_LEVELS.INFO);
-  
-  await page.goto(CONFIG.HINOVA_URL, { waitUntil: 'networkidle', timeout: TIMEOUTS.PAGE_LOAD });
-  await page.waitForTimeout(2000);
-  
-  await fecharPopups(page);
-  
-  const userInput = page.locator('input[name="usuario"], input[name="login"], input[id*="usuario"], input[id*="login"], input[type="text"]').first();
-  const passInput = page.locator('input[name="senha"], input[name="password"], input[type="password"]').first();
-  
-  if (await userInput.isVisible()) {
-    await userInput.fill(CONFIG.HINOVA_USER);
-    log('Usuário preenchido', LOG_LEVELS.DEBUG);
-  }
-  
-  if (await passInput.isVisible()) {
-    await passInput.fill(CONFIG.HINOVA_PASS);
-    log('Senha preenchida', LOG_LEVELS.DEBUG);
-  }
-  
-  if (CONFIG.HINOVA_CODIGO_CLIENTE) {
-    const codigoInput = page.locator('input[name*="codigo"], input[id*="codigo"], input[placeholder*="Código"]').first();
-    if (await codigoInput.isVisible().catch(() => false)) {
-      await codigoInput.fill(CONFIG.HINOVA_CODIGO_CLIENTE);
-      log('Código do cliente preenchido', LOG_LEVELS.DEBUG);
-    }
-  }
-  
-  await fecharPopups(page);
-  
-  const loginBtn = page.locator('button[type="submit"], input[type="submit"], button:has-text("Entrar"), button:has-text("Login"), a:has-text("Entrar")').first();
   
   let loginSucesso = false;
   
-  const isAindaNaLogin = async () => {
-    const relatorioVisible = await page.locator('text=Relatório').first().isVisible().catch(() => false);
-    if (relatorioVisible) return false;
+  for (let tentativa = 1; tentativa <= LIMITS.MAX_LOGIN_RETRIES && !loginSucesso; tentativa++) {
+    log(`Tentativa de login ${tentativa}/${LIMITS.MAX_LOGIN_RETRIES}...`);
     
-    const esqueceuVisible = await page.locator('text=Esqueci minha senha').first().isVisible().catch(() => false);
-    const codigoClienteVisible = await page.locator('text=Código cliente').first().isVisible().catch(() => false);
-    if (esqueceuVisible || codigoClienteVisible) return true;
-    
-    const currentUrl = page.url();
-    return currentUrl.includes('login');
-  };
-  
-  for (let tentativa = 1; tentativa <= LIMITS.MAX_LOGIN_RETRIES; tentativa++) {
     try {
+      // Fechar popups
       await fecharPopups(page);
       
-      if (!(await isAindaNaLogin())) {
-        loginSucesso = true;
-        break;
+      // Preencher código cliente se existir
+      if (CONFIG.HINOVA_CODIGO_CLIENTE) {
+        try {
+          const codigoInput = page.locator('input[placeholder=""]').first();
+          if (await codigoInput.isVisible().catch(() => false)) {
+            await codigoInput.fill(CONFIG.HINOVA_CODIGO_CLIENTE);
+            log('Código cliente preenchido', LOG_LEVELS.DEBUG);
+          }
+        } catch {}
       }
       
-      log(`Tentativa de login ${tentativa}/${LIMITS.MAX_LOGIN_RETRIES}...`, LOG_LEVELS.INFO);
+      // Preencher usuário
+      const userInput = page.locator('input[placeholder="Usuário"], input[type="text"]:not([placeholder=""])').first();
+      await userInput.fill(CONFIG.HINOVA_USER);
       
-      await loginBtn.click({ timeout: 5000 }).catch(async () => {
-        await fecharPopups(page);
-        await loginBtn.click({ force: true, timeout: 5000 }).catch(() => {});
-      });
+      // Preencher senha
+      const passInput = page.locator('input[type="password"]').first();
+      await passInput.fill(CONFIG.HINOVA_PASS);
       
-      await page.waitForTimeout(TIMEOUTS.LOGIN_RETRY_WAIT);
+      // Selecionar layout se disponível
+      await trySelectHinovaLayout(page);
       
+      // Clicar em entrar
+      const btnEntrar = page.locator('button:has-text("Entrar"), input[type="submit"], button[type="submit"]').first();
+      await btnEntrar.click();
+      
+      // Aguardar navegação
+      await page.waitForTimeout(5000);
       await fecharPopups(page);
       
-      if (!(await isAindaNaLogin())) {
+      // Verificar se logou
+      const urlAtual = page.url().toLowerCase();
+      if (!urlAtual.includes('login.php')) {
         loginSucesso = true;
-        break;
+        log('Login realizado com sucesso', LOG_LEVELS.SUCCESS);
+      } else {
+        // Verificar erro de login
+        const erroTexto = await page.locator('.alert-danger, .error, .erro').textContent().catch(() => '');
+        if (erroTexto) {
+          log(`Erro de login: ${erroTexto}`, LOG_LEVELS.WARN);
+        }
+        await page.waitForTimeout(TIMEOUTS.LOGIN_RETRY_WAIT);
       }
       
     } catch (e) {
-      log(`Erro na tentativa ${tentativa}: ${e.message}`, LOG_LEVELS.WARN);
-      await fecharPopups(page);
+      log(`Erro na tentativa de login: ${e.message}`, LOG_LEVELS.WARN);
+      await page.waitForTimeout(TIMEOUTS.LOGIN_RETRY_WAIT);
     }
   }
   
   if (!loginSucesso) {
-    await saveDebugInfo(page, 'login_falhou');
     throw new Error('Login falhou após múltiplas tentativas');
   }
-  
-  log('Login realizado com sucesso', LOG_LEVELS.SUCCESS);
 }
 
 // ============================================
-// NAVEGAÇÃO PARA RELATÓRIO (PADRÃO COBRANÇA)
+// NAVEGAÇÃO PARA RELATÓRIO (DIRETO PARA A URL)
 // ============================================
 async function navegarParaRelatorio(page) {
   setStep('NAVEGACAO');
 
-  const targetUrl = String(CONFIG.HINOVA_RELATORIO_URL || '').trim();
-  if (!targetUrl) {
-    throw new Error('HINOVA_RELATORIO_URL está vazio (não é possível navegar)');
-  }
-
+  const targetUrl = CONFIG.HINOVA_RELATORIO_URL;
   log(`Navegando para Relatório MGF: ${targetUrl}`, LOG_LEVELS.INFO);
   
   // Fechar popups antes de navegar
@@ -1537,39 +1267,19 @@ async function navegarParaRelatorio(page) {
   await fecharPopups(page);
   
   // Verificar URL atual
-  let urlAtual = String(page.url() || '').toLowerCase();
+  const urlAtual = String(page.url() || '').toLowerCase();
   log(`URL após navegação: ${urlAtual}`, LOG_LEVELS.DEBUG);
   
-  // Se redirecionou para fecharMovimentoCaixa, é porque clicou em "Fechar" do popup de suporte
-  // Tentar recuperar navegando novamente
-  if (urlAtual.includes('fecharmovimentocaixa.php') || urlAtual.includes('/movimentocaixa/fechar')) {
-    log('AVISO: Redirecionou para fecharMovimentoCaixa.php - tentando recuperar...', LOG_LEVELS.WARN);
-    
-    // Aguardar um pouco e navegar novamente
-    await page.waitForTimeout(2000);
-    await page.goto(targetUrl, { 
-      waitUntil: 'domcontentloaded',
-      timeout: TIMEOUTS.PAGE_LOAD
-    });
-    await page.waitForTimeout(5000);
-    await fecharPopups(page);
-    
-    urlAtual = String(page.url() || '').toLowerCase();
-    log(`URL após recovery: ${urlAtual}`, LOG_LEVELS.DEBUG);
-  }
-
-  // Verificação final
+  // Verificação de redirecionamento para login
   if (urlAtual.includes('login.php')) {
     await saveDebugInfo(page, 'redirect_login');
-    throw new Error(`Navegação para relatório falhou: redirecionou para login (${page.url()})`);
+    throw new Error(`Navegação para relatório falhou: redirecionou para login`);
   }
   
+  // Verificação se está na página correta
   if (!urlAtual.includes('relatoriolancamento.php')) {
-    await saveDebugInfo(page, 'url_relatorio_incorreta');
-    throw new Error(
-      `Navegação para relatório falhou: URL inesperada (${page.url()}). ` +
-      `URL esperada: ${targetUrl}`
-    );
+    await saveDebugInfo(page, 'url_incorreta');
+    throw new Error(`URL inesperada: ${page.url()}. Esperado: relatorioLancamento.php`);
   }
 
   log('Página de relatório aberta', LOG_LEVELS.SUCCESS);
@@ -1577,242 +1287,78 @@ async function navegarParaRelatorio(page) {
 }
 
 // ============================================
-// SELEÇÃO RÍGIDA DE LAYOUT (MESMO PADRÃO DO COBRANÇA)
-// - Procura em TODOS os frames
-// - Seleciona pelo nome exato CONFIG.HINOVA_LAYOUT quando possível
-// - Se falhar, ABORTA (não pode prosseguir sem layout)
+// CONFIGURAÇÃO DE FILTROS
 // ============================================
-async function selecionarLayoutRelatorioMGF(page) {
-  const desiredRaw = String(CONFIG.HINOVA_LAYOUT || '').trim();
-  const desired = normalizeText(desiredRaw);
-
-  if (!desired) {
-    return { ok: false, reason: 'layout_vazio' };
-  }
-
-  const frames = [page.mainFrame(), ...page.frames().filter((f) => f !== page.mainFrame())];
-
-  const tryInFrameEvaluate = async (frame) => {
-    try {
-      return await frame.evaluate(({ desiredRaw, desired }) => {
-        const normalizar = (t) =>
-          (t || '')
-            .toString()
-            .normalize('NFD')
-            .replace(/\p{Diacritic}/gu, '')
-            .toLowerCase()
-            .replace(/\s+/g, ' ')
-            .trim();
-
-        const isVisible = (el) => {
-          try {
-            const r = el.getBoundingClientRect();
-            const style = window.getComputedStyle(el);
-            return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
-          } catch {
-            return false;
-          }
-        };
-
-        const resultado = {
-          ok: false,
-          method: null,
-          selected: null,
-          selectName: null,
-          optionsDisponiveis: [],
-          diagnostics: {
-            selects: [],
-            inputs: [],
-          },
-        };
-
-        const selects = Array.from(document.querySelectorAll('select')).filter(isVisible);
-        const scoreSelect = (s) => {
-          const id = normalizar(s.id || '');
-          const name = normalizar(s.name || '');
-          const attrs = `${id} ${name}`;
-          let score = 0;
-          if (attrs.includes('layout')) score += 20;
-          if (attrs.includes('visualiz')) score += 20;
-          if (attrs.includes('dados')) score += 15;
-          if (attrs.includes('sistema')) score += 10;
-          if (attrs.includes('perfil')) score += 10;
-          return score;
-        };
-
-        // Ordenar selects por “parece layout”
-        const rankedSelects = selects
-          .map((s) => ({ s, score: scoreSelect(s) }))
-          .sort((a, b) => b.score - a.score)
-          .map((x) => x.s);
-
-        for (const select of rankedSelects) {
-          const options = Array.from(select.options || []);
-          const optionTexts = options.map((o) => (o.textContent || o.value || '').trim());
-          const normOptions = optionTexts.map(normalizar);
-
-          resultado.diagnostics.selects.push({
-            name: select.name || null,
-            id: select.id || null,
-            score: scoreSelect(select),
-            options: optionTexts.slice(0, 30),
-          });
-
-          if (resultado.optionsDisponiveis.length === 0) {
-            resultado.optionsDisponiveis = optionTexts.slice(0, 80);
-          }
-
-          // 1) Match exato/contém do layout desejado
-          let idx = normOptions.findIndex((t) => t === desired || t.includes(desired) || desired.includes(t));
-
-          // 2) Fallback: BI + VANGARD + (FINANCEIROS/EVENTOS)
-          if (idx < 0) {
-            idx = normOptions.findIndex((t) => t.includes('bi') && t.includes('vangard') && (t.includes('finance') || t.includes('evento')));
-          }
-
-          if (idx >= 0) {
-            select.selectedIndex = idx;
-            select.dispatchEvent(new Event('input', { bubbles: true }));
-            select.dispatchEvent(new Event('change', { bubbles: true }));
-
-            const selectedText = optionTexts[idx] || options[idx]?.value || null;
-            const selectedNorm = normalizar(selectedText || '');
-            const ok = !!selectedNorm && (selectedNorm.includes('vangard') || selectedNorm.includes(desired));
-
-            if (ok) {
-              resultado.ok = true;
-              resultado.method = 'select';
-              resultado.selected = selectedText;
-              resultado.selectName = select.name || select.id || null;
-              return resultado;
-            }
-          }
-        }
-
-        // Apenas diagnóstico de inputs (para log/debug)
-        const inputs = Array.from(
-          document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"])')
-        ).filter(isVisible);
-        for (const input of inputs.slice(0, 12)) {
-          resultado.diagnostics.inputs.push({
-            name: input.getAttribute('name'),
-            id: input.getAttribute('id'),
-            placeholder: input.getAttribute('placeholder'),
-          });
-        }
-
-        return resultado;
-      }, { desiredRaw, desired });
-    } catch {
-      return { ok: false, reason: 'evaluate_failed' };
-    }
-  };
-
-  const tryInFrameInput = async (frame) => {
-    // Autocomplete/datalist/inputs que existem em alguns portais
-    const input = frame
-      .locator(
-        'input[placeholder*="Dados" i], input[placeholder*="Visual" i], input[placeholder*="Layout" i], input[placeholder*="Sistema" i], input[placeholder*="Perfil" i]'
-      )
-      .first();
-
-    if (!(await input.isVisible().catch(() => false))) return false;
-
-    try {
-      await input.click({ force: true }).catch(() => null);
-      await input.fill(desiredRaw).catch(() => null);
-      await input.press('Enter').catch(() => null);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  // 1) Selecionar em algum frame
-  let lastDiagnostics = null;
-  for (const frame of frames) {
-    const res = await tryInFrameEvaluate(frame);
-    if (res?.diagnostics) lastDiagnostics = res;
-    if (res?.ok) {
-      return { ok: true, method: res.method, selected: res.selected, frameUrl: frame.url() };
-    }
-  }
-
-  // 2) Tentar via input (autocomplete) e reavaliar
-  for (const frame of frames) {
-    const typed = await tryInFrameInput(frame);
-    if (!typed) continue;
-    await page.waitForTimeout(1500);
-    const res = await tryInFrameEvaluate(frame);
-    if (res?.ok) {
-      return { ok: true, method: `input+${res.method}`, selected: res.selected, frameUrl: frame.url() };
-    }
-    if (res?.diagnostics) lastDiagnostics = res;
-  }
-
-  return {
-    ok: false,
-    reason: 'layout_nao_encontrado',
-    desired: desiredRaw,
-    optionsDisponiveis: lastDiagnostics?.optionsDisponiveis || [],
-    diagnostics: lastDiagnostics?.diagnostics || null,
-  };
-}
-
 async function configurarFiltros(page) {
   setStep('FILTROS');
   log('Configurando filtros...', LOG_LEVELS.INFO);
   
-  // Verificar popups antes de iniciar configuração
-  await fecharPopups(page, 2);
+  await fecharPopups(page);
   
-  // 1. CONFIGURAR CHECKBOXES DE CENTRO DE CUSTO
-  log('📋 Configurando checkboxes de Centro de Custo (apenas EVENTOS)...', LOG_LEVELS.INFO);
+  // 1. SELECIONAR LAYOUT "BI VANGARD FINANCEIROS EVENTOS"
+  log('📋 Selecionando layout...', LOG_LEVELS.INFO);
   
-  const batchResult = await page.evaluate(() => {
+  const layoutSelecionado = await page.evaluate(({ desiredLayout }) => {
+    const normalizar = (t) =>
+      (t || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+    
+    const desired = normalizar(desiredLayout);
+    
+    // Procurar selects que parecem ser de layout/visualização
+    const selects = Array.from(document.querySelectorAll('select'));
+    
+    for (const select of selects) {
+      const selectName = (select.name || select.id || '').toLowerCase();
+      const options = Array.from(select.options || []);
+      const optionTexts = options.map(o => (o.textContent || o.value || '').trim());
+      const normOptions = optionTexts.map(normalizar);
+      
+      // Procurar opção que contenha "bi vangard" e "eventos" ou "financeiro"
+      let idx = normOptions.findIndex(t => 
+        (t.includes('bi') && t.includes('vangard') && (t.includes('evento') || t.includes('financeiro'))) ||
+        t.includes(desired)
+      );
+      
+      if (idx >= 0) {
+        select.selectedIndex = idx;
+        select.dispatchEvent(new Event('input', { bubbles: true }));
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        return { ok: true, selected: optionTexts[idx], selectName };
+      }
+    }
+    
+    return { ok: false };
+  }, { desiredLayout: CONFIG.HINOVA_LAYOUT });
+  
+  if (layoutSelecionado.ok) {
+    log(`✅ Layout selecionado: ${layoutSelecionado.selected}`, LOG_LEVELS.SUCCESS);
+    await page.waitForTimeout(3000); // Aguardar carregar opções do layout
+    await fecharPopups(page);
+  } else {
+    log(`⚠️ Layout não encontrado automaticamente, continuando...`, LOG_LEVELS.WARN);
+    await saveDebugInfo(page, 'layout_nao_encontrado');
+  }
+  
+  // 2. CONFIGURAR CHECKBOXES DE CENTRO DE CUSTO (APENAS EVENTOS)
+  log('📋 Configurando Centro de Custo (apenas EVENTOS)...', LOG_LEVELS.INFO);
+  
+  const centroCustoResult = await page.evaluate(() => {
     const normalize = (s) =>
       (s || '')
         .toString()
         .normalize('NFD')
-        .replace(/\p{Diacritic}/gu, '')
+        .replace(/[\u0300-\u036f]/g, '')
         .toUpperCase()
         .replace(/\s+/g, ' ')
         .trim();
     
-    const findCentroCustoContainer = () => {
-      const allElements = document.querySelectorAll('fieldset, div, table, form');
-      
-      for (const el of allElements) {
-        const text = normalize(el.textContent || '');
-        if (text.includes('CENTRO DE CUSTO') || text.includes('CENTRO CUSTO') || text.includes('DEPARTAMENTO')) {
-          const checkboxes = el.querySelectorAll('input[type="checkbox"]');
-          if (checkboxes.length > 0 && checkboxes.length < 500) {
-            return el;
-          }
-        }
-      }
-      
-      const labels = document.querySelectorAll('td, th, label, span');
-      for (const label of labels) {
-        const text = normalize(label.textContent || '');
-        if (text === 'CENTRO DE CUSTO:' || text === 'CENTRO DE CUSTO' || text === 'DEPARTAMENTO:') {
-          const container = label.closest('table') || label.closest('fieldset') || label.closest('div');
-          if (container) {
-            const checkboxes = container.querySelectorAll('input[type="checkbox"]');
-            if (checkboxes.length > 0) return container;
-          }
-        }
-      }
-      
-      return null;
-    };
-    
-    const container = findCentroCustoContainer();
-    if (!container) {
-      return { ok: false, reason: 'container_not_found' };
-    }
-    
-    const labelTextFor = (input) => {
+    const getLabelText = (input) => {
       const id = input.getAttribute('id');
       if (id) {
         const lb = document.querySelector(`label[for="${CSS.escape(id)}"]`);
@@ -1827,6 +1373,26 @@ async function configurarFiltros(page) {
       return '';
     };
     
+    // Procurar container de Centro de Custo
+    let container = null;
+    const allElements = document.querySelectorAll('fieldset, div, table, form, td');
+    
+    for (const el of allElements) {
+      const text = normalize(el.textContent || '');
+      if (text.includes('CENTRO DE CUSTO') || text.includes('CENTRO CUSTO') || text.includes('DEPARTAMENTO')) {
+        const checkboxes = el.querySelectorAll('input[type="checkbox"]');
+        if (checkboxes.length > 0 && checkboxes.length < 500) {
+          container = el;
+          break;
+        }
+      }
+    }
+    
+    if (!container) {
+      // Fallback: procurar todos os checkboxes da página
+      container = document.body;
+    }
+    
     const checkboxes = Array.from(container.querySelectorAll('input[type="checkbox"]'));
     let marcados = 0;
     let desmarcados = 0;
@@ -1834,9 +1400,10 @@ async function configurarFiltros(page) {
     const detalhes = [];
     
     for (const input of checkboxes) {
-      const labelText = normalize(labelTextFor(input));
+      const labelText = normalize(getLabelText(input));
       if (!labelText || labelText === 'TODOS') continue;
       
+      // Marcar APENAS os que contêm "EVENTO"
       const shouldCheck = labelText.includes('EVENTO');
       
       if (input.checked !== shouldCheck) {
@@ -1848,657 +1415,672 @@ async function configurarFiltros(page) {
       
       if (shouldCheck) {
         marcados++;
-        detalhes.push(`✓ ${labelText}`);
+        detalhes.push(labelText.substring(0, 30));
       } else {
         desmarcados++;
       }
     }
     
     return {
-      ok: true,
+      ok: marcados > 0,
       total: checkboxes.length,
       marcados,
       desmarcados,
       alterados,
-      detalhes: detalhes.slice(0, 10),
+      detalhes: detalhes.slice(0, 5),
     };
   });
   
-  if (!batchResult?.ok) {
-    log(`⚠️ Container de Centro de Custo não encontrado: ${batchResult?.reason}`, LOG_LEVELS.WARN);
-  } else {
-    log(`✅ Centro de Custo configurado: total=${batchResult.total}, marcados=${batchResult.marcados}, desmarcados=${batchResult.desmarcados}, alterados=${batchResult.alterados}`, LOG_LEVELS.SUCCESS);
-    if (batchResult.detalhes?.length > 0) {
-      log(`   Marcados: ${batchResult.detalhes.join(', ')}`, LOG_LEVELS.DEBUG);
+  if (centroCustoResult.ok) {
+    log(`✅ Centro de Custo: ${centroCustoResult.marcados} EVENTOS marcados, ${centroCustoResult.desmarcados} outros desmarcados`, LOG_LEVELS.SUCCESS);
+    if (centroCustoResult.detalhes.length > 0) {
+      log(`   Marcados: ${centroCustoResult.detalhes.join(', ')}`, LOG_LEVELS.DEBUG);
     }
+  } else {
+    log(`⚠️ Nenhum checkbox EVENTOS encontrado (total: ${centroCustoResult.total})`, LOG_LEVELS.WARN);
   }
   
-  // Verificar popups após configurar Centro de Custo
-  await fecharPopups(page, 2);
+  await fecharPopups(page);
   await page.waitForTimeout(1000);
   
-  // 2. SELECIONAR LAYOUT
-  log('📋 Selecionando layout...', LOG_LEVELS.INFO);
-
-  const layoutSel = await selecionarLayoutRelatorioMGF(page);
-  if (layoutSel?.ok) {
-    log(`✅ Layout selecionado (MGF): ${layoutSel.selected}`, LOG_LEVELS.SUCCESS);
-    log(`   Método: ${layoutSel.method} | Frame: ${layoutSel.frameUrl || 'main'}`, LOG_LEVELS.DEBUG);
-
-    // Aguardar carregamento com verificação contínua de popups (crítico!)
-    log('⏳ Aguardando configurações do layout carregarem (verificando popups)...', LOG_LEVELS.INFO);
-    await aguardarComFecharPopups(page, 20000, 3000);
-  } else {
-    log(`❌ ERRO CRÍTICO: Layout "${CONFIG.HINOVA_LAYOUT}" não selecionado no MGF`, LOG_LEVELS.ERROR);
-    if (layoutSel?.optionsDisponiveis?.length) {
-      log(`   Opções (amostra): ${layoutSel.optionsDisponiveis.slice(0, 25).join(' | ')}`, LOG_LEVELS.DEBUG);
+  // 3. SELECIONAR FORMATO "EM EXCEL"
+  log('📋 Selecionando formato Em Excel...', LOG_LEVELS.INFO);
+  
+  const excelSelecionado = await page.evaluate(() => {
+    // Procurar radio buttons
+    const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+    
+    for (const radio of radios) {
+      // Pegar texto do container
+      const containers = [
+        radio.closest('tr'),
+        radio.closest('td'),
+        radio.closest('label'),
+        radio.closest('div'),
+        radio.parentElement,
+      ].filter(Boolean);
+      
+      for (const container of containers) {
+        const text = (container.textContent || '').toLowerCase();
+        if (text.includes('excel') && !text.includes('tela')) {
+          if (radio.disabled) continue;
+          
+          // Desmarcar outros do mesmo grupo
+          if (radio.name) {
+            const siblings = document.querySelectorAll(`input[type="radio"][name="${radio.name}"]`);
+            siblings.forEach(r => {
+              if (r !== radio && r.checked) {
+                r.checked = false;
+                r.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            });
+          }
+          
+          radio.checked = true;
+          radio.dispatchEvent(new Event('click', { bubbles: true }));
+          radio.dispatchEvent(new Event('input', { bubbles: true }));
+          radio.dispatchEvent(new Event('change', { bubbles: true }));
+          
+          return { ok: true, text: text.substring(0, 50) };
+        }
+      }
     }
-    await saveDebugInfo(page, 'layout_nao_encontrado');
-    throw new Error(`ERRO CRÍTICO: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado/selecionado. Sem isso, o relatório vem errado ou o download nem inicia.`);
+    
+    return { ok: false };
+  });
+  
+  if (excelSelecionado.ok) {
+    log(`✅ Formato Excel selecionado`, LOG_LEVELS.SUCCESS);
+  } else {
+    log(`⚠️ Radio "Em Excel" não encontrado automaticamente`, LOG_LEVELS.WARN);
   }
   
-  // Verificar popups antes de continuar
-  await fecharPopups(page, 2);
-  await page.waitForTimeout(1000);
-  
-  // 3. SELECIONAR FORMATO EXCEL
-  log('📋 Selecionando formato Excel...', LOG_LEVELS.INFO);
-  
-  const excelSelecionado = await selecionarFormaExibicaoEmExcel(page);
-  
-  if (!excelSelecionado) {
-    log('⚠️ Não foi possível selecionar formato Excel automaticamente', LOG_LEVELS.WARN);
-  }
-  
-  // Verificar popups finais antes de prosseguir para geração
-  await fecharPopups(page, 2);
-  
+  await fecharPopups(page);
   await saveDebugInfo(page, 'filtros_configurados');
   log('Filtros configurados', LOG_LEVELS.SUCCESS);
 }
 
 // ============================================
-// SELEÇÃO DE FORMATO EXCEL (IDÊNTICO AO ROBÔ DE COBRANÇA)
+// GERAR RELATÓRIO E AGUARDAR DOWNLOAD
 // ============================================
-async function selecionarFormaExibicaoEmExcel(page) {
-  log('Selecionando Forma de Exibição: Em Excel', LOG_LEVELS.INFO);
-  
-  // Verificar popups antes de selecionar formato
-  await fecharPopups(page, 2);
-  
-  const tryInFrame = async (frame) => {
-    try {
-      const result = await frame.evaluate(() => {
-        const setRadioChecked = (radio) => {
-          try {
-            if (radio.disabled) return false;
-            
-            if (radio.name) {
-              const siblings = document.querySelectorAll(`input[type="radio"][name="${radio.name}"]`);
-              siblings.forEach(r => {
-                if (r !== radio && r.checked) {
-                  r.checked = false;
-                  r.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-              });
-            }
-            
-            radio.checked = true;
-            radio.dispatchEvent(new Event('click', { bubbles: true }));
-            radio.dispatchEvent(new Event('input', { bubbles: true }));
-            radio.dispatchEvent(new Event('change', { bubbles: true }));
-            
-            const form = radio.closest('form');
-            if (form) {
-              form.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            
-            return true;
-          } catch (e) {
-            return false;
-          }
-        };
-
-        const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
-        
-        // Estratégia 1: Buscar por texto próximo
-        for (const radio of radios) {
-          const containers = [
-            radio.closest('tr'),
-            radio.closest('td'),
-            radio.closest('label'),
-            radio.closest('div'),
-            radio.parentElement,
-            radio.closest('font'),
-            radio.closest('p'),
-          ].filter(Boolean);
-          
-          for (const container of containers) {
-            const text = (container.textContent || '').toLowerCase();
-            
-            if (/\bem\s*excel\b/i.test(text) || (text.includes('excel') && text.includes('em'))) {
-              if (setRadioChecked(radio)) {
-                return { success: true, method: 'nearText', radioValue: radio.value };
-              }
-            }
-          }
-        }
-        
-        // Estratégia 2: Buscar pelo valor do radio
-        for (const radio of radios) {
-          const value = (radio.value || '').toLowerCase();
-          const name = (radio.name || '').toLowerCase();
-          
-          if (value.includes('excel') || name.includes('excel') || value === 'xls' || value === 'xlsx') {
-            if (setRadioChecked(radio)) {
-              return { success: true, method: 'value', radioValue: radio.value };
-            }
-          }
-        }
-        
-        // Estratégia 3: Buscar texto "Em Excel" na página
-        const textElements = document.querySelectorAll('td, span, label, font, div, p, b, strong');
-        for (const el of textElements) {
-          const text = (el.textContent || '').trim();
-          
-          if (/^Em\s*Excel$/i.test(text) || /\bEm\s*Excel\b/i.test(text)) {
-            const tr = el.closest('tr');
-            if (tr) {
-              const radio = tr.querySelector('input[type="radio"]');
-              if (radio && setRadioChecked(radio)) {
-                return { success: true, method: 'sameRow', radioValue: radio.value };
-              }
-            }
-            
-            const parent = el.parentElement;
-            if (parent) {
-              const radio = parent.querySelector('input[type="radio"]');
-              if (radio && setRadioChecked(radio)) {
-                return { success: true, method: 'parent', radioValue: radio.value };
-              }
-            }
-          }
-        }
-        
-        // Estratégia 4: Grupo de forma exibição
-        const formaExibicaoRadios = radios.filter(r => {
-          const name = (r.name || '').toLowerCase();
-          return name.includes('forma') || name.includes('exib') || name.includes('tipo') || name.includes('output');
-        });
-        
-        if (formaExibicaoRadios.length >= 2) {
-          const excelRadio = formaExibicaoRadios[1];
-          if (setRadioChecked(excelRadio)) {
-            return { success: true, method: 'groupSecond', radioValue: excelRadio.value };
-          }
-        }
-        
-        return { success: false, totalRadios: radios.length };
-      });
-      
-      if (result.success) {
-        log(`Excel selecionado: ${result.method}`, LOG_LEVELS.SUCCESS);
-        await page.waitForTimeout(500);
-        return true;
-      }
-      
-    } catch (e) {
-      log(`Erro na seleção JavaScript: ${e.message}`, LOG_LEVELS.DEBUG);
-    }
-
-    return false;
-  };
-
-  if (await tryInFrame(page.mainFrame())) {
-    return true;
-  }
-
-  for (const frame of page.frames()) {
-    if (frame === page.mainFrame()) continue;
-    if (await tryInFrame(frame)) {
-      return true;
-    }
-  }
-
-  log('Fallback: Excel não encontrado via JavaScript', LOG_LEVELS.WARN);
-  return false;
-}
-
-// ============================================
-// GERAR E BAIXAR RELATÓRIO (USANDO SISTEMA HÍBRIDO)
-// ============================================
-async function gerarEBaixarRelatorio(page, context) {
-  setStep('DOWNLOAD');
+async function gerarRelatorio(page, context) {
+  setStep('GERACAO');
   log('Gerando relatório...', LOG_LEVELS.INFO);
-
-  // Verificar popups antes de iniciar geração do relatório
-  await fecharPopups(page, 3);
-
-  // DEBUG CRÍTICO: confirmar se o portal realmente disparou a requisição de geração do relatório
-  // (mesmo quando não abre popup e não dispara evento de download).
-  const netTag = '[MGF NET]';
-  const onReq = (req) => {
-    try {
-      const url = String(req.url() || '');
-      if (!url.toLowerCase().includes('relatoriolancamento.php')) return;
-      log(`${netTag} request: ${req.method()} ${url}`, LOG_LEVELS.DEBUG);
-    } catch {}
-  };
-  const onResp = (res) => {
-    try {
-      const url = String(res.url() || '');
-      if (!url.toLowerCase().includes('relatoriolancamento.php')) return;
-      const req = res.request?.();
-      const method = req?.method?.() || 'GET';
-      const headers = res.headers?.() || {};
-      const ct = String(headers['content-type'] || '');
-      const cd = String(headers['content-disposition'] || '');
-      const len = String(headers['content-length'] || '');
-      log(`${netTag} response: ${method} ${url} status=${res.status?.() ?? 'n/a'} ct="${ct}" cd="${cd}" len=${len || 'n/a'}`, LOG_LEVELS.DEBUG);
-    } catch {}
-  };
-  page.on('request', onReq);
-  page.on('response', onResp);
-  const cleanupNet = () => {
-    try { page.removeListener('request', onReq); } catch {}
-    try { page.removeListener('response', onResp); } catch {}
-  };
-
-  try {
   
+  await fecharPopups(page);
+  
+  // Preparar download
   const downloadDir = getDownloadDirectory();
   const semanticName = generateSemanticFilename();
   
-  log(`Diretório de download: ${downloadDir}`, LOG_LEVELS.INFO);
-  log(`Nome do arquivo: ${semanticName}`, LOG_LEVELS.DEBUG);
-  
-  // Aumentar timeout para download
-  context.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
-  page.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
-  
-  await saveDebugInfo(page, 'antes_gerar');
-
-  // Alguns portais Hinova exibem um botão "Liberar" (destrava filtros) e só depois o botão real de geração.
-  // Se clicarmos no botão errado, nenhum download é disparado e ficamos aguardando indefinidamente.
-  const frames = [page.mainFrame(), ...page.frames().filter((f) => f !== page.mainFrame())];
-
-  const clickOptionalButtonAcrossFrames = async (keywords, label) => {
-    const lowered = keywords.map((k) => k.toLowerCase());
-    const exclude = ['fechar', 'cancelar', 'voltar', 'sair', 'limpar', 'reset'];
-
-    for (const frame of frames) {
-      const candidates = frame.locator('button, input[type="submit"], input[type="button"], a');
-      const count = await candidates.count().catch(() => 0);
-      for (let i = 0; i < count; i++) {
-        const el = candidates.nth(i);
-        const visible = await el.isVisible().catch(() => false);
-        if (!visible) continue;
-
-        const text = (
-          (await el.textContent().catch(() => '')) ||
-          (await el.getAttribute('value').catch(() => '')) ||
-          ''
-        ).trim();
-
-        const t = text.toLowerCase();
-        if (!t) continue;
-        if (exclude.some((k) => t.includes(k))) continue;
-
-        if (lowered.some((k) => t.includes(k))) {
-          log(`Botão opcional detectado (${label}): "${text}" (frame=${frame.url() || 'main'})`, LOG_LEVELS.DEBUG);
-          await el.click({ timeout: 15000, force: true }).catch(() => {});
-          await page.waitForTimeout(1500);
-          return true;
-        }
-      }
+  // Procurar e clicar no botão de gerar
+  const gerarResult = await page.evaluate(() => {
+    const normalize = (s) =>
+      (s || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+    
+    // Scoring de botões
+    const scoreButton = (el) => {
+      const text = normalize(el.textContent || el.value || '');
+      const name = normalize(el.name || '');
+      const id = normalize(el.id || '');
+      const combined = `${text} ${name} ${id}`;
+      
+      let score = 0;
+      
+      // Positivo
+      if (combined.includes('gerar')) score += 50;
+      if (combined.includes('relatorio')) score += 30;
+      if (combined.includes('exportar')) score += 40;
+      if (combined.includes('baixar')) score += 35;
+      if (combined.includes('excel')) score += 20;
+      
+      // Negativo (evitar botões errados)
+      if (combined.includes('fechar')) score -= 100;
+      if (combined.includes('liberar')) score -= 80;
+      if (combined.includes('cancelar')) score -= 80;
+      if (combined.includes('limpar')) score -= 60;
+      
+      return { el, score, text };
+    };
+    
+    const buttons = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"], a.btn'));
+    const scored = buttons.map(scoreButton).filter(b => b.score > 0);
+    scored.sort((a, b) => b.score - a.score);
+    
+    if (scored.length === 0) {
+      return { ok: false, reason: 'no_button_found' };
     }
-    return false;
-  };
-
-  const findActionButtonAcrossFrames = async () => {
-    const prefer = ['gerar', 'exportar', 'baixar', 'download', 'imprimir', 'excel', 'xls', 'xlsx'];
-    const exclude = ['fechar', 'cancelar', 'voltar', 'sair', 'limpar', 'reset'];
-
-    let best = null;
-
-    for (const frame of frames) {
-      const candidates = frame.locator('button, input[type="submit"], input[type="button"], a');
-      const count = await candidates.count().catch(() => 0);
-
-      for (let i = 0; i < count; i++) {
-        const el = candidates.nth(i);
-        const visible = await el.isVisible().catch(() => false);
-        if (!visible) continue;
-
-        const text = (
-          (await el.textContent().catch(() => '')) ||
-          (await el.getAttribute('value').catch(() => '')) ||
-          ''
-        ).trim();
-
-        if (!text) continue;
-        const t = text.toLowerCase();
-        if (exclude.some((k) => t.includes(k))) continue;
-
-        let score = 0;
-        if (t.includes('gerar')) score += 50;
-        if (t.includes('export')) score += 40;
-        if (t.includes('baix')) score += 35;
-        if (t.includes('download')) score += 35;
-        if (t.includes('excel') || t.includes('xls')) score += 30;
-        if (t.includes('pesquisar') || t.includes('consultar')) score += 10;
-        if (t.includes('liberar')) score -= 100; // nunca tratar "Liberar" como botão final
-        if (prefer.some((k) => t.includes(k))) score += 1;
-
-        if (!best || score > best.score) {
-          best = { el, text, score, frameUrl: frame.url() };
-        }
-      }
-    }
-
-    if (!best || best.score <= 0) return null;
-    log(`Botão de ação selecionado: "${best.text}" (score=${best.score}) (frame=${best.frameUrl || 'main'})`, LOG_LEVELS.DEBUG);
-    return best.el;
-  };
+    
+    const best = scored[0];
+    best.el.click();
+    
+    return { ok: true, clicked: best.text, score: best.score };
+  });
   
-  // 1) Se houver botão "Liberar", clicar (sem iniciar download ainda)
-  await clickOptionalButtonAcrossFrames(['liberar'], 'LIBERAR');
-
-  // Verificar popups que podem ter aparecido após clicar em Liberar
-  await fecharPopups(page, 2);
-
-  // 2) Encontrar o botão real de geração/exportação (NÃO usar btn-primary genérico)
-  let gerarBtn = await findActionButtonAcrossFrames();
-  
-  if (!gerarBtn) {
-    await saveDebugInfo(page, 'botao_nao_encontrado');
-    throw new Error('Botão Gerar/Pesquisar não encontrado na página');
+  if (!gerarResult.ok) {
+    await saveDebugInfo(page, 'botao_gerar_nao_encontrado');
+    throw new Error('Botão de gerar relatório não encontrado');
   }
-
-  // Verificar popups finais antes do clique de geração
-  await fecharPopups(page, 2);
-
-  // Preparar captura ANTES do clique para não perder downloads rápidos
-  const downloadPromise = aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
-
-  // Sinal extra (somente log): se abrir popup/nova aba ou disparar download nos primeiros segundos
-  const popupSignal = page
-    .waitForEvent('popup', { timeout: 8000 })
-    .then((p) => log(`🚀 DOWNLOAD INICIADO (UI): popup/nova aba criada (url=${p.url() || 'n/a'})`, LOG_LEVELS.SUCCESS))
-    .catch(() => null);
-  const downloadSignal = page
-    .waitForEvent('download', { timeout: 8000 })
-    .then(() => log('🚀 DOWNLOAD INICIADO (UI): evento de download disparado', LOG_LEVELS.SUCCESS))
-    .catch(() => null);
-
-  // Clicar e aguardar download usando sistema híbrido
-  log('Clicando no botão Gerar/Exportar...', LOG_LEVELS.INFO);
-  await gerarBtn.click({ timeout: 15000, force: true });
-  log('Botão de geração clicado', LOG_LEVELS.SUCCESS);
-
-  // Evitar warning de promise não aguardada; são apenas sinais de log.
-  await Promise.race([popupSignal, downloadSignal, page.waitForTimeout(8000)]).catch(() => null);
-
-  const result = await downloadPromise;
   
-  if (!result.success) {
+  log(`Botão clicado: "${gerarResult.clicked}" (score: ${gerarResult.score})`, LOG_LEVELS.SUCCESS);
+  
+  // Aguardar download
+  log('Aguardando download do relatório...', LOG_LEVELS.INFO);
+  
+  const downloadResult = await aguardarDownloadHibrido(
+    context,
+    page,
+    downloadDir,
+    semanticName,
+    TIMEOUTS.DOWNLOAD_HARD
+  );
+  
+  if (!downloadResult.success) {
     await saveDebugInfo(page, 'download_falhou');
-    throw result.error || new Error('Download falhou');
+    throw downloadResult.error || new Error('Download do relatório falhou');
   }
   
-  log(`✅ Arquivo baixado: ${result.filePath} (${formatBytes(result.size)})`, LOG_LEVELS.SUCCESS);
-  return result.filePath;
-  } finally {
-    cleanupNet();
-  }
+  log(`Relatório baixado: ${downloadResult.filePath}`, LOG_LEVELS.SUCCESS);
+  return downloadResult;
 }
 
 // ============================================
 // PROCESSAMENTO DE ARQUIVO
 // ============================================
-function extrairTexto(html) {
-  return String(html || '')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(n))
+function detectFileType(filePath) {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    const buffer = Buffer.alloc(8);
+    fs.readSync(fd, buffer, 0, 8, 0);
+    fs.closeSync(fd);
+    
+    // ZIP (XLSX)
+    if (buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04) {
+      return { type: 'xlsx' };
+    }
+    
+    // XLS (BIFF)
+    if (buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0) {
+      return { type: 'xls' };
+    }
+    
+    // HTML
+    const textStart = buffer.toString('utf8', 0, 8).toLowerCase();
+    if (textStart.includes('<') || textStart.includes('<!doctype') || textStart.includes('<html')) {
+      return { type: 'html' };
+    }
+    
+    return { type: 'unknown' };
+  } catch (e) {
+    return { type: 'unknown', error: e.message };
+  }
+}
+
+function parseMoneyValue(val) {
+  if (val === null || val === undefined || val === '') return null;
+  const str = String(val).replace(/\s/g, '');
+  if (str === '-' || str === '') return null;
+  
+  // Formato BR: 1.234,56
+  if (/^\d{1,3}(\.\d{3})*,\d{2}$/.test(str)) {
+    return parseFloat(str.replace(/\./g, '').replace(',', '.'));
+  }
+  
+  // Formato US: 1,234.56
+  if (/^\d{1,3}(,\d{3})*\.\d{2}$/.test(str)) {
+    return parseFloat(str.replace(/,/g, ''));
+  }
+  
+  // Simples: 1234.56 ou 1234,56
+  const clean = str.replace(/[^\d,.-]/g, '');
+  if (clean.includes(',') && !clean.includes('.')) {
+    return parseFloat(clean.replace(',', '.'));
+  }
+  
+  return parseFloat(clean) || null;
+}
+
+function parseExcelDate(val) {
+  if (!val || val === '-') return null;
+  
+  const str = String(val).trim();
+  
+  // DD/MM/YYYY
+  const brMatch = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (brMatch) {
+    return `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
+  }
+  
+  // YYYY-MM-DD
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    return str;
+  }
+  
+  // Excel serial number
+  if (typeof val === 'number' && val > 10000 && val < 100000) {
+    const date = new Date((val - 25569) * 86400 * 1000);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+  }
+  
+  return null;
+}
+
+// Mapeamento de colunas MGF
+const COLUMN_MAP = {
+  // Centro de Custo / Departamento
+  'centro de custo': 'Centro Custo',
+  'centro custo': 'Centro Custo',
+  'departamento': 'Departamento',
+  
+  // Valores
+  'valor': 'Valor',
+  'valor total': 'Valor Total',
+  
+  // Datas
+  'data': 'Data',
+  'data lancamento': 'Data Lancamento',
+  'data vencimento': 'Data Vencimento',
+  'data pagamento': 'Data Pagamento',
+  
+  // Identificação
+  'descricao': 'Descricao',
+  'historico': 'Historico',
+  'documento': 'Documento',
+  'numero': 'Numero',
+  
+  // Associado
+  'nome': 'Nome',
+  'placa': 'Placa',
+  'placas': 'Placas',
+  'voluntario': 'Voluntario',
+  'associado': 'Associado',
+  
+  // Outros
+  'tipo': 'Tipo',
+  'status': 'Status',
+  'situacao': 'Situacao',
+  'observacao': 'Observacao',
+};
+
+function normalizeHeader(header) {
+  return String(header || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-function processarTabelaHtml(htmlContent) {
-  log('Processando arquivo como tabela HTML...', LOG_LEVELS.INFO);
+function processarExcel(filePath) {
+  setStep('PROCESSAMENTO_EXCEL');
+  log(`Processando arquivo Excel: ${filePath}`);
   
-  const theadMatch = htmlContent.match(/<thead[^>]*>([\s\S]*?)<\/thead>/i);
-  let headers = [];
+  const workbook = XLSX.readFile(filePath);
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
   
-  if (theadMatch) {
-    const headerMatches = theadMatch[1].match(/<th[^>]*>([\s\S]*?)<\/th>/gi) || [];
-    headers = headerMatches.map(th => extrairTexto(th));
-    log(`Headers encontrados: ${headers.length}`, LOG_LEVELS.DEBUG);
+  log(`Total de linhas brutas: ${rawData.length}`, LOG_LEVELS.DEBUG);
+  
+  if (rawData.length === 0) {
+    return [];
   }
   
-  const tbodyMatch = htmlContent.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
-  const registros = [];
+  const headersOriginais = Object.keys(rawData[0]);
+  log(`Colunas: ${headersOriginais.length}`, LOG_LEVELS.DEBUG);
   
-  if (tbodyMatch) {
-    const rowMatches = tbodyMatch[1].match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [];
-    log(`Linhas encontradas no tbody: ${rowMatches.length}`, LOG_LEVELS.DEBUG);
-    
-    for (const row of rowMatches) {
-      const cellMatches = row.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || [];
-      const values = cellMatches.map(td => extrairTexto(td));
-      
-      if (values.length > 0 && values.some(v => v.length > 0)) {
-        const record = {};
-        headers.forEach((h, i) => {
-          if (h && values[i] !== undefined) {
-            record[h] = values[i];
-          }
-        });
-        registros.push(record);
+  const headerMapping = {};
+  for (const header of headersOriginais) {
+    const normalized = normalizeHeader(header);
+    if (COLUMN_MAP[normalized]) {
+      headerMapping[header] = COLUMN_MAP[normalized];
+    } else {
+      for (const [key, value] of Object.entries(COLUMN_MAP)) {
+        if (normalized.includes(key) || key.includes(normalized)) {
+          headerMapping[header] = value;
+          break;
+        }
       }
     }
   }
   
-  log(`Registros extraídos da tabela HTML: ${registros.length}`, LOG_LEVELS.SUCCESS);
-  return registros;
+  const dados = [];
+  for (const row of rawData) {
+    const rowData = {};
+    let temDados = false;
+    
+    for (const [originalHeader, mappedHeader] of Object.entries(headerMapping)) {
+      let value = row[originalHeader];
+      
+      if (mappedHeader.includes('Data')) {
+        value = parseExcelDate(value);
+      } else if (mappedHeader === 'Valor' || mappedHeader === 'Valor Total') {
+        value = parseMoneyValue(value);
+      } else {
+        value = value ? String(value).trim() : null;
+      }
+      
+      if (value !== null && value !== '') {
+        rowData[mappedHeader] = value;
+        temDados = true;
+      }
+    }
+    
+    if (temDados) {
+      dados.push(rowData);
+    }
+  }
+  
+  log(`Registros válidos: ${dados.length}`, LOG_LEVELS.SUCCESS);
+  return dados;
 }
 
-function processarArquivo(filePath) {
-  log(`Processando arquivo: ${filePath}`, LOG_LEVELS.INFO);
+function processarHtml(filePath) {
+  setStep('PROCESSAMENTO_HTML');
+  log(`Processando arquivo HTML: ${filePath}`);
   
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Arquivo não encontrado: ${filePath}`);
+  const content = fs.readFileSync(filePath, 'utf-8');
+  
+  // Extrair tabelas
+  const tableMatch = content.match(/<table[^>]*>[\s\S]*?<\/table>/gi);
+  if (!tableMatch || tableMatch.length === 0) {
+    log('Nenhuma tabela encontrada no HTML', LOG_LEVELS.WARN);
+    return [];
   }
   
-  const fileBuffer = fs.readFileSync(filePath);
-  const fileSize = fileBuffer.length;
-  log(`Tamanho do arquivo: ${formatBytes(fileSize)}`, LOG_LEVELS.DEBUG);
-  
-  const header = fileBuffer.slice(0, 100).toString('utf8');
-  const isHtml = header.includes('<html') || header.includes('<table') || header.includes('<!DOCTYPE');
-  
-  if (isHtml) {
-    log('Arquivo detectado como HTML', LOG_LEVELS.INFO);
-    const htmlContent = fileBuffer.toString('utf8');
-    
-    if (htmlContent.includes('Nenhum registro encontrado') || htmlContent.includes('Sem dados')) {
-      log('Portal retornou "Nenhum registro encontrado"', LOG_LEVELS.WARN);
-      return [];
+  // Pegar a maior tabela
+  let largestTable = tableMatch[0];
+  for (const t of tableMatch) {
+    if (t.length > largestTable.length) {
+      largestTable = t;
     }
-    
-    return processarTabelaHtml(htmlContent);
   }
   
-  try {
-    log('Processando como arquivo Excel...', LOG_LEVELS.INFO);
-    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
-    
-    if (jsonData.length > 0) {
-      log(`Registros extraídos do Excel: ${jsonData.length}`, LOG_LEVELS.SUCCESS);
-      return jsonData;
+  // Extrair linhas
+  const rowMatches = largestTable.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+  const rows = [];
+  
+  for (const rowHtml of rowMatches) {
+    const cells = [];
+    const cellMatches = rowHtml.match(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi) || [];
+    for (const cellHtml of cellMatches) {
+      const text = cellHtml.replace(/<[^>]+>/g, '').trim();
+      cells.push(text);
     }
-    
-    const rawData = XLSX.utils.sheet_to_csv(firstSheet);
-    if (rawData.includes('<html') || rawData.includes('<table')) {
-      log('Excel contém HTML, processando como HTML...', LOG_LEVELS.INFO);
-      return processarTabelaHtml(rawData);
+    if (cells.length > 0) {
+      rows.push(cells);
     }
-    
-    return jsonData;
-  } catch (e) {
-    log(`Erro ao processar Excel: ${e.message}`, LOG_LEVELS.WARN);
-    
-    const content = fileBuffer.toString('utf8');
-    if (content.includes('<table')) {
-      return processarTabelaHtml(content);
-    }
-    
-    throw e;
   }
+  
+  log(`Linhas extraídas do HTML: ${rows.length}`, LOG_LEVELS.DEBUG);
+  
+  if (rows.length < 2) {
+    return [];
+  }
+  
+  // Primeira linha como header
+  const headers = rows[0].map(normalizeHeader);
+  
+  const headerMapping = [];
+  for (let i = 0; i < headers.length; i++) {
+    const h = headers[i];
+    if (COLUMN_MAP[h]) {
+      headerMapping[i] = COLUMN_MAP[h];
+    } else {
+      for (const [key, value] of Object.entries(COLUMN_MAP)) {
+        if (h.includes(key) || key.includes(h)) {
+          headerMapping[i] = value;
+          break;
+        }
+      }
+    }
+  }
+  
+  const dados = [];
+  for (let i = 1; i < rows.length; i++) {
+    const cells = rows[i];
+    const rowData = {};
+    let temDados = false;
+    
+    for (let j = 0; j < cells.length && j < headerMapping.length; j++) {
+      const mappedHeader = headerMapping[j];
+      if (!mappedHeader) continue;
+      
+      let value = cells[j];
+      
+      if (mappedHeader.includes('Data')) {
+        value = parseExcelDate(value);
+      } else if (mappedHeader === 'Valor' || mappedHeader === 'Valor Total') {
+        value = parseMoneyValue(value);
+      } else {
+        value = value ? String(value).trim() : null;
+      }
+      
+      if (value !== null && value !== '') {
+        rowData[mappedHeader] = value;
+        temDados = true;
+      }
+    }
+    
+    if (temDados) {
+      dados.push(rowData);
+    }
+  }
+  
+  log(`Registros válidos do HTML: ${dados.length}`, LOG_LEVELS.SUCCESS);
+  return dados;
+}
+
+async function processarArquivo(filePath) {
+  const fileType = detectFileType(filePath);
+  
+  if (fileType.type === 'html') {
+    log(`Formato detectado: HTML`, LOG_LEVELS.INFO);
+    return processarHtml(filePath);
+  }
+  
+  log(`Formato detectado: ${fileType.type.toUpperCase()}`, LOG_LEVELS.INFO);
+  return processarExcel(filePath);
 }
 
 // ============================================
-// MAIN
+// ENVIAR WEBHOOK COM DADOS
+// ============================================
+async function enviarDados(dados, nomeArquivo) {
+  setStep('IMPORTACAO');
+  
+  if (!CONFIG.WEBHOOK_URL) {
+    log('WEBHOOK_URL não configurado', LOG_LEVELS.WARN);
+    return false;
+  }
+  
+  const headers = { 'Content-Type': 'application/json' };
+  if (CONFIG.WEBHOOK_SECRET) headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
+  
+  const BATCH_SIZE = 1000;
+  const total = dados.length;
+  const totalChunks = Math.ceil(total / BATCH_SIZE);
+  let importacaoId = null;
+  let enviados = 0;
+  
+  log(`Enviando ${total} registros em ${totalChunks} lotes...`, LOG_LEVELS.INFO);
+  
+  for (let offset = 0; offset < total; offset += BATCH_SIZE) {
+    const chunkIndex = Math.floor(offset / BATCH_SIZE) + 1;
+    const batch = dados.slice(offset, offset + BATCH_SIZE);
+    
+    const payload = {
+      corretora_id: CONFIG.CORRETORA_ID,
+      importacao_id: importacaoId,
+      execucao_id: CONFIG.EXECUCAO_ID || null,
+      github_run_id: CONFIG.GITHUB_RUN_ID || null,
+      github_run_url: CONFIG.GITHUB_RUN_URL || null,
+      dados: batch,
+      nome_arquivo: nomeArquivo,
+      total_registros: total,
+      chunk_index: chunkIndex,
+      chunk_total: totalChunks,
+    };
+    
+    try {
+      const response = await axios.post(CONFIG.WEBHOOK_URL, payload, {
+        headers,
+        timeout: 600000,
+      });
+      
+      if (!importacaoId && response.data?.importacao_id) {
+        importacaoId = response.data.importacao_id;
+      }
+      
+      enviados += batch.length;
+      const pct = Math.min(100, Math.floor((enviados / total) * 100));
+      log(`   Lote ${chunkIndex}/${totalChunks}: ${pct}% (${enviados}/${total})`, LOG_LEVELS.INFO);
+      
+    } catch (error) {
+      log(`Erro no lote ${chunkIndex}: ${error.message}`, LOG_LEVELS.ERROR);
+      return false;
+    }
+  }
+  
+  log(`Dados enviados com sucesso: ${enviados} registros`, LOG_LEVELS.SUCCESS);
+  return true;
+}
+
+// ============================================
+// FUNÇÃO PRINCIPAL
 // ============================================
 async function main() {
-  log('============================================================', LOG_LEVELS.SUCCESS);
-  log('ROBÔ MGF HINOVA - INICIANDO', LOG_LEVELS.SUCCESS);
-  log('============================================================', LOG_LEVELS.SUCCESS);
+  setStep('VALIDACAO');
   
+  if (!CONFIG.HINOVA_USER || !CONFIG.HINOVA_PASS) {
+    throw new Error('HINOVA_USER e HINOVA_PASS são obrigatórios');
+  }
+  if (!CONFIG.WEBHOOK_URL) {
+    throw new Error('WEBHOOK_URL é obrigatório');
+  }
+
+  log('='.repeat(60));
+  log('INICIANDO ROBÔ MGF HINOVA');
+  log('='.repeat(60));
+  log(`URL Login: ${CONFIG.HINOVA_URL}`, LOG_LEVELS.INFO);
+  log(`URL Relatório: ${CONFIG.HINOVA_RELATORIO_URL}`, LOG_LEVELS.INFO);
+  log(`Layout: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.INFO);
+  log(`Corretora ID: ${CONFIG.CORRETORA_ID}`, LOG_LEVELS.INFO);
+  log('='.repeat(60));
+  
+  // Notificar início
   await notifyStart();
-  await updateProgress('executando', 'login');
   
-  let browser;
-  let context;
-  let page;
-  let filePath;
+  let browser = null;
+  let context = null;
+  let page = null;
   
   try {
+    setStep('BROWSER_INIT');
     browser = await chromium.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-popup-blocking'],
+      args: ['--disable-popup-blocking'],
     });
     
-    context = await browser.newContext({
-      viewport: { width: 1920, height: 1080 },
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    context = await browser.newContext({ 
       acceptDownloads: true,
       navigationTimeout: TIMEOUTS.PAGE_LOAD,
     });
     
     context.setDefaultTimeout(30000);
+    context.setDefaultNavigationTimeout(TIMEOUTS.PAGE_LOAD);
     
     page = await context.newPage();
     page.setDefaultTimeout(30000);
     page.setDefaultNavigationTimeout(TIMEOUTS.PAGE_LOAD);
     
-    // Login
+    // 1. LOGIN
+    setStep('LOGIN');
+    await page.goto(CONFIG.HINOVA_URL, { 
+      waitUntil: 'domcontentloaded',
+      timeout: TIMEOUTS.PAGE_LOAD 
+    });
+    await page.waitForTimeout(3000);
     await realizarLogin(page);
-    await updateProgress('executando', 'navegacao');
     
-    // Navegar para relatório
+    await updateProgress('executando', 'Login realizado');
+    
+    // 2. NAVEGAR PARA RELATÓRIO
     await navegarParaRelatorio(page);
-    await updateProgress('executando', 'filtros');
+    await updateProgress('executando', 'Página do relatório aberta');
     
-    // Configurar filtros
+    // 3. CONFIGURAR FILTROS
     await configurarFiltros(page);
-    await updateProgress('executando', 'download');
+    await updateProgress('executando', 'Filtros configurados');
     
-    // Gerar e baixar relatório
-    filePath = await gerarEBaixarRelatorio(page, context);
-    await updateProgress('executando', 'processamento');
+    // 4. GERAR E BAIXAR RELATÓRIO
+    const downloadResult = await gerarRelatorio(page, context);
+    await updateProgress('executando', 'Download concluído');
     
-    // Processar arquivo
-    log('Processando arquivo...', LOG_LEVELS.INFO);
-    const registros = processarArquivo(filePath);
-    log(`Arquivo processado: ${registros.length} registros`, LOG_LEVELS.SUCCESS);
+    // 5. PROCESSAR ARQUIVO
+    setStep('PROCESSAMENTO');
+    const dados = await processarArquivo(downloadResult.filePath);
     
-    if (registros.length === 0) {
-      log('⚠️ Arquivo processado, mas sem registros', LOG_LEVELS.WARN);
+    if (dados.length === 0) {
+      throw new Error('Nenhum registro encontrado no arquivo');
     }
     
-    await updateProgress('executando', 'importacao');
+    log(`Total de registros processados: ${dados.length}`, LOG_LEVELS.SUCCESS);
+    await updateProgress('executando', 'Arquivo processado', { registros_total: dados.length });
     
-    // Enviar registros em lotes
-    log(`Enviando ${registros.length} registros via webhook...`, LOG_LEVELS.INFO);
+    // 6. ENVIAR DADOS
+    const nomeArquivo = path.basename(downloadResult.filePath);
+    const enviado = await enviarDados(dados, nomeArquivo);
     
-    const batchSize = 100;
-    const totalBatches = Math.ceil(registros.length / batchSize) || 1;
-    
-    for (let i = 0; i < totalBatches; i++) {
-      const batch = registros.slice(i * batchSize, (i + 1) * batchSize);
-      
-      await sendWebhook({
-        corretora_id: CONFIG.CORRETORA_ID,
-        execucao_id: CONFIG.EXECUCAO_ID,
-        github_run_id: CONFIG.GITHUB_RUN_ID,
-        github_run_url: CONFIG.GITHUB_RUN_URL,
-        dados: batch,
-        nome_arquivo: path.basename(filePath),
-        total_registros: registros.length,
-        chunk_index: i,
-        chunk_total: totalBatches,
-      });
-      
-      const progresso = Math.round(((i + 1) / totalBatches) * 100);
-      log(`Batch ${i + 1}/${totalBatches} enviado (${progresso}%)`, LOG_LEVELS.INFO);
+    if (!enviado) {
+      throw new Error('Falha ao enviar dados via webhook');
     }
     
-    // Sucesso final
+    // 7. LIMPAR ARQUIVO
+    try {
+      fs.unlinkSync(downloadResult.filePath);
+      log('Arquivo temporário removido', LOG_LEVELS.DEBUG);
+    } catch {}
+    
+    // Sucesso
     await sendWebhook({
       corretora_id: CONFIG.CORRETORA_ID,
       execucao_id: CONFIG.EXECUCAO_ID,
       github_run_id: CONFIG.GITHUB_RUN_ID,
       github_run_url: CONFIG.GITHUB_RUN_URL,
-      update_progress: true,
-      status: 'sucesso',
-      etapa_atual: 'concluido',
-      registros_total: registros.length,
-      registros_processados: registros.length,
-      progresso_importacao: 100,
-      nome_arquivo: path.basename(filePath),
+      action: 'complete',
+      registros_total: dados.length,
     });
     
-    log('============================================================', LOG_LEVELS.SUCCESS);
-    log('ROBÔ MGF HINOVA - CONCLUÍDO COM SUCESSO', LOG_LEVELS.SUCCESS);
-    log(`Total de registros: ${registros.length}`, LOG_LEVELS.SUCCESS);
-    log('============================================================', LOG_LEVELS.SUCCESS);
-    
-    // Limpar debug em caso de sucesso
-    try {
-      if (fs.existsSync(CONFIG.DEBUG_DIR)) {
-        fs.rmSync(CONFIG.DEBUG_DIR, { recursive: true, force: true });
-      }
-    } catch {}
-    
-    // Limpar arquivo de download
-    try {
-      if (filePath && fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    } catch {}
+    log('='.repeat(60));
+    log('ROBÔ MGF HINOVA CONCLUÍDO COM SUCESSO', LOG_LEVELS.SUCCESS);
+    log('='.repeat(60));
     
   } catch (error) {
     log(`ERRO FATAL: ${error.message}`, LOG_LEVELS.ERROR);
+    await saveDebugInfo(page, 'erro_fatal').catch(() => {});
     await notifyError(error.message);
     throw error;
+    
   } finally {
     if (browser) {
-      await browser.close();
+      await browser.close().catch(() => {});
       log('Browser fechado', LOG_LEVELS.DEBUG);
     }
   }
 }
 
 // Executar
-main().catch((err) => {
-  console.error('Erro fatal:', err);
+main().catch(error => {
+  console.error('Erro fatal:', error);
   process.exit(1);
 });
