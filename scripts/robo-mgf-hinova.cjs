@@ -76,6 +76,90 @@ function normalizeText(str) {
 }
 
 // ============================================
+// SELEÇÃO DE LAYOUT/SISTEMA NA TELA DE LOGIN
+// (Idêntico ao robô de Cobrança)
+// ============================================
+async function trySelectHinovaLayout(page) {
+  const desired = normalizeText(CONFIG.HINOVA_LAYOUT);
+  if (!desired) return false;
+
+  // 1) Tentar select tradicional
+  try {
+    const select = page
+      .locator(
+        'select[name*="layout" i], select[id*="layout" i], select[name*="sistema" i], select[id*="sistema" i], select[name*="perfil" i], select[id*="perfil" i]'
+      )
+      .first();
+
+    if (await select.isVisible().catch(() => false)) {
+      const optionTexts = await select.locator('option').allTextContents().catch(() => []);
+      const idx = optionTexts.findIndex((t) => {
+        const nt = normalizeText(t);
+        return nt.includes('vangard') || nt.includes(desired);
+      });
+
+      if (idx >= 0) {
+        const option = select.locator('option').nth(idx);
+        const value = (await option.getAttribute('value').catch(() => null)) ?? optionTexts[idx];
+        await select.selectOption(value).catch(() => null);
+        log(`Layout selecionado via <select>: ${optionTexts[idx]}`, LOG_LEVELS.DEBUG);
+        return true;
+      }
+    }
+  } catch {}
+
+  // 2) Tentar input (autocomplete/datalist)
+  try {
+    const input = page
+      .locator(
+        'input[placeholder*="Sistema" i], input[placeholder*="Layout" i], input[placeholder*="Perfil" i], input[placeholder*="Relat" i], input[placeholder*="Empresa" i]'
+      )
+      .first();
+    if (await input.isVisible().catch(() => false)) {
+      await input.click({ force: true }).catch(() => null);
+      await input.fill(CONFIG.HINOVA_LAYOUT).catch(() => null);
+      await input.press('Enter').catch(() => null);
+      log(`Layout preenchido via input: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.DEBUG);
+      return true;
+    }
+  } catch {}
+
+  // 3) Fallback: se houver 4+ inputs visíveis, preencher o último (o replay mostra um campo extra de layout)
+  try {
+    const ok = await page
+      .evaluate(({ layout }) => {
+        const isVisible = (el) => {
+          const r = el.getBoundingClientRect();
+          const style = window.getComputedStyle(el);
+          return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+        };
+
+        const inputs = Array.from(
+          document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])')
+        ).filter(isVisible);
+
+        if (inputs.length < 4) return false;
+
+        // Preferir o último input vazio (muito comum ser o campo de layout)
+        const candidate = [...inputs].reverse().find((i) => !i.value);
+        if (!candidate) return false;
+        candidate.value = layout;
+        candidate.dispatchEvent(new Event('input', { bubbles: true }));
+        candidate.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      }, { layout: CONFIG.HINOVA_LAYOUT })
+      .catch(() => false);
+
+    if (ok) {
+      log(`Layout preenchido via fallback (último input): ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.DEBUG);
+      return true;
+    }
+  } catch {}
+
+  return false;
+}
+
+// ============================================
 // CONSTANTES DE TIMEOUT E CONTROLE
 // ============================================
 const TIMEOUTS = {
@@ -703,10 +787,16 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
         continue;
       }
       
-      // NÃO usar "Fechar" pois redireciona para URL errada
-      // Usar apenas ESC e fechar via CSS/remoção de backdrop
+      // Seletores para fechar popups (IDÊNTICO AO COBRANÇA - inclui "Fechar")
       const seletoresFechar = [
-        // SEM "Fechar" - usar apenas botões de close genéricos
+        'button:has-text("Fechar")',
+        'a:has-text("Fechar")',
+        '.btn:has-text("Fechar")',
+        'input[value="Fechar"]',
+        'input[type="button"][value="Fechar"]',
+        'button:has-text("Continuar e Fechar")',
+        'a:has-text("Continuar e Fechar")',
+        'button:has-text("Continuar")',
         'button:has-text("OK")',
         '.btn:has-text("OK")',
         '.modal.show button.close',
@@ -2341,7 +2431,11 @@ async function rodarRobo() {
     
     log('Credenciais preenchidas com sucesso', LOG_LEVELS.SUCCESS);
 
-    // MGF: NÃO seleciona layout na tela de login (será feito na tela do relatório)
+    // Selecionar layout/sistema na tela de login (IDÊNTICO AO COBRANÇA)
+    const layoutOk = await trySelectHinovaLayout(page);
+    if (!layoutOk) {
+      log('Campo de layout/perfil não identificado no login (seguindo assim mesmo)', LOG_LEVELS.WARN);
+    }
     
     const dispensarCodigoAutenticacao = async () => {
       try {
