@@ -29,30 +29,15 @@ const readline = require('readline');
 // CONFIGURAÇÃO - IDÊNTICA À COBRANÇA
 // ============================================
 
-// Função para derivar URL do relatório MGF a partir da URL de login
-function deriveRelatorioUrl(loginUrl) {
-  try {
-    const url = new URL(loginUrl);
-    // Extrai o caminho base (ex: /sga/sgav4_valecar/v5/ -> /sga/sgav4_valecar/)
-    const pathParts = url.pathname.split('/');
-    // Remove 'v5', 'login.php' ou 'Principal' e reconstrói
-    const basePathParts = pathParts.filter(p => 
-      p && !p.includes('login') && !p.includes('Principal') && p !== 'v5'
-    );
-    const basePath = '/' + basePathParts.join('/');
-    // MGF usa caminho diferente: /mgf/relatorio/relatorioLancamento.php
-    return `${url.origin}${basePath}/mgf/relatorio/relatorioLancamento.php`;
-  } catch (e) {
-    // Fallback para URL padrão se parsing falhar
-    return 'https://eris.hinova.com.br/sga/sgav4_valecar/mgf/relatorio/relatorioLancamento.php';
-  }
-}
+// URL FIXA do relatório MGF - NÃO DERIVAR, USAR EXATAMENTE ESSA
+const MGF_RELATORIO_URL_FIXO = 'https://eris.hinova.com.br/sga/sgav4_valecar/mgf/relatorio/relatorioLancamento.php';
 
 const HINOVA_URL = process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php';
 
 const CONFIG = {
   HINOVA_URL: HINOVA_URL,
-  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || deriveRelatorioUrl(HINOVA_URL),
+  // URL FIXA do relatório - NÃO mudar em hipótese alguma
+  HINOVA_RELATORIO_URL: MGF_RELATORIO_URL_FIXO,
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
   HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '2363',
@@ -709,15 +694,10 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
         continue;
       }
       
+      // NÃO usar "Fechar" pois redireciona para URL errada
+      // Usar apenas ESC e fechar via CSS/remoção de backdrop
       const seletoresFechar = [
-        'button:has-text("Fechar")',
-        'a:has-text("Fechar")',
-        '.btn:has-text("Fechar")',
-        'input[value="Fechar"]',
-        'input[type="button"][value="Fechar"]',
-        'button:has-text("Continuar e Fechar")',
-        'a:has-text("Continuar e Fechar")',
-        'button:has-text("Continuar")',
+        // SEM "Fechar" - usar apenas botões de close genéricos
         'button:has-text("OK")',
         '.btn:has-text("OK")',
         '.modal.show button.close',
@@ -757,34 +737,25 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
         }
       }
       
-      // Fallback via JavaScript
+      // Fallback via JavaScript - NÃO clicar em "Fechar", apenas remover modais via CSS
       if (!popupFechado) {
         const fechouViaJS = await page.evaluate(() => {
           let fechou = false;
           
-          const allElements = document.querySelectorAll('button, a, input[type="button"], input[type="submit"], .btn');
-          for (const el of allElements) {
-            const texto = (el.textContent || el.value || '').toLowerCase().trim();
-            if (texto === 'fechar' || texto.includes('fechar')) {
-              const style = window.getComputedStyle(el);
-              if (style.display !== 'none' && style.visibility !== 'hidden') {
-                el.click();
-                fechou = true;
-                break;
-              }
+          // NÃO clicar em "Fechar" - apenas fechar via close buttons ou remoção de CSS
+          const modals = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"]');
+          modals.forEach(modal => {
+            // Tentar apenas o X de fechar, não o botão "Fechar"
+            const closeBtn = modal.querySelector('.close, button.close, .btn-close, [data-dismiss="modal"]:not(:has-text("Fechar"))');
+            if (closeBtn) {
+              closeBtn.click();
+              fechou = true;
+            } else {
+              // Se não tem X, remover via CSS
+              modal.style.display = 'none';
+              fechou = true;
             }
-          }
-          
-          if (!fechou) {
-            const modals = document.querySelectorAll('.modal.show, .modal.in, .modal[style*="display: block"]');
-            modals.forEach(modal => {
-              const closeBtn = modal.querySelector('.close, button.close, .btn-close, [data-dismiss="modal"]');
-              if (closeBtn) {
-                closeBtn.click();
-                fechou = true;
-              }
-            });
-          }
+          });
           
           if (!fechou) {
             const swalClose = document.querySelector('.swal2-close, .swal2-confirm');
@@ -794,6 +765,7 @@ async function fecharPopups(page, maxTentativas = LIMITS.MAX_POPUP_CLOSE_ATTEMPT
             }
           }
           
+          // Remover backdrops
           const overlays = document.querySelectorAll('.modal-backdrop');
           overlays.forEach(o => o.remove());
           
@@ -1555,24 +1527,7 @@ async function aguardarDownloadHibrido(context, page, downloadDir, semanticName,
 // ============================================
 // FUNÇÕES AUXILIARES - MGF
 // ============================================
-function getDateRange() {
-  // MGF: histórico completo desde 01/01/2000 até último dia do mês atual
-  const hoje = new Date();
-  const primeiroDia = new Date(2000, 0, 1); // 01/01/2000
-  const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
-  
-  const formatDate = (d) => {
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
-  
-  return {
-    inicio: formatDate(primeiroDia),
-    fim: formatDate(ultimoDia),
-  };
-}
+// MGF: NÃO PREENCHE PERÍODO - deixar em branco
 
 // ============================================
 // MAPEAMENTO DE COLUNAS MGF
@@ -2258,8 +2213,7 @@ async function rodarRobo() {
     CONFIG.EXECUCAO_ID = execucaoId;
   }
   
-  const { inicio, fim } = getDateRange();
-  log(`Período: ${inicio} até ${fim}`);
+  // MGF: NÃO PREENCHE PERÍODO - deixar em branco
   
   let browser = null;
   let context = null;
@@ -2516,98 +2470,12 @@ async function rodarRobo() {
     log('Página de relatório aberta', LOG_LEVELS.SUCCESS);
     
     // ============================================
-    // ETAPA: PREENCHIMENTO DE FILTROS MGF
+    // ETAPA: CONFIGURAÇÃO DE FILTROS MGF
+    // MGF: NÃO PREENCHE PERÍODO - deixar em branco
     // ============================================
     setStep('FILTROS');
     
-    log(`Preenchendo período: ${inicio} até ${fim}`);
-    
-    // Preencher datas
-    const preencheuDatas = await page.evaluate(({ inicio, fim }) => {
-      const resultado = { sucesso: false, detalhes: [] };
-      
-      const todosElementos = document.querySelectorAll('td, th, label, span, div');
-      
-      for (const elemento of todosElementos) {
-        const texto = elemento.textContent?.trim() || '';
-        
-        if (texto.includes('Data:') || texto === 'Data' || texto.includes('Período')) {
-          resultado.detalhes.push(`Label encontrado: "${texto}"`);
-          
-          const linha = elemento.closest('tr');
-          if (!linha) {
-            const container = elemento.parentElement;
-            const inputs = container?.querySelectorAll('input[type="text"], input:not([type])');
-            if (inputs && inputs.length >= 2) {
-              inputs[0].value = inicio;
-              inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
-              inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
-              
-              inputs[1].value = fim;
-              inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
-              inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
-              
-              resultado.sucesso = true;
-              resultado.detalhes.push(`Preenchido via container`);
-              return resultado;
-            }
-            continue;
-          }
-          
-          const inputs = linha.querySelectorAll('input[type="text"], input:not([type])');
-          resultado.detalhes.push(`Inputs na linha: ${inputs.length}`);
-          
-          if (inputs.length >= 2) {
-            inputs[0].value = inicio;
-            inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
-            inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
-            
-            inputs[1].value = fim;
-            inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
-            inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
-            
-            resultado.sucesso = true;
-            return resultado;
-          }
-        }
-      }
-      
-      // Fallback: preencher os primeiros 2 inputs de data encontrados
-      if (!resultado.sucesso) {
-        resultado.detalhes.push('Tentando fallback por inputs...');
-        const allInputs = document.querySelectorAll('input[type="text"], input:not([type])');
-        const dateInputs = Array.from(allInputs).filter(i => {
-          const ph = (i.placeholder || '').toLowerCase();
-          const n = (i.name || '').toLowerCase();
-          return ph.includes('data') || n.includes('data') || n.includes('dt_');
-        });
-        
-        if (dateInputs.length >= 2) {
-          dateInputs[0].value = inicio;
-          dateInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
-          dateInputs[0].dispatchEvent(new Event('change', { bubbles: true }));
-          
-          dateInputs[1].value = fim;
-          dateInputs[1].dispatchEvent(new Event('input', { bubbles: true }));
-          dateInputs[1].dispatchEvent(new Event('change', { bubbles: true }));
-          
-          resultado.sucesso = true;
-          resultado.detalhes.push(`Preenchido via fallback: ${dateInputs.length} inputs de data`);
-        }
-      }
-      
-      return resultado;
-    }, { inicio, fim });
-    
-    for (const detalhe of preencheuDatas.detalhes) {
-      log(detalhe, LOG_LEVELS.DEBUG);
-    }
-    
-    if (preencheuDatas.sucesso) {
-      log(`✅ Período preenchido: ${inicio} até ${fim}`, LOG_LEVELS.SUCCESS);
-    } else {
-      log('⚠️ Não foi possível preencher datas automaticamente', LOG_LEVELS.WARN);
-    }
+    log('MGF: Período NÃO será preenchido (configuração padrão do portal)', LOG_LEVELS.INFO);
     
     await page.waitForTimeout(1000);
     
