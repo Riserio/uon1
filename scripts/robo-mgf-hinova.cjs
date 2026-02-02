@@ -1145,9 +1145,12 @@ async function trySelectHinovaLayout(page) {
   const desired = normalizeText(CONFIG.HINOVA_LAYOUT);
   if (!desired) return false;
 
+  // 1) Tentar select tradicional
   try {
     const select = page
-      .locator('select[name*="layout" i], select[id*="layout" i], select[name*="sistema" i], select[id*="sistema" i], select[name*="perfil" i], select[id*="perfil" i]')
+      .locator(
+        'select[name*="layout" i], select[id*="layout" i], select[name*="sistema" i], select[id*="sistema" i], select[name*="perfil" i], select[id*="perfil" i]'
+      )
       .first();
 
     if (await select.isVisible().catch(() => false)) {
@@ -1167,6 +1170,53 @@ async function trySelectHinovaLayout(page) {
     }
   } catch {}
 
+  // 2) Tentar input (autocomplete/datalist)
+  try {
+    const input = page
+      .locator(
+        'input[placeholder*="Sistema" i], input[placeholder*="Layout" i], input[placeholder*="Perfil" i], input[placeholder*="Relat" i], input[placeholder*="Empresa" i]'
+      )
+      .first();
+    if (await input.isVisible().catch(() => false)) {
+      await input.click({ force: true }).catch(() => null);
+      await input.fill(CONFIG.HINOVA_LAYOUT).catch(() => null);
+      await input.press('Enter').catch(() => null);
+      log(`Layout preenchido via input: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.DEBUG);
+      return true;
+    }
+  } catch {}
+
+  // 3) Fallback DOM: se houver 4+ inputs visíveis, preencher o último vazio
+  try {
+    const ok = await page
+      .evaluate(({ layout }) => {
+        const isVisible = (el) => {
+          const r = el.getBoundingClientRect();
+          const style = window.getComputedStyle(el);
+          return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+        };
+
+        const inputs = Array.from(
+          document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])')
+        ).filter(isVisible);
+
+        if (inputs.length < 4) return false;
+
+        const candidate = [...inputs].reverse().find((i) => !i.value);
+        if (!candidate) return false;
+        candidate.value = layout;
+        candidate.dispatchEvent(new Event('input', { bubbles: true }));
+        candidate.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      }, { layout: CONFIG.HINOVA_LAYOUT })
+      .catch(() => false);
+
+    if (ok) {
+      log(`Layout preenchido via fallback (último input): ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.DEBUG);
+      return true;
+    }
+  } catch {}
+
   return false;
 }
 
@@ -1174,61 +1224,240 @@ async function realizarLogin(page) {
   setStep('LOGIN');
   
   let loginSucesso = false;
+
+  const preencherCredenciais = async () => {
+    // Código cliente (opcional dependendo do ambiente)
+    if (CONFIG.HINOVA_CODIGO_CLIENTE) {
+      const codigoSelectors = [
+        'input[placeholder*="Código" i]',
+        'input[placeholder*="cliente" i]',
+        'input[name*="codigo" i]',
+        'input[id*="codigo" i]',
+        'input[name*="cliente" i]',
+        'input[id*="cliente" i]',
+        // fallback legado
+        'input[placeholder=""]',
+      ];
+
+      let codigoPreenchido = false;
+      for (const sel of codigoSelectors) {
+        try {
+          const loc = page.locator(sel).first();
+          if (await loc.isVisible().catch(() => false)) {
+            await loc.fill(String(CONFIG.HINOVA_CODIGO_CLIENTE), { timeout: 5000 });
+            codigoPreenchido = true;
+            log(`Código cliente preenchido (${sel})`, LOG_LEVELS.DEBUG);
+            break;
+          }
+        } catch {}
+      }
+      if (!codigoPreenchido) {
+        log('Campo de código cliente não encontrado (pode ser opcional)', LOG_LEVELS.DEBUG);
+      }
+    }
+
+    // Usuário
+    try {
+      const userSelectors = [
+        'input[placeholder*="Usuário" i]',
+        'input[name*="usuario" i]',
+        'input[id*="usuario" i]',
+        'input[name*="login" i]',
+        'input[id*="login" i]',
+        // fallback mais genérico por último
+        'input[type="text"]',
+      ];
+      for (const sel of userSelectors) {
+        const loc = page.locator(sel).first();
+        if (await loc.isVisible().catch(() => false)) {
+          await loc.fill(String(CONFIG.HINOVA_USER), { timeout: 5000 });
+          log(`Usuário preenchido (${sel})`, LOG_LEVELS.DEBUG);
+          break;
+        }
+      }
+    } catch (e) {
+      log(`Erro ao preencher usuário: ${e.message}`, LOG_LEVELS.WARN);
+    }
+
+    // Senha
+    try {
+      const passSelectors = [
+        'input[placeholder*="Senha" i]',
+        'input[name*="senha" i]',
+        'input[id*="senha" i]',
+        'input[type="password"]',
+      ];
+      for (const sel of passSelectors) {
+        const loc = page.locator(sel).first();
+        if (await loc.isVisible().catch(() => false)) {
+          await loc.fill(String(CONFIG.HINOVA_PASS), { timeout: 5000 });
+          log(`Senha preenchida (${sel})`, LOG_LEVELS.DEBUG);
+          break;
+        }
+      }
+    } catch (e) {
+      log(`Erro ao preencher senha: ${e.message}`, LOG_LEVELS.WARN);
+    }
+
+    // Fallback: preencher via JS (ordem típica: código, usuário, senha)
+    await page
+      .evaluate(({ codigoCliente, usuario, senha }) => {
+        const isVisible = (el) => {
+          const r = el.getBoundingClientRect();
+          const style = window.getComputedStyle(el);
+          return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+        };
+
+        const allInputs = Array.from(
+          document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])')
+        ).filter(isVisible);
+
+        // Heurística: se existe password, preencher ele por tipo
+        const pwd = allInputs.find((i) => (i.getAttribute('type') || '').toLowerCase() === 'password');
+        if (pwd && senha && (!pwd.value || pwd.value === pwd.placeholder)) {
+          pwd.value = senha;
+          pwd.dispatchEvent(new Event('input', { bubbles: true }));
+          pwd.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // Preencher os 3 primeiros inputs visíveis (legado)
+        if (allInputs.length >= 3) {
+          if (codigoCliente && !allInputs[0].value) {
+            allInputs[0].value = codigoCliente;
+            allInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          if (usuario && (!allInputs[1].value || allInputs[1].value === allInputs[1].placeholder)) {
+            allInputs[1].value = usuario;
+            allInputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          if (senha && (!allInputs[2].value || allInputs[2].value === allInputs[2].placeholder)) {
+            allInputs[2].value = senha;
+            allInputs[2].dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        }
+      }, { codigoCliente: CONFIG.HINOVA_CODIGO_CLIENTE, usuario: CONFIG.HINOVA_USER, senha: CONFIG.HINOVA_PASS })
+      .catch(() => {});
+  };
+
+  const dispensarCodigoAutenticacao = async () => {
+    try {
+      const selector = 'input[placeholder*="Autenticação" i]';
+      const campoAuth = await page.$(selector);
+      if (!campoAuth) return false;
+
+      await campoAuth
+        .evaluate((el) => {
+          el.value = '';
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        })
+        .catch(() => {});
+
+      await campoAuth.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(200);
+      await page.click('body', { position: { x: 20, y: 20 }, force: true }).catch(() => {});
+      await page.keyboard.press('Escape').catch(() => {});
+      await page.waitForTimeout(200);
+
+      log('Código de autenticação dispensado', LOG_LEVELS.DEBUG);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const isAindaNaLogin = async () => {
+    const relatorioVisible = await page.locator('text=Relatório').first().isVisible().catch(() => false);
+    if (relatorioVisible) return false;
+
+    const esqueceuVisible = await page.locator('text=Esqueci minha senha').first().isVisible().catch(() => false);
+    const codigoClienteVisible = await page.locator('text=Código cliente').first().isVisible().catch(() => false);
+    if (esqueceuVisible || codigoClienteVisible) return true;
+
+    const pwdVisible = await page.locator('input[type="password"]').first().isVisible().catch(() => false);
+    const url = page.url?.() || '';
+    const urlPareceLogin = /login/i.test(url);
+    return pwdVisible || urlPareceLogin;
+  };
+
+  const clicarEntrar = async () => {
+    const btnSelector = 'button:has-text("Entrar"), input[value="Entrar"], .btn-primary, button.btn, #btn-login, input[type="submit"], button[type="submit"]';
+    const btn = await page.$(btnSelector);
+    if (btn) {
+      await btn.evaluate((el) => el.click()).catch(() => {});
+      await btn.click({ force: true }).catch(() => {});
+      return;
+    }
+    await page.click('button:has-text("Entrar")', { force: true, timeout: 1000 }).catch(() => {});
+  };
   
   for (let tentativa = 1; tentativa <= LIMITS.MAX_LOGIN_RETRIES && !loginSucesso; tentativa++) {
     log(`Tentativa de login ${tentativa}/${LIMITS.MAX_LOGIN_RETRIES}...`);
     
     try {
-      // Fechar popups
       await fecharPopups(page);
-      
-      // Preencher código cliente se existir
-      if (CONFIG.HINOVA_CODIGO_CLIENTE) {
-        try {
-          const codigoInput = page.locator('input[placeholder=""]').first();
-          if (await codigoInput.isVisible().catch(() => false)) {
-            await codigoInput.fill(CONFIG.HINOVA_CODIGO_CLIENTE);
-            log('Código cliente preenchido', LOG_LEVELS.DEBUG);
-          }
-        } catch {}
-      }
-      
-      // Preencher usuário
-      const userInput = page.locator('input[placeholder="Usuário"], input[type="text"]:not([placeholder=""])').first();
-      await userInput.fill(CONFIG.HINOVA_USER);
-      
-      // Preencher senha
-      const passInput = page.locator('input[type="password"]').first();
-      await passInput.fill(CONFIG.HINOVA_PASS);
-      
-      // Selecionar layout se disponível
+
+      // Garantir que estamos na tela de login (ou que o formulário existe)
+      await page
+        .waitForSelector('input[type="password"], input[placeholder*="Usuário" i], button:has-text("Entrar")', {
+          timeout: 15000,
+        })
+        .catch(() => {});
+
+      await preencherCredenciais();
+
+      // O portal pode exigir layout/sistema na própria tela de login
       await trySelectHinovaLayout(page);
-      
-      // Clicar em entrar
-      const btnEntrar = page.locator('button:has-text("Entrar"), input[type="submit"], button[type="submit"]').first();
-      await btnEntrar.click();
-      
-      // Aguardar navegação
-      await page.waitForTimeout(5000);
+
+      // Clique/Enter resiliente (padrão Cobrança)
+      await clicarEntrar();
+      await Promise.race([
+        page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => null),
+        page.waitForTimeout(1500),
+      ]);
+
+      await dispensarCodigoAutenticacao();
+      await Promise.race([
+        page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
+        page.waitForTimeout(1200),
+      ]);
+
+      await clicarEntrar();
+      await Promise.race([
+        page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => null),
+        page.waitForTimeout(1200),
+      ]);
+
+      await page.keyboard.press('Enter').catch(() => {});
+
+      await Promise.race([
+        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: TIMEOUTS.LOGIN_RETRY_WAIT }).catch(() => null),
+        page.waitForLoadState('networkidle', { timeout: TIMEOUTS.LOGIN_RETRY_WAIT }).catch(() => null),
+        page.waitForTimeout(TIMEOUTS.LOGIN_RETRY_WAIT),
+      ]);
+
       await fecharPopups(page);
-      
-      // Verificar se logou
-      const urlAtual = page.url().toLowerCase();
-      if (!urlAtual.includes('login.php')) {
+
+      const aindaNaLogin = await isAindaNaLogin();
+      if (!aindaNaLogin) {
         loginSucesso = true;
-        log('Login realizado com sucesso', LOG_LEVELS.SUCCESS);
-      } else {
-        // Verificar erro de login
-        const erroTexto = await page.locator('.alert-danger, .error, .erro').textContent().catch(() => '');
-        if (erroTexto) {
-          log(`Erro de login: ${erroTexto}`, LOG_LEVELS.WARN);
-        }
-        await page.waitForTimeout(TIMEOUTS.LOGIN_RETRY_WAIT);
+        log(`Login bem sucedido na tentativa ${tentativa}!`, LOG_LEVELS.SUCCESS);
+        break;
       }
+
+      const erroMsg = await page
+        .$eval('.alert-danger, .error, .erro, .message-error', (el) => el.textContent)
+        .catch(() => null);
+      if (erroMsg) {
+        log(`Erro detectado: ${String(erroMsg).trim()}`, LOG_LEVELS.WARN);
+      }
+
+      log(`Tentativa ${tentativa} falhou - ainda na página de login`, LOG_LEVELS.WARN);
+      await page.waitForTimeout(600);
       
     } catch (e) {
       log(`Erro na tentativa de login: ${e.message}`, LOG_LEVELS.WARN);
-      await page.waitForTimeout(TIMEOUTS.LOGIN_RETRY_WAIT);
+      await page.waitForTimeout(600);
     }
   }
   
