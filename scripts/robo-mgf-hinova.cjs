@@ -34,19 +34,38 @@ const { pipeline } = require('stream/promises');
 const { Transform } = require('stream');
 
 // ============================================
-// CONFIGURAÇÃO
+// CONFIGURAÇÃO (IDÊNTICA AO ROBÔ DE COBRANÇA)
 // ============================================
-const HINOVA_URL = String(process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php').trim();
 
-// URL FIXA do relatório MGF - SEMPRE essa
-const MGF_RELATORIO_URL = 'https://eris.hinova.com.br/sga/sgav4_valecar/mgf/relatorio/relatorioLancamento.php';
+// Função para derivar URL do relatório MGF a partir da URL de login (IGUAL À COBRANÇA)
+function deriveRelatorioUrl(loginUrl) {
+  try {
+    const url = new URL(loginUrl);
+    // Extrai o caminho base (ex: /sga/sgav4_valecar/v5/ -> /sga/sgav4_valecar/)
+    const pathParts = url.pathname.split('/');
+    // Remove 'v5', 'login.php' ou 'Principal' e reconstrói
+    const basePathParts = pathParts.filter(p => 
+      p && !p.includes('login') && !p.includes('Principal') && p !== 'v5'
+    );
+    const basePath = '/' + basePathParts.join('/');
+    // MGF usa caminho diferente: /mgf/relatorio/relatorioLancamento.php
+    return `${url.origin}${basePath}/mgf/relatorio/relatorioLancamento.php`;
+  } catch (e) {
+    // Fallback para URL padrão se parsing falhar
+    return 'https://eris.hinova.com.br/sga/sgav4_valecar/mgf/relatorio/relatorioLancamento.php';
+  }
+}
+
+const HINOVA_URL = String(process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php').trim();
 
 const CONFIG = {
   HINOVA_URL: HINOVA_URL,
-  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || MGF_RELATORIO_URL,
+  // URL do relatório MGF derivada dinamicamente da URL de login (IGUAL À COBRANÇA)
+  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || deriveRelatorioUrl(HINOVA_URL),
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
-  HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '',
+  // Código do cliente: mantém compatibilidade (IGUAL À COBRANÇA)
+  HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '2363',
   HINOVA_LAYOUT: process.env.HINOVA_LAYOUT || 'BI VANGARD FINANCEIROS EVENTOS',
   
   WEBHOOK_URL: process.env.WEBHOOK_URL || '',
