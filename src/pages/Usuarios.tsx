@@ -138,6 +138,14 @@ export default function Usuarios() {
   const [isFuncionario, setIsFuncionario] = useState(false);
   const [createdFuncionarioId, setCreatedFuncionarioId] = useState<string | null>(null);
   const [funcionarioFormData, setFuncionarioFormData] = useState<FuncionarioFormData>(defaultFuncionarioFormData);
+  const [selectedModulosBI, setSelectedModulosBI] = useState<string[]>(['indicadores', 'eventos', 'mgf', 'cobranca']);
+
+  const MODULOS_BI = [
+    { id: 'indicadores', label: 'BI Indicadores', description: 'Dashboard principal com KPIs' },
+    { id: 'eventos', label: 'Eventos', description: 'Módulo SGA de eventos' },
+    { id: 'mgf', label: 'MGF', description: 'Módulo de gestão financeira' },
+    { id: 'cobranca', label: 'Cobrança', description: 'Módulo de cobrança/inadimplência' },
+  ];
   const filteredProfiles = useMemo(() => {
     if (!searchTerm) return profiles;
     const term = searchTerm.toLowerCase();
@@ -518,6 +526,19 @@ export default function Usuarios() {
       await supabase.from("equipe_lideres").delete().eq("lider_id", editingItem.id);
     }
 
+    // Atualizar módulos BI se for parceiro
+    if (editingRole === 'parceiro') {
+      const { error: modulosError } = await supabase
+        .from("corretora_usuarios")
+        .update({ modulos_bi: selectedModulosBI })
+        .eq("profile_id", editingItem.id);
+      
+      if (modulosError) {
+        console.error("Erro ao atualizar módulos BI:", modulosError);
+        toast.warning("Erro ao atualizar permissões de módulos BI");
+      }
+    }
+
     await logUserAction("Atualização de Usuário", editingItem.id, {
       nome: formData.nome || editingItem.nome,
       email: formData.email || editingItem.email,
@@ -733,6 +754,20 @@ export default function Usuarios() {
       setEditingRole((userRoles[item.id] as RoleType) || "comercial");
       setSelectedEquipes(userEquipes[item.id] || []);
       
+      // Carregar módulos BI se for parceiro
+      const role = userRoles[item.id];
+      if (role === 'parceiro') {
+        const { data: usuarioBI } = await supabase
+          .from("corretora_usuarios")
+          .select("modulos_bi")
+          .eq("profile_id", item.id)
+          .maybeSingle();
+        
+        setSelectedModulosBI(usuarioBI?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca']);
+      } else {
+        setSelectedModulosBI(['indicadores', 'eventos', 'mgf', 'cobranca']);
+      }
+      
       // Verificar se já é funcionário e carregar dados completos
       const { data: funcionarioData } = await supabase
         .from("funcionarios")
@@ -781,6 +816,7 @@ export default function Usuarios() {
       setIsFuncionario(false);
       setCreatedFuncionarioId(null);
       setFuncionarioFormData(defaultFuncionarioFormData);
+      setSelectedModulosBI(['indicadores', 'eventos', 'mgf', 'cobranca']);
     }
     setDialogOpen(true);
   };
@@ -1168,6 +1204,52 @@ export default function Usuarios() {
                             </SelectContent>
                           </Select>
                         </div>
+
+                        {/* Seleção de Módulos BI - apenas para parceiro */}
+                        {selectedRole === 'parceiro' && (
+                          <div className="space-y-3">
+                            <Label className="text-sm font-medium">Módulos BI Permitidos</Label>
+                            <div className="grid grid-cols-2 gap-3">
+                              {MODULOS_BI.map((modulo) => (
+                                <div
+                                  key={modulo.id}
+                                  className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
+                                    selectedModulosBI.includes(modulo.id)
+                                      ? 'border-primary bg-primary/5'
+                                      : 'border-border hover:border-primary/50'
+                                  }`}
+                                  onClick={() => {
+                                    if (selectedModulosBI.includes(modulo.id)) {
+                                      setSelectedModulosBI(selectedModulosBI.filter(m => m !== modulo.id));
+                                    } else {
+                                      setSelectedModulosBI([...selectedModulosBI, modulo.id]);
+                                    }
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedModulosBI.includes(modulo.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedModulosBI([...selectedModulosBI, modulo.id]);
+                                      } else {
+                                        setSelectedModulosBI(selectedModulosBI.filter(m => m !== modulo.id));
+                                      }
+                                    }}
+                                    className="h-4 w-4 mt-0.5 rounded border-gray-300"
+                                  />
+                                  <div className="space-y-1">
+                                    <span className="text-sm font-medium">{modulo.label}</span>
+                                    <p className="text-xs text-muted-foreground">{modulo.description}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            {selectedModulosBI.length === 0 && (
+                              <p className="text-xs text-destructive">Selecione pelo menos um módulo</p>
+                            )}
+                          </div>
+                        )}
                         
                         {/* Flag Funcionário */}
                         <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
@@ -1211,6 +1293,52 @@ export default function Usuarios() {
                             </SelectContent>
                           </Select>
                         </div>
+
+                        {/* Seleção de Módulos BI - apenas para parceiro */}
+                        {editingRole === 'parceiro' && (
+                          <div className="space-y-3">
+                            <Label className="text-sm font-medium">Módulos BI Permitidos</Label>
+                            <div className="grid grid-cols-2 gap-3">
+                              {MODULOS_BI.map((modulo) => (
+                                <div
+                                  key={modulo.id}
+                                  className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
+                                    selectedModulosBI.includes(modulo.id)
+                                      ? 'border-primary bg-primary/5'
+                                      : 'border-border hover:border-primary/50'
+                                  }`}
+                                  onClick={() => {
+                                    if (selectedModulosBI.includes(modulo.id)) {
+                                      setSelectedModulosBI(selectedModulosBI.filter(m => m !== modulo.id));
+                                    } else {
+                                      setSelectedModulosBI([...selectedModulosBI, modulo.id]);
+                                    }
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedModulosBI.includes(modulo.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedModulosBI([...selectedModulosBI, modulo.id]);
+                                      } else {
+                                        setSelectedModulosBI(selectedModulosBI.filter(m => m !== modulo.id));
+                                      }
+                                    }}
+                                    className="h-4 w-4 mt-0.5 rounded border-gray-300"
+                                  />
+                                  <div className="space-y-1">
+                                    <span className="text-sm font-medium">{modulo.label}</span>
+                                    <p className="text-xs text-muted-foreground">{modulo.description}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            {selectedModulosBI.length === 0 && (
+                              <p className="text-xs text-destructive">Selecione pelo menos um módulo</p>
+                            )}
+                          </div>
+                        )}
                         
                         {/* Flag Funcionário */}
                         <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
