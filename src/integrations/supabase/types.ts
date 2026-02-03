@@ -680,8 +680,10 @@ export type Database = {
           nome_arquivo: string | null
           progresso_download: number | null
           progresso_importacao: number | null
+          proxima_tentativa_at: string | null
           registros_processados: number | null
           registros_total: number | null
+          retry_count: number | null
           status: string
           tipo_disparo: string | null
         }
@@ -704,8 +706,10 @@ export type Database = {
           nome_arquivo?: string | null
           progresso_download?: number | null
           progresso_importacao?: number | null
+          proxima_tentativa_at?: string | null
           registros_processados?: number | null
           registros_total?: number | null
+          retry_count?: number | null
           status?: string
           tipo_disparo?: string | null
         }
@@ -728,8 +732,10 @@ export type Database = {
           nome_arquivo?: string | null
           progresso_download?: number | null
           progresso_importacao?: number | null
+          proxima_tentativa_at?: string | null
           registros_processados?: number | null
           registros_total?: number | null
+          retry_count?: number | null
           status?: string
           tipo_disparo?: string | null
         }
@@ -2550,8 +2556,10 @@ export type Database = {
           nome_arquivo: string | null
           progresso_download: number | null
           progresso_importacao: number | null
+          proxima_tentativa_at: string | null
           registros_processados: number | null
           registros_total: number | null
+          retry_count: number | null
           status: string
           tipo_disparo: string | null
         }
@@ -2574,8 +2582,10 @@ export type Database = {
           nome_arquivo?: string | null
           progresso_download?: number | null
           progresso_importacao?: number | null
+          proxima_tentativa_at?: string | null
           registros_processados?: number | null
           registros_total?: number | null
+          retry_count?: number | null
           status?: string
           tipo_disparo?: string | null
         }
@@ -2598,8 +2608,10 @@ export type Database = {
           nome_arquivo?: string | null
           progresso_download?: number | null
           progresso_importacao?: number | null
+          proxima_tentativa_at?: string | null
           registros_processados?: number | null
           registros_total?: number | null
+          retry_count?: number | null
           status?: string
           tipo_disparo?: string | null
         }
@@ -3940,8 +3952,10 @@ export type Database = {
           nome_arquivo: string | null
           progresso_download: number | null
           progresso_importacao: number | null
+          proxima_tentativa_at: string | null
           registros_processados: number | null
           registros_total: number | null
+          retry_count: number | null
           status: string
           tipo_disparo: string | null
         }
@@ -3964,8 +3978,10 @@ export type Database = {
           nome_arquivo?: string | null
           progresso_download?: number | null
           progresso_importacao?: number | null
+          proxima_tentativa_at?: string | null
           registros_processados?: number | null
           registros_total?: number | null
+          retry_count?: number | null
           status?: string
           tipo_disparo?: string | null
         }
@@ -3988,8 +4004,10 @@ export type Database = {
           nome_arquivo?: string | null
           progresso_download?: number | null
           progresso_importacao?: number | null
+          proxima_tentativa_at?: string | null
           registros_processados?: number | null
           registros_total?: number | null
+          retry_count?: number | null
           status?: string
           tipo_disparo?: string | null
         }

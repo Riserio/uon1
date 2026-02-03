@@ -286,14 +286,28 @@ serve(async (req) => {
         }
 
         if (targetId) {
+          // Buscar retry_count atual
+          const { data: currentExec } = await supabase
+            .from("mgf_automacao_execucoes")
+            .select("retry_count")
+            .eq("id", targetId)
+            .single();
+          
+          const newRetryCount = (currentExec?.retry_count || 0) + 1;
+          const proximaTentativa = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+          
           await supabase
             .from("mgf_automacao_execucoes")
             .update({
               status: "erro",
               erro: error_message || "Erro desconhecido",
               finalizado_at: new Date().toISOString(),
+              retry_count: newRetryCount,
+              proxima_tentativa_at: proximaTentativa,
             })
             .eq("id", targetId);
+            
+          console.log(`[Webhook MGF] Retry agendado para ${proximaTentativa} (tentativa ${newRetryCount})`);
         }
       }
 

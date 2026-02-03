@@ -189,6 +189,23 @@ serve(async (req) => {
       if (status === 'sucesso' || status === 'erro') {
         updateData.finalizado_at = new Date().toISOString();
         updateData.duracao_segundos = Math.round((Date.now() - startTime) / 1000);
+        
+        // Se erro, agendar retry em 1 hora
+        if (status === 'erro') {
+          // Buscar retry_count atual
+          const { data: currentExec } = await supabase
+            .from("sga_automacao_execucoes")
+            .select("retry_count")
+            .eq("id", execucao_id)
+            .single();
+          
+          updateData.retry_count = (currentExec?.retry_count || 0) + 1;
+          updateData.proxima_tentativa_at = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+          console.log(`[Webhook SGA] Retry agendado para ${updateData.proxima_tentativa_at}`);
+        } else if (status === 'sucesso') {
+          // Limpar agendamento de retry em caso de sucesso
+          updateData.proxima_tentativa_at = null;
+        }
       }
 
       await supabase

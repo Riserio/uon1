@@ -45,6 +45,12 @@ verify_jwt = false
 [functions.scheduler-cobranca-hinova]
 verify_jwt = false
 
+[functions.scheduler-sga-hinova]
+verify_jwt = false
+
+[functions.scheduler-mgf-hinova]
+verify_jwt = false
+
 [functions.disparar-sga-workflow]
 verify_jwt = false
 

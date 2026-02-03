@@ -98,6 +98,195 @@ serve(async (req) => {
       );
     }
 
+    // ====================================
+    // FASE 1: Verificar retries pendentes
+    // ====================================
+    const retryDisparados: string[] = [];
+    
+    // Buscar execuções com erro que precisam de retry
+    const { data: execucoesParaRetry } = await supabase
+      .from("mgf_automacao_execucoes")
+      .select(`
+        id,
+        config_id,
+        corretora_id,
+        retry_count,
+        erro
+      `)
+      .eq("status", "erro")
+      .not("proxima_tentativa_at", "is", null)
+      .lte("proxima_tentativa_at", new Date().toISOString())
+      .order("proxima_tentativa_at", { ascending: true });
+
+    if (execucoesParaRetry && execucoesParaRetry.length > 0) {
+      console.log(`[Scheduler MGF] Encontradas ${execucoesParaRetry.length} execuções para retry`);
+      
+      for (const execFalha of execucoesParaRetry) {
+        // Buscar config da corretora
+        const { data: config } = await supabase
+          .from("mgf_automacao_config")
+          .select(`
+            *,
+            corretora:corretoras(nome, slug)
+          `)
+          .eq("id", execFalha.config_id)
+          .eq("ativo", true)
+          .single();
+
+        if (!config) {
+          console.log(`[Scheduler MGF] Config não encontrada ou inativa para retry, limpando agendamento`);
+          await supabase
+            .from("mgf_automacao_execucoes")
+            .update({ proxima_tentativa_at: null })
+            .eq("id", execFalha.id);
+          continue;
+        }
+
+        // Verificar se já há uma execução com sucesso hoje
+        const hoje = new Date().toISOString().split('T')[0];
+        const { data: execucoesHojeSucesso } = await supabase
+          .from("mgf_automacao_execucoes")
+          .select("id")
+          .eq("config_id", config.id)
+          .gte("created_at", `${hoje}T00:00:00`)
+          .eq("status", "sucesso")
+          .limit(1);
+
+        if (execucoesHojeSucesso && execucoesHojeSucesso.length > 0) {
+          console.log(`[Scheduler MGF] ${config.corretora?.nome} já tem sucesso hoje, cancelando retry`);
+          await supabase
+            .from("mgf_automacao_execucoes")
+            .update({ proxima_tentativa_at: null })
+            .eq("id", execFalha.id);
+          continue;
+        }
+
+        // Verificar se não há execução em andamento
+        const { data: execucaoEmAndamento } = await supabase
+          .from("mgf_automacao_execucoes")
+          .select("id")
+          .eq("config_id", config.id)
+          .eq("status", "executando")
+          .limit(1);
+
+        if (execucaoEmAndamento && execucaoEmAndamento.length > 0) {
+          console.log(`[Scheduler MGF] ${config.corretora?.nome} já tem execução em andamento, pulando retry`);
+          continue;
+        }
+
+        console.log(`[Scheduler MGF] Executando retry para ${config.corretora?.nome} (tentativa ${execFalha.retry_count + 1})`);
+
+        try {
+          // Limpar o agendamento de retry da execução antiga
+          await supabase
+            .from("mgf_automacao_execucoes")
+            .update({ proxima_tentativa_at: null })
+            .eq("id", execFalha.id);
+
+          // Criar nova execução de retry
+          const { data: novaExecucao, error: execError } = await supabase
+            .from("mgf_automacao_execucoes")
+            .insert({
+              config_id: config.id,
+              corretora_id: config.corretora_id,
+              status: 'executando',
+              etapa_atual: 'disparo',
+              mensagem: `Retry automático (tentativa ${execFalha.retry_count + 1}) após erro: ${execFalha.erro?.substring(0, 100) || 'desconhecido'}`,
+              iniciado_por: null,
+              tipo_disparo: 'retry',
+              retry_count: execFalha.retry_count,
+            })
+            .select()
+            .single();
+
+          if (execError) {
+            console.error(`[Scheduler MGF] Erro ao criar execução de retry:`, execError);
+            continue;
+          }
+
+          // Atualizar status para executando
+          await supabase
+            .from("mgf_automacao_config")
+            .update({
+              ultima_execucao: new Date().toISOString(),
+              ultimo_status: 'executando',
+              ultimo_erro: null,
+            })
+            .eq("id", config.id);
+
+          // Preparar inputs para o workflow
+          const workflowInputs = {
+            corretora_id: config.corretora_id,
+            hinova_url: config.hinova_url,
+            hinova_user: config.hinova_user,
+            hinova_pass: config.hinova_pass,
+            hinova_codigo_cliente: config.hinova_codigo_cliente || '',
+            execucao_id: novaExecucao.id,
+            webhook_url: `${supabaseUrl}/functions/v1/webhook-mgf-hinova`,
+          };
+
+          // Disparar workflow via GitHub API
+          const dispatchUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/actions/workflows/mgf-hinova.yml/dispatches`;
+          
+          const dispatchResponse = await fetch(dispatchUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${githubPat}`,
+              'Accept': 'application/vnd.github.v3+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              ref: 'main',
+              inputs: workflowInputs,
+            }),
+          });
+
+          if (!dispatchResponse.ok && dispatchResponse.status !== 204) {
+            const errorText = await dispatchResponse.text();
+            console.error(`[Scheduler MGF] Erro ao disparar retry para ${config.corretora_id}:`, errorText);
+            
+            // Agendar próximo retry em 1 hora
+            const proximoRetry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+            await supabase
+              .from("mgf_automacao_execucoes")
+              .update({
+                status: 'erro',
+                erro: `Erro ao disparar GitHub Actions no retry: ${dispatchResponse.status}`,
+                finalizado_at: new Date().toISOString(),
+                proxima_tentativa_at: proximoRetry,
+              })
+              .eq("id", novaExecucao.id);
+            continue;
+          }
+
+          // Registrar log de auditoria
+          await supabase.from("bi_audit_logs").insert({
+            modulo: "mgf_insights",
+            acao: "github_workflow_retry",
+            descricao: `Retry automático MGF disparado para ${config.corretora?.nome || config.corretora_id} (tentativa ${execFalha.retry_count + 1})`,
+            corretora_id: config.corretora_id,
+            user_id: SYSTEM_USER_ID,
+            user_nome: "Sistema (Scheduler Retry)",
+            dados_novos: {
+              execucao_id: novaExecucao.id,
+              retry_count: execFalha.retry_count + 1,
+              erro_anterior: execFalha.erro?.substring(0, 200),
+            },
+          });
+
+          console.log(`[Scheduler MGF] Retry disparado para ${config.corretora?.nome}`);
+          retryDisparados.push(config.corretora_id);
+
+        } catch (err) {
+          console.error(`[Scheduler MGF] Erro inesperado no retry para ${config.corretora_id}:`, err);
+        }
+      }
+    }
+
+    // ====================================
+    // FASE 2: Agendamentos normais
+    // ====================================
     const disparados: string[] = [];
     const erros: string[] = [];
 
@@ -291,9 +480,11 @@ serve(async (req) => {
       success: true,
       message: `Scheduler MGF executado às ${currentTimeStr} (Brasília)`,
       disparados: disparados.length,
+      retries: retryDisparados.length,
       erros: erros.length,
       detalhes: {
         disparados,
+        retries: retryDisparados,
         erros,
       },
     };
