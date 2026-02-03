@@ -165,12 +165,16 @@ function getDownloadDirectory() {
   return dir;
 }
 
-function generateSemanticFilename() {
+function generateSemanticFilename(suggestedFilename = '') {
   const now = new Date();
   const day = String(now.getDate()).padStart(2, '0');
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const year = now.getFullYear();
-  return `EVENTOS_${day}${month}${year}.xlsx`;
+
+  const extRaw = (path.extname(String(suggestedFilename || '')) || '').toLowerCase();
+  const ext = extRaw === '.xlsx' || extRaw === '.xls' ? extRaw : '.xls';
+
+  return `EVENTOS_${day}${month}${year}${ext}`;
 }
 
 // ============================================
@@ -1085,18 +1089,6 @@ async function processarArquivo(filePath) {
       if (dados.length > 0) {
         log(`HTML processado com sucesso: ${dados.length} registros`, LOG_LEVELS.SUCCESS);
 
-        // Contorno: quando o portal gera HTML com extensão .xls, o Excel acusa “formato/extensão não correspondem”.
-        // Aqui geramos um XLSX válido com os dados extraídos (sobrescrevendo o arquivo salvo).
-        try {
-          const wb = XLSX.utils.book_new();
-          const ws = XLSX.utils.json_to_sheet(dados, { skipHeader: false });
-          XLSX.utils.book_append_sheet(wb, ws, 'Eventos');
-          XLSX.writeFile(wb, filePath, { bookType: 'xlsx' });
-          log('Arquivo HTML convertido para XLSX válido (contorno do aviso do Excel)', LOG_LEVELS.SUCCESS);
-        } catch (e) {
-          log(`Falha ao converter HTML->XLSX (seguindo apenas com parse): ${e.message}`, LOG_LEVELS.WARN);
-        }
-
         return dados;
       }
       
@@ -1115,25 +1107,56 @@ async function processarArquivo(filePath) {
       return [];
     }
 
+    const isEmptyRowObject = (obj) => {
+      if (!obj || typeof obj !== 'object') return true;
+      const values = Object.values(obj);
+      if (values.length === 0) return true;
+      return values.every((v) => v === '' || v === null || v === undefined);
+    };
+
+    const isHeaderRowCells = (cells) => {
+      const rowText = String(cells?.join?.(' ') || '').toUpperCase();
+      const hasEventoField = rowText.includes('EVENTO') || rowText.includes('PLACA') || rowText.includes('SINISTRO') || rowText.includes('PROTOCOLO');
+      const hasOther = rowText.includes('DATA') || rowText.includes('SITUACAO') || rowText.includes('SITUAÇÃO') || rowText.includes('MODELO') || rowText.includes('COOPERATIVA') || rowText.includes('REGIONAL') || rowText.includes('VALOR');
+      return hasEventoField && hasOther;
+    };
+
     const readSheetSmart = (sheet) => {
       // 1) Leitura padrão
       let out = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+      out = (out || []).filter((r) => !isEmptyRowObject(r));
       if (out.length > 0) return out;
 
-      // 2) Leitura alternativa header:1
+      // 2) Leitura alternativa header:1 (com detecção de linha de cabeçalho)
       log('Tentando leitura alternativa (header:1)...', LOG_LEVELS.DEBUG);
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1, raw: false });
       if (!Array.isArray(rows) || rows.length <= 1) return [];
 
-      const headers = rows[0];
+      // Procurar o cabeçalho nas primeiras 100 linhas (algumas versões vêm com linhas de título antes)
+      let headerRowIdx = -1;
+      for (let i = 0; i < Math.min(rows.length, 100); i++) {
+        const row = rows[i];
+        if (!Array.isArray(row) || row.length === 0) continue;
+        if (isHeaderRowCells(row)) {
+          headerRowIdx = i;
+          break;
+        }
+      }
+
+      const headers = headerRowIdx >= 0 ? rows[headerRowIdx] : rows[0];
+      const dataRows = headerRowIdx >= 0 ? rows.slice(headerRowIdx + 1) : rows.slice(1);
+
       log(`Headers encontrados: ${JSON.stringify(headers).substring(0, 200)}`, LOG_LEVELS.DEBUG);
-      return rows.slice(1).map((row) => {
+
+      const mapped = dataRows.map((row) => {
         const obj = {};
         headers.forEach((h, i) => {
           obj[h || `col_${i}`] = row?.[i] ?? '';
         });
         return obj;
       });
+
+      return mapped.filter((r) => !isEmptyRowObject(r));
     };
 
     // Alguns relatórios colocam dados na 2ª sheet; pegamos a sheet com mais linhas.
@@ -1428,8 +1451,8 @@ async function main() {
       throw new Error(`Timeout aguardando download: ${e.message}`);
     }
 
-    // Salvar arquivo
-    const semanticName = generateSemanticFilename();
+    // Salvar arquivo preservando a extensão original (.xls/.xlsx)
+    const semanticName = generateSemanticFilename(download.suggestedFilename());
     const filePath = path.join(downloadDir, semanticName);
 
     log(`Salvando arquivo: ${filePath}`, LOG_LEVELS.INFO);
