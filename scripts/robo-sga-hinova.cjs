@@ -999,7 +999,8 @@ function processarTabelaHtml(htmlContent) {
       const originalHeader = headerInfo.original;
       const mappedHeader = headerInfo.mapped;
       
-      // Usar o header original se não houver mapeamento
+      // IMPORTANTE: Usar o header ORIGINAL pois o webhook faz o mapeamento
+      // O webhook espera os nomes originais das colunas (ex: "EVENTO ESTADO", "PLACA")
       const headerToUse = originalHeader;
       let value = cells[j];
       
@@ -1009,7 +1010,7 @@ function processarTabelaHtml(htmlContent) {
       }
     }
     
-    // Verificar se tem dados mínimos (pelo menos 3 campos)
+    // Verificar se tem dados mínimos (pelo menos 3 campos preenchidos)
     if (temDados && Object.keys(rowData).length >= 3) {
       dados.push(rowData);
     }

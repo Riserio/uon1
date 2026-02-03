@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 // Mapeamento de colunas do Excel para campos do banco
+// IMPORTANTE: Chaves já normalizadas (sem acentos, uppercase)
 const COLUMN_MAP: { [key: string]: string } = {
   "EVENTO ESTADO": "evento_estado",
   "DATA CADASTRO ITEM": "data_cadastro_item",
@@ -14,51 +15,33 @@ const COLUMN_MAP: { [key: string]: string } = {
   "MOTIVO EVENTO": "motivo_evento",
   "TIPO EVENTO": "tipo_evento",
   "SITUACAO EVENTO": "situacao_evento",
-  "SITUAÇÃO EVENTO": "situacao_evento",
   "MODELO VEICULO": "modelo_veiculo",
-  "MODELO VEÍCULO": "modelo_veiculo",
   "MODELO VEICULO TERCEIRO": "modelo_veiculo_terceiro",
-  "MODELO VEÍCULO TERCEIRO": "modelo_veiculo_terceiro",
   "PLACA": "placa",
   "PLACA TERCEIRO": "placa_terceiro",
   "DATA ULTIMA ALTERACAO SITUACAO": "data_ultima_alteracao_situacao",
-  "DATA ÚLTIMA ALTERAÇÃO SITUAÇÃO": "data_ultima_alteracao_situacao",
   "VALOR REPARO": "valor_reparo",
   "DATA CONCLUSAO": "data_conclusao",
-  "DATA CONCLUSÃO": "data_conclusao",
   "CUSTO EVENTO": "custo_evento",
   "DATA ALTERACAO": "data_alteracao",
-  "DATA ALTERAÇÃO": "data_alteracao",
   "DATA PREVISAO ENTREGA": "data_previsao_entrega",
-  "DATA PREVISÃO ENTREGA": "data_previsao_entrega",
   "SOLICITOU CARRO RESERVA": "solicitou_carro_reserva",
   "ENVOLVIMENTO TERCEIRO": "envolvimento_terceiro",
   "PASSIVEL RESSARCIMENTO": "passivel_ressarcimento",
-  "PASSÍVEL RESSARCIMENTO": "passivel_ressarcimento",
   "VALOR MAO DE OBRA": "valor_mao_de_obra",
-  "VALOR MÃO DE OBRA": "valor_mao_de_obra",
   "CLASSIFICACAO": "classificacao",
-  "CLASSIFICAÇÃO": "classificacao",
   "PARTICIPACAO": "participacao",
-  "PARTICIPAÇÃO": "participacao",
   "ENVOLVIMENTO": "envolvimento",
   "PREVISAO VALOR REPARO": "previsao_valor_reparo",
-  "PREVISÃO VALOR REPARO": "previsao_valor_reparo",
   "USUARIO ALTERACAO": "usuario_alteracao",
-  "USUÁRIO ALTERAÇÃO": "usuario_alteracao",
   "DATA CADASTRO EVENTO": "data_cadastro_evento",
   "COOPERATIVA": "cooperativa",
   "VALOR PROTEGIDO VEICULO": "valor_protegido_veiculo",
-  "VALOR PROTEGIDO VEÍCULO": "valor_protegido_veiculo",
   "SITUACAO ANALISE EVENTO": "situacao_analise_evento",
-  "SITUAÇÃO ANÁLISE EVENTO": "situacao_analise_evento",
   "REGIONAL": "regional",
   "ANO FABRICACAO": "ano_fabricacao",
-  "ANO FABRICAÇÃO": "ano_fabricacao",
   "VOLUNTARIO": "voluntario",
-  "VOLUNTÁRIO": "voluntario",
   "REGIONAL VEICULO": "regional_veiculo",
-  "REGIONAL VEÍCULO": "regional_veiculo",
   "ASSOCIADO ESTADO": "associado_estado",
   "EVENTO CIDADE": "evento_cidade",
   "CIDADE EVENTO": "evento_cidade",
@@ -66,14 +49,17 @@ const COLUMN_MAP: { [key: string]: string } = {
   "PROTOCOLO": "protocolo",
   "EVENTO LOGRADOURO": "evento_logradouro",
   "CATEGORIA VEICULO": "categoria_veiculo",
-  "CATEGORIA VEÍCULO": "categoria_veiculo",
   "TIPO VEICULO VEICULO TERCEIRO": "tipo_veiculo_terceiro",
-  "TIPO VEÍCULO VEÍCULO TERCEIRO": "tipo_veiculo_terceiro",
 };
 
-// Normaliza header
+// Normaliza header (remove acentos para matching robusto)
 const normalizeHeader = (header: string): string => {
-  return header.trim().toUpperCase().replace(/\s+/g, " ");
+  return header
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacríticos/acentos
+    .replace(/\s+/g, " ");
 };
 
 // Parse de data brasileira ou serial Excel
@@ -243,6 +229,20 @@ serve(async (req) => {
     // Importação de dados
     if (dados && dados.length > 0 && corretora_id) {
       console.log(`[Webhook SGA] Iniciando importação de ${dados.length} registros`);
+      
+      // Log de diagnóstico: mostrar os headers recebidos do primeiro registro
+      if (dados[0]) {
+        const headersRecebidos = Object.keys(dados[0]);
+        console.log(`[Webhook SGA] Headers recebidos (${headersRecebidos.length}): ${headersRecebidos.slice(0, 10).join(', ')}...`);
+        
+        // Verificar mapeamento
+        const mapeados = headersRecebidos.filter(h => COLUMN_MAP[normalizeHeader(h)]);
+        const naoMapeados = headersRecebidos.filter(h => !COLUMN_MAP[normalizeHeader(h)]);
+        console.log(`[Webhook SGA] Mapeados: ${mapeados.length}, Não mapeados: ${naoMapeados.length}`);
+        if (naoMapeados.length > 0) {
+          console.log(`[Webhook SGA] Headers não mapeados: ${naoMapeados.slice(0, 5).join(', ')}`);
+        }
+      }
 
       // Desativar importações anteriores
       await supabase
@@ -269,9 +269,10 @@ serve(async (req) => {
       }
 
       // Processar dados
-      const records = dados.map((row: any) => {
+      const records = dados.map((row: any, idx: number) => {
         const record: any = { importacao_id: importacao.id };
         const processedDbCols = new Set<string>();
+        let mappedCount = 0;
 
         // Processar cada coluna
         Object.keys(row).forEach(excelCol => {

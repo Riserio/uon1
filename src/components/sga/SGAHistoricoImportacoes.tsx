@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { History, CheckCircle, Trash2, RefreshCw, FileSpreadsheet, Loader2, AlertCircle } from "lucide-react";
+import { History, CheckCircle, Trash2, RefreshCw, FileSpreadsheet, Loader2, AlertCircle, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -22,6 +23,7 @@ export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGA
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const fetchImportacoes = async () => {
     if (!corretoraId) {
@@ -134,6 +136,64 @@ export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGA
     }
   };
 
+  const handleDownload = async (id: string, nomeArquivo: string) => {
+    setDownloading(id);
+    try {
+      // Buscar todos os eventos da importação em lotes
+      const BATCH_SIZE = 1000;
+      let allEventos: any[] = [];
+      let offset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data: batch, error } = await supabase
+          .from("sga_eventos")
+          .select("*")
+          .eq("importacao_id", id)
+          .range(offset, offset + BATCH_SIZE - 1);
+
+        if (error) throw error;
+
+        if (batch && batch.length > 0) {
+          allEventos = [...allEventos, ...batch];
+          offset += BATCH_SIZE;
+          hasMore = batch.length === BATCH_SIZE;
+        } else {
+          hasMore = false;
+        }
+
+        if (offset >= 100000) break; // Limite de segurança
+      }
+
+      if (allEventos.length === 0) {
+        toast.error("Nenhum dado encontrado para exportar");
+        return;
+      }
+
+      // Remover campos internos e preparar dados
+      const dadosExport = allEventos.map(e => {
+        const { id, importacao_id, created_at, ...rest } = e;
+        return rest;
+      });
+
+      // Criar workbook e worksheet
+      const ws = XLSX.utils.json_to_sheet(dadosExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Eventos");
+
+      // Gerar arquivo e baixar
+      const fileName = nomeArquivo.replace(/\.[^/.]+$/, "") + "_exportado.xlsx";
+      XLSX.writeFile(wb, fileName);
+
+      toast.success(`${allEventos.length} registros exportados com sucesso!`);
+    } catch (error) {
+      console.error("Erro ao exportar:", error);
+      toast.error("Erro ao exportar dados");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
   if (!corretoraId) {
     return (
       <Card className="border-yellow-500/20 bg-yellow-500/5">
@@ -206,6 +266,20 @@ export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGA
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownload(imp.id, imp.nome_arquivo)}
+                        disabled={downloading === imp.id}
+                        title="Baixar dados"
+                      >
+                        {downloading === imp.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
+                      </Button>
+                      
                       {!imp.ativo && (
                         <Button
                           variant="outline"
