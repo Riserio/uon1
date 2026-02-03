@@ -170,20 +170,54 @@ export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGA
         return;
       }
 
-      // Remover campos internos e preparar dados
+      // Remover campos internos e preparar dados com nomes amigáveis
       const dadosExport = allEventos.map(e => {
-        const { id, importacao_id, created_at, ...rest } = e;
-        return rest;
+        const { id: _id, importacao_id: _imp, created_at: _created, corretora_id: _corr, ...rest } = e;
+        return {
+          "Placa": rest.placa || "",
+          "Evento": rest.motivo_evento || "",
+          "Situação": rest.situacao_evento || "",
+          "Data Evento": rest.data_evento || "",
+          "Data Cadastro": rest.data_cadastro_evento || "",
+          "Cidade": rest.evento_cidade || "",
+          "UF": rest.evento_uf || "",
+          "Cooperativa": rest.cooperativa || "",
+          "Regional": rest.regional || "",
+          "Protocolo": rest.protocolo_evento || "",
+          "Sinistro": rest.sinistro || "",
+          "Modelo": rest.modelo || "",
+          "Valor FIPE": rest.valor_fipe || "",
+          "Valor Sinistro": rest.valor_sinistro || "",
+        };
       });
 
-      // Criar workbook e worksheet
+      // Criar workbook e worksheet com formato XLSX válido
       const ws = XLSX.utils.json_to_sheet(dadosExport);
+      
+      // Ajustar largura das colunas
+      ws['!cols'] = [
+        { wch: 10 }, // Placa
+        { wch: 20 }, // Evento
+        { wch: 15 }, // Situação
+        { wch: 12 }, // Data Evento
+        { wch: 12 }, // Data Cadastro
+        { wch: 20 }, // Cidade
+        { wch: 5 },  // UF
+        { wch: 20 }, // Cooperativa
+        { wch: 15 }, // Regional
+        { wch: 15 }, // Protocolo
+        { wch: 15 }, // Sinistro
+        { wch: 25 }, // Modelo
+        { wch: 15 }, // Valor FIPE
+        { wch: 15 }, // Valor Sinistro
+      ];
+      
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Eventos");
 
-      // Gerar arquivo e baixar
+      // Gerar arquivo XLSX válido (não HTML disfarçado)
       const fileName = nomeArquivo.replace(/\.[^/.]+$/, "") + "_exportado.xlsx";
-      XLSX.writeFile(wb, fileName);
+      XLSX.writeFile(wb, fileName, { bookType: 'xlsx', type: 'binary' });
 
       toast.success(`${allEventos.length} registros exportados com sucesso!`);
     } catch (error) {
