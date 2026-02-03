@@ -405,7 +405,19 @@ serve(async (req) => {
           targetId = lastRunning?.id ?? null;
         }
 
+        // Calcular próxima tentativa (1 hora após o erro)
+        const proximaTentativa = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+        
         if (targetId) {
+          // Buscar retry_count atual
+          const { data: currentExec } = await supabase
+            .from("cobranca_automacao_execucoes")
+            .select("retry_count")
+            .eq("id", targetId)
+            .single();
+          
+          const newRetryCount = (currentExec?.retry_count || 0) + 1;
+          
           await supabase
             .from("cobranca_automacao_execucoes")
             .update({
@@ -415,8 +427,12 @@ serve(async (req) => {
               etapa_atual: "erro",
               github_run_id: githubRunIdStr,
               github_run_url: github_run_url || null,
+              retry_count: newRetryCount,
+              proxima_tentativa_at: proximaTentativa,
             })
             .eq("id", targetId);
+            
+          console.log(`[Webhook] Retry agendado para ${proximaTentativa} (tentativa ${newRetryCount})`);
         } else {
           await supabase
             .from("cobranca_automacao_execucoes")
@@ -430,7 +446,11 @@ serve(async (req) => {
               tipo_disparo: "automatico",
               github_run_id: githubRunIdStr,
               github_run_url: github_run_url || null,
+              retry_count: 1,
+              proxima_tentativa_at: proximaTentativa,
             });
+            
+          console.log(`[Webhook] Retry agendado para ${proximaTentativa} (nova execução com erro)`);
         }
 
         // Registrar no BI (erro)
