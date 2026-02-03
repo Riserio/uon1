@@ -786,104 +786,247 @@ function validateDownloadedFile(filePath, contentType) {
 // PROCESSAR ARQUIVO (EXCEL OU HTML)
 // ============================================
 
-// Função para extrair texto de célula HTML removendo tags
-function extrairTexto(html) {
-  if (!html) return '';
-  return html
-    .replace(/<[^>]+>/g, '') // Remove tags HTML
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+// Mapeamento de colunas do Excel/HTML para nomes padronizados para eventos
+const COLUMN_MAP = {
+  // Nome padronizado -> variações aceitas
+  'EVENTO ESTADO': 'evento_estado',
+  'DATA CADASTRO ITEM': 'data_cadastro_item',
+  'DATA EVENTO': 'data_evento',
+  'MOTIVO EVENTO': 'motivo_evento',
+  'TIPO EVENTO': 'tipo_evento',
+  'SITUACAO EVENTO': 'situacao_evento',
+  'SITUAÇÃO EVENTO': 'situacao_evento',
+  'MODELO VEICULO': 'modelo_veiculo',
+  'MODELO VEÍCULO': 'modelo_veiculo',
+  'MODELO VEICULO TERCEIRO': 'modelo_veiculo_terceiro',
+  'MODELO VEÍCULO TERCEIRO': 'modelo_veiculo_terceiro',
+  'PLACA': 'placa',
+  'PLACA TERCEIRO': 'placa_terceiro',
+  'DATA ULTIMA ALTERACAO SITUACAO': 'data_ultima_alteracao_situacao',
+  'DATA ÚLTIMA ALTERAÇÃO SITUAÇÃO': 'data_ultima_alteracao_situacao',
+  'VALOR REPARO': 'valor_reparo',
+  'DATA CONCLUSAO': 'data_conclusao',
+  'DATA CONCLUSÃO': 'data_conclusao',
+  'CUSTO EVENTO': 'custo_evento',
+  'DATA ALTERACAO': 'data_alteracao',
+  'DATA ALTERAÇÃO': 'data_alteracao',
+  'DATA PREVISAO ENTREGA': 'data_previsao_entrega',
+  'DATA PREVISÃO ENTREGA': 'data_previsao_entrega',
+  'SOLICITOU CARRO RESERVA': 'solicitou_carro_reserva',
+  'ENVOLVIMENTO TERCEIRO': 'envolvimento_terceiro',
+  'PASSIVEL RESSARCIMENTO': 'passivel_ressarcimento',
+  'PASSÍVEL RESSARCIMENTO': 'passivel_ressarcimento',
+  'VALOR MAO DE OBRA': 'valor_mao_de_obra',
+  'VALOR MÃO DE OBRA': 'valor_mao_de_obra',
+  'CLASSIFICACAO': 'classificacao',
+  'CLASSIFICAÇÃO': 'classificacao',
+  'PARTICIPACAO': 'participacao',
+  'PARTICIPAÇÃO': 'participacao',
+  'ENVOLVIMENTO': 'envolvimento',
+  'PREVISAO VALOR REPARO': 'previsao_valor_reparo',
+  'PREVISÃO VALOR REPARO': 'previsao_valor_reparo',
+  'USUARIO ALTERACAO': 'usuario_alteracao',
+  'USUÁRIO ALTERAÇÃO': 'usuario_alteracao',
+  'DATA CADASTRO EVENTO': 'data_cadastro_evento',
+  'COOPERATIVA': 'cooperativa',
+  'VALOR PROTEGIDO VEICULO': 'valor_protegido_veiculo',
+  'VALOR PROTEGIDO VEÍCULO': 'valor_protegido_veiculo',
+  'SITUACAO ANALISE EVENTO': 'situacao_analise_evento',
+  'SITUAÇÃO ANÁLISE EVENTO': 'situacao_analise_evento',
+  'REGIONAL': 'regional',
+  'ANO FABRICACAO': 'ano_fabricacao',
+  'ANO FABRICAÇÃO': 'ano_fabricacao',
+  'VOLUNTARIO': 'voluntario',
+  'VOLUNTÁRIO': 'voluntario',
+  'REGIONAL VEICULO': 'regional_veiculo',
+  'REGIONAL VEÍCULO': 'regional_veiculo',
+  'ASSOCIADO ESTADO': 'associado_estado',
+  'EVENTO CIDADE': 'evento_cidade',
+  'CIDADE EVENTO': 'evento_cidade',
+  'CIDADE': 'evento_cidade',
+  'PROTOCOLO': 'protocolo',
+  'EVENTO LOGRADOURO': 'evento_logradouro',
+  'CATEGORIA VEICULO': 'categoria_veiculo',
+  'CATEGORIA VEÍCULO': 'categoria_veiculo',
+  'TIPO VEICULO VEICULO TERCEIRO': 'tipo_veiculo_terceiro',
+  'TIPO VEÍCULO VEÍCULO TERCEIRO': 'tipo_veiculo_terceiro',
+};
+
+// Função para normalizar cabeçalhos
+function normalizeHeader(header) {
+  return String(header || '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '') // Remove acentos
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-// Função para processar tabela HTML do Hinova
+/**
+ * Parser HTML robusto para relatório Hinova (que disfarça HTML como .xls)
+ * NÃO depende de <thead>/<tbody> - detecta cabeçalhos dinamicamente
+ */
 function processarTabelaHtml(htmlContent) {
-  log('Processando arquivo HTML do Hinova...', LOG_LEVELS.INFO);
+  log('Processando arquivo HTML do Hinova (parser robusto)...', LOG_LEVELS.INFO);
   
-  const registros = [];
+  const dados = [];
+  let headersEncontrados = [];
+  let headerMapping = [];
+  let headerRowIndex = -1;
+  let currentRowIndex = 0;
   
-  // Extrair headers da tabela
-  const theadMatch = htmlContent.match(/<thead[^>]*>([\s\S]*?)<\/thead>/i);
-  if (!theadMatch) {
-    log('Não encontrou <thead> no HTML', LOG_LEVELS.WARN);
-    return [];
-  }
+  // Diagnóstico: guardar as primeiras linhas para análise
+  const sampleRows = [];
+  const MAX_SAMPLE_ROWS = 30;
   
-  const headerMatch = theadMatch[1].match(/<th[^>]*>(.*?)<\/th>/gi);
-  if (!headerMatch) {
-    log('Não encontrou <th> no HTML', LOG_LEVELS.WARN);
-    return [];
-  }
+  // Função para detectar se uma linha é cabeçalho (baseada em campos de eventos)
+  const isHeaderRow = (cells) => {
+    const rowText = cells.join(' ').toUpperCase();
+    // Precisa ter PLACA, EVENTO, ou outro campo característico de eventos
+    const hasEventoField = rowText.includes('EVENTO') || 
+                           rowText.includes('PLACA') ||
+                           rowText.includes('SINISTRO') ||
+                           rowText.includes('PROTOCOLO');
+    const hasOther = rowText.includes('DATA') || 
+                     rowText.includes('SITUACAO') ||
+                     rowText.includes('SITUAÇÃO') ||
+                     rowText.includes('MODELO') ||
+                     rowText.includes('COOPERATIVA') ||
+                     rowText.includes('REGIONAL') ||
+                     rowText.includes('VALOR');
+    return hasEventoField && hasOther;
+  };
   
-  const headers = headerMatch.map(th => {
-    const texto = th.replace(/<\/?th[^>]*>/gi, '').trim();
-    return extrairTexto(texto);
-  }).filter(h => h && h !== 'AÇÕES'); // Remove coluna de ações
+  // Extrair todas as linhas <tr>...</tr>
+  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  let match;
   
-  log(`Headers encontrados (${headers.length}): ${headers.slice(0, 10).join(', ')}...`, LOG_LEVELS.DEBUG);
-  
-  // Extrair tbody
-  const tbodyMatch = htmlContent.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
-  if (!tbodyMatch) {
-    log('Não encontrou <tbody> no HTML', LOG_LEVELS.WARN);
-    return [];
-  }
-  
-  const tbodyContent = tbodyMatch[1];
-  
-  // Extrair todas as linhas <tr>
-  // O HTML do Hinova pode ter <tr><tr> consecutivos ou <tr> com </tr>
-  const trMatches = tbodyContent.match(/<tr[^>]*>[\s\S]*?(?=<tr|$)/gi);
-  
-  if (!trMatches) {
-    log('Não encontrou linhas <tr> no tbody', LOG_LEVELS.WARN);
-    return [];
-  }
-  
-  log(`Linhas TR encontradas: ${trMatches.length}`, LOG_LEVELS.DEBUG);
-  
-  for (const trContent of trMatches) {
-    // Extrair células <td>
-    const tdMatches = trContent.match(/<td[^>]*>([\s\S]*?)(?:<\/td>|(?=<td))/gi);
+  while ((match = rowRegex.exec(htmlContent)) !== null) {
+    const rowHtml = match[1];
+    const cells = [];
     
-    if (!tdMatches || tdMatches.length === 0) continue;
+    // Tentar extrair de <th> primeiro (cabeçalho)
+    const thRegex = /<th[^>]*>([\s\S]*?)<\/th>/gi;
+    let thMatch;
+    while ((thMatch = thRegex.exec(rowHtml)) !== null) {
+      let text = thMatch[1]
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&#\d+;/g, '')
+        .trim();
+      cells.push(text);
+    }
     
-    const valores = tdMatches.map(td => {
-      const conteudo = td.replace(/<\/?td[^>]*>/gi, '');
-      return extrairTexto(conteudo);
-    });
-    
-    // Verificar se tem dados suficientes (mínimo 10 colunas preenchidas)
-    const valoresNaoVazios = valores.filter(v => v && v.length > 0);
-    if (valoresNaoVazios.length < 5) continue;
-    
-    // Criar objeto com headers
-    const registro = {};
-    for (let i = 0; i < headers.length && i < valores.length; i++) {
-      const header = headers[i];
-      if (header && header !== 'AÇÕES') {
-        registro[header] = valores[i] || '';
+    // Se não achou <th>, extrair de <td>
+    if (cells.length === 0) {
+      const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+      let cellMatch;
+      while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
+        let text = cellMatch[1]
+          .replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, '$1')
+          .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, '$1')
+          .replace(/<[^>]*>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&#\d+;/g, '')
+          .trim();
+        cells.push(text);
       }
     }
     
-    // Só adicionar se tiver dados relevantes
-    if (Object.keys(registro).length > 5) {
-      registros.push(registro);
+    if (cells.length === 0) continue;
+    
+    currentRowIndex++;
+    
+    // Salvar amostra das primeiras linhas para diagnóstico
+    if (sampleRows.length < MAX_SAMPLE_ROWS) {
+      sampleRows.push({ index: currentRowIndex, cells: cells.slice(0, 5) });
+    }
+    
+    // Detectar cabeçalho nas primeiras 100 linhas
+    if (headerRowIndex === -1 && currentRowIndex <= 100) {
+      if (isHeaderRow(cells)) {
+        headerRowIndex = currentRowIndex;
+        headersEncontrados = cells.map(h => normalizeHeader(h));
+        log(`🎯 Cabeçalho detectado na linha ${currentRowIndex}: ${cells.length} colunas`, LOG_LEVELS.SUCCESS);
+        log(`📋 Cabeçalhos: ${cells.slice(0, 8).join(' | ')}...`, LOG_LEVELS.DEBUG);
+        
+        // Mapear cabeçalhos para nomes padronizados
+        for (let i = 0; i < headersEncontrados.length; i++) {
+          const normalized = headersEncontrados[i];
+          let mappedName = COLUMN_MAP[normalized] || null;
+          
+          // Fallback: buscar correspondência parcial
+          if (!mappedName) {
+            for (const [key, value] of Object.entries(COLUMN_MAP)) {
+              if (normalized.includes(key) || key.includes(normalized)) {
+                mappedName = value;
+                break;
+              }
+            }
+          }
+          headerMapping.push({ original: headersEncontrados[i], mapped: mappedName });
+        }
+        log(`Mapeamento: ${headerMapping.filter(h => h.mapped).length} colunas reconhecidas`, LOG_LEVELS.DEBUG);
+        continue;
+      }
+    }
+    
+    // Pular linhas antes do cabeçalho
+    if (headerRowIndex === -1 || currentRowIndex <= headerRowIndex) continue;
+    
+    // Processar linha de dados
+    const rowData = {};
+    let temDados = false;
+    
+    for (let j = 0; j < cells.length && j < headerMapping.length; j++) {
+      const headerInfo = headerMapping[j];
+      const originalHeader = headerInfo.original;
+      const mappedHeader = headerInfo.mapped;
+      
+      // Usar o header original se não houver mapeamento
+      const headerToUse = originalHeader;
+      let value = cells[j];
+      
+      if (value !== null && value !== '' && value !== undefined) {
+        rowData[headerToUse] = value;
+        temDados = true;
+      }
+    }
+    
+    // Verificar se tem dados mínimos (pelo menos 3 campos)
+    if (temDados && Object.keys(rowData).length >= 3) {
+      dados.push(rowData);
     }
   }
   
-  log(`Registros extraídos do HTML: ${registros.length}`, LOG_LEVELS.SUCCESS);
+  log(`✅ Processamento HTML concluído`, LOG_LEVELS.SUCCESS);
+  log(`Registros válidos: ${dados.length} (${currentRowIndex} linhas <tr> processadas)`, LOG_LEVELS.SUCCESS);
   
-  if (registros.length > 0) {
-    log(`Primeiro registro: ${JSON.stringify(registros[0]).substring(0, 300)}`, LOG_LEVELS.DEBUG);
+  // Diagnóstico detalhado se não encontrou dados
+  if (dados.length === 0) {
+    log(`🔍 DIAGNÓSTICO - Cabeçalho encontrado: ${headerRowIndex > 0 ? 'SIM na linha ' + headerRowIndex : 'NÃO'}`, LOG_LEVELS.WARN);
+    
+    if (headerRowIndex <= 0) {
+      log(`❌ Causa: Cabeçalho da tabela não foi detectado!`, LOG_LEVELS.ERROR);
+      log(`📊 Amostra das primeiras linhas processadas:`, LOG_LEVELS.DEBUG);
+      sampleRows.slice(0, 15).forEach(row => {
+        log(`   Linha ${row.index}: ${row.cells.join(' | ').substring(0, 100)}...`, LOG_LEVELS.DEBUG);
+      });
+    }
   }
   
-  return registros;
+  if (dados.length > 0) {
+    log(`Primeiro registro: ${JSON.stringify(dados[0]).substring(0, 300)}`, LOG_LEVELS.DEBUG);
+  }
+  
+  return dados;
 }
 
 async function processarArquivo(filePath) {
