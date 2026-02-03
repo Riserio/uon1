@@ -165,16 +165,12 @@ function getDownloadDirectory() {
   return dir;
 }
 
-function generateSemanticFilename(suggestedFilename = '') {
+function generateSemanticFilename() {
   const now = new Date();
   const day = String(now.getDate()).padStart(2, '0');
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const year = now.getFullYear();
-
-  const extRaw = (path.extname(String(suggestedFilename || '')) || '').toLowerCase();
-  const ext = extRaw === '.xlsx' || extRaw === '.xls' ? extRaw : '.xls';
-
-  return `EVENTOS_${day}${month}${year}${ext}`;
+  return `EVENTOS_${day}${month}${year}.xlsx`;
 }
 
 // ============================================
@@ -763,26 +759,17 @@ function validateDownloadedFile(filePath, contentType) {
     return { valid: false, error: 'Arquivo vazio' };
   }
 
-  // Ler primeiros bytes para detectar tipo (HTML pode não ter <html> nos primeiros 16 bytes)
-  const buffer = Buffer.alloc(2048);
+  // Ler primeiros bytes para detectar tipo
+  const buffer = Buffer.alloc(16);
   const fd = fs.openSync(filePath, 'r');
-  fs.readSync(fd, buffer, 0, buffer.length, 0);
+  fs.readSync(fd, buffer, 0, 16, 0);
   fs.closeSync(fd);
 
   // Magic bytes
   const isZip = buffer[0] === 0x50 && buffer[1] === 0x4B; // XLSX é ZIP
   const isXls = buffer[0] === 0xD0 && buffer[1] === 0xCF; // XLS antigo
-  // HTML do Hinova pode começar com whitespace/BOM/<meta>, então precisamos olhar mais bytes e em latin1 também
-  const headerUtf8 = buffer.toString('utf8', 0, 512).toLowerCase();
-  const headerLatin1 = buffer.toString('latin1', 0, 512).toLowerCase();
-  const isHtml = [headerUtf8, headerLatin1].some((s) =>
-    s.includes('<html') ||
-    s.includes('<!doctype') ||
-    s.includes('<meta') ||
-    s.includes('<table') ||
-    s.includes('<tr') ||
-    s.includes('<td')
-  );
+  const isHtml = buffer.toString('utf8', 0, 5).toLowerCase().includes('<html') ||
+                 buffer.toString('utf8', 0, 5).toLowerCase().includes('<!doc');
 
   if (isZip) {
     return { valid: true, fileType: 'xlsx', size: stats.size };
@@ -799,282 +786,104 @@ function validateDownloadedFile(filePath, contentType) {
 // PROCESSAR ARQUIVO (EXCEL OU HTML)
 // ============================================
 
-// Mapeamento de colunas do Excel/HTML para nomes padronizados para eventos
-const COLUMN_MAP = {
-  // Nome padronizado -> variações aceitas
-  'EVENTO ESTADO': 'evento_estado',
-  'DATA CADASTRO ITEM': 'data_cadastro_item',
-  'DATA EVENTO': 'data_evento',
-  'MOTIVO EVENTO': 'motivo_evento',
-  'TIPO EVENTO': 'tipo_evento',
-  'SITUACAO EVENTO': 'situacao_evento',
-  'SITUAÇÃO EVENTO': 'situacao_evento',
-  'MODELO VEICULO': 'modelo_veiculo',
-  'MODELO VEÍCULO': 'modelo_veiculo',
-  'MODELO VEICULO TERCEIRO': 'modelo_veiculo_terceiro',
-  'MODELO VEÍCULO TERCEIRO': 'modelo_veiculo_terceiro',
-  'PLACA': 'placa',
-  'PLACA TERCEIRO': 'placa_terceiro',
-  'DATA ULTIMA ALTERACAO SITUACAO': 'data_ultima_alteracao_situacao',
-  'DATA ÚLTIMA ALTERAÇÃO SITUAÇÃO': 'data_ultima_alteracao_situacao',
-  'VALOR REPARO': 'valor_reparo',
-  'DATA CONCLUSAO': 'data_conclusao',
-  'DATA CONCLUSÃO': 'data_conclusao',
-  'CUSTO EVENTO': 'custo_evento',
-  'DATA ALTERACAO': 'data_alteracao',
-  'DATA ALTERAÇÃO': 'data_alteracao',
-  'DATA PREVISAO ENTREGA': 'data_previsao_entrega',
-  'DATA PREVISÃO ENTREGA': 'data_previsao_entrega',
-  'SOLICITOU CARRO RESERVA': 'solicitou_carro_reserva',
-  'ENVOLVIMENTO TERCEIRO': 'envolvimento_terceiro',
-  'PASSIVEL RESSARCIMENTO': 'passivel_ressarcimento',
-  'PASSÍVEL RESSARCIMENTO': 'passivel_ressarcimento',
-  'VALOR MAO DE OBRA': 'valor_mao_de_obra',
-  'VALOR MÃO DE OBRA': 'valor_mao_de_obra',
-  'CLASSIFICACAO': 'classificacao',
-  'CLASSIFICAÇÃO': 'classificacao',
-  'PARTICIPACAO': 'participacao',
-  'PARTICIPAÇÃO': 'participacao',
-  'ENVOLVIMENTO': 'envolvimento',
-  'PREVISAO VALOR REPARO': 'previsao_valor_reparo',
-  'PREVISÃO VALOR REPARO': 'previsao_valor_reparo',
-  'USUARIO ALTERACAO': 'usuario_alteracao',
-  'USUÁRIO ALTERAÇÃO': 'usuario_alteracao',
-  'DATA CADASTRO EVENTO': 'data_cadastro_evento',
-  'COOPERATIVA': 'cooperativa',
-  'VALOR PROTEGIDO VEICULO': 'valor_protegido_veiculo',
-  'VALOR PROTEGIDO VEÍCULO': 'valor_protegido_veiculo',
-  'SITUACAO ANALISE EVENTO': 'situacao_analise_evento',
-  'SITUAÇÃO ANÁLISE EVENTO': 'situacao_analise_evento',
-  'REGIONAL': 'regional',
-  'ANO FABRICACAO': 'ano_fabricacao',
-  'ANO FABRICAÇÃO': 'ano_fabricacao',
-  'VOLUNTARIO': 'voluntario',
-  'VOLUNTÁRIO': 'voluntario',
-  'REGIONAL VEICULO': 'regional_veiculo',
-  'REGIONAL VEÍCULO': 'regional_veiculo',
-  'ASSOCIADO ESTADO': 'associado_estado',
-  'EVENTO CIDADE': 'evento_cidade',
-  'CIDADE EVENTO': 'evento_cidade',
-  'CIDADE': 'evento_cidade',
-  'PROTOCOLO': 'protocolo',
-  'EVENTO LOGRADOURO': 'evento_logradouro',
-  'CATEGORIA VEICULO': 'categoria_veiculo',
-  'CATEGORIA VEÍCULO': 'categoria_veiculo',
-  'TIPO VEICULO VEICULO TERCEIRO': 'tipo_veiculo_terceiro',
-  'TIPO VEÍCULO VEÍCULO TERCEIRO': 'tipo_veiculo_terceiro',
-};
-
-// Função para normalizar cabeçalhos
-function normalizeHeader(header) {
-  return String(header || '')
-    .trim()
-    .toUpperCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '') // Remove acentos
+// Função para extrair texto de célula HTML removendo tags
+function extrairTexto(html) {
+  if (!html) return '';
+  return html
+    .replace(/<[^>]+>/g, '') // Remove tags HTML
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-/**
- * Parser HTML robusto e UNIVERSAL para relatórios Hinova
- * 
- * ESTRATÉGIA:
- * 1. Extrair TODAS as linhas <tr> do HTML
- * 2. Identificar cabeçalho procurando linha com palavras-chave (PLACA, EVENTO, DATA, etc)
- * 3. Processar linhas de dados ignorando linhas vazias
- * 4. Retornar dados com headers originais (webhook faz o mapeamento final)
- */
+// Função para processar tabela HTML do Hinova
 function processarTabelaHtml(htmlContent) {
-  log('🔄 Parser HTML Universal Hinova iniciando...', LOG_LEVELS.INFO);
+  log('Processando arquivo HTML do Hinova...', LOG_LEVELS.INFO);
   
-  // === HELPERS ===
-  const decodeEntities = (text) =>
-    String(text || '')
-      .replace(/&nbsp;/gi, ' ')
-      .replace(/&amp;/gi, '&')
-      .replace(/&lt;/gi, '<')
-      .replace(/&gt;/gi, '>')
-      .replace(/&quot;/gi, '"')
-      .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(code))
-      .replace(/\s+/g, ' ')
-      .trim();
-
-  const stripTags = (html) => 
-    String(html || '')
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]*>/g, '')
-      .trim();
-
-  const extractCellValue = (cellHtml) => {
-    // Limpar DIVs e links antes de extrair texto
-    let clean = String(cellHtml || '')
-      .replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, '$1')
-      .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, '$1')
-      .replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, '$1')
-      .replace(/<br\s*\/?>/gi, ' ')
-      .replace(/<[^>]*>/g, '');
-    return decodeEntities(clean);
-  };
-
-  // Palavras-chave que identificam uma linha de cabeçalho de EVENTOS
-  const HEADER_KEYWORDS = ['PLACA', 'EVENTO', 'SINISTRO', 'PROTOCOLO', 'COOPERATIVA'];
-  const HEADER_SUPPORT = ['DATA', 'SITUACAO', 'SITUAÇÃO', 'MODELO', 'VALOR', 'REGIONAL'];
-
-  const isHeaderRow = (cells) => {
-    if (!Array.isArray(cells) || cells.length < 5) return false;
-    const rowText = cells.join(' ').toUpperCase();
-    const hasMain = HEADER_KEYWORDS.some(k => rowText.includes(k));
-    const hasSupport = HEADER_SUPPORT.some(k => rowText.includes(k));
-    return hasMain && hasSupport;
-  };
-
-  const isEmptyRow = (cells) => {
-    if (!Array.isArray(cells)) return true;
-    // Considerar linha vazia se TODAS células estiverem vazias
-    // (incluindo espaços, hífens e entidades HTML comuns do Hinova)
-    return cells.every(c => {
-      const val = String(c || '').trim();
-      return val === '' || val === '-' || val === '&nbsp;' || val === '\u00A0';
+  const registros = [];
+  
+  // Extrair headers da tabela
+  const theadMatch = htmlContent.match(/<thead[^>]*>([\s\S]*?)<\/thead>/i);
+  if (!theadMatch) {
+    log('Não encontrou <thead> no HTML', LOG_LEVELS.WARN);
+    return [];
+  }
+  
+  const headerMatch = theadMatch[1].match(/<th[^>]*>(.*?)<\/th>/gi);
+  if (!headerMatch) {
+    log('Não encontrou <th> no HTML', LOG_LEVELS.WARN);
+    return [];
+  }
+  
+  const headers = headerMatch.map(th => {
+    const texto = th.replace(/<\/?th[^>]*>/gi, '').trim();
+    return extrairTexto(texto);
+  }).filter(h => h && h !== 'AÇÕES'); // Remove coluna de ações
+  
+  log(`Headers encontrados (${headers.length}): ${headers.slice(0, 10).join(', ')}...`, LOG_LEVELS.DEBUG);
+  
+  // Extrair tbody
+  const tbodyMatch = htmlContent.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
+  if (!tbodyMatch) {
+    log('Não encontrou <tbody> no HTML', LOG_LEVELS.WARN);
+    return [];
+  }
+  
+  const tbodyContent = tbodyMatch[1];
+  
+  // Extrair todas as linhas <tr>
+  // O HTML do Hinova pode ter <tr><tr> consecutivos ou <tr> com </tr>
+  const trMatches = tbodyContent.match(/<tr[^>]*>[\s\S]*?(?=<tr|$)/gi);
+  
+  if (!trMatches) {
+    log('Não encontrou linhas <tr> no tbody', LOG_LEVELS.WARN);
+    return [];
+  }
+  
+  log(`Linhas TR encontradas: ${trMatches.length}`, LOG_LEVELS.DEBUG);
+  
+  for (const trContent of trMatches) {
+    // Extrair células <td>
+    const tdMatches = trContent.match(/<td[^>]*>([\s\S]*?)(?:<\/td>|(?=<td))/gi);
+    
+    if (!tdMatches || tdMatches.length === 0) continue;
+    
+    const valores = tdMatches.map(td => {
+      const conteudo = td.replace(/<\/?td[^>]*>/gi, '');
+      return extrairTexto(conteudo);
     });
-  };
-
-  // === SANITIZAÇÃO DO HTML ===
-  // Hinova exporta HTML malformado com <tr><tr> aninhados
-  let sanitized = String(htmlContent || '')
-    .replace(/<tr[^>]*>\s*<tr[^>]*>/gi, '<tr>')
-    .replace(/<\/tr>\s*<\/tr>/gi, '</tr>');
-
-  // === EXTRAÇÃO DE LINHAS ===
-  const allRows = [];
-  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-  let match;
-  
-  while ((match = rowRegex.exec(sanitized)) !== null) {
-    const rowHtml = String(match[1] || '').replace(/<tr[^>]*>/gi, ''); // Limpar <tr> internos
-    const cells = [];
     
-    // Tentar TH primeiro (cabeçalho)
-    const thRegex = /<th[^>]*>([\s\S]*?)<\/th>/gi;
-    let thMatch;
-    while ((thMatch = thRegex.exec(rowHtml)) !== null) {
-      cells.push(extractCellValue(thMatch[1]));
-    }
+    // Verificar se tem dados suficientes (mínimo 10 colunas preenchidas)
+    const valoresNaoVazios = valores.filter(v => v && v.length > 0);
+    if (valoresNaoVazios.length < 5) continue;
     
-    // Se não achou TH, tentar TD
-    if (cells.length === 0) {
-      const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-      let tdMatch;
-      while ((tdMatch = tdRegex.exec(rowHtml)) !== null) {
-        cells.push(extractCellValue(tdMatch[1]));
+    // Criar objeto com headers
+    const registro = {};
+    for (let i = 0; i < headers.length && i < valores.length; i++) {
+      const header = headers[i];
+      if (header && header !== 'AÇÕES') {
+        registro[header] = valores[i] || '';
       }
     }
     
-    if (cells.length > 0) {
-      allRows.push(cells);
+    // Só adicionar se tiver dados relevantes
+    if (Object.keys(registro).length > 5) {
+      registros.push(registro);
     }
   }
-
-  log(`📊 Total de linhas <tr> extraídas: ${allRows.length}`, LOG_LEVELS.DEBUG);
-
-  if (allRows.length === 0) {
-    log('❌ Nenhuma linha encontrada no HTML', LOG_LEVELS.ERROR);
-    return [];
-  }
-
-  // === DETECÇÃO DO CABEÇALHO ===
-  let headerRowIdx = -1;
-  let headers = [];
   
-  // Procurar nas primeiras 50 linhas
-  for (let i = 0; i < Math.min(allRows.length, 50); i++) {
-    if (isHeaderRow(allRows[i])) {
-      headerRowIdx = i;
-      headers = allRows[i];
-      log(`🎯 Cabeçalho detectado na linha ${i + 1} com ${headers.length} colunas`, LOG_LEVELS.SUCCESS);
-      log(`📋 Colunas: ${headers.slice(0, 8).join(' | ')}...`, LOG_LEVELS.DEBUG);
-      break;
-    }
-  }
-
-  // Fallback: ignorar linhas 0 e 1, usar linha 2 como cabeçalho
-  if (headerRowIdx < 0 && allRows.length > 2) {
-    log('⚠️ Cabeçalho não detectado por heurística, tentando fallback (linha 3)...', LOG_LEVELS.WARN);
-    if (allRows[2] && allRows[2].length >= 5) {
-      headerRowIdx = 2;
-      headers = allRows[2];
-      log(`🔧 Usando linha 3 como cabeçalho: ${headers.slice(0, 5).join(' | ')}...`, LOG_LEVELS.WARN);
-    }
-  }
-
-  if (headerRowIdx < 0 || headers.length === 0) {
-    log('❌ Impossível detectar cabeçalho no HTML', LOG_LEVELS.ERROR);
-    log(`🔍 Amostra das primeiras 5 linhas:`, LOG_LEVELS.DEBUG);
-    allRows.slice(0, 5).forEach((row, i) => {
-      log(`   Linha ${i + 1}: ${row.slice(0, 4).join(' | ').substring(0, 100)}...`, LOG_LEVELS.DEBUG);
-    });
-    return [];
-  }
-
-  // === PROCESSAMENTO DOS DADOS ===
-  const dados = [];
-  const dataRows = allRows.slice(headerRowIdx + 1);
+  log(`Registros extraídos do HTML: ${registros.length}`, LOG_LEVELS.SUCCESS);
   
-  log(`📥 Processando ${dataRows.length} linhas de dados...`, LOG_LEVELS.DEBUG);
-
-  for (const row of dataRows) {
-    // Pular linhas completamente vazias
-    if (isEmptyRow(row)) continue;
-    
-    // Montar objeto com os headers originais
-    const rowData = {};
-    let filledCells = 0;
-    
-    for (let j = 0; j < headers.length && j < row.length; j++) {
-      const headerName = headers[j];
-      const value = row[j];
-      
-      // Usar header original (webhook faz normalização)
-      if (headerName && value !== null && value !== undefined && String(value).trim() !== '') {
-        rowData[headerName] = value;
-        filledCells++;
-      }
-    }
-    
-    // Aceitar linha se tiver pelo menos 2 campos preenchidos
-    // E contiver campos significativos (PLACA ou DATA)
-    // Isso permite aceitar registros mesmo quando primeira coluna (EVENTO ESTADO) está vazia
-    const hasPlaca = Object.values(rowData).some(v => 
-      /^[A-Z]{3}[\d][A-Z\d][\d]{2}$/i.test(String(v).trim())
-    );
-    const hasData = Object.keys(rowData).some(k => 
-      k.toUpperCase().includes('DATA') && rowData[k] && String(rowData[k]).includes('/')
-    );
-    
-    if (filledCells >= 2 && (hasPlaca || hasData)) {
-      dados.push(rowData);
-    }
+  if (registros.length > 0) {
+    log(`Primeiro registro: ${JSON.stringify(registros[0]).substring(0, 300)}`, LOG_LEVELS.DEBUG);
   }
-
-  log(`✅ Parser concluído: ${dados.length} registros válidos extraídos`, LOG_LEVELS.SUCCESS);
   
-  if (dados.length > 0) {
-    log(`📌 Primeiro registro: ${JSON.stringify(dados[0]).substring(0, 300)}...`, LOG_LEVELS.DEBUG);
-  }
-
-  // Verificar total esperado (se houver no HTML)
-  const totalMatch = String(htmlContent).match(/Total\s+de\s+eventos\s+encontrados\s*:?\s*<\/th>\s*<td[^>]*>\s*(\d+)/i);
-  if (totalMatch) {
-    const expected = parseInt(totalMatch[1]);
-    if (expected !== dados.length) {
-      log(`⚠️ Divergência: HTML indica ${expected} eventos, parser extraiu ${dados.length}`, LOG_LEVELS.WARN);
-    } else {
-      log(`✅ Validação: contagem confere (${expected} eventos)`, LOG_LEVELS.SUCCESS);
-    }
-  }
-
-  return dados;
+  return registros;
 }
 
 async function processarArquivo(filePath) {
@@ -1085,35 +894,24 @@ async function processarArquivo(filePath) {
     const fileSize = buffer.length;
     log(`Tamanho do arquivo: ${formatBytes(fileSize)}`, LOG_LEVELS.DEBUG);
     
-    // Converter para string para análise (Hinova às vezes vem em latin1)
-    const conteudoUtf8 = buffer.toString('utf8');
-    const conteudoLatin1 = buffer.toString('latin1');
-
-    const htmlMarkers = ['<html', '<!doctype', '<meta', '<table', '<tr', '<td'];
-    const scoreHtml = (s) => {
-      const lower = (s || '').toLowerCase();
-      let score = 0;
-      for (const m of htmlMarkers) if (lower.includes(m)) score++;
-      return score;
-    };
-
-    const conteudo = scoreHtml(conteudoUtf8) >= scoreHtml(conteudoLatin1)
-      ? conteudoUtf8
-      : conteudoLatin1;
-
+    // Converter para string para análise
+    const conteudo = buffer.toString('utf8');
+    const primeirosBytes = conteudo.substring(0, 1000);
+    
     // Verificar se é HTML (Hinova exporta como HTML disfarçado de .xls)
-    const lowerAll = conteudo.toLowerCase();
-    const isHtml = htmlMarkers.some((m) => lowerAll.includes(m));
+    const isHtml = primeirosBytes.toLowerCase().includes('<html') || 
+                   primeirosBytes.toLowerCase().includes('<!doctype') ||
+                   primeirosBytes.toLowerCase().includes('<table');
     
     if (isHtml) {
       log('Arquivo detectado como HTML - usando parser específico do Hinova', LOG_LEVELS.INFO);
       
       // Verificar se é página de erro
-      if (lowerAll.includes('nenhum registro encontrado') || 
-          lowerAll.includes('nenhum registro') ||
-          (lowerAll.includes('erro') && lowerAll.includes('sistema'))) {
+      if (conteudo.includes('Nenhum registro encontrado') || 
+          conteudo.includes('nenhum registro') ||
+          conteudo.includes('Erro') && conteudo.includes('sistema')) {
         log('⚠️ Arquivo contém mensagem de erro ou sem registros', LOG_LEVELS.WARN);
-        log(`Conteúdo (início): ${conteudo.substring(0, 1000)}`, LOG_LEVELS.DEBUG);
+        log(`Conteúdo: ${primeirosBytes}`, LOG_LEVELS.DEBUG);
         return [];
       }
       
@@ -1122,7 +920,6 @@ async function processarArquivo(filePath) {
       
       if (dados.length > 0) {
         log(`HTML processado com sucesso: ${dados.length} registros`, LOG_LEVELS.SUCCESS);
-
         return dados;
       }
       
@@ -1135,121 +932,37 @@ async function processarArquivo(filePath) {
     const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true, raw: false });
     
     log(`Sheets encontradas: ${workbook.SheetNames.join(', ')}`, LOG_LEVELS.DEBUG);
-
-    if (!workbook.SheetNames?.length) {
+    
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
       log('Nenhuma sheet encontrada no arquivo', LOG_LEVELS.WARN);
       return [];
     }
-
-    const isEmptyRowObject = (obj) => {
-      if (!obj || typeof obj !== 'object') return true;
-      const values = Object.values(obj);
-      if (values.length === 0) return true;
-      return values.every((v) => v === '' || v === null || v === undefined);
-    };
-
-    const isHeaderRowCells = (cells) => {
-      const rowText = String(cells?.join?.(' ') || '').toUpperCase();
-      const hasEventoField = rowText.includes('EVENTO') || rowText.includes('PLACA') || rowText.includes('SINISTRO') || rowText.includes('PROTOCOLO');
-      const hasOther = rowText.includes('DATA') || rowText.includes('SITUACAO') || rowText.includes('SITUAÇÃO') || rowText.includes('MODELO') || rowText.includes('COOPERATIVA') || rowText.includes('REGIONAL') || rowText.includes('VALOR');
-      return hasEventoField && hasOther;
-    };
-
-    const looksLikeValidHeaderKeys = (keys) => {
-      if (!Array.isArray(keys) || keys.length === 0) return false;
-      const normalized = keys
-        .map((k) => normalizeHeader(k))
-        // removemos keys típicas do xlsx quando pega a linha errada como header
-        .filter((k) => k && !k.startsWith('__EMPTY'));
-
-      const recognized = normalized.filter((k) => COLUMN_MAP[k] || k.includes('PLACA') || k.includes('EVENTO') || k.includes('SINISTRO') || k.includes('PROTOCOLO'));
-
-      // Precisa reconhecer pelo menos 2 colunas “de verdade” para confiar na leitura padrão
-      return recognized.length >= 2;
-    };
-
-    const readSheetSmart = (sheet) => {
-      // 1) Leitura padrão
-      let out = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
-      out = (out || []).filter((r) => !isEmptyRowObject(r));
-      if (out.length > 0) {
-        const keys = Object.keys(out[0] || {});
-        if (looksLikeValidHeaderKeys(keys)) {
-          return out;
-        }
-        log(
-          `Leitura padrão ignorada (cabeçalho suspeito). Keys: ${JSON.stringify(keys).substring(0, 200)}`,
-          LOG_LEVELS.WARN
-        );
-      }
-
-      // 2) Leitura alternativa header:1 (com detecção de linha de cabeçalho)
-      log('Tentando leitura alternativa (header:1)...', LOG_LEVELS.DEBUG);
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1, raw: false });
-      if (!Array.isArray(rows) || rows.length <= 1) return [];
-
-      // Normalizar linhas (remover linhas totalmente vazias)
-      const compactRows = rows.filter((r) => {
-        if (!Array.isArray(r)) return false;
-        return r.some((v) => v !== '' && v !== null && v !== undefined);
-      });
-      if (compactRows.length <= 1) return [];
-
-      // Procurar o cabeçalho nas primeiras 100 linhas (algumas versões vêm com linhas de título antes)
-      let headerRowIdx = -1;
-      for (let i = 0; i < Math.min(compactRows.length, 100); i++) {
-        const row = compactRows[i];
-        if (!Array.isArray(row) || row.length === 0) continue;
-        if (isHeaderRowCells(row)) {
-          headerRowIdx = i;
-          break;
-        }
-      }
-
-      // Fallback solicitado: se não encontrou, ignorar as 2 primeiras linhas (título/blank) e tentar a 3ª
-      if (headerRowIdx < 0 && compactRows.length > 2) {
-        const candidate = compactRows[2];
-        const candidateText = String(candidate?.join?.(' ') || '').toUpperCase();
-        const candidateHasManyCols = Array.isArray(candidate) && candidate.filter(Boolean).length >= 3;
-        const candidateLooksHeader = candidateText.includes('EVENTO') && (candidateText.includes('DATA') || candidateText.includes('SITUACAO') || candidateText.includes('SITUAÇÃO'));
-
-        if (candidateHasManyCols && candidateLooksHeader) {
-          headerRowIdx = 2;
-          log('Cabeçalho não detectado por heurística; usando fallback ignorando as 2 primeiras linhas.', LOG_LEVELS.WARN);
-        }
-      }
-
-      const headers = headerRowIdx >= 0 ? compactRows[headerRowIdx] : compactRows[0];
-      const dataRows = headerRowIdx >= 0 ? compactRows.slice(headerRowIdx + 1) : compactRows.slice(1);
-
-      log(`Headers encontrados: ${JSON.stringify(headers).substring(0, 200)}`, LOG_LEVELS.DEBUG);
-
-      const mapped = dataRows.map((row) => {
-        const obj = {};
-        headers.forEach((h, i) => {
-          obj[h || `col_${i}`] = row?.[i] ?? '';
+    
+    const sheet = workbook.Sheets[sheetName];
+    
+    // Tentar diferentes estratégias de leitura
+    let dados = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+    
+    // Se não encontrou dados, tentar com header na primeira linha
+    if (dados.length === 0) {
+      log('Tentando leitura alternativa (range A1)...', LOG_LEVELS.DEBUG);
+      dados = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1, raw: false });
+      
+      // Se tem dados no formato array, converter para objetos
+      if (dados.length > 1) {
+        const headers = dados[0];
+        log(`Headers encontrados: ${JSON.stringify(headers).substring(0, 200)}`, LOG_LEVELS.DEBUG);
+        dados = dados.slice(1).map(row => {
+          const obj = {};
+          headers.forEach((h, i) => {
+            obj[h || `col_${i}`] = row[i] || '';
+          });
+          return obj;
         });
-        return obj;
-      });
-
-      return mapped.filter((r) => !isEmptyRowObject(r));
-    };
-
-    // Alguns relatórios colocam dados na 2ª sheet; pegamos a sheet com mais linhas.
-    let dados = [];
-    let bestSheet = workbook.SheetNames[0];
-    for (const name of workbook.SheetNames) {
-      const sheet = workbook.Sheets[name];
-      if (!sheet) continue;
-      const parsed = readSheetSmart(sheet);
-      if (parsed.length > dados.length) {
-        dados = parsed;
-        bestSheet = name;
+      } else {
+        dados = [];
       }
-    }
-
-    if (workbook.SheetNames.length > 1) {
-      log(`Sheet selecionada para leitura: ${bestSheet} (${dados.length} linhas)`, LOG_LEVELS.DEBUG);
     }
     
     // Log das primeiras linhas para debug
@@ -1527,8 +1240,8 @@ async function main() {
       throw new Error(`Timeout aguardando download: ${e.message}`);
     }
 
-    // Salvar arquivo preservando a extensão original (.xls/.xlsx)
-    const semanticName = generateSemanticFilename(download.suggestedFilename());
+    // Salvar arquivo
+    const semanticName = generateSemanticFilename();
     const filePath = path.join(downloadDir, semanticName);
 
     log(`Salvando arquivo: ${filePath}`, LOG_LEVELS.INFO);
