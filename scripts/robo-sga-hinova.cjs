@@ -1121,21 +1121,50 @@ async function processarArquivo(filePath) {
       return hasEventoField && hasOther;
     };
 
+    const looksLikeValidHeaderKeys = (keys) => {
+      if (!Array.isArray(keys) || keys.length === 0) return false;
+      const normalized = keys
+        .map((k) => normalizeHeader(k))
+        // removemos keys típicas do xlsx quando pega a linha errada como header
+        .filter((k) => k && !k.startsWith('__EMPTY'));
+
+      const recognized = normalized.filter((k) => COLUMN_MAP[k] || k.includes('PLACA') || k.includes('EVENTO') || k.includes('SINISTRO') || k.includes('PROTOCOLO'));
+
+      // Precisa reconhecer pelo menos 2 colunas “de verdade” para confiar na leitura padrão
+      return recognized.length >= 2;
+    };
+
     const readSheetSmart = (sheet) => {
       // 1) Leitura padrão
       let out = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
       out = (out || []).filter((r) => !isEmptyRowObject(r));
-      if (out.length > 0) return out;
+      if (out.length > 0) {
+        const keys = Object.keys(out[0] || {});
+        if (looksLikeValidHeaderKeys(keys)) {
+          return out;
+        }
+        log(
+          `Leitura padrão ignorada (cabeçalho suspeito). Keys: ${JSON.stringify(keys).substring(0, 200)}`,
+          LOG_LEVELS.WARN
+        );
+      }
 
       // 2) Leitura alternativa header:1 (com detecção de linha de cabeçalho)
       log('Tentando leitura alternativa (header:1)...', LOG_LEVELS.DEBUG);
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1, raw: false });
       if (!Array.isArray(rows) || rows.length <= 1) return [];
 
+      // Normalizar linhas (remover linhas totalmente vazias)
+      const compactRows = rows.filter((r) => {
+        if (!Array.isArray(r)) return false;
+        return r.some((v) => v !== '' && v !== null && v !== undefined);
+      });
+      if (compactRows.length <= 1) return [];
+
       // Procurar o cabeçalho nas primeiras 100 linhas (algumas versões vêm com linhas de título antes)
       let headerRowIdx = -1;
-      for (let i = 0; i < Math.min(rows.length, 100); i++) {
-        const row = rows[i];
+      for (let i = 0; i < Math.min(compactRows.length, 100); i++) {
+        const row = compactRows[i];
         if (!Array.isArray(row) || row.length === 0) continue;
         if (isHeaderRowCells(row)) {
           headerRowIdx = i;
@@ -1143,8 +1172,21 @@ async function processarArquivo(filePath) {
         }
       }
 
-      const headers = headerRowIdx >= 0 ? rows[headerRowIdx] : rows[0];
-      const dataRows = headerRowIdx >= 0 ? rows.slice(headerRowIdx + 1) : rows.slice(1);
+      // Fallback solicitado: se não encontrou, ignorar as 2 primeiras linhas (título/blank) e tentar a 3ª
+      if (headerRowIdx < 0 && compactRows.length > 2) {
+        const candidate = compactRows[2];
+        const candidateText = String(candidate?.join?.(' ') || '').toUpperCase();
+        const candidateHasManyCols = Array.isArray(candidate) && candidate.filter(Boolean).length >= 3;
+        const candidateLooksHeader = candidateText.includes('EVENTO') && (candidateText.includes('DATA') || candidateText.includes('SITUACAO') || candidateText.includes('SITUAÇÃO'));
+
+        if (candidateHasManyCols && candidateLooksHeader) {
+          headerRowIdx = 2;
+          log('Cabeçalho não detectado por heurística; usando fallback ignorando as 2 primeiras linhas.', LOG_LEVELS.WARN);
+        }
+      }
+
+      const headers = headerRowIdx >= 0 ? compactRows[headerRowIdx] : compactRows[0];
+      const dataRows = headerRowIdx >= 0 ? compactRows.slice(headerRowIdx + 1) : compactRows.slice(1);
 
       log(`Headers encontrados: ${JSON.stringify(headers).substring(0, 200)}`, LOG_LEVELS.DEBUG);
 
