@@ -877,194 +877,190 @@ function normalizeHeader(header) {
 }
 
 /**
- * Parser HTML robusto para relatório Hinova (que disfarça HTML como .xls)
- * NÃO depende de <thead>/<tbody> - detecta cabeçalhos dinamicamente
+ * Parser HTML robusto e UNIVERSAL para relatórios Hinova
+ * 
+ * ESTRATÉGIA:
+ * 1. Extrair TODAS as linhas <tr> do HTML
+ * 2. Identificar cabeçalho procurando linha com palavras-chave (PLACA, EVENTO, DATA, etc)
+ * 3. Processar linhas de dados ignorando linhas vazias
+ * 4. Retornar dados com headers originais (webhook faz o mapeamento final)
  */
 function processarTabelaHtml(htmlContent) {
-  log('Processando arquivo HTML do Hinova (parser robusto)...', LOG_LEVELS.INFO);
+  log('🔄 Parser HTML Universal Hinova iniciando...', LOG_LEVELS.INFO);
   
-  const dados = [];
-  let headersEncontrados = [];
-  let headerMapping = [];
-  let headerRowIndex = -1;
-  let currentRowIndex = 0;
-
-  const decodeBasicEntities = (text) =>
+  // === HELPERS ===
+  const decodeEntities = (text) =>
     String(text || '')
       .replace(/&nbsp;/gi, ' ')
       .replace(/&amp;/gi, '&')
       .replace(/&lt;/gi, '<')
       .replace(/&gt;/gi, '>')
-      .replace(/&#\d+;/g, '')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(code))
       .replace(/\s+/g, ' ')
       .trim();
 
-  const extractExpectedTotal = (html) => {
-    const m = String(html || '').match(/Total\s+de\s+eventos\s+encontrados\s*:\s*<\/th>\s*<td[^>]*>\s*(\d+)/i);
-    return m ? Number(m[1]) : null;
+  const stripTags = (html) => 
+    String(html || '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]*>/g, '')
+      .trim();
+
+  const extractCellValue = (cellHtml) => {
+    // Limpar DIVs e links antes de extrair texto
+    let clean = String(cellHtml || '')
+      .replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, '$1')
+      .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, '$1')
+      .replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, '$1')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<[^>]*>/g, '');
+    return decodeEntities(clean);
   };
 
-  // Focar apenas na tabela principal (a que contém o cabeçalho EVENTO ESTADO) para não se perder
-  // em outros <tr> do HTML (rodapé/resumo/menus) e para lidar com HTML mal-formado (<tr><tr>...)
-  const mainTableMatch = String(htmlContent || '').match(/<table[^>]*>[\s\S]*?EVENTO\s+ESTADO[\s\S]*?<\/table>/i);
-  const htmlToParse = mainTableMatch ? mainTableMatch[0] : htmlContent;
-  const expectedTotal = extractExpectedTotal(htmlContent);
-  
-  // Diagnóstico: guardar as primeiras linhas para análise
-  const sampleRows = [];
-  const MAX_SAMPLE_ROWS = 30;
-  
-  // Função para detectar se uma linha é cabeçalho (baseada em campos de eventos)
+  // Palavras-chave que identificam uma linha de cabeçalho de EVENTOS
+  const HEADER_KEYWORDS = ['PLACA', 'EVENTO', 'SINISTRO', 'PROTOCOLO', 'COOPERATIVA'];
+  const HEADER_SUPPORT = ['DATA', 'SITUACAO', 'SITUAÇÃO', 'MODELO', 'VALOR', 'REGIONAL'];
+
   const isHeaderRow = (cells) => {
+    if (!Array.isArray(cells) || cells.length < 5) return false;
     const rowText = cells.join(' ').toUpperCase();
-    // Precisa ter PLACA, EVENTO, ou outro campo característico de eventos
-    const hasEventoField = rowText.includes('EVENTO') || 
-                           rowText.includes('PLACA') ||
-                           rowText.includes('SINISTRO') ||
-                           rowText.includes('PROTOCOLO');
-    const hasOther = rowText.includes('DATA') || 
-                     rowText.includes('SITUACAO') ||
-                     rowText.includes('SITUAÇÃO') ||
-                     rowText.includes('MODELO') ||
-                     rowText.includes('COOPERATIVA') ||
-                     rowText.includes('REGIONAL') ||
-                     rowText.includes('VALOR');
-    return hasEventoField && hasOther;
+    const hasMain = HEADER_KEYWORDS.some(k => rowText.includes(k));
+    const hasSupport = HEADER_SUPPORT.some(k => rowText.includes(k));
+    return hasMain && hasSupport;
   };
-  
-  // Extrair todas as linhas <tr>...</tr>
-  // Alguns exports do Hinova vêm com HTML inválido com <tr><tr>...; normalizamos antes.
-  const sanitized = String(htmlToParse || '')
+
+  const isEmptyRow = (cells) => {
+    if (!Array.isArray(cells)) return true;
+    return cells.every(c => !c || String(c).trim() === '');
+  };
+
+  // === SANITIZAÇÃO DO HTML ===
+  // Hinova exporta HTML malformado com <tr><tr> aninhados
+  let sanitized = String(htmlContent || '')
     .replace(/<tr[^>]*>\s*<tr[^>]*>/gi, '<tr>')
     .replace(/<\/tr>\s*<\/tr>/gi, '</tr>');
 
+  // === EXTRAÇÃO DE LINHAS ===
+  const allRows = [];
   const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
   let match;
   
   while ((match = rowRegex.exec(sanitized)) !== null) {
-    // Remover qualquer <tr> interno remanescente para evitar quebras de parsing
-    const rowHtml = String(match[1] || '').replace(/<tr[^>]*>/gi, '');
+    const rowHtml = String(match[1] || '').replace(/<tr[^>]*>/gi, ''); // Limpar <tr> internos
     const cells = [];
     
-    // Tentar extrair de <th> primeiro (cabeçalho)
+    // Tentar TH primeiro (cabeçalho)
     const thRegex = /<th[^>]*>([\s\S]*?)<\/th>/gi;
     let thMatch;
     while ((thMatch = thRegex.exec(rowHtml)) !== null) {
-      const text = decodeBasicEntities(thMatch[1].replace(/<[^>]*>/g, ''));
-      cells.push(text);
+      cells.push(extractCellValue(thMatch[1]));
     }
     
-    // Se não achou <th>, extrair de <td>
+    // Se não achou TH, tentar TD
     if (cells.length === 0) {
-      const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-      let cellMatch;
-      while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
-        const text = decodeBasicEntities(
-          cellMatch[1]
-            .replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, '$1')
-            .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, '$1')
-            .replace(/<[^>]*>/g, '')
-        );
-        cells.push(text);
+      const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+      let tdMatch;
+      while ((tdMatch = tdRegex.exec(rowHtml)) !== null) {
+        cells.push(extractCellValue(tdMatch[1]));
       }
     }
     
-    if (cells.length === 0) continue;
-    
-    currentRowIndex++;
-    
-    // Salvar amostra das primeiras linhas para diagnóstico
-    if (sampleRows.length < MAX_SAMPLE_ROWS) {
-      sampleRows.push({ index: currentRowIndex, cells: cells.slice(0, 5) });
+    if (cells.length > 0) {
+      allRows.push(cells);
     }
-    
-    // Detectar cabeçalho nas primeiras 100 linhas
-    if (headerRowIndex === -1 && currentRowIndex <= 100) {
-      if (isHeaderRow(cells)) {
-        headerRowIndex = currentRowIndex;
-        // IMPORTANTE: guardar cabeçalhos “como vieram” (apenas limpando espaços)
-        // pois o backend normaliza e mapeia; isso preserva compatibilidade com variações.
-        headersEncontrados = cells.map((h) => decodeBasicEntities(h));
-        log(`🎯 Cabeçalho detectado na linha ${currentRowIndex}: ${cells.length} colunas`, LOG_LEVELS.SUCCESS);
-        log(`📋 Cabeçalhos: ${cells.slice(0, 8).join(' | ')}...`, LOG_LEVELS.DEBUG);
-        
-        // Mapear cabeçalhos para nomes padronizados
-        for (let i = 0; i < headersEncontrados.length; i++) {
-          const normalized = normalizeHeader(headersEncontrados[i]);
-          let mappedName = COLUMN_MAP[normalized] || null;
-          
-          // Fallback: buscar correspondência parcial
-          if (!mappedName) {
-            for (const [key, value] of Object.entries(COLUMN_MAP)) {
-              if (normalized.includes(key) || key.includes(normalized)) {
-                mappedName = value;
-                break;
-              }
-            }
-          }
-          headerMapping.push({ original: headersEncontrados[i], mapped: mappedName, normalized });
-        }
-        log(`Mapeamento: ${headerMapping.filter(h => h.mapped).length} colunas reconhecidas`, LOG_LEVELS.DEBUG);
-        continue;
-      }
+  }
+
+  log(`📊 Total de linhas <tr> extraídas: ${allRows.length}`, LOG_LEVELS.DEBUG);
+
+  if (allRows.length === 0) {
+    log('❌ Nenhuma linha encontrada no HTML', LOG_LEVELS.ERROR);
+    return [];
+  }
+
+  // === DETECÇÃO DO CABEÇALHO ===
+  let headerRowIdx = -1;
+  let headers = [];
+  
+  // Procurar nas primeiras 50 linhas
+  for (let i = 0; i < Math.min(allRows.length, 50); i++) {
+    if (isHeaderRow(allRows[i])) {
+      headerRowIdx = i;
+      headers = allRows[i];
+      log(`🎯 Cabeçalho detectado na linha ${i + 1} com ${headers.length} colunas`, LOG_LEVELS.SUCCESS);
+      log(`📋 Colunas: ${headers.slice(0, 8).join(' | ')}...`, LOG_LEVELS.DEBUG);
+      break;
     }
+  }
+
+  // Fallback: ignorar linhas 0 e 1, usar linha 2 como cabeçalho
+  if (headerRowIdx < 0 && allRows.length > 2) {
+    log('⚠️ Cabeçalho não detectado por heurística, tentando fallback (linha 3)...', LOG_LEVELS.WARN);
+    if (allRows[2] && allRows[2].length >= 5) {
+      headerRowIdx = 2;
+      headers = allRows[2];
+      log(`🔧 Usando linha 3 como cabeçalho: ${headers.slice(0, 5).join(' | ')}...`, LOG_LEVELS.WARN);
+    }
+  }
+
+  if (headerRowIdx < 0 || headers.length === 0) {
+    log('❌ Impossível detectar cabeçalho no HTML', LOG_LEVELS.ERROR);
+    log(`🔍 Amostra das primeiras 5 linhas:`, LOG_LEVELS.DEBUG);
+    allRows.slice(0, 5).forEach((row, i) => {
+      log(`   Linha ${i + 1}: ${row.slice(0, 4).join(' | ').substring(0, 100)}...`, LOG_LEVELS.DEBUG);
+    });
+    return [];
+  }
+
+  // === PROCESSAMENTO DOS DADOS ===
+  const dados = [];
+  const dataRows = allRows.slice(headerRowIdx + 1);
+  
+  log(`📥 Processando ${dataRows.length} linhas de dados...`, LOG_LEVELS.DEBUG);
+
+  for (const row of dataRows) {
+    // Pular linhas completamente vazias
+    if (isEmptyRow(row)) continue;
     
-    // Pular linhas antes do cabeçalho
-    if (headerRowIndex === -1 || currentRowIndex <= headerRowIndex) continue;
-    
-    // Processar linha de dados
+    // Montar objeto com os headers originais
     const rowData = {};
-    let temDados = false;
+    let filledCells = 0;
     
-    for (let j = 0; j < cells.length && j < headerMapping.length; j++) {
-      const headerInfo = headerMapping[j];
-      const originalHeader = headerInfo.original;
-      const mappedHeader = headerInfo.mapped;
+    for (let j = 0; j < headers.length && j < row.length; j++) {
+      const headerName = headers[j];
+      const value = row[j];
       
-      // IMPORTANTE: Usar o header ORIGINAL pois o webhook faz o mapeamento
-      // O webhook espera os nomes originais das colunas (ex: "EVENTO ESTADO", "PLACA")
-      const headerToUse = originalHeader;
-      let value = cells[j];
-      
-      if (value !== null && value !== '' && value !== undefined) {
-        rowData[headerToUse] = value;
-        temDados = true;
+      // Usar header original (webhook faz normalização)
+      if (headerName && value !== null && value !== undefined && String(value).trim() !== '') {
+        rowData[headerName] = value;
+        filledCells++;
       }
     }
     
-    // Verificar se tem dados mínimos (pelo menos 3 campos preenchidos)
-    if (temDados && Object.keys(rowData).length >= 3) {
+    // Aceitar linha se tiver pelo menos 2 campos preenchidos
+    // (alguns eventos têm EVENTO ESTADO vazio mas outros campos preenchidos)
+    if (filledCells >= 2) {
       dados.push(rowData);
     }
   }
-  
-  log(`✅ Processamento HTML concluído`, LOG_LEVELS.SUCCESS);
-  log(`Registros válidos: ${dados.length} (${currentRowIndex} linhas <tr> processadas)`, LOG_LEVELS.SUCCESS);
 
-  if (typeof expectedTotal === 'number' && expectedTotal >= 0 && dados.length !== expectedTotal) {
-    log(
-      `⚠️ Divergência: HTML indica ${expectedTotal} eventos, mas parser extraiu ${dados.length}. Tentando continuar com os dados extraídos.`,
-      LOG_LEVELS.WARN
-    );
-  }
-  
-  // Diagnóstico detalhado se não encontrou dados
-  if (dados.length === 0) {
-    log(`🔍 DIAGNÓSTICO - Cabeçalho encontrado: ${headerRowIndex > 0 ? 'SIM na linha ' + headerRowIndex : 'NÃO'}`, LOG_LEVELS.WARN);
-    
-    if (headerRowIndex <= 0) {
-      log(`❌ Causa: Cabeçalho da tabela não foi detectado!`, LOG_LEVELS.ERROR);
-      log(`📊 Amostra das primeiras linhas processadas:`, LOG_LEVELS.DEBUG);
-      sampleRows.slice(0, 15).forEach(row => {
-        log(`   Linha ${row.index}: ${row.cells.join(' | ').substring(0, 100)}...`, LOG_LEVELS.DEBUG);
-      });
-    }
-  }
+  log(`✅ Parser concluído: ${dados.length} registros válidos extraídos`, LOG_LEVELS.SUCCESS);
   
   if (dados.length > 0) {
-    log(`Primeiro registro: ${JSON.stringify(dados[0]).substring(0, 300)}`, LOG_LEVELS.DEBUG);
+    log(`📌 Primeiro registro: ${JSON.stringify(dados[0]).substring(0, 300)}...`, LOG_LEVELS.DEBUG);
   }
-  
+
+  // Verificar total esperado (se houver no HTML)
+  const totalMatch = String(htmlContent).match(/Total\s+de\s+eventos\s+encontrados\s*:?\s*<\/th>\s*<td[^>]*>\s*(\d+)/i);
+  if (totalMatch) {
+    const expected = parseInt(totalMatch[1]);
+    if (expected !== dados.length) {
+      log(`⚠️ Divergência: HTML indica ${expected} eventos, parser extraiu ${dados.length}`, LOG_LEVELS.WARN);
+    } else {
+      log(`✅ Validação: contagem confere (${expected} eventos)`, LOG_LEVELS.SUCCESS);
+    }
+  }
+
   return dados;
 }
 
