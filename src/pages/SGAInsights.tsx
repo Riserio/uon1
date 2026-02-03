@@ -28,7 +28,7 @@ export interface SGAFilters {
 export default function SGAInsights() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { userRole } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [eventos, setEventos] = useState<any[]>([]);
@@ -160,6 +160,17 @@ export default function SGAInsights() {
     fetchAssociacoes();
   }, [searchParams, isPortalAccess]);
 
+  // Manter a URL sincronizada com a associação selecionada (melhora refresh/compartilhamento)
+  useEffect(() => {
+    if (isPortalAccess) return;
+    if (!selectedAssociacao) return;
+
+    const current = new URLSearchParams(location.search).get('associacao');
+    if (current === selectedAssociacao) return;
+
+    setSearchParams({ associacao: selectedAssociacao }, { replace: true });
+  }, [selectedAssociacao, isPortalAccess, location.search, setSearchParams]);
+
   const fetchEventos = async () => {
     if (!selectedAssociacao) {
       setEventos([]);
@@ -235,6 +246,63 @@ export default function SGAInsights() {
     if (selectedAssociacao) {
       fetchEventos();
     }
+  }, [selectedAssociacao]);
+
+  // Realtime: quando a automação terminar ou a importação ativa mudar, recarregar dados
+  useEffect(() => {
+    if (!selectedAssociacao) return;
+
+    let refreshTimer: number | null = null;
+    const scheduleRefresh = (delayMs: number) => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        fetchEventos();
+      }, delayMs);
+    };
+
+    const execChannel = supabase
+      .channel(`sga-execucoes-refresh-${selectedAssociacao}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sga_automacao_execucoes',
+          filter: `corretora_id=eq.${selectedAssociacao}`,
+        },
+        (payload) => {
+          const row = payload.new as any;
+          if (row?.status === 'sucesso') {
+            // Dá um respiro para o backend finalizar os últimos inserts antes do refresh
+            scheduleRefresh(1500);
+          }
+        }
+      )
+      .subscribe();
+
+    const importChannel = supabase
+      .channel(`sga-importacoes-refresh-${selectedAssociacao}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sga_importacoes',
+          filter: `corretora_id=eq.${selectedAssociacao}`,
+        },
+        () => {
+          // Em qualquer mudança de importação (novo ativo, etc.), recarrega
+          scheduleRefresh(800);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      supabase.removeChannel(execChannel);
+      supabase.removeChannel(importChannel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAssociacao]);
 
   const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome || "";
