@@ -17,9 +17,12 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { email, password, nome, corretoraId } = await req.json();
+    const { email, password, nome, corretoraId, modulos_bi } = await req.json();
 
-    console.log('Creating/linking partner user:', { email, corretoraId });
+    // Módulos padrão se não informados
+    const modulosBi = modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca'];
+
+    console.log('Creating/linking partner user:', { email, corretoraId, modulosBi });
 
     if (!email || !corretoraId) {
       throw new Error('Email e corretoraId são obrigatórios');
@@ -192,6 +195,7 @@ serve(async (req) => {
         profile_id: userId,
         ativo: true,
         acesso_exclusivo_pid: true,
+        modulos_bi: modulosBi,
       });
 
     if (corretoraError) {

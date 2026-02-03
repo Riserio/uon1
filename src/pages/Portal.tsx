@@ -32,17 +32,22 @@ type Corretora = {
   logo_url?: string | null;
 };
 
-type CorretoraUsuarioResult = {
+type CorretoraUsuario = {
   corretora_id: string;
+  modulos_bi: string[] | null;
   corretoras: Corretora;
+};
+
+type CorretoraComModulos = Corretora & {
+  modulos_bi: string[];
 };
 
 export default function Portal() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [corretora, setCorretora] = useState<Corretora | null>(null);
-  const [corretorasDisponiveis, setCorretorasDisponiveis] = useState<Corretora[]>([]);
+  const [corretora, setCorretora] = useState<CorretoraComModulos | null>(null);
+  const [corretorasDisponiveis, setCorretorasDisponiveis] = useState<CorretoraComModulos[]>([]);
   const [showSelection, setShowSelection] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notLinked, setNotLinked] = useState(false);
@@ -58,10 +63,10 @@ export default function Portal() {
       }
 
       try {
-        // Busca TODAS as corretoras vinculadas ao usuário
+        // Busca TODAS as corretoras vinculadas ao usuário com módulos
         const { data, error } = await supabase
           .from("corretora_usuarios")
-          .select("corretora_id, corretoras(id, nome, logo_url)")
+          .select("corretora_id, modulos_bi, corretoras(id, nome, logo_url)")
           .eq("profile_id", user.id)
           .eq("ativo", true);
 
@@ -73,10 +78,13 @@ export default function Portal() {
           return;
         }
 
-        // Filtrar resultados válidos (com corretoras)
-        const corretorasValidas = data
+        // Filtrar resultados válidos (com corretoras) e incluir módulos
+        const corretorasValidas: CorretoraComModulos[] = data
           .filter(item => item.corretoras)
-          .map(item => item.corretoras as Corretora);
+          .map(item => ({
+            ...(item.corretoras as Corretora),
+            modulos_bi: item.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca']
+          }));
 
         if (corretorasValidas.length === 0) {
           setNotLinked(true);
@@ -115,7 +123,7 @@ export default function Portal() {
     loadCorretoraData();
   }, [user, authLoading, navigate]);
 
-  const handleSelectCorretora = (selectedCorretora: Corretora) => {
+  const handleSelectCorretora = (selectedCorretora: CorretoraComModulos) => {
     setCorretora(selectedCorretora);
     setShowSelection(false);
   };
@@ -233,14 +241,22 @@ export default function Portal() {
     );
   }
 
-  const tabs = [
+  // Verificar permissões de módulos
+  const hasModulo = (modulo: string) => corretora.modulos_bi.includes(modulo);
+  const hasIndicadores = hasModulo('indicadores');
+  const hasEventos = hasModulo('eventos');
+  const hasMGF = hasModulo('mgf');
+  const hasCobranca = hasModulo('cobranca');
+
+  // Tabs do BI Indicadores (só aparecem se tem permissão 'indicadores')
+  const tabs = hasIndicadores ? [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "operacional", label: "Operacional", icon: Activity },
     { id: "estudo-base", label: "Estudo de Base", icon: Car },
     { id: "historico", label: "Histórico", icon: Calendar },
     { id: "sinistros", label: "Sinistros", icon: ShieldCheck },
     { id: "comite", label: "Comitê", icon: MessageSquare },
-  ];
+  ] : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -277,22 +293,36 @@ export default function Portal() {
                   <span className="hidden sm:inline">Trocar</span>
                 </Button>
               )}
-              <Button 
-                variant="outline" 
-                onClick={() => navigate(`/portal/sga-insights?associacao=${corretora.id}`)}
-                className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
-              >
-                <TrendingUp className="h-4 w-4" />
-                <span className="hidden sm:inline">SGA</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => navigate(`/portal/mgf-insights?associacao=${corretora.id}`)}
-                className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
-              >
-                <Activity className="h-4 w-4" />
-                <span className="hidden sm:inline">MGF</span>
-              </Button>
+              {hasEventos && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate(`/portal/sga-insights?associacao=${corretora.id}`)}
+                  className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  <span className="hidden sm:inline">Eventos</span>
+                </Button>
+              )}
+              {hasMGF && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate(`/portal/mgf-insights?associacao=${corretora.id}`)}
+                  className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
+                >
+                  <Activity className="h-4 w-4" />
+                  <span className="hidden sm:inline">MGF</span>
+                </Button>
+              )}
+              {hasCobranca && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate(`/portal/cobranca-insights?associacao=${corretora.id}`)}
+                  className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  <span className="hidden sm:inline">Cobrança</span>
+                </Button>
+              )}
               <Button variant="outline" onClick={handleLogout} className="gap-2 px-3 sm:px-4 text-xs sm:text-sm">
                 <LogOut className="h-4 w-4" />
                 Sair
@@ -320,55 +350,68 @@ export default function Portal() {
           </CardContent>
         </Card>
 
-        {/* Tabs Section */}
-        <Tabs defaultValue="dashboard" className="space-y-6">
-          {/* Wrapper para scroll horizontal em telas pequenas */}
-          <div className="w-full overflow-x-auto pb-2">
-            <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/40 rounded-xl min-w-max md:min-w-0">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <TabsTrigger
-                    key={tab.id}
-                    value={tab.id}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                               text-muted-foreground transition-all
-                               data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                               data-[state=active]:shadow-md hover:text-foreground hover:bg-muted/60
-                               whitespace-nowrap"
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span className="hidden sm:inline">{tab.label}</span>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
-          </div>
+        {/* Tabs Section - só mostra se tem acesso ao módulo indicadores */}
+        {hasIndicadores ? (
+          <Tabs defaultValue="dashboard" className="space-y-6">
+            {/* Wrapper para scroll horizontal em telas pequenas */}
+            <div className="w-full overflow-x-auto pb-2">
+              <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/40 rounded-xl min-w-max md:min-w-0">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <TabsTrigger
+                      key={tab.id}
+                      value={tab.id}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+                                 text-muted-foreground transition-all
+                                 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                                 data-[state=active]:shadow-md hover:text-foreground hover:bg-muted/60
+                                 whitespace-nowrap"
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span className="hidden sm:inline">{tab.label}</span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </div>
 
-          <TabsContent value="dashboard" className="space-y-4 mt-0">
-            <PIDDashboard corretoraId={corretora.id} />
-          </TabsContent>
+            <TabsContent value="dashboard" className="space-y-4 mt-0">
+              <PIDDashboard corretoraId={corretora.id} />
+            </TabsContent>
 
-          <TabsContent value="operacional" className="space-y-4 mt-0">
-            <PIDOperacional corretoraId={corretora.id} />
-          </TabsContent>
+            <TabsContent value="operacional" className="space-y-4 mt-0">
+              <PIDOperacional corretoraId={corretora.id} />
+            </TabsContent>
 
-          <TabsContent value="estudo-base" className="space-y-4 mt-0">
-            <PIDEstudoBase corretoraId={corretora.id} />
-          </TabsContent>
+            <TabsContent value="estudo-base" className="space-y-4 mt-0">
+              <PIDEstudoBase corretoraId={corretora.id} />
+            </TabsContent>
 
-          <TabsContent value="historico" className="space-y-4 mt-0">
-            <PIDHistorico corretoraId={corretora.id} />
-          </TabsContent>
+            <TabsContent value="historico" className="space-y-4 mt-0">
+              <PIDHistorico corretoraId={corretora.id} />
+            </TabsContent>
 
-          <TabsContent value="sinistros" className="space-y-4 mt-0">
-            <PortalSinistros corretoraId={corretora.id} />
-          </TabsContent>
+            <TabsContent value="sinistros" className="space-y-4 mt-0">
+              <PortalSinistros corretoraId={corretora.id} />
+            </TabsContent>
 
-          <TabsContent value="comite" className="space-y-4 mt-0">
-            <PortalComite corretoraId={corretora.id} />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="comite" className="space-y-4 mt-0">
+              <PortalComite corretoraId={corretora.id} />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <Card className="border-2 border-muted">
+            <CardContent className="p-8 text-center">
+              <p className="text-muted-foreground">
+                Você tem acesso aos módulos: {hasEventos && 'Eventos'} {hasMGF && 'MGF'} {hasCobranca && 'Cobrança'}
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Use os botões acima para navegar entre os módulos disponíveis.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
