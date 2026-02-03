@@ -932,7 +932,12 @@ function processarTabelaHtml(htmlContent) {
 
   const isEmptyRow = (cells) => {
     if (!Array.isArray(cells)) return true;
-    return cells.every(c => !c || String(c).trim() === '');
+    // Considerar linha vazia se TODAS células estiverem vazias
+    // (incluindo espaços, hífens e entidades HTML comuns do Hinova)
+    return cells.every(c => {
+      const val = String(c || '').trim();
+      return val === '' || val === '-' || val === '&nbsp;' || val === '\u00A0';
+    });
   };
 
   // === SANITIZAÇÃO DO HTML ===
@@ -1038,8 +1043,16 @@ function processarTabelaHtml(htmlContent) {
     }
     
     // Aceitar linha se tiver pelo menos 2 campos preenchidos
-    // (alguns eventos têm EVENTO ESTADO vazio mas outros campos preenchidos)
-    if (filledCells >= 2) {
+    // E contiver campos significativos (PLACA ou DATA)
+    // Isso permite aceitar registros mesmo quando primeira coluna (EVENTO ESTADO) está vazia
+    const hasPlaca = Object.values(rowData).some(v => 
+      /^[A-Z]{3}[\d][A-Z\d][\d]{2}$/i.test(String(v).trim())
+    );
+    const hasData = Object.keys(rowData).some(k => 
+      k.toUpperCase().includes('DATA') && rowData[k] && String(rowData[k]).includes('/')
+    );
+    
+    if (filledCells >= 2 && (hasPlaca || hasData)) {
       dados.push(rowData);
     }
   }
