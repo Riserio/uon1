@@ -759,17 +759,26 @@ function validateDownloadedFile(filePath, contentType) {
     return { valid: false, error: 'Arquivo vazio' };
   }
 
-  // Ler primeiros bytes para detectar tipo
-  const buffer = Buffer.alloc(16);
+  // Ler primeiros bytes para detectar tipo (HTML pode não ter <html> nos primeiros 16 bytes)
+  const buffer = Buffer.alloc(2048);
   const fd = fs.openSync(filePath, 'r');
-  fs.readSync(fd, buffer, 0, 16, 0);
+  fs.readSync(fd, buffer, 0, buffer.length, 0);
   fs.closeSync(fd);
 
   // Magic bytes
   const isZip = buffer[0] === 0x50 && buffer[1] === 0x4B; // XLSX é ZIP
   const isXls = buffer[0] === 0xD0 && buffer[1] === 0xCF; // XLS antigo
-  const isHtml = buffer.toString('utf8', 0, 5).toLowerCase().includes('<html') ||
-                 buffer.toString('utf8', 0, 5).toLowerCase().includes('<!doc');
+  // HTML do Hinova pode começar com whitespace/BOM/<meta>, então precisamos olhar mais bytes e em latin1 também
+  const headerUtf8 = buffer.toString('utf8', 0, 512).toLowerCase();
+  const headerLatin1 = buffer.toString('latin1', 0, 512).toLowerCase();
+  const isHtml = [headerUtf8, headerLatin1].some((s) =>
+    s.includes('<html') ||
+    s.includes('<!doctype') ||
+    s.includes('<meta') ||
+    s.includes('<table') ||
+    s.includes('<tr') ||
+    s.includes('<td')
+  );
 
   if (isZip) {
     return { valid: true, fileType: 'xlsx', size: stats.size };
@@ -1037,24 +1046,35 @@ async function processarArquivo(filePath) {
     const fileSize = buffer.length;
     log(`Tamanho do arquivo: ${formatBytes(fileSize)}`, LOG_LEVELS.DEBUG);
     
-    // Converter para string para análise
-    const conteudo = buffer.toString('utf8');
-    const primeirosBytes = conteudo.substring(0, 1000);
-    
+    // Converter para string para análise (Hinova às vezes vem em latin1)
+    const conteudoUtf8 = buffer.toString('utf8');
+    const conteudoLatin1 = buffer.toString('latin1');
+
+    const htmlMarkers = ['<html', '<!doctype', '<meta', '<table', '<tr', '<td'];
+    const scoreHtml = (s) => {
+      const lower = (s || '').toLowerCase();
+      let score = 0;
+      for (const m of htmlMarkers) if (lower.includes(m)) score++;
+      return score;
+    };
+
+    const conteudo = scoreHtml(conteudoUtf8) >= scoreHtml(conteudoLatin1)
+      ? conteudoUtf8
+      : conteudoLatin1;
+
     // Verificar se é HTML (Hinova exporta como HTML disfarçado de .xls)
-    const isHtml = primeirosBytes.toLowerCase().includes('<html') || 
-                   primeirosBytes.toLowerCase().includes('<!doctype') ||
-                   primeirosBytes.toLowerCase().includes('<table');
+    const lowerAll = conteudo.toLowerCase();
+    const isHtml = htmlMarkers.some((m) => lowerAll.includes(m));
     
     if (isHtml) {
       log('Arquivo detectado como HTML - usando parser específico do Hinova', LOG_LEVELS.INFO);
       
       // Verificar se é página de erro
-      if (conteudo.includes('Nenhum registro encontrado') || 
-          conteudo.includes('nenhum registro') ||
-          conteudo.includes('Erro') && conteudo.includes('sistema')) {
+      if (lowerAll.includes('nenhum registro encontrado') || 
+          lowerAll.includes('nenhum registro') ||
+          (lowerAll.includes('erro') && lowerAll.includes('sistema'))) {
         log('⚠️ Arquivo contém mensagem de erro ou sem registros', LOG_LEVELS.WARN);
-        log(`Conteúdo: ${primeirosBytes}`, LOG_LEVELS.DEBUG);
+        log(`Conteúdo (início): ${conteudo.substring(0, 1000)}`, LOG_LEVELS.DEBUG);
         return [];
       }
       
@@ -1063,6 +1083,19 @@ async function processarArquivo(filePath) {
       
       if (dados.length > 0) {
         log(`HTML processado com sucesso: ${dados.length} registros`, LOG_LEVELS.SUCCESS);
+
+        // Contorno: quando o portal gera HTML com extensão .xls, o Excel acusa “formato/extensão não correspondem”.
+        // Aqui geramos um XLSX válido com os dados extraídos (sobrescrevendo o arquivo salvo).
+        try {
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.json_to_sheet(dados, { skipHeader: false });
+          XLSX.utils.book_append_sheet(wb, ws, 'Eventos');
+          XLSX.writeFile(wb, filePath, { bookType: 'xlsx' });
+          log('Arquivo HTML convertido para XLSX válido (contorno do aviso do Excel)', LOG_LEVELS.SUCCESS);
+        } catch (e) {
+          log(`Falha ao converter HTML->XLSX (seguindo apenas com parse): ${e.message}`, LOG_LEVELS.WARN);
+        }
+
         return dados;
       }
       
@@ -1075,37 +1108,48 @@ async function processarArquivo(filePath) {
     const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true, raw: false });
     
     log(`Sheets encontradas: ${workbook.SheetNames.join(', ')}`, LOG_LEVELS.DEBUG);
-    
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) {
+
+    if (!workbook.SheetNames?.length) {
       log('Nenhuma sheet encontrada no arquivo', LOG_LEVELS.WARN);
       return [];
     }
-    
-    const sheet = workbook.Sheets[sheetName];
-    
-    // Tentar diferentes estratégias de leitura
-    let dados = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
-    
-    // Se não encontrou dados, tentar com header na primeira linha
-    if (dados.length === 0) {
-      log('Tentando leitura alternativa (range A1)...', LOG_LEVELS.DEBUG);
-      dados = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1, raw: false });
-      
-      // Se tem dados no formato array, converter para objetos
-      if (dados.length > 1) {
-        const headers = dados[0];
-        log(`Headers encontrados: ${JSON.stringify(headers).substring(0, 200)}`, LOG_LEVELS.DEBUG);
-        dados = dados.slice(1).map(row => {
-          const obj = {};
-          headers.forEach((h, i) => {
-            obj[h || `col_${i}`] = row[i] || '';
-          });
-          return obj;
+
+    const readSheetSmart = (sheet) => {
+      // 1) Leitura padrão
+      let out = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+      if (out.length > 0) return out;
+
+      // 2) Leitura alternativa header:1
+      log('Tentando leitura alternativa (header:1)...', LOG_LEVELS.DEBUG);
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1, raw: false });
+      if (!Array.isArray(rows) || rows.length <= 1) return [];
+
+      const headers = rows[0];
+      log(`Headers encontrados: ${JSON.stringify(headers).substring(0, 200)}`, LOG_LEVELS.DEBUG);
+      return rows.slice(1).map((row) => {
+        const obj = {};
+        headers.forEach((h, i) => {
+          obj[h || `col_${i}`] = row?.[i] ?? '';
         });
-      } else {
-        dados = [];
+        return obj;
+      });
+    };
+
+    // Alguns relatórios colocam dados na 2ª sheet; pegamos a sheet com mais linhas.
+    let dados = [];
+    let bestSheet = workbook.SheetNames[0];
+    for (const name of workbook.SheetNames) {
+      const sheet = workbook.Sheets[name];
+      if (!sheet) continue;
+      const parsed = readSheetSmart(sheet);
+      if (parsed.length > dados.length) {
+        dados = parsed;
+        bestSheet = name;
       }
+    }
+
+    if (workbook.SheetNames.length > 1) {
+      log(`Sheet selecionada para leitura: ${bestSheet} (${dados.length} linhas)`, LOG_LEVELS.DEBUG);
     }
     
     // Log das primeiras linhas para debug
