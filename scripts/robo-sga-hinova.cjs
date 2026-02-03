@@ -888,6 +888,27 @@ function processarTabelaHtml(htmlContent) {
   let headerMapping = [];
   let headerRowIndex = -1;
   let currentRowIndex = 0;
+
+  const decodeBasicEntities = (text) =>
+    String(text || '')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&#\d+;/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const extractExpectedTotal = (html) => {
+    const m = String(html || '').match(/Total\s+de\s+eventos\s+encontrados\s*:\s*<\/th>\s*<td[^>]*>\s*(\d+)/i);
+    return m ? Number(m[1]) : null;
+  };
+
+  // Focar apenas na tabela principal (a que contém o cabeçalho EVENTO ESTADO) para não se perder
+  // em outros <tr> do HTML (rodapé/resumo/menus) e para lidar com HTML mal-formado (<tr><tr>...)
+  const mainTableMatch = String(htmlContent || '').match(/<table[^>]*>[\s\S]*?EVENTO\s+ESTADO[\s\S]*?<\/table>/i);
+  const htmlToParse = mainTableMatch ? mainTableMatch[0] : htmlContent;
+  const expectedTotal = extractExpectedTotal(htmlContent);
   
   // Diagnóstico: guardar as primeiras linhas para análise
   const sampleRows = [];
@@ -912,25 +933,24 @@ function processarTabelaHtml(htmlContent) {
   };
   
   // Extrair todas as linhas <tr>...</tr>
+  // Alguns exports do Hinova vêm com HTML inválido com <tr><tr>...; normalizamos antes.
+  const sanitized = String(htmlToParse || '')
+    .replace(/<tr[^>]*>\s*<tr[^>]*>/gi, '<tr>')
+    .replace(/<\/tr>\s*<\/tr>/gi, '</tr>');
+
   const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
   let match;
   
-  while ((match = rowRegex.exec(htmlContent)) !== null) {
-    const rowHtml = match[1];
+  while ((match = rowRegex.exec(sanitized)) !== null) {
+    // Remover qualquer <tr> interno remanescente para evitar quebras de parsing
+    const rowHtml = String(match[1] || '').replace(/<tr[^>]*>/gi, '');
     const cells = [];
     
     // Tentar extrair de <th> primeiro (cabeçalho)
     const thRegex = /<th[^>]*>([\s\S]*?)<\/th>/gi;
     let thMatch;
     while ((thMatch = thRegex.exec(rowHtml)) !== null) {
-      let text = thMatch[1]
-        .replace(/<[^>]*>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&#\d+;/g, '')
-        .trim();
+      const text = decodeBasicEntities(thMatch[1].replace(/<[^>]*>/g, ''));
       cells.push(text);
     }
     
@@ -939,16 +959,12 @@ function processarTabelaHtml(htmlContent) {
       const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
       let cellMatch;
       while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
-        let text = cellMatch[1]
-          .replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, '$1')
-          .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, '$1')
-          .replace(/<[^>]*>/g, '')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&#\d+;/g, '')
-          .trim();
+        const text = decodeBasicEntities(
+          cellMatch[1]
+            .replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, '$1')
+            .replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, '$1')
+            .replace(/<[^>]*>/g, '')
+        );
         cells.push(text);
       }
     }
@@ -966,13 +982,15 @@ function processarTabelaHtml(htmlContent) {
     if (headerRowIndex === -1 && currentRowIndex <= 100) {
       if (isHeaderRow(cells)) {
         headerRowIndex = currentRowIndex;
-        headersEncontrados = cells.map(h => normalizeHeader(h));
+        // IMPORTANTE: guardar cabeçalhos “como vieram” (apenas limpando espaços)
+        // pois o backend normaliza e mapeia; isso preserva compatibilidade com variações.
+        headersEncontrados = cells.map((h) => decodeBasicEntities(h));
         log(`🎯 Cabeçalho detectado na linha ${currentRowIndex}: ${cells.length} colunas`, LOG_LEVELS.SUCCESS);
         log(`📋 Cabeçalhos: ${cells.slice(0, 8).join(' | ')}...`, LOG_LEVELS.DEBUG);
         
         // Mapear cabeçalhos para nomes padronizados
         for (let i = 0; i < headersEncontrados.length; i++) {
-          const normalized = headersEncontrados[i];
+          const normalized = normalizeHeader(headersEncontrados[i]);
           let mappedName = COLUMN_MAP[normalized] || null;
           
           // Fallback: buscar correspondência parcial
@@ -984,7 +1002,7 @@ function processarTabelaHtml(htmlContent) {
               }
             }
           }
-          headerMapping.push({ original: headersEncontrados[i], mapped: mappedName });
+          headerMapping.push({ original: headersEncontrados[i], mapped: mappedName, normalized });
         }
         log(`Mapeamento: ${headerMapping.filter(h => h.mapped).length} colunas reconhecidas`, LOG_LEVELS.DEBUG);
         continue;
@@ -1022,6 +1040,13 @@ function processarTabelaHtml(htmlContent) {
   
   log(`✅ Processamento HTML concluído`, LOG_LEVELS.SUCCESS);
   log(`Registros válidos: ${dados.length} (${currentRowIndex} linhas <tr> processadas)`, LOG_LEVELS.SUCCESS);
+
+  if (typeof expectedTotal === 'number' && expectedTotal >= 0 && dados.length !== expectedTotal) {
+    log(
+      `⚠️ Divergência: HTML indica ${expectedTotal} eventos, mas parser extraiu ${dados.length}. Tentando continuar com os dados extraídos.`,
+      LOG_LEVELS.WARN
+    );
+  }
   
   // Diagnóstico detalhado se não encontrou dados
   if (dados.length === 0) {
