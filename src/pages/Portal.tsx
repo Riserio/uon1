@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +13,7 @@ import PortalHeader from "@/components/portal/PortalHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare } from "lucide-react";
+import { usePortalEagerPrefetch } from "@/hooks/usePortalDataPrefetch";
 
 /**
  * PORTAL BI - Business Intelligence para Parceiros
@@ -270,6 +271,13 @@ export default function Portal() {
       </div>
     );
   }
+
+  // Pré-carregar dados de TODOS os módulos ao entrar no portal
+  const availableModulesForPrefetch = useMemo(() => {
+    return corretora?.modulos_bi || [];
+  }, [corretora?.modulos_bi]);
+  
+  usePortalEagerPrefetch(corretora?.id, availableModulesForPrefetch);
 
   // Tabs do BI Indicadores
   const tabs = [
