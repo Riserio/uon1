@@ -9,10 +9,10 @@ import PIDEstudoBase from "@/components/portal/PIDEstudoBase";
 import PIDHistorico from "@/components/portal/PIDHistorico";
 import PortalSinistros from "@/components/portal/PortalSinistros";
 import PortalComite from "@/components/portal/PortalComite";
+import PortalHeader from "@/components/portal/PortalHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare, TrendingUp, ArrowLeftRight } from "lucide-react";
-import { toast } from "sonner";
+import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare } from "lucide-react";
 
 /**
  * PORTAL BI - Business Intelligence para Parceiros
@@ -97,6 +97,11 @@ export default function Portal() {
         if (associacaoParam) {
           const associacaoSelecionada = corretorasValidas.find(c => c.id === associacaoParam);
           if (associacaoSelecionada) {
+            // Verificar se tem acesso ao módulo indicadores, senão redirecionar
+            if (!associacaoSelecionada.modulos_bi.includes('indicadores')) {
+              redirectToFirstAvailableModule(associacaoSelecionada);
+              return;
+            }
             setCorretora(associacaoSelecionada);
             setCorretorasDisponiveis(corretorasValidas);
             setLoading(false);
@@ -106,7 +111,13 @@ export default function Portal() {
 
         // Se tem apenas uma corretora, seleciona automaticamente
         if (corretorasValidas.length === 1) {
-          setCorretora(corretorasValidas[0]);
+          const singleCorretora = corretorasValidas[0];
+          // Verificar se tem acesso ao módulo indicadores
+          if (!singleCorretora.modulos_bi.includes('indicadores')) {
+            redirectToFirstAvailableModule(singleCorretora);
+            return;
+          }
+          setCorretora(singleCorretora);
         } else {
           // Se tem múltiplas, mostra tela de seleção
           setCorretorasDisponiveis(corretorasValidas);
@@ -121,9 +132,26 @@ export default function Portal() {
     }
 
     loadCorretoraData();
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, searchParams]);
+
+  // Função para redirecionar ao primeiro módulo disponível
+  const redirectToFirstAvailableModule = (corretoraData: CorretoraComModulos) => {
+    const modulos = corretoraData.modulos_bi;
+    if (modulos.includes('eventos')) {
+      navigate(`/portal/sga-insights?associacao=${corretoraData.id}`, { replace: true });
+    } else if (modulos.includes('mgf')) {
+      navigate(`/portal/mgf-insights?associacao=${corretoraData.id}`, { replace: true });
+    } else if (modulos.includes('cobranca')) {
+      navigate(`/portal/cobranca-insights?associacao=${corretoraData.id}`, { replace: true });
+    }
+  };
 
   const handleSelectCorretora = (selectedCorretora: CorretoraComModulos) => {
+    // Verificar se tem acesso ao módulo indicadores
+    if (!selectedCorretora.modulos_bi.includes('indicadores')) {
+      redirectToFirstAvailableModule(selectedCorretora);
+      return;
+    }
     setCorretora(selectedCorretora);
     setShowSelection(false);
   };
@@ -140,7 +168,7 @@ export default function Portal() {
 
   if (loading || authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Carregando portal...</p>
@@ -181,45 +209,47 @@ export default function Portal() {
   if (showSelection && corretorasDisponiveis.length > 1) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
-        <Card className="max-w-lg w-full shadow-lg">
+        <Card className="max-w-lg w-full shadow-xl border-0">
           <CardContent className="p-8 space-y-6">
             <div className="text-center space-y-2">
-              <div className="mx-auto h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <div className="mx-auto h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-4">
                 <Building2 className="h-8 w-8 text-primary" />
               </div>
-              <h2 className="text-xl font-bold">Selecione a Associação</h2>
+              <h2 className="text-2xl font-bold">Selecione a Associação</h2>
               <p className="text-muted-foreground text-sm">
-                Você está vinculado a múltiplas associações. Selecione qual deseja visualizar.
+                Você está vinculado a múltiplas associações. Escolha qual deseja acessar.
               </p>
             </div>
             
-            <div className="space-y-3">
+            <div className="space-y-2">
               {corretorasDisponiveis.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => handleSelectCorretora(item)}
-                  className="w-full flex items-center gap-4 p-4 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 transition-all duration-200 text-left"
+                  className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 hover:border-primary hover:bg-primary/5 transition-all duration-200 text-left group"
                 >
                   {item.logo_url ? (
                     <img
                       src={item.logo_url}
                       alt={item.nome}
-                      className="h-12 w-12 rounded-full object-cover"
+                      className="h-12 w-12 rounded-full object-cover ring-2 ring-muted group-hover:ring-primary/30 transition-all"
                     />
                   ) : (
-                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                      <Building2 className="h-6 w-6 text-muted-foreground" />
+                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-all">
+                      <Building2 className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{item.nome}</p>
-                    <p className="text-sm text-muted-foreground">Clique para acessar</p>
+                    <p className="font-semibold truncate group-hover:text-primary transition-colors">{item.nome}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.modulos_bi.length} módulo{item.modulos_bi.length > 1 ? 's' : ''} disponível{item.modulos_bi.length > 1 ? 'is' : ''}
+                    </p>
                   </div>
                 </button>
               ))}
             </div>
 
-            <Button onClick={handleLogout} variant="outline" className="w-full gap-2">
+            <Button onClick={handleLogout} variant="ghost" className="w-full gap-2 text-muted-foreground hover:text-destructive">
               <LogOut className="h-4 w-4" />
               Sair
             </Button>
@@ -232,7 +262,7 @@ export default function Portal() {
   // Se não tem corretora selecionada (não deveria acontecer), mostrar loading
   if (!corretora) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Carregando...</p>
@@ -241,177 +271,76 @@ export default function Portal() {
     );
   }
 
-  // Verificar permissões de módulos
-  const hasModulo = (modulo: string) => corretora.modulos_bi.includes(modulo);
-  const hasIndicadores = hasModulo('indicadores');
-  const hasEventos = hasModulo('eventos');
-  const hasMGF = hasModulo('mgf');
-  const hasCobranca = hasModulo('cobranca');
-
-  // Tabs do BI Indicadores (só aparecem se tem permissão 'indicadores')
-  const tabs = hasIndicadores ? [
+  // Tabs do BI Indicadores
+  const tabs = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "operacional", label: "Operacional", icon: Activity },
     { id: "estudo-base", label: "Estudo de Base", icon: Car },
     { id: "historico", label: "Histórico", icon: Calendar },
     { id: "sinistros", label: "Sinistros", icon: ShieldCheck },
     { id: "comite", label: "Comitê", icon: MessageSquare },
-  ] : [];
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-            <div className="flex items-center gap-3">
-              {corretora.logo_url ? (
-                <img
-                  src={corretora.logo_url}
-                  alt={corretora.nome}
-                  className="h-9 w-9 sm:h-10 sm:w-10 rounded-full object-cover"
-                />
-              ) : (
-                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                </div>
-              )}
-              <div className="min-w-0">
-                <h1 className="text-lg sm:text-xl md:text-2xl font-bold leading-tight truncate">{corretora.nome}</h1>
-                <p className="text-xs sm:text-sm text-muted-foreground">Portal de Gestão · BI</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-3 justify-end">
-              {corretorasDisponiveis.length > 1 && (
-                <Button 
-                  variant="outline" 
-                  onClick={handleChangeCorretora}
-                  className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
-                  title="Trocar associação"
-                >
-                  <ArrowLeftRight className="h-4 w-4" />
-                  <span className="hidden sm:inline">Trocar</span>
-                </Button>
-              )}
-              {hasEventos && (
-                <Button 
-                  variant="outline" 
-                  onClick={() => navigate(`/portal/sga-insights?associacao=${corretora.id}`)}
-                  className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
-                >
-                  <TrendingUp className="h-4 w-4" />
-                  <span className="hidden sm:inline">Eventos</span>
-                </Button>
-              )}
-              {hasMGF && (
-                <Button 
-                  variant="outline" 
-                  onClick={() => navigate(`/portal/mgf-insights?associacao=${corretora.id}`)}
-                  className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
-                >
-                  <Activity className="h-4 w-4" />
-                  <span className="hidden sm:inline">MGF</span>
-                </Button>
-              )}
-              {hasCobranca && (
-                <Button 
-                  variant="outline" 
-                  onClick={() => navigate(`/portal/cobranca-insights?associacao=${corretora.id}`)}
-                  className="gap-2 px-3 sm:px-4 text-xs sm:text-sm"
-                >
-                  <TrendingUp className="h-4 w-4" />
-                  <span className="hidden sm:inline">Cobrança</span>
-                </Button>
-              )}
-              <Button variant="outline" onClick={handleLogout} className="gap-2 px-3 sm:px-4 text-xs sm:text-sm">
-                <LogOut className="h-4 w-4" />
-                Sair
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
+      <PortalHeader
+        corretora={corretora}
+        showChangeButton={corretorasDisponiveis.length > 1}
+        onChangeCorretora={handleChangeCorretora}
+        onLogout={handleLogout}
+        currentModule="indicadores"
+      />
 
       <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Welcome Card */}
-        <Card className="border-2 border-primary/10 shadow-lg bg-gradient-to-br from-card to-card/80">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-xl sm:text-2xl font-bold">Bem-vindo ao Portal</h2>
-                <p className="text-xs sm:text-sm md:text-base text-muted-foreground">
-                  Acompanhe seus indicadores e dados financeiros em tempo real
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Tabs Section */}
+        <Tabs defaultValue="dashboard" className="space-y-6">
+          {/* Wrapper para scroll horizontal em telas pequenas */}
+          <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
+            <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <TabsTrigger
+                    key={tab.id}
+                    value={tab.id}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+                               text-muted-foreground transition-all
+                               data-[state=active]:bg-background data-[state=active]:text-foreground
+                               data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50
+                               whitespace-nowrap"
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </div>
 
-        {/* Tabs Section - só mostra se tem acesso ao módulo indicadores */}
-        {hasIndicadores ? (
-          <Tabs defaultValue="dashboard" className="space-y-6">
-            {/* Wrapper para scroll horizontal em telas pequenas */}
-            <div className="w-full overflow-x-auto pb-2">
-              <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/40 rounded-xl min-w-max md:min-w-0">
-                {tabs.map((tab) => {
-                  const Icon = tab.icon;
-                  return (
-                    <TabsTrigger
-                      key={tab.id}
-                      value={tab.id}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                                 text-muted-foreground transition-all
-                                 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                                 data-[state=active]:shadow-md hover:text-foreground hover:bg-muted/60
-                                 whitespace-nowrap"
-                    >
-                      <Icon className="h-4 w-4" />
-                      <span className="hidden sm:inline">{tab.label}</span>
-                    </TabsTrigger>
-                  );
-                })}
-              </TabsList>
-            </div>
+          <TabsContent value="dashboard" className="space-y-4 mt-0">
+            <PIDDashboard corretoraId={corretora.id} />
+          </TabsContent>
 
-            <TabsContent value="dashboard" className="space-y-4 mt-0">
-              <PIDDashboard corretoraId={corretora.id} />
-            </TabsContent>
+          <TabsContent value="operacional" className="space-y-4 mt-0">
+            <PIDOperacional corretoraId={corretora.id} />
+          </TabsContent>
 
-            <TabsContent value="operacional" className="space-y-4 mt-0">
-              <PIDOperacional corretoraId={corretora.id} />
-            </TabsContent>
+          <TabsContent value="estudo-base" className="space-y-4 mt-0">
+            <PIDEstudoBase corretoraId={corretora.id} />
+          </TabsContent>
 
-            <TabsContent value="estudo-base" className="space-y-4 mt-0">
-              <PIDEstudoBase corretoraId={corretora.id} />
-            </TabsContent>
+          <TabsContent value="historico" className="space-y-4 mt-0">
+            <PIDHistorico corretoraId={corretora.id} />
+          </TabsContent>
 
-            <TabsContent value="historico" className="space-y-4 mt-0">
-              <PIDHistorico corretoraId={corretora.id} />
-            </TabsContent>
+          <TabsContent value="sinistros" className="space-y-4 mt-0">
+            <PortalSinistros corretoraId={corretora.id} />
+          </TabsContent>
 
-            <TabsContent value="sinistros" className="space-y-4 mt-0">
-              <PortalSinistros corretoraId={corretora.id} />
-            </TabsContent>
-
-            <TabsContent value="comite" className="space-y-4 mt-0">
-              <PortalComite corretoraId={corretora.id} />
-            </TabsContent>
-          </Tabs>
-        ) : (
-          <Card className="border-2 border-muted">
-            <CardContent className="p-8 text-center">
-              <p className="text-muted-foreground">
-                Você tem acesso aos módulos: {hasEventos && 'Eventos'} {hasMGF && 'MGF'} {hasCobranca && 'Cobrança'}
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Use os botões acima para navegar entre os módulos disponíveis.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+          <TabsContent value="comite" className="space-y-4 mt-0">
+            <PortalComite corretoraId={corretora.id} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
