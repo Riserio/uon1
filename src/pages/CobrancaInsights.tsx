@@ -107,17 +107,35 @@ export default function CobrancaInsights() {
         const associacaoParam = searchParams.get("associacao");
         
         if (isPortalAccess && associacaoParam) {
-          const { data, error } = await supabase
+          // Para parceiros, buscar a associação e suas permissões
+          const { data: corretora, error: corretoraError } = await supabase
             .from("corretoras")
-            .select("id, nome")
+            .select("id, nome, logo_url")
             .eq("id", associacaoParam)
             .single();
 
-          if (error) throw error;
+          if (corretoraError) throw corretoraError;
 
-          if (data) {
-            setAssociacoes([data]);
-            setSelectedAssociacao(data.id);
+          if (corretora) {
+            // Buscar permissões do usuário para esta corretora
+            const { data: usuarioData } = await supabase
+              .from("corretora_usuarios")
+              .select("modulos_bi")
+              .eq("corretora_id", associacaoParam)
+              .eq("ativo", true)
+              .maybeSingle();
+
+            setAssociacoes([{ id: corretora.id, nome: corretora.nome }]);
+            setSelectedAssociacao(corretora.id);
+            setCorretoraData(corretora);
+            setModulosBi(usuarioData?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca']);
+            
+            // Verificar se usuário tem múltiplas associações
+            const { data: todasAssociacoes } = await supabase
+              .from("corretora_usuarios")
+              .select("corretora_id")
+              .eq("ativo", true);
+            setMultipleAssociacoes((todasAssociacoes?.length || 0) > 1);
           }
         } else {
           const { data, error } = await supabase
@@ -313,80 +331,95 @@ export default function CobrancaInsights() {
         { id: "importar", label: "Importar Dados", icon: Upload },
       ];
 
+  const handlePortalLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth", { replace: true });
+  };
+
+  const handleChangeAssociacao = () => {
+    navigate("/portal", { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-b">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center gap-4 mb-4">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => navigate(isPortalAccess 
-                ? `/portal?associacao=${selectedAssociacao}` 
-                : `/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
-              )}
-              className="shrink-0"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-400 bg-clip-text text-transparent">
-                Cobrança
-              </h1>
-              <p className="text-muted-foreground mt-1">
-                Business Intelligence de Cobrança e Inadimplência
-              </p>
-            </div>
-            
-            <Button
-              variant="outline"
-              onClick={() => navigate(isPortalAccess 
-                ? `/portal/sga-insights?associacao=${selectedAssociacao}` 
-                : `/sga-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
-              )}
-              className="gap-2 border-primary/30 hover:bg-primary/10"
-            >
-              <MapPin className="h-4 w-4" />
-              <span className="hidden sm:inline">Eventos</span>
-            </Button>
-            
-            <Button
-              variant="outline"
-              onClick={() => navigate(isPortalAccess 
-                ? `/portal/mgf-insights?associacao=${selectedAssociacao}` 
-                : `/mgf-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
-              )}
-              className="gap-2 border-orange-500/30 hover:bg-orange-500/10"
-            >
-              <DollarSign className="h-4 w-4" />
-              <span className="hidden sm:inline">MGF</span>
-            </Button>
-            
-            {/* Botão Histórico - só para superintendente e admin */}
-            {canViewHistorico && (
+      {/* Portal Header para parceiros */}
+      {isPortalAccess && corretoraData && (
+        <PortalHeader
+          corretora={{
+            id: corretoraData.id,
+            nome: corretoraData.nome,
+            logo_url: corretoraData.logo_url,
+            modulos_bi: modulosBi
+          }}
+          showChangeButton={multipleAssociacoes}
+          onChangeCorretora={handleChangeAssociacao}
+          onLogout={handlePortalLogout}
+          currentModule="cobranca"
+        />
+      )}
+
+      {/* Header interno (não parceiro) */}
+      {!isPortalAccess && (
+        <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-b">
+          <div className="container mx-auto px-4 py-6">
+            <div className="flex items-center gap-4 mb-4">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => navigate(`/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+                className="shrink-0"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div className="flex-1">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-400 bg-clip-text text-transparent">
+                  Cobrança
+                </h1>
+                <p className="text-muted-foreground mt-1">
+                  Business Intelligence de Cobrança e Inadimplência
+                </p>
+              </div>
+              
               <Button
                 variant="outline"
-                onClick={() => setHistoricoDialogOpen(true)}
-                className="gap-2"
+                onClick={() => navigate(`/sga-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+                className="gap-2 border-primary/30 hover:bg-primary/10"
               >
-                <History className="h-4 w-4" />
-                <span className="hidden sm:inline">Histórico</span>
+                <MapPin className="h-4 w-4" />
+                <span className="hidden sm:inline">Eventos</span>
               </Button>
-            )}
-            {importacaoAtiva && (
-              <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
-                <Database className="h-4 w-4" />
-                <span>{filteredBoletos.length.toLocaleString()} registros</span>
-                {hasActiveFilters && <span className="text-emerald-600">(filtrados)</span>}
-                <span className="text-muted-foreground/50">|</span>
-                <span>{importacaoAtiva.nome_arquivo}</span>
-              </div>
-            )}
-          </div>
+              
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/mgf-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+                className="gap-2 border-orange-500/30 hover:bg-orange-500/10"
+              >
+                <DollarSign className="h-4 w-4" />
+                <span className="hidden sm:inline">MGF</span>
+              </Button>
+              
+              {canViewHistorico && (
+                <Button
+                  variant="outline"
+                  onClick={() => setHistoricoDialogOpen(true)}
+                  className="gap-2"
+                >
+                  <History className="h-4 w-4" />
+                  <span className="hidden sm:inline">Histórico</span>
+                </Button>
+              )}
+              {importacaoAtiva && (
+                <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
+                  <Database className="h-4 w-4" />
+                  <span>{filteredBoletos.length.toLocaleString()} registros</span>
+                  {hasActiveFilters && <span className="text-emerald-600">(filtrados)</span>}
+                  <span className="text-muted-foreground/50">|</span>
+                  <span>{importacaoAtiva.nome_arquivo}</span>
+                </div>
+              )}
+            </div>
 
-          {/* Seletor de Associação */}
-          {!isPortalAccess && (
+            {/* Seletor de Associação */}
             <Card className="border-emerald-500/20 bg-card/50 backdrop-blur mb-4">
               <CardContent className="p-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
@@ -415,194 +448,182 @@ export default function CobrancaInsights() {
                 </div>
               </CardContent>
             </Card>
-          )}
-          
-          {/* Nome da Associação para parceiros */}
-          {isPortalAccess && selectedAssociacaoNome && (
-            <Card className="border-emerald-500/20 bg-card/50 backdrop-blur mb-4">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <Label className="text-base font-semibold whitespace-nowrap">
-                    Associação:
-                  </Label>
-                  <span className="text-lg font-medium">{selectedAssociacaoNome}</span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          </div>
+        </div>
+      )}
 
-          {/* Filtros Globais */}
-          {boletos.length > 0 && (
-            <Card className="border-emerald-500/20 bg-card/50 backdrop-blur mb-4">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Filter className="h-4 w-4 text-emerald-600" />
-                  <span className="font-semibold text-sm">Filtros</span>
-                  {hasActiveFilters && (
-                    <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-2 text-xs">
-                      Limpar filtros
-                    </Button>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Mês Referência</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "h-9 w-full justify-start text-left font-normal",
-                            !filters.mesReferencia && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {filters.mesReferencia ? (
-                            format(parse(filters.mesReferencia, "yyyy-MM", new Date()), "MMMM 'de' yyyy", { locale: ptBR })
-                          ) : (
-                            <span>Selecione o mês</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-4" align="start">
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                              <Label className="text-xs">Mês</Label>
-                              <Select
-                                value={filters.mesReferencia ? filters.mesReferencia.split("-")[1] : ""}
-                                onValueChange={(mes) => {
-                                  const ano = filters.mesReferencia ? filters.mesReferencia.split("-")[0] : String(new Date().getFullYear());
-                                  setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
-                                }}
-                              >
-                                <SelectTrigger className="h-9">
-                                  <SelectValue placeholder="Mês" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {[
-                                    { value: "01", label: "Janeiro" },
-                                    { value: "02", label: "Fevereiro" },
-                                    { value: "03", label: "Março" },
-                                    { value: "04", label: "Abril" },
-                                    { value: "05", label: "Maio" },
-                                    { value: "06", label: "Junho" },
-                                    { value: "07", label: "Julho" },
-                                    { value: "08", label: "Agosto" },
-                                    { value: "09", label: "Setembro" },
-                                    { value: "10", label: "Outubro" },
-                                    { value: "11", label: "Novembro" },
-                                    { value: "12", label: "Dezembro" },
-                                  ].map((m) => (
-                                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Ano</Label>
-                              <Select
-                                value={filters.mesReferencia ? filters.mesReferencia.split("-")[0] : ""}
-                                onValueChange={(ano) => {
-                                  const mes = filters.mesReferencia ? filters.mesReferencia.split("-")[1] : "01";
-                                  setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
-                                }}
-                              >
-                                <SelectTrigger className="h-9">
-                                  <SelectValue placeholder="Ano" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((ano) => (
-                                    <SelectItem key={ano} value={String(ano)}>{ano}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
+      {/* Filtros Globais */}
+      {boletos.length > 0 && (
+        <div className="container mx-auto px-4 pt-4">
+          <Card className="border-emerald-500/20 bg-card/50 backdrop-blur">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Filter className="h-4 w-4 text-emerald-600" />
+                <span className="font-semibold text-sm">Filtros</span>
+                {hasActiveFilters && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-2 text-xs">
+                    Limpar filtros
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Mês Referência</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "h-9 w-full justify-start text-left font-normal",
+                          !filters.mesReferencia && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {filters.mesReferencia ? (
+                          format(parse(filters.mesReferencia, "yyyy-MM", new Date()), "MMMM 'de' yyyy", { locale: ptBR })
+                        ) : (
+                          <span>Selecione o mês</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-4" align="start">
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Mês</Label>
+                            <Select
+                              value={filters.mesReferencia ? filters.mesReferencia.split("-")[1] : ""}
+                              onValueChange={(mes) => {
+                                const ano = filters.mesReferencia ? filters.mesReferencia.split("-")[0] : String(new Date().getFullYear());
+                                setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
+                              }}
+                            >
+                              <SelectTrigger className="h-9">
+                                <SelectValue placeholder="Mês" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[
+                                  { value: "01", label: "Janeiro" },
+                                  { value: "02", label: "Fevereiro" },
+                                  { value: "03", label: "Março" },
+                                  { value: "04", label: "Abril" },
+                                  { value: "05", label: "Maio" },
+                                  { value: "06", label: "Junho" },
+                                  { value: "07", label: "Julho" },
+                                  { value: "08", label: "Agosto" },
+                                  { value: "09", label: "Setembro" },
+                                  { value: "10", label: "Outubro" },
+                                  { value: "11", label: "Novembro" },
+                                  { value: "12", label: "Dezembro" },
+                                ].map((m) => (
+                                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
-                          <div className="flex justify-between pt-2 border-t">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-emerald-600 hover:text-emerald-700"
-                              onClick={() => setFilters(f => ({ ...f, mesReferencia: "" }))}
+                          <div className="space-y-1">
+                            <Label className="text-xs">Ano</Label>
+                            <Select
+                              value={filters.mesReferencia ? filters.mesReferencia.split("-")[0] : ""}
+                              onValueChange={(ano) => {
+                                const mes = filters.mesReferencia ? filters.mesReferencia.split("-")[1] : "01";
+                                setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
+                              }}
                             >
-                              Limpar
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-emerald-600 hover:text-emerald-700"
-                              onClick={() => setFilters(f => ({ ...f, mesReferencia: format(new Date(), "yyyy-MM") }))}
-                            >
-                              Mês Atual
-                            </Button>
+                              <SelectTrigger className="h-9">
+                                <SelectValue placeholder="Ano" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((ano) => (
+                                  <SelectItem key={ano} value={String(ano)}>{ano}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Situação</Label>
-                    <Select value={filters.situacao} onValueChange={(v) => setFilters(f => ({ ...f, situacao: v }))}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Todas" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todas</SelectItem>
-                        {filterOptions.situacoes.map(s => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Regional</Label>
-                    <Select value={filters.regional} onValueChange={(v) => setFilters(f => ({ ...f, regional: v }))}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Todas" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todas Regionais</SelectItem>
-                        {filterOptions.regionais.map(r => (
-                          <SelectItem key={r} value={r}>{r}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Cooperativa</Label>
-                    <Select value={filters.cooperativa} onValueChange={(v) => setFilters(f => ({ ...f, cooperativa: v }))}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Todas" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todas Cooperativas</SelectItem>
-                        {filterOptions.cooperativas.map(c => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Dia Vencimento</Label>
-                    <Select value={filters.diaVencimento} onValueChange={(v) => setFilters(f => ({ ...f, diaVencimento: v }))}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Todos" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todos</SelectItem>
-                        {filterOptions.diasVencimento.map(d => (
-                          <SelectItem key={d} value={String(d)}>Dia {d}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                        <div className="flex justify-between pt-2 border-t">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-emerald-600 hover:text-emerald-700"
+                            onClick={() => setFilters(f => ({ ...f, mesReferencia: "" }))}
+                          >
+                            Limpar
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-emerald-600 hover:text-emerald-700"
+                            onClick={() => setFilters(f => ({ ...f, mesReferencia: format(new Date(), "yyyy-MM") }))}
+                          >
+                            Mês Atual
+                          </Button>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Situação</Label>
+                  <Select value={filters.situacao} onValueChange={(v) => setFilters(f => ({ ...f, situacao: v }))}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas</SelectItem>
+                      {filterOptions.situacoes.map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Regional</Label>
+                  <Select value={filters.regional} onValueChange={(v) => setFilters(f => ({ ...f, regional: v }))}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas Regionais</SelectItem>
+                      {filterOptions.regionais.map(r => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Cooperativa</Label>
+                  <Select value={filters.cooperativa} onValueChange={(v) => setFilters(f => ({ ...f, cooperativa: v }))}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas Cooperativas</SelectItem>
+                      {filterOptions.cooperativas.map(c => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Dia Vencimento</Label>
+                  <Select value={filters.diaVencimento} onValueChange={(v) => setFilters(f => ({ ...f, diaVencimento: v }))}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      {filterOptions.diasVencimento.map(d => (
+                        <SelectItem key={d} value={String(d)}>Dia {d}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      </div>
+      )}
 
       {/* Tabs */}
       <div className="container mx-auto px-4 py-6">

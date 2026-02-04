@@ -85,18 +85,35 @@ export default function MGFInsights() {
         const associacaoParam = searchParams.get("associacao");
         
         if (isPortalAccess && associacaoParam) {
-          // Para parceiros, buscar apenas a associação específica
-          const { data, error } = await supabase
+          // Para parceiros, buscar a associação e suas permissões
+          const { data: corretora, error: corretoraError } = await supabase
             .from("corretoras")
-            .select("id, nome")
+            .select("id, nome, logo_url")
             .eq("id", associacaoParam)
             .single();
 
-          if (error) throw error;
+          if (corretoraError) throw corretoraError;
 
-          if (data) {
-            setAssociacoes([data]);
-            setSelectedAssociacao(data.id);
+          if (corretora) {
+            // Buscar permissões do usuário para esta corretora
+            const { data: usuarioData } = await supabase
+              .from("corretora_usuarios")
+              .select("modulos_bi")
+              .eq("corretora_id", associacaoParam)
+              .eq("ativo", true)
+              .maybeSingle();
+
+            setAssociacoes([{ id: corretora.id, nome: corretora.nome }]);
+            setSelectedAssociacao(corretora.id);
+            setCorretoraData(corretora);
+            setModulosBi(usuarioData?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca']);
+            
+            // Verificar se usuário tem múltiplas associações
+            const { data: todasAssociacoes } = await supabase
+              .from("corretora_usuarios")
+              .select("corretora_id")
+              .eq("ativo", true);
+            setMultipleAssociacoes((todasAssociacoes?.length || 0) > 1);
           }
         } else {
           // Para acesso interno, buscar todas as associações
@@ -318,78 +335,94 @@ export default function MGFInsights() {
         { id: "importar", label: "Importar Dados", icon: Upload },
       ];
 
+  const handlePortalLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth", { replace: true });
+  };
+
+  const handleChangeAssociacao = () => {
+    navigate("/portal", { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent border-b">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center gap-4 mb-4">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => navigate(isPortalAccess 
-                ? `/portal?associacao=${selectedAssociacao}` 
-                : `/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
-              )}
-              className="shrink-0"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent">
-                MGF
-              </h1>
-              <p className="text-muted-foreground mt-1">
-                Business Intelligence de Dados MGF
-              </p>
-            </div>
-            
-            <Button
-              variant="outline"
-              onClick={() => navigate(isPortalAccess 
-                ? `/portal/sga-insights?associacao=${selectedAssociacao}` 
-                : `/sga-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
-              )}
-              className="gap-2 border-primary/30 hover:bg-primary/10"
-            >
-              <MapPin className="h-4 w-4" />
-              <span className="hidden sm:inline">Eventos</span>
-            </Button>
-            
-            <Button
-              variant="outline"
-              onClick={() => navigate(isPortalAccess 
-                ? `/portal/cobranca-insights?associacao=${selectedAssociacao}` 
-                : `/cobranca-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
-              )}
-              className="gap-2 border-emerald-500/30 hover:bg-emerald-500/10"
-            >
-              <CreditCard className="h-4 w-4" />
-              <span className="hidden sm:inline">Cobrança</span>
-            </Button>
-            
-            {canViewHistorico && (
+      {/* Portal Header para parceiros */}
+      {isPortalAccess && corretoraData && (
+        <PortalHeader
+          corretora={{
+            id: corretoraData.id,
+            nome: corretoraData.nome,
+            logo_url: corretoraData.logo_url,
+            modulos_bi: modulosBi
+          }}
+          showChangeButton={multipleAssociacoes}
+          onChangeCorretora={handleChangeAssociacao}
+          onLogout={handlePortalLogout}
+          currentModule="mgf"
+        />
+      )}
+
+      {/* Header interno (não parceiro) */}
+      {!isPortalAccess && (
+        <div className="bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent border-b">
+          <div className="container mx-auto px-4 py-6">
+            <div className="flex items-center gap-4 mb-4">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => navigate(`/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+                className="shrink-0"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div className="flex-1">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent">
+                  MGF
+                </h1>
+                <p className="text-muted-foreground mt-1">
+                  Business Intelligence de Dados MGF
+                </p>
+              </div>
+              
               <Button
                 variant="outline"
-                onClick={() => setHistoricoDialogOpen(true)}
-                className="gap-2"
+                onClick={() => navigate(`/sga-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+                className="gap-2 border-primary/30 hover:bg-primary/10"
               >
-                <History className="h-4 w-4" />
-                <span className="hidden sm:inline">Histórico</span>
+                <MapPin className="h-4 w-4" />
+                <span className="hidden sm:inline">Eventos</span>
               </Button>
-            )}
-            {importacaoAtiva && (
-              <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
-                <Database className="h-4 w-4" />
-                <span>{filteredDados.length.toLocaleString()} registros</span>
-                <span className="text-muted-foreground/50">|</span>
-                <span>{importacaoAtiva.nome_arquivo}</span>
-              </div>
-            )}
-          </div>
+              
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/cobranca-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+                className="gap-2 border-emerald-500/30 hover:bg-emerald-500/10"
+              >
+                <CreditCard className="h-4 w-4" />
+                <span className="hidden sm:inline">Cobrança</span>
+              </Button>
+              
+              {canViewHistorico && (
+                <Button
+                  variant="outline"
+                  onClick={() => setHistoricoDialogOpen(true)}
+                  className="gap-2"
+                >
+                  <History className="h-4 w-4" />
+                  <span className="hidden sm:inline">Histórico</span>
+                </Button>
+              )}
+              {importacaoAtiva && (
+                <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
+                  <Database className="h-4 w-4" />
+                  <span>{filteredDados.length.toLocaleString()} registros</span>
+                  <span className="text-muted-foreground/50">|</span>
+                  <span>{importacaoAtiva.nome_arquivo}</span>
+                </div>
+              )}
+            </div>
 
-          {/* Seletor de Associação - apenas para acesso interno */}
-          {!isPortalAccess && (
+            {/* Seletor de Associação */}
             <Card className="border-orange-500/20 bg-card/50 backdrop-blur mb-4">
               <CardContent className="p-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
@@ -418,170 +451,158 @@ export default function MGFInsights() {
                 </div>
               </CardContent>
             </Card>
-          )}
-
-          {/* Nome da Associação para parceiros */}
-          {isPortalAccess && selectedAssociacaoNome && (
-            <Card className="border-orange-500/20 bg-card/50 backdrop-blur mb-4">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <Label className="text-base font-semibold whitespace-nowrap">
-                    Associação:
-                  </Label>
-                  <span className="text-lg font-medium">{selectedAssociacaoNome}</span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Filtros Globais (estilo SGA) */}
-          {dados.length > 0 && (
-            <Card className="border-orange-500/20 bg-card/50 backdrop-blur">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Filter className="h-4 w-4 text-orange-500" />
-                  <span className="font-semibold text-sm">Filtros Globais</span>
-                  {activeFiltersCount > 0 && (
-                    <>
-                      <Badge variant="secondary" className="ml-2">
-                        {activeFiltersCount} ativo{activeFiltersCount > 1 ? "s" : ""}
-                      </Badge>
-                      <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-2 text-xs">
-                        <X className="h-3 w-3 mr-1" />
-                        Limpar
-                      </Button>
-                    </>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2">
-                  {/* Operação */}
-                  <Select value={filters.operacao} onValueChange={(v) => setFilters(f => ({ ...f, operacao: v }))}>
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="Operação" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas Operações</SelectItem>
-                      {filterOptions.operacoes.map(o => (
-                        <SelectItem key={o} value={o}>{o}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* SubOperação */}
-                  <Select value={filters.subOperacao} onValueChange={(v) => setFilters(f => ({ ...f, subOperacao: v }))}>
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="SubOperação" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas SubOp.</SelectItem>
-                      {filterOptions.subOperacoes.map(o => (
-                        <SelectItem key={o} value={o}>{o}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Situação */}
-                  <Select value={filters.situacao} onValueChange={(v) => setFilters(f => ({ ...f, situacao: v }))}>
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="Situação" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas Situações</SelectItem>
-                      {filterOptions.situacoes.map(s => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Cooperativa */}
-                  <Select value={filters.cooperativa} onValueChange={(v) => setFilters(f => ({ ...f, cooperativa: v }))}>
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="Cooperativa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas Cooperativas</SelectItem>
-                      {filterOptions.cooperativas.map(c => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Regional */}
-                  <Select value={filters.regional} onValueChange={(v) => setFilters(f => ({ ...f, regional: v }))}>
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="Regional" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas Regionais</SelectItem>
-                      {filterOptions.regionais.map(r => (
-                        <SelectItem key={r} value={r}>{r}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Forma Pagamento */}
-                  <Select value={filters.formaPagamento} onValueChange={(v) => setFilters(f => ({ ...f, formaPagamento: v }))}>
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="Forma Pgto" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas Formas</SelectItem>
-                      {filterOptions.formasPagamento.map(f => (
-                        <SelectItem key={f} value={f}>{f}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Tipo Veículo */}
-                  <Select value={filters.tipoVeiculo} onValueChange={(v) => setFilters(f => ({ ...f, tipoVeiculo: v }))}>
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="Tipo Veículo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos Tipos</SelectItem>
-                      {filterOptions.tiposVeiculo.map(t => (
-                        <SelectItem key={t} value={t}>{t}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Período */}
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="h-9 text-xs justify-start gap-1 px-2">
-                        <Calendar className="h-3 w-3" />
-                        {filters.dateRange?.from ? (
-                          filters.dateRange.to ? (
-                            <span className="truncate">
-                              {format(filters.dateRange.from, "dd/MM", { locale: ptBR })} - {format(filters.dateRange.to, "dd/MM", { locale: ptBR })}
-                            </span>
-                          ) : (
-                            format(filters.dateRange.from, "dd/MM/yy", { locale: ptBR })
-                          )
-                        ) : (
-                          "Período"
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        initialFocus
-                        mode="range"
-                        defaultMonth={filters.dateRange?.from}
-                        selected={filters.dateRange}
-                        onSelect={(range) => setFilters(f => ({ ...f, dateRange: range }))}
-                        numberOfMonths={2}
-                        locale={ptBR}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Filtros Globais (estilo SGA) */}
+      {dados.length > 0 && (
+        <div className="container mx-auto px-4 pt-4">
+          <Card className="border-orange-500/20 bg-card/50 backdrop-blur">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Filter className="h-4 w-4 text-orange-500" />
+                <span className="font-semibold text-sm">Filtros Globais</span>
+                {activeFiltersCount > 0 && (
+                  <>
+                    <Badge variant="secondary" className="ml-2">
+                      {activeFiltersCount} ativo{activeFiltersCount > 1 ? "s" : ""}
+                    </Badge>
+                    <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-2 text-xs">
+                      <X className="h-3 w-3 mr-1" />
+                      Limpar
+                    </Button>
+                  </>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2">
+                {/* Operação */}
+                <Select value={filters.operacao} onValueChange={(v) => setFilters(f => ({ ...f, operacao: v }))}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Operação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas Operações</SelectItem>
+                    {filterOptions.operacoes.map(o => (
+                      <SelectItem key={o} value={o}>{o}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* SubOperação */}
+                <Select value={filters.subOperacao} onValueChange={(v) => setFilters(f => ({ ...f, subOperacao: v }))}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="SubOperação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas SubOp.</SelectItem>
+                    {filterOptions.subOperacoes.map(o => (
+                      <SelectItem key={o} value={o}>{o}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Situação */}
+                <Select value={filters.situacao} onValueChange={(v) => setFilters(f => ({ ...f, situacao: v }))}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Situação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas Situações</SelectItem>
+                    {filterOptions.situacoes.map(s => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Cooperativa */}
+                <Select value={filters.cooperativa} onValueChange={(v) => setFilters(f => ({ ...f, cooperativa: v }))}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Cooperativa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas Cooperativas</SelectItem>
+                    {filterOptions.cooperativas.map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Regional */}
+                <Select value={filters.regional} onValueChange={(v) => setFilters(f => ({ ...f, regional: v }))}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Regional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas Regionais</SelectItem>
+                    {filterOptions.regionais.map(r => (
+                      <SelectItem key={r} value={r}>{r}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Forma Pagamento */}
+                <Select value={filters.formaPagamento} onValueChange={(v) => setFilters(f => ({ ...f, formaPagamento: v }))}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Forma Pgto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas Formas</SelectItem>
+                    {filterOptions.formasPagamento.map(f => (
+                      <SelectItem key={f} value={f}>{f}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Tipo Veículo */}
+                <Select value={filters.tipoVeiculo} onValueChange={(v) => setFilters(f => ({ ...f, tipoVeiculo: v }))}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Tipo Veículo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos Tipos</SelectItem>
+                    {filterOptions.tiposVeiculo.map(t => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Período */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-9 text-xs justify-start gap-1 px-2">
+                      <Calendar className="h-3 w-3" />
+                      {filters.dateRange?.from ? (
+                        filters.dateRange.to ? (
+                          <span className="truncate">
+                            {format(filters.dateRange.from, "dd/MM", { locale: ptBR })} - {format(filters.dateRange.to, "dd/MM", { locale: ptBR })}
+                          </span>
+                        ) : (
+                          format(filters.dateRange.from, "dd/MM/yy", { locale: ptBR })
+                        )
+                      ) : (
+                        "Período"
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      initialFocus
+                      mode="range"
+                      defaultMonth={filters.dateRange?.from}
+                      selected={filters.dateRange}
+                      onSelect={(range) => setFilters(f => ({ ...f, dateRange: range }))}
+                      numberOfMonths={2}
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="container mx-auto px-4 py-6">
