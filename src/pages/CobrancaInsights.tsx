@@ -355,6 +355,7 @@ export default function CobrancaInsights() {
           onChangeCorretora={handleChangeAssociacao}
           onLogout={handlePortalLogout}
           currentModule="cobranca"
+          showCarouselControls={true}
         />
       )}
 

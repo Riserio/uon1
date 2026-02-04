@@ -2,6 +2,7 @@ import { Building2, LogOut, ArrowLeftRight, TrendingUp, Activity, DollarSign } f
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import PortalCarouselControls from "./PortalCarouselControls";
+import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
 
 type Corretora = {
   id: string;
@@ -36,8 +37,19 @@ export default function PortalHeader({
   const hasMGF = hasModulo('mgf');
   const hasCobranca = hasModulo('cobranca');
 
+  // Lista de módulos disponíveis para o carrossel
+  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca')[] = [
+    ...(hasIndicadores ? ['indicadores'] as const : []),
+    ...(hasEventos ? ['eventos'] as const : []),
+    ...(hasMGF ? ['mgf'] as const : []),
+    ...(hasCobranca ? ['cobranca'] as const : []),
+  ];
+
   // Contagem de módulos disponíveis para decidir layout
-  const modulosDisponiveis = [hasIndicadores, hasEventos, hasMGF, hasCobranca].filter(Boolean).length;
+  const modulosDisponiveis = availableModules.length;
+
+  // Pré-carregar dados dos outros módulos em segundo plano
+  usePortalDataPrefetch(corretora.id, currentModule || 'indicadores', availableModules);
 
   return (
     <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
@@ -70,12 +82,7 @@ export default function PortalHeader({
               {showCarouselControls && modulosDisponiveis > 1 && currentModule && (
                 <PortalCarouselControls 
                   corretoraId={corretora.id}
-                  availableModules={[
-                    ...(hasIndicadores ? ['indicadores'] as const : []),
-                    ...(hasEventos ? ['eventos'] as const : []),
-                    ...(hasMGF ? ['mgf'] as const : []),
-                    ...(hasCobranca ? ['cobranca'] as const : []),
-                  ]}
+                  availableModules={availableModules}
                   currentModule={currentModule}
                 />
               )}

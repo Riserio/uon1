@@ -359,6 +359,7 @@ export default function MGFInsights() {
           onChangeCorretora={handleChangeAssociacao}
           onLogout={handlePortalLogout}
           currentModule="mgf"
+          showCarouselControls={true}
         />
       )}
 
