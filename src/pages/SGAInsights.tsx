@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter, DollarSign, CreditCard } from "lucide-react";
+import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter, DollarSign, CreditCard, LogOut, ArrowLeftRight, Building2, Activity } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import SGADashboard from "@/components/sga/SGADashboard";
@@ -16,6 +16,7 @@ import SGAMapa from "@/components/sga/SGAMapa";
 import SGATabela from "@/components/sga/SGATabela";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
+import PortalHeader from "@/components/portal/PortalHeader";
 
 export interface SGAFilters {
   dataInicio: string;
@@ -60,10 +61,13 @@ export default function SGAInsights() {
   // Verifica se pode ver histórico (superintendente ou admin)
   const canViewHistorico = userRole === "superintendente" || userRole === "admin";
   
-  // Associações
+  // Associações e permissões
   const [associacoes, setAssociacoes] = useState<any[]>([]);
   const [selectedAssociacao, setSelectedAssociacao] = useState<string>("");
   const [loadingAssociacoes, setLoadingAssociacoes] = useState(true);
+  const [modulosBi, setModulosBi] = useState<string[]>(['indicadores', 'eventos', 'mgf', 'cobranca']);
+  const [corretoraData, setCorretoraData] = useState<{ id: string; nome: string; logo_url?: string | null } | null>(null);
+  const [multipleAssociacoes, setMultipleAssociacoes] = useState(false);
 
   // Extrair opções únicas para filtros
   const filterOptions = useMemo(() => {
@@ -114,22 +118,38 @@ export default function SGAInsights() {
   useEffect(() => {
     async function fetchAssociacoes() {
       try {
-        // Se é acesso via portal, usar apenas a associação da URL
         const associacaoParam = searchParams.get("associacao");
         
         if (isPortalAccess && associacaoParam) {
-          // Para parceiros, buscar apenas a associação específica
-          const { data, error } = await supabase
+          // Para parceiros, buscar a associação e suas permissões
+          const { data: corretora, error: corretoraError } = await supabase
             .from("corretoras")
-            .select("id, nome")
+            .select("id, nome, logo_url")
             .eq("id", associacaoParam)
             .single();
 
-          if (error) throw error;
+          if (corretoraError) throw corretoraError;
 
-          if (data) {
-            setAssociacoes([data]);
-            setSelectedAssociacao(data.id);
+          if (corretora) {
+            // Buscar permissões do usuário para esta corretora
+            const { data: usuarioData } = await supabase
+              .from("corretora_usuarios")
+              .select("modulos_bi")
+              .eq("corretora_id", associacaoParam)
+              .eq("ativo", true)
+              .maybeSingle();
+
+            setAssociacoes([{ id: corretora.id, nome: corretora.nome }]);
+            setSelectedAssociacao(corretora.id);
+            setCorretoraData(corretora);
+            setModulosBi(usuarioData?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca']);
+            
+            // Verificar se usuário tem múltiplas associações
+            const { data: todasAssociacoes } = await supabase
+              .from("corretora_usuarios")
+              .select("corretora_id")
+              .eq("ativo", true);
+            setMultipleAssociacoes((todasAssociacoes?.length || 0) > 1);
           }
         } else {
           // Para acesso interno, buscar todas as associações
@@ -142,7 +162,6 @@ export default function SGAInsights() {
 
           setAssociacoes(data || []);
           
-          // Pegar associação da URL ou usar a primeira
           if (associacaoParam && data?.some(c => c.id === associacaoParam)) {
             setSelectedAssociacao(associacaoParam);
           } else if (data && data.length > 0) {
@@ -266,80 +285,95 @@ export default function SGAInsights() {
         { id: "importar", label: "Importar Dados", icon: Upload },
       ];
 
+  const handlePortalLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth", { replace: true });
+  };
+
+  const handleChangeAssociacao = () => {
+    navigate("/portal", { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center gap-4 mb-4">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => navigate(isPortalAccess 
-                ? `/portal?associacao=${selectedAssociacao}` 
-                : `/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
-              )}
-              className="shrink-0"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                Eventos
-              </h1>
-              <p className="text-muted-foreground mt-1">
-                Business Intelligence de Eventos
-              </p>
-            </div>
-            
-            <Button
-              variant="outline"
-              onClick={() => navigate(isPortalAccess 
-                ? `/portal/mgf-insights?associacao=${selectedAssociacao}` 
-                : `/mgf-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
-              )}
-              className="gap-2 border-orange-500/30 hover:bg-orange-500/10"
-            >
-              <DollarSign className="h-4 w-4" />
-              <span className="hidden sm:inline">MGF</span>
-            </Button>
-            
-            <Button
-              variant="outline"
-              onClick={() => navigate(isPortalAccess 
-                ? `/portal/cobranca-insights?associacao=${selectedAssociacao}` 
-                : `/cobranca-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`
-              )}
-              className="gap-2 border-emerald-500/30 hover:bg-emerald-500/10"
-            >
-              <CreditCard className="h-4 w-4" />
-              <span className="hidden sm:inline">Cobrança</span>
-            </Button>
-            
-            {/* Botão Histórico - só para superintendente e admin */}
-            {canViewHistorico && (
+      {/* Portal Header para parceiros */}
+      {isPortalAccess && corretoraData && (
+        <PortalHeader
+          corretora={{
+            id: corretoraData.id,
+            nome: corretoraData.nome,
+            logo_url: corretoraData.logo_url,
+            modulos_bi: modulosBi
+          }}
+          showChangeButton={multipleAssociacoes}
+          onChangeCorretora={handleChangeAssociacao}
+          onLogout={handlePortalLogout}
+          currentModule="eventos"
+        />
+      )}
+
+      {/* Header interno (não parceiro) */}
+      {!isPortalAccess && (
+        <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b">
+          <div className="container mx-auto px-4 py-6">
+            <div className="flex items-center gap-4 mb-4">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => navigate(`/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+                className="shrink-0"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div className="flex-1">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                  Eventos
+                </h1>
+                <p className="text-muted-foreground mt-1">
+                  Business Intelligence de Eventos
+                </p>
+              </div>
+              
               <Button
                 variant="outline"
-                onClick={() => setHistoricoDialogOpen(true)}
-                className="gap-2"
+                onClick={() => navigate(`/mgf-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+                className="gap-2 border-orange-500/30 hover:bg-orange-500/10"
               >
-                <History className="h-4 w-4" />
-                <span className="hidden sm:inline">Histórico</span>
+                <DollarSign className="h-4 w-4" />
+                <span className="hidden sm:inline">MGF</span>
               </Button>
-            )}
-            {importacaoAtiva && (
-              <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
-                <Database className="h-4 w-4" />
-                <span>{filteredEventos.length.toLocaleString()} registros</span>
-                {hasActiveFilters && <span className="text-primary">(filtrados)</span>}
-                <span className="text-muted-foreground/50">|</span>
-                <span>{importacaoAtiva.nome_arquivo}</span>
-              </div>
-            )}
-          </div>
+              
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/cobranca-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+                className="gap-2 border-emerald-500/30 hover:bg-emerald-500/10"
+              >
+                <CreditCard className="h-4 w-4" />
+                <span className="hidden sm:inline">Cobrança</span>
+              </Button>
+              
+              {canViewHistorico && (
+                <Button
+                  variant="outline"
+                  onClick={() => setHistoricoDialogOpen(true)}
+                  className="gap-2"
+                >
+                  <History className="h-4 w-4" />
+                  <span className="hidden sm:inline">Histórico</span>
+                </Button>
+              )}
+              {importacaoAtiva && (
+                <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
+                  <Database className="h-4 w-4" />
+                  <span>{filteredEventos.length.toLocaleString()} registros</span>
+                  {hasActiveFilters && <span className="text-primary">(filtrados)</span>}
+                  <span className="text-muted-foreground/50">|</span>
+                  <span>{importacaoAtiva.nome_arquivo}</span>
+                </div>
+              )}
+            </div>
 
-          {/* Seletor de Associação - apenas para acesso interno */}
-          {!isPortalAccess && (
+          {/* Seletor de Associação */}
             <Card className="border-primary/20 bg-card/50 backdrop-blur mb-4">
               <CardContent className="p-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
@@ -368,21 +402,6 @@ export default function SGAInsights() {
                 </div>
               </CardContent>
             </Card>
-          )}
-          
-          {/* Nome da Associação para parceiros */}
-          {isPortalAccess && selectedAssociacaoNome && (
-            <Card className="border-primary/20 bg-card/50 backdrop-blur mb-4">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <Label className="text-base font-semibold whitespace-nowrap">
-                    Associação:
-                  </Label>
-                  <span className="text-lg font-medium">{selectedAssociacaoNome}</span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Filtros Globais */}
           {eventos.length > 0 && (
@@ -527,8 +546,9 @@ export default function SGAInsights() {
               </Card>
             </div>
           )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Content */}
       <div className="container mx-auto px-4 py-6">
