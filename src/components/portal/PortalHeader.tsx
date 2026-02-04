@@ -87,15 +87,19 @@ export default function PortalHeader({
             </div>
           </div>
 
-          {/* Linha 2: Navegação entre módulos */}
-          {modulosDisponiveis > 1 && (
-            <nav className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+          {/* Linha 2: Navegação entre módulos - só exibe os módulos que o usuário tem acesso */}
+          {modulosDisponiveis > 0 && (
+            <nav className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               {hasIndicadores && (
                 <Button
-                  variant={currentModule === 'indicadores' ? 'default' : 'outline'}
+                  variant="outline"
                   size="sm"
                   onClick={() => navigate(`/portal?associacao=${corretora.id}`)}
-                  className={`gap-2 shrink-0 ${currentModule === 'indicadores' ? 'shadow-md' : ''}`}
+                  className={`gap-2 shrink-0 transition-all ${
+                    currentModule === 'indicadores' 
+                      ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
+                      : 'hover:bg-muted'
+                  }`}
                 >
                   <TrendingUp className="h-4 w-4" />
                   <span>Indicadores</span>
@@ -103,10 +107,14 @@ export default function PortalHeader({
               )}
               {hasEventos && (
                 <Button
-                  variant={currentModule === 'eventos' ? 'default' : 'outline'}
+                  variant="outline"
                   size="sm"
                   onClick={() => navigate(`/portal/sga-insights?associacao=${corretora.id}`)}
-                  className={`gap-2 shrink-0 ${currentModule === 'eventos' ? 'shadow-md' : ''}`}
+                  className={`gap-2 shrink-0 transition-all ${
+                    currentModule === 'eventos' 
+                      ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
+                      : 'hover:bg-muted'
+                  }`}
                 >
                   <Activity className="h-4 w-4" />
                   <span>Eventos</span>
@@ -114,10 +122,14 @@ export default function PortalHeader({
               )}
               {hasMGF && (
                 <Button
-                  variant={currentModule === 'mgf' ? 'default' : 'outline'}
+                  variant="outline"
                   size="sm"
                   onClick={() => navigate(`/portal/mgf-insights?associacao=${corretora.id}`)}
-                  className={`gap-2 shrink-0 ${currentModule === 'mgf' ? 'shadow-md' : ''}`}
+                  className={`gap-2 shrink-0 transition-all ${
+                    currentModule === 'mgf' 
+                      ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
+                      : 'hover:bg-muted'
+                  }`}
                 >
                   <Activity className="h-4 w-4" />
                   <span>MGF</span>
@@ -125,10 +137,14 @@ export default function PortalHeader({
               )}
               {hasCobranca && (
                 <Button
-                  variant={currentModule === 'cobranca' ? 'default' : 'outline'}
+                  variant="outline"
                   size="sm"
                   onClick={() => navigate(`/portal/cobranca-insights?associacao=${corretora.id}`)}
-                  className={`gap-2 shrink-0 ${currentModule === 'cobranca' ? 'shadow-md' : ''}`}
+                  className={`gap-2 shrink-0 transition-all ${
+                    currentModule === 'cobranca' 
+                      ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
+                      : 'hover:bg-muted'
+                  }`}
                 >
                   <DollarSign className="h-4 w-4" />
                   <span>Cobrança</span>
