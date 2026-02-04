@@ -309,6 +309,7 @@ export default function SGAInsights() {
           onChangeCorretora={handleChangeAssociacao}
           onLogout={handlePortalLogout}
           currentModule="eventos"
+          showCarouselControls={true}
         />
       )}
 
