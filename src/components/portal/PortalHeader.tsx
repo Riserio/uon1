@@ -1,6 +1,7 @@
 import { Building2, LogOut, ArrowLeftRight, TrendingUp, Activity, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import PortalCarouselControls from "./PortalCarouselControls";
 
 type Corretora = {
   id: string;
@@ -15,6 +16,7 @@ type PortalHeaderProps = {
   onChangeCorretora?: () => void;
   onLogout: () => void;
   currentModule?: 'indicadores' | 'eventos' | 'mgf' | 'cobranca';
+  showCarouselControls?: boolean;
 };
 
 export default function PortalHeader({
@@ -22,7 +24,8 @@ export default function PortalHeader({
   showChangeButton = false,
   onChangeCorretora,
   onLogout,
-  currentModule
+  currentModule,
+  showCarouselControls = false
 }: PortalHeaderProps) {
   const navigate = useNavigate();
   
@@ -63,6 +66,20 @@ export default function PortalHeader({
             </div>
             
             <div className="flex items-center gap-2">
+              {/* Controles do carrossel */}
+              {showCarouselControls && modulosDisponiveis > 1 && currentModule && (
+                <PortalCarouselControls 
+                  corretoraId={corretora.id}
+                  availableModules={[
+                    ...(hasIndicadores ? ['indicadores'] as const : []),
+                    ...(hasEventos ? ['eventos'] as const : []),
+                    ...(hasMGF ? ['mgf'] as const : []),
+                    ...(hasCobranca ? ['cobranca'] as const : []),
+                  ]}
+                  currentModule={currentModule}
+                />
+              )}
+              
               {showChangeButton && onChangeCorretora && (
                 <Button 
                   variant="ghost" 
@@ -95,7 +112,7 @@ export default function PortalHeader({
                   variant="outline"
                   size="sm"
                   onClick={() => navigate(`/portal?associacao=${corretora.id}`)}
-                  className={`gap-2 shrink-0 transition-all ${
+                  className={`gap-2 shrink-0 transition-all duration-300 ${
                     currentModule === 'indicadores' 
                       ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
                       : 'hover:bg-muted'
@@ -110,7 +127,7 @@ export default function PortalHeader({
                   variant="outline"
                   size="sm"
                   onClick={() => navigate(`/portal/sga-insights?associacao=${corretora.id}`)}
-                  className={`gap-2 shrink-0 transition-all ${
+                  className={`gap-2 shrink-0 transition-all duration-300 ${
                     currentModule === 'eventos' 
                       ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
                       : 'hover:bg-muted'
@@ -125,7 +142,7 @@ export default function PortalHeader({
                   variant="outline"
                   size="sm"
                   onClick={() => navigate(`/portal/mgf-insights?associacao=${corretora.id}`)}
-                  className={`gap-2 shrink-0 transition-all ${
+                  className={`gap-2 shrink-0 transition-all duration-300 ${
                     currentModule === 'mgf' 
                       ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
                       : 'hover:bg-muted'
@@ -140,7 +157,7 @@ export default function PortalHeader({
                   variant="outline"
                   size="sm"
                   onClick={() => navigate(`/portal/cobranca-insights?associacao=${corretora.id}`)}
-                  className={`gap-2 shrink-0 transition-all ${
+                  className={`gap-2 shrink-0 transition-all duration-300 ${
                     currentModule === 'cobranca' 
                       ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
                       : 'hover:bg-muted'
