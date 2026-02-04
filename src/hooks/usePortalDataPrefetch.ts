@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 type ModuleData = {
@@ -6,67 +6,15 @@ type ModuleData = {
   mgf?: any[];
   cobranca?: any[];
   indicadores?: boolean;
-  timestamp?: number;
 };
 
 type PrefetchCache = {
   [corretoraId: string]: ModuleData;
 };
 
-// Cache global em memória para acesso instantâneo
-const memoryCache: PrefetchCache = {};
+// Cache global para pré-carregamento
+const prefetchCache: PrefetchCache = {};
 const prefetchPromises: { [key: string]: Promise<any> } = {};
-
-// Configuração de cache
-const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutos
-const STORAGE_KEY_PREFIX = "portal_cache_";
-
-// Funções utilitárias para localStorage
-function getStorageKey(corretoraId: string): string {
-  return `${STORAGE_KEY_PREFIX}${corretoraId}`;
-}
-
-function loadFromStorage(corretoraId: string): ModuleData | null {
-  try {
-    const stored = localStorage.getItem(getStorageKey(corretoraId));
-    if (!stored) return null;
-    
-    const parsed = JSON.parse(stored) as ModuleData;
-    
-    // Verificar se o cache expirou
-    if (parsed.timestamp && Date.now() - parsed.timestamp > CACHE_DURATION_MS) {
-      localStorage.removeItem(getStorageKey(corretoraId));
-      return null;
-    }
-    
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function saveToStorage(corretoraId: string, data: ModuleData): void {
-  try {
-    const dataWithTimestamp = { ...data, timestamp: Date.now() };
-    localStorage.setItem(getStorageKey(corretoraId), JSON.stringify(dataWithTimestamp));
-  } catch (e) {
-    // localStorage cheio ou não disponível - continuar sem persistência
-    console.warn("[Prefetch] Não foi possível salvar no localStorage:", e);
-  }
-}
-
-// Inicializar cache de memória do localStorage
-function initMemoryCacheFromStorage(corretoraId: string): boolean {
-  if (memoryCache[corretoraId]) return true;
-  
-  const stored = loadFromStorage(corretoraId);
-  if (stored) {
-    memoryCache[corretoraId] = stored;
-    console.log(`[Prefetch] Cache restaurado do localStorage para ${corretoraId}`);
-    return true;
-  }
-  return false;
-}
 
 export function usePortalDataPrefetch(
   corretoraId: string | undefined,
@@ -74,40 +22,29 @@ export function usePortalDataPrefetch(
   availableModules: string[]
 ) {
   const prefetchedRef = useRef<Set<string>>(new Set());
-  const initializedRef = useRef(false);
 
   useEffect(() => {
-    if (!corretoraId) return;
-
-    // Tentar restaurar do localStorage na primeira execução
-    if (!initializedRef.current) {
-      initMemoryCacheFromStorage(corretoraId);
-      initializedRef.current = true;
-    }
+    if (!corretoraId || availableModules.length <= 1) return;
 
     // Inicializar cache para esta corretora
-    if (!memoryCache[corretoraId]) {
-      memoryCache[corretoraId] = {};
+    if (!prefetchCache[corretoraId]) {
+      prefetchCache[corretoraId] = {};
     }
 
-    // Módulos a pré-carregar (TODOS disponíveis, incluindo o atual para cache)
-    const modulesToPrefetch = availableModules.filter(m => 
-      !hasPrefetchedData(corretoraId, m)
-    );
-
-    if (modulesToPrefetch.length === 0) return;
+    // Módulos a pré-carregar (excluindo o atual)
+    const modulesToPrefetch = availableModules.filter(m => m !== currentModule);
 
     // Pré-carregar cada módulo em segundo plano
-    modulesToPrefetch.forEach((module, index) => {
+    modulesToPrefetch.forEach(module => {
       const cacheKey = `${corretoraId}-${module}`;
       
-      // Evitar pré-carregar se já está em progresso
+      // Evitar pré-carregar se já está no cache ou em progresso
       if (prefetchedRef.current.has(cacheKey) || prefetchPromises[cacheKey]) return;
       
       prefetchedRef.current.add(cacheKey);
       
-      // Priorizar o módulo atual, depois escalonar os outros
-      const delay = module === currentModule ? 0 : (index + 1) * 300;
+      // Delay para não sobrecarregar (escalonar as requisições)
+      const delay = modulesToPrefetch.indexOf(module) * 500;
       
       setTimeout(() => {
         prefetchModule(corretoraId, module as any);
@@ -115,34 +52,12 @@ export function usePortalDataPrefetch(
     });
   }, [corretoraId, currentModule, availableModules]);
 
-  return memoryCache[corretoraId || ''] || {};
-}
-
-// Hook para pré-carregar tudo ao entrar no portal
-export function usePortalEagerPrefetch(
-  corretoraId: string | undefined,
-  availableModules: string[]
-) {
-  useEffect(() => {
-    if (!corretoraId || availableModules.length === 0) return;
-
-    // Restaurar do localStorage primeiro
-    initMemoryCacheFromStorage(corretoraId);
-
-    // Pré-carregar todos os módulos imediatamente
-    availableModules.forEach((module, index) => {
-      if (!hasPrefetchedData(corretoraId, module)) {
-        setTimeout(() => {
-          prefetchModule(corretoraId, module as any);
-        }, index * 200); // Escalonar para não sobrecarregar
-      }
-    });
-  }, [corretoraId, availableModules]);
+  return prefetchCache[corretoraId || ''] || {};
 }
 
 async function prefetchModule(
   corretoraId: string,
-  module: 'indicadores' | 'eventos' | 'mgf' | 'cobranca'
+  module: 'eventos' | 'mgf' | 'cobranca'
 ) {
   const cacheKey = `${corretoraId}-${module}`;
   
@@ -163,16 +78,7 @@ async function prefetchModule(
         case 'cobranca':
           await prefetchCobranca(corretoraId);
           break;
-        case 'indicadores':
-          // Indicadores não precisa de prefetch específico - marcamos como carregado
-          if (!memoryCache[corretoraId]) memoryCache[corretoraId] = {};
-          memoryCache[corretoraId].indicadores = true;
-          break;
       }
-      
-      // Salvar no localStorage após carregar
-      saveToStorage(corretoraId, memoryCache[corretoraId] || {});
-      
       console.log(`[Prefetch] Concluído: ${module}`);
     } catch (error) {
       console.error(`[Prefetch] Erro ao pré-carregar ${module}:`, error);
@@ -197,15 +103,15 @@ async function prefetchEventos(corretoraId: string) {
     .single();
 
   if (importacao) {
-    // Buscar apenas primeiros 2000 registros para preview mais completo
+    // Buscar apenas primeiros 1000 registros para preview rápido
     const { data: eventos } = await supabase
       .from("sga_eventos")
       .select("*")
       .eq("importacao_id", importacao.id)
-      .limit(2000);
+      .limit(1000);
 
-    if (!memoryCache[corretoraId]) memoryCache[corretoraId] = {};
-    memoryCache[corretoraId].eventos = eventos || [];
+    if (!prefetchCache[corretoraId]) prefetchCache[corretoraId] = {};
+    prefetchCache[corretoraId].eventos = eventos || [];
   }
 }
 
@@ -220,14 +126,16 @@ async function prefetchMGF(corretoraId: string) {
     .single();
 
   if (importacao) {
+    const SELECT_COLS = "id, operacao, sub_operacao, valor, situacao_pagamento, data_vencimento, cooperativa, regional";
+    
     const { data: mgf } = await supabase
       .from("mgf_dados")
-      .select("*")
+      .select(SELECT_COLS)
       .eq("importacao_id", importacao.id)
-      .limit(2000);
+      .limit(1000);
 
-    if (!memoryCache[corretoraId]) memoryCache[corretoraId] = {};
-    memoryCache[corretoraId].mgf = mgf || [];
+    if (!prefetchCache[corretoraId]) prefetchCache[corretoraId] = {};
+    prefetchCache[corretoraId].mgf = mgf || [];
   }
 }
 
@@ -244,60 +152,31 @@ async function prefetchCobranca(corretoraId: string) {
   if (importacao) {
     const { data: boletos } = await supabase
       .from("cobranca_boletos")
-      .select("*")
+      .select("id, situacao, valor, data_vencimento_original, dia_vencimento_veiculo, cooperativa, regional_boleto")
       .eq("importacao_id", importacao.id)
-      .limit(2000);
+      .limit(1000);
 
-    if (!memoryCache[corretoraId]) memoryCache[corretoraId] = {};
-    memoryCache[corretoraId].cobranca = boletos || [];
+    if (!prefetchCache[corretoraId]) prefetchCache[corretoraId] = {};
+    prefetchCache[corretoraId].cobranca = boletos || [];
   }
 }
 
 // Função para limpar cache (útil ao trocar de associação)
 export function clearPrefetchCache(corretoraId?: string) {
   if (corretoraId) {
-    delete memoryCache[corretoraId];
-    try {
-      localStorage.removeItem(getStorageKey(corretoraId));
-    } catch {}
+    delete prefetchCache[corretoraId];
   } else {
-    Object.keys(memoryCache).forEach(key => delete memoryCache[key]);
-    try {
-      Object.keys(localStorage)
-        .filter(k => k.startsWith(STORAGE_KEY_PREFIX))
-        .forEach(k => localStorage.removeItem(k));
-    } catch {}
+    Object.keys(prefetchCache).forEach(key => delete prefetchCache[key]);
   }
 }
 
 // Função para verificar se dados já estão em cache
 export function hasPrefetchedData(corretoraId: string, module: string): boolean {
-  // Verificar memória primeiro
-  if (memoryCache[corretoraId]?.[module as keyof ModuleData]) return true;
-  
-  // Tentar restaurar do localStorage
-  const stored = loadFromStorage(corretoraId);
-  if (stored?.[module as keyof ModuleData]) {
-    memoryCache[corretoraId] = stored;
-    return true;
-  }
-  
-  return false;
+  return !!(prefetchCache[corretoraId]?.[module as keyof ModuleData]);
 }
 
 // Função para obter dados do cache
 export function getPrefetchedData<T>(corretoraId: string, module: string): T[] | null {
-  // Verificar memória primeiro
-  let data = memoryCache[corretoraId]?.[module as keyof ModuleData];
-  
-  // Tentar restaurar do localStorage se não estiver em memória
-  if (!data) {
-    const stored = loadFromStorage(corretoraId);
-    if (stored) {
-      memoryCache[corretoraId] = stored;
-      data = stored[module as keyof ModuleData];
-    }
-  }
-  
+  const data = prefetchCache[corretoraId]?.[module as keyof ModuleData];
   return Array.isArray(data) ? data as T[] : null;
 }
