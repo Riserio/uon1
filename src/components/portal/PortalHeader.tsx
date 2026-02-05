@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import PortalCarouselControls from "./PortalCarouselControls";
 import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
+import { usePortalCarouselOptional } from "@/contexts/PortalCarouselContext";
 
 type Corretora = {
   id: string;
@@ -28,6 +29,7 @@ export default function PortalHeader({
   currentModule,
   showCarouselControls = false
 }: PortalHeaderProps) {
+  const carousel = usePortalCarouselOptional();
   const navigate = useNavigate();
   
   // Verificar permissões de módulos
@@ -118,12 +120,19 @@ export default function PortalHeader({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate(`/portal?associacao=${corretora.id}`)}
+                  onClick={() => {
+                    if (carousel) {
+                      carousel.goToModule('indicadores');
+                    } else {
+                      navigate(`/portal?associacao=${corretora.id}`);
+                    }
+                  }}
+                  disabled={carousel?.config.enabled}
                   className={`gap-2 shrink-0 transition-all duration-300 ${
                     currentModule === 'indicadores' 
                       ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
                       : 'hover:bg-muted'
-                  }`}
+                  } ${carousel?.config.enabled ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
                   <TrendingUp className="h-4 w-4" />
                   <span>Indicadores</span>
@@ -133,12 +142,19 @@ export default function PortalHeader({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate(`/portal/sga-insights?associacao=${corretora.id}`)}
+                  onClick={() => {
+                    if (carousel) {
+                      carousel.goToModule('eventos');
+                    } else {
+                      navigate(`/portal/sga-insights?associacao=${corretora.id}`);
+                    }
+                  }}
+                  disabled={carousel?.config.enabled}
                   className={`gap-2 shrink-0 transition-all duration-300 ${
                     currentModule === 'eventos' 
                       ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
                       : 'hover:bg-muted'
-                  }`}
+                  } ${carousel?.config.enabled ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
                   <Activity className="h-4 w-4" />
                   <span>Eventos</span>
@@ -148,12 +164,19 @@ export default function PortalHeader({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate(`/portal/mgf-insights?associacao=${corretora.id}`)}
+                  onClick={() => {
+                    if (carousel) {
+                      carousel.goToModule('mgf');
+                    } else {
+                      navigate(`/portal/mgf-insights?associacao=${corretora.id}`);
+                    }
+                  }}
+                  disabled={carousel?.config.enabled}
                   className={`gap-2 shrink-0 transition-all duration-300 ${
                     currentModule === 'mgf' 
                       ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
                       : 'hover:bg-muted'
-                  }`}
+                  } ${carousel?.config.enabled ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
                   <Activity className="h-4 w-4" />
                   <span>MGF</span>
@@ -163,12 +186,19 @@ export default function PortalHeader({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate(`/portal/cobranca-insights?associacao=${corretora.id}`)}
+                  onClick={() => {
+                    if (carousel) {
+                      carousel.goToModule('cobranca');
+                    } else {
+                      navigate(`/portal/cobranca-insights?associacao=${corretora.id}`);
+                    }
+                  }}
+                  disabled={carousel?.config.enabled}
                   className={`gap-2 shrink-0 transition-all duration-300 ${
                     currentModule === 'cobranca' 
                       ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
                       : 'hover:bg-muted'
-                  }`}
+                  } ${carousel?.config.enabled ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
                   <DollarSign className="h-4 w-4" />
                   <span>Cobrança</span>
