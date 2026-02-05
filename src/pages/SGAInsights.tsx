@@ -17,6 +17,8 @@ import SGATabela from "@/components/sga/SGATabela";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
 import PortalHeader from "@/components/portal/PortalHeader";
+import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
+import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 
 export interface SGAFilters {
   dataInicio: string;
@@ -294,8 +296,16 @@ export default function SGAInsights() {
     navigate("/portal", { replace: true });
   };
 
-  return (
-    <div className="min-h-screen bg-background">
+  // Montar lista de módulos disponíveis para o carrossel
+  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca')[] = [
+    ...(modulosBi.includes('indicadores') ? ['indicadores'] as const : []),
+    ...(modulosBi.includes('eventos') ? ['eventos'] as const : []),
+    ...(modulosBi.includes('mgf') ? ['mgf'] as const : []),
+    ...(modulosBi.includes('cobranca') ? ['cobranca'] as const : []),
+  ];
+
+  const portalContent = (
+    <>
       {/* Portal Header para parceiros */}
       {isPortalAccess && corretoraData && (
         <PortalHeader
@@ -598,6 +608,29 @@ export default function SGAInsights() {
         modulo="sga_insights"
         corretoraId={selectedAssociacao}
       />
+    </>
+  );
+
+  // Se é acesso via portal, envolver com provider do carrossel
+  if (isPortalAccess && corretoraData) {
+    return (
+      <PortalCarouselProvider
+        corretoraId={corretoraData.id}
+        availableModules={availableModules}
+        currentModule="eventos"
+      >
+        <div className="min-h-screen bg-background">
+          <PortalPageWrapper>
+            {portalContent}
+          </PortalPageWrapper>
+        </div>
+      </PortalCarouselProvider>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {portalContent}
     </div>
   );
 }

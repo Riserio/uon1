@@ -10,6 +10,8 @@ import PIDHistorico from "@/components/portal/PIDHistorico";
 import PortalSinistros from "@/components/portal/PortalSinistros";
 import PortalComite from "@/components/portal/PortalComite";
 import PortalHeader from "@/components/portal/PortalHeader";
+import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
+import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare } from "lucide-react";
@@ -281,68 +283,84 @@ export default function Portal() {
     { id: "comite", label: "Comitê", icon: MessageSquare },
   ];
 
+  // Lista de módulos disponíveis para o carrossel
+  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca')[] = [
+    ...(corretora.modulos_bi.includes('indicadores') ? ['indicadores'] as const : []),
+    ...(corretora.modulos_bi.includes('eventos') ? ['eventos'] as const : []),
+    ...(corretora.modulos_bi.includes('mgf') ? ['mgf'] as const : []),
+    ...(corretora.modulos_bi.includes('cobranca') ? ['cobranca'] as const : []),
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
-      <PortalHeader
-        corretora={corretora}
-        showChangeButton={corretorasDisponiveis.length > 1}
-        onChangeCorretora={handleChangeCorretora}
-        onLogout={handleLogout}
-        currentModule="indicadores"
-        showCarouselControls={true}
-      />
+    <PortalCarouselProvider
+      corretoraId={corretora.id}
+      availableModules={availableModules}
+      currentModule="indicadores"
+    >
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
+        <PortalHeader
+          corretora={corretora}
+          showChangeButton={corretorasDisponiveis.length > 1}
+          onChangeCorretora={handleChangeCorretora}
+          onLogout={handleLogout}
+          currentModule="indicadores"
+          showCarouselControls={true}
+        />
 
-      <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Tabs Section */}
-        <Tabs defaultValue="dashboard" className="space-y-6">
-          {/* Wrapper para scroll horizontal em telas pequenas */}
-          <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
-            <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <TabsTrigger
-                    key={tab.id}
-                    value={tab.id}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                               text-muted-foreground transition-all
-                               data-[state=active]:bg-background data-[state=active]:text-foreground
-                               data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50
-                               whitespace-nowrap"
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span className="hidden sm:inline">{tab.label}</span>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
+        <PortalPageWrapper>
+          <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
+            {/* Tabs Section */}
+            <Tabs defaultValue="dashboard" className="space-y-6">
+              {/* Wrapper para scroll horizontal em telas pequenas */}
+              <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
+                <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">
+                  {tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <TabsTrigger
+                        key={tab.id}
+                        value={tab.id}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+                                   text-muted-foreground transition-all
+                                   data-[state=active]:bg-background data-[state=active]:text-foreground
+                                   data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50
+                                   whitespace-nowrap"
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span className="hidden sm:inline">{tab.label}</span>
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+              </div>
+
+              <TabsContent value="dashboard" className="space-y-4 mt-0">
+                <PIDDashboard corretoraId={corretora.id} />
+              </TabsContent>
+
+              <TabsContent value="operacional" className="space-y-4 mt-0">
+                <PIDOperacional corretoraId={corretora.id} />
+              </TabsContent>
+
+              <TabsContent value="estudo-base" className="space-y-4 mt-0">
+                <PIDEstudoBase corretoraId={corretora.id} />
+              </TabsContent>
+
+              <TabsContent value="historico" className="space-y-4 mt-0">
+                <PIDHistorico corretoraId={corretora.id} />
+              </TabsContent>
+
+              <TabsContent value="sinistros" className="space-y-4 mt-0">
+                <PortalSinistros corretoraId={corretora.id} />
+              </TabsContent>
+
+              <TabsContent value="comite" className="space-y-4 mt-0">
+                <PortalComite corretoraId={corretora.id} />
+              </TabsContent>
+            </Tabs>
           </div>
-
-          <TabsContent value="dashboard" className="space-y-4 mt-0">
-            <PIDDashboard corretoraId={corretora.id} />
-          </TabsContent>
-
-          <TabsContent value="operacional" className="space-y-4 mt-0">
-            <PIDOperacional corretoraId={corretora.id} />
-          </TabsContent>
-
-          <TabsContent value="estudo-base" className="space-y-4 mt-0">
-            <PIDEstudoBase corretoraId={corretora.id} />
-          </TabsContent>
-
-          <TabsContent value="historico" className="space-y-4 mt-0">
-            <PIDHistorico corretoraId={corretora.id} />
-          </TabsContent>
-
-          <TabsContent value="sinistros" className="space-y-4 mt-0">
-            <PortalSinistros corretoraId={corretora.id} />
-          </TabsContent>
-
-          <TabsContent value="comite" className="space-y-4 mt-0">
-            <PortalComite corretoraId={corretora.id} />
-          </TabsContent>
-        </Tabs>
+        </PortalPageWrapper>
       </div>
-    </div>
+    </PortalCarouselProvider>
   );
 }
