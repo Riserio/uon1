@@ -402,11 +402,11 @@ serve(async (req) => {
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
-          targetId = lastRunning?.id ?? null;
+        targetId = lastRunning?.id ?? null;
         }
 
-        // Calcular próxima tentativa (1 hora após o erro)
-        const proximaTentativa = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+        // Limite máximo de retries para evitar loop infinito
+        const MAX_RETRIES = 10;
         
         if (targetId) {
           // Buscar retry_count atual
@@ -418,11 +418,18 @@ serve(async (req) => {
           
           const newRetryCount = (currentExec?.retry_count || 0) + 1;
           
+          // Só agenda retry se não ultrapassou o limite
+          const proximaTentativa = newRetryCount < MAX_RETRIES 
+            ? new Date(Date.now() + 60 * 60 * 1000).toISOString()
+            : null;
+          
           await supabase
             .from("cobranca_automacao_execucoes")
             .update({
               status: "erro",
-              erro: error_message || "Erro desconhecido",
+              erro: newRetryCount >= MAX_RETRIES 
+                ? `${error_message || "Erro desconhecido"} (limite de ${MAX_RETRIES} tentativas atingido - retry automático desabilitado)`
+                : (error_message || "Erro desconhecido"),
               finalizado_at: new Date().toISOString(),
               etapa_atual: "erro",
               github_run_id: githubRunIdStr,
@@ -432,8 +439,15 @@ serve(async (req) => {
             })
             .eq("id", targetId);
             
-          console.log(`[Webhook] Retry agendado para ${proximaTentativa} (tentativa ${newRetryCount})`);
+          if (proximaTentativa) {
+            console.log(`[Webhook] Retry agendado para ${proximaTentativa} (tentativa ${newRetryCount}/${MAX_RETRIES})`);
+          } else {
+            console.log(`[Webhook] Limite de retries atingido (${newRetryCount}/${MAX_RETRIES}) - não será feita nova tentativa automática`);
+          }
         } else {
+          // Primeiro erro - agendar retry
+          const proximaTentativa = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+          
           await supabase
             .from("cobranca_automacao_execucoes")
             .insert({
@@ -450,7 +464,7 @@ serve(async (req) => {
               proxima_tentativa_at: proximaTentativa,
             });
             
-          console.log(`[Webhook] Retry agendado para ${proximaTentativa} (nova execução com erro)`);
+          console.log(`[Webhook] Retry agendado para ${proximaTentativa} (nova execução com erro, tentativa 1/${MAX_RETRIES})`);
         }
 
         // Registrar no BI (erro)
