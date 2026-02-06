@@ -190,8 +190,11 @@ serve(async (req) => {
         updateData.finalizado_at = new Date().toISOString();
         updateData.duracao_segundos = Math.round((Date.now() - startTime) / 1000);
         
-        // Se erro, agendar retry em 1 hora
+        // Se erro, agendar retry em 1 hora (com limite máximo)
         if (status === 'erro') {
+          // Limite máximo de retries para evitar loop infinito
+          const MAX_RETRIES = 10;
+          
           // Buscar retry_count atual
           const { data: currentExec } = await supabase
             .from("sga_automacao_execucoes")
@@ -199,9 +202,18 @@ serve(async (req) => {
             .eq("id", execucao_id)
             .single();
           
-          updateData.retry_count = (currentExec?.retry_count || 0) + 1;
-          updateData.proxima_tentativa_at = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-          console.log(`[Webhook SGA] Retry agendado para ${updateData.proxima_tentativa_at}`);
+          const newRetryCount = (currentExec?.retry_count || 0) + 1;
+          updateData.retry_count = newRetryCount;
+          
+          // Só agenda retry se não ultrapassou o limite
+          if (newRetryCount < MAX_RETRIES) {
+            updateData.proxima_tentativa_at = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+            console.log(`[Webhook SGA] Retry agendado para ${updateData.proxima_tentativa_at} (tentativa ${newRetryCount}/${MAX_RETRIES})`);
+          } else {
+            updateData.proxima_tentativa_at = null;
+            updateData.erro = `${erro || 'Erro desconhecido'} (limite de ${MAX_RETRIES} tentativas atingido)`;
+            console.log(`[Webhook SGA] Limite de retries atingido (${newRetryCount}/${MAX_RETRIES}) - retry automático desabilitado`);
+          }
         } else if (status === 'sucesso') {
           // Limpar agendamento de retry em caso de sucesso
           updateData.proxima_tentativa_at = null;

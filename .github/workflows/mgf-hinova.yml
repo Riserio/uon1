@@ -67,7 +67,7 @@ jobs:
           HINOVA_USER: ${{ inputs.hinova_user || secrets.HINOVA_USER }}
           HINOVA_PASS: ${{ inputs.hinova_pass || secrets.HINOVA_PASS }}
           HINOVA_LAYOUT: ${{ inputs.hinova_layout || secrets.HINOVA_LAYOUT_MGF || secrets.HINOVA_LAYOUT }}
-          WEBHOOK_URL: ${{ inputs.webhook_url || secrets.WEBHOOK_URL_MGF }}
+          WEBHOOK_URL: ${{ inputs.webhook_url || secrets.WEBHOOK_URL_MGF || secrets.WEBHOOK_URL }}
           WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
           CORRETORA_ID: ${{ inputs.corretora_id || secrets.CORRETORA_ID }}
           EXECUCAO_ID: ${{ inputs.execucao_id }}

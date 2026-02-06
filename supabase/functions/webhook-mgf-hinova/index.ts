@@ -285,6 +285,9 @@ serve(async (req) => {
           targetId = existingByRun?.id ?? null;
         }
 
+        // Limite máximo de retries para evitar loop infinito
+        const MAX_RETRIES = 10;
+        
         if (targetId) {
           // Buscar retry_count atual
           const { data: currentExec } = await supabase
@@ -294,20 +297,30 @@ serve(async (req) => {
             .single();
           
           const newRetryCount = (currentExec?.retry_count || 0) + 1;
-          const proximaTentativa = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+          
+          // Só agenda retry se não ultrapassou o limite
+          const proximaTentativa = newRetryCount < MAX_RETRIES 
+            ? new Date(Date.now() + 60 * 60 * 1000).toISOString()
+            : null;
           
           await supabase
             .from("mgf_automacao_execucoes")
             .update({
               status: "erro",
-              erro: error_message || "Erro desconhecido",
+              erro: newRetryCount >= MAX_RETRIES 
+                ? `${error_message || "Erro desconhecido"} (limite de ${MAX_RETRIES} tentativas atingido)`
+                : (error_message || "Erro desconhecido"),
               finalizado_at: new Date().toISOString(),
               retry_count: newRetryCount,
               proxima_tentativa_at: proximaTentativa,
             })
             .eq("id", targetId);
             
-          console.log(`[Webhook MGF] Retry agendado para ${proximaTentativa} (tentativa ${newRetryCount})`);
+          if (proximaTentativa) {
+            console.log(`[Webhook MGF] Retry agendado para ${proximaTentativa} (tentativa ${newRetryCount}/${MAX_RETRIES})`);
+          } else {
+            console.log(`[Webhook MGF] Limite de retries atingido (${newRetryCount}/${MAX_RETRIES}) - retry automático desabilitado`);
+          }
         }
       }
 
