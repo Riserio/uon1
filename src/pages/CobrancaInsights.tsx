@@ -19,6 +19,8 @@ import CobrancaTabela from "@/components/cobranca/CobrancaTabela";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
 import PortalHeader from "@/components/portal/PortalHeader";
+import BIPageHeader from "@/components/bi/BIPageHeader";
+import { getPrefetchedData, savePrefetchedData } from "@/hooks/usePortalDataPrefetch";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 
@@ -174,6 +176,16 @@ export default function CobrancaInsights() {
       return;
     }
 
+    // Portal: usar cache para exibição instantânea
+    if (isPortalAccess) {
+      const cached = getPrefetchedData<any>(selectedAssociacao, 'cobranca');
+      if (cached && cached.length > 0 && boletos.length === 0) {
+        setBoletos(cached);
+        setLoading(false);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       // Buscar importação ativa para a associação selecionada
@@ -224,6 +236,7 @@ export default function CobrancaInsights() {
 
         console.log(`Total de boletos carregados: ${allBoletos.length}`);
         setBoletos(allBoletos);
+        if (isPortalAccess) savePrefetchedData(selectedAssociacao, 'cobranca', allBoletos);
       } else {
         setBoletos([]);
         setImportacaoAtiva(null);
@@ -371,96 +384,20 @@ export default function CobrancaInsights() {
 
       {/* Header interno (não parceiro) */}
       {!isPortalAccess && (
-        <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-b">
-          <div className="container mx-auto px-4 py-6">
-            <div className="flex items-center gap-4 mb-4">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => navigate(`/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
-                className="shrink-0"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div className="flex-1">
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-400 bg-clip-text text-transparent">
-                  Cobrança
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                  Business Intelligence de Cobrança e Inadimplência
-                </p>
-              </div>
-              
-              <Button
-                variant="outline"
-                onClick={() => navigate(`/sga-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
-                className="gap-2 border-primary/30 hover:bg-primary/10"
-              >
-                <MapPin className="h-4 w-4" />
-                <span className="hidden sm:inline">Eventos</span>
-              </Button>
-              
-              <Button
-                variant="outline"
-                onClick={() => navigate(`/mgf-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
-                className="gap-2 border-orange-500/30 hover:bg-orange-500/10"
-              >
-                <DollarSign className="h-4 w-4" />
-                <span className="hidden sm:inline">MGF</span>
-              </Button>
-              
-              {canViewHistorico && (
-                <Button
-                  variant="outline"
-                  onClick={() => setHistoricoDialogOpen(true)}
-                  className="gap-2"
-                >
-                  <History className="h-4 w-4" />
-                  <span className="hidden sm:inline">Histórico</span>
-                </Button>
-              )}
-              {importacaoAtiva && (
-                <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
-                  <Database className="h-4 w-4" />
-                  <span>{filteredBoletos.length.toLocaleString()} registros</span>
-                  {hasActiveFilters && <span className="text-emerald-600">(filtrados)</span>}
-                  <span className="text-muted-foreground/50">|</span>
-                  <span>{importacaoAtiva.nome_arquivo}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Seletor de Associação */}
-            <Card className="border-emerald-500/20 bg-card/50 backdrop-blur mb-4">
-              <CardContent className="p-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-                  <Label htmlFor="associacao-select-cobranca" className="text-base font-semibold whitespace-nowrap">
-                    Associação:
-                  </Label>
-                  <Select 
-                    value={selectedAssociacao} 
-                    onValueChange={setSelectedAssociacao} 
-                    disabled={loadingAssociacoes}
-                  >
-                    <SelectTrigger
-                      id="associacao-select-cobranca"
-                      className="w-full sm:max-w-md h-10 border-2"
-                    >
-                      <SelectValue placeholder="Selecione uma associação..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {associacoes.map((associacao) => (
-                        <SelectItem key={associacao.id} value={associacao.id}>
-                          {associacao.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        <BIPageHeader
+          title="Cobrança"
+          subtitle="Business Intelligence de Cobrança e Inadimplência"
+          associacoes={associacoes}
+          selectedAssociacao={selectedAssociacao}
+          onAssociacaoChange={setSelectedAssociacao}
+          loadingAssociacoes={loadingAssociacoes}
+          currentModule="cobranca"
+          showHistorico={canViewHistorico}
+          onHistoricoClick={() => setHistoricoDialogOpen(true)}
+          recordCount={filteredBoletos.length}
+          hasActiveFilters={!!hasActiveFilters}
+          fileName={importacaoAtiva?.nome_arquivo}
+        />
       )}
 
       {/* Filtros Globais */}
@@ -638,18 +575,28 @@ export default function CobrancaInsights() {
 
       {/* Tabs */}
       <div className="container mx-auto px-4 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
+            <TabsList className="inline-flex md:flex md:w-full max-w-xl mx-auto gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <TabsTrigger
+                    key={tab.id}
+                    value={tab.id}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+                      text-muted-foreground transition-all
+                      data-[state=active]:bg-background data-[state=active]:text-foreground
+                      data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50
+                      whitespace-nowrap"
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{tab.label}</span>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </div>
 
           <TabsContent value="dashboard">
             <CobrancaDashboard 

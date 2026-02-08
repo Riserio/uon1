@@ -180,3 +180,9 @@ export function getPrefetchedData<T>(corretoraId: string, module: string): T[] |
   const data = prefetchCache[corretoraId]?.[module as keyof ModuleData];
   return Array.isArray(data) ? data as T[] : null;
 }
+
+// Função para salvar dados no cache (usado pelas páginas após carregar dados completos)
+export function savePrefetchedData(corretoraId: string, module: string, data: any[]) {
+  if (!prefetchCache[corretoraId]) prefetchCache[corretoraId] = {};
+  (prefetchCache[corretoraId] as any)[module] = data;
+}
