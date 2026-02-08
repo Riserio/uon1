@@ -21,6 +21,8 @@ import { ptBR } from "date-fns/locale";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import PortalHeader from "@/components/portal/PortalHeader";
+import BIPageHeader from "@/components/bi/BIPageHeader";
+import { getPrefetchedData, savePrefetchedData } from "@/hooks/usePortalDataPrefetch";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 
@@ -155,6 +157,16 @@ export default function MGFInsights() {
       return;
     }
 
+    // Portal: usar cache para exibição instantânea
+    if (isPortalAccess) {
+      const cached = getPrefetchedData<any>(selectedAssociacao, 'mgf');
+      if (cached && cached.length > 0 && dados.length === 0) {
+        setDados(cached);
+        setLoading(false);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const { data: importacao, error: impError } = await supabase
@@ -206,6 +218,7 @@ export default function MGFInsights() {
 
         console.log(`Total de dados MGF carregados: ${allDados.length}`);
         setDados(allDados);
+        if (isPortalAccess) savePrefetchedData(selectedAssociacao, 'mgf', allDados);
       } else {
         setDados([]);
         setImportacaoAtiva(null);
@@ -375,95 +388,19 @@ export default function MGFInsights() {
 
       {/* Header interno (não parceiro) */}
       {!isPortalAccess && (
-        <div className="bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent border-b">
-          <div className="container mx-auto px-4 py-6">
-            <div className="flex items-center gap-4 mb-4">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => navigate(`/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
-                className="shrink-0"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div className="flex-1">
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent">
-                  MGF
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                  Business Intelligence de Dados MGF
-                </p>
-              </div>
-              
-              <Button
-                variant="outline"
-                onClick={() => navigate(`/sga-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
-                className="gap-2 border-primary/30 hover:bg-primary/10"
-              >
-                <MapPin className="h-4 w-4" />
-                <span className="hidden sm:inline">Eventos</span>
-              </Button>
-              
-              <Button
-                variant="outline"
-                onClick={() => navigate(`/cobranca-insights${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
-                className="gap-2 border-emerald-500/30 hover:bg-emerald-500/10"
-              >
-                <CreditCard className="h-4 w-4" />
-                <span className="hidden sm:inline">Cobrança</span>
-              </Button>
-              
-              {canViewHistorico && (
-                <Button
-                  variant="outline"
-                  onClick={() => setHistoricoDialogOpen(true)}
-                  className="gap-2"
-                >
-                  <History className="h-4 w-4" />
-                  <span className="hidden sm:inline">Histórico</span>
-                </Button>
-              )}
-              {importacaoAtiva && (
-                <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg">
-                  <Database className="h-4 w-4" />
-                  <span>{filteredDados.length.toLocaleString()} registros</span>
-                  <span className="text-muted-foreground/50">|</span>
-                  <span>{importacaoAtiva.nome_arquivo}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Seletor de Associação */}
-            <Card className="border-orange-500/20 bg-card/50 backdrop-blur mb-4">
-              <CardContent className="p-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-                  <Label htmlFor="associacao-select-mgf" className="text-base font-semibold whitespace-nowrap">
-                    Associação:
-                  </Label>
-                  <Select 
-                    value={selectedAssociacao} 
-                    onValueChange={setSelectedAssociacao} 
-                    disabled={loadingAssociacoes}
-                  >
-                    <SelectTrigger
-                      id="associacao-select-mgf"
-                      className="w-full sm:max-w-md h-10 border-2"
-                    >
-                      <SelectValue placeholder="Selecione uma associação..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {associacoes.map((associacao) => (
-                        <SelectItem key={associacao.id} value={associacao.id}>
-                          {associacao.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        <BIPageHeader
+          title="MGF"
+          subtitle="Business Intelligence de Dados MGF"
+          associacoes={associacoes}
+          selectedAssociacao={selectedAssociacao}
+          onAssociacaoChange={setSelectedAssociacao}
+          loadingAssociacoes={loadingAssociacoes}
+          currentModule="mgf"
+          showHistorico={canViewHistorico}
+          onHistoricoClick={() => setHistoricoDialogOpen(true)}
+          recordCount={filteredDados.length}
+          fileName={importacaoAtiva?.nome_arquivo}
+        />
       )}
 
       {/* Filtros Globais (estilo SGA) */}
@@ -617,15 +554,25 @@ export default function MGFInsights() {
 
       {/* Tabs */}
       <div className="container mx-auto px-4 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className={`grid w-full max-w-xl mb-6 ${isPortalAccess ? 'grid-cols-3' : 'grid-cols-4'}`}>
-            {tabs.map((tab) => (
-              <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
-                <tab.icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
+            <TabsList className="inline-flex md:flex md:w-full max-w-xl mx-auto gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">
+              {tabs.map((tab) => (
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
+                    text-muted-foreground transition-all
+                    data-[state=active]:bg-background data-[state=active]:text-foreground
+                    data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50
+                    whitespace-nowrap"
+                >
+                  <tab.icon className="h-4 w-4" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
 
           <TabsContent value="dashboard">
             <MGFDashboard 
