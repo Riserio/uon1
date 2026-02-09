@@ -985,6 +985,25 @@ serve(async (req) => {
       }
     }
 
+    // Limpar execuções anteriores com erro/parado (manter apenas sucesso e executando)
+    if (configId) {
+      const successExecId = targetExecucaoId;
+      if (successExecId) {
+        const { error: cleanupError } = await supabase
+          .from("cobranca_automacao_execucoes")
+          .delete()
+          .eq("config_id", configId)
+          .in("status", ["erro", "parado", "cancelled"])
+          .neq("id", successExecId);
+        
+        if (cleanupError) {
+          console.warn("Erro ao limpar execuções antigas:", cleanupError);
+        } else {
+          console.log("Execuções com erro/parado anteriores removidas");
+        }
+      }
+    }
+
     // Registrar log de auditoria
     await supabase.from("bi_audit_logs").insert({
       modulo: "cobranca",
