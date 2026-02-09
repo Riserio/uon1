@@ -502,6 +502,52 @@ serve(async (req) => {
       .update({ total_registros: total_registros || dados.length })
       .eq("id", importacaoId);
 
+    // Atualizar execução com sucesso e limpar erros anteriores
+    if (execucaoIdCandidate) {
+      await supabase
+        .from("mgf_automacao_execucoes")
+        .update({
+          status: 'sucesso',
+          finalizado_at: new Date().toISOString(),
+          registros_processados: records.length,
+          registros_total: total_registros || records.length,
+          progresso_importacao: 100,
+          nome_arquivo: nome_arquivo,
+          etapa_atual: 'concluido',
+          proxima_tentativa_at: null,
+        })
+        .eq("id", execucaoIdCandidate);
+
+      // Buscar config_id da execução
+      const { data: execConfig } = await supabase
+        .from("mgf_automacao_execucoes")
+        .select("config_id")
+        .eq("id", execucaoIdCandidate)
+        .single();
+
+      if (execConfig?.config_id) {
+        // Atualizar config
+        await supabase
+          .from("mgf_automacao_config")
+          .update({
+            ultimo_status: 'sucesso',
+            ultimo_erro: null,
+            ultima_execucao: new Date().toISOString(),
+          })
+          .eq("id", execConfig.config_id);
+
+        // Limpar execuções anteriores com erro/parado
+        await supabase
+          .from("mgf_automacao_execucoes")
+          .delete()
+          .eq("config_id", execConfig.config_id)
+          .in("status", ["erro", "parado", "cancelled"])
+          .neq("id", execucaoIdCandidate);
+        
+        console.log("[MGF Webhook] Execuções com erro/parado anteriores removidas");
+      }
+    }
+
     console.log(`MGF Webhook: ${records.length} registros importados`);
 
     return new Response(

@@ -384,6 +384,26 @@ serve(async (req) => {
         }
       }
 
+      // Limpar execuções anteriores com erro/parado
+      if (execucao_id) {
+        const { data: execConfig } = await supabase
+          .from("sga_automacao_execucoes")
+          .select("config_id")
+          .eq("id", execucao_id)
+          .single();
+        
+        if (execConfig?.config_id) {
+          await supabase
+            .from("sga_automacao_execucoes")
+            .delete()
+            .eq("config_id", execConfig.config_id)
+            .in("status", ["erro", "parado", "cancelled"])
+            .neq("id", execucao_id);
+          
+          console.log("[Webhook SGA] Execuções com erro/parado anteriores removidas");
+        }
+      }
+
       // Log de auditoria
       await supabase.from("bi_audit_logs").insert({
         modulo: "sga_insights",

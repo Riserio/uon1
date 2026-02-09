@@ -96,7 +96,7 @@ export default function BIPageHeader({
             </div>
           </div>
 
-          {/* Row 2: Module navigation */}
+          {/* Row 2: Module navigation - inline buttons matching portal style */}
           <nav className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
             {modules.map((mod) => {
               const Icon = mod.icon;
