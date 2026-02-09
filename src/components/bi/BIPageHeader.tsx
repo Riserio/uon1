@@ -1,4 +1,4 @@
-import { ArrowLeft, Activity, DollarSign, CreditCard, Database, History } from "lucide-react";
+import { ArrowLeft, Activity, DollarSign, CreditCard, Database, History, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
@@ -10,7 +10,7 @@ type BIPageHeaderProps = {
   selectedAssociacao: string;
   onAssociacaoChange: (id: string) => void;
   loadingAssociacoes?: boolean;
-  currentModule: 'eventos' | 'mgf' | 'cobranca';
+  currentModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca';
   showHistorico?: boolean;
   onHistoricoClick?: () => void;
   recordCount?: number;
@@ -19,6 +19,7 @@ type BIPageHeaderProps = {
 };
 
 const modules = [
+  { id: 'indicadores', label: 'Indicadores', icon: TrendingUp, path: '/pid' },
   { id: 'eventos', label: 'Eventos', icon: Activity, path: '/sga-insights' },
   { id: 'mgf', label: 'MGF', icon: DollarSign, path: '/mgf-insights' },
   { id: 'cobranca', label: 'Cobrança', icon: CreditCard, path: '/cobranca-insights' },
@@ -47,14 +48,16 @@ export default function BIPageHeader({
           {/* Row 1: Back + Title + Association + Actions */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate(`/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
-                className="shrink-0 h-9 w-9"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
+              {currentModule !== 'indicadores' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate(`/pid${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+                  className="shrink-0 h-9 w-9"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              )}
               <div className="min-w-0">
                 <h1 className="text-lg sm:text-xl font-bold leading-tight text-foreground">{title}</h1>
                 <p className="text-xs text-muted-foreground">{subtitle}</p>
