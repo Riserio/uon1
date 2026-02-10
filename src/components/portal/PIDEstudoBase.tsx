@@ -1,8 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
@@ -63,7 +62,7 @@ interface EstudoBaseData {
   valor_protegido_carretas: number;
 }
 
-const defaultData: Omit<EstudoBaseData, 'corretora_id' | 'data_referencia'> = {
+const defaultData: Omit<EstudoBaseData, "corretora_id" | "data_referencia"> = {
   total_veiculos_geral: 0,
   total_veiculos_ativos: 0,
   qtd_passeio: 0,
@@ -109,7 +108,7 @@ const categorias = [
   { key: "taxi_app", label: "Táxi/APP", icon: Car },
   { key: "especiais_importados", label: "Especiais/Importados", icon: Car },
   { key: "carretas", label: "Carretas", icon: Truck },
-];
+] as const;
 
 export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string }) {
   const { user } = useAuth();
@@ -138,11 +137,10 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
         .maybeSingle();
 
       if (error) throw error;
-      
+
       if (result) {
         setDataReferencia(result.data_referencia);
       } else {
-        // No data, use current date
         setDataReferencia(new Date().toISOString().split("T")[0]);
       }
       setInitialized(true);
@@ -171,7 +169,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
         setData(fetchedData);
         setOriginalData(fetchedData);
       } else {
-        const newData = {
+        const newData: EstudoBaseData = {
           ...defaultData,
           corretora_id: corretoraId,
           data_referencia: dataReferencia,
@@ -192,7 +190,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
     if (corretoraId && !initialized) {
       fetchMostRecentPeriod();
     }
-  }, [corretoraId]);
+  }, [corretoraId, initialized]);
 
   // Fetch data when period changes
   useEffect(() => {
@@ -213,31 +211,27 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
       };
 
       if (data.id) {
-        const { error } = await supabase
-          .from("pid_estudo_base")
-          .update(saveData)
-          .eq("id", data.id);
+        const { error } = await supabase.from("pid_estudo_base").update(saveData).eq("id", data.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from("pid_estudo_base")
-          .insert({ ...saveData, created_by: user.id });
+        const { error } = await supabase.from("pid_estudo_base").insert({ ...saveData, created_by: user.id });
         if (error) throw error;
       }
 
-      // Registrar log com valores anteriores e novos
       await registrarLog({
         modulo: "bi_indicadores",
         acao: data.id ? "alteracao" : "importacao",
         descricao: `Estudo de Base ${data.id ? "atualizado" : "criado"} - ${dataReferencia}`,
         corretoraId,
-        dadosAnteriores: originalData ? {
-          data_referencia: originalData.data_referencia,
-          total_veiculos_geral: originalData.total_veiculos_geral,
-          total_veiculos_ativos: originalData.total_veiculos_ativos,
-          protegido_geral: originalData.protegido_geral,
-          tm_geral: originalData.tm_geral,
-        } : null,
+        dadosAnteriores: originalData
+          ? {
+              data_referencia: originalData.data_referencia,
+              total_veiculos_geral: originalData.total_veiculos_geral,
+              total_veiculos_ativos: originalData.total_veiculos_ativos,
+              protegido_geral: originalData.protegido_geral,
+              tm_geral: originalData.tm_geral,
+            }
+          : null,
         dadosNovos: {
           data_referencia: dataReferencia,
           total_veiculos_geral: data.total_veiculos_geral,
@@ -247,7 +241,6 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
         },
       });
 
-      // Atualizar originalData após salvar
       setOriginalData(data);
 
       toast.success("Dados salvos com sucesso!");
@@ -269,89 +262,102 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
   useEffect(() => {
     if (!data) return;
 
-    // Total Veículos Geral = soma das quantidades
     const totalVeiculosGeral = categorias.reduce((sum, cat) => {
-      return sum + (data[`qtd_${cat.key}` as keyof EstudoBaseData] as number || 0);
+      return sum + ((data[`qtd_${cat.key}` as keyof EstudoBaseData] as number) || 0);
     }, 0);
 
-    // Veículos Ativos = soma dos protegidos (quantidade)
     const totalVeiculosAtivos = categorias.reduce((sum, cat) => {
-      return sum + (data[`protegido_${cat.key}` as keyof EstudoBaseData] as number || 0);
+      return sum + ((data[`protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0);
     }, 0);
 
-    // Total Valor Protegido Geral = soma dos valores protegidos (monetário)
     const totalValorProtegidoGeral = categorias.reduce((sum, cat) => {
-      return sum + (data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number || 0);
+      return sum + ((data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0);
     }, 0);
 
-    // Calculate weighted average for ticket médio
     const totalTMPonderado = categorias.reduce((sum, cat) => {
-      const qtd = data[`qtd_${cat.key}` as keyof EstudoBaseData] as number || 0;
-      const tm = data[`tm_${cat.key}` as keyof EstudoBaseData] as number || 0;
-      return sum + (qtd * tm);
+      const qtd = (data[`qtd_${cat.key}` as keyof EstudoBaseData] as number) || 0;
+      const tm = (data[`tm_${cat.key}` as keyof EstudoBaseData] as number) || 0;
+      return sum + qtd * tm;
     }, 0);
+
     const tmGeral = totalVeiculosGeral > 0 ? totalTMPonderado / totalVeiculosGeral : 0;
 
-    // Only update if values changed to prevent infinite loop
     if (
       data.total_veiculos_geral !== totalVeiculosGeral ||
       data.total_veiculos_ativos !== totalVeiculosAtivos ||
       data.valor_protegido_geral !== totalValorProtegidoGeral ||
       Math.abs(data.tm_geral - tmGeral) > 0.01
     ) {
-      setData(prev => prev ? {
-        ...prev,
-        total_veiculos_geral: totalVeiculosGeral,
-        total_veiculos_ativos: totalVeiculosAtivos,
-        valor_protegido_geral: totalValorProtegidoGeral,
-        tm_geral: parseFloat(tmGeral.toFixed(2)),
-      } : null);
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              total_veiculos_geral: totalVeiculosGeral,
+              total_veiculos_ativos: totalVeiculosAtivos,
+              valor_protegido_geral: totalValorProtegidoGeral,
+              tm_geral: Number(tmGeral.toFixed(2)),
+            }
+          : null,
+      );
     }
   }, [
-    data?.qtd_passeio, data?.qtd_motocicletas, data?.qtd_utilitarios_suvs_vans,
-    data?.qtd_caminhoes, data?.qtd_taxi_app, data?.qtd_especiais_importados, data?.qtd_carretas,
-    data?.tm_passeio, data?.tm_motocicletas, data?.tm_utilitarios_suvs_vans,
-    data?.tm_caminhoes, data?.tm_taxi_app, data?.tm_especiais_importados, data?.tm_carretas,
-    data?.protegido_passeio, data?.protegido_motocicletas, data?.protegido_utilitarios_suvs_vans,
-    data?.protegido_caminhoes, data?.protegido_taxi_app, data?.protegido_especiais_importados, data?.protegido_carretas,
-    data?.valor_protegido_passeio, data?.valor_protegido_motocicletas, data?.valor_protegido_utilitarios_suvs_vans,
-    data?.valor_protegido_caminhoes, data?.valor_protegido_taxi_app, data?.valor_protegido_especiais_importados, data?.valor_protegido_carretas,
+    data?.qtd_passeio,
+    data?.qtd_motocicletas,
+    data?.qtd_utilitarios_suvs_vans,
+    data?.qtd_caminhoes,
+    data?.qtd_taxi_app,
+    data?.qtd_especiais_importados,
+    data?.qtd_carretas,
+    data?.tm_passeio,
+    data?.tm_motocicletas,
+    data?.tm_utilitarios_suvs_vans,
+    data?.tm_caminhoes,
+    data?.tm_taxi_app,
+    data?.tm_especiais_importados,
+    data?.tm_carretas,
+    data?.protegido_passeio,
+    data?.protegido_motocicletas,
+    data?.protegido_utilitarios_suvs_vans,
+    data?.protegido_caminhoes,
+    data?.protegido_taxi_app,
+    data?.protegido_especiais_importados,
+    data?.protegido_carretas,
+    data?.valor_protegido_passeio,
+    data?.valor_protegido_motocicletas,
+    data?.valor_protegido_utilitarios_suvs_vans,
+    data?.valor_protegido_caminhoes,
+    data?.valor_protegido_taxi_app,
+    data?.valor_protegido_especiais_importados,
+    data?.valor_protegido_carretas,
   ]);
 
-  // Prepare chart data with useMemo to ensure reactivity
   const distribuicaoFrotaData = useMemo(() => {
     if (!data) return [];
-    return categorias.map((cat, index) => ({
-      name: cat.label,
-      value: data[`qtd_${cat.key}` as keyof EstudoBaseData] as number,
-      fill: COLORS[index % COLORS.length],
-    })).filter(d => d.value > 0);
+    return categorias
+      .map((cat, index) => ({
+        name: cat.label,
+        value: (data[`qtd_${cat.key}` as keyof EstudoBaseData] as number) || 0,
+        fill: COLORS[index % COLORS.length],
+      }))
+      .filter((d) => d.value > 0);
   }, [data]);
 
   const ticketMedioData = useMemo(() => {
     if (!data) return [];
-    return categorias.map((cat) => ({
-      categoria: cat.label,
-      valor: data[`tm_${cat.key}` as keyof EstudoBaseData] as number,
-    })).filter(d => d.valor > 0);
+    return categorias
+      .map((cat) => ({
+        categoria: cat.label,
+        valor: (data[`tm_${cat.key}` as keyof EstudoBaseData] as number) || 0,
+      }))
+      .filter((d) => d.valor > 0);
   }, [data]);
 
-  const valorProtegidoData = useMemo(() => {
-    if (!data) return [];
-    return categorias.map((cat, index) => ({
-      name: cat.label,
-      value: data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number,
-      fill: COLORS[index % COLORS.length],
-    })).filter(d => d.value > 0);
-  }, [data]);
-
-  // Generate unique key for charts to force re-render
   const chartKey = useMemo(() => {
-    if (!data) return 'empty';
+    if (!data) return "empty";
     return JSON.stringify({
-      qtd: categorias.map(c => data[`qtd_${c.key}` as keyof EstudoBaseData]),
-      tm: categorias.map(c => data[`tm_${c.key}` as keyof EstudoBaseData]),
-      vp: categorias.map(c => data[`valor_protegido_${c.key}` as keyof EstudoBaseData]),
+      qtd: categorias.map((c) => data[`qtd_${c.key}` as keyof EstudoBaseData]),
+      tm: categorias.map((c) => data[`tm_${c.key}` as keyof EstudoBaseData]),
+      vp: categorias.map((c) => data[`valor_protegido_${c.key}` as keyof EstudoBaseData]),
     });
   }, [data]);
 
@@ -394,7 +400,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
         </div>
       </div>
 
-      {/* Totais Gerais - Calculados automaticamente */}
+      {/* Totais Gerais */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4">
@@ -424,10 +430,13 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
 
       {/* Tabela de Categorias */}
       <Card>
-        <CardHeader>
+        <div className="p-6 pb-0">
           <CardTitle className="text-lg">Detalhamento por Categoria</CardTitle>
-          <CardDescription>Quantidade, ticket médio e valores protegidos por tipo de veículo</CardDescription>
-        </CardHeader>
+          <p className="text-sm text-muted-foreground">
+            Quantidade, ticket médio e valores protegidos por tipo de veículo
+          </p>
+        </div>
+
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -451,54 +460,74 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
                           {cat.label}
                         </div>
                       </td>
+
                       <td className="py-3 px-2 text-right">
                         {canEdit ? (
                           <Input
                             type="number"
-                            value={data[`qtd_${cat.key}` as keyof EstudoBaseData] as number}
-                            onChange={(e) => updateField(`qtd_${cat.key}` as keyof EstudoBaseData, parseInt(e.target.value) || 0)}
+                            value={(data[`qtd_${cat.key}` as keyof EstudoBaseData] as number) || 0}
+                            onChange={(e) =>
+                              updateField(`qtd_${cat.key}` as keyof EstudoBaseData, parseInt(e.target.value, 10) || 0)
+                            }
                             className="h-8 w-24 text-right ml-auto"
                           />
                         ) : (
-                          (data[`qtd_${cat.key}` as keyof EstudoBaseData] as number).toLocaleString("pt-BR")
+                          ((data[`qtd_${cat.key}` as keyof EstudoBaseData] as number) || 0).toLocaleString("pt-BR")
                         )}
                       </td>
+
                       <td className="py-3 px-2 text-right">
                         {canEdit ? (
                           <Input
                             type="number"
                             step="0.01"
-                            value={data[`tm_${cat.key}` as keyof EstudoBaseData] as number}
-                            onChange={(e) => updateField(`tm_${cat.key}` as keyof EstudoBaseData, parseFloat(e.target.value) || 0)}
+                            value={(data[`tm_${cat.key}` as keyof EstudoBaseData] as number) || 0}
+                            onChange={(e) =>
+                              updateField(`tm_${cat.key}` as keyof EstudoBaseData, parseFloat(e.target.value) || 0)
+                            }
                             className="h-8 w-28 text-right ml-auto"
                           />
                         ) : (
-                          formatCurrency(data[`tm_${cat.key}` as keyof EstudoBaseData] as number)
+                          formatCurrency((data[`tm_${cat.key}` as keyof EstudoBaseData] as number) || 0)
                         )}
                       </td>
+
                       <td className="py-3 px-2 text-right">
                         {canEdit ? (
                           <Input
                             type="number"
-                            value={data[`protegido_${cat.key}` as keyof EstudoBaseData] as number}
-                            onChange={(e) => updateField(`protegido_${cat.key}` as keyof EstudoBaseData, parseInt(e.target.value) || 0)}
+                            value={(data[`protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0}
+                            onChange={(e) =>
+                              updateField(
+                                `protegido_${cat.key}` as keyof EstudoBaseData,
+                                parseInt(e.target.value, 10) || 0,
+                              )
+                            }
                             className="h-8 w-24 text-right ml-auto"
                           />
                         ) : (
-                          (data[`protegido_${cat.key}` as keyof EstudoBaseData] as number).toLocaleString("pt-BR")
+                          ((data[`protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0).toLocaleString(
+                            "pt-BR",
+                          )
                         )}
                       </td>
+
                       <td className="py-3 px-2 text-right">
                         {canEdit ? (
                           <Input
                             type="number"
                             step="0.01"
-                            value={data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number}
-                            onChange={(e) => updateField(`valor_protegido_${cat.key}` as keyof EstudoBaseData, parseFloat(e.target.value) || 0)}
+                            value={(data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0}
+                            onChange={(e) =>
+                              updateField(
+                                `valor_protegido_${cat.key}` as keyof EstudoBaseData,
+                                parseFloat(e.target.value) || 0,
+                              )
+                            }
                             className="h-8 w-32 text-right ml-auto"
                           />
                         ) : (
-                          formatCurrency(data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number)
+                          formatCurrency((data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0)
                         )}
                       </td>
                     </tr>
@@ -513,9 +542,9 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
       {/* Gráficos */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader>
+          <div className="p-6 pb-0">
             <CardTitle className="text-lg">Distribuição da Frota</CardTitle>
-          </CardHeader>
+          </div>
           <CardContent className="h-[300px]">
             {distribuicaoFrotaData.length > 0 ? (
               <ResponsiveContainer key={`frota-${chartKey}`} width="100%" height="100%">
@@ -534,7 +563,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
                       <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: any) => value.toLocaleString("pt-BR")} />
+                  <Tooltip formatter={(value: any) => Number(value).toLocaleString("pt-BR")} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -545,15 +574,15 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
         </Card>
 
         <Card>
-          <CardHeader>
+          <div className="p-6 pb-0">
             <CardTitle className="text-lg">Ticket Médio por Categoria</CardTitle>
-          </CardHeader>
+          </div>
           <CardContent className="h-[300px]">
             {ticketMedioData.length > 0 ? (
               <ResponsiveContainer key={`ticket-${chartKey}`} width="100%" height="100%">
                 <BarChart data={ticketMedioData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} />
+                  <XAxis type="number" tickFormatter={(v) => formatCurrency(Number(v))} />
                   <YAxis type="category" dataKey="categoria" width={120} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                   <Bar dataKey="valor" fill="#2563eb" radius={[0, 4, 4, 0]} />
