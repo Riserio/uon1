@@ -12,7 +12,7 @@ type BIPageHeaderProps = {
   selectedAssociacao: string;
   onAssociacaoChange: (id: string) => void;
   loadingAssociacoes?: boolean;
-  currentModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca';
+  currentModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base';
   showHistorico?: boolean;
   onHistoricoClick?: () => void;
   recordCount?: number;
@@ -39,6 +39,11 @@ const modules = [{
   label: 'Cobrança',
   icon: CreditCard,
   path: '/cobranca-insights'
+}, {
+  id: 'estudo-base',
+  label: 'Estudo de Base',
+  icon: Database,
+  path: '/estudo-base-insights'
 }] as const;
 export default function BIPageHeader({
   title,
