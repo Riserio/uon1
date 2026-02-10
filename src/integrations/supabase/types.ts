@@ -1767,6 +1767,181 @@ export type Database = {
           },
         ]
       }
+      estudo_base_importacoes: {
+        Row: {
+          ativo: boolean | null
+          corretora_id: string | null
+          created_at: string
+          id: string
+          nome_arquivo: string
+          total_registros: number | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          corretora_id?: string | null
+          created_at?: string
+          id?: string
+          nome_arquivo: string
+          total_registros?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          corretora_id?: string | null
+          created_at?: string
+          id?: string
+          nome_arquivo?: string
+          total_registros?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estudo_base_importacoes_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      estudo_base_registros: {
+        Row: {
+          alerta_usuario: string | null
+          alienacao: string | null
+          ano_fabricacao: number | null
+          ano_modelo: number | null
+          bairro: string | null
+          boleto_fisico: string | null
+          categoria: string | null
+          cidade_veiculo: string | null
+          combustivel: string | null
+          cooperativa: string | null
+          cor: string | null
+          cota: string | null
+          created_at: string
+          data_contrato: string | null
+          data_ultimo_evento: string | null
+          estado: string | null
+          estado_civil: string | null
+          garagem: string | null
+          id: string
+          idade_associado: number | null
+          importacao_id: string
+          logradouro: string | null
+          modelo: string | null
+          montadora: string | null
+          motivo_evento: string | null
+          num_passageiros: number | null
+          placa: string | null
+          pontos: number | null
+          profissao: string | null
+          qtde_evento: number | null
+          regional: string | null
+          sexo: string | null
+          situacao_spc: string | null
+          situacao_veiculo: string | null
+          spa: string | null
+          tipo_veiculo: string | null
+          valor_fipe: number | null
+          valor_protegido: number | null
+          vencimento: number | null
+          voluntario: string | null
+        }
+        Insert: {
+          alerta_usuario?: string | null
+          alienacao?: string | null
+          ano_fabricacao?: number | null
+          ano_modelo?: number | null
+          bairro?: string | null
+          boleto_fisico?: string | null
+          categoria?: string | null
+          cidade_veiculo?: string | null
+          combustivel?: string | null
+          cooperativa?: string | null
+          cor?: string | null
+          cota?: string | null
+          created_at?: string
+          data_contrato?: string | null
+          data_ultimo_evento?: string | null
+          estado?: string | null
+          estado_civil?: string | null
+          garagem?: string | null
+          id?: string
+          idade_associado?: number | null
+          importacao_id: string
+          logradouro?: string | null
+          modelo?: string | null
+          montadora?: string | null
+          motivo_evento?: string | null
+          num_passageiros?: number | null
+          placa?: string | null
+          pontos?: number | null
+          profissao?: string | null
+          qtde_evento?: number | null
+          regional?: string | null
+          sexo?: string | null
+          situacao_spc?: string | null
+          situacao_veiculo?: string | null
+          spa?: string | null
+          tipo_veiculo?: string | null
+          valor_fipe?: number | null
+          valor_protegido?: number | null
+          vencimento?: number | null
+          voluntario?: string | null
+        }
+        Update: {
+          alerta_usuario?: string | null
+          alienacao?: string | null
+          ano_fabricacao?: number | null
+          ano_modelo?: number | null
+          bairro?: string | null
+          boleto_fisico?: string | null
+          categoria?: string | null
+          cidade_veiculo?: string | null
+          combustivel?: string | null
+          cooperativa?: string | null
+          cor?: string | null
+          cota?: string | null
+          created_at?: string
+          data_contrato?: string | null
+          data_ultimo_evento?: string | null
+          estado?: string | null
+          estado_civil?: string | null
+          garagem?: string | null
+          id?: string
+          idade_associado?: number | null
+          importacao_id?: string
+          logradouro?: string | null
+          modelo?: string | null
+          montadora?: string | null
+          motivo_evento?: string | null
+          num_passageiros?: number | null
+          placa?: string | null
+          pontos?: number | null
+          profissao?: string | null
+          qtde_evento?: number | null
+          regional?: string | null
+          sexo?: string | null
+          situacao_spc?: string | null
+          situacao_veiculo?: string | null
+          spa?: string | null
+          tipo_veiculo?: string | null
+          valor_fipe?: number | null
+          valor_protegido?: number | null
+          vencimento?: number | null
+          voluntario?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estudo_base_registros_importacao_id_fkey"
+            columns: ["importacao_id"]
+            isOneToOne: false
+            referencedRelation: "estudo_base_importacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eventos: {
         Row: {
           cor: string | null
