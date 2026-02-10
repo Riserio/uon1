@@ -110,6 +110,16 @@ const categorias = [
   { key: "carretas", label: "Carretas", icon: Truck },
 ] as const;
 
+// Garante JSON válido para colunas json/jsonb (Supabase/Postgres)
+const safeJson = (v: any) => {
+  if (v === undefined) return null;
+  try {
+    return JSON.parse(JSON.stringify(v));
+  } catch {
+    return null;
+  }
+};
+
 export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string }) {
   const { user } = useAuth();
   const { registrarLog } = useBIAuditLog();
@@ -123,7 +133,6 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
   const [dataReferencia, setDataReferencia] = useState<string>("");
   const [initialized, setInitialized] = useState(false);
 
-  // Fetch most recent period with data on initial load
   const fetchMostRecentPeriod = async () => {
     if (!corretoraId) return;
     setLoading(true);
@@ -138,14 +147,12 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
 
       if (error) throw error;
 
-      if (result) {
-        setDataReferencia(result.data_referencia);
-      } else {
-        setDataReferencia(new Date().toISOString().split("T")[0]);
-      }
+      if (result) setDataReferencia(result.data_referencia);
+      else setDataReferencia(new Date().toISOString().split("T")[0]);
+
       setInitialized(true);
     } catch (error: any) {
-      console.error("Error fetching most recent period:", error);
+      console.error("Error fetching most recent period:", error?.message, error?.details, error?.hint);
       setDataReferencia(new Date().toISOString().split("T")[0]);
       setInitialized(true);
     }
@@ -178,30 +185,25 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
         setOriginalData(null);
       }
     } catch (error: any) {
-      console.error("Error fetching estudo base:", error);
+      console.error("Error fetching estudo base:", error?.message, error?.details, error?.hint);
       toast.error("Erro ao carregar dados");
     } finally {
       setLoading(false);
     }
   };
 
-  // Initialize with most recent period
   useEffect(() => {
-    if (corretoraId && !initialized) {
-      fetchMostRecentPeriod();
-    }
+    if (corretoraId && !initialized) fetchMostRecentPeriod();
   }, [corretoraId, initialized]);
 
-  // Fetch data when period changes
   useEffect(() => {
-    if (corretoraId && dataReferencia && initialized) {
-      fetchData();
-    }
+    if (corretoraId && dataReferencia && initialized) fetchData();
   }, [corretoraId, dataReferencia, initialized]);
 
   const handleSave = async () => {
     if (!data || !corretoraId || !user) return;
     setSaving(true);
+
     try {
       const saveData = {
         ...data,
@@ -218,27 +220,30 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
         if (error) throw error;
       }
 
+      // 🔒 Log com JSON válido (evita "invalid input syntax for type json")
       await registrarLog({
         modulo: "bi_indicadores",
         acao: data.id ? "alteracao" : "importacao",
         descricao: `Estudo de Base ${data.id ? "atualizado" : "criado"} - ${dataReferencia}`,
         corretoraId,
-        dadosAnteriores: originalData
-          ? {
-              data_referencia: originalData.data_referencia,
-              total_veiculos_geral: originalData.total_veiculos_geral,
-              total_veiculos_ativos: originalData.total_veiculos_ativos,
-              protegido_geral: originalData.protegido_geral,
-              tm_geral: originalData.tm_geral,
-            }
-          : null,
-        dadosNovos: {
+        dadosAnteriores: safeJson(
+          originalData
+            ? {
+                data_referencia: originalData.data_referencia,
+                total_veiculos_geral: originalData.total_veiculos_geral,
+                total_veiculos_ativos: originalData.total_veiculos_ativos,
+                protegido_geral: originalData.protegido_geral,
+                tm_geral: originalData.tm_geral,
+              }
+            : null,
+        ),
+        dadosNovos: safeJson({
           data_referencia: dataReferencia,
           total_veiculos_geral: data.total_veiculos_geral,
           total_veiculos_ativos: data.total_veiculos_ativos,
           protegido_geral: data.protegido_geral,
           tm_geral: data.tm_geral,
-        },
+        }),
       });
 
       setOriginalData(data);
@@ -246,7 +251,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
       toast.success("Dados salvos com sucesso!");
       fetchData();
     } catch (error: any) {
-      console.error("Error saving estudo base:", error);
+      console.error("Error saving estudo base:", error?.message, error?.details, error?.hint);
       toast.error("Erro ao salvar dados");
     } finally {
       setSaving(false);
@@ -258,7 +263,6 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
     setData({ ...data, [field]: value });
   };
 
-  // Auto-calculate totals when category values change
   useEffect(() => {
     if (!data) return;
 
@@ -408,18 +412,21 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
             <div className="mt-1 text-2xl font-bold">{data.total_veiculos_geral.toLocaleString("pt-BR")}</div>
           </CardContent>
         </Card>
+
         <Card className="border-green-500/20 bg-green-500/5">
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">Veículos Ativos</div>
             <div className="mt-1 text-2xl font-bold">{data.total_veiculos_ativos.toLocaleString("pt-BR")}</div>
           </CardContent>
         </Card>
+
         <Card className="border-amber-500/20 bg-amber-500/5">
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">Ticket Médio Geral</div>
             <div className="mt-1 text-2xl font-bold">{formatCurrency(data.tm_geral)}</div>
           </CardContent>
         </Card>
+
         <Card className="border-purple-500/20 bg-purple-500/5">
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">Valor Protegido Geral</div>
@@ -465,7 +472,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
                         {canEdit ? (
                           <Input
                             type="number"
-                            value={(data[`qtd_${cat.key}` as keyof EstudoBaseData] as number) || 0}
+                            value={((data[`qtd_${cat.key}` as keyof EstudoBaseData] as number) || 0).toString()}
                             onChange={(e) =>
                               updateField(`qtd_${cat.key}` as keyof EstudoBaseData, parseInt(e.target.value, 10) || 0)
                             }
@@ -481,7 +488,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
                           <Input
                             type="number"
                             step="0.01"
-                            value={(data[`tm_${cat.key}` as keyof EstudoBaseData] as number) || 0}
+                            value={((data[`tm_${cat.key}` as keyof EstudoBaseData] as number) || 0).toString()}
                             onChange={(e) =>
                               updateField(`tm_${cat.key}` as keyof EstudoBaseData, parseFloat(e.target.value) || 0)
                             }
@@ -496,7 +503,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
                         {canEdit ? (
                           <Input
                             type="number"
-                            value={(data[`protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0}
+                            value={((data[`protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0).toString()}
                             onChange={(e) =>
                               updateField(
                                 `protegido_${cat.key}` as keyof EstudoBaseData,
@@ -517,7 +524,9 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
                           <Input
                             type="number"
                             step="0.01"
-                            value={(data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0}
+                            value={(
+                              (data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0
+                            ).toString()}
                             onChange={(e) =>
                               updateField(
                                 `valor_protegido_${cat.key}` as keyof EstudoBaseData,
@@ -545,6 +554,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
           <div className="p-6 pb-0">
             <CardTitle className="text-lg">Distribuição da Frota</CardTitle>
           </div>
+
           <CardContent className="h-[300px]">
             {distribuicaoFrotaData.length > 0 ? (
               <ResponsiveContainer key={`frota-${chartKey}`} width="100%" height="100%">
@@ -577,6 +587,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
           <div className="p-6 pb-0">
             <CardTitle className="text-lg">Ticket Médio por Categoria</CardTitle>
           </div>
+
           <CardContent className="h-[300px]">
             {ticketMedioData.length > 0 ? (
               <ResponsiveContainer key={`ticket-${chartKey}`} width="100%" height="100%">
