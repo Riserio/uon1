@@ -110,13 +110,14 @@ const categorias = [
   { key: "carretas", label: "Carretas", icon: Truck },
 ] as const;
 
-// Garante JSON válido para colunas json/jsonb (Supabase/Postgres)
+// garante algo sempre serializável como JSON (objeto ou null)
 const safeJson = (v: any) => {
   if (v === undefined) return null;
+  if (v === null) return null;
   try {
     return JSON.parse(JSON.stringify(v));
   } catch {
-    return null;
+    return { raw: String(v) };
   }
 };
 
@@ -147,9 +148,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
 
       if (error) throw error;
 
-      if (result) setDataReferencia(result.data_referencia);
-      else setDataReferencia(new Date().toISOString().split("T")[0]);
-
+      setDataReferencia(result?.data_referencia ?? new Date().toISOString().split("T")[0]);
       setInitialized(true);
     } catch (error: any) {
       console.error("Error fetching most recent period:", error?.message, error?.details, error?.hint);
@@ -220,7 +219,6 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
         if (error) throw error;
       }
 
-      // 🔒 Log com JSON válido (evita "invalid input syntax for type json")
       await registrarLog({
         modulo: "bi_indicadores",
         acao: data.id ? "alteracao" : "importacao",
@@ -266,21 +264,22 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
   useEffect(() => {
     if (!data) return;
 
-    const totalVeiculosGeral = categorias.reduce((sum, cat) => {
-      return sum + ((data[`qtd_${cat.key}` as keyof EstudoBaseData] as number) || 0);
-    }, 0);
-
-    const totalVeiculosAtivos = categorias.reduce((sum, cat) => {
-      return sum + ((data[`protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0);
-    }, 0);
-
-    const totalValorProtegidoGeral = categorias.reduce((sum, cat) => {
-      return sum + ((data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0);
-    }, 0);
+    const totalVeiculosGeral = categorias.reduce(
+      (sum, cat) => sum + (((data as any)[`qtd_${cat.key}`] as number) || 0),
+      0,
+    );
+    const totalVeiculosAtivos = categorias.reduce(
+      (sum, cat) => sum + (((data as any)[`protegido_${cat.key}`] as number) || 0),
+      0,
+    );
+    const totalValorProtegidoGeral = categorias.reduce(
+      (sum, cat) => sum + (((data as any)[`valor_protegido_${cat.key}`] as number) || 0),
+      0,
+    );
 
     const totalTMPonderado = categorias.reduce((sum, cat) => {
-      const qtd = (data[`qtd_${cat.key}` as keyof EstudoBaseData] as number) || 0;
-      const tm = (data[`tm_${cat.key}` as keyof EstudoBaseData] as number) || 0;
+      const qtd = ((data as any)[`qtd_${cat.key}`] as number) || 0;
+      const tm = ((data as any)[`tm_${cat.key}`] as number) || 0;
       return sum + qtd * tm;
     }, 0);
 
@@ -340,7 +339,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
     return categorias
       .map((cat, index) => ({
         name: cat.label,
-        value: (data[`qtd_${cat.key}` as keyof EstudoBaseData] as number) || 0,
+        value: ((data as any)[`qtd_${cat.key}`] as number) || 0,
         fill: COLORS[index % COLORS.length],
       }))
       .filter((d) => d.value > 0);
@@ -351,7 +350,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
     return categorias
       .map((cat) => ({
         categoria: cat.label,
-        valor: (data[`tm_${cat.key}` as keyof EstudoBaseData] as number) || 0,
+        valor: ((data as any)[`tm_${cat.key}`] as number) || 0,
       }))
       .filter((d) => d.valor > 0);
   }, [data]);
@@ -359,9 +358,9 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
   const chartKey = useMemo(() => {
     if (!data) return "empty";
     return JSON.stringify({
-      qtd: categorias.map((c) => data[`qtd_${c.key}` as keyof EstudoBaseData]),
-      tm: categorias.map((c) => data[`tm_${c.key}` as keyof EstudoBaseData]),
-      vp: categorias.map((c) => data[`valor_protegido_${c.key}` as keyof EstudoBaseData]),
+      qtd: categorias.map((c) => (data as any)[`qtd_${c.key}`]),
+      tm: categorias.map((c) => (data as any)[`tm_${c.key}`]),
+      vp: categorias.map((c) => (data as any)[`valor_protegido_${c.key}`]),
     });
   }, [data]);
 
@@ -377,7 +376,6 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-xl font-bold">Estudo de Base</h2>
@@ -404,7 +402,6 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
         </div>
       </div>
 
-      {/* Totais Gerais */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4">
@@ -435,7 +432,6 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
         </Card>
       </div>
 
-      {/* Tabela de Categorias */}
       <Card>
         <div className="p-6 pb-0">
           <CardTitle className="text-lg">Detalhamento por Categoria</CardTitle>
@@ -472,14 +468,14 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
                         {canEdit ? (
                           <Input
                             type="number"
-                            value={((data[`qtd_${cat.key}` as keyof EstudoBaseData] as number) || 0).toString()}
+                            value={(((data as any)[`qtd_${cat.key}`] as number) || 0).toString()}
                             onChange={(e) =>
                               updateField(`qtd_${cat.key}` as keyof EstudoBaseData, parseInt(e.target.value, 10) || 0)
                             }
                             className="h-8 w-24 text-right ml-auto"
                           />
                         ) : (
-                          ((data[`qtd_${cat.key}` as keyof EstudoBaseData] as number) || 0).toLocaleString("pt-BR")
+                          ((((data as any)[`qtd_${cat.key}`] as number) || 0) as number).toLocaleString("pt-BR")
                         )}
                       </td>
 
@@ -488,14 +484,14 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
                           <Input
                             type="number"
                             step="0.01"
-                            value={((data[`tm_${cat.key}` as keyof EstudoBaseData] as number) || 0).toString()}
+                            value={(((data as any)[`tm_${cat.key}`] as number) || 0).toString()}
                             onChange={(e) =>
                               updateField(`tm_${cat.key}` as keyof EstudoBaseData, parseFloat(e.target.value) || 0)
                             }
                             className="h-8 w-28 text-right ml-auto"
                           />
                         ) : (
-                          formatCurrency((data[`tm_${cat.key}` as keyof EstudoBaseData] as number) || 0)
+                          formatCurrency((((data as any)[`tm_${cat.key}`] as number) || 0) as number)
                         )}
                       </td>
 
@@ -503,7 +499,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
                         {canEdit ? (
                           <Input
                             type="number"
-                            value={((data[`protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0).toString()}
+                            value={(((data as any)[`protegido_${cat.key}`] as number) || 0).toString()}
                             onChange={(e) =>
                               updateField(
                                 `protegido_${cat.key}` as keyof EstudoBaseData,
@@ -513,9 +509,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
                             className="h-8 w-24 text-right ml-auto"
                           />
                         ) : (
-                          ((data[`protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0).toLocaleString(
-                            "pt-BR",
-                          )
+                          ((((data as any)[`protegido_${cat.key}`] as number) || 0) as number).toLocaleString("pt-BR")
                         )}
                       </td>
 
@@ -524,9 +518,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
                           <Input
                             type="number"
                             step="0.01"
-                            value={(
-                              (data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0
-                            ).toString()}
+                            value={(((data as any)[`valor_protegido_${cat.key}`] as number) || 0).toString()}
                             onChange={(e) =>
                               updateField(
                                 `valor_protegido_${cat.key}` as keyof EstudoBaseData,
@@ -536,7 +528,7 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
                             className="h-8 w-32 text-right ml-auto"
                           />
                         ) : (
-                          formatCurrency((data[`valor_protegido_${cat.key}` as keyof EstudoBaseData] as number) || 0)
+                          formatCurrency((((data as any)[`valor_protegido_${cat.key}`] as number) || 0) as number)
                         )}
                       </td>
                     </tr>
@@ -548,7 +540,6 @@ export default function PIDEstudoBase({ corretoraId }: { corretoraId?: string })
         </CardContent>
       </Card>
 
-      {/* Gráficos */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <div className="p-6 pb-0">
