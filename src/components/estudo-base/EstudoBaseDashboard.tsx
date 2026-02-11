@@ -68,7 +68,7 @@ const FAIXAS_VALOR = [
   { label: "Acima de R$ 100.000", value: "100000-999999999" },
 ];
 
-// --------- UI Helpers ----------
+// ---------- UI helpers ----------
 
 const pieLabel = (props: any) => {
   const { name, value, percent } = props;
@@ -108,7 +108,6 @@ function NumbersList({
 type MonthItem = { mes: string; total: number; raw: string; variacao?: number | null };
 
 function formatPct(n: number) {
-  // 2 casas, usando vírgula pt-BR
   return `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2, minimumFractionDigits: 2 })}%`;
 }
 
@@ -178,7 +177,7 @@ function MonthsCounterList({
   );
 }
 
-// --------- Component ----------
+// ---------- Component ----------
 
 export default function EstudoBaseDashboard({ registros, loading, filters, onFiltersChange }: Props) {
   // Extract filter options
@@ -266,7 +265,6 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
     const ascWithVar: MonthItem[] = asc.map((cur, idx) => {
       const prev = idx > 0 ? asc[idx - 1] : null;
 
-      // variação vs mês anterior: (cur-prev)/prev * 100
       let variacao: number | null = null;
       if (prev && prev.total > 0) {
         variacao = ((cur.total - prev.total) / prev.total) * 100;
@@ -281,13 +279,10 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
     return ascWithVar.sort((a, b) => b.raw.localeCompare(a.raw));
   }, [filtered]);
 
-  // ✅ Gráfico do mês (se você quiser no tempo “esquerda antigo -> direita atual”)
-  const cadastrosPorMesChart = useMemo(() => {
-    // a lista está “novo->antigo”, então invertendo para o gráfico ficar cronológico
-    return [...cadastrosPorMes].reverse();
-  }, [cadastrosPorMes]);
+  // ✅ gráfico cronológico (antigo->novo)
+  const cadastrosPorMesChart = useMemo(() => [...cadastrosPorMes].reverse(), [cadastrosPorMes]);
 
-  // ✅ opcional (mantive): veículos com eventos por mês
+  // ✅ Veículos com eventos por mês (gráfico)
   const eventosPorMes = useMemo(() => {
     const map = new Map<string, number>();
     filtered.forEach((r) => {
@@ -364,6 +359,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
       }))
       .filter((f) => f.total > 0);
   }, [filtered]);
+
   const estadoCivilData = useMemo(() => buildRanking("estado_civil"), [filtered]);
   const montadoraData = useMemo(() => buildRanking("montadora", 15), [filtered]);
   const modeloData = useMemo(() => buildRanking("modelo", 15), [filtered]);
@@ -423,6 +419,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
               Limpar
             </Button>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Situação</Label>
@@ -535,6 +532,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
             <div className="mt-1 text-2xl font-bold">{totalPlacas.toLocaleString("pt-BR")}</div>
           </CardContent>
         </Card>
+
         <Card className="border-green-500/20 bg-green-500/5">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -544,6 +542,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
             <div className="mt-1 text-2xl font-bold">{formatCurrency(totalValorProtegido)}</div>
           </CardContent>
         </Card>
+
         <Card className="border-amber-500/20 bg-amber-500/5">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -553,6 +552,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
             <div className="mt-1 text-2xl font-bold">{formatCurrency(ticketMedio)}</div>
           </CardContent>
         </Card>
+
         <Card className="border-purple-500/20 bg-purple-500/5">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -564,14 +564,14 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
         </Card>
       </div>
 
-      {/* Charts Row 1: Situação + Cadastros por Mês */}
+      {/* ✅ ROW: Placas por Situação + Total de Veículos com Evento (gráfico) lado a lado */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Placas por Situação</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[320px]">
               {placasPorSituacao.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -581,8 +581,8 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={50}
-                      outerRadius={90}
+                      innerRadius={55}
+                      outerRadius={95}
                       paddingAngle={2}
                       label={pieLabel}
                       labelLine={false}
@@ -600,24 +600,24 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
               )}
             </div>
 
-            <NumbersList items={placasPorSituacao} />
+            <NumbersList items={placasPorSituacao} max={10} />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Cadastros por Mês (Data Contrato)</CardTitle>
+            <CardTitle className="text-lg">Total de Veículos com Evento (por mês)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
-              {cadastrosPorMesChart.length > 0 ? (
+            <div className="h-[320px]">
+              {eventosPorMes.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={cadastrosPorMesChart}>
+                  <BarChart data={eventosPorMes}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
                     <YAxis allowDecimals={false} />
                     <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
-                    <Bar dataKey="total" fill="#2563eb" radius={[4, 4, 0, 0]}>
+                    <Bar dataKey="total" fill="#7c3aed" radius={[4, 4, 0, 0]}>
                       <LabelList
                         dataKey="total"
                         position="top"
@@ -628,20 +628,60 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  Sem eventos no período filtrado
+                </div>
+              )}
+            </div>
+
+            <NumbersList
+              items={eventosPorMes
+                .slice()
+                .reverse()
+                .map((i) => ({ name: i.mes, value: i.total }))}
+              max={12}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ✅ Cadastros por Mês em largura total */}
+      <div className="grid gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Cadastros por Mês (Data Contrato)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[360px]">
+              {cadastrosPorMesChart.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={cadastrosPorMesChart}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
+                    <Bar dataKey="total" fill="#2563eb" radius={[6, 6, 0, 0]}>
+                      <LabelList
+                        dataKey="total"
+                        position="top"
+                        formatter={(v: any) => Number(v).toLocaleString("pt-BR")}
+                        style={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
               )}
             </div>
 
             {/* ✅ Lista com scroll + variação + meses mais atuais primeiro */}
-            <MonthsCounterList items={cadastrosPorMes} maxHeightClass="max-h-[220px]" />
+            <MonthsCounterList items={cadastrosPorMes} maxHeightClass="max-h-[260px]" />
           </CardContent>
         </Card>
       </div>
 
-      {/* (mantive o resto do dashboard como estava — se quiser aplicar a mesma lista+scroll em outros gráficos,
-          é só me falar quais) */}
-
-      {/* Charts Row 2: Valor Protegido Faixa + Montadora */}
+      {/* Charts Row: Valor Protegido Faixa + Montadora */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -708,7 +748,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
         </Card>
       </div>
 
-      {/* Charts Row 3: Sexo + Idade */}
+      {/* Charts Row: Sexo + Idade */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -725,8 +765,8 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={50}
-                      outerRadius={90}
+                      innerRadius={55}
+                      outerRadius={95}
                       paddingAngle={2}
                       label={pieLabel}
                       labelLine={false}
@@ -781,7 +821,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
         </Card>
       </div>
 
-      {/* Charts Row 4: Estado Civil + Categoria */}
+      {/* Charts Row: Estado Civil + Categoria */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -798,8 +838,8 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={50}
-                      outerRadius={90}
+                      innerRadius={55}
+                      outerRadius={95}
                       paddingAngle={2}
                       label={pieLabel}
                       labelLine={false}
@@ -850,7 +890,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
         </Card>
       </div>
 
-      {/* Charts Row 5: Modelo + Ano Modelo */}
+      {/* Charts Row: Modelo + Ano Modelo */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -892,7 +932,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
                   <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                   <YAxis allowDecimals={false} />
                   <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
-                  <Bar dataKey="value" fill="#06b6d4" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="value" fill="#06b6d4" radius={[6, 6, 0, 0]}>
                     <LabelList
                       dataKey="value"
                       position="top"
@@ -909,8 +949,49 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
         </Card>
       </div>
 
-      {/* Charts Row 6: Regional + Voluntário + Passageiros */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* ✅ Voluntário em largura total (ao longo da tela) */}
+      <div className="grid gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Voluntário</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[380px]">
+              {voluntarioData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={voluntarioData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={70}
+                      outerRadius={130}
+                      paddingAngle={2}
+                      label={pieLabel}
+                      labelLine={false}
+                    >
+                      {voluntarioData.map((e, i) => (
+                        <Cell key={i} fill={e.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
+              )}
+            </div>
+
+            <NumbersList items={voluntarioData} max={20} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Row: Regional + Passageiros (mantive 2 colunas) */}
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Regional/Cooperativa</CardTitle>
@@ -921,7 +1002,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
                 <BarChart data={regionalData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis type="number" allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 9 }} />
+                  <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 10 }} />
                   <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
                   <Bar dataKey="value" fill="#2563eb" radius={[0, 4, 4, 0]}>
                     <LabelList
@@ -941,40 +1022,6 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Voluntário</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[350px]">
-            {voluntarioData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={voluntarioData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={90}
-                    paddingAngle={2}
-                    label={pieLabel}
-                    labelLine={false}
-                  >
-                    {voluntarioData.map((e, i) => (
-                      <Cell key={i} fill={e.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle className="text-lg">Nº de Passageiros</CardTitle>
           </CardHeader>
           <CardContent className="h-[350px]">
@@ -985,7 +1032,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
                   <XAxis dataKey="name" />
                   <YAxis allowDecimals={false} />
                   <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
-                  <Bar dataKey="value" fill="#84cc16" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="value" fill="#84cc16" radius={[6, 6, 0, 0]}>
                     <LabelList
                       dataKey="value"
                       position="top"
