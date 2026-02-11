@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useState } from "react";
 import { Json } from "@/integrations/supabase/types";
 
-type Modulo = "bi_indicadores" | "sga_insights" | "mgf_insights" | "cobranca_insights";
+type Modulo = "bi_indicadores" | "sga_insights" | "mgf_insights" | "cobranca_insights" | "estudo_base";
 type Acao = "importacao" | "alteracao" | "exclusao" | "visualizacao";
 
 interface LogParams {
