@@ -1,0 +1,523 @@
+import { useEffect, useRef, useMemo, useState } from "react";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Map, Search, MapPin, AlertCircle, DollarSign, ZoomIn, ZoomOut, Maximize, Building2, Navigation, Layers, Users, Car } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+
+interface EstudoBaseMapaProps {
+  registros: any[];
+  loading: boolean;
+}
+
+// Coordenadas dos estados brasileiros
+const STATE_COORDS: { [key: string]: [number, number] } = {
+  "AC": [-70.55, -9.02], "AL": [-36.62, -9.62], "AM": [-64.66, -3.47],
+  "AP": [-51.07, 1.41], "BA": [-41.71, -12.97], "CE": [-39.32, -5.20],
+  "DF": [-47.93, -15.83], "ES": [-40.31, -19.19], "GO": [-49.64, -15.98],
+  "MA": [-45.27, -5.42], "MG": [-44.56, -18.10], "MS": [-54.79, -20.51],
+  "MT": [-56.10, -12.64], "PA": [-52.29, -3.79], "PB": [-36.62, -7.28],
+  "PE": [-37.86, -8.38], "PI": [-42.28, -7.72], "PR": [-51.61, -24.89],
+  "RJ": [-43.17, -22.25], "RN": [-36.52, -5.81], "RO": [-63.58, -10.83],
+  "RR": [-61.39, 2.74], "RS": [-53.21, -29.75], "SC": [-49.58, -27.45],
+  "SE": [-37.45, -10.57], "SP": [-48.55, -22.19], "TO": [-48.33, -10.18]
+};
+
+// Base de cidades brasileiras com coordenadas (as mais comuns)
+const BRAZILIAN_CITIES: { [key: string]: [number, number] } = {
+  "SAO PAULO": [-46.6333, -23.5505], "CAMPINAS": [-47.0608, -22.9056], "GUARULHOS": [-46.5333, -23.4628],
+  "SANTOS": [-46.3333, -23.9608], "RIBEIRAO PRETO": [-47.8103, -21.1783], "SOROCABA": [-47.4581, -23.5015],
+  "SAO BERNARDO DO CAMPO": [-46.5650, -23.6914], "SANTO ANDRE": [-46.5384, -23.6737],
+  "OSASCO": [-46.7917, -23.5325], "SAO JOSE DOS CAMPOS": [-45.8869, -23.1896],
+  "PIRACICABA": [-47.6492, -22.7255], "BAURU": [-49.0606, -22.3246], "JUNDIAI": [-46.8844, -23.1864],
+  "FRANCA": [-47.4008, -20.5389], "SAO CARLOS": [-47.8908, -22.0175],
+  "AMERICANA": [-47.3308, -22.7392], "MARILIA": [-49.9461, -22.2139],
+  "ARARAQUARA": [-48.1758, -21.7942], "PRESIDENTE PRUDENTE": [-51.3886, -22.1256],
+  "SAO JOSE DO RIO PRETO": [-49.3794, -20.8197], "ARACATUBA": [-50.4328, -21.2089],
+  "RIO DE JANEIRO": [-43.1729, -22.9068], "NITEROI": [-43.1044, -22.8833],
+  "DUQUE DE CAXIAS": [-43.3117, -22.7847], "NOVA IGUACU": [-43.4511, -22.7592],
+  "SAO GONCALO": [-43.0533, -22.8269], "PETROPOLIS": [-43.1789, -22.5050],
+  "VOLTA REDONDA": [-44.1042, -22.5231], "CAMPOS DOS GOYTACAZES": [-41.3269, -21.7625],
+  "BELO HORIZONTE": [-43.9378, -19.9167], "UBERLANDIA": [-48.2772, -18.9186],
+  "CONTAGEM": [-44.0539, -19.9319], "JUIZ DE FORA": [-43.3503, -21.7642],
+  "BETIM": [-44.1983, -19.9678], "MONTES CLAROS": [-43.8617, -16.7350],
+  "UBERABA": [-47.9319, -19.7472], "GOVERNADOR VALADARES": [-41.9500, -18.8511],
+  "IPATINGA": [-42.5369, -19.4686], "SETE LAGOAS": [-44.2469, -19.4656],
+  "DIVINOPOLIS": [-44.8836, -20.1389], "POCOS DE CALDAS": [-46.5617, -21.7878],
+  "PATOS DE MINAS": [-46.5181, -18.5789], "VARGINHA": [-45.4303, -21.5511],
+  "CURITIBA": [-49.2731, -25.4297], "LONDRINA": [-51.1628, -23.3103],
+  "MARINGA": [-51.9386, -23.4253], "PONTA GROSSA": [-50.1617, -25.0947],
+  "CASCAVEL": [-53.4550, -24.9556], "FOZ DO IGUACU": [-54.5881, -25.5478],
+  "GUARAPUAVA": [-51.4581, -25.3903], "TOLEDO": [-53.7428, -24.7136],
+  "PORTO ALEGRE": [-51.2303, -30.0331], "CAXIAS DO SUL": [-51.1794, -29.1678],
+  "CANOAS": [-51.1839, -29.9178], "PELOTAS": [-52.3411, -31.7654],
+  "SANTA MARIA": [-53.8069, -29.6842], "NOVO HAMBURGO": [-51.1306, -29.6789],
+  "PASSO FUNDO": [-52.4064, -28.2622],
+  "FLORIANOPOLIS": [-48.5486, -27.5944], "JOINVILLE": [-48.8461, -26.3031],
+  "BLUMENAU": [-49.0661, -26.9194], "CHAPECO": [-52.6156, -27.0964],
+  "ITAJAI": [-48.6617, -26.9078], "CRICIUMA": [-49.3697, -28.6775],
+  "LAGES": [-50.3264, -27.8153],
+  "GOIANIA": [-49.2539, -16.6869], "APARECIDA DE GOIANIA": [-49.2469, -16.8228],
+  "ANAPOLIS": [-48.9528, -16.3281], "RIO VERDE": [-50.9281, -17.7928],
+  "SALVADOR": [-38.5014, -12.9714], "FEIRA DE SANTANA": [-38.9667, -12.2667],
+  "VITORIA DA CONQUISTA": [-40.8389, -14.8617], "ILHEUS": [-39.0464, -14.7889],
+  "RECIFE": [-34.8811, -8.0539], "JABOATAO DOS GUARARAPES": [-35.0153, -8.1128],
+  "OLINDA": [-34.8553, -8.0089], "CARUARU": [-35.9761, -8.2850],
+  "FORTALEZA": [-38.5267, -3.7172], "CAUCAIA": [-38.6531, -3.7361],
+  "JUAZEIRO DO NORTE": [-39.3153, -7.2131], "SOBRAL": [-40.3481, -3.6894],
+  "BELEM": [-48.4897, -1.4558], "ANANINDEUA": [-48.3722, -1.3656],
+  "SANTAREM": [-54.7081, -2.4386], "MARABA": [-49.1178, -5.3686],
+  "MANAUS": [-60.0250, -3.1019], "NATAL": [-35.2094, -5.7950],
+  "MOSSORO": [-37.3442, -5.1875], "JOAO PESSOA": [-34.8631, -7.1153],
+  "CAMPINA GRANDE": [-35.8811, -7.2306], "MACEIO": [-35.7353, -9.6658],
+  "ARACAJU": [-37.0714, -10.9472], "TERESINA": [-42.8019, -5.0920],
+  "SAO LUIS": [-44.2825, -2.5297], "CUIABA": [-56.0978, -15.6014],
+  "RONDONOPOLIS": [-54.6356, -16.4697], "SINOP": [-55.5036, -11.8644],
+  "CAMPO GRANDE": [-54.6464, -20.4428], "DOURADOS": [-54.8056, -22.2211],
+  "VITORIA": [-40.3378, -20.2976], "VILA VELHA": [-40.2897, -20.3297],
+  "SERRA": [-40.3078, -20.1283], "PALMAS": [-48.3336, -10.2128],
+  "PORTO VELHO": [-63.9039, -8.7619], "RIO BRANCO": [-67.8100, -9.9747],
+  "MACAPA": [-51.0669, 0.0356], "BOA VISTA": [-60.6719, 2.8197],
+  "BRASILIA": [-47.9297, -15.7797],
+  // MG interior
+  "PASSOS": [-46.6092, -20.7189], "ALFENAS": [-45.9472, -21.4294],
+  "LAVRAS": [-45.0003, -21.2458], "ITAJUBA": [-45.4528, -22.4256],
+  "POUSO ALEGRE": [-45.9364, -22.2300], "TRES CORACOES": [-45.2556, -21.6947],
+  "FORMIGA": [-45.4264, -20.4642], "BARBACENA": [-43.7736, -21.2256],
+  "ARAGUARI": [-48.1878, -18.6486], "ITUIUTABA": [-49.4644, -18.9689],
+  "ARAXA": [-46.9406, -19.5933], "PATROCINIO": [-46.9928, -18.9439],
+  "MURIAE": [-42.3661, -21.1306], "CATAGUASES": [-42.6936, -21.3897],
+  "OURO PRETO": [-43.5044, -20.3856], "CURVELO": [-44.4306, -18.7564],
+  "PIRAPORA": [-44.9428, -17.3447], "JANUARIA": [-44.3614, -15.4878],
+  "JANAUBA": [-43.3086, -15.8036], "TEOFILO OTONI": [-41.5053, -17.8575],
+  "CARATINGA": [-42.1392, -19.7897],
+};
+
+const normalizeText = (name: string): string =>
+  name.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9 ]/g, "").trim();
+
+const getCityCoords = (cityName: string, state: string): [number, number] | null => {
+  const normalized = normalizeText(cityName);
+  if (BRAZILIAN_CITIES[normalized]) return BRAZILIAN_CITIES[normalized];
+  for (const [knownCity, coords] of Object.entries(BRAZILIAN_CITIES)) {
+    if (normalized.includes(knownCity) || knownCity.includes(normalized)) return coords;
+  }
+  const stateCoords = STATE_COORDS[state];
+  if (stateCoords) {
+    const hash = normalized.split("").reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0);
+    return [stateCoords[0] + ((hash % 100) / 100 - 0.5) * 1.5, stateCoords[1] + (((hash >> 8) % 100) / 100 - 0.5) * 1.5];
+  }
+  return null;
+};
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+
+const getMarkerColor = (count: number, max: number) => {
+  const ratio = count / max;
+  if (ratio < 0.2) return "hsl(220, 85%, 70%)";
+  if (ratio < 0.4) return "hsl(220, 85%, 55%)";
+  if (ratio < 0.6) return "hsl(250, 75%, 55%)";
+  if (ratio < 0.8) return "hsl(270, 70%, 50%)";
+  return "hsl(270, 70%, 40%)";
+};
+
+const IBGE_STATES_GEOJSON = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson";
+
+export default function EstudoBaseMapa({ registros, loading }: EstudoBaseMapaProps) {
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<mapboxgl.Marker[]>([]);
+
+  const [searchCity, setSearchCity] = useState("");
+  const [selectedEstado, setSelectedEstado] = useState<string>("todos");
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [activeTab, setActiveTab] = useState<"estados" | "cidades">("estados");
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showClusters, setShowClusters] = useState(true);
+
+  // Aggregate data by state/city using cidade_veiculo + estado
+  const locationData = useMemo(() => {
+    const byState: { [key: string]: { count: number; valorTotal: number; cities: { [key: string]: { count: number; valorTotal: number } } } } = {};
+
+    registros.forEach((r) => {
+      const estado = (r.estado || "").toUpperCase().trim();
+      const cidade = (r.cidade_veiculo || "").toUpperCase().trim();
+
+      if (!estado || estado.length !== 2 || !STATE_COORDS[estado]) return;
+
+      if (!byState[estado]) {
+        byState[estado] = { count: 0, valorTotal: 0, cities: {} };
+      }
+      byState[estado].count += 1;
+      byState[estado].valorTotal += r.valor_protegido || 0;
+
+      const cidadeKey = cidade && cidade !== "N/I" && cidade.length > 0 ? cidade : `${estado} (Sem cidade)`;
+      if (!byState[estado].cities[cidadeKey]) {
+        byState[estado].cities[cidadeKey] = { count: 0, valorTotal: 0 };
+      }
+      byState[estado].cities[cidadeKey].count += 1;
+      byState[estado].cities[cidadeKey].valorTotal += r.valor_protegido || 0;
+    });
+
+    const byCityGlobal: { state: string; city: string; count: number; valorTotal: number; coords: [number, number] | null }[] = [];
+    Object.entries(byState).forEach(([state, data]) => {
+      Object.entries(data.cities).forEach(([city, cityData]) => {
+        const coords = city.includes("(Sem cidade)") ? STATE_COORDS[state] : getCityCoords(city, state);
+        byCityGlobal.push({ state, city, count: cityData.count, valorTotal: cityData.valorTotal, coords });
+      });
+    });
+
+    const maxCount = Math.max(...Object.values(byState).map((s) => s.count), 1);
+    const maxCityCount = Math.max(...byCityGlobal.map((c) => c.count), 1);
+
+    return { byState, byCityGlobal, maxCount, maxCityCount };
+  }, [registros]);
+
+  const filteredCities = useMemo(() => {
+    let cities = locationData.byCityGlobal;
+    if (selectedEstado !== "todos") cities = cities.filter((c) => c.state === selectedEstado);
+    if (searchCity) {
+      const search = normalizeText(searchCity);
+      cities = cities.filter((c) => normalizeText(c.city).includes(search) || c.state.includes(search));
+    }
+    return cities.sort((a, b) => b.count - a.count);
+  }, [locationData.byCityGlobal, selectedEstado, searchCity]);
+
+  const filteredStates = useMemo(() => {
+    return Object.entries(locationData.byState)
+      .map(([estado, data]) => ({ estado, ...data }))
+      .filter((e) => !searchCity || e.estado.includes(searchCity.toUpperCase()))
+      .sort((a, b) => b.count - a.count);
+  }, [locationData.byState, searchCity]);
+
+  const geoJsonData = useMemo(() => ({
+    type: "FeatureCollection" as const,
+    features: filteredCities
+      .filter((c) => c.coords)
+      .map((city) => ({
+        type: "Feature" as const,
+        properties: { city: city.city, state: city.state, count: city.count, valorTotal: city.valorTotal, mag: city.count },
+        geometry: { type: "Point" as const, coordinates: city.coords as [number, number] },
+      })),
+  }), [filteredCities]);
+
+  // Initialize map
+  useEffect(() => {
+    if (!mapContainer.current || map.current) return;
+    mapboxgl.accessToken = "pk.eyJ1IjoicmlzZXJpbyIsImEiOiJjbWlwYTNyMXkwOXgxM2VvdjZlOW94cjJnIn0.n1tbMo64JleTBaBszGpN7g";
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: "mapbox://styles/mapbox/light-v11",
+      center: [-55, -15],
+      zoom: 3.5,
+      minZoom: 2,
+      maxZoom: 14,
+    });
+    map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+    map.current.on("load", () => {
+      map.current?.addSource("brazil-states", { type: "geojson", data: IBGE_STATES_GEOJSON });
+      map.current?.addLayer({ id: "states-fill", type: "fill", source: "brazil-states", paint: { "fill-color": "hsla(220, 85%, 55%, 0.05)", "fill-outline-color": "hsla(220, 85%, 55%, 0.3)" } });
+      map.current?.addLayer({ id: "states-line", type: "line", source: "brazil-states", paint: { "line-color": "hsla(220, 85%, 55%, 0.5)", "line-width": 1 } });
+      setMapReady(true);
+    });
+    return () => { map.current?.remove(); map.current = null; };
+  }, []);
+
+  // Heatmap & clusters
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+    ["heatmap-layer", "clusters", "cluster-count", "unclustered-point"].forEach((id) => { if (map.current?.getLayer(id)) map.current.removeLayer(id); });
+    ["base-heatmap", "base-cluster"].forEach((id) => { if (map.current?.getSource(id)) map.current.removeSource(id); });
+
+    if (showHeatmap) {
+      map.current.addSource("base-heatmap", { type: "geojson", data: geoJsonData });
+      map.current.addLayer({
+        id: "heatmap-layer", type: "heatmap", source: "base-heatmap",
+        paint: {
+          "heatmap-weight": ["interpolate", ["linear"], ["get", "count"], 0, 0, 100, 1],
+          "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 9, 3],
+          "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(0,0,0,0)", 0.2, "hsla(220, 85%, 70%, 0.5)", 0.4, "hsla(220, 85%, 55%, 0.6)", 0.6, "hsla(250, 75%, 55%, 0.7)", 0.8, "hsla(270, 70%, 50%, 0.8)", 1, "hsla(270, 70%, 40%, 0.9)"],
+          "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 10, 9, 30],
+          "heatmap-opacity": 0.8,
+        },
+      }, "states-fill");
+    }
+
+    if (showClusters && !showHeatmap) {
+      map.current.addSource("base-cluster", {
+        type: "geojson", data: geoJsonData, cluster: true, clusterMaxZoom: 12, clusterRadius: 50,
+        clusterProperties: { sum: ["+", ["get", "count"]], totalValor: ["+", ["get", "valorTotal"]] },
+      });
+      map.current.addLayer({
+        id: "clusters", type: "circle", source: "base-cluster", filter: ["has", "point_count"],
+        paint: {
+          "circle-color": ["step", ["get", "point_count"], "hsl(220, 85%, 70%)", 10, "hsl(220, 85%, 55%)", 30, "hsl(250, 75%, 55%)", 50, "hsl(270, 70%, 50%)", 100, "hsl(270, 70%, 40%)"],
+          "circle-radius": ["step", ["get", "point_count"], 20, 10, 25, 30, 30, 50, 35, 100, 45],
+          "circle-stroke-width": 3, "circle-stroke-color": "#fff",
+        },
+      });
+      map.current.addLayer({
+        id: "cluster-count", type: "symbol", source: "base-cluster", filter: ["has", "point_count"],
+        layout: { "text-field": "{point_count_abbreviated}", "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"], "text-size": 12 },
+        paint: { "text-color": "#ffffff" },
+      });
+      map.current.addLayer({
+        id: "unclustered-point", type: "circle", source: "base-cluster", filter: ["!", ["has", "point_count"]],
+        paint: { "circle-color": "hsl(220, 85%, 55%)", "circle-radius": 8, "circle-stroke-width": 2, "circle-stroke-color": "#fff" },
+      });
+
+      map.current.on("click", "clusters", (e) => {
+        const features = map.current?.queryRenderedFeatures(e.point, { layers: ["clusters"] });
+        if (!features?.length) return;
+        const clusterId = features[0].properties?.cluster_id;
+        const source = map.current?.getSource("base-cluster") as mapboxgl.GeoJSONSource;
+        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+          if (err || !map.current) return;
+          map.current.easeTo({ center: (features[0].geometry as any).coordinates, zoom });
+        });
+      });
+
+      map.current.on("click", "unclustered-point", (e) => {
+        const features = e.features;
+        if (!features?.length) return;
+        const props = features[0].properties;
+        const coords = (features[0].geometry as any).coordinates.slice();
+        new mapboxgl.Popup({ offset: 25 })
+          .setLngLat(coords)
+          .setHTML(`
+            <div style="padding: 10px; min-width: 180px;">
+              <h3 style="font-weight: bold; font-size: 14px; margin-bottom: 2px; color: hsl(220, 85%, 35%);">${props?.city}</h3>
+              <p style="font-size: 11px; color: #666; margin-bottom: 8px;">${props?.state}</p>
+              <div style="background: hsl(220, 20%, 97%); border-radius: 8px; padding: 8px;">
+                <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+                  <span style="color: #64748b;">Veículos:</span>
+                  <strong style="color: hsl(220, 85%, 35%);">${props?.count?.toLocaleString("pt-BR")}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                  <span style="color: #64748b;">Valor Protegido:</span>
+                  <strong style="color: hsl(270, 70%, 50%);">${formatCurrency(props?.valorTotal || 0)}</strong>
+                </div>
+              </div>
+            </div>
+          `)
+          .addTo(map.current!);
+      });
+
+      ["clusters", "unclustered-point"].forEach((layer) => {
+        map.current?.on("mouseenter", layer, () => { if (map.current) map.current.getCanvas().style.cursor = "pointer"; });
+        map.current?.on("mouseleave", layer, () => { if (map.current) map.current.getCanvas().style.cursor = ""; });
+      });
+    }
+  }, [mapReady, geoJsonData, showHeatmap, showClusters]);
+
+  // Manual markers when not using clusters
+  useEffect(() => {
+    if (!map.current || !mapReady || showClusters || showHeatmap) {
+      markersRef.current.forEach((m) => m.remove());
+      markersRef.current = [];
+      return;
+    }
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current = [];
+    filteredCities.forEach((city) => {
+      if (!city.coords) return;
+      const size = Math.max(20, Math.min(55, 20 + (city.count / locationData.maxCityCount) * 35));
+      const color = getMarkerColor(city.count, locationData.maxCityCount);
+      const el = document.createElement("div");
+      Object.assign(el.style, { width: `${size}px`, height: `${size}px`, backgroundColor: color, borderRadius: "50%", border: "3px solid white", boxShadow: "0 2px 8px rgba(0,0,0,0.3)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "bold", fontSize: size > 35 ? "11px" : "9px" });
+      el.textContent = city.count > 99 ? "99+" : city.count.toString();
+      const marker = new mapboxgl.Marker(el)
+        .setLngLat(city.coords)
+        .setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(`
+          <div style="padding: 10px; min-width: 180px;">
+            <h3 style="font-weight: bold; font-size: 14px; color: hsl(220, 85%, 35%);">${city.city}</h3>
+            <p style="font-size: 11px; color: #666; margin-bottom: 8px;">${city.state}</p>
+            <div style="background: hsl(220, 20%, 97%); border-radius: 8px; padding: 8px;">
+              <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+                <span>Veículos:</span><strong>${city.count.toLocaleString("pt-BR")}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                <span>Valor Protegido:</span><strong>${formatCurrency(city.valorTotal)}</strong>
+              </div>
+            </div>
+          </div>
+        `))
+        .addTo(map.current!);
+      markersRef.current.push(marker);
+    });
+  }, [mapReady, locationData, filteredCities, showClusters, showHeatmap]);
+
+  const zoomToBrazil = () => { setSelectedEstado("todos"); setSelectedCity(null); setActiveTab("estados"); map.current?.flyTo({ center: [-55, -15], zoom: 3.5, duration: 1000 }); };
+  const zoomToState = (estado: string) => { const coords = STATE_COORDS[estado]; if (coords && map.current) { setSelectedEstado(estado); setSelectedCity(null); setActiveTab("cidades"); map.current.flyTo({ center: coords, zoom: 6, duration: 1500 }); } };
+  const zoomToCity = (city: typeof filteredCities[0]) => { if (city.coords && map.current) { setSelectedCity(`${city.state}-${city.city}`); map.current.flyTo({ center: city.coords, zoom: 10, duration: 1500 }); } };
+
+  if (loading) return <div className="grid gap-6 lg:grid-cols-3"><Skeleton className="h-[550px] lg:col-span-2" /><Skeleton className="h-[550px]" /></div>;
+
+  if (!registros.length) return (
+    <Card className="text-center py-12"><CardContent><AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><h3 className="text-lg font-semibold mb-2">Nenhum Dado Disponível</h3><p className="text-muted-foreground">Importe uma planilha para visualizar o mapa.</p></CardContent></Card>
+  );
+
+  const legendColors = [
+    { color: "hsl(220, 85%, 70%)", label: "Muito baixo" },
+    { color: "hsl(220, 85%, 55%)", label: "Baixo" },
+    { color: "hsl(250, 75%, 55%)", label: "Médio" },
+    { color: "hsl(270, 70%, 50%)", label: "Alto" },
+    { color: "hsl(270, 70%, 40%)", label: "Muito alto" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex-1 min-w-[200px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Buscar cidade ou estado..." value={searchCity} onChange={(e) => setSearchCity(e.target.value)} className="pl-10" />
+              </div>
+            </div>
+            <Select value={selectedEstado} onValueChange={(v) => { if (v === "todos") zoomToBrazil(); else zoomToState(v); }}>
+              <SelectTrigger className="w-[200px]"><SelectValue placeholder="Selecionar Estado" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os Estados ({Object.keys(locationData.byState).length})</SelectItem>
+                {Object.entries(locationData.byState).sort((a, b) => b[1].count - a[1].count).map(([estado, data]) => (
+                  <SelectItem key={estado} value={estado}>{estado} - {data.count.toLocaleString("pt-BR")} veículos</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-4 border-l pl-4">
+              <div className="flex items-center gap-2">
+                <Switch id="clusters-base" checked={showClusters} onCheckedChange={(c) => { setShowClusters(c); if (c) setShowHeatmap(false); }} />
+                <Label htmlFor="clusters-base" className="text-sm flex items-center gap-1.5"><Users className="h-4 w-4" />Clusters</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch id="heatmap-base" checked={showHeatmap} onCheckedChange={(c) => { setShowHeatmap(c); if (c) setShowClusters(false); }} />
+                <Label htmlFor="heatmap-base" className="text-sm flex items-center gap-1.5"><Layers className="h-4 w-4" />Heatmap</Label>
+              </div>
+            </div>
+            {selectedEstado !== "todos" && (
+              <Button variant="outline" size="sm" onClick={zoomToBrazil}><Maximize className="h-4 w-4 mr-2" />Ver Brasil</Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Map */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Map className="h-5 w-5 text-primary" />
+                Mapa de Veículos por Cidade
+                {selectedEstado !== "todos" && <Badge variant="secondary" className="bg-primary/10 text-primary">{selectedEstado}</Badge>}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon" onClick={() => map.current?.zoomIn()}><ZoomIn className="h-4 w-4" /></Button>
+                <Button variant="outline" size="icon" onClick={() => map.current?.zoomOut()}><ZoomOut className="h-4 w-4" /></Button>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="relative">
+              <div ref={mapContainer} className="h-[500px] rounded-b-lg" />
+              <div className="absolute bottom-4 left-4 bg-card/95 backdrop-blur-sm rounded-lg p-3 text-xs border shadow-lg">
+                <p className="font-semibold mb-2 text-foreground">Concentração</p>
+                <div className="space-y-1">
+                  {legendColors.map((item, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full border border-white/50" style={{ backgroundColor: item.color }} />
+                      <span className="text-muted-foreground text-[10px]">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* State/City list */}
+        <Card className="flex flex-col">
+          <CardHeader className="pb-2">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "estados" | "cidades")}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="estados" className="flex items-center gap-1.5"><MapPin className="h-4 w-4" />Estados<Badge variant="secondary" className="ml-1 text-[10px] px-1.5">{Object.keys(locationData.byState).length}</Badge></TabsTrigger>
+                <TabsTrigger value="cidades" className="flex items-center gap-1.5"><Building2 className="h-4 w-4" />Cidades{selectedEstado !== "todos" && <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">{filteredCities.length}</Badge>}</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </CardHeader>
+          <CardContent className="flex-1 p-0">
+            {activeTab === "estados" ? (
+              <ScrollArea className="h-[430px] px-4 pb-4">
+                <div className="space-y-2">
+                  {filteredStates.map((estado) => (
+                    <div key={estado.estado} onClick={() => zoomToState(estado.estado)}
+                      className={`flex items-center gap-3 p-3 rounded-lg transition-all cursor-pointer border ${selectedEstado === estado.estado ? "bg-primary/10 border-primary shadow-md" : "bg-muted/30 border-transparent hover:bg-muted/50 hover:border-primary/30"}`}>
+                      <div className="flex items-center justify-center w-9 h-9 rounded-full font-bold text-sm text-white shadow" style={{ backgroundColor: getMarkerColor(estado.count, locationData.maxCount) }}>{estado.estado}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-xs">{estado.count.toLocaleString("pt-BR")} veículos</Badge>
+                          <span className="text-xs text-muted-foreground">{Object.keys(estado.cities).length} cidades</span>
+                        </div>
+                        <p className="text-sm text-primary font-medium truncate">{formatCurrency(estado.valorTotal)}</p>
+                      </div>
+                      <Navigation className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <ScrollArea className="h-[430px] px-4 pb-4">
+                {selectedEstado === "todos" ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Building2 className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                    <p className="font-medium">Selecione um estado</p>
+                    <p className="text-sm">para ver as cidades</p>
+                  </div>
+                ) : filteredCities.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Search className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                    <p className="font-medium">Nenhuma cidade encontrada</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredCities.map((city, index) => {
+                      const isSelected = selectedCity === `${city.state}-${city.city}`;
+                      return (
+                        <div key={`${city.state}-${city.city}`} onClick={() => zoomToCity(city)}
+                          className={`p-3 rounded-lg transition-all cursor-pointer border ${isSelected ? "bg-primary/10 border-primary shadow-md" : "bg-muted/30 border-transparent hover:bg-muted/50 hover:border-primary/30"}`}>
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="flex items-center justify-center w-6 h-6 rounded-full font-bold text-xs text-white shrink-0" style={{ backgroundColor: getMarkerColor(city.count, locationData.maxCityCount) }}>{index + 1}</div>
+                              <span className="font-semibold text-sm truncate" title={city.city}>{city.city}</span>
+                            </div>
+                            <Navigation className="h-4 w-4 text-muted-foreground shrink-0" />
+                          </div>
+                          <div className="flex items-center justify-between pl-8">
+                            <Badge variant="outline" className="text-xs">{city.count.toLocaleString("pt-BR")} veículos</Badge>
+                            <span className="text-sm font-semibold text-primary">{formatCurrency(city.valorTotal)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

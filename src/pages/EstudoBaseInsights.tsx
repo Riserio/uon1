@@ -1,14 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Upload, Database } from "lucide-react";
+import { BarChart3, Upload, Database, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import BIPageHeader from "@/components/bi/BIPageHeader";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
 import EstudoBaseDashboard, { type EstudoBaseFilters } from "@/components/estudo-base/EstudoBaseDashboard";
 import EstudoBaseImportacao from "@/components/estudo-base/EstudoBaseImportacao";
+import EstudoBaseMapa from "@/components/estudo-base/EstudoBaseMapa";
 
 export default function EstudoBaseInsights() {
   const [searchParams] = useSearchParams();
@@ -57,8 +58,8 @@ export default function EstudoBaseInsights() {
     fetchAssociacoes();
   }, [searchParams]);
 
-  // Fetch data
-  const fetchRegistros = async () => {
+  // Fetch data - useCallback to avoid stale closures
+  const fetchRegistros = useCallback(async () => {
     if (!selectedAssociacao) { setRegistros([]); setImportacaoAtiva(null); setLoading(false); return; }
     setLoading(true);
     try {
@@ -75,7 +76,6 @@ export default function EstudoBaseInsights() {
 
       if (importacao) {
         setImportacaoAtiva(importacao);
-        // Batch fetch
         const BATCH_SIZE = 1000;
         let all: any[] = [];
         let offset = 0;
@@ -104,9 +104,9 @@ export default function EstudoBaseInsights() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedAssociacao]);
 
-  useEffect(() => { if (selectedAssociacao) fetchRegistros(); }, [selectedAssociacao]);
+  useEffect(() => { if (selectedAssociacao) fetchRegistros(); }, [selectedAssociacao, fetchRegistros]);
 
   // Realtime
   useEffect(() => {
@@ -118,12 +118,13 @@ export default function EstudoBaseInsights() {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [selectedAssociacao]);
+  }, [selectedAssociacao, fetchRegistros]);
 
   const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome || "";
 
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+    { id: "mapa", label: "Mapa", icon: MapPin },
     { id: "tabela", label: "Dados Completos", icon: Database },
     { id: "importar", label: "Importar Dados", icon: Upload },
   ];
@@ -170,6 +171,10 @@ export default function EstudoBaseInsights() {
 
           <TabsContent value="dashboard" className="space-y-4 mt-0">
             <EstudoBaseDashboard registros={registros} loading={loading} filters={filters} onFiltersChange={setFilters} />
+          </TabsContent>
+
+          <TabsContent value="mapa" className="space-y-4 mt-0">
+            <EstudoBaseMapa registros={registros} loading={loading} />
           </TabsContent>
 
           <TabsContent value="tabela" className="space-y-4 mt-0">
