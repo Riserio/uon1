@@ -81,6 +81,16 @@ const COLUMN_MAP: Record<string, string> = {
 const normalizeHeader = (header: string): string =>
   header.trim().toUpperCase().replace(/\s+/g, " ").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+/** Remove unpaired unicode surrogates that break Postgres JSON parsing */
+const sanitizeString = (value: any): string | null => {
+  if (value === undefined || value === null || value === "") return null;
+  const str = String(value).trim();
+  if (!str) return null;
+  // Remove lone surrogates (high without low, or low without high)
+  return str.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, "")
+            .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
+};
+
 const getValueFromRow = (row: any, targetHeader: string): any => {
   if (row[targetHeader] !== undefined) return row[targetHeader];
   const normalizedTarget = normalizeHeader(targetHeader);
@@ -259,7 +269,7 @@ export default function EstudoBaseImportacao({ onImportSuccess, corretoraId, cor
             } else if (["ano_fabricacao", "ano_modelo", "num_passageiros", "qtde_evento", "vencimento", "idade_associado"].includes(dbCol)) {
               record[dbCol] = value ? parseInt(String(value)) || null : null;
             } else {
-              record[dbCol] = value ? String(value).trim() : null;
+              record[dbCol] = sanitizeString(value);
             }
           });
 
