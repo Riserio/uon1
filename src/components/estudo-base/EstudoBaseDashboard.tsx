@@ -247,6 +247,25 @@ function ScrollCounterList({
   );
 }
 
+// ✅ melhoria exclusiva do gráfico de Voluntário (sem labels nas fatias + tooltip com % + total no centro)
+function VoluntarioTooltip({ active, payload, total }: { active?: boolean; payload?: any[]; total: number }) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0]?.payload;
+  const name = String(p?.name ?? "");
+  const value = Number(p?.value ?? 0);
+  const pct = total > 0 ? (value / total) * 100 : 0;
+
+  return (
+    <div className="rounded-md border border-border bg-background px-3 py-2 shadow-sm">
+      <div className="text-xs font-semibold">{name}</div>
+      <div className="mt-1 text-xs text-muted-foreground">
+        <span className="font-semibold text-foreground">{value.toLocaleString("pt-BR")}</span>{" "}
+        <span>({formatPct(pct)})</span>
+      </div>
+    </div>
+  );
+}
+
 // ---------- Component ----------
 
 export default function EstudoBaseDashboard({ registros, loading, filters, onFiltersChange }: Props) {
@@ -717,7 +736,6 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
               )}
             </div>
 
-            {/* ✅ scroll + % */}
             <ScrollCounterList
               titleLeft="Mês"
               titleRight="Qtd"
@@ -1047,35 +1065,63 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
         </Card>
       </div>
 
-      {/* Voluntário em largura total + scroll + % */}
+      {/* ✅ Voluntário em largura total (MELHORIA EXCLUSIVA AQUI) */}
       <div className="grid gap-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Voluntário</CardTitle>
           </CardHeader>
+
           <CardContent>
-            <div className="h-[380px]">
+            <div className="h-[420px]">
               {voluntarioData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
+                  <PieChart margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
+                    {/* donut maior, sem labels nas fatias (evita “embolado”) */}
                     <Pie
                       data={voluntarioData}
                       dataKey="value"
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={70}
-                      outerRadius={130}
+                      innerRadius={95}
+                      outerRadius={150}
                       paddingAngle={2}
-                      label={pieLabel}
+                      label={false}
                       labelLine={false}
+                      minAngle={3}
+                      isAnimationActive={false}
                     >
                       {voluntarioData.map((e, i) => (
                         <Cell key={i} fill={e.fill} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
-                    <Legend />
+
+                    {/* tooltip com % + qtd */}
+                    <Tooltip content={<VoluntarioTooltip total={voluntarioTotal} />} />
+
+                    {/* legenda mantida, mas mais “limpa” */}
+                    <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12 }} />
+
+                    {/* total no centro */}
+                    <text
+                      x="50%"
+                      y="46%"
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      style={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                    >
+                      Total
+                    </text>
+                    <text
+                      x="50%"
+                      y="54%"
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      style={{ fontSize: 20, fontWeight: 800, fill: "hsl(var(--foreground))" }}
+                    >
+                      {voluntarioTotal.toLocaleString("pt-BR")}
+                    </text>
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
@@ -1083,7 +1129,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
               )}
             </div>
 
-            {/* ✅ scroll + % */}
+            {/* ✅ scroll + % (mantido) */}
             <ScrollCounterList
               titleLeft="Voluntário"
               titleRight="Qtd"
