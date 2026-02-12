@@ -5,9 +5,9 @@ type ModuleData = {
   eventos?: any[];
   mgf?: any[];
   cobranca?: any[];
+  'estudo-base'?: any[];
   indicadores?: boolean;
 };
-
 type PrefetchCache = {
   [corretoraId: string]: ModuleData;
 };
@@ -18,7 +18,7 @@ const prefetchPromises: { [key: string]: Promise<any> } = {};
 
 export function usePortalDataPrefetch(
   corretoraId: string | undefined,
-  currentModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca',
+  currentModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base',
   availableModules: string[]
 ) {
   const prefetchedRef = useRef<Set<string>>(new Set());

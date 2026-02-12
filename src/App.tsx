@@ -232,6 +232,7 @@ const App = () => (
               <Route path="/portal/sga-insights" element={<PortalRoute><SGAInsights /></PortalRoute>} />
               <Route path="/portal/mgf-insights" element={<PortalRoute><MGFInsights /></PortalRoute>} />
               <Route path="/portal/cobranca-insights" element={<PortalRoute><CobrancaInsights /></PortalRoute>} />
+              <Route path="/portal/estudo-base-insights" element={<PortalRoute><EstudoBaseInsights /></PortalRoute>} />
               <Route path="/portal" element={<PortalRoute><Portal /></PortalRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

@@ -20,7 +20,7 @@ serve(async (req) => {
     const { email, password, nome, corretoraId, modulos_bi } = await req.json();
 
     // Módulos padrão se não informados
-    const modulosBi = modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca'];
+    const modulosBi = modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'];
 
     console.log('Creating/linking partner user:', { email, corretoraId, modulosBi });
 
