@@ -22,6 +22,7 @@ const MODULOS_BI = [
   { id: 'eventos', label: 'Eventos', description: 'Módulo SGA de eventos' },
   { id: 'mgf', label: 'MGF', description: 'Módulo de gestão financeira' },
   { id: 'cobranca', label: 'Cobrança', description: 'Módulo de cobrança/inadimplência' },
+  { id: 'estudo-base', label: 'Estudo de Base', description: 'Análise detalhada da base de veículos' },
 ];
 
 export function GerenciarUsuariosCorretoraDialog({
@@ -37,7 +38,7 @@ export function GerenciarUsuariosCorretoraDialog({
   const [formData, setFormData] = useState({
     email: '',
     senha: '',
-    modulos_bi: ['indicadores', 'eventos', 'mgf', 'cobranca'] as string[],
+    modulos_bi: ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'] as string[],
   });
 
   useEffect(() => {
@@ -108,7 +109,7 @@ export function GerenciarUsuariosCorretoraDialog({
       if (data.error) throw new Error(data.error);
 
       toast.success('Usuário parceiro criado com sucesso!');
-      setFormData({ email: '', senha: '', modulos_bi: ['indicadores', 'eventos', 'mgf', 'cobranca'] });
+      setFormData({ email: '', senha: '', modulos_bi: ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'] });
       fetchUsuarios();
     } catch (error: any) {
       console.error('Erro ao criar usuário:', error);
@@ -156,7 +157,7 @@ export function GerenciarUsuariosCorretoraDialog({
 
   const handleStartEdit = (usuario: any) => {
     setEditingId(usuario.id);
-    setEditingModulos(usuario.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca']);
+    setEditingModulos(usuario.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
   };
 
   const handleCancelEdit = () => {
@@ -189,7 +190,7 @@ export function GerenciarUsuariosCorretoraDialog({
   };
 
   const getModulosBadges = (modulos: string[] | null) => {
-    const modulosAtivos = modulos || ['indicadores', 'eventos', 'mgf', 'cobranca'];
+    const modulosAtivos = modulos || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'];
     return MODULOS_BI.filter(m => modulosAtivos.includes(m.id));
   };
 

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca';
+type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base';
 
 type CarouselConfig = {
   enabled: boolean;
@@ -24,7 +24,7 @@ type CarouselContextType = {
 const defaultConfig: CarouselConfig = {
   enabled: false,
   interval: 30,
-  visibleModules: ['indicadores', 'eventos', 'mgf', 'cobranca'],
+  visibleModules: ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base'],
 };
 
 const CarouselContext = createContext<CarouselContextType | null>(null);
@@ -89,6 +89,8 @@ export function PortalCarouselProvider({
         return `/portal/mgf-insights?associacao=${corretoraId}`;
       case 'cobranca':
         return `/portal/cobranca-insights?associacao=${corretoraId}`;
+      case 'estudo-base':
+        return `/portal/estudo-base-insights?associacao=${corretoraId}`;
     }
   }, [corretoraId]);
 

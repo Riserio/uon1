@@ -85,7 +85,7 @@ export default function Portal() {
           .filter(item => item.corretoras)
           .map(item => ({
             ...(item.corretoras as Corretora),
-            modulos_bi: item.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca']
+            modulos_bi: item.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']
           }));
 
         if (corretorasValidas.length === 0) {
@@ -145,6 +145,8 @@ export default function Portal() {
       navigate(`/portal/mgf-insights?associacao=${corretoraData.id}`, { replace: true });
     } else if (modulos.includes('cobranca')) {
       navigate(`/portal/cobranca-insights?associacao=${corretoraData.id}`, { replace: true });
+    } else if (modulos.includes('estudo-base')) {
+      navigate(`/portal/estudo-base-insights?associacao=${corretoraData.id}`, { replace: true });
     }
   };
 
@@ -284,11 +286,12 @@ export default function Portal() {
   ];
 
   // Lista de módulos disponíveis para o carrossel
-  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca')[] = [
+  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base')[] = [
     ...(corretora.modulos_bi.includes('indicadores') ? ['indicadores'] as const : []),
     ...(corretora.modulos_bi.includes('eventos') ? ['eventos'] as const : []),
     ...(corretora.modulos_bi.includes('mgf') ? ['mgf'] as const : []),
     ...(corretora.modulos_bi.includes('cobranca') ? ['cobranca'] as const : []),
+    ...(corretora.modulos_bi.includes('estudo-base') ? ['estudo-base'] as const : []),
   ];
 
   return (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart3, Upload, Database, MapPin } from "lucide-react";
@@ -10,8 +10,14 @@ import { useAuth } from "@/hooks/useAuth";
 import EstudoBaseDashboard, { type EstudoBaseFilters } from "@/components/estudo-base/EstudoBaseDashboard";
 import EstudoBaseImportacao from "@/components/estudo-base/EstudoBaseImportacao";
 import EstudoBaseMapa from "@/components/estudo-base/EstudoBaseMapa";
+import PortalHeader from "@/components/portal/PortalHeader";
+import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
+import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
+
 export default function EstudoBaseInsights() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { userRole } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [registros, setRegistros] = useState<any[]>([]);
@@ -32,18 +38,57 @@ export default function EstudoBaseInsights() {
     faixaValorProtegido: "todos",
   });
 
+  // Detectar se é acesso via portal (parceiro)
+  const isPortalAccess = location.pathname.startsWith('/portal');
+
+  // Portal state
+  const [modulosBi, setModulosBi] = useState<string[]>(['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
+  const [corretoraData, setCorretoraData] = useState<{ id: string; nome: string; logo_url?: string | null } | null>(null);
+  const [multipleAssociacoes, setMultipleAssociacoes] = useState(false);
+
   // Load associations
   useEffect(() => {
     async function fetchAssociacoes() {
       try {
-        const { data, error } = await supabase.from("corretoras").select("id, nome").order("nome");
-        if (error) throw error;
-        setAssociacoes(data || []);
-        const param = searchParams.get("associacao") || searchParams.get("corretora");
-        if (param && data?.some((c) => c.id === param)) {
-          setSelectedAssociacao(param);
-        } else if (data && data.length > 0) {
-          setSelectedAssociacao(data[0].id);
+        const associacaoParam = searchParams.get("associacao") || searchParams.get("corretora");
+
+        if (isPortalAccess && associacaoParam) {
+          const { data: corretora, error: corretoraError } = await supabase
+            .from("corretoras")
+            .select("id, nome, logo_url")
+            .eq("id", associacaoParam)
+            .single();
+
+          if (corretoraError) throw corretoraError;
+
+          if (corretora) {
+            const { data: usuarioData } = await supabase
+              .from("corretora_usuarios")
+              .select("modulos_bi")
+              .eq("corretora_id", associacaoParam)
+              .eq("ativo", true)
+              .maybeSingle();
+
+            setAssociacoes([{ id: corretora.id, nome: corretora.nome }]);
+            setSelectedAssociacao(corretora.id);
+            setCorretoraData(corretora);
+            setModulosBi(usuarioData?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
+
+            const { data: todasAssociacoes } = await supabase
+              .from("corretora_usuarios")
+              .select("corretora_id")
+              .eq("ativo", true);
+            setMultipleAssociacoes((todasAssociacoes?.length || 0) > 1);
+          }
+        } else {
+          const { data, error } = await supabase.from("corretoras").select("id, nome").order("nome");
+          if (error) throw error;
+          setAssociacoes(data || []);
+          if (associacaoParam && data?.some((c) => c.id === associacaoParam)) {
+            setSelectedAssociacao(associacaoParam);
+          } else if (data && data.length > 0) {
+            setSelectedAssociacao(data[0].id);
+          }
         }
       } catch (error) {
         toast.error("Erro ao carregar associações");
@@ -52,9 +97,9 @@ export default function EstudoBaseInsights() {
       }
     }
     fetchAssociacoes();
-  }, [searchParams]);
+  }, [searchParams, isPortalAccess]);
 
-  // Fetch data - useCallback to avoid stale closures
+  // Fetch data
   const fetchRegistros = useCallback(async () => {
     if (!selectedAssociacao) {
       setRegistros([]);
@@ -69,9 +114,7 @@ export default function EstudoBaseInsights() {
         .select("*")
         .eq("ativo", true)
         .eq("corretora_id", selectedAssociacao)
-        .order("created_at", {
-          ascending: false,
-        })
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (impError && impError.code !== "PGRST116") console.error(impError);
@@ -87,17 +130,12 @@ export default function EstudoBaseInsights() {
             .select("*")
             .eq("importacao_id", importacao.id)
             .range(offset, offset + BATCH_SIZE - 1);
-          if (error) {
-            console.error(error);
-            break;
-          }
+          if (error) { console.error(error); break; }
           if (batch && batch.length > 0) {
             all = [...all, ...batch];
             offset += BATCH_SIZE;
             hasMore = batch.length === BATCH_SIZE;
-          } else {
-            hasMore = false;
-          }
+          } else { hasMore = false; }
           if (offset >= 100000) break;
         }
         setRegistros(all);
@@ -111,6 +149,7 @@ export default function EstudoBaseInsights() {
       setLoading(false);
     }
   }, [selectedAssociacao]);
+
   useEffect(() => {
     if (selectedAssociacao) fetchRegistros();
   }, [selectedAssociacao, fetchRegistros]);
@@ -120,60 +159,79 @@ export default function EstudoBaseInsights() {
     if (!selectedAssociacao) return;
     const channel = supabase
       .channel("estudo-base-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "estudo_base_importacoes",
-        },
-        () => {
-          fetchRegistros();
-        },
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "estudo_base_importacoes" }, () => { fetchRegistros(); })
       .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [selectedAssociacao, fetchRegistros]);
+
   const selectedAssociacaoNome = associacoes.find((a) => a.id === selectedAssociacao)?.nome || "";
-  const tabs = [
-    {
-      id: "dashboard",
-      label: "Dashboard",
-      icon: BarChart3,
-    },
-    {
-      id: "mapa",
-      label: "Mapa Geográfico",
-      icon: MapPin,
-    },
-    {
-      id: "tabela",
-      label: "Dados Completos",
-      icon: Database,
-    },
-    {
-      id: "importar",
-      label: "Importar Dados",
-      icon: Upload,
-    },
+
+  // Tabs - hide import for portal
+  const tabs = isPortalAccess
+    ? [
+        { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+        { id: "mapa", label: "Mapa Geográfico", icon: MapPin },
+        { id: "tabela", label: "Dados Completos", icon: Database },
+      ]
+    : [
+        { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+        { id: "mapa", label: "Mapa Geográfico", icon: MapPin },
+        { id: "tabela", label: "Dados Completos", icon: Database },
+        { id: "importar", label: "Importar Dados", icon: Upload },
+      ];
+
+  const handlePortalLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth", { replace: true });
+  };
+
+  const handleChangeAssociacao = () => {
+    navigate("/portal", { replace: true });
+  };
+
+  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base')[] = [
+    ...(modulosBi.includes('indicadores') ? ['indicadores'] as const : []),
+    ...(modulosBi.includes('eventos') ? ['eventos'] as const : []),
+    ...(modulosBi.includes('mgf') ? ['mgf'] as const : []),
+    ...(modulosBi.includes('cobranca') ? ['cobranca'] as const : []),
+    ...(modulosBi.includes('estudo-base') ? ['estudo-base'] as const : []),
   ];
-  return (
-    <div className="min-h-screen bg-background">
-      <BIPageHeader
-        title="Estudo de Base"
-        subtitle="Análise detalhada da base de veículos e associados"
-        associacoes={associacoes}
-        selectedAssociacao={selectedAssociacao}
-        onAssociacaoChange={setSelectedAssociacao}
-        loadingAssociacoes={loadingAssociacoes}
-        currentModule="estudo-base"
-        showHistorico={canViewHistorico}
-        onHistoricoClick={() => setHistoricoDialogOpen(true)}
-        recordCount={registros.length}
-        fileName={importacaoAtiva?.nome_arquivo}
-      />
+
+  const mainContent = (
+    <>
+      {/* Portal Header for partners */}
+      {isPortalAccess && corretoraData && (
+        <PortalHeader
+          corretora={{
+            id: corretoraData.id,
+            nome: corretoraData.nome,
+            logo_url: corretoraData.logo_url,
+            modulos_bi: modulosBi,
+          }}
+          showChangeButton={multipleAssociacoes}
+          onChangeCorretora={handleChangeAssociacao}
+          onLogout={handlePortalLogout}
+          currentModule="estudo-base"
+          showCarouselControls={true}
+        />
+      )}
+
+      {/* Internal header */}
+      {!isPortalAccess && (
+        <BIPageHeader
+          title="Estudo de Base"
+          subtitle="Análise detalhada da base de veículos e associados"
+          associacoes={associacoes}
+          selectedAssociacao={selectedAssociacao}
+          onAssociacaoChange={setSelectedAssociacao}
+          loadingAssociacoes={loadingAssociacoes}
+          currentModule="estudo-base"
+          showHistorico={canViewHistorico}
+          onHistoricoClick={() => setHistoricoDialogOpen(true)}
+          recordCount={registros.length}
+          fileName={importacaoAtiva?.nome_arquivo}
+        />
+      )}
 
       <div className="container mx-auto px-4 sm:px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -200,12 +258,7 @@ export default function EstudoBaseInsights() {
           </div>
 
           <TabsContent value="dashboard" className="space-y-4 mt-0">
-            <EstudoBaseDashboard
-              registros={registros}
-              loading={loading}
-              filters={filters}
-              onFiltersChange={setFilters}
-            />
+            <EstudoBaseDashboard registros={registros} loading={loading} filters={filters} onFiltersChange={setFilters} />
           </TabsContent>
 
           <TabsContent value="mapa" className="space-y-4 mt-0">
@@ -217,23 +270,8 @@ export default function EstudoBaseInsights() {
               <table className="w-full text-xs border">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    {[
-                      "Placa",
-                      "Tipo",
-                      "Montadora",
-                      "Modelo",
-                      "Categoria",
-                      "Ano",
-                      "Situação",
-                      "Valor Protegido",
-                      "Cooperativa",
-                      "Sexo",
-                      "Idade",
-                      "Data Contrato",
-                    ].map((h) => (
-                      <th key={h} className="text-left py-2 px-2 font-medium whitespace-nowrap">
-                        {h}
-                      </th>
+                    {["Placa", "Tipo", "Montadora", "Modelo", "Categoria", "Ano", "Situação", "Valor Protegido", "Cooperativa", "Sexo", "Idade", "Data Contrato"].map((h) => (
+                      <th key={h} className="text-left py-2 px-2 font-medium whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -249,9 +287,7 @@ export default function EstudoBaseInsights() {
                       <td className="py-1.5 px-2">{r.situacao_veiculo}</td>
                       <td className="py-1.5 px-2 whitespace-nowrap">
                         {r.valor_protegido
-                          ? `R$ ${Number(r.valor_protegido).toLocaleString("pt-BR", {
-                              minimumFractionDigits: 2,
-                            })}`
+                          ? `R$ ${Number(r.valor_protegido).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
                           : "-"}
                       </td>
                       <td className="py-1.5 px-2 max-w-[200px] truncate">{r.cooperativa}</td>
@@ -270,16 +306,15 @@ export default function EstudoBaseInsights() {
             </div>
           </TabsContent>
 
-          <TabsContent value="importar" className="space-y-4 mt-0">
-            <EstudoBaseImportacao
-              onImportSuccess={() => {
-                fetchRegistros();
-                setActiveTab("dashboard");
-              }}
-              corretoraId={selectedAssociacao}
-              corretoraNome={selectedAssociacaoNome}
-            />
-          </TabsContent>
+          {!isPortalAccess && (
+            <TabsContent value="importar" className="space-y-4 mt-0">
+              <EstudoBaseImportacao
+                onImportSuccess={() => { fetchRegistros(); setActiveTab("dashboard"); }}
+                corretoraId={selectedAssociacao}
+                corretoraNome={selectedAssociacaoNome}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
@@ -289,6 +324,25 @@ export default function EstudoBaseInsights() {
         modulo="estudo_base"
         corretoraId={selectedAssociacao}
       />
-    </div>
+    </>
   );
+
+  // Portal access: wrap with carousel provider
+  if (isPortalAccess) {
+    return (
+      <PortalCarouselProvider
+        corretoraId={selectedAssociacao}
+        availableModules={availableModules}
+        currentModule="estudo-base"
+      >
+        <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
+          <PortalPageWrapper>
+            {mainContent}
+          </PortalPageWrapper>
+        </div>
+      </PortalCarouselProvider>
+    );
+  }
+
+  return <div className="min-h-screen bg-background">{mainContent}</div>;
 }

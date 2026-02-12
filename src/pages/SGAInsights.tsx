@@ -310,11 +310,12 @@ export default function SGAInsights() {
   };
 
   // Montar lista de módulos disponíveis para o carrossel
-  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca')[] = [
+  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base')[] = [
     ...(modulosBi.includes('indicadores') ? ['indicadores'] as const : []),
     ...(modulosBi.includes('eventos') ? ['eventos'] as const : []),
     ...(modulosBi.includes('mgf') ? ['mgf'] as const : []),
     ...(modulosBi.includes('cobranca') ? ['cobranca'] as const : []),
+    ...(modulosBi.includes('estudo-base') ? ['estudo-base'] as const : []),
   ];
 
   const portalContent = (
@@ -354,8 +355,8 @@ export default function SGAInsights() {
         />
       )}
 
-      {/* Filtros - acesso interno */}
-      {!isPortalAccess && eventos.length > 0 && (
+      {/* Filtros */}
+      {eventos.length > 0 && (
         <div className="container mx-auto px-4 pt-4">
           <Card className="bg-card/50 backdrop-blur border-border/50">
             <CardContent className="p-4">
@@ -435,8 +436,8 @@ export default function SGAInsights() {
         </div>
       )}
 
-      {/* Quick Stats - acesso interno */}
-      {!isPortalAccess && filteredEventos.length > 0 && (
+      {/* Quick Stats */}
+      {filteredEventos.length > 0 && (
         <div className="container mx-auto px-4 pt-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card className="bg-card/50 backdrop-blur border-border/50">

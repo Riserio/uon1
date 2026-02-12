@@ -1,4 +1,4 @@
-import { Building2, LogOut, ArrowLeftRight, TrendingUp, Activity, DollarSign } from "lucide-react";
+import { Building2, LogOut, ArrowLeftRight, TrendingUp, Activity, DollarSign, Car } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import PortalCarouselControls from "./PortalCarouselControls";
@@ -17,7 +17,7 @@ type PortalHeaderProps = {
   showChangeButton?: boolean;
   onChangeCorretora?: () => void;
   onLogout: () => void;
-  currentModule?: 'indicadores' | 'eventos' | 'mgf' | 'cobranca';
+  currentModule?: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base';
   showCarouselControls?: boolean;
 };
 
@@ -38,13 +38,15 @@ export default function PortalHeader({
   const hasEventos = hasModulo('eventos');
   const hasMGF = hasModulo('mgf');
   const hasCobranca = hasModulo('cobranca');
+  const hasEstudoBase = hasModulo('estudo-base');
 
   // Lista de módulos disponíveis para o carrossel
-  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca')[] = [
+  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base')[] = [
     ...(hasIndicadores ? ['indicadores'] as const : []),
     ...(hasEventos ? ['eventos'] as const : []),
     ...(hasMGF ? ['mgf'] as const : []),
     ...(hasCobranca ? ['cobranca'] as const : []),
+    ...(hasEstudoBase ? ['estudo-base'] as const : []),
   ];
 
   // Contagem de módulos disponíveis para decidir layout
@@ -202,6 +204,28 @@ export default function PortalHeader({
                 >
                   <DollarSign className="h-4 w-4" />
                   <span>Cobrança</span>
+                </Button>
+              )}
+              {hasEstudoBase && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (carousel) {
+                      carousel.goToModule('estudo-base');
+                    } else {
+                      navigate(`/portal/estudo-base-insights?associacao=${corretora.id}`);
+                    }
+                  }}
+                  disabled={carousel?.config.enabled}
+                  className={`gap-2 shrink-0 transition-all duration-300 ${
+                    currentModule === 'estudo-base' 
+                      ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
+                      : 'hover:bg-muted'
+                  } ${carousel?.config.enabled ? 'opacity-70 cursor-not-allowed' : ''}`}
+                >
+                  <Car className="h-4 w-4" />
+                  <span>Estudo de Base</span>
                 </Button>
               )}
             </nav>
