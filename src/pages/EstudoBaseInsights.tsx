@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import EstudoBaseDashboard, { type EstudoBaseFilters } from "@/components/estudo-base/EstudoBaseDashboard";
 import EstudoBaseImportacao from "@/components/estudo-base/EstudoBaseImportacao";
 import EstudoBaseMapa from "@/components/estudo-base/EstudoBaseMapa";
+import { getBICachedData, setBICachedData } from "@/hooks/useBIGlobalCache";
 import PortalHeader from "@/components/portal/PortalHeader";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
@@ -100,13 +101,25 @@ export default function EstudoBaseInsights() {
   }, [searchParams, isPortalAccess]);
 
   // Fetch data
-  const fetchRegistros = useCallback(async () => {
+  const fetchRegistros = useCallback(async (forceRefresh = false) => {
     if (!selectedAssociacao) {
       setRegistros([]);
       setImportacaoAtiva(null);
       setLoading(false);
       return;
     }
+
+    // Cache global: exibição instantânea
+    if (!forceRefresh) {
+      const globalCached = getBICachedData(selectedAssociacao, 'estudo-base');
+      if (globalCached && globalCached.data.length > 0) {
+        setRegistros(globalCached.data);
+        setImportacaoAtiva(globalCached.importacao);
+        setLoading(false);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const { data: importacao, error: impError } = await supabase
@@ -139,6 +152,7 @@ export default function EstudoBaseInsights() {
           if (offset >= 100000) break;
         }
         setRegistros(all);
+        setBICachedData(selectedAssociacao, 'estudo-base', all, importacao);
       } else {
         setRegistros([]);
         setImportacaoAtiva(null);
@@ -159,7 +173,7 @@ export default function EstudoBaseInsights() {
     if (!selectedAssociacao) return;
     const channel = supabase
       .channel("estudo-base-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "estudo_base_importacoes" }, () => { fetchRegistros(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "estudo_base_importacoes" }, () => { fetchRegistros(true); })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [selectedAssociacao, fetchRegistros]);

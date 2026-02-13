@@ -23,6 +23,7 @@ import { DateRange } from "react-day-picker";
 import PortalHeader from "@/components/portal/PortalHeader";
 import BIPageHeader from "@/components/bi/BIPageHeader";
 import { getPrefetchedData, savePrefetchedData } from "@/hooks/usePortalDataPrefetch";
+import { getBICachedData, setBICachedData } from "@/hooks/useBIGlobalCache";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 
@@ -148,7 +149,7 @@ export default function MGFInsights() {
     fetchAssociacoes();
   }, [searchParams, isPortalAccess]);
 
-  const fetchDados = async () => {
+  const fetchDados = async (forceRefresh = false) => {
     if (!selectedAssociacao) {
       setDados([]);
       setImportacaoAtiva(null);
@@ -157,13 +158,25 @@ export default function MGFInsights() {
       return;
     }
 
-    // Portal: usar cache para exibição instantânea
-    if (isPortalAccess) {
-      const cached = getPrefetchedData<any>(selectedAssociacao, 'mgf');
-      if (cached && cached.length > 0 && dados.length === 0) {
-        setDados(cached);
+    // Cache global: exibição instantânea
+    if (!forceRefresh) {
+      const globalCached = getBICachedData(selectedAssociacao, 'mgf');
+      if (globalCached && globalCached.data.length > 0) {
+        setDados(globalCached.data);
+        setImportacaoAtiva(globalCached.importacao);
+        if (globalCached.importacao?.colunas_detectadas) {
+          setColunas(Array.isArray(globalCached.importacao.colunas_detectadas) ? globalCached.importacao.colunas_detectadas as string[] : []);
+        }
         setLoading(false);
         return;
+      }
+      if (isPortalAccess) {
+        const cached = getPrefetchedData<any>(selectedAssociacao, 'mgf');
+        if (cached && cached.length > 0) {
+          setDados(cached);
+          setLoading(false);
+          return;
+        }
       }
     }
 
@@ -186,7 +199,6 @@ export default function MGFInsights() {
         setImportacaoAtiva(importacao);
         setColunas(Array.isArray(importacao.colunas_detectadas) ? importacao.colunas_detectadas as string[] : []);
         
-        // Buscar dados em lotes para ultrapassar limite de 1000 do Supabase
         const BATCH_SIZE = 1000;
         let allDados: any[] = [];
         let hasMore = true;
@@ -216,8 +228,8 @@ export default function MGFInsights() {
           if (offset >= 100000) break;
         }
 
-        console.log(`Total de dados MGF carregados: ${allDados.length}`);
         setDados(allDados);
+        setBICachedData(selectedAssociacao, 'mgf', allDados, importacao);
         if (isPortalAccess) savePrefetchedData(selectedAssociacao, 'mgf', allDados);
       } else {
         setDados([]);
