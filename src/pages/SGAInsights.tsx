@@ -19,6 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 import PortalHeader from "@/components/portal/PortalHeader";
 import BIPageHeader from "@/components/bi/BIPageHeader";
 import { getPrefetchedData, savePrefetchedData } from "@/hooks/usePortalDataPrefetch";
+import { getBICachedData, setBICachedData } from "@/hooks/useBIGlobalCache";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 
@@ -183,7 +184,7 @@ export default function SGAInsights() {
     fetchAssociacoes();
   }, [searchParams, isPortalAccess]);
 
-  const fetchEventos = async () => {
+  const fetchEventos = async (forceRefresh = false) => {
     if (!selectedAssociacao) {
       setEventos([]);
       setImportacaoAtiva(null);
@@ -191,19 +192,28 @@ export default function SGAInsights() {
       return;
     }
 
-    // Portal: usar cache para exibição instantânea
-    if (isPortalAccess) {
-      const cached = getPrefetchedData<any>(selectedAssociacao, 'eventos');
-      if (cached && cached.length > 0 && eventos.length === 0) {
-        setEventos(cached);
+    // Cache global: exibição instantânea ao navegar entre módulos
+    if (!forceRefresh) {
+      const globalCached = getBICachedData(selectedAssociacao, 'eventos');
+      if (globalCached && globalCached.data.length > 0) {
+        setEventos(globalCached.data);
+        setImportacaoAtiva(globalCached.importacao);
         setLoading(false);
         return;
+      }
+      // Portal prefetch cache
+      if (isPortalAccess) {
+        const cached = getPrefetchedData<any>(selectedAssociacao, 'eventos');
+        if (cached && cached.length > 0) {
+          setEventos(cached);
+          setLoading(false);
+          return;
+        }
       }
     }
 
     setLoading(true);
     try {
-      // Buscar importação ativa para a associação selecionada
       const { data: importacao, error: impError } = await supabase
         .from("sga_importacoes")
         .select("*")
@@ -220,7 +230,6 @@ export default function SGAInsights() {
       if (importacao) {
         setImportacaoAtiva(importacao);
         
-        // Buscar eventos em lotes para ultrapassar limite de 1000 do Supabase
         const BATCH_SIZE = 1000;
         let allEventos: any[] = [];
         let hasMore = true;
@@ -246,12 +255,11 @@ export default function SGAInsights() {
             hasMore = false;
           }
 
-          // Segurança: máximo 100 lotes (100k registros)
           if (offset >= 100000) break;
         }
 
-        console.log(`Total de eventos carregados: ${allEventos.length}`);
         setEventos(allEventos);
+        setBICachedData(selectedAssociacao, 'eventos', allEventos, importacao);
         if (isPortalAccess) savePrefetchedData(selectedAssociacao, 'eventos', allEventos);
       } else {
         setEventos([]);

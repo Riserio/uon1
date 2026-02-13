@@ -21,6 +21,7 @@ import { useAuth } from "@/hooks/useAuth";
 import PortalHeader from "@/components/portal/PortalHeader";
 import BIPageHeader from "@/components/bi/BIPageHeader";
 import { getPrefetchedData, savePrefetchedData } from "@/hooks/usePortalDataPrefetch";
+import { getBICachedData, setBICachedData } from "@/hooks/useBIGlobalCache";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 
@@ -168,7 +169,7 @@ export default function CobrancaInsights() {
     fetchAssociacoes();
   }, [searchParams, isPortalAccess]);
 
-  const fetchBoletos = async () => {
+  const fetchBoletos = async (forceRefresh = false) => {
     if (!selectedAssociacao) {
       setBoletos([]);
       setImportacaoAtiva(null);
@@ -176,19 +177,27 @@ export default function CobrancaInsights() {
       return;
     }
 
-    // Portal: usar cache para exibição instantânea
-    if (isPortalAccess) {
-      const cached = getPrefetchedData<any>(selectedAssociacao, 'cobranca');
-      if (cached && cached.length > 0 && boletos.length === 0) {
-        setBoletos(cached);
+    // Cache global: exibição instantânea
+    if (!forceRefresh) {
+      const globalCached = getBICachedData(selectedAssociacao, 'cobranca');
+      if (globalCached && globalCached.data.length > 0) {
+        setBoletos(globalCached.data);
+        setImportacaoAtiva(globalCached.importacao);
         setLoading(false);
         return;
+      }
+      if (isPortalAccess) {
+        const cached = getPrefetchedData<any>(selectedAssociacao, 'cobranca');
+        if (cached && cached.length > 0) {
+          setBoletos(cached);
+          setLoading(false);
+          return;
+        }
       }
     }
 
     setLoading(true);
     try {
-      // Buscar importação ativa para a associação selecionada
       const { data: importacao, error: impError } = await supabase
         .from("cobranca_importacoes")
         .select("*")
@@ -205,7 +214,6 @@ export default function CobrancaInsights() {
       if (importacao) {
         setImportacaoAtiva(importacao);
         
-        // Buscar boletos em lotes
         const BATCH_SIZE = 1000;
         let allBoletos: any[] = [];
         let hasMore = true;
@@ -234,8 +242,8 @@ export default function CobrancaInsights() {
           if (offset >= 100000) break;
         }
 
-        console.log(`Total de boletos carregados: ${allBoletos.length}`);
         setBoletos(allBoletos);
+        setBICachedData(selectedAssociacao, 'cobranca', allBoletos, importacao);
         if (isPortalAccess) savePrefetchedData(selectedAssociacao, 'cobranca', allBoletos);
       } else {
         setBoletos([]);
@@ -273,7 +281,7 @@ export default function CobrancaInsights() {
           // Se a nova importação já está ativa, atualizar imediatamente
           if ((payload.new as any)?.ativo === true) {
             toast.info('Nova importação detectada! Atualizando dashboard...');
-            fetchBoletos();
+            fetchBoletos(true);
           }
         }
       )
@@ -290,7 +298,7 @@ export default function CobrancaInsights() {
           // Se a importação foi ativada, atualizar
           if (payload.new && (payload.new as any).ativo === true) {
             toast.info('Importação atualizada! Atualizando dashboard...');
-            fetchBoletos();
+            fetchBoletos(true);
           }
         }
       )
@@ -309,7 +317,7 @@ export default function CobrancaInsights() {
             toast.success('Sincronização automática concluída! Atualizando dashboard...');
             // Pequeno delay para garantir que a importação foi ativada
             setTimeout(() => {
-              fetchBoletos();
+              fetchBoletos(true);
             }, 1000);
           }
         }

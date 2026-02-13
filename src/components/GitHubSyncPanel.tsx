@@ -86,12 +86,15 @@ export function GitHubSyncPanel() {
   const [executingPending, setExecutingPending] = useState(false);
   const [executingAllPending, setExecutingAllPending] = useState(false);
 
+  // Carregar dados iniciais (uma vez)
   useEffect(() => {
     loadCobrancaConfigs();
     loadEventosConfigs();
     loadMgfConfigs();
-    
-    // Subscrever a mudanças em tempo real
+  }, []);
+
+  // Subscrever a mudanças em tempo real (sem recarregar configs inteiros a cada evento)
+  useEffect(() => {
     const cobrancaChannel = supabase
       .channel('cobranca-automacao-sync')
       .on(
@@ -108,13 +111,6 @@ export function GitHubSyncPanel() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'cobranca_automacao_config' },
         () => loadCobrancaConfigs()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'cobranca_importacoes' },
-        () => {
-          loadCobrancaConfigs();
-        }
       )
       .subscribe();
 
@@ -135,13 +131,6 @@ export function GitHubSyncPanel() {
         { event: '*', schema: 'public', table: 'sga_automacao_config' },
         () => loadEventosConfigs()
       )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'sga_importacoes' },
-        () => {
-          loadEventosConfigs();
-        }
-      )
       .subscribe();
 
     const mgfChannel = supabase
@@ -161,13 +150,6 @@ export function GitHubSyncPanel() {
         { event: '*', schema: 'public', table: 'mgf_automacao_config' },
         () => loadMgfConfigs()
       )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'mgf_importacoes' },
-        () => {
-          loadMgfConfigs();
-        }
-      )
       .subscribe();
 
     return () => {
@@ -177,8 +159,43 @@ export function GitHubSyncPanel() {
     };
   }, [expandedConfigId, activeTab]);
 
+  // Recuperação automática de execuções órfãs (stuck > 70 min)
+  const recoverOrphanExecutions = async (type: RobotType) => {
+    const tableName = type === "cobranca" 
+      ? "cobranca_automacao_execucoes" 
+      : type === "eventos" 
+        ? "sga_automacao_execucoes" 
+        : "mgf_automacao_execucoes";
+    
+    try {
+      const cutoff = new Date(Date.now() - 70 * 60 * 1000).toISOString();
+      const { data: orphans } = await supabase
+        .from(tableName)
+        .select("id")
+        .eq("status", "executando")
+        .lt("created_at", cutoff);
+      
+      if (orphans && orphans.length > 0) {
+        for (const orphan of orphans) {
+          await supabase
+            .from(tableName)
+            .update({ 
+              status: "erro", 
+              erro: "Timeout: execução não respondeu em 70 minutos",
+              finalizado_at: new Date().toISOString()
+            })
+            .eq("id", orphan.id);
+        }
+        console.log(`[Sync] Recuperadas ${orphans.length} execuções órfãs em ${type}`);
+      }
+    } catch (e) {
+      console.error("Erro ao recuperar órfãos:", e);
+    }
+  };
+
   const loadCobrancaConfigs = async () => {
     try {
+      await recoverOrphanExecutions("cobranca");
       setCobrancaLoading(true);
       const { data, error } = await supabase
         .from("cobranca_automacao_config")
@@ -215,6 +232,7 @@ export function GitHubSyncPanel() {
 
   const loadEventosConfigs = async () => {
     try {
+      await recoverOrphanExecutions("eventos");
       setEventosLoading(true);
       const { data, error } = await supabase
         .from("sga_automacao_config")
@@ -251,6 +269,7 @@ export function GitHubSyncPanel() {
 
   const loadMgfConfigs = async () => {
     try {
+      await recoverOrphanExecutions("mgf");
       setMgfLoading(true);
       const { data, error } = await supabase
         .from("mgf_automacao_config")
