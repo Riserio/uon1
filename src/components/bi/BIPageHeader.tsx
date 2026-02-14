@@ -20,6 +20,7 @@ type BIPageHeaderProps = {
   recordCount?: number;
   hasActiveFilters?: boolean;
   fileName?: string;
+  showAdminOption?: boolean;
 };
 
 const modules = [{
@@ -61,7 +62,8 @@ export default function BIPageHeader({
   onHistoricoClick,
   recordCount,
   hasActiveFilters,
-  fileName
+  fileName,
+  showAdminOption
 }: BIPageHeaderProps) {
   const navigate = useNavigate();
   const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome;
@@ -84,6 +86,11 @@ export default function BIPageHeader({
                   <SelectValue placeholder="Selecione associação..." />
                 </SelectTrigger>
                 <SelectContent>
+                  {showAdminOption && (
+                    <SelectItem value="__admin__" className="font-semibold">
+                      🏢 Visão Administradora
+                    </SelectItem>
+                  )}
                   {associacoes.map(a => <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>)}
                 </SelectContent>
               </Select>

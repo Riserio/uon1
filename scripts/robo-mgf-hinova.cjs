@@ -1483,8 +1483,11 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
     try {
       log(`Nova aba detectada: configurando listener de download...`, LOG_LEVELS.DEBUG);
       
+      let downloadFiredInTab = false;
+      
       const onNewPageDownload = async (download) => {
         if (controller.isCaptured()) return;
+        downloadFiredInTab = true;
         
         const filename = download.suggestedFilename?.() || '';
         log(`✅ Download CAPTURADO via Playwright (newTab): ${filename}`, LOG_LEVELS.SUCCESS);
@@ -1536,6 +1539,7 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
         return;
       }
       
+      // Procurar e clicar em botões de download APENAS se ainda não capturou
       const seletoresDownload = [
         'a[href*=".xlsx"]', 'a[href*=".xls"]',
         'a:has-text("Baixar")', 'button:has-text("Baixar")',
@@ -1547,6 +1551,49 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
         if (el && (await el.isVisible().catch(() => false))) {
           await el.click({ timeout: 3000 }).catch(() => {});
           break;
+        }
+      }
+      
+      // =============================================
+      // FALLBACK: Captura de conteúdo inline da aba
+      // Se após 5s nenhum download disparou, verificar
+      // se a nova aba contém uma tabela HTML grande
+      // (relatório renderizado direto no browser)
+      // =============================================
+      if (!controller.isCaptured() && !downloadFiredInTab) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        
+        if (!controller.isCaptured()) {
+          try {
+            const pageContent = await newPage.content().catch(() => '');
+            
+            if (pageContent.length > 5000 && 
+                (pageContent.includes('<table') || pageContent.includes('<TABLE')) &&
+                (pageContent.includes('<tr') || pageContent.includes('<TR'))) {
+              
+              log(`📄 Nova aba contém tabela HTML grande (${(pageContent.length / 1024).toFixed(1)} KB) - capturando como relatório inline`, LOG_LEVELS.SUCCESS);
+              
+              const filePath = path.join(downloadDir, semanticName);
+              fs.writeFileSync(filePath, pageContent, 'utf-8');
+              
+              const stats = fs.statSync(filePath);
+              log(`✅ Conteúdo da aba salvo como arquivo: ${semanticName} (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
+              
+              const wasCaptured = controller.setCaptured({
+                type: 'inlineContent',
+                source: 'newTabInline',
+              });
+              
+              if (wasCaptured) {
+                controller.setFileResult({ filePath, size: stats.size, contentType: 'text/html' });
+                newPage.close().catch(() => {});
+              }
+            } else {
+              log(`Nova aba sem conteúdo de tabela significativo (${pageContent.length} chars)`, LOG_LEVELS.DEBUG);
+            }
+          } catch (e) {
+            log(`Erro ao verificar conteúdo inline da aba: ${e.message}`, LOG_LEVELS.WARN);
+          }
         }
       }
       
