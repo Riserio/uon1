@@ -1526,32 +1526,40 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
         }
       }, 50);
       
-      await Promise.race([
-        newPage.waitForLoadState('domcontentloaded', { timeout: 8000 }),
-        new Promise(resolve => setTimeout(resolve, 8000)),
-      ]).catch(() => {});
-      
-      clearTimeout(loadTimeout);
-      clearInterval(checkCaptured);
-      
-      if (controller.isCaptured()) {
-        try { newPage.removeListener('download', onNewPageDownload); } catch {}
-        return;
-      }
-      
-      // Procurar e clicar em botões de download APENAS se ainda não capturou
-      const seletoresDownload = [
-        'a[href*=".xlsx"]', 'a[href*=".xls"]',
-        'a:has-text("Baixar")', 'button:has-text("Baixar")',
-      ];
-      
-      for (const seletor of seletoresDownload) {
-        if (controller.isCaptured()) break;
-        const el = await newPage.$(seletor).catch(() => null);
-        if (el && (await el.isVisible().catch(() => false))) {
-          await el.click({ timeout: 3000 }).catch(() => {});
-          break;
+      // Pre-polling: aguardar carregamento e procurar botões de download
+      // Isolado em try/catch próprio para que o polling inline SEMPRE execute
+      try {
+        await Promise.race([
+          newPage.waitForLoadState('domcontentloaded', { timeout: 8000 }),
+          new Promise(resolve => setTimeout(resolve, 8000)),
+        ]).catch(() => {});
+        
+        clearTimeout(loadTimeout);
+        clearInterval(checkCaptured);
+        
+        if (controller.isCaptured()) {
+          try { newPage.removeListener('download', onNewPageDownload); } catch {}
+          return;
         }
+        
+        // Procurar e clicar em botões de download APENAS se ainda não capturou
+        const seletoresDownload = [
+          'a[href*=".xlsx"]', 'a[href*=".xls"]',
+          'a:has-text("Baixar")', 'button:has-text("Baixar")',
+        ];
+        
+        for (const seletor of seletoresDownload) {
+          if (controller.isCaptured()) break;
+          const el = await newPage.$(seletor).catch(() => null);
+          if (el && (await el.isVisible().catch(() => false))) {
+            await el.click({ timeout: 3000 }).catch(() => {});
+            break;
+          }
+        }
+      } catch (preErr) {
+        log(`Erro pre-polling (ignorado, polling inline continuará): ${preErr.message}`, LOG_LEVELS.WARN);
+        clearTimeout(loadTimeout);
+        clearInterval(checkCaptured);
       }
       
       // =============================================
@@ -1607,7 +1615,11 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
               const elapsed = Math.floor((Date.now() - inlinePollStart) / 1000);
               const mins = Math.floor(elapsed / 60);
               const secs = elapsed % 60;
-              log(`⏳ Polling inline: aba com ${pageContent.length} chars (sem tabela ainda) - ${mins}m ${secs}s`, LOG_LEVELS.DEBUG);
+              const tabUrl = await newPage.url().catch(() => 'unknown');
+              log(`⏳ Polling inline: URL=${tabUrl}, ${pageContent.length} chars (sem tabela ainda) - ${mins}m ${secs}s`, LOG_LEVELS.DEBUG);
+              if (pageContent.length > 1000) {
+                log(`⏳ Polling inline: conteúdo parcial detectado (${pageContent.length} chars, threshold=5000)`, LOG_LEVELS.DEBUG);
+              }
             }
           } catch (e) {
             log(`Erro ao verificar conteúdo inline da aba: ${e.message}`, LOG_LEVELS.WARN);
@@ -1623,7 +1635,7 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
       });
       
     } catch (err) {
-      // Ignorar erros
+      log(`Erro no processamento da nova aba: ${err.message}`, LOG_LEVELS.ERROR);
     }
   };
   
