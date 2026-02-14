@@ -2,6 +2,8 @@ import { ArrowLeft, Activity, DollarSign, CreditCard, Database, History, Trendin
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
+import BISyncButton from "./BISyncButton";
+
 type BIPageHeaderProps = {
   title: string;
   subtitle: string;
@@ -19,6 +21,7 @@ type BIPageHeaderProps = {
   hasActiveFilters?: boolean;
   fileName?: string;
 };
+
 const modules = [{
   id: 'indicadores',
   label: 'Indicadores',
@@ -45,6 +48,7 @@ const modules = [{
   icon: Database,
   path: '/estudo-base-insights'
 }] as const;
+
 export default function BIPageHeader({
   title,
   subtitle,
@@ -60,13 +64,14 @@ export default function BIPageHeader({
   fileName
 }: BIPageHeaderProps) {
   const navigate = useNavigate();
+  const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome;
+
   return <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-40 shadow-sm">
       <div className="container mx-auto px-4 sm:px-6 py-3">
         <div className="flex flex-col gap-3">
-          {/* Row 1: Back + Title + Association + Actions */}
+          {/* Row 1: Title + Association + Sync + Actions */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              {currentModule !== 'indicadores'}
               <div className="min-w-0">
                 <h1 className="text-lg sm:text-xl font-bold leading-tight text-foreground">{title}</h1>
                 <p className="text-xs text-muted-foreground">{subtitle}</p>
@@ -82,6 +87,14 @@ export default function BIPageHeader({
                   {associacoes.map(a => <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
+
+              {/* Sync Button */}
+              {selectedAssociacao && (
+                <BISyncButton 
+                  corretoraId={selectedAssociacao} 
+                  corretoraNome={selectedAssociacaoNome}
+                />
+              )}
 
               {recordCount !== undefined && recordCount > 0 && <div className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-lg whitespace-nowrap">
                   <Database className="h-3.5 w-3.5 shrink-0" />
@@ -100,7 +113,7 @@ export default function BIPageHeader({
             </div>
           </div>
 
-          {/* Row 2: Module navigation - inline buttons matching portal style */}
+          {/* Row 2: Module navigation */}
           <nav className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
             {modules.map(mod => {
             const Icon = mod.icon;
