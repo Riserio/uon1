@@ -1112,7 +1112,10 @@ class DownloadController {
   }
   
   startProgressMonitor() {
-    this.monitorInterval = setInterval(() => {
+    let lastWebhookUpdate = 0;
+    const WEBHOOK_INTERVAL = 60000; // Notificar DB a cada 60s
+    
+    this.monitorInterval = setInterval(async () => {
       if (this.captured || this.isComplete()) {
         clearInterval(this.monitorInterval);
         return;
@@ -1120,7 +1123,22 @@ class DownloadController {
       const elapsed = Date.now() - this.startTime;
       const minutos = Math.floor(elapsed / 60000);
       const segundos = Math.floor((elapsed % 60000) / 1000);
-      log(`Aguardando download... ${minutos}m ${segundos}s`, LOG_LEVELS.DEBUG);
+      
+      // Estimar progresso: servidor leva ~35min para gerar 255MB
+      const estimatedServerTime = 35 * 60000;
+      const progressPct = Math.min(95, Math.floor((elapsed / estimatedServerTime) * 100));
+      
+      log(`⏳ Aguardando servidor gerar relatório... ${minutos}m ${segundos}s (~${progressPct}%)`, LOG_LEVELS.INFO);
+      
+      // Notificar DB periodicamente para a UI mostrar progresso em tempo real
+      if (Date.now() - lastWebhookUpdate >= WEBHOOK_INTERVAL) {
+        lastWebhookUpdate = Date.now();
+        notificarProgresso({
+          etapa_atual: 'aguardando_geracao',
+          progresso_download: progressPct,
+          mensagem: `Servidor gerando relatório... ${minutos}m ${segundos}s`,
+        }).catch(() => {});
+      }
     }, 30000);
   }
 }
@@ -2249,6 +2267,11 @@ function processarExcel(filePath) {
 
 async function enviarWebhook(dados, nomeArquivo) {
   setStep('IMPORTACAO');
+  
+  await notificarProgresso({
+    etapa_atual: 'importacao',
+    mensagem: `Enviando ${dados.length.toLocaleString()} registros para o servidor...`,
+  });
 
   const mesReferencia = new Date().toISOString().slice(0, 7);
   const headers = { 'Content-Type': 'application/json' };
@@ -2970,6 +2993,13 @@ async function rodarRobo() {
     // ============================================
     setStep('DOWNLOAD');
     
+    // Notificar que estamos iniciando o download (relatório grande ~255MB, leva ~35min)
+    await notificarProgresso({
+      etapa_atual: 'aguardando_geracao',
+      progresso_download: 0,
+      mensagem: 'Clicando em Gerar Relatório... O servidor pode levar até 40 minutos para gerar o arquivo.',
+    });
+    
     log('Aumentando timeout para aguardar download longo...', LOG_LEVELS.DEBUG);
     context.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
     page.setDefaultTimeout(TIMEOUTS.DOWNLOAD_HARD);
@@ -3084,6 +3114,12 @@ async function rodarRobo() {
         setStep('PROCESSAMENTO');
         log('Processando arquivo...', LOG_LEVELS.INFO);
         
+        await notificarProgresso({
+          etapa_atual: 'processamento',
+          progresso_download: 100,
+          mensagem: `Download concluído (${(result.size / 1024 / 1024).toFixed(1)} MB). Processando dados...`,
+        });
+        
         dados = await processarArquivo(result.filePath);
         
         if (!Array.isArray(dados) || dados.length === 0) {
@@ -3179,6 +3215,28 @@ async function rodarRobo() {
     log('='.repeat(60));
     log('ROBÔ MGF FINALIZADO');
     log('='.repeat(60));
+  }
+}
+
+// ============================================
+// NOTIFICAR PROGRESSO VIA WEBHOOK
+// ============================================
+async function notificarProgresso(dados) {
+  if (!CONFIG.WEBHOOK_URL || !CONFIG.CORRETORA_ID) return;
+  
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (CONFIG.WEBHOOK_SECRET) headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
+    
+    await axios.post(CONFIG.WEBHOOK_URL, {
+      update_progress: true,
+      corretora_id: CONFIG.CORRETORA_ID,
+      execucao_id: CONFIG.EXECUCAO_ID || null,
+      github_run_id: CONFIG.GITHUB_RUN_ID || null,
+      ...dados,
+    }, { headers, timeout: 15000 });
+  } catch (e) {
+    // Silenciar erros de progresso para não atrapalhar o fluxo
   }
 }
 

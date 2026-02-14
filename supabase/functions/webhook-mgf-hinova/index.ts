@@ -167,6 +167,7 @@ serve(async (req) => {
       github_run_url,
       action,
       error_message,
+      mensagem,
     } = body;
 
     const githubRunIdStr = normalizeGithubRunId(github_run_id);
@@ -364,6 +365,7 @@ serve(async (req) => {
         if (registros_processados !== undefined) updates.registros_processados = registros_processados;
         if (total_registros !== undefined) updates.registros_total = total_registros;
         if (nome_arquivo) updates.nome_arquivo = nome_arquivo;
+        if (mensagem) updates.mensagem = mensagem;
         if (status === 'sucesso' || status === 'erro') {
           updates.finalizado_at = new Date().toISOString();
         }
