@@ -14,7 +14,7 @@ type BIPageHeaderProps = {
   selectedAssociacao: string;
   onAssociacaoChange: (id: string) => void;
   loadingAssociacoes?: boolean;
-  currentModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base';
+  currentModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'admin';
   showHistorico?: boolean;
   onHistoricoClick?: () => void;
   recordCount?: number;
@@ -120,17 +120,19 @@ export default function BIPageHeader({
             </div>
           </div>
 
-          {/* Row 2: Module navigation */}
-          <nav className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-            {modules.map(mod => {
-            const Icon = mod.icon;
-            const isActive = currentModule === mod.id;
-            return <Button key={mod.id} variant="outline" size="sm" onClick={() => navigate(`${mod.path}${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)} className={`gap-2 shrink-0 transition-all duration-300 ${isActive ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' : 'hover:bg-muted'}`}>
-                  <Icon className="h-4 w-4" />
-                  <span>{mod.label}</span>
-                </Button>;
-          })}
-          </nav>
+          {/* Row 2: Module navigation - hide when admin view */}
+          {currentModule !== 'admin' && (
+            <nav className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {modules.map(mod => {
+              const Icon = mod.icon;
+              const isActive = currentModule === mod.id;
+              return <Button key={mod.id} variant="outline" size="sm" onClick={() => navigate(`${mod.path}${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)} className={`gap-2 shrink-0 transition-all duration-300 ${isActive ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' : 'hover:bg-muted'}`}>
+                    <Icon className="h-4 w-4" />
+                    <span>{mod.label}</span>
+                  </Button>;
+            })}
+            </nav>
+          )}
         </div>
       </div>
     </header>;

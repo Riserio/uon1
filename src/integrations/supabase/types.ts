@@ -1317,6 +1317,7 @@ export type Database = {
           senha_hash: string
           totp_configurado: boolean | null
           totp_secret: string | null
+          ultimo_acesso: string | null
           updated_at: string | null
         }
         Insert: {
@@ -1331,6 +1332,7 @@ export type Database = {
           senha_hash: string
           totp_configurado?: boolean | null
           totp_secret?: string | null
+          ultimo_acesso?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -1345,6 +1347,7 @@ export type Database = {
           senha_hash?: string
           totp_configurado?: boolean | null
           totp_secret?: string | null
+          ultimo_acesso?: string | null
           updated_at?: string | null
         }
         Relationships: [
