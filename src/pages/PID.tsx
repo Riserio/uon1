@@ -12,7 +12,7 @@ import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import BIPageHeader from "@/components/bi/BIPageHeader";
 import BIAdminDashboard from "@/components/bi/BIAdminDashboard";
 import { useAuth } from "@/hooks/useAuth";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
@@ -34,8 +34,7 @@ export default function PID() {
   const canViewAdmin = userRole === "superintendente" || userRole === "administrativo";
   const isAdminView = selectedAssociacao === "__admin__";
 
-  // Padrão: abrir na visão administradora para quem tem permissão
-  const [adminDefaultApplied, setAdminDefaultApplied] = useState(false);
+  const adminDefaultAppliedRef = useRef(false);
   const selectedAssociacaoData = associacoes.find((c) => c.id === selectedAssociacao);
 
   useEffect(() => {
@@ -48,10 +47,10 @@ export default function PID() {
         const associacaoParam = searchParams.get("associacao") || searchParams.get("corretora");
         if (associacaoParam && data?.some(c => c.id === associacaoParam)) {
           setSelectedAssociacao(associacaoParam);
-        } else if (canViewAdmin && !adminDefaultApplied) {
+        } else if (canViewAdmin && !adminDefaultAppliedRef.current) {
           setSelectedAssociacao("__admin__");
-          setAdminDefaultApplied(true);
-        } else if (data && data.length > 0) {
+          adminDefaultAppliedRef.current = true;
+        } else if (!adminDefaultAppliedRef.current && data && data.length > 0) {
           setSelectedAssociacao(data[0].id);
         }
       } catch (error) {
@@ -62,7 +61,7 @@ export default function PID() {
       }
     }
     fetchAssociacoes();
-  }, [searchParams, canViewAdmin, adminDefaultApplied]);
+  }, [searchParams, canViewAdmin]);
 
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
