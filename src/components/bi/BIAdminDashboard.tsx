@@ -51,6 +51,13 @@ interface PortalUser {
   ultimo_acesso: string | null;
 }
 
+interface GroupedUser {
+  email: string;
+  associacoes: { id: string; corretora_id: string; corretora_nome: string; ativo: boolean; totp_configurado: boolean; modulos_bi: string[] | null; ultimo_acesso: string | null }[];
+  ultimo_acesso_geral: string | null;
+  created_at: string;
+}
+
 function StatusCell({ status, ultima, erro, ativo }: { status: string | null; ultima: string | null; erro: string | null; ativo: boolean }) {
   const icon = status === "sucesso" ? <CheckCircle className="h-3.5 w-3.5 text-green-500" /> :
     status === "erro" ? <XCircle className="h-3.5 w-3.5 text-destructive" /> :
@@ -192,17 +199,52 @@ export default function BIAdminDashboard() {
     a.nome.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredUsers = portalUsers.filter(u =>
+  // Agrupar usuários por email
+  const groupedUsers: GroupedUser[] = (() => {
+    const map = new Map<string, GroupedUser>();
+    portalUsers.forEach(u => {
+      const existing = map.get(u.email);
+      const assocEntry = {
+        id: u.id,
+        corretora_id: u.corretora_id,
+        corretora_nome: u.corretora_nome || "N/A",
+        ativo: u.ativo,
+        totp_configurado: u.totp_configurado,
+        modulos_bi: u.modulos_bi,
+        ultimo_acesso: u.ultimo_acesso,
+      };
+      if (existing) {
+        existing.associacoes.push(assocEntry);
+        // Pegar o acesso mais recente
+        if (u.ultimo_acesso && (!existing.ultimo_acesso_geral || u.ultimo_acesso > existing.ultimo_acesso_geral)) {
+          existing.ultimo_acesso_geral = u.ultimo_acesso;
+        }
+        if (u.created_at < existing.created_at) {
+          existing.created_at = u.created_at;
+        }
+      } else {
+        map.set(u.email, {
+          email: u.email,
+          associacoes: [assocEntry],
+          ultimo_acesso_geral: u.ultimo_acesso,
+          created_at: u.created_at,
+        });
+      }
+    });
+    return Array.from(map.values());
+  })();
+
+  const filteredGroupedUsers = groupedUsers.filter(u =>
     u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (u.corretora_nome || "").toLowerCase().includes(searchTerm.toLowerCase())
+    u.associacoes.some(a => a.corretora_nome.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const totalComErro = associacoes.filter(a =>
     a.cobranca_status === "erro" || a.eventos_status === "erro" || a.mgf_status === "erro"
   ).length;
   const totalAtivos = associacoes.filter(a => a.tem_credenciais).length;
-  const totalUsuarios = portalUsers.length;
-  const usuariosAtivos = portalUsers.filter(u => u.ativo).length;
+  const totalUsuarios = groupedUsers.length;
+  const usuariosAtivos = groupedUsers.filter(u => u.associacoes.some(a => a.ativo)).length;
 
   if (loading) {
     return (
@@ -337,64 +379,62 @@ export default function BIAdminDashboard() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Email</TableHead>
-                      <TableHead>Associação</TableHead>
-                      <TableHead>Módulos</TableHead>
+                      <TableHead>Associações</TableHead>
                       <TableHead className="text-center">TOTP</TableHead>
                       <TableHead className="text-center">Status</TableHead>
                       <TableHead>Último Acesso</TableHead>
                       <TableHead>Criado em</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredUsers.map(u => (
-                      <TableRow key={u.id}>
+                    {filteredGroupedUsers.map(u => (
+                      <TableRow key={u.email}>
                         <TableCell className="font-medium text-sm">{u.email}</TableCell>
-                        <TableCell className="text-sm">{u.corretora_nome}</TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap gap-0.5">
-                            {(u.modulos_bi || []).map(m => (
-                              <Badge key={m} variant="outline" className="text-[10px] px-1 py-0">
-                                {m === 'indicadores' ? 'IND' : m === 'eventos' ? 'EVT' : m === 'estudo-base' ? 'EB' : m.toUpperCase()}
-                              </Badge>
+                          <div className="flex flex-col gap-1">
+                            {u.associacoes.map(a => (
+                              <div key={a.id} className="flex items-center gap-1.5">
+                                <Badge variant={a.ativo ? "outline" : "destructive"} className="text-[10px] px-1.5 py-0 shrink-0">
+                                  {a.ativo ? "Ativo" : "Off"}
+                                </Badge>
+                                <span className="text-xs truncate max-w-[200px]" title={a.corretora_nome}>{a.corretora_nome}</span>
+                                <Button
+                                  size="sm" variant="ghost"
+                                  onClick={() => handleToggleUser(a.id, a.ativo)}
+                                  disabled={togglingUser === a.id}
+                                  title={a.ativo ? "Bloquear nesta associação" : "Desbloquear nesta associação"}
+                                  className="h-5 w-5 p-0 ml-auto shrink-0"
+                                >
+                                  {togglingUser === a.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : a.ativo ? (
+                                    <ShieldOff className="h-3 w-3" />
+                                  ) : (
+                                    <Shield className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              </div>
                             ))}
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant={u.totp_configurado ? "default" : "secondary"} className="text-[10px]">
-                            {u.totp_configurado ? "OK" : "—"}
+                          <Badge variant={u.associacoes.some(a => a.totp_configurado) ? "default" : "secondary"} className="text-[10px]">
+                            {u.associacoes.some(a => a.totp_configurado) ? "OK" : "—"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant={u.ativo ? "default" : "destructive"} className="text-[10px]">
-                            {u.ativo ? "Ativo" : "Bloqueado"}
+                          <Badge variant={u.associacoes.every(a => a.ativo) ? "default" : u.associacoes.some(a => a.ativo) ? "outline" : "destructive"} className="text-[10px]">
+                            {u.associacoes.every(a => a.ativo) ? "Ativo" : u.associacoes.some(a => a.ativo) ? "Parcial" : "Bloqueado"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {u.ultimo_acesso
-                            ? format(new Date(u.ultimo_acesso), "dd/MM/yy HH:mm", { locale: ptBR })
+                          {u.ultimo_acesso_geral
+                            ? format(new Date(u.ultimo_acesso_geral), "dd/MM/yy HH:mm", { locale: ptBR })
                             : <span className="text-muted-foreground/50">Nunca</span>
                           }
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {format(new Date(u.created_at), "dd/MM/yy", { locale: ptBR })}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm" variant="ghost"
-                            onClick={() => handleToggleUser(u.id, u.ativo)}
-                            disabled={togglingUser === u.id}
-                            title={u.ativo ? "Bloquear" : "Desbloquear"}
-                            className="h-7 w-7 p-0"
-                          >
-                            {togglingUser === u.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : u.ativo ? (
-                              <ShieldOff className="h-3.5 w-3.5" />
-                            ) : (
-                              <Shield className="h-3.5 w-3.5" />
-                            )}
-                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
