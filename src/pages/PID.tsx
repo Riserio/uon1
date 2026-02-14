@@ -10,6 +10,7 @@ import PortalComite from "@/components/portal/PortalComite";
 import { GerenciarUsuariosCorretoraDialog } from "@/components/GerenciarUsuariosCorretoraDialog";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import BIPageHeader from "@/components/bi/BIPageHeader";
+import BIAdminDashboard from "@/components/bi/BIAdminDashboard";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +31,8 @@ export default function PID() {
   const [activeTab, setActiveTab] = useState("dashboard");
 
   const canViewHistorico = userRole === "superintendente" || userRole === "admin";
+  const canViewAdmin = userRole === "superintendente" || userRole === "administrativo";
+  const isAdminView = selectedAssociacao === "__admin__";
   const selectedAssociacaoData = associacoes.find((c) => c.id === selectedAssociacao);
 
   useEffect(() => {
@@ -69,32 +72,37 @@ export default function PID() {
     <div className="min-h-screen bg-background">
       {/* Header unificado com navegação entre módulos */}
       <BIPageHeader
-        title="BI - Indicadores"
-        subtitle="Visão consolidada dos indicadores operacionais, financeiros e de sinistros"
+        title={isAdminView ? "BI - Administradora" : "BI - Indicadores"}
+        subtitle={isAdminView ? "Visão consolidada de todas as associações, automações e acessos" : "Visão consolidada dos indicadores operacionais, financeiros e de sinistros"}
         associacoes={associacoes}
         selectedAssociacao={selectedAssociacao}
         onAssociacaoChange={setSelectedAssociacao}
         loadingAssociacoes={loading}
         currentModule="indicadores"
-        showHistorico={canViewHistorico}
+        showHistorico={canViewHistorico && !isAdminView}
         onHistoricoClick={() => setHistoricoDialogOpen(true)}
+        showAdminOption={canViewAdmin}
       />
 
       <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Gerenciar Usuários */}
-        {selectedAssociacao && (
-          <div className="flex justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setUsuariosDialogOpen(true)}
-              className="gap-2"
-            >
-              <Users className="h-4 w-4" />
-              <span className="text-sm">Gerenciar Usuários</span>
-            </Button>
-          </div>
-        )}
+        {isAdminView ? (
+          <BIAdminDashboard />
+        ) : (
+          <>
+            {/* Gerenciar Usuários */}
+            {selectedAssociacao && (
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUsuariosDialogOpen(true)}
+                  className="gap-2"
+                >
+                  <Users className="h-4 w-4" />
+                  <span className="text-sm">Gerenciar Usuários</span>
+                </Button>
+              </div>
+            )}
 
         {/* Abas */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -145,6 +153,8 @@ export default function PID() {
             <PortalComite corretoraId={selectedAssociacao} />
           </TabsContent>
         </Tabs>
+          </>
+        )}
       </div>
 
       {selectedAssociacaoData && (
