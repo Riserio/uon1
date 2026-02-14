@@ -1555,16 +1555,30 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
       }
       
       // =============================================
-      // FALLBACK: Captura de conteúdo inline da aba
-      // Se após 5s nenhum download disparou, verificar
-      // se a nova aba contém uma tabela HTML grande
-      // (relatório renderizado direto no browser)
+      // FALLBACK: Polling contínuo de conteúdo inline
+      // O portal MGF pode levar muitos minutos para
+      // gerar o relatório na nova aba. Verificamos
+      // periodicamente (a cada 15s) se a aba contém
+      // uma tabela HTML grande (relatório renderizado).
       // =============================================
       if (!controller.isCaptured() && !downloadFiredInTab) {
+        const INLINE_POLL_INTERVAL = 15000; // 15 segundos
+        const INLINE_POLL_MAX = TIMEOUTS.DOWNLOAD_HARD; // mesmo timeout do download
+        const inlinePollStart = Date.now();
+        
+        log(`Iniciando polling de conteúdo inline na nova aba (a cada ${INLINE_POLL_INTERVAL / 1000}s, max ${Math.floor(INLINE_POLL_MAX / 60000)} min)...`, LOG_LEVELS.INFO);
+        
+        // Primeira verificação após 5s
         await new Promise(resolve => setTimeout(resolve, 5000));
         
-        if (!controller.isCaptured()) {
+        while (!controller.isCaptured() && (Date.now() - inlinePollStart) < INLINE_POLL_MAX) {
           try {
+            // Verificar se a aba ainda existe
+            if (newPage.isClosed()) {
+              log(`Nova aba foi fechada - parando polling inline`, LOG_LEVELS.DEBUG);
+              break;
+            }
+            
             const pageContent = await newPage.content().catch(() => '');
             
             if (pageContent.length > 5000 && 
@@ -1588,12 +1602,19 @@ function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanti
                 controller.setFileResult({ filePath, size: stats.size, contentType: 'text/html' });
                 newPage.close().catch(() => {});
               }
+              break;
             } else {
-              log(`Nova aba sem conteúdo de tabela significativo (${pageContent.length} chars)`, LOG_LEVELS.DEBUG);
+              const elapsed = Math.floor((Date.now() - inlinePollStart) / 1000);
+              const mins = Math.floor(elapsed / 60);
+              const secs = elapsed % 60;
+              log(`⏳ Polling inline: aba com ${pageContent.length} chars (sem tabela ainda) - ${mins}m ${secs}s`, LOG_LEVELS.DEBUG);
             }
           } catch (e) {
             log(`Erro ao verificar conteúdo inline da aba: ${e.message}`, LOG_LEVELS.WARN);
           }
+          
+          // Aguardar antes do próximo poll
+          await new Promise(resolve => setTimeout(resolve, INLINE_POLL_INTERVAL));
         }
       }
       
