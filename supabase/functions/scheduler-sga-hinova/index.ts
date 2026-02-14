@@ -260,7 +260,7 @@ serve(async (req) => {
             console.error(`[Scheduler SGA] Erro ao disparar retry para ${config.corretora_id}:`, errorText);
             
             // Agendar próximo retry em 1 hora
-            const proximoRetry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+            const proximoRetry = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
             await supabase
               .from("sga_automacao_execucoes")
               .update({
@@ -422,7 +422,7 @@ serve(async (req) => {
               status: 'erro',
               erro: `Erro ao disparar GitHub Actions: ${dispatchResponse.status}`,
               finalizado_at: new Date().toISOString(),
-              proxima_tentativa_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+              proxima_tentativa_at: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
             })
             .eq("id", execucao.id);
 

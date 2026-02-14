@@ -193,7 +193,7 @@ serve(async (req) => {
         // Se erro, agendar retry em 1 hora (com limite máximo)
         if (status === 'erro') {
           // Limite máximo de retries para evitar loop infinito
-          const MAX_RETRIES = 10;
+          const MAX_RETRIES = 3;
           
           // Buscar retry_count atual
           const { data: currentExec } = await supabase
@@ -207,7 +207,7 @@ serve(async (req) => {
           
           // Só agenda retry se não ultrapassou o limite
           if (newRetryCount < MAX_RETRIES) {
-            updateData.proxima_tentativa_at = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+            updateData.proxima_tentativa_at = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
             console.log(`[Webhook SGA] Retry agendado para ${updateData.proxima_tentativa_at} (tentativa ${newRetryCount}/${MAX_RETRIES})`);
           } else {
             updateData.proxima_tentativa_at = null;

@@ -138,13 +138,14 @@ export default function Usuarios() {
   const [isFuncionario, setIsFuncionario] = useState(false);
   const [createdFuncionarioId, setCreatedFuncionarioId] = useState<string | null>(null);
   const [funcionarioFormData, setFuncionarioFormData] = useState<FuncionarioFormData>(defaultFuncionarioFormData);
-  const [selectedModulosBI, setSelectedModulosBI] = useState<string[]>(['indicadores', 'eventos', 'mgf', 'cobranca']);
+  const [selectedModulosBI, setSelectedModulosBI] = useState<string[]>(['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
 
   const MODULOS_BI = [
     { id: 'indicadores', label: 'BI Indicadores', description: 'Dashboard principal com KPIs' },
     { id: 'eventos', label: 'Eventos', description: 'Módulo SGA de eventos' },
     { id: 'mgf', label: 'MGF', description: 'Módulo de gestão financeira' },
     { id: 'cobranca', label: 'Cobrança', description: 'Módulo de cobrança/inadimplência' },
+    { id: 'estudo-base', label: 'Estudo de Base', description: 'Análise detalhada da base de veículos' },
   ];
   const filteredProfiles = useMemo(() => {
     if (!searchTerm) return profiles;
@@ -763,9 +764,9 @@ export default function Usuarios() {
           .eq("profile_id", item.id)
           .maybeSingle();
         
-        setSelectedModulosBI(usuarioBI?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca']);
+        setSelectedModulosBI(usuarioBI?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
       } else {
-        setSelectedModulosBI(['indicadores', 'eventos', 'mgf', 'cobranca']);
+        setSelectedModulosBI(['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
       }
       
       // Verificar se já é funcionário e carregar dados completos
@@ -816,7 +817,7 @@ export default function Usuarios() {
       setIsFuncionario(false);
       setCreatedFuncionarioId(null);
       setFuncionarioFormData(defaultFuncionarioFormData);
-      setSelectedModulosBI(['indicadores', 'eventos', 'mgf', 'cobranca']);
+      setSelectedModulosBI(['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
     }
     setDialogOpen(true);
   };

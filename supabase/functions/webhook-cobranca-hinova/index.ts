@@ -406,7 +406,7 @@ serve(async (req) => {
         }
 
         // Limite máximo de retries para evitar loop infinito
-        const MAX_RETRIES = 10;
+        const MAX_RETRIES = 3;
         
         if (targetId) {
           // Buscar retry_count atual
@@ -420,7 +420,7 @@ serve(async (req) => {
           
           // Só agenda retry se não ultrapassou o limite
           const proximaTentativa = newRetryCount < MAX_RETRIES 
-            ? new Date(Date.now() + 60 * 60 * 1000).toISOString()
+            ? new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString()
             : null;
           
           await supabase
@@ -446,7 +446,7 @@ serve(async (req) => {
           }
         } else {
           // Primeiro erro - agendar retry
-          const proximaTentativa = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+          const proximaTentativa = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
           
           await supabase
             .from("cobranca_automacao_execucoes")

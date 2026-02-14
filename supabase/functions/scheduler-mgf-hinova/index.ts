@@ -247,7 +247,7 @@ serve(async (req) => {
             console.error(`[Scheduler MGF] Erro ao disparar retry para ${config.corretora_id}:`, errorText);
             
             // Agendar próximo retry em 1 hora
-            const proximoRetry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+            const proximoRetry = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
             await supabase
               .from("mgf_automacao_execucoes")
               .update({
