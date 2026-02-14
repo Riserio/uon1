@@ -11,6 +11,7 @@ import { GerenciarUsuariosCorretoraDialog } from "@/components/GerenciarUsuarios
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import BIPageHeader from "@/components/bi/BIPageHeader";
 import BIAdminDashboard from "@/components/bi/BIAdminDashboard";
+import { getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,18 +41,37 @@ export default function PID() {
   useEffect(() => {
     async function fetchAssociacoes() {
       try {
+        // Usar cache global para renderização instantânea
+        const cached = getCachedAssociacoes();
+        const associacaoParam = searchParams.get("associacao") || searchParams.get("corretora");
+        
+        if (cached && cached.length > 0) {
+          setAssociacoes(cached);
+          if (associacaoParam && cached.some(c => c.id === associacaoParam)) {
+            setSelectedAssociacao(associacaoParam);
+          } else if (canViewAdmin && !adminDefaultAppliedRef.current) {
+            setSelectedAssociacao("__admin__");
+            adminDefaultAppliedRef.current = true;
+          } else if (!adminDefaultAppliedRef.current && !selectedAssociacao) {
+            setSelectedAssociacao(cached[0].id);
+          }
+          setLoading(false);
+        }
+        
         const { data, error } = await supabase.from("corretoras").select("id, nome, slug").order("nome");
         if (error) throw error;
         setAssociacoes(data || []);
+        setCachedAssociacoes(data || []);
         
-        const associacaoParam = searchParams.get("associacao") || searchParams.get("corretora");
-        if (associacaoParam && data?.some(c => c.id === associacaoParam)) {
-          setSelectedAssociacao(associacaoParam);
-        } else if (canViewAdmin && !adminDefaultAppliedRef.current) {
-          setSelectedAssociacao("__admin__");
-          adminDefaultAppliedRef.current = true;
-        } else if (!adminDefaultAppliedRef.current && data && data.length > 0) {
-          setSelectedAssociacao(data[0].id);
+        if (!cached || cached.length === 0) {
+          if (associacaoParam && data?.some(c => c.id === associacaoParam)) {
+            setSelectedAssociacao(associacaoParam);
+          } else if (canViewAdmin && !adminDefaultAppliedRef.current) {
+            setSelectedAssociacao("__admin__");
+            adminDefaultAppliedRef.current = true;
+          } else if (!adminDefaultAppliedRef.current && data && data.length > 0) {
+            setSelectedAssociacao(data[0].id);
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar associações:", error);

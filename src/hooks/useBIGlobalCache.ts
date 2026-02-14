@@ -13,7 +13,13 @@ interface CacheEntry {
   associacaoId: string;
 }
 
+interface AssociacoesCacheEntry {
+  data: { id: string; nome: string; slug?: string | null }[];
+  timestamp: number;
+}
+
 const biCache: Record<string, CacheEntry> = {};
+let associacoesCache: AssociacoesCacheEntry | null = null;
 
 // Tempo máximo de cache: 10 minutos
 const CACHE_TTL = 10 * 60 * 1000;
@@ -56,4 +62,18 @@ export function invalidateBICache(associacaoId?: string, module?: BIModule) {
   } else {
     Object.keys(biCache).forEach(key => delete biCache[key]);
   }
+}
+
+// Cache de associações para navegação instantânea entre módulos BI
+export function getCachedAssociacoes(): { id: string; nome: string; slug?: string | null }[] | null {
+  if (!associacoesCache) return null;
+  if (Date.now() - associacoesCache.timestamp > CACHE_TTL) {
+    associacoesCache = null;
+    return null;
+  }
+  return associacoesCache.data;
+}
+
+export function setCachedAssociacoes(data: { id: string; nome: string; slug?: string | null }[]) {
+  associacoesCache = { data, timestamp: Date.now() };
 }
