@@ -24,6 +24,7 @@ import { getPrefetchedData, savePrefetchedData } from "@/hooks/usePortalDataPref
 import { getBICachedData, setBICachedData, getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
+import { useBILayoutOptional } from "@/contexts/BILayoutContext";
 
 export interface CobrancaFilters {
   mesReferencia: string;
@@ -38,6 +39,7 @@ export default function CobrancaInsights() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { userRole } = useAuth();
+  const biLayout = useBILayoutOptional();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [boletos, setBoletos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,14 +107,27 @@ export default function CobrancaInsights() {
     return result;
   }, [boletos, filters]);
 
-  // Carregar associações
+  // Sync from shared BILayout context when available (internal access)
   useEffect(() => {
+    if (biLayout && !isPortalAccess) {
+      setSelectedAssociacao(biLayout.selectedAssociacao);
+      setAssociacoes(biLayout.associacoes);
+      setLoadingAssociacoes(false);
+    }
+  }, [biLayout?.selectedAssociacao, biLayout?.associacoes, isPortalAccess]);
+
+
+
+
+  // Carregar associações (only for portal access)
+  useEffect(() => {
+    if (biLayout && !isPortalAccess) return;
+    
     async function fetchAssociacoes() {
       try {
         const associacaoParam = searchParams.get("associacao");
         
         if (isPortalAccess && associacaoParam) {
-          // Para parceiros, buscar a associação e suas permissões
           const { data: corretora, error: corretoraError } = await supabase
             .from("corretoras")
             .select("id, nome, logo_url")
@@ -122,7 +137,6 @@ export default function CobrancaInsights() {
           if (corretoraError) throw corretoraError;
 
           if (corretora) {
-            // Buscar permissões do usuário para esta corretora
             const { data: usuarioData } = await supabase
               .from("corretora_usuarios")
               .select("modulos_bi")
@@ -135,7 +149,6 @@ export default function CobrancaInsights() {
             setCorretoraData(corretora);
             setModulosBi(usuarioData?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
             
-            // Verificar se usuário tem múltiplas associações
             const { data: todasAssociacoes } = await supabase
               .from("corretora_usuarios")
               .select("corretora_id")
@@ -180,7 +193,7 @@ export default function CobrancaInsights() {
     }
 
     fetchAssociacoes();
-  }, [searchParams, isPortalAccess]);
+  }, [searchParams, isPortalAccess, biLayout]);
 
   const fetchBoletos = async (forceRefresh = false) => {
     if (!selectedAssociacao) {
@@ -356,6 +369,17 @@ export default function CobrancaInsights() {
 
   const hasActiveFilters = filters.mesReferencia || filters.situacao !== "todos" || filters.regional !== "todos" || filters.cooperativa !== "todos" || filters.diaVencimento !== "todos";
 
+  // Update shared header dynamic props
+  useEffect(() => {
+    if (biLayout && !isPortalAccess) {
+      biLayout.setHeaderDynamic({
+        recordCount: filteredBoletos.length,
+        hasActiveFilters: !!hasActiveFilters,
+        fileName: importacaoAtiva?.nome_arquivo,
+      });
+    }
+  }, [filteredBoletos.length, hasActiveFilters, importacaoAtiva?.nome_arquivo, biLayout, isPortalAccess]);
+
   const tabs = isPortalAccess 
     ? [
         { id: "dashboard", label: "Dashboard", icon: BarChart3 },
@@ -404,8 +428,8 @@ export default function CobrancaInsights() {
         />
       )}
 
-      {/* Header interno (não parceiro) */}
-      {!isPortalAccess && (
+      {/* Header interno - only when NOT inside BILayout */}
+      {!isPortalAccess && !biLayout && (
         <BIPageHeader
           title="Cobrança"
           subtitle="Business Intelligence de Cobrança e Inadimplência"
@@ -649,12 +673,14 @@ export default function CobrancaInsights() {
       </div>
 
       {/* Modal Histórico */}
-      <BIAuditLogDialog
-        open={historicoDialogOpen}
-        onOpenChange={setHistoricoDialogOpen}
-        modulo="cobranca_insights"
-        corretoraId={selectedAssociacao}
-      />
+      {!biLayout && (
+        <BIAuditLogDialog
+          open={historicoDialogOpen}
+          onOpenChange={setHistoricoDialogOpen}
+          modulo="cobranca_insights"
+          corretoraId={selectedAssociacao}
+        />
+      )}
     </>
   );
 
@@ -675,9 +701,5 @@ export default function CobrancaInsights() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      {portalContent}
-    </div>
-  );
+  return <>{portalContent}</>;
 }

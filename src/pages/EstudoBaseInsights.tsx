@@ -14,12 +14,14 @@ import { getBICachedData, setBICachedData, getCachedAssociacoes, setCachedAssoci
 import PortalHeader from "@/components/portal/PortalHeader";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
+import { useBILayoutOptional } from "@/contexts/BILayoutContext";
 
 export default function EstudoBaseInsights() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { userRole } = useAuth();
+  const biLayout = useBILayoutOptional();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [registros, setRegistros] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,8 +49,29 @@ export default function EstudoBaseInsights() {
   const [corretoraData, setCorretoraData] = useState<{ id: string; nome: string; logo_url?: string | null } | null>(null);
   const [multipleAssociacoes, setMultipleAssociacoes] = useState(false);
 
-  // Load associations
+  // Sync from shared BILayout context when available (internal access)
   useEffect(() => {
+    if (biLayout && !isPortalAccess) {
+      setSelectedAssociacao(biLayout.selectedAssociacao);
+      setAssociacoes(biLayout.associacoes);
+      setLoadingAssociacoes(false);
+    }
+  }, [biLayout?.selectedAssociacao, biLayout?.associacoes, isPortalAccess]);
+
+  // Update shared header dynamic props
+  useEffect(() => {
+    if (biLayout && !isPortalAccess) {
+      biLayout.setHeaderDynamic({
+        recordCount: registros.length,
+        fileName: importacaoAtiva?.nome_arquivo,
+      });
+    }
+  }, [registros.length, importacaoAtiva?.nome_arquivo, biLayout, isPortalAccess]);
+
+  // Load associations (only for portal access)
+  useEffect(() => {
+    if (biLayout && !isPortalAccess) return;
+    
     async function fetchAssociacoes() {
       try {
         const associacaoParam = searchParams.get("associacao") || searchParams.get("corretora");
@@ -115,7 +138,7 @@ export default function EstudoBaseInsights() {
       }
     }
     fetchAssociacoes();
-  }, [searchParams, isPortalAccess]);
+  }, [searchParams, isPortalAccess, biLayout]);
 
   // Fetch data
   const fetchRegistros = useCallback(async (forceRefresh = false) => {
@@ -247,8 +270,8 @@ export default function EstudoBaseInsights() {
         />
       )}
 
-      {/* Internal header */}
-      {!isPortalAccess && (
+      {/* Internal header - only when NOT inside BILayout */}
+      {!isPortalAccess && !biLayout && (
         <BIPageHeader
           title="Estudo de Base"
           subtitle="Análise detalhada da base de veículos e associados"
@@ -349,12 +372,14 @@ export default function EstudoBaseInsights() {
         </Tabs>
       </div>
 
-      <BIAuditLogDialog
-        open={historicoDialogOpen}
-        onOpenChange={setHistoricoDialogOpen}
-        modulo="estudo_base"
-        corretoraId={selectedAssociacao}
-      />
+      {!biLayout && (
+        <BIAuditLogDialog
+          open={historicoDialogOpen}
+          onOpenChange={setHistoricoDialogOpen}
+          modulo="estudo_base"
+          corretoraId={selectedAssociacao}
+        />
+      )}
     </>
   );
 
@@ -375,5 +400,5 @@ export default function EstudoBaseInsights() {
     );
   }
 
-  return <div className="min-h-screen bg-background">{mainContent}</div>;
+  return <>{mainContent}</>;
 }

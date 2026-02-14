@@ -26,6 +26,7 @@ import { getPrefetchedData, savePrefetchedData } from "@/hooks/usePortalDataPref
 import { getBICachedData, setBICachedData, getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
+import { useBILayoutOptional } from "@/contexts/BILayoutContext";
 
 export interface MGFFilters {
   operacao: string;
@@ -43,6 +44,7 @@ export default function MGFInsights() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { userRole } = useAuth();
+  const biLayout = useBILayoutOptional();
   
   // Detectar se é acesso via portal (parceiro)
   const isPortalAccess = location.pathname.startsWith('/portal');
@@ -82,15 +84,25 @@ export default function MGFInsights() {
   // Verifica se pode ver histórico (superintendente ou admin)
   const canViewHistorico = userRole === "superintendente" || userRole === "admin";
 
-  // Carregar associações
+  // Sync from shared BILayout context when available (internal access)
   useEffect(() => {
+    if (biLayout && !isPortalAccess) {
+      setSelectedAssociacao(biLayout.selectedAssociacao);
+      setAssociacoes(biLayout.associacoes);
+      setLoadingAssociacoes(false);
+    }
+  }, [biLayout?.selectedAssociacao, biLayout?.associacoes, isPortalAccess]);
+
+
+  // Carregar associações (only for portal access)
+  useEffect(() => {
+    if (biLayout && !isPortalAccess) return;
+    
     async function fetchAssociacoes() {
       try {
-        // Se é acesso via portal, usar apenas a associação da URL
         const associacaoParam = searchParams.get("associacao");
         
         if (isPortalAccess && associacaoParam) {
-          // Para parceiros, buscar a associação e suas permissões
           const { data: corretora, error: corretoraError } = await supabase
             .from("corretoras")
             .select("id, nome, logo_url")
@@ -100,7 +112,6 @@ export default function MGFInsights() {
           if (corretoraError) throw corretoraError;
 
           if (corretora) {
-            // Buscar permissões do usuário para esta corretora
             const { data: usuarioData } = await supabase
               .from("corretora_usuarios")
               .select("modulos_bi")
@@ -113,7 +124,6 @@ export default function MGFInsights() {
             setCorretoraData(corretora);
             setModulosBi(usuarioData?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
             
-            // Verificar se usuário tem múltiplas associações
             const { data: todasAssociacoes } = await supabase
               .from("corretora_usuarios")
               .select("corretora_id")
@@ -159,7 +169,7 @@ export default function MGFInsights() {
     }
 
     fetchAssociacoes();
-  }, [searchParams, isPortalAccess]);
+  }, [searchParams, isPortalAccess, biLayout]);
 
   const fetchDados = async (forceRefresh = false) => {
     if (!selectedAssociacao) {
@@ -360,6 +370,16 @@ export default function MGFInsights() {
 
   const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome || "";
 
+  // Update shared header dynamic props
+  useEffect(() => {
+    if (biLayout && !isPortalAccess) {
+      biLayout.setHeaderDynamic({
+        recordCount: filteredDados.length,
+        fileName: importacaoAtiva?.nome_arquivo,
+      });
+    }
+  }, [filteredDados.length, importacaoAtiva?.nome_arquivo, biLayout, isPortalAccess]);
+
   // Tabs - esconder importação para parceiros
   const tabs = isPortalAccess 
     ? [
@@ -411,8 +431,8 @@ export default function MGFInsights() {
         />
       )}
 
-      {/* Header interno (não parceiro) */}
-      {!isPortalAccess && (
+      {/* Header interno - only when NOT inside BILayout */}
+      {!isPortalAccess && !biLayout && (
         <BIPageHeader
           title="MGF"
           subtitle="Business Intelligence de Dados MGF"
@@ -634,12 +654,14 @@ export default function MGFInsights() {
       </div>
 
       {/* Dialog de Histórico */}
-      <BIAuditLogDialog
-        open={historicoDialogOpen}
-        onOpenChange={setHistoricoDialogOpen}
-        modulo="mgf_insights"
-        corretoraId={selectedAssociacao}
-      />
+      {!biLayout && (
+        <BIAuditLogDialog
+          open={historicoDialogOpen}
+          onOpenChange={setHistoricoDialogOpen}
+          modulo="mgf_insights"
+          corretoraId={selectedAssociacao}
+        />
+      )}
     </>
   );
 
@@ -660,9 +682,5 @@ export default function MGFInsights() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      {portalContent}
-    </div>
-  );
+  return <>{portalContent}</>;
 }
