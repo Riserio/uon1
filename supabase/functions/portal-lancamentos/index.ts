@@ -7,6 +7,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function verifyPortalToken(token: string) {
+  const jwtSecret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(jwtSecret),
+    { name: 'HMAC', hash: 'SHA-512' },
+    false,
+    ['verify']
+  );
+  return await verify(token, key);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -23,19 +35,18 @@ serve(async (req) => {
 
     const token = authHeader.replace('Bearer ', '');
     
-    // Decodificar JWT sem verificação (verify_jwt = false no config)
     let corretoraId: string;
     let userId: string;
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      corretoraId = payload.corretoraId;
-      userId = payload.userId;
+      const payload = await verifyPortalToken(token);
+      corretoraId = payload.corretoraId as string;
+      userId = payload.userId as string;
       
       if (!corretoraId || !userId) {
         throw new Error('corretoraId ou userId não encontrado no token');
       }
     } catch (e) {
-      console.error('Erro ao decodificar token:', e);
+      console.error('Erro ao verificar token:', e);
       return new Response(
         JSON.stringify({ error: 'Token inválido' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
@@ -79,7 +90,6 @@ serve(async (req) => {
 
       if (error) throw error;
 
-      // Registrar auditoria
       await supabaseClient.from('pid_audit_log').insert({
         corretora_id: corretoraId,
         usuario_id: userId,
@@ -96,7 +106,6 @@ serve(async (req) => {
     if (req.method === 'PUT') {
       const { id, ...lancamento } = await req.json();
 
-      // Verificar se o lançamento pertence à corretora
       const { data: existing } = await supabaseClient
         .from('producao_financeira')
         .select('*')
@@ -121,7 +130,6 @@ serve(async (req) => {
 
       if (error) throw error;
 
-      // Registrar auditoria
       await supabaseClient.from('pid_audit_log').insert({
         corretora_id: corretoraId,
         usuario_id: userId,
@@ -139,7 +147,6 @@ serve(async (req) => {
       const url = new URL(req.url);
       const id = url.searchParams.get('id');
 
-      // Verificar se o lançamento pertence à corretora
       const { data: existing } = await supabaseClient
         .from('producao_financeira')
         .select('*')
@@ -162,7 +169,6 @@ serve(async (req) => {
 
       if (error) throw error;
 
-      // Registrar auditoria
       await supabaseClient.from('pid_audit_log').insert({
         corretora_id: corretoraId,
         usuario_id: userId,
@@ -184,7 +190,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Erro desconhecido' }),
+      JSON.stringify({ error: 'Erro interno do servidor' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
