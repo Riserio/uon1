@@ -78,7 +78,7 @@ export default function PID() {
         selectedAssociacao={selectedAssociacao}
         onAssociacaoChange={setSelectedAssociacao}
         loadingAssociacoes={loading}
-        currentModule="indicadores"
+        currentModule={isAdminView ? "admin" : "indicadores"}
         showHistorico={canViewHistorico && !isAdminView}
         onHistoricoClick={() => setHistoricoDialogOpen(true)}
         showAdminOption={canViewAdmin}

@@ -267,6 +267,12 @@ serve(async (req) => {
         key
       );
 
+      // Registrar ultimo_acesso
+      await supabaseClient
+        .from('corretora_usuarios')
+        .update({ ultimo_acesso: new Date().toISOString() })
+        .eq('id', usuario.id);
+
       return new Response(
         JSON.stringify({
           token: jwt,
