@@ -19,7 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 import PortalHeader from "@/components/portal/PortalHeader";
 import BIPageHeader from "@/components/bi/BIPageHeader";
 import { getPrefetchedData, savePrefetchedData } from "@/hooks/usePortalDataPrefetch";
-import { getBICachedData, setBICachedData } from "@/hooks/useBIGlobalCache";
+import { getBICachedData, setBICachedData, getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 
@@ -157,20 +157,34 @@ export default function SGAInsights() {
             setMultipleAssociacoes((todasAssociacoes?.length || 0) > 1);
           }
         } else {
-          // Para acesso interno, buscar todas as associações
+          const associacaoParam2 = searchParams.get("associacao");
+          // Cache global para renderização instantânea
+          const cached = getCachedAssociacoes();
+          if (cached && cached.length > 0 && !associacoes.length) {
+            setAssociacoes(cached);
+            if (associacaoParam2 && cached.some(c => c.id === associacaoParam2)) {
+              setSelectedAssociacao(associacaoParam2);
+            } else if (!selectedAssociacao) {
+              setSelectedAssociacao(cached[0].id);
+            }
+            setLoadingAssociacoes(false);
+          }
+          
           const { data, error } = await supabase
             .from("corretoras")
             .select("id, nome")
             .order("nome");
 
           if (error) throw error;
-
           setAssociacoes(data || []);
+          setCachedAssociacoes(data || []);
           
-          if (associacaoParam && data?.some(c => c.id === associacaoParam)) {
-            setSelectedAssociacao(associacaoParam);
-          } else if (data && data.length > 0) {
-            setSelectedAssociacao(data[0].id);
+          if (!cached || cached.length === 0) {
+            if (associacaoParam2 && data?.some(c => c.id === associacaoParam2)) {
+              setSelectedAssociacao(associacaoParam2);
+            } else if (data && data.length > 0) {
+              setSelectedAssociacao(data[0].id);
+            }
           }
         }
       } catch (error) {

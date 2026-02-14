@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+import { compareSync, hashSync } from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 import { create } from "https://deno.land/x/djwt@v3.0.1/mod.ts";
 
 // Função para gerar secret TOTP
@@ -213,7 +213,7 @@ serve(async (req) => {
       }
 
       // Verificar senha
-      const senhaValida = await bcrypt.compare(password, usuario.senha_hash);
+      const senhaValida = compareSync(password, usuario.senha_hash);
       if (!senhaValida) {
         return new Response(
           JSON.stringify({ error: 'Credenciais inválidas' }),

@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import EstudoBaseDashboard, { type EstudoBaseFilters } from "@/components/estudo-base/EstudoBaseDashboard";
 import EstudoBaseImportacao from "@/components/estudo-base/EstudoBaseImportacao";
 import EstudoBaseMapa from "@/components/estudo-base/EstudoBaseMapa";
-import { getBICachedData, setBICachedData } from "@/hooks/useBIGlobalCache";
+import { getBICachedData, setBICachedData, getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
 import PortalHeader from "@/components/portal/PortalHeader";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
@@ -82,13 +82,30 @@ export default function EstudoBaseInsights() {
             setMultipleAssociacoes((todasAssociacoes?.length || 0) > 1);
           }
         } else {
+          const cached = getCachedAssociacoes();
+          if (cached && cached.length > 0 && !associacoes.length) {
+            setAssociacoes(cached);
+            const ap = searchParams.get("associacao") || searchParams.get("corretora");
+            if (ap && cached.some(c => c.id === ap)) {
+              setSelectedAssociacao(ap);
+            } else if (!selectedAssociacao) {
+              setSelectedAssociacao(cached[0].id);
+            }
+            setLoadingAssociacoes(false);
+          }
+          
           const { data, error } = await supabase.from("corretoras").select("id, nome").order("nome");
           if (error) throw error;
           setAssociacoes(data || []);
-          if (associacaoParam && data?.some((c) => c.id === associacaoParam)) {
-            setSelectedAssociacao(associacaoParam);
-          } else if (data && data.length > 0) {
-            setSelectedAssociacao(data[0].id);
+          setCachedAssociacoes(data || []);
+          
+          if (!cached || cached.length === 0) {
+            const ap2 = searchParams.get("associacao") || searchParams.get("corretora");
+            if (ap2 && data?.some((c) => c.id === ap2)) {
+              setSelectedAssociacao(ap2);
+            } else if (data && data.length > 0) {
+              setSelectedAssociacao(data[0].id);
+            }
           }
         }
       } catch (error) {
