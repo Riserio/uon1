@@ -147,7 +147,7 @@ export default function SGAInsights() {
             setAssociacoes([{ id: corretora.id, nome: corretora.nome }]);
             setSelectedAssociacao(corretora.id);
             setCorretoraData(corretora);
-            setModulosBi(usuarioData?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca']);
+            setModulosBi(usuarioData?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
             
             // Verificar se usuário tem múltiplas associações
             const { data: todasAssociacoes } = await supabase

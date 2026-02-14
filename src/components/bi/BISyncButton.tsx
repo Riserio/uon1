@@ -547,7 +547,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                 </Button>
               ))}
             </div>
-            <ScrollArea className="max-h-[350px]">
+            <ScrollArea className="h-[300px]">
               {historyLoading ? (
                 <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" /></div>
               ) : historyLogs.length === 0 ? (
