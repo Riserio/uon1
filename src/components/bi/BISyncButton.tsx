@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   RefreshCw, Play, Loader2, CheckCircle, XCircle, Clock, 
   Settings, Eye, EyeOff, Save, ChevronDown, ChevronUp,
-  Zap, AlertTriangle, ExternalLink, History
+  Zap, AlertTriangle, ExternalLink, History, Square
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -45,6 +45,7 @@ interface ExecutionLog {
   finalizado_at: string | null;
   registros_processados: number | null;
   github_run_url: string | null;
+  github_run_id: string | null;
   etapa_atual: string | null;
 }
 
@@ -98,6 +99,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [executingModule, setExecutingModule] = useState<ModuleType | "all" | null>(null);
+  const [stoppingModule, setStoppingModule] = useState<ModuleType | null>(null);
   const [moduleStatuses, setModuleStatuses] = useState<Record<ModuleType, ModuleStatus>>({
     cobranca: { lastExecution: null, lastStatus: null, lastError: null, isExecuting: false },
     eventos: { lastExecution: null, lastStatus: null, lastError: null, isExecuting: false },
@@ -300,6 +302,55 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     }
   };
 
+  const handleStopModule = async (mod: ModuleType) => {
+    setStoppingModule(mod);
+    try {
+      // Find the running execution's github_run_id
+      const { data: executions } = await supabase
+        .from(EXEC_TABLES[mod] as any)
+        .select("id, github_run_id")
+        .eq("corretora_id", corretoraId)
+        .eq("status", "executando")
+        .order("created_at", { ascending: false })
+        .limit(1) as any;
+
+      const runId = executions?.[0]?.github_run_id;
+      const execId = executions?.[0]?.id;
+
+      if (runId) {
+        // Cancel GitHub workflow
+        const { data, error } = await supabase.functions.invoke(DISPATCH_FUNCTIONS[mod], {
+          body: { action: "cancel", run_id: runId },
+        });
+        if (error) throw error;
+      }
+
+      // Update execution status in DB
+      if (execId) {
+        await supabase
+          .from(EXEC_TABLES[mod] as any)
+          .update({ 
+            status: "parado", 
+            erro: "Execução interrompida pelo usuário",
+            finalizado_at: new Date().toISOString() 
+          } as any)
+          .eq("id", execId);
+
+        await supabase
+          .from(CONFIG_TABLES[mod] as any)
+          .update({ ultimo_status: "parado", ultimo_erro: "Interrompido pelo usuário" } as any)
+          .eq("corretora_id", corretoraId);
+      }
+
+      toast.success(`${MODULE_LABELS[mod]} sincronização parada!`);
+      loadModuleStatuses();
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao parar sincronização");
+    } finally {
+      setStoppingModule(null);
+    }
+  };
+
   const handleExecuteAll = async () => {
     setExecutingModule("all");
     const modules: ModuleType[] = ["cobranca", "eventos", "mgf"];
@@ -330,7 +381,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     try {
       const { data, error } = await supabase
         .from(EXEC_TABLES[mod] as any)
-        .select("id, status, erro, mensagem, created_at, finalizado_at, registros_processados, github_run_url, etapa_atual")
+        .select("id, status, erro, mensagem, created_at, finalizado_at, registros_processados, github_run_url, github_run_id, etapa_atual")
         .eq("corretora_id", corretoraId)
         .order("created_at", { ascending: false })
         .limit(10);
@@ -445,19 +496,36 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                           )}
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleExecuteModule(mod)}
-                        disabled={executingModule !== null || status.isExecuting}
-                        className="h-7 px-2.5 shrink-0"
-                      >
-                        {executingModule === mod || status.isExecuting ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Play className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
+                      {status.isExecuting ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleStopModule(mod)}
+                          disabled={stoppingModule === mod}
+                          className="h-7 px-2.5 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          title="Parar sincronização"
+                        >
+                          {stoppingModule === mod ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Square className="h-3.5 w-3.5 fill-current" />
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleExecuteModule(mod)}
+                          disabled={executingModule !== null}
+                          className="h-7 px-2.5 shrink-0"
+                        >
+                          {executingModule === mod ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Play className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
@@ -577,11 +645,53 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                             <p className="text-destructive mt-0.5 line-clamp-2">{log.erro}</p>
                           )}
                         </div>
-                        {log.github_run_url && (
-                          <a href={log.github_run_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 shrink-0">
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
-                        )}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {log.status === "executando" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={async () => {
+                                if (log.github_run_id) {
+                                  setStoppingModule(historyModule);
+                                  try {
+                                    await supabase.functions.invoke(DISPATCH_FUNCTIONS[historyModule], {
+                                      body: { action: "cancel", run_id: log.github_run_id },
+                                    });
+                                    await supabase
+                                      .from(EXEC_TABLES[historyModule] as any)
+                                      .update({ status: "parado", erro: "Execução interrompida pelo usuário", finalizado_at: new Date().toISOString() } as any)
+                                      .eq("id", log.id);
+                                    await supabase
+                                      .from(CONFIG_TABLES[historyModule] as any)
+                                      .update({ ultimo_status: "parado", ultimo_erro: "Interrompido pelo usuário" } as any)
+                                      .eq("corretora_id", corretoraId);
+                                    toast.success("Sincronização parada!");
+                                    loadHistory(historyModule);
+                                    loadModuleStatuses();
+                                  } catch (e: any) {
+                                    toast.error(e.message || "Erro ao parar");
+                                  } finally {
+                                    setStoppingModule(null);
+                                  }
+                                }
+                              }}
+                              disabled={stoppingModule === historyModule}
+                              className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              title="Parar execução"
+                            >
+                              {stoppingModule === historyModule ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Square className="h-3 w-3 fill-current" />
+                              )}
+                            </Button>
+                          )}
+                          {log.github_run_url && (
+                            <a href={log.github_run_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700">
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
