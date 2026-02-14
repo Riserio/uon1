@@ -86,6 +86,15 @@ serve(async (req) => {
       if (!cancelResponse.ok && cancelResponse.status !== 202) {
         const errorText = await cancelResponse.text();
         console.error("Erro ao cancelar workflow:", errorText);
+        
+        // 409 = workflow already completed, treat as success
+        if (cancelResponse.status === 409) {
+          return new Response(
+            JSON.stringify({ success: true, message: "Execução já foi finalizada" }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
         return new Response(
           JSON.stringify({ success: false, message: "Erro ao cancelar execução no GitHub" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
