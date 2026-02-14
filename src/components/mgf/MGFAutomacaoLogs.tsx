@@ -184,10 +184,18 @@ export default function MGFAutomacaoLogs({ configId, corretoraId }: MGFAutomacao
                         
                         {exec.etapa_atual && exec.status === 'executando' && (
                           <Badge variant="secondary" className="text-xs">
-                            {exec.etapa_atual}
+                            {exec.etapa_atual === 'aguardando_geracao' ? '⏳ Gerando relatório' : exec.etapa_atual}
                           </Badge>
                         )}
                       </div>
+                      
+                      {/* Mensagem de progresso em tempo real */}
+                      {exec.mensagem && exec.status === 'executando' && (
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 flex items-center gap-1">
+                          <span className="animate-pulse">●</span>
+                          {exec.mensagem}
+                        </p>
+                      )}
                       
                       <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
                         <Clock className="h-3 w-3" />
@@ -204,13 +212,13 @@ export default function MGFAutomacaoLogs({ configId, corretoraId }: MGFAutomacao
                       {/* Progresso */}
                       {exec.status === 'executando' && (
                         <div className="mt-2 space-y-1">
-                          {exec.progresso_download !== null && exec.progresso_download < 100 && (
+                          {exec.progresso_download !== null && exec.progresso_download > 0 && exec.progresso_download < 100 && (
                             <div className="space-y-1">
                               <div className="flex justify-between text-xs">
-                                <span>Download</span>
+                                <span>Geração do relatório</span>
                                 <span>{exec.progresso_download}%</span>
                               </div>
-                              <Progress value={exec.progresso_download} className="h-1" />
+                              <Progress value={exec.progresso_download} className="h-1.5" />
                             </div>
                           )}
                           {exec.progresso_importacao !== null && exec.progresso_importacao > 0 && (
@@ -219,7 +227,7 @@ export default function MGFAutomacaoLogs({ configId, corretoraId }: MGFAutomacao
                                 <span>Importação</span>
                                 <span>{exec.progresso_importacao}%</span>
                               </div>
-                              <Progress value={exec.progresso_importacao} className="h-1" />
+                              <Progress value={exec.progresso_importacao} className="h-1.5" />
                             </div>
                           )}
                         </div>
