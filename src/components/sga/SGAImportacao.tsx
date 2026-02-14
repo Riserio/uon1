@@ -10,7 +10,7 @@ import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Download, 
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import SGAHistoricoImportacoes from "./SGAHistoricoImportacoes";
-import SGAAutomacaoConfig from "./SGAAutomacaoConfig";
+// Automação agora é gerenciada pelo BISyncButton no header
 import { useBIAuditLog } from "@/hooks/useBIAuditLog";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -201,7 +201,7 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [preview, setPreview] = useState<any[]>([]);
-  const [showAutomacaoDialog, setShowAutomacaoDialog] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = userRole === "admin" || userRole === "superintendente";
@@ -393,17 +393,6 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
                 <Download className="h-4 w-4 mr-2" />
                 Baixar Modelo
               </Button>
-              {isAdmin && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setShowAutomacaoDialog(true)}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Automação Hinova</span>
-                  <span className="sm:hidden">Automação</span>
-                </Button>
-              )}
             </div>
           </div>
           <CardDescription>
@@ -470,21 +459,6 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
         </CardContent>
       </Card>
 
-      {/* Dialog de Automação Hinova */}
-      <Dialog open={showAutomacaoDialog} onOpenChange={setShowAutomacaoDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5 text-primary" />
-              Automação SGA Hinova
-            </DialogTitle>
-          </DialogHeader>
-          <SGAAutomacaoConfig 
-            corretoraId={corretoraId}
-            corretoraNome={corretoraNome}
-          />
-        </DialogContent>
-      </Dialog>
 
       {/* Preview */}
       {preview.length > 0 && (

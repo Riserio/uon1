@@ -5,19 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Download, Bot } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import MGFHistoricoImportacoes from "./MGFHistoricoImportacoes";
-import MGFAutomacaoConfig from "./MGFAutomacaoConfig";
+// Automação agora é gerenciada pelo BISyncButton no header
 import { useBIAuditLog } from "@/hooks/useBIAuditLog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface MGFImportacaoProps {
   onImportSuccess: () => void;
@@ -248,7 +242,7 @@ export default function MGFImportacao({ onImportSuccess, corretoraId, corretoraN
   const [preview, setPreview] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [automacaoDialogOpen, setAutomacaoDialogOpen] = useState(false);
+  
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -454,27 +448,6 @@ export default function MGFImportacao({ onImportSuccess, corretoraId, corretoraN
               Importar Planilha MGF
             </CardTitle>
             <div className="flex gap-2">
-              <Dialog open={automacaoDialogOpen} onOpenChange={setAutomacaoDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="border-purple-500/50 text-purple-600 hover:bg-purple-500/10">
-                    <Bot className="h-4 w-4 mr-2" />
-                    Automação Hinova
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Automação MGF - Hinova</DialogTitle>
-                  </DialogHeader>
-                  <MGFAutomacaoConfig
-                    corretoraId={corretoraId}
-                    corretoraNome={corretoraNome}
-                    onSuccess={() => {
-                      setAutomacaoDialogOpen(false);
-                      onImportSuccess();
-                    }}
-                  />
-                </DialogContent>
-              </Dialog>
               <Button variant="outline" size="sm" onClick={downloadMGFTemplate}>
                 <Download className="h-4 w-4 mr-2" />
                 Baixar Modelo

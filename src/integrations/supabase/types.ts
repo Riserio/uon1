@@ -2255,6 +2255,68 @@ export type Database = {
         }
         Relationships: []
       }
+      hinova_credenciais: {
+        Row: {
+          ativo_cobranca: boolean | null
+          ativo_eventos: boolean | null
+          ativo_mgf: boolean | null
+          corretora_id: string
+          created_at: string
+          hinova_codigo_cliente: string | null
+          hinova_pass: string
+          hinova_url: string
+          hinova_user: string
+          hora_agendada: string | null
+          id: string
+          layout_cobranca: string | null
+          layout_eventos: string | null
+          layout_mgf: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo_cobranca?: boolean | null
+          ativo_eventos?: boolean | null
+          ativo_mgf?: boolean | null
+          corretora_id: string
+          created_at?: string
+          hinova_codigo_cliente?: string | null
+          hinova_pass?: string
+          hinova_url?: string
+          hinova_user?: string
+          hora_agendada?: string | null
+          id?: string
+          layout_cobranca?: string | null
+          layout_eventos?: string | null
+          layout_mgf?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo_cobranca?: boolean | null
+          ativo_eventos?: boolean | null
+          ativo_mgf?: boolean | null
+          corretora_id?: string
+          created_at?: string
+          hinova_codigo_cliente?: string | null
+          hinova_pass?: string
+          hinova_url?: string
+          hinova_user?: string
+          hora_agendada?: string | null
+          id?: string
+          layout_cobranca?: string | null
+          layout_eventos?: string | null
+          layout_mgf?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hinova_credenciais_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: true
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       justificativas_ausencia: {
         Row: {
           aprovado_em: string | null

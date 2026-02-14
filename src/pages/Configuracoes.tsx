@@ -8,8 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Palette, Image as ImageIcon, GitBranch, Settings } from "lucide-react";
-import { GitHubSyncPanel } from "@/components/GitHubSyncPanel";
+import { Palette, Image as ImageIcon, Settings } from "lucide-react";
 
 interface ConfigColors {
   primary: string;
@@ -145,7 +144,7 @@ export default function Configuracoes() {
         </div>
 
         <Tabs defaultValue="colors" className="w-full">
-          <TabsList className="grid w-full max-w-lg grid-cols-3 mb-8">
+          <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
             <TabsTrigger value="colors" className="gap-2">
               <Palette className="h-4 w-4" />
               Cores
@@ -153,10 +152,6 @@ export default function Configuracoes() {
             <TabsTrigger value="images" className="gap-2">
               <ImageIcon className="h-4 w-4" />
               Imagens
-            </TabsTrigger>
-            <TabsTrigger value="sync" className="gap-2">
-              <GitBranch className="h-4 w-4" />
-              Sincronização
             </TabsTrigger>
           </TabsList>
 
@@ -405,9 +400,6 @@ export default function Configuracoes() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="sync" className="space-y-6">
-            <GitHubSyncPanel />
-          </TabsContent>
         </Tabs>
       </div>
     </div>
