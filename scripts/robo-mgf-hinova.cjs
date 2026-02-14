@@ -2720,14 +2720,17 @@ async function rodarRobo() {
       log('⏳ Aguardando configurações do layout carregarem...', LOG_LEVELS.INFO);
       await page.waitForTimeout(10000);
     } else {
-      log(`⚠️ Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado automaticamente`, LOG_LEVELS.WARN);
-      log(`   Opções disponíveis: ${layoutSelecionado.opcoesDisponiveis.join(', ') || 'NENHUMA'}`, LOG_LEVELS.WARN);
+      log(`❌ ERRO CRÍTICO: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado!`, LOG_LEVELS.ERROR);
+      log(`   Opções disponíveis: ${layoutSelecionado.opcoesDisponiveis.join(', ') || 'NENHUMA'}`, LOG_LEVELS.ERROR);
+      await saveDebugInfo(page, context, 'Layout BI-VANGARD não encontrado');
+      throw new Error(`ERRO CRÍTICO: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado! Verifique a seção de layout no portal.`);
     }
     
     await page.waitForTimeout(1000);
     
     // ============================================
     // CENTRO DE CUSTO: MARCAR APENAS OS 3 ESPECÍFICOS
+    // COM VALIDAÇÃO ROBUSTA (3 TENTATIVAS) - PADRÃO COBRANÇA
     // EVENTOS, EVENTOS NAO PROVISIONADO, EVENTOS RATEAVEIS
     // ============================================
     log('═'.repeat(50), LOG_LEVELS.INFO);
@@ -2735,129 +2738,205 @@ async function rodarRobo() {
     log('═'.repeat(50), LOG_LEVELS.INFO);
     log('   Marcar APENAS: EVENTOS, EVENTOS NAO PROVISIONADO, EVENTOS RATEAVEIS', LOG_LEVELS.INFO);
     
-    const centroCustoConfigured = await page.evaluate((centrosPermitidos) => {
-      const resultado = {
-        sucesso: false,
-        desmarcados: [],
-        marcados: [],
-        diagnostico: {
-          totalCheckboxes: 0,
-          checkboxesEncontrados: [],
-        }
-      };
-      
-      const normalizar = (texto) => {
-        return (texto || '')
-          .toUpperCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-      };
-      
-      // Normalizar a lista de centros permitidos
-      const centrosNormalizados = centrosPermitidos.map(c => normalizar(c));
-      
-      // Pegar todos os checkboxes da página
-      const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-      
-      resultado.diagnostico.totalCheckboxes = checkboxes.length;
-      
-      for (const cb of checkboxes) {
-        // Obter texto do label de várias formas
-        const label = cb.closest('label');
-        const td = cb.closest('td');
-        const tr = cb.closest('tr');
-        
-        // Tentar obter o texto do label de diferentes maneiras
-        let labelText = '';
-        
-        // 1. Do label direto
-        if (label) {
-          labelText = label.textContent || '';
-        }
-        
-        // 2. Do próximo elemento sibling (comum em tabelas Hinova)
-        if (!labelText && cb.nextSibling) {
-          labelText = cb.nextSibling.textContent || '';
-        }
-        
-        // 3. Do td que contém o checkbox
-        if (!labelText && td) {
-          // Pegar só o texto depois do checkbox
-          const tdClone = td.cloneNode(true);
-          tdClone.querySelectorAll('input').forEach(i => i.remove());
-          labelText = tdClone.textContent || '';
-        }
-        
-        // 4. Do value do checkbox
-        if (!labelText) {
-          labelText = cb.value || '';
-        }
-        
-        labelText = normalizar(labelText);
-        
-        resultado.diagnostico.checkboxesEncontrados.push({
-          value: cb.value,
-          labelText: labelText,
-          checked: cb.checked
-        });
-        
-        // Verificar se é um dos centros de custo permitidos (EXATO)
-        const isPermitido = centrosNormalizados.some(permitido => {
-          // Match exato ou o label contém exatamente o termo
-          return labelText === permitido || 
-                 labelText.includes(permitido) ||
-                 permitido.includes(labelText);
-        });
-        
-        // Se for um dos 3 centros específicos, MARCAR
-        if (isPermitido && labelText.includes('EVENTO')) {
-          if (!cb.checked) {
-            cb.checked = true;
-            cb.dispatchEvent(new Event('click', { bubbles: true }));
-            cb.dispatchEvent(new Event('change', { bubbles: true }));
-            cb.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-          resultado.marcados.push(labelText);
-          resultado.sucesso = true;
-        } 
-        // Se é checkbox de centro de custo mas NÃO é um dos permitidos, DESMARCAR
-        else if (labelText.includes('ADMINISTRATIVO') ||
-                 labelText.includes('COMERCIAL') ||
-                 labelText.includes('FINANCEIRO') ||
-                 labelText.includes('OPERACIONAL') ||
-                 labelText.includes('TODOS') ||
-                 labelText.includes('RH') ||
-                 labelText.includes('DIRETORIA') ||
-                 labelText.includes('MARKETING') ||
-                 labelText.includes('JURIDICO') ||
-                 labelText.includes('TI') ||
-                 labelText.includes('SINISTROS') ||
-                 labelText.includes('COBRANCA')) {
-          if (cb.checked) {
-            cb.checked = false;
-            cb.dispatchEvent(new Event('click', { bubbles: true }));
-            cb.dispatchEvent(new Event('change', { bubbles: true }));
-            cb.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-          resultado.desmarcados.push(labelText);
-        }
-      }
-      
-      return resultado;
-    }, CENTROS_CUSTO_PERMITIDOS);
+    const MAX_TENTATIVAS_CENTRO_CUSTO = 3;
+    let centroCustoValidado = false;
     
-    if (centroCustoConfigured.sucesso) {
-      log(`✅ Centro de Custo configurado!`, LOG_LEVELS.SUCCESS);
-      log(`   Marcados: ${centroCustoConfigured.marcados.join(', ')}`, LOG_LEVELS.SUCCESS);
-      if (centroCustoConfigured.desmarcados.length > 0) {
-        log(`   Desmarcados: ${centroCustoConfigured.desmarcados.join(', ')}`, LOG_LEVELS.DEBUG);
+    for (let tentativaCentro = 1; tentativaCentro <= MAX_TENTATIVAS_CENTRO_CUSTO; tentativaCentro++) {
+      log(`📋 Tentativa ${tentativaCentro}/${MAX_TENTATIVAS_CENTRO_CUSTO} de configuração de Centro de Custo...`, LOG_LEVELS.INFO);
+      
+      const centroCustoConfigured = await page.evaluate((centrosPermitidos) => {
+        const resultado = {
+          sucesso: false,
+          desmarcados: [],
+          marcados: [],
+          diagnostico: {
+            totalCheckboxes: 0,
+            checkboxesEncontrados: [],
+          }
+        };
+        
+        const normalizar = (texto) => {
+          return (texto || '')
+            .toUpperCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        };
+        
+        const centrosNormalizados = centrosPermitidos.map(c => normalizar(c));
+        const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+        
+        resultado.diagnostico.totalCheckboxes = checkboxes.length;
+        
+        for (const cb of checkboxes) {
+          const label = cb.closest('label');
+          const td = cb.closest('td');
+          
+          let labelText = '';
+          
+          if (label) {
+            labelText = label.textContent || '';
+          }
+          
+          if (!labelText && cb.nextSibling) {
+            labelText = cb.nextSibling.textContent || '';
+          }
+          
+          if (!labelText && td) {
+            const tdClone = td.cloneNode(true);
+            tdClone.querySelectorAll('input').forEach(i => i.remove());
+            labelText = tdClone.textContent || '';
+          }
+          
+          if (!labelText) {
+            labelText = cb.value || '';
+          }
+          
+          labelText = normalizar(labelText);
+          
+          resultado.diagnostico.checkboxesEncontrados.push({
+            value: cb.value,
+            labelText: labelText,
+            checked: cb.checked
+          });
+          
+          const isPermitido = centrosNormalizados.some(permitido => {
+            return labelText === permitido || 
+                   labelText.includes(permitido) ||
+                   permitido.includes(labelText);
+          });
+          
+          if (isPermitido && labelText.includes('EVENTO')) {
+            if (!cb.checked) {
+              cb.checked = true;
+              cb.dispatchEvent(new Event('click', { bubbles: true }));
+              cb.dispatchEvent(new Event('change', { bubbles: true }));
+              cb.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            resultado.marcados.push(labelText);
+            resultado.sucesso = true;
+          } 
+          else if (labelText.includes('ADMINISTRATIVO') ||
+                   labelText.includes('COMERCIAL') ||
+                   labelText.includes('FINANCEIRO') ||
+                   labelText.includes('OPERACIONAL') ||
+                   labelText.includes('TODOS') ||
+                   labelText.includes('RH') ||
+                   labelText.includes('DIRETORIA') ||
+                   labelText.includes('MARKETING') ||
+                   labelText.includes('JURIDICO') ||
+                   labelText.includes('TI') ||
+                   labelText.includes('SINISTROS') ||
+                   labelText.includes('COBRANCA')) {
+            if (cb.checked) {
+              cb.checked = false;
+              cb.dispatchEvent(new Event('click', { bubbles: true }));
+              cb.dispatchEvent(new Event('change', { bubbles: true }));
+              cb.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            resultado.desmarcados.push(labelText);
+          }
+        }
+        
+        return resultado;
+      }, CENTROS_CUSTO_PERMITIDOS);
+      
+      // VALIDAÇÃO: Verificar se os checkboxes corretos estão no estado esperado
+      const validacao = await page.evaluate((centrosPermitidos) => {
+        const normalizar = (texto) => {
+          return (texto || '')
+            .toUpperCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        };
+        
+        const centrosNormalizados = centrosPermitidos.map(c => normalizar(c));
+        const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+        
+        let marcadosCorretos = 0;
+        let marcadosIncorretos = 0;
+        const erros = [];
+        
+        for (const cb of checkboxes) {
+          const label = cb.closest('label');
+          const td = cb.closest('td');
+          let labelText = '';
+          
+          if (label) labelText = label.textContent || '';
+          if (!labelText && cb.nextSibling) labelText = cb.nextSibling.textContent || '';
+          if (!labelText && td) {
+            const tdClone = td.cloneNode(true);
+            tdClone.querySelectorAll('input').forEach(i => i.remove());
+            labelText = tdClone.textContent || '';
+          }
+          if (!labelText) labelText = cb.value || '';
+          
+          labelText = normalizar(labelText);
+          
+          const isPermitido = centrosNormalizados.some(p => 
+            labelText === p || labelText.includes(p) || p.includes(labelText)
+          );
+          
+          if (isPermitido && labelText.includes('EVENTO')) {
+            if (cb.checked) {
+              marcadosCorretos++;
+            } else {
+              erros.push(`${labelText} deveria estar MARCADO mas está desmarcado`);
+            }
+          }
+          
+          // Verificar se algum não-permitido ficou marcado
+          const isOutroCentro = labelText.includes('ADMINISTRATIVO') ||
+                                labelText.includes('COMERCIAL') ||
+                                labelText.includes('FINANCEIRO') ||
+                                labelText.includes('OPERACIONAL') ||
+                                labelText.includes('TODOS') ||
+                                labelText.includes('RH') ||
+                                labelText.includes('DIRETORIA');
+          
+          if (isOutroCentro && cb.checked) {
+            marcadosIncorretos++;
+            erros.push(`${labelText} deveria estar DESMARCADO mas está marcado`);
+          }
+        }
+        
+        return {
+          valido: marcadosCorretos > 0 && marcadosIncorretos === 0 && erros.length === 0,
+          marcadosCorretos,
+          marcadosIncorretos,
+          erros,
+        };
+      }, CENTROS_CUSTO_PERMITIDOS);
+      
+      if (centroCustoConfigured.sucesso) {
+        log(`   ✅ Marcados: ${centroCustoConfigured.marcados.join(', ')}`, LOG_LEVELS.SUCCESS);
+        if (centroCustoConfigured.desmarcados.length > 0) {
+          log(`   ❌ Desmarcados: ${centroCustoConfigured.desmarcados.join(', ')}`, LOG_LEVELS.DEBUG);
+        }
       }
-    } else {
-      log(`⚠️ Centro de Custo não configurado automaticamente`, LOG_LEVELS.WARN);
-      log(`   Checkboxes encontrados: ${centroCustoConfigured.diagnostico.totalCheckboxes}`, LOG_LEVELS.DEBUG);
-      log(`   Labels: ${centroCustoConfigured.diagnostico.checkboxesEncontrados.map(c => c.labelText).join(' | ')}`, LOG_LEVELS.DEBUG);
+      
+      if (validacao.valido) {
+        log(`✅ Centro de Custo VALIDADO! (${validacao.marcadosCorretos} corretos, 0 incorretos)`, LOG_LEVELS.SUCCESS);
+        centroCustoValidado = true;
+        break;
+      } else {
+        log(`⚠️ Validação falhou na tentativa ${tentativaCentro}:`, LOG_LEVELS.WARN);
+        validacao.erros.forEach(e => log(`   ❌ ${e}`, LOG_LEVELS.WARN));
+        
+        if (tentativaCentro < MAX_TENTATIVAS_CENTRO_CUSTO) {
+          log(`   Aguardando 2s antes de nova tentativa...`, LOG_LEVELS.INFO);
+          await page.waitForTimeout(2000);
+        }
+      }
+    }
+    
+    if (!centroCustoValidado) {
+      log(`❌ ERRO: Centro de Custo não validado após ${MAX_TENTATIVAS_CENTRO_CUSTO} tentativas`, LOG_LEVELS.ERROR);
+      await saveDebugInfo(page, context, 'Centro de Custo não validado');
+      throw new Error(`Centro de Custo não pôde ser configurado corretamente após ${MAX_TENTATIVAS_CENTRO_CUSTO} tentativas. Verifique os checkboxes no portal.`);
     }
     
     await page.waitForTimeout(1000);
