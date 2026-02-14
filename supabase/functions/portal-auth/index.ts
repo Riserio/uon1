@@ -221,6 +221,12 @@ serve(async (req) => {
         );
       }
 
+      // Registrar ultimo_acesso logo após senha válida
+      await supabaseClient
+        .from('corretora_usuarios')
+        .update({ ultimo_acesso: new Date().toISOString() })
+        .eq('id', usuario.id);
+
       // Verificar se TOTP está configurado
       if (!usuario.totp_configurado) {
         return new Response(
@@ -267,11 +273,6 @@ serve(async (req) => {
         key
       );
 
-      // Registrar ultimo_acesso
-      await supabaseClient
-        .from('corretora_usuarios')
-        .update({ ultimo_acesso: new Date().toISOString() })
-        .eq('id', usuario.id);
 
       return new Response(
         JSON.stringify({

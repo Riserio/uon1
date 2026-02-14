@@ -33,6 +33,9 @@ export default function PID() {
   const canViewHistorico = userRole === "superintendente" || userRole === "admin";
   const canViewAdmin = userRole === "superintendente" || userRole === "administrativo";
   const isAdminView = selectedAssociacao === "__admin__";
+
+  // Padrão: abrir na visão administradora para quem tem permissão
+  const [adminDefaultApplied, setAdminDefaultApplied] = useState(false);
   const selectedAssociacaoData = associacoes.find((c) => c.id === selectedAssociacao);
 
   useEffect(() => {
@@ -45,6 +48,9 @@ export default function PID() {
         const associacaoParam = searchParams.get("associacao") || searchParams.get("corretora");
         if (associacaoParam && data?.some(c => c.id === associacaoParam)) {
           setSelectedAssociacao(associacaoParam);
+        } else if (canViewAdmin && !adminDefaultApplied) {
+          setSelectedAssociacao("__admin__");
+          setAdminDefaultApplied(true);
         } else if (data && data.length > 0) {
           setSelectedAssociacao(data[0].id);
         }
@@ -56,7 +62,7 @@ export default function PID() {
       }
     }
     fetchAssociacoes();
-  }, [searchParams]);
+  }, [searchParams, canViewAdmin, adminDefaultApplied]);
 
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
