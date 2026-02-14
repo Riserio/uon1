@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import DOMPurify from "dompurify";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -364,7 +365,7 @@ export default function ContratoAssinatura() {
           <CardContent className="p-4 sm:p-6 pt-2 sm:pt-2">
             <div
               className="prose prose-sm max-w-none border rounded-lg p-3 sm:p-4 bg-card max-h-[40vh] sm:max-h-[50vh] overflow-y-auto text-sm"
-              dangerouslySetInnerHTML={{ __html: contrato.conteudo_html }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contrato.conteudo_html) }}
             />
           </CardContent>
         </Card>

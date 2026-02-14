@@ -1,4 +1,5 @@
 import React from "react";
+import DOMPurify from "dompurify";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -249,7 +250,7 @@ export default function VisualizarContratoDialog({ contrato, open, onOpenChange 
                 <div
                   className="prose prose-sm max-w-none border rounded-xl p-6 bg-white text-black shadow-sm"
                   style={{ background: "#ffffff", color: "#222", fontFamily: "inherit", lineHeight: 1.5 }}
-                  dangerouslySetInnerHTML={{ __html: contrato?.conteudo_html || "" }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contrato?.conteudo_html || "") }}
                 />
               </div>
             </TabsContent>

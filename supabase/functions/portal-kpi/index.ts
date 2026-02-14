@@ -7,6 +7,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function verifyPortalToken(token: string) {
+  const jwtSecret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(jwtSecret),
+    { name: 'HMAC', hash: 'SHA-512' },
+    false,
+    ['verify']
+  );
+  return await verify(token, key);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -23,17 +35,16 @@ serve(async (req) => {
 
     const token = authHeader.replace('Bearer ', '');
     
-    // Decodificar JWT sem verificação (verify_jwt = false no config)
     let corretoraId: string;
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      corretoraId = payload.corretoraId;
+      const payload = await verifyPortalToken(token);
+      corretoraId = payload.corretoraId as string;
       
       if (!corretoraId) {
         throw new Error('corretoraId não encontrado no token');
       }
     } catch (e) {
-      console.error('Erro ao decodificar token:', e);
+      console.error('Erro ao verificar token:', e);
       return new Response(
         JSON.stringify({ error: 'Token inválido' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
@@ -49,11 +60,9 @@ serve(async (req) => {
     const ano = url.searchParams.get('ano') || new Date().getFullYear().toString();
     const mes = url.searchParams.get('mes') || (new Date().getMonth() + 1).toString().padStart(2, '0');
 
-    // Filtrar por competência
     const competenciaInicio = `${ano}-${mes}-01`;
     const competenciaFim = new Date(parseInt(ano), parseInt(mes), 0).toISOString().split('T')[0];
 
-    // Buscar dados da produção
     const { data: producao, error } = await supabaseClient
       .from('producao_financeira')
       .select('*')
@@ -63,7 +72,6 @@ serve(async (req) => {
 
     if (error) throw error;
 
-    // Calcular KPIs
     const faturamento = producao.reduce((acc, item) => acc + (parseFloat(item.premio_total) || 0), 0);
     const comissoes = producao.reduce((acc, item) => acc + (parseFloat(item.valor_comissao) || 0), 0);
     const repassePrevisto = producao.reduce((acc, item) => acc + (parseFloat(item.repasse_previsto) || 0), 0);
@@ -86,7 +94,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Erro desconhecido' }),
+      JSON.stringify({ error: 'Erro interno do servidor' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
