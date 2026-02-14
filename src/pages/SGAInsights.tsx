@@ -22,6 +22,7 @@ import { getPrefetchedData, savePrefetchedData } from "@/hooks/usePortalDataPref
 import { getBICachedData, setBICachedData, getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
+import { useBILayoutOptional } from "@/contexts/BILayoutContext";
 
 export interface SGAFilters {
   dataInicio: string;
@@ -36,6 +37,7 @@ export default function SGAInsights() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { userRole } = useAuth();
+  const biLayout = useBILayoutOptional();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [eventos, setEventos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,14 +121,25 @@ export default function SGAInsights() {
     return result;
   }, [eventos, filters]);
 
-  // Carregar associações
+  // Sync from shared BILayout context when available (internal access)
   useEffect(() => {
+    if (biLayout && !isPortalAccess) {
+      setSelectedAssociacao(biLayout.selectedAssociacao);
+      setAssociacoes(biLayout.associacoes);
+      setLoadingAssociacoes(false);
+    }
+  }, [biLayout?.selectedAssociacao, biLayout?.associacoes, isPortalAccess]);
+
+
+  // Carregar associações (only for portal access)
+  useEffect(() => {
+    if (biLayout && !isPortalAccess) return; // Skip - using shared context
+    
     async function fetchAssociacoes() {
       try {
         const associacaoParam = searchParams.get("associacao");
         
         if (isPortalAccess && associacaoParam) {
-          // Para parceiros, buscar a associação e suas permissões
           const { data: corretora, error: corretoraError } = await supabase
             .from("corretoras")
             .select("id, nome, logo_url")
@@ -136,7 +149,6 @@ export default function SGAInsights() {
           if (corretoraError) throw corretoraError;
 
           if (corretora) {
-            // Buscar permissões do usuário para esta corretora
             const { data: usuarioData } = await supabase
               .from("corretora_usuarios")
               .select("modulos_bi")
@@ -149,7 +161,6 @@ export default function SGAInsights() {
             setCorretoraData(corretora);
             setModulosBi(usuarioData?.modulos_bi || ['indicadores', 'eventos', 'mgf', 'cobranca', 'estudo-base']);
             
-            // Verificar se usuário tem múltiplas associações
             const { data: todasAssociacoes } = await supabase
               .from("corretora_usuarios")
               .select("corretora_id")
@@ -158,7 +169,6 @@ export default function SGAInsights() {
           }
         } else {
           const associacaoParam2 = searchParams.get("associacao");
-          // Cache global para renderização instantânea
           const cached = getCachedAssociacoes();
           if (cached && cached.length > 0 && !associacoes.length) {
             setAssociacoes(cached);
@@ -308,6 +318,17 @@ export default function SGAInsights() {
 
   const hasActiveFilters = filters.dataInicio || filters.dataFim || filters.regional !== "todos" || filters.cooperativa !== "todos" || filters.tipoVeiculo !== "todos";
 
+  // Update shared header dynamic props
+  useEffect(() => {
+    if (biLayout && !isPortalAccess) {
+      biLayout.setHeaderDynamic({
+        recordCount: filteredEventos.length,
+        hasActiveFilters: !!hasActiveFilters,
+        fileName: importacaoAtiva?.nome_arquivo,
+      });
+    }
+  }, [filteredEventos.length, hasActiveFilters, importacaoAtiva?.nome_arquivo, biLayout, isPortalAccess]);
+
   // Tabs - esconder importação para parceiros
   const tabs = isPortalAccess 
     ? [
@@ -359,8 +380,8 @@ export default function SGAInsights() {
         />
       )}
 
-      {/* Header interno (não parceiro) */}
-      {!isPortalAccess && (
+      {/* Header interno (não parceiro) - only when NOT inside BILayout */}
+      {!isPortalAccess && !biLayout && (
         <BIPageHeader
           title="Eventos"
           subtitle="Business Intelligence de Eventos"
@@ -571,13 +592,15 @@ export default function SGAInsights() {
         </Tabs>
       </div>
 
-      {/* Modal Histórico de Alterações */}
-      <BIAuditLogDialog
-        open={historicoDialogOpen}
-        onOpenChange={setHistoricoDialogOpen}
-        modulo="sga_insights"
-        corretoraId={selectedAssociacao}
-      />
+      {/* Modal Histórico de Alterações - only when NOT inside BILayout */}
+      {!biLayout && (
+        <BIAuditLogDialog
+          open={historicoDialogOpen}
+          onOpenChange={setHistoricoDialogOpen}
+          modulo="sga_insights"
+          corretoraId={selectedAssociacao}
+        />
+      )}
     </>
   );
 
@@ -598,9 +621,6 @@ export default function SGAInsights() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      {portalContent}
-    </div>
-  );
+  // Inside BILayout - just return content (no wrapper needed)
+  return <>{portalContent}</>;
 }

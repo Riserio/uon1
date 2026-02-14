@@ -56,6 +56,7 @@ import SGAInsights from "@/pages/SGAInsights";
 import MGFInsights from "@/pages/MGFInsights";
 import CobrancaInsights from "@/pages/CobrancaInsights";
 import EstudoBaseInsights from "@/pages/EstudoBaseInsights";
+import BILayout from "@/components/bi/BILayout";
 import Landing from "./pages/Landing";
 import Gestao from "./pages/Gestao";
 import Uon1Sign from "./pages/Uon1Sign";
@@ -222,13 +223,15 @@ const App = () => (
               <Route path="/emails" element={<ProtectedRoute><Emails /></ProtectedRoute>} />
               <Route path="/comunicados" element={<ProtectedRoute><AdminRoute><Comunicados /></AdminRoute></ProtectedRoute>} />
               <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
-              <Route path="/pid" element={<ProtectedRoute><PID /></ProtectedRoute>} />
+              <Route element={<ProtectedRoute><BILayout /></ProtectedRoute>}>
+                <Route path="/pid" element={<PID />} />
+                <Route path="/sga-insights" element={<SGAInsights />} />
+                <Route path="/mgf-insights" element={<MGFInsights />} />
+                <Route path="/cobranca-insights" element={<CobrancaInsights />} />
+                <Route path="/estudo-base-insights" element={<EstudoBaseInsights />} />
+              </Route>
               <Route path="/gestao" element={<ProtectedRoute><Gestao /></ProtectedRoute>} />
               <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
-              <Route path="/sga-insights" element={<ProtectedRoute><SGAInsights /></ProtectedRoute>} />
-              <Route path="/mgf-insights" element={<ProtectedRoute><MGFInsights /></ProtectedRoute>} />
-              <Route path="/cobranca-insights" element={<ProtectedRoute><CobrancaInsights /></ProtectedRoute>} />
-              <Route path="/estudo-base-insights" element={<ProtectedRoute><EstudoBaseInsights /></ProtectedRoute>} />
               <Route path="/portal/sga-insights" element={<PortalRoute><SGAInsights /></PortalRoute>} />
               <Route path="/portal/mgf-insights" element={<PortalRoute><MGFInsights /></PortalRoute>} />
               <Route path="/portal/cobranca-insights" element={<PortalRoute><CobrancaInsights /></PortalRoute>} />
