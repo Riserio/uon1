@@ -17,7 +17,7 @@ type PortalHeaderProps = {
   showChangeButton?: boolean;
   onChangeCorretora?: () => void;
   onLogout: () => void;
-  currentModule?: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base';
+  currentModule?: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos';
   showCarouselControls?: boolean;
   hasAcompanhamento?: boolean;
 };
@@ -54,8 +54,12 @@ export default function PortalHeader({
   // Contagem de módulos disponíveis para decidir layout
   const modulosDisponiveis = availableModules.length;
 
+  // For prefetch and carousel, use only carousel-compatible module
+  const carouselModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' = 
+    currentModule === 'acompanhamento-eventos' ? 'indicadores' : (currentModule || 'indicadores');
+
   // Pré-carregar dados dos outros módulos em segundo plano
-  usePortalDataPrefetch(corretora.id, currentModule || 'indicadores', availableModules);
+  usePortalDataPrefetch(corretora.id, carouselModule, availableModules);
 
   return (
     <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
@@ -89,7 +93,7 @@ export default function PortalHeader({
                 <PortalCarouselControls 
                   corretoraId={corretora.id}
                   availableModules={availableModules}
-                  currentModule={currentModule}
+                  currentModule={carouselModule}
                 />
               )}
               
@@ -237,7 +241,11 @@ export default function PortalHeader({
                   onClick={() => {
                     navigate(`/portal/acompanhamento-eventos?associacao=${corretora.id}`);
                   }}
-                  className={`gap-2 shrink-0 transition-all duration-300 hover:bg-muted`}
+                  className={`gap-2 shrink-0 transition-all duration-300 ${
+                    currentModule === 'acompanhamento-eventos' 
+                      ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' 
+                      : 'hover:bg-muted'
+                  }`}
                 >
                   <KanbanSquare className="h-4 w-4" />
                   <span>Acompanhamento</span>

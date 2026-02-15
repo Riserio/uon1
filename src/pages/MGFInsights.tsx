@@ -199,7 +199,7 @@ export default function MGFInsights() {
         if (cached && cached.length > 0) {
           setDados(cached);
           setLoading(false);
-          return;
+          // Continue to fetch full data in background (prefetch only has 1000 records)
         }
       }
     }

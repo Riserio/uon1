@@ -8,7 +8,8 @@ import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { usePortalLayout } from "@/contexts/PortalLayoutContext";
 import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
 
-type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base';
+type CarouselModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base';
+type PortalModule = CarouselModule | 'acompanhamento-eventos';
 
 const moduleMap: Record<string, PortalModule> = {
   '/portal': 'indicadores',
@@ -16,6 +17,7 @@ const moduleMap: Record<string, PortalModule> = {
   '/portal/mgf-insights': 'mgf',
   '/portal/cobranca-insights': 'cobranca',
   '/portal/estudo-base-insights': 'estudo-base',
+  '/portal/acompanhamento-eventos': 'acompanhamento-eventos',
 };
 
 export default function PortalLayout() {
@@ -123,7 +125,7 @@ export default function PortalLayout() {
   const currentModule: PortalModule = moduleMap[location.pathname] || 'indicadores';
 
   // Available modules for carousel
-  const availableModules: PortalModule[] = [
+  const availableModules: CarouselModule[] = [
     ...(corretora.modulos_bi.includes('indicadores') ? ['indicadores'] as const : []),
     ...(corretora.modulos_bi.includes('eventos') ? ['eventos'] as const : []),
     ...(corretora.modulos_bi.includes('mgf') ? ['mgf'] as const : []),
@@ -138,7 +140,7 @@ export default function PortalLayout() {
     <PortalCarouselProvider
       corretoraId={corretora.id}
       availableModules={availableModules}
-      currentModule={currentModule}
+      currentModule={currentModule === 'acompanhamento-eventos' ? 'indicadores' : currentModule}
     >
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
         <PortalHeader
