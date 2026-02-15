@@ -1,4 +1,4 @@
-import { Outlet, useLocation, useSearchParams } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Building2, LogOut } from "lucide-react";
@@ -20,7 +20,6 @@ const moduleMap: Record<string, PortalModule> = {
 
 export default function PortalLayout() {
   const location = useLocation();
-  const [searchParams] = useSearchParams();
   const {
     corretora,
     corretorasDisponiveis,
@@ -48,8 +47,8 @@ export default function PortalLayout() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
         <Card className="max-w-md w-full shadow-lg">
           <CardContent className="p-8 text-center space-y-6">
-            <div className="mx-auto h-16 w-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-              <Building2 className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+            <div className="mx-auto h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
+              <Building2 className="h-8 w-8 text-destructive" />
             </div>
             <div className="space-y-2">
               <h2 className="text-xl font-bold">Vinculação Necessária</h2>
