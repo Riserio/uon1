@@ -22,6 +22,8 @@ const axios = require('axios');
 const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
+const { pipeline } = require('stream/promises');
+const { Transform } = require('stream');
 
 // ============================================
 // CONFIGURAÇÃO
@@ -93,11 +95,12 @@ const TIMEOUTS = {
   PAGE_LOAD: 90000,
   LOGIN_RETRY_WAIT: 8000,
   DOWNLOAD_EVENT: 3 * 60000,
-  DOWNLOAD_TOTAL: 40 * 60000,
-  DOWNLOAD_SAVE: 40 * 60000,
+  DOWNLOAD_TOTAL: 55 * 60000,
+  DOWNLOAD_SAVE: 55 * 60000,
   DOWNLOAD_IDLE: 40 * 60000,
   DOWNLOAD_HARD: 55 * 60000,
   POPUP_CLOSE: 800,
+  FILE_PROGRESS_INTERVAL: 10000,
 };
 
 const LIMITS = {
@@ -980,6 +983,365 @@ async function processarArquivo(filePath) {
 }
 
 // ============================================
+// DOWNLOAD CONTROLLER - Sistema robusto multi-watcher
+// (Portado do robô de cobrança - padrão de referência)
+// ============================================
+
+class DownloadController {
+  constructor() {
+    this.captured = false;
+    this.result = null;
+    this.fileResult = null;
+    this.error = null;
+    this.cleanupFunctions = [];
+    this.monitorInterval = null;
+    this.startTime = Date.now();
+    this.onCompleteCallback = null;
+  }
+  
+  addCleanup(fn) { this.cleanupFunctions.push(fn); }
+  
+  setCaptured(result) {
+    if (this.captured) return false;
+    this.captured = true;
+    this.result = result;
+    log(`Download capturado! Fonte: ${result.source}`, LOG_LEVELS.SUCCESS);
+    this.cleanup();
+    return true;
+  }
+  
+  setFileResult(fileResult) {
+    this.fileResult = fileResult;
+    if (this.onCompleteCallback) this.onCompleteCallback();
+  }
+  
+  setError(error) {
+    this.error = error;
+    if (this.onCompleteCallback) this.onCompleteCallback();
+  }
+  
+  setOnComplete(callback) { this.onCompleteCallback = callback; }
+  isCaptured() { return this.captured; }
+  isComplete() { return this.fileResult !== null || this.error !== null; }
+  getResult() { return this.result; }
+  getFileResult() { return this.fileResult; }
+  getError() { return this.error; }
+  
+  cleanup() {
+    if (this.monitorInterval) { clearInterval(this.monitorInterval); this.monitorInterval = null; }
+    for (const fn of this.cleanupFunctions) { try { fn(); } catch {} }
+    this.cleanupFunctions = [];
+  }
+  
+  startProgressMonitor() {
+    this.monitorInterval = setInterval(() => {
+      if (this.captured || this.isComplete()) { clearInterval(this.monitorInterval); return; }
+      const elapsed = Date.now() - this.startTime;
+      const minutos = Math.floor(elapsed / 60000);
+      const segundos = Math.floor((elapsed % 60000) / 1000);
+      log(`Aguardando download... ${minutos}m ${segundos}s`, LOG_LEVELS.DEBUG);
+    }, 30000);
+  }
+}
+
+function monitorFileProgress(filePath, expectedSize = 0, intervalMs = TIMEOUTS.FILE_PROGRESS_INTERVAL) {
+  const startTime = Date.now();
+  let lastLoggedPercent = -1;
+  let lastSize = 0;
+  
+  const interval = setInterval(() => {
+    const possiblePaths = [filePath, filePath + '.crdownload', filePath + '.part', filePath + '.download'];
+    for (const p of possiblePaths) {
+      try {
+        if (fs.existsSync(p)) {
+          const size = fs.statSync(p).size;
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          const speed = size / Math.max(1, elapsed);
+          if (size === lastSize && elapsed > 10) continue;
+          lastSize = size;
+          if (expectedSize > 0) {
+            const pct = Math.min(100, Math.floor((size / expectedSize) * 100));
+            if (pct >= lastLoggedPercent + 5 || lastLoggedPercent === -1) {
+              lastLoggedPercent = pct;
+              const barSize = 20;
+              const filled = Math.round((pct / 100) * barSize);
+              const bar = '█'.repeat(filled) + '░'.repeat(barSize - filled);
+              log(`   ⬇️ Download [${bar}] ${pct}% (${formatBytes(size)} / ${formatBytes(expectedSize)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.INFO);
+            }
+          } else {
+            const minutes = Math.floor(elapsed / 60);
+            log(`   ⬇️ Download: ${formatBytes(size)} recebidos • ${formatBytes(speed)}/s (${minutes}m)`, LOG_LEVELS.INFO);
+          }
+          return;
+        }
+      } catch {}
+    }
+  }, intervalMs);
+  return () => clearInterval(interval);
+}
+
+async function buildCookieHeader(context, url) {
+  try {
+    const cookies = await context.cookies(url);
+    if (!cookies || cookies.length === 0) return '';
+    return cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+  } catch { return ''; }
+}
+
+function pickHeadersForHttpReplay(headers = {}) {
+  const allow = ['user-agent', 'accept', 'accept-language', 'referer', 'origin', 'content-type'];
+  const out = {};
+  for (const [k, v] of Object.entries(headers)) {
+    if (allow.includes(String(k).toLowerCase()) && v) out[String(k).toLowerCase()] = v;
+  }
+  out['accept-encoding'] = 'identity';
+  return out;
+}
+
+async function downloadViaAxiosStream({ url, method = 'GET', headers = {}, data, filePath, expectedBytes = 0, idleTimeoutMs = TIMEOUTS.DOWNLOAD_IDLE, hardTimeoutMs = TIMEOUTS.DOWNLOAD_HARD }) {
+  if (!url) throw new Error('URL de download vazia');
+  const startedAt = Date.now();
+  const abortController = new AbortController();
+  const tempFilePath = filePath + '.tmp';
+
+  let hardTimer = hardTimeoutMs > 0 ? setTimeout(() => abortController.abort(new Error(`Timeout rígido de download`)), hardTimeoutMs) : null;
+  let idleTimer = null;
+  const resetIdleTimer = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    if (idleTimeoutMs > 0) idleTimer = setTimeout(() => abortController.abort(new Error(`Download travado`)), idleTimeoutMs);
+  };
+  resetIdleTimer();
+
+  let receivedBytes = 0;
+  let lastLoggedAt = 0;
+  const logProgress = (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastLoggedAt < 15000) return;
+    lastLoggedAt = now;
+    const speed = receivedBytes / Math.max(1, Math.floor((now - startedAt) / 1000));
+    if (expectedBytes > 0) {
+      const pct = Math.min(100, Math.floor((receivedBytes / expectedBytes) * 100));
+      const barSize = 20; const filled = Math.round((pct / 100) * barSize);
+      log(`   ⬇️ Download [${('█').repeat(filled)}${('░').repeat(barSize - filled)}] ${pct}% (${formatBytes(receivedBytes)}) • ${formatBytes(speed)}/s`, LOG_LEVELS.INFO);
+    } else {
+      log(`   ⬇️ Download: ${formatBytes(receivedBytes)} • ${formatBytes(speed)}/s`, LOG_LEVELS.INFO);
+    }
+  };
+  const clearTimers = () => { if (idleTimer) clearTimeout(idleTimer); if (hardTimer) clearTimeout(hardTimer); };
+
+  try {
+    const response = await axios({ url, method, headers, data, responseType: 'stream', maxRedirects: 10, timeout: 0, signal: abortController.signal, validateStatus: (s) => s >= 200 && s < 400 });
+    const responseLen = parseInt(response.headers?.['content-length'] || '0', 10);
+    if (!expectedBytes && responseLen > 0) expectedBytes = responseLen;
+    
+    const writeStream = fs.createWriteStream(tempFilePath, { highWaterMark: 8 * 1024 * 1024 });
+    const progressTransform = new Transform({
+      transform(chunk, encoding, callback) { receivedBytes += chunk.length; resetIdleTimer(); logProgress(false); callback(null, chunk); },
+      highWaterMark: 8 * 1024 * 1024,
+    });
+    await pipeline(response.data, progressTransform, writeStream);
+    logProgress(true);
+    clearTimers();
+
+    if (!fs.existsSync(tempFilePath)) throw new Error('Arquivo temporário não existe');
+    const stats = fs.statSync(tempFilePath);
+    if (stats.size <= 0) throw new Error('Arquivo temporário vazio');
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    fs.renameSync(tempFilePath, filePath);
+    return { filePath, size: stats.size };
+  } catch (error) {
+    clearTimers();
+    try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch {}
+    throw error;
+  }
+}
+
+function isExcelResponse(response) {
+  try {
+    if (!response) return false;
+    const status = response.status();
+    if (status < 200 || status >= 400) return false;
+    const headers = response.headers() || {};
+    const ct = String(headers['content-type'] || '').toLowerCase();
+    const cd = String(headers['content-disposition'] || '').toLowerCase();
+    const url = String(response.url?.() || '').toLowerCase();
+    if (ct.includes('spreadsheet') || ct.includes('excel') || ct.includes('vnd.ms-excel') || ct.includes('vnd.openxmlformats')) return true;
+    if (cd.includes('.xlsx') || cd.includes('.xls')) return true;
+    if (url.includes('.xlsx') || url.includes('.xls')) return true;
+    if ((ct.includes('octet-stream') || ct.includes('download') || ct.includes('force-download')) && (cd.includes('attachment') || cd.includes('xls'))) return true;
+    return false;
+  } catch { return false; }
+}
+
+async function processarDownloadImediato(download, downloadDir, semanticName) {
+  const filePath = path.join(downloadDir, semanticName);
+  const suggestedName = download.suggestedFilename?.() || 'download.xlsx';
+  let expectedSize = 0;
+  try {
+    const request = download.request?.();
+    if (request) { const response = await request.response?.(); if (response) { expectedSize = parseInt((response.headers?.() || {})['content-length'] || '0', 10); } }
+  } catch {}
+
+  log(`Download capturado - ${expectedSize > 0 ? formatBytes(expectedSize) : 'tamanho desconhecido'}`, LOG_LEVELS.SUCCESS);
+  log(`Salvando: ${suggestedName} -> ${filePath}`, LOG_LEVELS.INFO);
+
+  const stopMonitor = monitorFileProgress(filePath, expectedSize);
+  const startTime = Date.now();
+  const heartbeatInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    let fileSize = 0;
+    for (const p of [filePath, filePath + '.crdownload', filePath + '.part']) { try { if (fs.existsSync(p)) { fileSize = fs.statSync(p).size; break; } } catch {} }
+    if (fileSize > 0) {
+      const speed = fileSize / Math.max(1, elapsed);
+      log(`⏳ Recebendo... ${formatBytes(fileSize)} • ${formatBytes(speed)}/s (${minutes}m)`, LOG_LEVELS.INFO);
+    } else {
+      log(`⏳ Aguardando servidor Hinova gerar relatório... (${minutes}m)`, LOG_LEVELS.INFO);
+    }
+  }, 15000);
+
+  let timeoutId = null;
+  try {
+    const timeoutPromise = new Promise((_, reject) => { timeoutId = setTimeout(() => reject(new Error(`Timeout de ${Math.floor(TIMEOUTS.DOWNLOAD_HARD / 60000)} min`)), TIMEOUTS.DOWNLOAD_HARD); });
+    await Promise.race([download.saveAs(filePath), timeoutPromise]);
+    if (timeoutId) clearTimeout(timeoutId);
+  } catch (err) { if (timeoutId) clearTimeout(timeoutId); throw err; }
+  finally { clearInterval(heartbeatInterval); stopMonitor(); }
+
+  if (!fs.existsSync(filePath)) throw new Error('Arquivo não existe após saveAs');
+  const stats = fs.statSync(filePath);
+  if (stats.size <= 0) throw new Error(`Arquivo vazio (${stats.size} bytes)`);
+  const totalTime = Math.floor((Date.now() - startTime) / 1000);
+  log(`Download concluído em ${Math.floor(totalTime / 60)}m ${totalTime % 60}s (${formatBytes(stats.size)})`, LOG_LEVELS.SUCCESS);
+  return { filePath, size: stats.size };
+}
+
+function criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName) {
+  const pagesAttached = new Set();
+  const onDownload = async (download) => {
+    if (controller.isCaptured()) return;
+    const wasCaptured = controller.setCaptured({ type: 'download', download, source: 'globalDownload' });
+    if (!wasCaptured) return;
+    try { const result = await processarDownloadImediato(download, downloadDir, semanticName); controller.setFileResult(result); }
+    catch (e) { controller.setError(e); }
+  };
+  const attachToPage = (page) => { if (!page || pagesAttached.has(page)) return; pagesAttached.add(page); page.on('download', onDownload); };
+  for (const p of context.pages()) attachToPage(p);
+  context.on('page', (page) => { if (!controller.isCaptured()) attachToPage(page); });
+  controller.addCleanup(() => { for (const p of pagesAttached) { try { p.removeListener('download', onDownload); } catch {} } });
+}
+
+function criarWatcherDownloadPaginaPrincipal(context, page, controller, downloadDir, semanticName) {
+  const onDownload = async (download) => {
+    if (controller.isCaptured()) return;
+    const wasCaptured = controller.setCaptured({ type: 'download', download, source: 'mainPage' });
+    if (!wasCaptured) return;
+    try { const result = await processarDownloadImediato(download, downloadDir, semanticName); controller.setFileResult(result); }
+    catch (e) { controller.setError(e); }
+  };
+  page.on('download', onDownload);
+  controller.addCleanup(() => { try { page.removeListener('download', onDownload); } catch {} });
+}
+
+function criarWatcherNovaAba(context, mainPage, controller, downloadDir, semanticName) {
+  const processarNovaAba = async (newPage) => {
+    if (controller.isCaptured()) { try { await newPage.close(); } catch {} return; }
+    try {
+      const onNewPageDownload = async (download) => {
+        if (controller.isCaptured()) return;
+        const wasCaptured = controller.setCaptured({ type: 'download', download, source: 'newTab', newPage });
+        if (!wasCaptured) return;
+        try { const result = await processarDownloadImediato(download, downloadDir, semanticName); controller.setFileResult(result); newPage.close().catch(() => {}); }
+        catch (e) { controller.setError(e); }
+      };
+      newPage.on('download', onNewPageDownload);
+      await Promise.race([newPage.waitForLoadState('domcontentloaded', { timeout: 8000 }), new Promise(r => setTimeout(r, 8000))]).catch(() => {});
+      if (controller.isCaptured()) { try { newPage.removeListener('download', onNewPageDownload); } catch {} return; }
+      
+      // Check for inline HTML table content (large report opened in new tab)
+      try {
+        const content = await newPage.content();
+        if (content && content.length > 5000) {
+          const hasTable = content.includes('<table') || content.includes('<TABLE');
+          if (hasTable && !controller.isCaptured()) {
+            log('Nova aba contém tabela HTML grande - capturando como arquivo', LOG_LEVELS.INFO);
+            const filePath = path.join(downloadDir, semanticName);
+            fs.writeFileSync(filePath, content);
+            const wasCaptured = controller.setCaptured({ type: 'htmlCapture', source: 'newTabHtml' });
+            if (wasCaptured) {
+              controller.setFileResult({ filePath, size: content.length });
+              newPage.close().catch(() => {});
+            }
+          }
+        }
+      } catch {}
+      
+      controller.addCleanup(() => { try { newPage.removeListener('download', onNewPageDownload); } catch {} });
+    } catch {}
+  };
+  const onNewPage = (newPage) => { if (newPage !== mainPage) processarNovaAba(newPage); };
+  context.on('page', onNewPage);
+  controller.addCleanup(() => { try { context.removeListener('page', onNewPage); } catch {} });
+}
+
+function criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName) {
+  const pagesAttached = new Set();
+  const onResponse = async (response) => {
+    if (controller.isCaptured()) return;
+    if (isExcelResponse(response)) {
+      if (controller.isCaptured()) return;
+      const headers = response.headers() || {};
+      const contentLength = parseInt(headers['content-length'] || '0', 10);
+      const wasCaptured = controller.setCaptured({ type: 'httpResponse', response, source: 'httpStream' });
+      if (!wasCaptured) return;
+      log(`Download capturado via HTTP stream (fallback)`, LOG_LEVELS.SUCCESS);
+      try {
+        const filePath = path.join(downloadDir, semanticName);
+        const request = response.request?.();
+        const url = response.url?.();
+        const method = request?.method?.() || 'GET';
+        const requestHeaders = pickHeadersForHttpReplay(request?.headers?.() || {});
+        const cookieHeader = await buildCookieHeader(context, url);
+        if (cookieHeader) requestHeaders['cookie'] = cookieHeader;
+        const postData = request?.postData?.();
+        const result = await downloadViaAxiosStream({ url, method, headers: requestHeaders, data: method !== 'GET' ? postData : undefined, filePath, expectedBytes: contentLength, idleTimeoutMs: TIMEOUTS.DOWNLOAD_IDLE, hardTimeoutMs: TIMEOUTS.DOWNLOAD_HARD });
+        controller.setFileResult({ filePath, size: result.size });
+      } catch (e) { controller.setError(e); }
+    }
+  };
+  const attachToPage = (page) => { if (!page || pagesAttached.has(page)) return; pagesAttached.add(page); page.on('response', onResponse); };
+  for (const p of context.pages()) attachToPage(p);
+  context.on('page', (page) => { if (!controller.isCaptured()) attachToPage(page); });
+  controller.addCleanup(() => { for (const p of pagesAttached) { try { p.removeListener('response', onResponse); } catch {} } });
+}
+
+async function aguardarDownloadHibrido(context, page, downloadDir, semanticName, timeoutMs) {
+  log(`Iniciando captura de download (multi-watcher)...`, LOG_LEVELS.INFO);
+  log(`PRIORIDADE: Download Playwright (saveAs) > Nova Aba (HTML) > HTTP Stream (fallback)`, LOG_LEVELS.DEBUG);
+  
+  const controller = new DownloadController();
+  criarWatcherDownloadGlobal(context, controller, downloadDir, semanticName);
+  criarWatcherDownloadPaginaPrincipal(context, page, controller, downloadDir, semanticName);
+  criarWatcherNovaAba(context, page, controller, downloadDir, semanticName);
+  criarWatcherRespostaHTTP(context, controller, downloadDir, semanticName);
+  controller.startProgressMonitor();
+  
+  return new Promise((resolve) => {
+    let resolved = false;
+    const doResolve = (result) => { if (resolved) return; resolved = true; controller.cleanup(); resolve(result); };
+    controller.setOnComplete(() => {
+      if (controller.getError()) doResolve({ success: false, error: controller.getError() });
+      else if (controller.getFileResult()) {
+        const fr = controller.getFileResult();
+        doResolve({ success: true, filePath: fr.filePath, size: fr.size, source: controller.getResult()?.source });
+      }
+    });
+    const timeoutId = setTimeout(() => { if (!resolved) doResolve({ success: false, error: new Error('Timeout - nenhum download capturado') }); }, timeoutMs);
+    controller.addCleanup(() => clearTimeout(timeoutId));
+  });
+}
+
+// ============================================
 // MAIN
 // ============================================
 async function main() {
@@ -1195,16 +1557,14 @@ async function main() {
     log(`Excel: ${excelOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
 
     // ============================================
-    // ETAPA: DOWNLOAD
+    // ETAPA: DOWNLOAD (multi-watcher robusto)
     // ============================================
     setStep('DOWNLOAD');
     await updateProgress('executando', 'download');
 
     const downloadDir = getDownloadDirectory();
+    const semanticName = generateSemanticFilename();
     log(`Diretório de download: ${downloadDir}`);
-
-    // Configurar listener de download ANTES do clique
-    const downloadPromise = page.waitForEvent('download', { timeout: TIMEOUTS.DOWNLOAD_TOTAL });
 
     // Clicar Gerar
     log('Clicando em Gerar Relatório...');
@@ -1214,39 +1574,28 @@ async function main() {
       await btnGerar.click();
       log('Botão Gerar clicado', LOG_LEVELS.SUCCESS);
     } else {
-      // Fallback: procurar em qualquer frame
       await page.evaluate(() => {
         const btns = document.querySelectorAll('input[type="submit"], button');
         for (const btn of btns) {
           const text = (btn.value || btn.textContent || '').toLowerCase();
-          if (text.includes('gerar')) {
-            btn.click();
-            return;
-          }
+          if (text.includes('gerar')) { btn.click(); return; }
         }
       });
       log('Botão Gerar clicado via fallback', LOG_LEVELS.DEBUG);
     }
 
-    log('Aguardando download...', LOG_LEVELS.INFO);
+    log('Aguardando download (multi-watcher)...', LOG_LEVELS.INFO);
 
-    // Aguardar download
-    let download;
-    try {
-      download = await downloadPromise;
-      log(`Download iniciado: ${download.suggestedFilename()}`, LOG_LEVELS.SUCCESS);
-    } catch (e) {
+    // Aguardar download via sistema robusto multi-watcher
+    const downloadResult = await aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
+
+    if (!downloadResult.success) {
       await saveDebugInfo(page, context, 'Timeout download');
-      throw new Error(`Timeout aguardando download: ${e.message}`);
+      throw downloadResult.error || new Error('Falha no download');
     }
 
-    // Salvar arquivo
-    const semanticName = generateSemanticFilename();
-    const filePath = path.join(downloadDir, semanticName);
-
-    log(`Salvando arquivo: ${filePath}`, LOG_LEVELS.INFO);
-    await download.saveAs(filePath);
-    log(`Arquivo salvo: ${filePath}`, LOG_LEVELS.SUCCESS);
+    const filePath = downloadResult.filePath;
+    log(`Download concluído via ${downloadResult.source} (${formatBytes(downloadResult.size)})`, LOG_LEVELS.SUCCESS);
 
     // Validar arquivo
     const validation = validateDownloadedFile(filePath, '');
