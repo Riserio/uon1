@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -9,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Search, Calendar, MapPin, Car, DollarSign, FileText } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { KanbanColumn } from '@/components/KanbanColumn';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
 interface StatusConfig {
   id: string;
@@ -16,6 +17,7 @@ interface StatusConfig {
   cor: string;
   ordem: number;
   ativo: boolean;
+  corretora_id: string | null;
 }
 
 interface EventoCard {
@@ -42,10 +44,11 @@ interface EventoCard {
 
 interface GestaoAssociacaoKanbanProps {
   readOnly?: boolean;
-  corretoraId?: string | null; // For portal filtering
+  corretoraId?: string | null;
+  selectedCorretoraId?: string | null; // For admin filtering by association
 }
 
-export function GestaoAssociacaoKanban({ readOnly = false, corretoraId }: GestaoAssociacaoKanbanProps) {
+export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selectedCorretoraId }: GestaoAssociacaoKanbanProps) {
   const [statusConfigs, setStatusConfigs] = useState<StatusConfig[]>([]);
   const [eventos, setEventos] = useState<EventoCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,23 +56,31 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId }: Gestao
   const [searchTerm, setSearchTerm] = useState('');
   const [corretoras, setCorretoras] = useState<{ id: string; nome: string }[]>([]);
 
+  // The effective corretora for filtering: portal mode or admin selected
+  const effectiveCorretoraId = corretoraId || selectedCorretoraId || null;
+
   useEffect(() => {
     loadData();
-  }, [corretoraId]);
+  }, [effectiveCorretoraId]);
 
   const loadData = async () => {
     try {
       setLoading(true);
 
-      // Load status configs
-      const { data: configs, error: configError } = await supabase
+      // Load status configs filtered by corretora if applicable
+      let configQuery = supabase
         .from('gestao_associacao_status_config')
         .select('*')
         .eq('ativo', true)
         .order('ordem');
 
+      if (effectiveCorretoraId) {
+        configQuery = configQuery.eq('corretora_id', effectiveCorretoraId);
+      }
+
+      const { data: configs, error: configError } = await configQuery;
       if (configError) throw configError;
-      setStatusConfigs(configs || []);
+      setStatusConfigs((configs || []) as StatusConfig[]);
 
       if (!configs || configs.length === 0) {
         setEventos([]);
@@ -77,10 +88,8 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId }: Gestao
         return;
       }
 
-      // Get active status names to filter
       const activeStatusNames = configs.map(c => c.nome);
 
-      // Load eventos with importacao join to get corretora_id
       let query = supabase
         .from('sga_eventos')
         .select(`
@@ -93,13 +102,11 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId }: Gestao
         .in('situacao_evento', activeStatusNames)
         .order('data_cadastro_evento', { ascending: false });
 
-      // Filter by corretora if in portal mode
-      if (corretoraId) {
-        query = query.eq('sga_importacoes.corretora_id', corretoraId);
+      if (effectiveCorretoraId) {
+        query = query.eq('sga_importacoes.corretora_id', effectiveCorretoraId);
       }
 
       const { data: eventosData, error: eventosError } = await query.limit(5000);
-
       if (eventosError) throw eventosError;
 
       const mapped: EventoCard[] = (eventosData || []).map((e: any) => ({
@@ -126,8 +133,8 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId }: Gestao
 
       setEventos(mapped);
 
-      // Load corretoras for filter (admin view only)
-      if (!corretoraId) {
+      // Load corretoras for filter (admin view without specific association selected)
+      if (!effectiveCorretoraId) {
         const uniqueCorretoras = new Map<string, string>();
         mapped.forEach(e => {
           if (e.corretora_id && e.corretora_nome) {
@@ -187,7 +194,11 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId }: Gestao
     return (
       <div className="text-center py-12 text-muted-foreground">
         <p className="text-lg font-medium">Nenhum status configurado</p>
-        <p className="text-sm mt-1">Configure os status da Gestão Associação nas configurações.</p>
+        <p className="text-sm mt-1">
+          {effectiveCorretoraId 
+            ? 'Configure os status para esta associação nas configurações.'
+            : 'Selecione uma associação e configure os status nas configurações.'}
+        </p>
       </div>
     );
   }
@@ -205,7 +216,7 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId }: Gestao
             className="pl-9"
           />
         </div>
-        {!corretoraId && corretoras.length > 1 && (
+        {!effectiveCorretoraId && corretoras.length > 1 && (
           <Select value={filterCorretora} onValueChange={setFilterCorretora}>
             <SelectTrigger className="w-[220px]">
               <SelectValue placeholder="Todas as associações" />
@@ -223,40 +234,27 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId }: Gestao
         </Badge>
       </div>
 
-      {/* Kanban Board */}
-      <ScrollArea className={needsScroll ? "w-full" : ""}>
-        <div
-          className={cn(
-            "flex gap-4",
-            needsScroll ? 'min-w-max pb-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-          )}
-          style={needsScroll ? { minWidth: `${statusConfigs.length * 320}px` } : {}}
-        >
-          {statusConfigs.map((config) => {
-            const columnEventos = filteredEventos.filter(e => e.situacao_evento === config.nome);
+      {/* Kanban Board - using same KanbanColumn layout as admin */}
+      <div className="w-full">
+        <ScrollArea className={needsScroll ? "w-full" : ""}>
+          <div
+            className={cn(
+              "flex gap-4",
+              needsScroll ? 'min-w-max pb-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+            )}
+            style={needsScroll ? { minWidth: `${statusConfigs.length * 320}px` } : {}}
+          >
+            {statusConfigs.map((config) => {
+              const columnEventos = filteredEventos.filter(e => e.situacao_evento === config.nome);
 
-            return (
-              <div key={config.id} className={cn(needsScroll ? 'w-80 flex-shrink-0' : 'min-w-0')}>
-                <div className="rounded-xl border border-border/50 bg-muted/30 overflow-hidden">
-                  {/* Column Header */}
-                  <div
-                    className="px-4 py-3 flex items-center justify-between"
-                    style={{ borderBottom: `3px solid ${config.cor}` }}
+              return (
+                <div key={config.id} className={cn(needsScroll ? 'w-80 flex-shrink-0' : 'min-w-0')}>
+                  <KanbanColumn
+                    title={config.nome}
+                    count={columnEventos.length}
+                    color={config.cor}
+                    onDrop={() => {}} // read-only, no drop
                   >
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: config.cor }} />
-                      <h3 className="font-semibold text-sm truncate">{config.nome}</h3>
-                    </div>
-                    <Badge variant="secondary" className="text-xs">
-                      {columnEventos.length}
-                    </Badge>
-                  </div>
-
-                  {/* Cards */}
-                  <div className="p-2 space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto">
-                    {columnEventos.length === 0 && (
-                      <p className="text-xs text-muted-foreground text-center py-4">Nenhum evento</p>
-                    )}
                     {columnEventos.map((evento) => (
                       <Card key={evento.id} className="shadow-sm hover:shadow-md transition-shadow cursor-default">
                         <CardContent className="p-3 space-y-2">
@@ -317,7 +315,7 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId }: Gestao
                           )}
 
                           {/* Association name (admin view) */}
-                          {!corretoraId && evento.corretora_nome && (
+                          {!effectiveCorretoraId && evento.corretora_nome && (
                             <Badge variant="secondary" className="text-[10px]">
                               {evento.corretora_nome}
                             </Badge>
@@ -325,14 +323,14 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId }: Gestao
                         </CardContent>
                       </Card>
                     ))}
-                  </div>
+                  </KanbanColumn>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-        {needsScroll && <ScrollBar orientation="horizontal" />}
-      </ScrollArea>
+              );
+            })}
+          </div>
+          {needsScroll && <ScrollBar orientation="horizontal" />}
+        </ScrollArea>
+      </div>
     </div>
   );
 }

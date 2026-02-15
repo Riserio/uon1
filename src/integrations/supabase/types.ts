@@ -2229,6 +2229,7 @@ export type Database = {
         Row: {
           ativo: boolean
           cor: string
+          corretora_id: string | null
           created_at: string
           id: string
           nome: string
@@ -2238,6 +2239,7 @@ export type Database = {
         Insert: {
           ativo?: boolean
           cor?: string
+          corretora_id?: string | null
           created_at?: string
           id?: string
           nome: string
@@ -2247,13 +2249,22 @@ export type Database = {
         Update: {
           ativo?: boolean
           cor?: string
+          corretora_id?: string | null
           created_at?: string
           id?: string
           nome?: string
           ordem?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "gestao_associacao_status_config_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       google_calendar_integrations: {
         Row: {
