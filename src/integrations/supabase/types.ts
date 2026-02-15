@@ -4395,6 +4395,7 @@ export type Database = {
           modelo_veiculo_terceiro: string | null
           motivo_evento: string | null
           numero_bo: string | null
+          observacoes: string | null
           participacao: number | null
           passivel_ressarcimento: string | null
           placa: string | null
@@ -4444,6 +4445,7 @@ export type Database = {
           modelo_veiculo_terceiro?: string | null
           motivo_evento?: string | null
           numero_bo?: string | null
+          observacoes?: string | null
           participacao?: number | null
           passivel_ressarcimento?: string | null
           placa?: string | null
@@ -4493,6 +4495,7 @@ export type Database = {
           modelo_veiculo_terceiro?: string | null
           motivo_evento?: string | null
           numero_bo?: string | null
+          observacoes?: string | null
           participacao?: number | null
           passivel_ressarcimento?: string | null
           placa?: string | null
