@@ -69,10 +69,19 @@ const CARDS_PER_PAGE = 10;
 const getCardAgeColor = (dataCadastro: string | null): string => {
   if (!dataCadastro) return '';
   const days = differenceInDays(new Date(), parseISO(dataCadastro));
-  if (days <= 45) return 'border-l-4 border-l-green-500';
-  if (days <= 75) return 'border-l-4 border-l-yellow-500';
-  if (days <= 90) return 'border-l-4 border-l-orange-500';
-  return 'border-l-4 border-l-red-500';
+  if (days <= 45) return 'border-2 border-green-500';
+  if (days <= 75) return 'border-2 border-yellow-500';
+  if (days <= 90) return 'border-2 border-orange-500';
+  return 'border-2 border-red-500';
+};
+
+const getAgeBadgeVariant = (dataCadastro: string | null): { color: string; days: number } | null => {
+  if (!dataCadastro) return null;
+  const days = differenceInDays(new Date(), parseISO(dataCadastro));
+  if (days <= 45) return { color: 'bg-green-100 text-green-800 border-green-300', days };
+  if (days <= 75) return { color: 'bg-yellow-100 text-yellow-800 border-yellow-300', days };
+  if (days <= 90) return { color: 'bg-orange-100 text-orange-800 border-orange-300', days };
+  return { color: 'bg-red-100 text-red-800 border-red-300', days };
 };
 
 export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selectedCorretoraId, onConfigureFluxos }: GestaoAssociacaoKanbanProps) {
@@ -413,12 +422,15 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
                                   {formatCurrency(evento.custo_evento)}
                                 </Badge>
                               )}
-                              {evento.data_cadastro_evento && (
-                                <Badge variant="secondary" className="text-[10px]">
-                                  <Calendar className="h-3 w-3 mr-0.5" />
-                                  {differenceInDays(new Date(), parseISO(evento.data_cadastro_evento))}d
-                                </Badge>
-                              )}
+                              {(() => {
+                                const age = getAgeBadgeVariant(evento.data_cadastro_evento);
+                                return age ? (
+                                  <Badge variant="outline" className={cn("text-[10px] border", age.color)}>
+                                    <Calendar className="h-3 w-3 mr-0.5" />
+                                    {age.days}d
+                                  </Badge>
+                                ) : null;
+                              })()}
                             </div>
                           </CardContent>
                         </Card>
