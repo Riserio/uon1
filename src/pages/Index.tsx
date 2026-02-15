@@ -940,15 +940,13 @@ const Index = () => {
             </div>
           </div>
 
-          <div className="bg-card border-b border-border/50">
-            <div className="container mx-auto px-6 py-3 bg-muted/50">
-              <FluxoSelector
-                selectedFluxoId={selectedFluxoId}
-                onFluxoSelect={setSelectedFluxoId}
-                onConfigureFluxos={() => setWorkflowConfigOpen(true)}
-                cardCounts={fluxoCardCounts}
-              />
-            </div>
+          <div className="bg-card border-b border-border/50 rounded-lg">
+            <FluxoSelector
+              selectedFluxoId={selectedFluxoId}
+              onFluxoSelect={setSelectedFluxoId}
+              onConfigureFluxos={() => setWorkflowConfigOpen(true)}
+              cardCounts={fluxoCardCounts}
+            />
           </div>
 
           <main className="container mx-auto px-6 py-6">
