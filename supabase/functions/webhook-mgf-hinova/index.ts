@@ -406,7 +406,7 @@ serve(async (req) => {
     console.log(`MGF Webhook: Recebendo ${dados.length} registros para ${corretora_id}`);
 
     // Verificar se é o primeiro chunk
-    const isFirstChunk = chunk_index === 0 || chunk_index === undefined;
+    const isFirstChunk = chunk_index === 0 || chunk_index === 1 || chunk_index === undefined;
 
     if (isFirstChunk) {
       // Desativar importações anteriores
