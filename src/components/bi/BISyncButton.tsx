@@ -111,7 +111,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
   const [historyOpen, setHistoryOpen] = useState(false);
 
   const loadCredenciais = useCallback(async () => {
-    if (!corretoraId) return;
+    if (!corretoraId || corretoraId === "__admin__") return;
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -146,7 +146,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
   }, [corretoraId]);
 
   const loadModuleStatuses = useCallback(async () => {
-    if (!corretoraId) return;
+    if (!corretoraId || corretoraId === "__admin__") return;
     const modules: ModuleType[] = ["cobranca", "eventos", "mgf"];
     const newStatuses = { ...moduleStatuses };
 
