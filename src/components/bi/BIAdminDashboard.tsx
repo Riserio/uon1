@@ -333,7 +333,6 @@ export default function BIAdminDashboard() {
                         <TableCell>
                           <div>
                             <span className="font-medium text-sm">{a.nome}</span>
-                            {a.slug && <p className="text-xs text-muted-foreground">{a.slug}</p>}
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
