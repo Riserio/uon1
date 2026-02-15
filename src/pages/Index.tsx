@@ -916,8 +916,8 @@ const Index = () => {
 
       {activeTab === 'administradora' && (
         <>
-          <div className="bg-muted/30 border-b border-border/50">
-            <div className="container mx-auto px-6 py-4">
+          <div className="bg-muted/30 border-b border-border/50 rounded-2xl mx-6 mt-2">
+            <div className="px-6 py-4">
               <Toolbar
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
@@ -940,7 +940,7 @@ const Index = () => {
             </div>
           </div>
 
-          <div className="bg-card border-b border-border/50 rounded-lg">
+          <div className="px-6">
             <FluxoSelector
               selectedFluxoId={selectedFluxoId}
               onFluxoSelect={setSelectedFluxoId}
