@@ -5,11 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { History, CheckCircle, Trash2, RefreshCw, FileSpreadsheet, Loader2, AlertCircle } from "lucide-react";
+import { History, CheckCircle, Trash2, RefreshCw, FileSpreadsheet, Loader2, AlertCircle, Download } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useBIAuditLog } from "@/hooks/useBIAuditLog";
+import * as XLSX from "xlsx";
 
 interface SGAHistoricoImportacoesProps {
   onActivate: () => void;
@@ -22,6 +23,7 @@ export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGA
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const fetchImportacoes = async () => {
     if (!corretoraId) {
@@ -56,20 +58,17 @@ export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGA
     try {
       const importacao = importacoes.find(i => i.id === id);
       
-      // Desativar todas da mesma associação
       await supabase
         .from("sga_importacoes")
         .update({ ativo: false })
         .eq("corretora_id", corretoraId)
         .neq("id", id);
 
-      // Ativar a selecionada
       await supabase
         .from("sga_importacoes")
         .update({ ativo: true })
         .eq("id", id);
 
-      // Registrar log
       await registrarLog({
         modulo: "sga_insights",
         acao: "alteracao",
@@ -98,19 +97,16 @@ export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGA
     try {
       const importacao = importacoes.find(i => i.id === id);
       
-      // Deletar eventos primeiro (cascade deveria fazer isso, mas por segurança)
       await supabase
         .from("sga_eventos")
         .delete()
         .eq("importacao_id", id);
 
-      // Deletar importação
       await supabase
         .from("sga_importacoes")
         .delete()
         .eq("id", id);
 
-      // Registrar log
       await registrarLog({
         modulo: "sga_insights",
         acao: "exclusao",
@@ -131,6 +127,90 @@ export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGA
       toast.error("Erro ao excluir importação");
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleDownload = async (importacaoId: string, nomeArquivo: string) => {
+    setDownloading(importacaoId);
+    try {
+      const allEventos: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from("sga_eventos")
+          .select("*")
+          .eq("importacao_id", importacaoId)
+          .range(from, from + batchSize - 1);
+        
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allEventos.push(...data);
+        from += batchSize;
+        
+        if (data.length < batchSize) break;
+      }
+      
+      if (allEventos.length === 0) {
+        toast.error("Nenhum registro encontrado para download");
+        return;
+      }
+      
+      const dadosFormatados = allEventos.map(e => ({
+        "Protocolo": e.protocolo || "",
+        "Placa": e.placa || "",
+        "Voluntário": e.voluntario || "",
+        "Cooperativa": e.cooperativa || "",
+        "Regional": e.regional || "",
+        "Tipo Evento": e.tipo_evento || "",
+        "Motivo Evento": e.motivo_evento || "",
+        "Situação Evento": e.situacao_evento || "",
+        "Situação Análise": e.situacao_analise_evento || "",
+        "Classificação": e.classificacao || "",
+        "Data Evento": e.data_evento || "",
+        "Data Cadastro": e.data_cadastro_evento || "",
+        "Data Conclusão": e.data_conclusao || "",
+        "Modelo Veículo": e.modelo_veiculo || "",
+        "Categoria Veículo": e.categoria_veiculo || "",
+        "Ano Fabricação": e.ano_fabricacao || "",
+        "Valor Protegido": e.valor_protegido_veiculo || 0,
+        "Custo Evento": e.custo_evento || 0,
+        "Valor Reparo": e.valor_reparo || 0,
+        "Previsão Reparo": e.previsao_valor_reparo || 0,
+        "Valor Mão de Obra": e.valor_mao_de_obra || 0,
+        "Participação": e.participacao || 0,
+        "Envolvimento": e.envolvimento || "",
+        "Analista Responsável": e.analista_responsavel || "",
+        "Observações": e.observacoes || "",
+        "Regional Veículo": e.regional_veiculo || "",
+        "Estado Associado": e.associado_estado || "",
+        "Cidade Evento": e.evento_cidade || "",
+        "Estado Evento": e.evento_estado || "",
+      }));
+      
+      const ws = XLSX.utils.json_to_sheet(dadosFormatados);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Eventos");
+      
+      ws["!cols"] = [
+        { wch: 15 }, { wch: 10 }, { wch: 25 }, { wch: 20 }, { wch: 25 },
+        { wch: 15 }, { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 15 },
+        { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 25 }, { wch: 18 },
+        { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
+        { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 25 }, { wch: 30 },
+        { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 15 },
+      ];
+      
+      const nomeExcel = nomeArquivo.replace(/\.(json|xlsx|csv|xls)$/i, "") + "_export.xlsx";
+      XLSX.writeFile(wb, nomeExcel);
+      toast.success(`Download concluído: ${allEventos.length} registros`);
+    } catch (error: any) {
+      console.error("Erro ao baixar:", error);
+      toast.error("Erro ao baixar importação");
+    } finally {
+      setDownloading(null);
     }
   };
 
@@ -206,6 +286,20 @@ export default function SGAHistoricoImportacoes({ onActivate, corretoraId }: SGA
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-300"
+                        onClick={() => handleDownload(imp.id, imp.nome_arquivo)}
+                        disabled={downloading === imp.id}
+                        title="Baixar como Excel"
+                      >
+                        {downloading === imp.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
+                      </Button>
                       {!imp.ativo && (
                         <Button
                           variant="outline"
