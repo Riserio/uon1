@@ -56,6 +56,7 @@ import SGAInsights from "@/pages/SGAInsights";
 import MGFInsights from "@/pages/MGFInsights";
 import CobrancaInsights from "@/pages/CobrancaInsights";
 import EstudoBaseInsights from "@/pages/EstudoBaseInsights";
+import AcompanhamentoEventos from "@/pages/AcompanhamentoEventos";
 import BILayout from "@/components/bi/BILayout";
 import Landing from "./pages/Landing";
 import Gestao from "./pages/Gestao";
@@ -234,6 +235,7 @@ const App = () => (
                 <Route path="/mgf-insights" element={<MGFInsights />} />
                 <Route path="/cobranca-insights" element={<CobrancaInsights />} />
                 <Route path="/estudo-base-insights" element={<EstudoBaseInsights />} />
+                <Route path="/acompanhamento-eventos" element={<AcompanhamentoEventos />} />
               </Route>
               <Route path="/gestao" element={<ProtectedRoute><Gestao /></ProtectedRoute>} />
               <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
