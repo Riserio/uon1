@@ -1,4 +1,4 @@
-import { ArrowLeft, Activity, DollarSign, CreditCard, Database, History, TrendingUp } from "lucide-react";
+import { ArrowLeft, Activity, DollarSign, CreditCard, Database, History, TrendingUp, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
@@ -14,7 +14,7 @@ type BIPageHeaderProps = {
   selectedAssociacao: string;
   onAssociacaoChange: (id: string) => void;
   loadingAssociacoes?: boolean;
-  currentModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'admin';
+  currentModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos' | 'admin';
   showHistorico?: boolean;
   onHistoricoClick?: () => void;
   recordCount?: number;
@@ -48,6 +48,11 @@ const modules = [{
   label: 'Estudo de Base',
   icon: Database,
   path: '/estudo-base-insights'
+}, {
+  id: 'acompanhamento-eventos',
+  label: 'Acompanhamento',
+  icon: Eye,
+  path: '/portal/acompanhamento-eventos'
 }] as const;
 
 export default function BIPageHeader({
