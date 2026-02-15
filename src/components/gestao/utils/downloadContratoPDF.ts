@@ -75,6 +75,7 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
     container.style.boxSizing = "border-box";
     container.style.fontFamily = "Inter, Roboto, Arial, Helvetica, sans-serif";
     container.style.fontSize = "12px";
+    container.style.textAlign = "justify";
     container.className = "pdf-offscreen-container";
 
     // Header (first page visual) - logo on top right only
@@ -128,9 +129,11 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
     // Content (use contrato.conteudo_html)
     const content = document.createElement("div");
     content.className = "pdf-content";
-    content.style.lineHeight = "1.35";
+    content.style.lineHeight = "1.5";
     content.style.color = "#222";
     content.style.fontSize = "12px";
+    content.style.textAlign = "justify";
+    content.style.wordBreak = "break-word";
     content.innerHTML = contrato?.conteudo_html || "";
     container.appendChild(content);
 
@@ -220,13 +223,49 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
 
     const logoData = logoDataUrl;
 
-    // Slice pages
+    // Helper: find a "safe" cut point by scanning for a row of mostly-white pixels
+    const findSafeCutPoint = (sourceCanvas: HTMLCanvasElement, idealYPx: number, searchRangePx: number): number => {
+      const ctx = sourceCanvas.getContext("2d");
+      if (!ctx) return idealYPx;
+
+      const startY = Math.max(0, idealYPx - searchRangePx);
+      const endY = idealYPx;
+
+      // Scan upward from ideal cut to find a whitespace row
+      for (let y = endY; y >= startY; y--) {
+        const rowData = ctx.getImageData(0, y, sourceCanvas.width, 1).data;
+        let isWhiteRow = true;
+        // Sample every 10th pixel for performance
+        for (let x = 0; x < rowData.length; x += 40) {
+          const r = rowData[x], g = rowData[x + 1], b = rowData[x + 2];
+          if (r < 240 || g < 240 || b < 240) {
+            isWhiteRow = false;
+            break;
+          }
+        }
+        if (isWhiteRow) return y;
+      }
+      return idealYPx;
+    };
+
+    // Slice pages with smart cut points
     let remainingHeightPx = canvasHeightPx;
     let yOffsetPx = 0;
     let pageIndex = 0;
+    // Search range: ~30px (about 2 lines of text at scale 2)
+    const searchRange = Math.floor(30 * 2);
 
     while (remainingHeightPx > 0) {
-      const sliceHeightPx = Math.min(pageCanvasHeightPx, remainingHeightPx);
+      let sliceHeightPx: number;
+      if (remainingHeightPx <= pageCanvasHeightPx) {
+        sliceHeightPx = remainingHeightPx;
+      } else {
+        // Find a safe cut point to avoid cutting through text
+        const safeCutY = findSafeCutPoint(canvas, yOffsetPx + pageCanvasHeightPx, searchRange);
+        sliceHeightPx = safeCutY - yOffsetPx;
+        if (sliceHeightPx <= 0) sliceHeightPx = pageCanvasHeightPx;
+      }
+
       const tmpCanvas = document.createElement("canvas");
       tmpCanvas.width = canvasWidthPx;
       tmpCanvas.height = sliceHeightPx;
@@ -241,7 +280,6 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
 
       if (pageIndex > 0) {
         pdf.addPage();
-        // Páginas 2+ sem logo no cabeçalho
       }
 
       // Draw slice image under header

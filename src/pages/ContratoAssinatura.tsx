@@ -364,7 +364,7 @@ export default function ContratoAssinatura() {
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-2 sm:pt-2">
             <div
-              className="prose prose-sm max-w-none border rounded-lg p-3 sm:p-4 bg-card max-h-[40vh] sm:max-h-[50vh] overflow-y-auto text-sm"
+              className="prose prose-sm max-w-none border rounded-lg p-3 sm:p-4 bg-card max-h-[40vh] sm:max-h-[50vh] overflow-y-auto text-sm text-justify"
               dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contrato.conteudo_html) }}
             />
           </CardContent>
