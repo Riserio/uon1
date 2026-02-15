@@ -64,7 +64,7 @@ export function Toolbar({
 
   return (
     <div className="bg-gradient-to-r from-card/95 via-card to-card/95 backdrop-blur-sm border-b border-border/50 sticky top-0 z-10 shadow-sm">
-      <div className="container mx-auto px-4 py-3 border-none border-0 opacity-100 rounded">
+      <div className="container mx-auto px-4 py-3 border-none border-0 opacity-100 rounded-xl">
         <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
           <div className="flex items-center gap-2 w-full lg:w-auto">
             <div className="flex items-center gap-2 bg-secondary/50 rounded-lg p-1">
