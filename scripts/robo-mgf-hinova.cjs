@@ -2601,7 +2601,26 @@ async function rodarRobo() {
     
     log('MGF: Período NÃO será preenchido (configuração padrão do portal)', LOG_LEVELS.INFO);
     
-    await page.waitForTimeout(1000);
+    // Aguardar a página carregar os selects de layout
+    log('⏳ Aguardando selects de layout carregarem na página...', LOG_LEVELS.INFO);
+    
+    const MAX_TENTATIVAS_LAYOUT = 10;
+    let selectsEncontrados = false;
+    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS_LAYOUT; tentativa++) {
+      const qtdSelects = await page.evaluate(() => document.querySelectorAll('select').length);
+      if (qtdSelects > 0) {
+        log(`   ✅ ${qtdSelects} select(s) encontrado(s) na tentativa ${tentativa}`, LOG_LEVELS.SUCCESS);
+        selectsEncontrados = true;
+        break;
+      }
+      log(`   Tentativa ${tentativa}/${MAX_TENTATIVAS_LAYOUT} - nenhum select encontrado, aguardando 2s...`, LOG_LEVELS.DEBUG);
+      await page.waitForTimeout(2000);
+    }
+    
+    if (!selectsEncontrados) {
+      log('⚠️ Nenhum select encontrado após todas as tentativas, tentando aguardar mais...', LOG_LEVELS.WARN);
+      await page.waitForTimeout(5000);
+    }
     
     // ============================================
     // LAYOUT - BI VANGARD FINANCEIROS EVENTOS
