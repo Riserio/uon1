@@ -316,7 +316,7 @@ export default function BIAdminDashboard() {
             <CardContent className="p-0">
               <ScrollArea className="h-[600px]">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 z-10 bg-card">
                     <TableRow>
                       <TableHead>Associação</TableHead>
                       <TableHead className="text-center">Cobrança</TableHead>
@@ -376,7 +376,7 @@ export default function BIAdminDashboard() {
             <CardContent className="p-0">
               <ScrollArea className="h-[600px]">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 z-10 bg-card">
                     <TableRow>
                       <TableHead>Email</TableHead>
                       <TableHead>Associações</TableHead>
