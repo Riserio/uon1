@@ -126,7 +126,7 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
     `;
     container.appendChild(meta);
 
-    // Content (use contrato.conteudo_html)
+    // Content (use contrato.conteudo_html) — format numbered clauses as paragraphs
     const content = document.createElement("div");
     content.className = "pdf-content";
     content.style.lineHeight = "1.5";
@@ -134,7 +134,37 @@ export async function downloadContratoPDF(contrato: any, templateLogoUrl?: strin
     content.style.fontSize = "12px";
     content.style.textAlign = "justify";
     content.style.wordBreak = "break-word";
-    content.innerHTML = contrato?.conteudo_html || "";
+
+    // Process HTML to add paragraph formatting for numbered clauses
+    let html = contrato?.conteudo_html || "";
+    
+    // Insert line breaks before clause numbers (1., 1.1, 1.2.1, etc.) so they become separate blocks
+    // Match patterns like "1.", "1.1", "1.2.1", "18." at the start of text or after tags
+    // Main clauses (single number like 1., 2., ... 18.) get bold + extra spacing
+    // Sub-clauses (1.1, 1.2, etc.) get medium spacing
+    // Sub-sub-clauses (1.2.1, etc.) get indentation
+    
+    const processedHtml = html.replace(
+      /(?<=>|\n|<br\s*\/?>|^)\s*(\d{1,2}(?:\.\d{1,2})*\.?\s)/g,
+      (match, clause) => {
+        const depth = (clause.match(/\./g) || []).length;
+        const trimmed = clause.trim().replace(/\.$/, '');
+        const isMainClause = !trimmed.includes('.') || /^\d{1,2}\.$/.test(clause.trim());
+        
+        if (isMainClause) {
+          // Main clause: bold, extra top margin
+          return `</p><p style="margin-top:14px;margin-bottom:4px;"><strong>${clause}</strong>`;
+        } else if (depth <= 2) {
+          // Sub-clause like 1.1, 1.2
+          return `</p><p style="margin-top:8px;margin-bottom:2px;padding-left:12px;">${clause}`;
+        } else {
+          // Deep sub-clause like 1.2.1
+          return `</p><p style="margin-top:4px;margin-bottom:2px;padding-left:24px;">${clause}`;
+        }
+      }
+    );
+    
+    content.innerHTML = processedHtml;
     container.appendChild(content);
 
     // Signatures log
