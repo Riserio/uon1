@@ -2601,10 +2601,18 @@ async function rodarRobo() {
     
     log('MGF: Período NÃO será preenchido (configuração padrão do portal)', LOG_LEVELS.INFO);
     
-    // Aguardar a página carregar os selects de layout
-    log('⏳ Aguardando selects de layout carregarem na página...', LOG_LEVELS.INFO);
+    // Aguardar a página carregar completamente
+    log('⏳ Aguardando página carregar completamente...', LOG_LEVELS.INFO);
+    await page.waitForTimeout(5000);
     
-    const MAX_TENTATIVAS_LAYOUT = 10;
+    // Scroll para baixo para garantir que a seção "Dados Visualizados" carregue
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(2000);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(1000);
+    
+    // Aguardar selects aparecerem (até 30s)
+    const MAX_TENTATIVAS_LAYOUT = 15;
     let selectsEncontrados = false;
     for (let tentativa = 1; tentativa <= MAX_TENTATIVAS_LAYOUT; tentativa++) {
       const qtdSelects = await page.evaluate(() => document.querySelectorAll('select').length);
@@ -2618,12 +2626,26 @@ async function rodarRobo() {
     }
     
     if (!selectsEncontrados) {
-      log('⚠️ Nenhum select encontrado após todas as tentativas, tentando aguardar mais...', LOG_LEVELS.WARN);
+      log('⚠️ Nenhum select encontrado após todas as tentativas', LOG_LEVELS.WARN);
+      // Debug: listar elementos da página
+      const debugInfo = await page.evaluate(() => {
+        return {
+          title: document.title,
+          url: location.href,
+          bodyLength: document.body?.innerHTML?.length || 0,
+          iframes: document.querySelectorAll('iframe').length,
+          selects: document.querySelectorAll('select').length,
+          inputs: document.querySelectorAll('input').length,
+          textoRelevante: document.body?.textContent?.includes('Dados Visualizados') || document.body?.textContent?.includes('DADOS VISUALIZADOS'),
+          textoLayout: document.body?.textContent?.includes('layout') || document.body?.textContent?.includes('Layout'),
+        };
+      });
+      log(`   Debug página: ${JSON.stringify(debugInfo)}`, LOG_LEVELS.DEBUG);
       await page.waitForTimeout(5000);
     }
     
     // ============================================
-    // LAYOUT - BI VANGARD FINANCEIROS EVENTOS
+    // LAYOUT - PADRÃO ROBUSTO (4 ESTRATÉGIAS) - IGUAL COBRANÇA
     // ============================================
     log('═'.repeat(50), LOG_LEVELS.INFO);
     log('📋 CONFIGURANDO LAYOUT DO RELATÓRIO', LOG_LEVELS.INFO);
@@ -2636,6 +2658,11 @@ async function rodarRobo() {
         metodo: null,
         valorSelecionado: null,
         opcoesDisponiveis: [],
+        diagnostico: {
+          selectsEncontrados: [],
+          labelsLayout: [],
+          secaoDadosVisualizados: null
+        }
       };
       
       const normalizar = (texto) => {
@@ -2647,62 +2674,127 @@ async function rodarRobo() {
           .trim();
       };
       
-      const layoutNorm = normalizar(layoutDesejado);
-      
-      // Buscar todos os selects
-      const todosSelects = document.querySelectorAll('select');
-      let fallbackSelect = null;
-      let fallbackIndex = -1;
-      
-      for (const select of todosSelects) {
+      // Função para tentar selecionar VANGARD em um select
+      const tentarSelecionarVangard = (select, metodo) => {
         const opcoes = Array.from(select.options).map(o => o.text?.trim() || '');
+        if (resultado.opcoesDisponiveis.length === 0) {
+          resultado.opcoesDisponiveis = opcoes;
+        }
         
         for (let i = 0; i < select.options.length; i++) {
           const optText = normalizar(select.options[i].text || '');
-          
-          // Match exato: BI + VANGARD
-          if (optText.includes('BI') && optText.includes('VANGARD')) {
-            if (resultado.opcoesDisponiveis.length === 0) {
-              resultado.opcoesDisponiveis = opcoes;
-            }
+          if (optText.includes('VANGARD')) {
             select.selectedIndex = i;
             select.dispatchEvent(new Event('input', { bubbles: true }));
             select.dispatchEvent(new Event('change', { bubbles: true }));
             resultado.sucesso = true;
-            resultado.metodo = 'SELECT_BI_VANGARD';
+            resultado.metodo = metodo;
             resultado.valorSelecionado = select.options[i].text?.trim();
+            return true;
+          }
+        }
+        return false;
+      };
+      
+      // ========================================
+      // ESTRATÉGIA 1: Buscar label "Layout:" ou "Selecione o layout"
+      // ========================================
+      const labels = document.querySelectorAll('td, th, label, span, div');
+      for (const label of labels) {
+        const texto = (label.textContent || '').trim();
+        const textoNorm = normalizar(texto);
+        
+        if (textoNorm === 'LAYOUT:' || textoNorm === 'LAYOUT' || 
+            textoNorm.includes('SELECIONE O LAYOUT') || textoNorm.includes('LAYOUT DO RELATORIO')) {
+          resultado.diagnostico.labelsLayout.push({ texto: texto.substring(0, 80), tag: label.tagName });
+          
+          // Procurar select na mesma linha (tr) ou próximo
+          const row = label.closest('tr');
+          const selectInRow = row?.querySelector('select');
+          if (selectInRow && tentarSelecionarVangard(selectInRow, 'LABEL_LAYOUT')) {
             return resultado;
           }
           
-          // Fallback: qualquer opção contendo VANGARD
-          if (optText.includes('VANGARD') && fallbackSelect === null) {
-            fallbackSelect = select;
-            fallbackIndex = i;
-            if (resultado.opcoesDisponiveis.length === 0) {
-              resultado.opcoesDisponiveis = opcoes;
-            }
+          // Tentar parent
+          const parent = label.parentElement;
+          const selectInParent = parent?.querySelector('select');
+          if (selectInParent && tentarSelecionarVangard(selectInParent, 'LABEL_LAYOUT_PARENT')) {
+            return resultado;
           }
-        }
-        
-        // Guardar opções para diagnóstico
-        const temLayoutOuVisualizacao = opcoes.some(o => {
-          const norm = normalizar(o);
-          return norm.includes('SELECIONE') || norm.includes('VANGARD') || norm.includes('FINANCEIRO');
-        });
-        if (temLayoutOuVisualizacao && resultado.opcoesDisponiveis.length === 0) {
-          resultado.opcoesDisponiveis = opcoes;
         }
       }
       
-      // Fallback: usar qualquer opção com VANGARD no nome
-      if (fallbackSelect && fallbackIndex >= 0) {
-        fallbackSelect.selectedIndex = fallbackIndex;
-        fallbackSelect.dispatchEvent(new Event('input', { bubbles: true }));
-        fallbackSelect.dispatchEvent(new Event('change', { bubbles: true }));
-        resultado.sucesso = true;
-        resultado.metodo = 'SELECT_VANGARD_FALLBACK';
-        resultado.valorSelecionado = fallbackSelect.options[fallbackIndex].text?.trim();
-        return resultado;
+      // ========================================
+      // ESTRATÉGIA 2: Buscar seção "Dados Visualizados"
+      // ========================================
+      const secoes = document.querySelectorAll('td, th, div, fieldset, legend, a');
+      for (const secao of secoes) {
+        const texto = normalizar(secao.textContent || '');
+        
+        if (texto.includes('DADOS VISUALIZADOS')) {
+          resultado.diagnostico.secaoDadosVisualizados = {
+            tag: secao.tagName,
+            texto: (secao.textContent || '').substring(0, 100)
+          };
+          
+          const container = secao.closest('table, div, fieldset') || secao.parentElement;
+          const selects = container?.querySelectorAll('select') || [];
+          
+          for (const select of selects) {
+            if (tentarSelecionarVangard(select, 'SECAO_DADOS_VISUALIZADOS')) {
+              return resultado;
+            }
+          }
+        }
+      }
+      
+      // ========================================
+      // ESTRATÉGIA 3: Varrer TODOS os selects
+      // ========================================
+      const todosSelects = document.querySelectorAll('select');
+      for (const select of todosSelects) {
+        if (tentarSelecionarVangard(select, 'VARREDURA_OPCOES')) {
+          return resultado;
+        }
+        
+        // Guardar para diagnóstico
+        const opcoes = Array.from(select.options).map(o => o.text?.trim() || '');
+        const temRelevante = opcoes.some(o => {
+          const norm = normalizar(o);
+          return norm.includes('SELECIONE') || norm.includes('VANGARD') || norm.includes('FINANCEIRO');
+        });
+        if (temRelevante) {
+          resultado.diagnostico.selectsEncontrados.push({
+            name: select.name || select.id || 'sem_nome',
+            opcoes: opcoes.slice(0, 10)
+          });
+        }
+      }
+      
+      // ========================================
+      // ESTRATÉGIA 4: Fallback por atributos name/id
+      // ========================================
+      for (const select of todosSelects) {
+        const name = (select.name || select.id || '').toLowerCase();
+        if (name.includes('layout') || name.includes('visualiza') || name.includes('dados')) {
+          if (resultado.opcoesDisponiveis.length === 0) {
+            resultado.opcoesDisponiveis = Array.from(select.options).map(o => o.text?.trim() || '');
+          }
+          if (tentarSelecionarVangard(select, 'FALLBACK_NAME_ID')) {
+            return resultado;
+          }
+        }
+      }
+      
+      // Coletar todos os selects para diagnóstico se nenhum encontrado
+      if (resultado.diagnostico.selectsEncontrados.length === 0) {
+        for (const select of todosSelects) {
+          const opcoes = Array.from(select.options).map(o => o.text?.trim() || '');
+          resultado.diagnostico.selectsEncontrados.push({
+            name: select.name || select.id || 'sem_nome',
+            opcoes: opcoes.slice(0, 10)
+          });
+        }
       }
       
       return resultado;
@@ -2718,14 +2810,20 @@ async function rodarRobo() {
     } else {
       log(`❌ ERRO CRÍTICO: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado!`, LOG_LEVELS.ERROR);
       log(`   Opções disponíveis: ${layoutSelecionado.opcoesDisponiveis.join(', ') || 'NENHUMA'}`, LOG_LEVELS.ERROR);
+      if (layoutSelecionado.diagnostico.labelsLayout.length > 0) {
+        log(`   Labels encontrados: ${JSON.stringify(layoutSelecionado.diagnostico.labelsLayout)}`, LOG_LEVELS.DEBUG);
+      }
+      if (layoutSelecionado.diagnostico.secaoDadosVisualizados) {
+        log(`   Seção "Dados Visualizados": ${JSON.stringify(layoutSelecionado.diagnostico.secaoDadosVisualizados)}`, LOG_LEVELS.DEBUG);
+      }
+      if (layoutSelecionado.diagnostico.selectsEncontrados.length > 0) {
+        log(`   Selects encontrados: ${JSON.stringify(layoutSelecionado.diagnostico.selectsEncontrados)}`, LOG_LEVELS.DEBUG);
+      }
       await saveDebugInfo(page, context, 'Layout BI-VANGARD não encontrado');
       throw new Error(`ERRO CRÍTICO: Layout "${CONFIG.HINOVA_LAYOUT}" não encontrado! Verifique a seção de layout no portal.`);
     }
     
     await page.waitForTimeout(1000);
-    
-    // ============================================
-    // CENTRO DE CUSTO: MARCAR APENAS OS 3 ESPECÍFICOS
     // COM VALIDAÇÃO ROBUSTA (3 TENTATIVAS) - PADRÃO COBRANÇA
     // EVENTOS, EVENTOS NAO PROVISIONADO, EVENTOS RATEAVEIS
     // ============================================
