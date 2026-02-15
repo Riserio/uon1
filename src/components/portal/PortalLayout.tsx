@@ -8,8 +8,7 @@ import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { usePortalLayout } from "@/contexts/PortalLayoutContext";
 import { usePortalDataPrefetch } from "@/hooks/usePortalDataPrefetch";
 
-type CarouselModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base';
-type PortalModule = CarouselModule | 'acompanhamento-eventos';
+type PortalModule = 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos';
 
 const moduleMap: Record<string, PortalModule> = {
   '/portal': 'indicadores',
@@ -125,12 +124,13 @@ export default function PortalLayout() {
   const currentModule: PortalModule = moduleMap[location.pathname] || 'indicadores';
 
   // Available modules for carousel
-  const availableModules: CarouselModule[] = [
+  const availableModules: PortalModule[] = [
     ...(corretora.modulos_bi.includes('indicadores') ? ['indicadores'] as const : []),
     ...(corretora.modulos_bi.includes('eventos') ? ['eventos'] as const : []),
     ...(corretora.modulos_bi.includes('mgf') ? ['mgf'] as const : []),
     ...(corretora.modulos_bi.includes('cobranca') ? ['cobranca'] as const : []),
     ...(corretora.modulos_bi.includes('estudo-base') ? ['estudo-base'] as const : []),
+    ...(corretora.modulos_bi.includes('acompanhamento-eventos') ? ['acompanhamento-eventos'] as const : []),
   ];
 
   // Check if user has "acompanhamento-eventos" module
@@ -140,7 +140,7 @@ export default function PortalLayout() {
     <PortalCarouselProvider
       corretoraId={corretora.id}
       availableModules={availableModules}
-      currentModule={currentModule === 'acompanhamento-eventos' ? 'indicadores' : currentModule}
+      currentModule={currentModule}
     >
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
         <PortalHeader
