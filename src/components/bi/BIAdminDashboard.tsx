@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -314,9 +314,9 @@ export default function BIAdminDashboard() {
         <TabsContent value="visao-geral" className="mt-4">
           <Card>
             <CardContent className="p-0">
-              <ScrollArea className="h-[600px]">
+              <div className="max-h-[calc(100vh-380px)] overflow-auto rounded-md">
                 <Table>
-                  <TableHeader className="sticky top-0 z-10 bg-card">
+                  <TableHeader className="sticky top-0 z-10 bg-card shadow-sm">
                     <TableRow>
                       <TableHead>Associação</TableHead>
                       <TableHead className="text-center">Cobrança</TableHead>
@@ -366,7 +366,7 @@ export default function BIAdminDashboard() {
                     ))}
                   </TableBody>
                 </Table>
-              </ScrollArea>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -374,9 +374,9 @@ export default function BIAdminDashboard() {
         <TabsContent value="usuarios" className="mt-4">
           <Card>
             <CardContent className="p-0">
-              <ScrollArea className="h-[600px]">
+              <div className="max-h-[calc(100vh-380px)] overflow-auto rounded-md">
                 <Table>
-                  <TableHeader className="sticky top-0 z-10 bg-card">
+                  <TableHeader className="sticky top-0 z-10 bg-card shadow-sm">
                     <TableRow>
                       <TableHead>Email</TableHead>
                       <TableHead>Associações</TableHead>
@@ -440,7 +440,7 @@ export default function BIAdminDashboard() {
                     ))}
                   </TableBody>
                 </Table>
-              </ScrollArea>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
