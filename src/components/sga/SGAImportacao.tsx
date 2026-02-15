@@ -112,30 +112,70 @@ const getValueFromRow = (row: any, targetHeader: string): any => {
 const parseExcelDate = (value: any): string | null => {
   if (!value) return null;
   
+  // Se for um objeto Date (quando xlsx usa cellDates: true)
+  if (value instanceof Date) {
+    if (isNaN(value.getTime()) || value.getFullYear() < 1900 || value.getFullYear() > 2100) {
+      return null;
+    }
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  
   if (typeof value === "number") {
     if (value < 1 || value > 100000) {
       console.warn("Serial date fora do range:", value);
       return null;
     }
     try {
-      const date = new Date((value - 25569) * 86400 * 1000);
-      if (isNaN(date.getTime()) || date.getFullYear() < 1900 || date.getFullYear() > 2100) {
+      // Usar UTC para evitar shifts de timezone no serial date do Excel
+      const utcMs = (value - 25569) * 86400 * 1000;
+      const year = Math.floor((utcMs / 86400000 + 719468) / 365.2425); // approx
+      const date = new Date(Date.UTC(1970, 0, 1) + utcMs);
+      if (isNaN(date.getTime()) || date.getUTCFullYear() < 1900 || date.getUTCFullYear() > 2100) {
         return null;
       }
-      return date.toISOString().split("T")[0];
+      // Usar getUTC* para evitar shift de timezone
+      const y = date.getUTCFullYear();
+      const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(date.getUTCDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
     } catch {
       return null;
     }
   }
   
   if (typeof value === "string") {
+    // Tentar formato ISO primeiro (YYYY-MM-DD)
+    const isoMatch = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+      const [, y, m, d] = isoMatch;
+      const year = parseInt(y);
+      const month = parseInt(m);
+      const day = parseInt(d);
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1900 && year <= 2100) {
+        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      }
+    }
+    
+    // Formato com barras: DD/MM/YYYY (padrão brasileiro)
     const parts = value.split("/");
     if (parts.length === 3) {
       const [p1, p2, p3] = parts;
-      const day = parseInt(p1);
-      const month = parseInt(p2);
+      let day = parseInt(p1);
+      let month = parseInt(p2);
       let year = parseInt(p3);
       if (year < 100) year += 2000;
+      
+      // Se dia > 12, é certamente DD/MM/YYYY
+      // Se mês > 12, é certamente MM/DD/YYYY (inverter)
+      if (month > 12 && day <= 12) {
+        // Formato veio como MM/DD/YYYY, inverter
+        const temp = day;
+        day = month;
+        month = temp;
+      }
       
       if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1900 && year <= 2100) {
         return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -215,7 +255,7 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
 
     try {
       const buffer = await selectedFile.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array" });
+      const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
       
@@ -245,7 +285,7 @@ export default function SGAImportacao({ onImportSuccess, corretoraId, corretoraN
 
     try {
       const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array" });
+      const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
       
