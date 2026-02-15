@@ -124,33 +124,41 @@ serve(async (req) => {
 
       console.log(`[MGF GitHub Workflow] Iniciando para corretora: ${corretora_id}`);
 
-      // Buscar configuração da automação MGF
-      const { data: config, error: configError } = await supabase
-        .from("mgf_automacao_config")
+      // Buscar credenciais unificadas da Hinova
+      const { data: creds, error: credsError } = await supabase
+        .from("hinova_credenciais")
         .select("*")
         .eq("corretora_id", corretora_id)
         .single();
 
-      if (configError || !config) {
-        console.error("Configuração MGF não encontrada:", configError);
+      if (credsError || !creds) {
+        console.error("Credenciais Hinova não encontradas:", credsError);
         return new Response(
-          JSON.stringify({ success: false, message: "Configuração de automação MGF não encontrada" }),
+          JSON.stringify({ success: false, message: "Credenciais Hinova não encontradas para esta corretora" }),
           { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      if (!config.hinova_user || !config.hinova_pass) {
+      if (!creds.hinova_user || !creds.hinova_pass) {
         return new Response(
           JSON.stringify({ success: false, message: "Credenciais Hinova não configuradas" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
+      // Fallback: also try legacy mgf_automacao_config for execution tracking
+      const { data: legacyConfig } = await supabase
+        .from("mgf_automacao_config")
+        .select("id, filtro_centros_custo")
+        .eq("corretora_id", corretora_id)
+        .maybeSingle();
+
       // Criar registro de execução
+      const configId = legacyConfig?.id || creds.id;
       const { data: execucao, error: execError } = await supabase
         .from("mgf_automacao_execucoes")
         .insert({
-          config_id: config.id,
+          config_id: configId,
           corretora_id: corretora_id,
           status: 'executando',
           etapa_atual: 'disparo',
@@ -158,8 +166,8 @@ serve(async (req) => {
           iniciado_por: user.id,
           tipo_disparo: 'manual',
           filtros_aplicados: {
-            centros_custo: config.filtro_centros_custo,
-            layout: config.layout_relatorio,
+            centros_custo: legacyConfig?.filtro_centros_custo || null,
+            layout: creds.layout_mgf || '',
           },
         })
         .select()
@@ -174,23 +182,25 @@ serve(async (req) => {
       }
 
       // Atualizar status para executando
-      await supabase
-        .from("mgf_automacao_config")
-        .update({
-          ultima_execucao: new Date().toISOString(),
-          ultimo_status: 'executando',
-          ultimo_erro: null,
-        })
-        .eq("id", config.id);
+      if (legacyConfig?.id) {
+        await supabase
+          .from("mgf_automacao_config")
+          .update({
+            ultima_execucao: new Date().toISOString(),
+            ultimo_status: 'executando',
+            ultimo_erro: null,
+          })
+          .eq("id", legacyConfig.id);
+      }
 
       // Preparar inputs para o workflow
       const workflowInputs: WorkflowInput = {
         corretora_id: corretora_id,
-        hinova_url: config.hinova_url,
-        hinova_user: config.hinova_user,
-        hinova_pass: config.hinova_pass,
-        hinova_codigo_cliente: config.hinova_codigo_cliente || '',
-        hinova_layout: config.layout_relatorio || '',
+        hinova_url: creds.hinova_url,
+        hinova_user: creds.hinova_user,
+        hinova_pass: creds.hinova_pass,
+        hinova_codigo_cliente: creds.hinova_codigo_cliente || '',
+        hinova_layout: creds.layout_mgf || '',
         execucao_id: execucao.id,
         webhook_url: `${supabaseUrl}/functions/v1/webhook-mgf-hinova`,
       };
@@ -227,13 +237,15 @@ serve(async (req) => {
           })
           .eq("id", execucao.id);
 
-        await supabase
-          .from("mgf_automacao_config")
-          .update({
-            ultimo_status: 'erro',
-            ultimo_erro: `Erro ao disparar GitHub Actions: ${dispatchResponse.status}`,
-          })
-          .eq("id", config.id);
+        if (legacyConfig?.id) {
+          await supabase
+            .from("mgf_automacao_config")
+            .update({
+              ultimo_status: 'erro',
+              ultimo_erro: `Erro ao disparar GitHub Actions: ${dispatchResponse.status}`,
+            })
+            .eq("id", legacyConfig.id);
+        }
 
         return new Response(
           JSON.stringify({ success: false, message: "Erro ao disparar workflow no GitHub" }),
