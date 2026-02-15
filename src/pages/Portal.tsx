@@ -15,6 +15,7 @@ import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { usePortalLayoutOptional } from "@/contexts/PortalLayoutContext";
 import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare, KanbanSquare } from "lucide-react";
 
 /**
@@ -49,24 +50,31 @@ export default function Portal() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const portalLayout = usePortalLayoutOptional();
   const [corretora, setCorretora] = useState<CorretoraComModulos | null>(null);
   const [corretorasDisponiveis, setCorretorasDisponiveis] = useState<CorretoraComModulos[]>([]);
   const [showSelection, setShowSelection] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notLinked, setNotLinked] = useState(false);
 
+  // When inside PortalLayout, use its corretora data
   useEffect(() => {
-    async function loadCorretoraData() {
-      // enquanto o auth ainda está carregando, não faz nada
-      if (authLoading) return;
+    if (portalLayout?.corretora) {
+      setCorretora(portalLayout.corretora);
+      setCorretorasDisponiveis(portalLayout.corretorasDisponiveis);
+      setLoading(false);
+      return;
+    }
+  }, [portalLayout?.corretora]);
 
-      if (!user) {
-        navigate("/auth", { replace: true });
-        return;
-      }
+  useEffect(() => {
+    if (portalLayout) return; // Skip - using layout context
+    
+    async function loadCorretoraData() {
+      if (authLoading) return;
+      if (!user) { navigate("/auth", { replace: true }); return; }
 
       try {
-        // Busca TODAS as corretoras vinculadas ao usuário com módulos
         const { data, error } = await supabase
           .from("corretora_usuarios")
           .select("corretora_id, modulos_bi, corretoras(id, nome, logo_url)")
@@ -74,14 +82,11 @@ export default function Portal() {
           .eq("ativo", true);
 
         if (error || !data || data.length === 0) {
-          // Usuário não está vinculado a nenhuma corretora
-          console.error("Usuário não vinculado a corretora:", error);
           setNotLinked(true);
           setLoading(false);
           return;
         }
 
-        // Filtrar resultados válidos (com corretoras) e incluir módulos
         const corretorasValidas: CorretoraComModulos[] = data
           .filter(item => item.corretoras)
           .map(item => ({
@@ -95,12 +100,10 @@ export default function Portal() {
           return;
         }
 
-        // Verificar se tem associação na URL (vindo do MGF/SGA)
         const associacaoParam = searchParams.get("associacao");
         if (associacaoParam) {
           const associacaoSelecionada = corretorasValidas.find(c => c.id === associacaoParam);
           if (associacaoSelecionada) {
-            // Verificar se tem acesso ao módulo indicadores, senão redirecionar
             if (!associacaoSelecionada.modulos_bi.includes('indicadores')) {
               redirectToFirstAvailableModule(associacaoSelecionada);
               return;
@@ -112,17 +115,14 @@ export default function Portal() {
           }
         }
 
-        // Se tem apenas uma corretora, seleciona automaticamente
         if (corretorasValidas.length === 1) {
           const singleCorretora = corretorasValidas[0];
-          // Verificar se tem acesso ao módulo indicadores
           if (!singleCorretora.modulos_bi.includes('indicadores')) {
             redirectToFirstAvailableModule(singleCorretora);
             return;
           }
           setCorretora(singleCorretora);
         } else {
-          // Se tem múltiplas, mostra tela de seleção
           setCorretorasDisponiveis(corretorasValidas);
           setShowSelection(true);
         }
@@ -135,7 +135,7 @@ export default function Portal() {
     }
 
     loadCorretoraData();
-  }, [user, authLoading, navigate, searchParams]);
+  }, [user, authLoading, navigate, searchParams, portalLayout]);
 
   // Função para redirecionar ao primeiro módulo disponível
   const redirectToFirstAvailableModule = (corretoraData: CorretoraComModulos) => {
@@ -296,6 +296,36 @@ export default function Portal() {
     ...(corretora.modulos_bi.includes('estudo-base') ? ['estudo-base'] as const : []),
   ];
 
+  // When inside PortalLayout, just render content (no header/wrapper)
+  if (portalLayout) {
+    return (
+      <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
+        <Tabs defaultValue="dashboard" className="space-y-6">
+          <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
+            <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50 whitespace-nowrap">
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </div>
+          <TabsContent value="dashboard" className="space-y-4 mt-0"><PIDDashboard corretoraId={corretora.id} /></TabsContent>
+          <TabsContent value="operacional" className="space-y-4 mt-0"><PIDOperacional corretoraId={corretora.id} /></TabsContent>
+          <TabsContent value="estudo-base" className="space-y-4 mt-0"><PIDEstudoBase corretoraId={corretora.id} /></TabsContent>
+          <TabsContent value="historico" className="space-y-4 mt-0"><PIDHistorico corretoraId={corretora.id} /></TabsContent>
+          <TabsContent value="sinistros" className="space-y-4 mt-0"><PortalSinistros corretoraId={corretora.id} /></TabsContent>
+          <TabsContent value="comite" className="space-y-4 mt-0"><PortalComite corretoraId={corretora.id} /></TabsContent>
+          <TabsContent value="gestao" className="space-y-4 mt-0"><GestaoAssociacaoKanban readOnly corretoraId={corretora.id} /></TabsContent>
+        </Tabs>
+      </div>
+    );
+  }
+
   return (
     <PortalCarouselProvider
       corretoraId={corretora.id}
@@ -311,26 +341,15 @@ export default function Portal() {
           currentModule="indicadores"
           showCarouselControls={true}
         />
-
         <PortalPageWrapper>
           <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
-            {/* Tabs Section */}
             <Tabs defaultValue="dashboard" className="space-y-6">
-              {/* Wrapper para scroll horizontal em telas pequenas */}
               <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
                 <TabsList className="inline-flex md:flex md:w-full gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">
                   {tabs.map((tab) => {
                     const Icon = tab.icon;
                     return (
-                      <TabsTrigger
-                        key={tab.id}
-                        value={tab.id}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                                   text-muted-foreground transition-all
-                                   data-[state=active]:bg-background data-[state=active]:text-foreground
-                                   data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50
-                                   whitespace-nowrap"
-                      >
+                      <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50 whitespace-nowrap">
                         <Icon className="h-4 w-4" />
                         <span className="hidden sm:inline">{tab.label}</span>
                       </TabsTrigger>
@@ -338,34 +357,13 @@ export default function Portal() {
                   })}
                 </TabsList>
               </div>
-
-              <TabsContent value="dashboard" className="space-y-4 mt-0">
-                <PIDDashboard corretoraId={corretora.id} />
-              </TabsContent>
-
-              <TabsContent value="operacional" className="space-y-4 mt-0">
-                <PIDOperacional corretoraId={corretora.id} />
-              </TabsContent>
-
-              <TabsContent value="estudo-base" className="space-y-4 mt-0">
-                <PIDEstudoBase corretoraId={corretora.id} />
-              </TabsContent>
-
-              <TabsContent value="historico" className="space-y-4 mt-0">
-                <PIDHistorico corretoraId={corretora.id} />
-              </TabsContent>
-
-              <TabsContent value="sinistros" className="space-y-4 mt-0">
-                <PortalSinistros corretoraId={corretora.id} />
-              </TabsContent>
-
-              <TabsContent value="comite" className="space-y-4 mt-0">
-                <PortalComite corretoraId={corretora.id} />
-              </TabsContent>
-
-              <TabsContent value="gestao" className="space-y-4 mt-0">
-                <GestaoAssociacaoKanban readOnly corretoraId={corretora.id} />
-              </TabsContent>
+              <TabsContent value="dashboard" className="space-y-4 mt-0"><PIDDashboard corretoraId={corretora.id} /></TabsContent>
+              <TabsContent value="operacional" className="space-y-4 mt-0"><PIDOperacional corretoraId={corretora.id} /></TabsContent>
+              <TabsContent value="estudo-base" className="space-y-4 mt-0"><PIDEstudoBase corretoraId={corretora.id} /></TabsContent>
+              <TabsContent value="historico" className="space-y-4 mt-0"><PIDHistorico corretoraId={corretora.id} /></TabsContent>
+              <TabsContent value="sinistros" className="space-y-4 mt-0"><PortalSinistros corretoraId={corretora.id} /></TabsContent>
+              <TabsContent value="comite" className="space-y-4 mt-0"><PortalComite corretoraId={corretora.id} /></TabsContent>
+              <TabsContent value="gestao" className="space-y-4 mt-0"><GestaoAssociacaoKanban readOnly corretoraId={corretora.id} /></TabsContent>
             </Tabs>
           </div>
         </PortalPageWrapper>

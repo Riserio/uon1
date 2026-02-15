@@ -23,6 +23,7 @@ const MODULOS_BI = [
   { id: 'mgf', label: 'MGF', description: 'Módulo de gestão financeira' },
   { id: 'cobranca', label: 'Cobrança', description: 'Módulo de cobrança/inadimplência' },
   { id: 'estudo-base', label: 'Estudo de Base', description: 'Análise detalhada da base de veículos' },
+  { id: 'acompanhamento-eventos', label: 'Acompanhamento de Eventos', description: 'Kanban de acompanhamento de eventos' },
 ];
 
 export function GerenciarUsuariosCorretoraDialog({

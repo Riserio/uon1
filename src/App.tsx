@@ -62,6 +62,9 @@ import Gestao from "./pages/Gestao";
 import Uon1Sign from "./pages/Uon1Sign";
 import ContratoAssinatura from "./pages/ContratoAssinatura";
 import PortalGestaoAssociacao from "./pages/portal/PortalGestaoAssociacao";
+import PortalLayout from "./components/portal/PortalLayout";
+import { PortalLayoutProvider } from "./contexts/PortalLayoutContext";
+import PortalAcompanhamentoEventos from "./pages/portal/PortalAcompanhamentoEventos";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -129,14 +132,15 @@ function PortalRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
-  // DECISÃO DEFINITIVA: Apenas usuários com role 'parceiro' podem acessar o portal PID
-  // Todos os outros usuários são redirecionados para o dashboard principal
   if (!isParceiro) {
     return <Navigate to="/dashboard" replace />;
   }
   
-  // Parceiros veem APENAS o portal - sem sidebar, sem acesso a outras rotas
-  return <>{children}</>;
+  return (
+    <PortalLayoutProvider>
+      {children}
+    </PortalLayoutProvider>
+  );
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -233,13 +237,15 @@ const App = () => (
               </Route>
               <Route path="/gestao" element={<ProtectedRoute><Gestao /></ProtectedRoute>} />
               <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
-              <Route path="/portal/sga-insights" element={<PortalRoute><SGAInsights /></PortalRoute>} />
-              <Route path="/portal/mgf-insights" element={<PortalRoute><MGFInsights /></PortalRoute>} />
-              <Route path="/portal/cobranca-insights" element={<PortalRoute><CobrancaInsights /></PortalRoute>} />
-              <Route path="/portal/estudo-base-insights" element={<PortalRoute><EstudoBaseInsights /></PortalRoute>} />
-              <Route path="/portal/gestao-associacao" element={<PortalRoute><PortalGestaoAssociacao /></PortalRoute>} />
-              <Route path="/portal" element={<PortalRoute><Portal /></PortalRoute>} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="/portal" element={<PortalRoute><PortalLayout /></PortalRoute>}>
+                <Route index element={<Portal />} />
+                <Route path="sga-insights" element={<SGAInsights />} />
+                <Route path="mgf-insights" element={<MGFInsights />} />
+                <Route path="cobranca-insights" element={<CobrancaInsights />} />
+                <Route path="estudo-base-insights" element={<EstudoBaseInsights />} />
+                <Route path="gestao-associacao" element={<PortalGestaoAssociacao />} />
+                <Route path="acompanhamento-eventos" element={<PortalAcompanhamentoEventos />} />
+              </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
           </TooltipProvider>

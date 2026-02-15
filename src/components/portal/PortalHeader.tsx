@@ -1,4 +1,4 @@
-import { Building2, LogOut, ArrowLeftRight, TrendingUp, Activity, DollarSign, Car } from "lucide-react";
+import { Building2, LogOut, ArrowLeftRight, TrendingUp, Activity, DollarSign, Car, KanbanSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import PortalCarouselControls from "./PortalCarouselControls";
@@ -19,6 +19,7 @@ type PortalHeaderProps = {
   onLogout: () => void;
   currentModule?: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base';
   showCarouselControls?: boolean;
+  hasAcompanhamento?: boolean;
 };
 
 export default function PortalHeader({
@@ -27,7 +28,8 @@ export default function PortalHeader({
   onChangeCorretora,
   onLogout,
   currentModule,
-  showCarouselControls = false
+  showCarouselControls = false,
+  hasAcompanhamento = false
 }: PortalHeaderProps) {
   const carousel = usePortalCarouselOptional();
   const navigate = useNavigate();
@@ -226,6 +228,19 @@ export default function PortalHeader({
                 >
                   <Car className="h-4 w-4" />
                   <span>Estudo de Base</span>
+                </Button>
+              )}
+              {hasAcompanhamento && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigate(`/portal/acompanhamento-eventos?associacao=${corretora.id}`);
+                  }}
+                  className={`gap-2 shrink-0 transition-all duration-300 hover:bg-muted`}
+                >
+                  <KanbanSquare className="h-4 w-4" />
+                  <span>Acompanhamento</span>
                 </Button>
               )}
             </nav>

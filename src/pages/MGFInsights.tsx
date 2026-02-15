@@ -27,6 +27,7 @@ import { getBICachedData, setBICachedData, getCachedAssociacoes, setCachedAssoci
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { useBILayoutOptional } from "@/contexts/BILayoutContext";
+import { usePortalLayoutOptional } from "@/contexts/PortalLayoutContext";
 
 export interface MGFFilters {
   operacao: string;
@@ -45,6 +46,7 @@ export default function MGFInsights() {
   const [searchParams] = useSearchParams();
   const { userRole } = useAuth();
   const biLayout = useBILayoutOptional();
+  const portalLayout = usePortalLayoutOptional();
   
   // Detectar se é acesso via portal (parceiro)
   const isPortalAccess = location.pathname.startsWith('/portal');
@@ -414,8 +416,8 @@ export default function MGFInsights() {
 
   const portalContent = (
     <>
-      {/* Portal Header para parceiros */}
-      {isPortalAccess && corretoraData && (
+      {/* Portal Header - only when NOT inside PortalLayout */}
+      {isPortalAccess && corretoraData && !portalLayout && (
         <PortalHeader
           corretora={{
             id: corretoraData.id,
@@ -666,6 +668,10 @@ export default function MGFInsights() {
   );
 
   // Se é acesso via portal, envolver com provider do carrossel
+  if (isPortalAccess && portalLayout) {
+    return <>{portalContent}</>;
+  }
+
   if (isPortalAccess && corretoraData) {
     return (
       <PortalCarouselProvider
