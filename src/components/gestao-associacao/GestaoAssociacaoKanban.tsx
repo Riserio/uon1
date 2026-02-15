@@ -69,10 +69,10 @@ const CARDS_PER_PAGE = 10;
 const getCardAgeColor = (dataCadastro: string | null): string => {
   if (!dataCadastro) return '';
   const days = differenceInDays(new Date(), parseISO(dataCadastro));
-  if (days <= 45) return 'border-2 border-green-500';
-  if (days <= 75) return 'border-2 border-yellow-500';
-  if (days <= 90) return 'border-2 border-orange-500';
-  return 'border-2 border-red-500';
+  if (days <= 45) return 'border border-green-500';
+  if (days <= 75) return 'border border-yellow-500';
+  if (days <= 90) return 'border border-orange-500';
+  return 'border border-red-500';
 };
 
 const getAgeBadgeVariant = (dataCadastro: string | null): { color: string; days: number } | null => {
