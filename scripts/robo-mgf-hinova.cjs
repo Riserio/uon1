@@ -32,21 +32,27 @@ const readline = require('readline');
 // URL de LOGIN: usar variável de ambiente ou default
 const HINOVA_LOGIN_URL = process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php';
 
-// URL FIXA do relatório MGF - SEMPRE navegar para essa após o login
-const MGF_RELATORIO_URL_FIXO = 'https://eris.hinova.com.br/sga/sgav4_valecar/mgf/relatorio/relatorioLancamento.php';
-
-// Centros de Custo permitidos (EXATAMENTE esses)
-const CENTROS_CUSTO_PERMITIDOS = [
-  'EVENTOS',
-  'EVENTOS NAO PROVISIONADO',
-  'EVENTOS RATEAVEIS',
-];
+// Função para derivar URL do relatório MGF a partir da URL de login
+function deriveMGFRelatorioUrl(loginUrl) {
+  try {
+    const url = new URL(loginUrl);
+    // Extrai o caminho base (ex: /sga/sgav4_asspas/v5/login.php -> /sga/sgav4_asspas/)
+    const pathParts = url.pathname.split('/').filter(p => 
+      p && !p.includes('login') && !p.includes('Principal') && p !== 'v5'
+    );
+    const basePath = '/' + pathParts.join('/');
+    return `${url.origin}${basePath}/v5/Sgfrelatorio/lancamento`;
+  } catch (e) {
+    // Fallback
+    return 'https://sga.hinova.com.br/sga/sgav4_asspas/v5/Sgfrelatorio/lancamento';
+  }
+}
 
 const CONFIG = {
   // URL de login (dinâmica - vem da variável de ambiente)
   HINOVA_URL: HINOVA_LOGIN_URL,
-  // URL FIXA do relatório - NÃO mudar em hipótese alguma
-  HINOVA_RELATORIO_URL: MGF_RELATORIO_URL_FIXO,
+  // URL do relatório MGF derivada dinamicamente da URL de login
+  HINOVA_RELATORIO_URL: process.env.HINOVA_RELATORIO_URL || deriveMGFRelatorioUrl(HINOVA_LOGIN_URL),
   HINOVA_USER: process.env.HINOVA_USER || '',
   HINOVA_PASS: process.env.HINOVA_PASS || '',
   HINOVA_CODIGO_CLIENTE: process.env.HINOVA_CODIGO_CLIENTE || '2363',
