@@ -1,4 +1,4 @@
-import { ArrowLeft, Activity, DollarSign, CreditCard, Database, History, TrendingUp, Eye } from "lucide-react";
+import { ArrowLeft, Activity, DollarSign, CreditCard, Database, History, TrendingUp, KanbanSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
@@ -51,8 +51,8 @@ const modules = [{
 }, {
   id: 'acompanhamento-eventos',
   label: 'Acompanhamento',
-  icon: Eye,
-  path: '/portal/acompanhamento-eventos'
+  icon: KanbanSquare,
+  path: '/acompanhamento-eventos'
 }] as const;
 
 export default function BIPageHeader({
