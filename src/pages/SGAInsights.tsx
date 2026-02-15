@@ -227,13 +227,13 @@ export default function SGAInsights() {
         setLoading(false);
         return;
       }
-      // Portal prefetch cache
+      // Portal prefetch cache: show immediately but fetch full data in background
       if (isPortalAccess) {
         const cached = getPrefetchedData<any>(selectedAssociacao, 'eventos');
         if (cached && cached.length > 0) {
           setEventos(cached);
           setLoading(false);
-          return;
+          // Continue to fetch full data in background (prefetch only has 1000 records)
         }
       }
     }
