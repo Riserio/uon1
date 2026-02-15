@@ -43,23 +43,24 @@ export default function PortalHeader({
   const hasEstudoBase = hasModulo('estudo-base');
 
   // Lista de módulos disponíveis para o carrossel
-  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base')[] = [
+  const availableModules: ('indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' | 'acompanhamento-eventos')[] = [
     ...(hasIndicadores ? ['indicadores'] as const : []),
     ...(hasEventos ? ['eventos'] as const : []),
     ...(hasMGF ? ['mgf'] as const : []),
     ...(hasCobranca ? ['cobranca'] as const : []),
     ...(hasEstudoBase ? ['estudo-base'] as const : []),
+    ...(hasAcompanhamento ? ['acompanhamento-eventos'] as const : []),
   ];
 
   // Contagem de módulos disponíveis para decidir layout
   const modulosDisponiveis = availableModules.length;
 
-  // For prefetch and carousel, use only carousel-compatible module
-  const carouselModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' = 
+  // For prefetch, use only prefetch-compatible module
+  const prefetchModule: 'indicadores' | 'eventos' | 'mgf' | 'cobranca' | 'estudo-base' = 
     currentModule === 'acompanhamento-eventos' ? 'indicadores' : (currentModule || 'indicadores');
 
   // Pré-carregar dados dos outros módulos em segundo plano
-  usePortalDataPrefetch(corretora.id, carouselModule, availableModules);
+  usePortalDataPrefetch(corretora.id, prefetchModule, availableModules);
 
   return (
     <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
@@ -93,7 +94,7 @@ export default function PortalHeader({
                 <PortalCarouselControls 
                   corretoraId={corretora.id}
                   availableModules={availableModules}
-                  currentModule={carouselModule}
+                  currentModule={currentModule || 'indicadores'}
                 />
               )}
               
