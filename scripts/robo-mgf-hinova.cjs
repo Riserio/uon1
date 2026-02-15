@@ -2845,35 +2845,70 @@ async function rodarRobo() {
     log('═'.repeat(50), LOG_LEVELS.INFO);
     log('   Marcar APENAS: EVENTOS, EVENTOS NAO PROVISIONADO, EVENTOS RATEAVEIS', LOG_LEVELS.INFO);
     
-    // PASSO 1: Expandir a seção "CENTRO CUSTO" clicando nela
-    log('   🔍 Procurando seção "CENTRO CUSTO" para expandir...', LOG_LEVELS.INFO);
+    // PASSO 1: Expandir a seção colapsável "CENTRO CUSTO" na página do relatório
+    log('   🔍 Procurando seção colapsável "CENTRO CUSTO" para expandir...', LOG_LEVELS.INFO);
+    
+    // A seção é um accordion/colapsável com header contendo exatamente "CENTRO CUSTO"
+    // Não confundir com o item de menu "4.12) Departamento / Centro de Custo"
     const expandiuCentroCusto = await page.evaluate(() => {
-      // Procurar por links, botões, labels, spans, divs que contenham "CENTRO CUSTO" ou "Centro de Custo"
-      const seletores = [
-        'a', 'button', 'label', 'span', 'div', 'td', 'th', 'legend', 'h3', 'h4', 'h5', 'p',
-        'li', 'dt', 'summary', '.accordion-toggle', '.panel-title', '.card-header'
-      ];
+      // Estratégia 1: Procurar headers de accordion/seções colapsáveis
+      // Esses são tipicamente elementos com ícones de seta (▼/▶) e texto em negrito
+      const candidatos = document.querySelectorAll(
+        'a[data-toggle], a[data-bs-toggle], [data-toggle="collapse"], [data-bs-toggle="collapse"], ' +
+        '.panel-heading a, .card-header a, .accordion-toggle, ' +
+        'a.collapsed, a[aria-expanded], ' +
+        'h3 a, h4 a, h5 a, ' +
+        // Headers genéricos que podem ser clicáveis
+        '.panel-heading, .card-header, .accordion-header'
+      );
       
-      for (const sel of seletores) {
-        const elements = document.querySelectorAll(sel);
-        for (const el of elements) {
-          const texto = (el.textContent || '').toUpperCase().trim();
-          // Verifica se contém "CENTRO" e "CUSTO" (pode ser "CENTRO CUSTO", "Centro de Custo", etc)
-          if (texto.includes('CENTRO') && texto.includes('CUSTO') && texto.length < 80) {
-            el.click();
-            return { found: true, text: texto, tag: el.tagName };
-          }
+      for (const el of candidatos) {
+        const texto = (el.textContent || '').toUpperCase().trim();
+        // Deve conter "CENTRO CUSTO" mas NÃO "DEPARTAMENTO" (para evitar o item de menu 4.12)
+        if (texto.includes('CENTRO') && texto.includes('CUSTO') && !texto.includes('DEPARTAMENTO') && !texto.includes('4.12')) {
+          el.click();
+          return { found: true, text: texto, tag: el.tagName, strategy: 'accordion-selector' };
         }
       }
+      
+      // Estratégia 2: Procurar qualquer <a> ou elemento clicável com texto curto "CENTRO CUSTO"
+      const allLinks = document.querySelectorAll('a, button, [role="button"]');
+      for (const el of allLinks) {
+        // Pegar apenas o texto direto do elemento (sem filhos profundos)
+        const textoDirecto = Array.from(el.childNodes)
+          .filter(n => n.nodeType === Node.TEXT_NODE || (n.nodeType === Node.ELEMENT_NODE && ['B', 'STRONG', 'SPAN', 'I'].includes(n.nodeName)))
+          .map(n => n.textContent || '')
+          .join('')
+          .toUpperCase()
+          .trim();
+        
+        // Texto curto tipo "CENTRO CUSTO" (sem números de menu como "4.12)")
+        if (textoDirecto.includes('CENTRO CUSTO') && textoDirecto.length < 30 && !textoDirecto.includes('4.')) {
+          el.click();
+          return { found: true, text: textoDirecto, tag: el.tagName, strategy: 'direct-text' };
+        }
+      }
+      
+      // Estratégia 3: Procurar pela estrutura visual - seções com seta ▼ ou ▶
+      const allElements = document.querySelectorAll('a, div[onclick], span[onclick]');
+      for (const el of allElements) {
+        const texto = (el.textContent || '').toUpperCase().trim();
+        if (texto === 'CENTRO CUSTO' || texto === '▼ CENTRO CUSTO' || texto === '▶ CENTRO CUSTO' || 
+            texto === '◄ CENTRO CUSTO' || texto === '► CENTRO CUSTO') {
+          el.click();
+          return { found: true, text: texto, tag: el.tagName, strategy: 'exact-match' };
+        }
+      }
+      
       return { found: false };
     });
     
     if (expandiuCentroCusto.found) {
-      log(`   ✅ Seção expandida: "${expandiuCentroCusto.text}" (${expandiuCentroCusto.tag})`, LOG_LEVELS.SUCCESS);
+      log(`   ✅ Seção expandida: "${expandiuCentroCusto.text}" (${expandiuCentroCusto.tag}, estratégia: ${expandiuCentroCusto.strategy})`, LOG_LEVELS.SUCCESS);
       // Aguardar checkboxes aparecerem após expandir
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(3000);
     } else {
-      log('   ⚠️ Seção "CENTRO CUSTO" não encontrada como botão/link, tentando prosseguir...', LOG_LEVELS.WARN);
+      log('   ⚠️ Seção "CENTRO CUSTO" não encontrada, tentando prosseguir com checkboxes já visíveis...', LOG_LEVELS.WARN);
     }
     
     const MAX_TENTATIVAS_CENTRO_CUSTO = 3;
