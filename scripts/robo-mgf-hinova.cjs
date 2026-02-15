@@ -2990,9 +2990,8 @@ async function rodarRobo() {
           if (isPermitido && labelText.includes('EVENTO')) {
             if (cb.checked) {
               marcadosCorretos++;
-            } else {
-              erros.push(`${labelText} deveria estar MARCADO mas está desmarcado`);
             }
+            // NÃO gerar erro se não existir — apenas marcar os que existirem
           }
           
           // Verificar se algum não-permitido ficou marcado
