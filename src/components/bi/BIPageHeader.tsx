@@ -100,8 +100,8 @@ export default function BIPageHeader({
                 </SelectContent>
               </Select>
 
-              {/* Sync Button */}
-              {selectedAssociacao && (
+              {/* Sync Button - hide in admin view */}
+              {selectedAssociacao && selectedAssociacao !== '__admin__' && (
                 <BISyncButton 
                   corretoraId={selectedAssociacao} 
                   corretoraNome={selectedAssociacaoNome}

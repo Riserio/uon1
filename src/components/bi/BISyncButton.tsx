@@ -6,10 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   RefreshCw, Play, Loader2, CheckCircle, XCircle, Clock, 
   Settings, Eye, EyeOff, Save, ChevronDown, ChevronUp,
@@ -426,8 +425,8 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
   const hasCredentials = !!(creds.hinova_url && creds.hinova_user && creds.hinova_pass);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
         <Button
           variant="outline"
           size="sm"
@@ -443,36 +442,37 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
             <span className="absolute -top-1.5 -right-1.5 h-3 w-3 rounded-full bg-blue-500 animate-pulse ring-2 ring-background" />
           )}
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[420px] p-0" align="end" sideOffset={8}>
-        <div className="border-b px-4 py-3 bg-muted/30">
+      </DialogTrigger>
+      <DialogContent className="max-w-lg p-0 gap-0 rounded-2xl overflow-hidden max-h-[85vh] flex flex-col">
+        <DialogHeader className="border-b px-5 py-4 bg-muted/30 shrink-0">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-sm">Sincronização Hinova</h3>
-              <p className="text-xs text-muted-foreground truncate max-w-[250px]">{corretoraNome}</p>
+              <DialogTitle className="text-base font-semibold">Sincronização Hinova</DialogTitle>
+              <p className="text-xs text-muted-foreground truncate max-w-[280px] mt-0.5">{corretoraNome}</p>
             </div>
             {hasCredentials && (
               <Button 
                 size="sm" variant="default"
                 onClick={handleExecuteAll}
                 disabled={executingModule !== null || anyExecuting}
-                className="gap-1.5 h-7 text-xs"
+                className="gap-1.5 h-8 text-xs rounded-lg"
               >
                 {executingModule === "all" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-                Todos
+                Executar Todos
               </Button>
             )}
           </div>
-        </div>
+        </DialogHeader>
 
+        <div className="flex-1 overflow-y-auto min-h-0">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-          <TabsList className="w-full rounded-none border-b bg-transparent h-9">
+          <TabsList className="w-full rounded-none border-b bg-transparent h-10 sticky top-0 z-10 bg-background">
             <TabsTrigger value="sync" className="text-xs flex-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Módulos</TabsTrigger>
             <TabsTrigger value="config" className="text-xs flex-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Credenciais</TabsTrigger>
             <TabsTrigger value="historico" className="text-xs flex-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Histórico</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="sync" className="m-0 p-3 space-y-2">
+          <TabsContent value="sync" className="m-0 p-4 space-y-2.5">
             {!hasCredentials ? (
               <div className="text-center py-6 space-y-2">
                 <AlertTriangle className="h-8 w-8 mx-auto text-amber-500" />
@@ -542,76 +542,78 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
             )}
           </TabsContent>
 
-          <TabsContent value="config" className="m-0 p-3">
-            <ScrollArea className="max-h-[500px]">
+          <TabsContent value="config" className="m-0 p-4">
               {loading ? (
                 <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" /></div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {/* Credenciais */}
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Credenciais</p>
                   <div className="space-y-1.5">
                     <Label className="text-xs">URL de Login Hinova</Label>
-                    <Input value={creds.hinova_url} onChange={e => setCreds(p => ({...p, hinova_url: e.target.value}))} placeholder="https://sga.hinova.com.br/..." className="h-8 text-xs" />
+                    <Input value={creds.hinova_url} onChange={e => setCreds(p => ({...p, hinova_url: e.target.value}))} placeholder="https://sga.hinova.com.br/..." className="h-9 text-sm" />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs">Código Cliente</Label>
-                      <Input value={creds.hinova_codigo_cliente} onChange={e => setCreds(p => ({...p, hinova_codigo_cliente: e.target.value}))} className="h-8 text-xs" />
+                      <Input value={creds.hinova_codigo_cliente} onChange={e => setCreds(p => ({...p, hinova_codigo_cliente: e.target.value}))} className="h-9 text-sm" />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Horário Sync</Label>
-                      <Input type="time" value={creds.hora_agendada} onChange={e => setCreds(p => ({...p, hora_agendada: e.target.value}))} className="h-8 text-xs" />
+                      <Input type="time" value={creds.hora_agendada} onChange={e => setCreds(p => ({...p, hora_agendada: e.target.value}))} className="h-9 text-sm" />
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Usuário</Label>
-                    <Input value={creds.hinova_user} onChange={e => setCreds(p => ({...p, hinova_user: e.target.value}))} className="h-8 text-xs" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Senha</Label>
-                    <div className="flex gap-1.5">
-                      <Input type={showPassword ? "text" : "password"} value={creds.hinova_pass} onChange={e => setCreds(p => ({...p, hinova_pass: e.target.value}))} className="h-8 text-xs" />
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={() => setShowPassword(!showPassword)}>
-                        {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      </Button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Usuário</Label>
+                      <Input value={creds.hinova_user} onChange={e => setCreds(p => ({...p, hinova_user: e.target.value}))} className="h-9 text-sm" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Senha</Label>
+                      <div className="flex gap-1.5">
+                        <Input type={showPassword ? "text" : "password"} value={creds.hinova_pass} onChange={e => setCreds(p => ({...p, hinova_pass: e.target.value}))} className="h-9 text-sm" />
+                        <Button variant="ghost" size="sm" className="h-9 w-9 p-0 shrink-0" onClick={() => setShowPassword(!showPassword)}>
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                   
                   {/* URLs dos relatórios */}
-                  <div className="pt-2 border-t space-y-2">
+                  <div className="pt-3 border-t space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">URLs dos Relatórios</p>
-                    <p className="text-[11px] text-muted-foreground">URLs diretas das páginas de relatório. Após login, o robô navega direto para elas.</p>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Cobrança</Label>
-                      <div className="flex items-center gap-2">
-                        <Input value={creds.url_cobranca} onChange={e => setCreds(p => ({...p, url_cobranca: e.target.value}))} placeholder="https://sga.hinova.com.br/.../relatorio/relatorioBoletos.php" className="h-8 text-xs flex-1" />
-                        <Switch checked={creds.ativo_cobranca} onCheckedChange={v => setCreds(p => ({...p, ativo_cobranca: v}))} />
+                    <p className="text-xs text-muted-foreground">URLs diretas das páginas de relatório. Após login, o robô navega direto para elas.</p>
+                    <div className="space-y-2.5">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Cobrança</Label>
+                        <div className="flex items-center gap-2">
+                          <Input value={creds.url_cobranca} onChange={e => setCreds(p => ({...p, url_cobranca: e.target.value}))} placeholder="https://sga.hinova.com.br/.../relatorio/relatorioBoletos.php" className="h-9 text-sm flex-1" />
+                          <Switch checked={creds.ativo_cobranca} onCheckedChange={v => setCreds(p => ({...p, ativo_cobranca: v}))} />
+                        </div>
                       </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Eventos</Label>
-                      <div className="flex items-center gap-2">
-                        <Input value={creds.url_eventos} onChange={e => setCreds(p => ({...p, url_eventos: e.target.value}))} placeholder="https://sga.hinova.com.br/.../relatorio/relatorioEvento.php" className="h-8 text-xs flex-1" />
-                        <Switch checked={creds.ativo_eventos} onCheckedChange={v => setCreds(p => ({...p, ativo_eventos: v}))} />
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Eventos</Label>
+                        <div className="flex items-center gap-2">
+                          <Input value={creds.url_eventos} onChange={e => setCreds(p => ({...p, url_eventos: e.target.value}))} placeholder="https://sga.hinova.com.br/.../relatorio/relatorioEvento.php" className="h-9 text-sm flex-1" />
+                          <Switch checked={creds.ativo_eventos} onCheckedChange={v => setCreds(p => ({...p, ativo_eventos: v}))} />
+                        </div>
                       </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">MGF</Label>
-                      <div className="flex items-center gap-2">
-                        <Input value={creds.url_mgf} onChange={e => setCreds(p => ({...p, url_mgf: e.target.value}))} placeholder="https://sga.hinova.com.br/.../v5/Sgfrelatorio/lancamento" className="h-8 text-xs flex-1" />
-                        <Switch checked={creds.ativo_mgf} onCheckedChange={v => setCreds(p => ({...p, ativo_mgf: v}))} />
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">MGF</Label>
+                        <div className="flex items-center gap-2">
+                          <Input value={creds.url_mgf} onChange={e => setCreds(p => ({...p, url_mgf: e.target.value}))} placeholder="https://sga.hinova.com.br/.../v5/Sgfrelatorio/lancamento" className="h-9 text-sm flex-1" />
+                          <Switch checked={creds.ativo_mgf} onCheckedChange={v => setCreds(p => ({...p, ativo_mgf: v}))} />
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <Button onClick={handleSave} disabled={saving} className="w-full h-8 text-xs gap-1.5 rounded-xl">
-                    {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                  <Button onClick={handleSave} disabled={saving} className="w-full h-9 text-sm gap-1.5 rounded-xl mt-2">
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     Salvar Configuração
                   </Button>
                 </div>
               )}
-            </ScrollArea>
           </TabsContent>
 
           <TabsContent value="historico" className="m-0 p-3 space-y-2">
@@ -628,7 +630,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                 </Button>
               ))}
             </div>
-            <ScrollArea className="h-[300px]">
+            <div className="space-y-1.5">
               {historyLoading ? (
                 <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" /></div>
               ) : historyLogs.length === 0 ? (
@@ -710,10 +712,11 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                   ))}
                 </div>
               )}
-            </ScrollArea>
+            </div>
           </TabsContent>
         </Tabs>
-      </PopoverContent>
-    </Popover>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
