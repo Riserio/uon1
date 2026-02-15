@@ -1210,6 +1210,7 @@ export type Database = {
       }
       contratos: {
         Row: {
+          arquivado: boolean
           conteudo_html: string
           contratado_cnpj: string | null
           contratado_email: string | null
@@ -1236,6 +1237,7 @@ export type Database = {
           variaveis_preenchidas: Json | null
         }
         Insert: {
+          arquivado?: boolean
           conteudo_html: string
           contratado_cnpj?: string | null
           contratado_email?: string | null
@@ -1262,6 +1264,7 @@ export type Database = {
           variaveis_preenchidas?: Json | null
         }
         Update: {
+          arquivado?: boolean
           conteudo_html?: string
           contratado_cnpj?: string | null
           contratado_email?: string | null
