@@ -15,6 +15,7 @@ import PortalHeader from "@/components/portal/PortalHeader";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { useBILayoutOptional } from "@/contexts/BILayoutContext";
+import { usePortalLayoutOptional } from "@/contexts/PortalLayoutContext";
 
 export default function EstudoBaseInsights() {
   const [searchParams] = useSearchParams();
@@ -22,6 +23,7 @@ export default function EstudoBaseInsights() {
   const location = useLocation();
   const { userRole } = useAuth();
   const biLayout = useBILayoutOptional();
+  const portalLayout = usePortalLayoutOptional();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [registros, setRegistros] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -253,8 +255,8 @@ export default function EstudoBaseInsights() {
 
   const mainContent = (
     <>
-      {/* Portal Header for partners */}
-      {isPortalAccess && corretoraData && (
+      {/* Portal Header - only when NOT inside PortalLayout */}
+      {isPortalAccess && corretoraData && !portalLayout && (
         <PortalHeader
           corretora={{
             id: corretoraData.id,
@@ -384,6 +386,10 @@ export default function EstudoBaseInsights() {
   );
 
   // Portal access: wrap with carousel provider
+  if (isPortalAccess && portalLayout) {
+    return <>{mainContent}</>;
+  }
+
   if (isPortalAccess) {
     return (
       <PortalCarouselProvider

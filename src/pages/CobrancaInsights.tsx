@@ -25,6 +25,7 @@ import { getBICachedData, setBICachedData, getCachedAssociacoes, setCachedAssoci
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { useBILayoutOptional } from "@/contexts/BILayoutContext";
+import { usePortalLayoutOptional } from "@/contexts/PortalLayoutContext";
 
 export interface CobrancaFilters {
   mesReferencia: string;
@@ -40,6 +41,7 @@ export default function CobrancaInsights() {
   const [searchParams] = useSearchParams();
   const { userRole } = useAuth();
   const biLayout = useBILayoutOptional();
+  const portalLayout = usePortalLayoutOptional();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [boletos, setBoletos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -411,8 +413,8 @@ export default function CobrancaInsights() {
 
   const portalContent = (
     <>
-      {/* Portal Header para parceiros */}
-      {isPortalAccess && corretoraData && (
+      {/* Portal Header - only when NOT inside PortalLayout */}
+      {isPortalAccess && corretoraData && !portalLayout && (
         <PortalHeader
           corretora={{
             id: corretoraData.id,
@@ -684,7 +686,12 @@ export default function CobrancaInsights() {
     </>
   );
 
-  // Se é acesso via portal, envolver com provider do carrossel
+  // If inside PortalLayout, just return content directly
+  if (isPortalAccess && portalLayout) {
+    return <>{portalContent}</>;
+  }
+
+  // Legacy portal access without PortalLayout
   if (isPortalAccess && corretoraData) {
     return (
       <PortalCarouselProvider
