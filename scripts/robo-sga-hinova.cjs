@@ -1280,18 +1280,32 @@ async function main() {
     setStep('ENVIO');
     await updateProgress('executando', 'envio');
 
-    log(`Enviando ${dados.length} registros via webhook...`, LOG_LEVELS.INFO);
+    log(`Enviando ${dados.length} registros via webhook em chunks...`, LOG_LEVELS.INFO);
 
-    await sendWebhook({
-      action: 'import',
-      corretora_id: CONFIG.CORRETORA_ID,
-      execucao_id: CONFIG.EXECUCAO_ID,
-      github_run_id: CONFIG.GITHUB_RUN_ID,
-      github_run_url: CONFIG.GITHUB_RUN_URL,
-      nome_arquivo: semanticName,
-      total_registros: dados.length,
-      dados: dados,
-    });
+    // Enviar dados em chunks para evitar timeout na edge function
+    const CHUNK_SIZE = 2000;
+    const totalChunks = Math.ceil(dados.length / CHUNK_SIZE);
+
+    for (let i = 0; i < dados.length; i += CHUNK_SIZE) {
+      const chunk = dados.slice(i, i + CHUNK_SIZE);
+      const chunkNum = Math.floor(i / CHUNK_SIZE) + 1;
+      log(`Enviando chunk ${chunkNum}/${totalChunks} (${chunk.length} registros)...`, LOG_LEVELS.INFO);
+
+      await sendWebhook({
+        action: 'import',
+        corretora_id: CONFIG.CORRETORA_ID,
+        execucao_id: CONFIG.EXECUCAO_ID,
+        github_run_id: CONFIG.GITHUB_RUN_ID,
+        github_run_url: CONFIG.GITHUB_RUN_URL,
+        nome_arquivo: semanticName,
+        total_registros: dados.length,
+        dados: chunk,
+        chunk_atual: chunkNum,
+        total_chunks: totalChunks,
+      });
+
+      log(`Chunk ${chunkNum}/${totalChunks} enviado com sucesso`, LOG_LEVELS.SUCCESS);
+    }
 
     // ============================================
     // FINALIZAÇÃO

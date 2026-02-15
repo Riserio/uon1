@@ -69,6 +69,10 @@ const COLUMN_MAP: { [key: string]: string } = {
   "CATEGORIA VEÍCULO": "categoria_veiculo",
   "TIPO VEICULO VEICULO TERCEIRO": "tipo_veiculo_terceiro",
   "TIPO VEÍCULO VEÍCULO TERCEIRO": "tipo_veiculo_terceiro",
+  "OBSERVACAO": "observacoes",
+  "OBSERVAÇÃO": "observacoes",
+  "OBSERVACOES": "observacoes",
+  "OBSERVAÇÕES": "observacoes",
 };
 
 // Normaliza header
@@ -166,6 +170,8 @@ serve(async (req) => {
       progresso_importacao,
       registros_processados,
       registros_total,
+      chunk_atual,
+      total_chunks,
     } = body;
 
     console.log(`[Webhook SGA] Recebido: corretora=${corretora_id}, status=${status}, registros=${dados?.length || 0}`);
@@ -254,35 +260,68 @@ serve(async (req) => {
 
     // Importação de dados
     if (dados && dados.length > 0 && corretora_id) {
-      console.log(`[Webhook SGA] Iniciando importação de ${dados.length} registros`);
+      const isFirstChunk = !chunk_atual || chunk_atual === 1;
+      console.log(`[Webhook SGA] Iniciando importação de ${dados.length} registros (chunk ${chunk_atual || 1}/${total_chunks || 1})`);
 
-      // Desativar importações anteriores
-      await supabase
-        .from("sga_importacoes")
-        .update({ ativo: false })
-        .eq("ativo", true)
-        .eq("corretora_id", corretora_id);
+      let importacaoId: string;
 
-      // Criar nova importação
-      const { data: importacao, error: impError } = await supabase
-        .from("sga_importacoes")
-        .insert({
-          nome_arquivo: nome_arquivo || `EVENTOS_${new Date().toISOString().slice(8,10)}${new Date().toISOString().slice(5,7)}${new Date().toISOString().slice(0,4)}.xlsx`,
-          total_registros: dados.length,
-          ativo: true,
-          corretora_id: corretora_id,
-        })
-        .select()
-        .single();
+      if (isFirstChunk) {
+        // Desativar importações anteriores apenas no primeiro chunk
+        await supabase
+          .from("sga_importacoes")
+          .update({ ativo: false })
+          .eq("ativo", true)
+          .eq("corretora_id", corretora_id);
 
-      if (impError) {
-        console.error("[Webhook SGA] Erro ao criar importação:", impError);
-        throw impError;
+        // Criar nova importação
+        const { data: importacao, error: impError } = await supabase
+          .from("sga_importacoes")
+          .insert({
+            nome_arquivo: nome_arquivo || `EVENTOS_${new Date().toISOString().slice(8,10)}${new Date().toISOString().slice(5,7)}${new Date().toISOString().slice(0,4)}.xlsx`,
+            total_registros: dados.length,
+            ativo: true,
+            corretora_id: corretora_id,
+          })
+          .select()
+          .single();
+
+        if (impError) {
+          console.error("[Webhook SGA] Erro ao criar importação:", impError);
+          throw impError;
+        }
+        importacaoId = importacao.id;
+      } else {
+        // Chunks subsequentes: buscar importação ativa existente
+        const { data: existingImport } = await supabase
+          .from("sga_importacoes")
+          .select("id")
+          .eq("ativo", true)
+          .eq("corretora_id", corretora_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!existingImport) {
+          throw new Error("Importação ativa não encontrada para chunk subsequente");
+        }
+        importacaoId = existingImport.id;
+
+        // Atualizar total de registros (acumular)
+        const { data: currentImport } = await supabase
+          .from("sga_importacoes")
+          .select("total_registros")
+          .eq("id", importacaoId)
+          .single();
+
+        await supabase
+          .from("sga_importacoes")
+          .update({ total_registros: (currentImport?.total_registros || 0) + dados.length })
+          .eq("id", importacaoId);
       }
 
       // Processar dados
       const records = dados.map((row: any) => {
-        const record: any = { importacao_id: importacao.id };
+        const record: any = { importacao_id: importacaoId };
         const processedDbCols = new Set<string>();
 
         // Processar cada coluna
@@ -316,8 +355,8 @@ serve(async (req) => {
         return record;
       });
 
-      // Inserir em batches
-      const batchSize = 100;
+      // Inserir em batches (aumentado para 500 para performance)
+      const batchSize = 500;
       let processedCount = 0;
 
       for (let i = 0; i < records.length; i += batchSize) {
@@ -348,15 +387,17 @@ serve(async (req) => {
         }
       }
 
-      // Finalizar
-      if (execucao_id) {
+      const isLastChunk = !total_chunks || chunk_atual === total_chunks;
+
+      // Finalizar apenas no último chunk
+      if (execucao_id && isLastChunk) {
         const durationSeconds = Math.round((Date.now() - startTime) / 1000);
         
         await supabase
           .from("sga_automacao_execucoes")
           .update({
             status: 'sucesso',
-            mensagem: `Importados ${records.length} registros com sucesso`,
+            mensagem: `Importados ${records.length} registros com sucesso (chunk ${chunk_atual || 1}/${total_chunks || 1})`,
             registros_processados: records.length,
             registros_total: records.length,
             progresso_importacao: 100,
@@ -382,10 +423,8 @@ serve(async (req) => {
             })
             .eq("id", configData.config_id);
         }
-      }
 
-      // Limpar execuções anteriores com erro/parado
-      if (execucao_id) {
+        // Limpar execuções anteriores com erro/parado
         const { data: execConfig } = await supabase
           .from("sga_automacao_execucoes")
           .select("config_id")
@@ -402,31 +441,31 @@ serve(async (req) => {
           
           console.log("[Webhook SGA] Execuções com erro/parado anteriores removidas");
         }
+
+        // Log de auditoria
+        await supabase.from("bi_audit_logs").insert({
+          modulo: "sga_insights",
+          acao: "importacao",
+          descricao: `Importação automática de ${records.length} registros - ${nome_arquivo}`,
+          corretora_id: corretora_id,
+          user_id: "system",
+          user_nome: "Automação SGA Hinova",
+          dados_novos: {
+            arquivo: nome_arquivo,
+            total_registros: records.length,
+            execucao_id,
+            github_run_id,
+          },
+        });
       }
 
-      // Log de auditoria
-      await supabase.from("bi_audit_logs").insert({
-        modulo: "sga_insights",
-        acao: "importacao",
-        descricao: `Importação automática de ${records.length} registros - ${nome_arquivo}`,
-        corretora_id: corretora_id,
-        user_id: "system",
-        user_nome: "Automação SGA Hinova",
-        dados_novos: {
-          arquivo: nome_arquivo,
-          total_registros: records.length,
-          execucao_id,
-          github_run_id,
-        },
-      });
-
-      console.log(`[Webhook SGA] Importação concluída: ${records.length} registros`);
+      console.log(`[Webhook SGA] Chunk ${chunk_atual || 1}/${total_chunks || 1} concluído: ${records.length} registros`);
 
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: `${records.length} registros importados com sucesso`,
-          importacao_id: importacao.id,
+          message: `${records.length} registros importados (chunk ${chunk_atual || 1}/${total_chunks || 1})`,
+          importacao_id: importacaoId,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

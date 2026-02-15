@@ -1,0 +1,1 @@
+ALTER TABLE public.sga_eventos ADD COLUMN IF NOT EXISTS observacoes TEXT;
