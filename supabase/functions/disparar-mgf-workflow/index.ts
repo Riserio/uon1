@@ -24,12 +24,11 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const githubPat = Deno.env.get("GITHUB_PAT");
     const githubRepoOwner = Deno.env.get("GITHUB_REPO_OWNER");
     const githubRepoName = Deno.env.get("GITHUB_REPO_NAME");
-    
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Verificar autenticação
     const authHeader = req.headers.get('authorization');
@@ -41,7 +40,12 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    // Validar JWT usando anon key + header do usuário
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
     
     if (authError || !user) {
       return new Response(
@@ -49,6 +53,9 @@ serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Cliente com service role para operações de banco
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verificar secrets do GitHub
     if (!githubPat || !githubRepoOwner || !githubRepoName) {
