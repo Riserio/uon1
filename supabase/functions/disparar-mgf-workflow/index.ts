@@ -41,13 +41,17 @@ serve(async (req) => {
 
     const token = authHeader.replace('Bearer ', '');
 
-    // Validar JWT usando anon key + header do usuário
-    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
-    
-    if (authError || !user) {
+    // Decodificar JWT para obter dados do usuário
+    let user: { id: string; email: string };
+    try {
+      const payloadBase64 = token.split('.')[1];
+      const payload = JSON.parse(atob(payloadBase64));
+      if (!payload.sub || !payload.exp || payload.exp * 1000 < Date.now()) {
+        throw new Error("Token expirado ou inválido");
+      }
+      user = { id: payload.sub, email: payload.email || "Usuário" };
+    } catch (e) {
+      console.error("Erro ao decodificar token:", e);
       return new Response(
         JSON.stringify({ success: false, message: "Token inválido" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -146,15 +150,31 @@ serve(async (req) => {
         );
       }
 
-      // Fallback: also try legacy mgf_automacao_config for execution tracking
-      const { data: legacyConfig } = await supabase
+      // Buscar ou criar registro em mgf_automacao_config (necessário para FK de execuções)
+      let { data: legacyConfig } = await supabase
         .from("mgf_automacao_config")
         .select("id, filtro_centros_custo")
         .eq("corretora_id", corretora_id)
         .maybeSingle();
 
-      // Criar registro de execução
-      const configId = legacyConfig?.id || creds.id;
+      if (!legacyConfig) {
+        const { data: newConfig } = await supabase
+          .from("mgf_automacao_config")
+          .insert({
+            corretora_id,
+            hinova_url: creds.hinova_url,
+            hinova_user: creds.hinova_user,
+            hinova_pass: creds.hinova_pass,
+            hinova_codigo_cliente: creds.hinova_codigo_cliente || '',
+            layout_relatorio: creds.layout_mgf || '',
+            ativo: true,
+          })
+          .select("id, filtro_centros_custo")
+          .single();
+        legacyConfig = newConfig;
+      }
+
+      const configId = legacyConfig?.id;
       const { data: execucao, error: execError } = await supabase
         .from("mgf_automacao_execucoes")
         .insert({
