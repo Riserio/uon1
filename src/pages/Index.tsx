@@ -31,6 +31,8 @@ import { ConcluirFluxoManualDialog } from "@/components/ConcluirFluxoManualDialo
 import { GestaoAssociacaoKanban } from "@/components/gestao-associacao/GestaoAssociacaoKanban";
 import { GestaoAssociacaoStatusConfig } from "@/components/gestao-associacao/GestaoAssociacaoStatusConfig";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 const Index = () => {
   const isMobile = useIsMobile();
@@ -57,6 +59,8 @@ const Index = () => {
   const [gestaoAssociacaoConfigOpen, setGestaoAssociacaoConfigOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("administradora");
   const [gestaoAssociacaoKey, setGestaoAssociacaoKey] = useState(0);
+  const [gestaoAssocCorretoraId, setGestaoAssocCorretoraId] = useState<string | null>(null);
+  const [gestaoAssocCorretoras, setGestaoAssocCorretoras] = useState<{ id: string; nome: string }[]>([]);
   const [pendingConcluirData, setPendingConcluirData] = useState<{
     atendimentoId: string;
     currentFluxoId: string;
@@ -83,6 +87,7 @@ const Index = () => {
     loadStatusPrazo();
     loadUserRole();
     loadFluxoCardCounts();
+    loadGestaoAssocCorretoras();
 
     // Subscribe to realtime changes - with debounce to avoid constant reloads
     const atendimentosChannel = supabase
@@ -199,6 +204,16 @@ const Index = () => {
       setCorretoras(data.map((c) => c.nome));
     } catch (error: any) {
       console.error("Erro ao carregar corretoras:", error);
+    }
+  };
+
+  const loadGestaoAssocCorretoras = async () => {
+    try {
+      const { data, error } = await supabase.from('corretoras').select('id, nome').order('nome');
+      if (error) throw error;
+      setGestaoAssocCorretoras(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar associações:', error);
     }
   };
 
@@ -969,9 +984,29 @@ const Index = () => {
       )}
 
       {activeTab === 'associacao' && (
-        <main className="container mx-auto px-6 py-6">
-          <GestaoAssociacaoKanban key={gestaoAssociacaoKey} />
-        </main>
+        <>
+          <div className="bg-muted/30 border-b border-border/50">
+            <div className="container mx-auto px-6 py-4">
+              <div className="flex items-center gap-3">
+                <Label className="text-sm font-medium whitespace-nowrap">Associação:</Label>
+                <Select value={gestaoAssocCorretoraId || 'all'} onValueChange={(v) => { setGestaoAssocCorretoraId(v === 'all' ? null : v); setGestaoAssociacaoKey(k => k + 1); }}>
+                  <SelectTrigger className="w-[280px]">
+                    <SelectValue placeholder="Todas as associações" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as associações</SelectItem>
+                    {gestaoAssocCorretoras.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <main className="container mx-auto px-6 py-6">
+            <GestaoAssociacaoKanban key={gestaoAssociacaoKey} selectedCorretoraId={gestaoAssocCorretoraId} />
+          </main>
+        </>
       )}
 
       <AtendimentoDialog
@@ -1012,6 +1047,7 @@ const Index = () => {
         open={gestaoAssociacaoConfigOpen}
         onOpenChange={setGestaoAssociacaoConfigOpen}
         onStatusChange={() => setGestaoAssociacaoKey(k => k + 1)}
+        selectedCorretoraId={gestaoAssocCorretoraId}
       />
 
       {pendingConcluirData && (

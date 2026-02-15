@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { Plus, Trash2, GripVertical, RefreshCw, Eye, EyeOff } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DndContext,
   closestCenter,
@@ -33,6 +34,7 @@ interface StatusConfig {
   cor: string;
   ordem: number;
   ativo: boolean;
+  corretora_id: string | null;
 }
 
 interface SortableItemProps {
@@ -106,13 +108,16 @@ interface GestaoAssociacaoStatusConfigProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStatusChange: () => void;
+  selectedCorretoraId?: string | null;
 }
 
-export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChange }: GestaoAssociacaoStatusConfigProps) {
+export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChange, selectedCorretoraId }: GestaoAssociacaoStatusConfigProps) {
   const [statuses, setStatuses] = useState<StatusConfig[]>([]);
   const [availableSituacoes, setAvailableSituacoes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [corretoras, setCorretoras] = useState<{ id: string; nome: string }[]>([]);
+  const [configCorretoraId, setConfigCorretoraId] = useState<string | null>(selectedCorretoraId || null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -120,27 +125,51 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
   );
 
   useEffect(() => {
-    if (open) loadData();
-  }, [open]);
+    if (open) {
+      loadCorretoras();
+      if (selectedCorretoraId) {
+        setConfigCorretoraId(selectedCorretoraId);
+      }
+    }
+  }, [open, selectedCorretoraId]);
+
+  useEffect(() => {
+    if (open && configCorretoraId) {
+      loadData();
+    }
+  }, [open, configCorretoraId]);
+
+  const loadCorretoras = async () => {
+    try {
+      const { data, error } = await supabase.from('corretoras').select('id, nome').order('nome');
+      if (error) throw error;
+      setCorretoras(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar associações:', error);
+    }
+  };
 
   const loadData = async () => {
+    if (!configCorretoraId) return;
     try {
-      // Load existing configs
+      // Load existing configs for this corretora
       const { data: configs, error: configError } = await supabase
         .from('gestao_associacao_status_config')
         .select('*')
+        .eq('corretora_id', configCorretoraId)
         .order('ordem');
       if (configError) throw configError;
       setStatuses((configs || []) as StatusConfig[]);
 
-      // Load distinct situacao_evento values from sga_eventos
+      // Load distinct situacao_evento values from sga_eventos for this corretora
       const { data: situacoes, error: sitError } = await supabase
         .from('sga_eventos')
-        .select('situacao_evento')
-        .not('situacao_evento', 'is', null);
+        .select('situacao_evento, sga_importacoes!inner(corretora_id)')
+        .not('situacao_evento', 'is', null)
+        .eq('sga_importacoes.corretora_id', configCorretoraId);
       if (sitError) throw sitError;
 
-      const uniqueSituacoes = [...new Set((situacoes || []).map(s => s.situacao_evento).filter(Boolean))] as string[];
+      const uniqueSituacoes = [...new Set((situacoes || []).map((s: any) => s.situacao_evento).filter(Boolean))] as string[];
       setAvailableSituacoes(uniqueSituacoes.sort());
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -149,6 +178,7 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
   };
 
   const handleImportSituacao = async (nome: string) => {
+    if (!configCorretoraId) return;
     if (statuses.some(s => s.nome === nome)) {
       toast.error('Este status já está configurado');
       return;
@@ -158,7 +188,7 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
       const maxOrdem = Math.max(...statuses.map(s => s.ordem), 0);
       const { data, error } = await supabase
         .from('gestao_associacao_status_config')
-        .insert({ nome, cor: '#3b82f6', ordem: maxOrdem + 1, ativo: true })
+        .insert({ nome, cor: '#3b82f6', ordem: maxOrdem + 1, ativo: true, corretora_id: configCorretoraId })
         .select()
         .single();
       if (error) throw error;
@@ -254,58 +284,81 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
         <DialogHeader>
           <DialogTitle>Configurar Status - Gestão Associação</DialogTitle>
           <DialogDescription>
-            Escolha quais situações dos eventos serão exibidas como colunas no kanban e defina a ordem.
+            Selecione a associação e defina quais situações dos eventos serão exibidas como colunas no kanban.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Unconfigured statuses from BI */}
-          {unconfiguredSituacoes.length > 0 && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Situações disponíveis no BI (clique para adicionar)</Label>
-              <div className="flex flex-wrap gap-2">
-                {unconfiguredSituacoes.map(s => (
-                  <Badge
-                    key={s}
-                    variant="outline"
-                    className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
-                    onClick={() => handleImportSituacao(s)}
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    {s}
-                  </Badge>
+          {/* Association selector */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Associação</Label>
+            <Select value={configCorretoraId || ''} onValueChange={(v) => setConfigCorretoraId(v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione uma associação" />
+              </SelectTrigger>
+              <SelectContent>
+                {corretoras.map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                 ))}
-              </div>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {configCorretoraId ? (
+            <>
+              {/* Unconfigured statuses from BI */}
+              {unconfiguredSituacoes.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Situações disponíveis no BI (clique para adicionar)</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {unconfiguredSituacoes.map(s => (
+                      <Badge
+                        key={s}
+                        variant="outline"
+                        className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                        onClick={() => handleImportSituacao(s)}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        {s}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Configured statuses */}
+              <ScrollArea className="h-[calc(90vh-400px)] pr-4">
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={statuses.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-2">
+                      {statuses.map(status => (
+                        <SortableItem
+                          key={status.id}
+                          status={status}
+                          editingId={editingId}
+                          loading={loading}
+                          onUpdate={(s) => setStatuses(statuses.map(st => st.id === s.id ? s : st))}
+                          onSave={handleSave}
+                          onToggle={handleToggle}
+                          onDelete={handleDelete}
+                          setEditingId={setEditingId}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </ScrollArea>
+
+              <Button variant="outline" onClick={loadData} disabled={loading} className="w-full">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Recarregar situações do BI
+              </Button>
+            </>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Selecione uma associação para configurar os status.</p>
             </div>
           )}
-
-          {/* Configured statuses */}
-          <ScrollArea className="h-[calc(90vh-350px)] pr-4">
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={statuses.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                <div className="space-y-2">
-                  {statuses.map(status => (
-                    <SortableItem
-                      key={status.id}
-                      status={status}
-                      editingId={editingId}
-                      loading={loading}
-                      onUpdate={(s) => setStatuses(statuses.map(st => st.id === s.id ? s : st))}
-                      onSave={handleSave}
-                      onToggle={handleToggle}
-                      onDelete={handleDelete}
-                      setEditingId={setEditingId}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          </ScrollArea>
-
-          <Button variant="outline" onClick={loadData} disabled={loading} className="w-full">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Recarregar situações do BI
-          </Button>
         </div>
       </ResponsiveDialogContent>
     </ResponsiveDialog>
