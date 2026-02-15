@@ -32,6 +32,10 @@ on:
         description: 'Layout do relatório (MGF)'
         required: false
         type: string
+      hinova_relatorio_url:
+        description: 'URL direta da página de relatório MGF'
+        required: false
+        type: string
       execucao_id:
         description: 'ID da execução no banco'
         required: false
@@ -67,6 +71,7 @@ jobs:
           HINOVA_USER: ${{ inputs.hinova_user || secrets.HINOVA_USER }}
           HINOVA_PASS: ${{ inputs.hinova_pass || secrets.HINOVA_PASS }}
           HINOVA_LAYOUT: ${{ inputs.hinova_layout || secrets.HINOVA_LAYOUT_MGF || secrets.HINOVA_LAYOUT }}
+          HINOVA_RELATORIO_URL: ${{ inputs.hinova_relatorio_url }}
           WEBHOOK_URL: ${{ inputs.webhook_url || secrets.WEBHOOK_URL_MGF || secrets.WEBHOOK_URL }}
           WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
           CORRETORA_ID: ${{ inputs.corretora_id || secrets.CORRETORA_ID }}
