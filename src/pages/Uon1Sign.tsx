@@ -137,6 +137,30 @@ export default function Uon1Sign() {
     },
   });
 
+  const cancelarContrato = useMutation({
+    mutationFn: async (contratoId: string) => {
+      const { error } = await supabase
+        .from("contratos")
+        .update({ status: "cancelado" })
+        .eq("id", contratoId);
+      if (error) throw error;
+
+      await supabase.from("contrato_historico").insert({
+        contrato_id: contratoId,
+        acao: "cancelado",
+        descricao: "Contrato cancelado pelo usuário",
+        user_id: user?.id,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contratos"] });
+      toast.success("Contrato cancelado!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao cancelar contrato: " + error.message);
+    },
+  });
+
   const copyLink = (contrato: any) => {
     if (!contrato.link_token) {
       toast.error("Link ainda não disponível. Envie o contrato para assinatura primeiro.");
@@ -441,6 +465,22 @@ export default function Uon1Sign() {
                                 <DropdownMenuItem onClick={() => sendEmail(contrato)}>
                                   <Mail className="h-4 w-4 mr-2" />
                                   Enviar E-mail
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            {(contrato.status === "aguardando_assinatura" || contrato.status === "rascunho") && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    if (confirm("Tem certeza que deseja cancelar este contrato?")) {
+                                      cancelarContrato.mutate(contrato.id);
+                                    }
+                                  }}
+                                  className="text-red-600 dark:text-red-400"
+                                >
+                                  <XCircle className="h-4 w-4 mr-2" />
+                                  Cancelar Contrato
                                 </DropdownMenuItem>
                               </>
                             )}
