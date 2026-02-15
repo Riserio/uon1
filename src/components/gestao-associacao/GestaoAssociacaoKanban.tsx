@@ -2,15 +2,17 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Search, Calendar, MapPin, Car, DollarSign, FileText } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { Search, Calendar, MapPin, Car, DollarSign, FileText, User, ChevronDown } from 'lucide-react';
+import { format, parseISO, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { KanbanColumn } from '@/components/KanbanColumn';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { GestaoAssociacaoFluxoSelector } from './GestaoAssociacaoFluxoSelector';
+import { EventoDetailDialog } from './EventoDetailDialog';
 
 interface StatusConfig {
   id: string;
@@ -42,6 +44,17 @@ interface EventoCard {
   tipo_evento: string | null;
   corretora_id: string | null;
   corretora_nome: string | null;
+  categoria_veiculo: string | null;
+  participacao: number | null;
+  valor_mao_de_obra: number | null;
+  previsao_valor_reparo: number | null;
+  analista_responsavel: string | null;
+  ultima_descricao_interna: string | null;
+  data_ultima_descricao_interna: string | null;
+  numero_bo: string | null;
+  ultima_descricao_bo: string | null;
+  envolvimento: string | null;
+  usuario_alteracao: string | null;
 }
 
 interface GestaoAssociacaoKanbanProps {
@@ -50,6 +63,17 @@ interface GestaoAssociacaoKanbanProps {
   selectedCorretoraId?: string | null;
   onConfigureFluxos?: () => void;
 }
+
+const CARDS_PER_PAGE = 10;
+
+const getCardAgeColor = (dataCadastro: string | null): string => {
+  if (!dataCadastro) return '';
+  const days = differenceInDays(new Date(), parseISO(dataCadastro));
+  if (days <= 45) return 'border-l-4 border-l-green-500';
+  if (days <= 75) return 'border-l-4 border-l-yellow-500';
+  if (days <= 90) return 'border-l-4 border-l-orange-500';
+  return 'border-l-4 border-l-red-500';
+};
 
 export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selectedCorretoraId, onConfigureFluxos }: GestaoAssociacaoKanbanProps) {
   const [allStatusConfigs, setAllStatusConfigs] = useState<StatusConfig[]>([]);
@@ -60,6 +84,9 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
   const [corretoras, setCorretoras] = useState<{ id: string; nome: string }[]>([]);
   const [selectedFluxoId, setSelectedFluxoId] = useState<string | null>(null);
   const [fluxoRefreshKey, setFluxoRefreshKey] = useState(0);
+  const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({});
+  const [selectedEvento, setSelectedEvento] = useState<EventoCard | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const effectiveCorretoraId = corretoraId || selectedCorretoraId || null;
 
@@ -81,7 +108,10 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
           id, protocolo, placa, modelo_veiculo, motivo_evento, situacao_evento,
           data_evento, data_cadastro_evento, evento_cidade, evento_estado,
           cooperativa, regional, custo_evento, valor_reparo, valor_protegido_veiculo,
-          classificacao, tipo_evento,
+          classificacao, tipo_evento, categoria_veiculo, participacao,
+          valor_mao_de_obra, previsao_valor_reparo, analista_responsavel,
+          ultima_descricao_interna, data_ultima_descricao_interna, numero_bo,
+          ultima_descricao_bo, envolvimento, usuario_alteracao,
           sga_importacoes!inner(corretora_id, corretoras(id, nome))
         `)
         .in('situacao_evento', activeStatusNames)
@@ -107,6 +137,14 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
           classificacao: e.classificacao, tipo_evento: e.tipo_evento,
           corretora_id: e.sga_importacoes?.corretora_id || null,
           corretora_nome: e.sga_importacoes?.corretoras?.nome || null,
+          categoria_veiculo: e.categoria_veiculo,
+          participacao: e.participacao, valor_mao_de_obra: e.valor_mao_de_obra,
+          previsao_valor_reparo: e.previsao_valor_reparo,
+          analista_responsavel: e.analista_responsavel,
+          ultima_descricao_interna: e.ultima_descricao_interna,
+          data_ultima_descricao_interna: e.data_ultima_descricao_interna,
+          numero_bo: e.numero_bo, ultima_descricao_bo: e.ultima_descricao_bo,
+          envolvimento: e.envolvimento, usuario_alteracao: e.usuario_alteracao,
         }));
         allData.push(...mapped);
         offset += BATCH_SIZE;
@@ -121,7 +159,6 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
   const loadData = async () => {
     try {
       setLoading(true);
-
       let configQuery = supabase
         .from('gestao_associacao_status_config')
         .select('*')
@@ -160,13 +197,11 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
     }
   };
 
-  // Filter status configs by selected fluxo
   const statusConfigs = useMemo(() => {
     if (!selectedFluxoId) return allStatusConfigs;
     return allStatusConfigs.filter(s => s.fluxo_id === selectedFluxoId);
   }, [allStatusConfigs, selectedFluxoId]);
 
-  // Compute card counts per fluxo
   const fluxoCardCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     allStatusConfigs.forEach(config => {
@@ -202,6 +237,20 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  const getVisibleCount = (statusName: string) => visibleCounts[statusName] || CARDS_PER_PAGE;
+
+  const handleLoadMore = (statusName: string) => {
+    setVisibleCounts(prev => ({
+      ...prev,
+      [statusName]: (prev[statusName] || CARDS_PER_PAGE) + CARDS_PER_PAGE,
+    }));
+  };
+
+  const handleCardClick = (evento: EventoCard) => {
+    setSelectedEvento(evento);
+    setDetailOpen(true);
+  };
+
   const needsScroll = statusConfigs.length > 4;
 
   if (loading) {
@@ -230,7 +279,6 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
 
   return (
     <div className="space-y-4">
-      {/* Fluxo Selector */}
       {effectiveCorretoraId && (
         <div className="bg-card border-b border-border/50 rounded-lg">
           <GestaoAssociacaoFluxoSelector
@@ -244,7 +292,6 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
         </div>
       )}
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -273,7 +320,6 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
         </Badge>
       </div>
 
-      {/* Kanban Board */}
       {statusConfigs.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <p>Nenhum status vinculado a este fluxo.</p>
@@ -290,53 +336,82 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
               style={needsScroll ? { minWidth: `${statusConfigs.length * 320}px` } : {}}
             >
               {statusConfigs.map((config) => {
-                const columnEventos = filteredEventos.filter(e => e.situacao_evento === config.nome);
+                const columnEventos = filteredEventos
+                  .filter(e => e.situacao_evento === config.nome)
+                  .sort((a, b) => {
+                    const dateA = a.data_cadastro_evento ? new Date(a.data_cadastro_evento).getTime() : 0;
+                    const dateB = b.data_cadastro_evento ? new Date(b.data_cadastro_evento).getTime() : 0;
+                    return dateB - dateA;
+                  });
+                const visibleCount = getVisibleCount(config.nome);
+                const visibleEventos = columnEventos.slice(0, visibleCount);
+                const hasMore = columnEventos.length > visibleCount;
+
                 return (
                   <div key={config.id} className={cn(needsScroll ? 'w-80 flex-shrink-0' : 'min-w-0')}>
                     <KanbanColumn title={config.nome} count={columnEventos.length} color={config.cor} onDrop={() => {}}>
-                      {columnEventos.map((evento) => (
-                        <Card key={evento.id} className="shadow-sm hover:shadow-md transition-shadow cursor-default">
-                          <CardContent className="p-3 space-y-2">
+                      {visibleEventos.map((evento) => (
+                        <Card
+                          key={evento.id}
+                          className={cn(
+                            "shadow-sm hover:shadow-md transition-shadow cursor-pointer",
+                            getCardAgeColor(evento.data_cadastro_evento)
+                          )}
+                          onClick={() => handleCardClick(evento)}
+                        >
+                          <CardContent className="p-3 space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5">
-                                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                                <span className="text-xs font-mono font-medium text-primary">{evento.protocolo || 'S/N'}</span>
-                              </div>
-                              {evento.classificacao && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">{evento.classificacao}</Badge>
-                              )}
+                              <Badge variant="default" className="font-mono text-xs">
+                                {evento.placa || 'SEM PLACA'}
+                              </Badge>
+                              <span className="text-[10px] text-muted-foreground font-mono">
+                                {evento.protocolo || 'S/N'}
+                              </span>
                             </div>
-                            <p className="text-sm font-medium truncate">{evento.motivo_evento || 'Sem motivo'}</p>
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <Car className="h-3 w-3" />
-                              <span className="truncate">{evento.placa || '-'} {evento.modelo_veiculo ? `• ${evento.modelo_veiculo}` : ''}</span>
-                            </div>
-                            {(evento.evento_cidade || evento.evento_estado) && (
-                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <MapPin className="h-3 w-3" />
-                                <span className="truncate">{[evento.evento_cidade, evento.evento_estado].filter(Boolean).join(' - ')}</span>
+
+                            <p className="text-xs font-medium truncate">{evento.motivo_evento || 'Sem motivo'}</p>
+
+                            {evento.analista_responsavel && (
+                              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <User className="h-3 w-3" />
+                                <span className="truncate">{evento.analista_responsavel}</span>
                               </div>
                             )}
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+
+                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                               <Calendar className="h-3 w-3" />
-                              <span>{formatDate(evento.data_cadastro_evento || evento.data_evento)}</span>
+                              <span>{formatDate(evento.data_cadastro_evento)}</span>
                             </div>
+
                             {(evento.custo_evento || evento.valor_reparo) && (
-                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                                 <DollarSign className="h-3 w-3" />
-                                <span>
-                                  {evento.custo_evento ? `Custo: ${formatCurrency(evento.custo_evento)}` : ''}
+                                <span className="truncate">
+                                  {evento.custo_evento ? `C: ${formatCurrency(evento.custo_evento)}` : ''}
                                   {evento.custo_evento && evento.valor_reparo ? ' | ' : ''}
-                                  {evento.valor_reparo ? `Reparo: ${formatCurrency(evento.valor_reparo)}` : ''}
+                                  {evento.valor_reparo ? `R: ${formatCurrency(evento.valor_reparo)}` : ''}
                                 </span>
                               </div>
                             )}
+
                             {!effectiveCorretoraId && evento.corretora_nome && (
                               <Badge variant="secondary" className="text-[10px]">{evento.corretora_nome}</Badge>
                             )}
                           </CardContent>
                         </Card>
                       ))}
+
+                      {hasMore && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-xs text-muted-foreground"
+                          onClick={() => handleLoadMore(config.nome)}
+                        >
+                          <ChevronDown className="h-3 w-3 mr-1" />
+                          Carregar mais ({columnEventos.length - visibleCount} restantes)
+                        </Button>
+                      )}
                     </KanbanColumn>
                   </div>
                 );
@@ -346,6 +421,12 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
           </ScrollArea>
         </div>
       )}
+
+      <EventoDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        evento={selectedEvento}
+      />
     </div>
   );
 }
