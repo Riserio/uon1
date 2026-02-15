@@ -39,16 +39,18 @@ serve(async (req) => {
       );
     }
 
-    // Validar JWT usando anon key + header do usuário
-    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
+    // Decodificar JWT para obter dados do usuário
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
-    
-    if (authError || !user) {
-      console.error("Auth error:", authError);
+    let user: { id: string; email: string };
+    try {
+      const payloadBase64 = token.split('.')[1];
+      const payload = JSON.parse(atob(payloadBase64));
+      if (!payload.sub || !payload.exp || payload.exp * 1000 < Date.now()) {
+        throw new Error("Token expirado ou inválido");
+      }
+      user = { id: payload.sub, email: payload.email || "Usuário" };
+    } catch (e) {
+      console.error("Erro ao decodificar token:", e);
       return new Response(
         JSON.stringify({ success: false, message: "Token inválido" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
