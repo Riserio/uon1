@@ -103,6 +103,25 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
     loadData();
   }, [effectiveCorretoraId]);
 
+  // Realtime subscription for sga_eventos changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('gestao-associacao-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sga_eventos' },
+        () => {
+          // Reload data when events change (e.g. new import updates situacao_evento)
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [effectiveCorretoraId]);
+
   const fetchAllBatched = async (activeStatusNames: string[]): Promise<EventoCard[]> => {
     const BATCH_SIZE = 1000;
     const MAX_ROWS = 100000;

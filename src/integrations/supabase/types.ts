@@ -4524,6 +4524,44 @@ export type Database = {
           },
         ]
       }
+      sga_eventos_historico: {
+        Row: {
+          created_at: string
+          evento_id: string
+          id: string
+          importacao_id: string | null
+          protocolo: string | null
+          situacao_anterior: string | null
+          situacao_nova: string
+        }
+        Insert: {
+          created_at?: string
+          evento_id: string
+          id?: string
+          importacao_id?: string | null
+          protocolo?: string | null
+          situacao_anterior?: string | null
+          situacao_nova: string
+        }
+        Update: {
+          created_at?: string
+          evento_id?: string
+          id?: string
+          importacao_id?: string | null
+          protocolo?: string | null
+          situacao_anterior?: string | null
+          situacao_nova?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sga_eventos_historico_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "sga_eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sga_importacoes: {
         Row: {
           ativo: boolean | null

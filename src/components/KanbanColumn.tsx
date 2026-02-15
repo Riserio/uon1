@@ -43,7 +43,7 @@ export function KanbanColumn({ title, count, color, children, onDrop }: KanbanCo
   };
 
   return (
-    <div className="flex flex-col bg-card rounded-xl border border-border/50 shadow-sm overflow-hidden h-full">
+    <div className="flex flex-col bg-card rounded-2xl border border-border/50 shadow-sm overflow-hidden h-full">
       <div 
         className="px-4 py-3 flex items-center justify-between bg-muted/30"
         style={{ 
