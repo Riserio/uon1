@@ -3218,7 +3218,36 @@ async function rodarRobo() {
           throw new Error('Nenhum dado válido extraído do arquivo');
         }
         
-        log(`✅ ${dados.length} registros extraídos`, LOG_LEVELS.SUCCESS);
+        // Filtrar linhas de resumo/totais ANTES de enviar
+        const SUMMARY_KEYWORDS = [
+          'soma total', 'total à receber', 'total a receber', 'total recebido',
+          'total à pagar', 'total a pagar', 'total pago', 'total pago impostos',
+          'soma total lançamentos', 'soma total lancamentos',
+        ];
+        
+        const dadosReais = dados.filter(row => {
+          for (const value of Object.values(row)) {
+            if (value && typeof value === 'string') {
+              const normalized = value.toLowerCase().trim().replace(/:/g, '');
+              if (SUMMARY_KEYWORDS.some(kw => normalized.includes(kw))) {
+                return false;
+              }
+            }
+          }
+          return true;
+        });
+        
+        const removidos = dados.length - dadosReais.length;
+        if (removidos > 0) {
+          log(`⚠️ ${removidos} linhas de resumo/totais removidas`, LOG_LEVELS.WARN);
+        }
+        
+        if (dadosReais.length === 0) {
+          throw new Error(`Relatório vazio: ${dados.length} linhas eram apenas resumos/totais. Verifique layout e filtros no portal.`);
+        }
+        
+        dados = dadosReais;
+        log(`✅ ${dados.length} registros reais extraídos (${removidos} resumos removidos)`, LOG_LEVELS.SUCCESS);
         
         downloadSucesso = true;
         
