@@ -452,8 +452,74 @@ serve(async (req) => {
       throw new Error("Não foi possível criar/encontrar importação");
     }
 
+    // Filtrar linhas de resumo/totais antes de processar
+    const SUMMARY_KEYWORDS = [
+      'soma total', 'total à receber', 'total a receber', 'total recebido',
+      'total à pagar', 'total a pagar', 'total pago', 'total pago impostos',
+      'soma total lançamentos', 'soma total lancamentos',
+    ];
+    
+    const dadosFiltrados = dados.filter((row: Record<string, unknown>) => {
+      // Verificar se algum campo contém texto de linha de resumo
+      for (const value of Object.values(row)) {
+        if (value && typeof value === 'string') {
+          const normalized = value.toLowerCase().trim().replace(/:/g, '');
+          if (SUMMARY_KEYWORDS.some(kw => normalized.includes(kw))) {
+            return false; // É uma linha de resumo, remover
+          }
+        }
+      }
+      return true;
+    });
+
+    const removidos = dados.length - dadosFiltrados.length;
+    if (removidos > 0) {
+      console.log(`[MGF Webhook] ${removidos} linhas de resumo/totais removidas`);
+    }
+
+    if (dadosFiltrados.length === 0) {
+      console.log(`[MGF Webhook] AVISO: Todos os ${dados.length} registros eram linhas de resumo - relatório vazio!`);
+      
+      // Atualizar execução com erro
+      if (execucaoIdCandidate) {
+        await supabase
+          .from("mgf_automacao_execucoes")
+          .update({
+            status: 'erro',
+            erro: `Relatório vazio: ${dados.length} linhas recebidas eram apenas resumos/totais. Verifique os filtros e layout no portal Hinova.`,
+            finalizado_at: new Date().toISOString(),
+            etapa_atual: 'erro',
+          })
+          .eq("id", execucaoIdCandidate);
+
+        const { data: execConfig } = await supabase
+          .from("mgf_automacao_execucoes")
+          .select("config_id")
+          .eq("id", execucaoIdCandidate)
+          .single();
+
+        if (execConfig?.config_id) {
+          await supabase
+            .from("mgf_automacao_config")
+            .update({
+              ultimo_status: 'erro',
+              ultimo_erro: 'Relatório vazio: apenas linhas de resumo recebidas',
+            })
+            .eq("id", execConfig.config_id);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: `Relatório vazio: ${dados.length} linhas eram apenas resumos/totais`,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Processar e inserir dados
-    const records = dados.map((row: Record<string, unknown>) => {
+    const records = dadosFiltrados.map((row: Record<string, unknown>) => {
       const record: Record<string, unknown> = {
         importacao_id: importacaoId,
         dados_extras: {},
