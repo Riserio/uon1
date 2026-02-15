@@ -359,44 +359,67 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
                           )}
                           onClick={() => handleCardClick(evento)}
                         >
-                          <CardContent className="p-3 space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <Badge variant="default" className="font-mono text-xs">
-                                {evento.placa || 'SEM PLACA'}
+                          <CardContent className="p-3 space-y-2">
+                            {!effectiveCorretoraId && evento.corretora_nome && (
+                              <Badge variant="outline" className="text-[10px] font-semibold">
+                                <FileText className="h-3 w-3 mr-1" />
+                                {evento.corretora_nome}
                               </Badge>
-                              <span className="text-[10px] text-muted-foreground font-mono">
-                                {evento.protocolo || 'S/N'}
+                            )}
+
+                            <p className="text-sm font-semibold">
+                              {evento.motivo_evento || 'Sem motivo'} - {evento.placa || 'SEM PLACA'}
+                            </p>
+
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="secondary" className="text-[10px]">
+                                {evento.tipo_evento || evento.classificacao || 'N/A'}
+                              </Badge>
+                              <span className="text-[11px] text-muted-foreground">
+                                {formatDate(evento.data_evento)}
                               </span>
                             </div>
 
-                            <p className="text-xs font-medium truncate">{evento.motivo_evento || 'Sem motivo'}</p>
-
-                            {evento.analista_responsavel && (
-                              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <User className="h-3 w-3" />
-                                <span className="truncate">{evento.analista_responsavel}</span>
-                              </div>
-                            )}
-
-                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
-                              <span>{formatDate(evento.data_cadastro_evento)}</span>
+                            <div className="border-l-2 border-muted pl-2 space-y-0.5 text-[11px]">
+                              <p className="font-semibold text-xs">Veículo</p>
+                              <p className="text-muted-foreground">Placa: {evento.placa || '-'}</p>
+                              <p className="text-muted-foreground truncate">{evento.modelo_veiculo || '-'}</p>
+                              {evento.valor_protegido_veiculo != null && (
+                                <p className="text-primary font-medium">FIPE: {formatCurrency(evento.valor_protegido_veiculo)}</p>
+                              )}
                             </div>
 
-                            {(evento.custo_evento || evento.valor_reparo) && (
-                              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <DollarSign className="h-3 w-3" />
-                                <span className="truncate">
-                                  {evento.custo_evento ? `C: ${formatCurrency(evento.custo_evento)}` : ''}
-                                  {evento.custo_evento && evento.valor_reparo ? ' | ' : ''}
-                                  {evento.valor_reparo ? `R: ${formatCurrency(evento.valor_reparo)}` : ''}
-                                </span>
+                            {evento.ultima_descricao_bo && (
+                              <div className="border-l-2 border-muted pl-2 text-[11px]">
+                                <p className="font-semibold text-xs">Relato</p>
+                                <p className="text-muted-foreground line-clamp-2">{evento.ultima_descricao_bo}</p>
                               </div>
                             )}
 
-                            {!effectiveCorretoraId && evento.corretora_nome && (
-                              <Badge variant="secondary" className="text-[10px]">{evento.corretora_nome}</Badge>
+                            <p className="text-[10px] text-muted-foreground font-mono">
+                              #{evento.protocolo || 'S/N'}
+                            </p>
+
+                            {evento.analista_responsavel && (
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                <span className="font-medium">Resp:</span> {evento.analista_responsavel}
+                              </p>
                             )}
+
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {evento.custo_evento != null && (
+                                <Badge variant="outline" className="text-[10px]">
+                                  <DollarSign className="h-3 w-3 mr-0.5" />
+                                  {formatCurrency(evento.custo_evento)}
+                                </Badge>
+                              )}
+                              {evento.data_cadastro_evento && (
+                                <Badge variant="secondary" className="text-[10px]">
+                                  <Calendar className="h-3 w-3 mr-0.5" />
+                                  {differenceInDays(new Date(), parseISO(evento.data_cadastro_evento))}d
+                                </Badge>
+                              )}
+                            </div>
                           </CardContent>
                         </Card>
                       ))}
