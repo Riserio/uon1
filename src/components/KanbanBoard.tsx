@@ -4,6 +4,8 @@ import { KanbanColumn } from './KanbanColumn';
 import { AtendimentoCard } from './AtendimentoCard';
 import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface StatusConfig {
@@ -26,13 +28,15 @@ interface KanbanBoardProps {
   selectedFluxoId: string | null;
 }
 
+const CARDS_PER_PAGE = 10;
+
 export function KanbanBoard({ atendimentos, onUpdateStatus, onEdit, onDelete, onArquivar, onViewAndamentos, statusPrazo, selectedFluxoId }: KanbanBoardProps) {
   const [columns, setColumns] = useState<StatusConfig[]>([]);
+  const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     loadColumns();
 
-    // Subscribe to real-time updates for status_config
     const channel = supabase
       .channel('kanban_status_config_changes')
       .on(
@@ -60,7 +64,6 @@ export function KanbanBoard({ atendimentos, onUpdateStatus, onEdit, onDelete, on
         .select('*')
         .eq('ativo', true);
 
-      // Filter by fluxo_id if selected
       if (selectedFluxoId) {
         query = query.eq('fluxo_id', selectedFluxoId);
       }
@@ -73,6 +76,7 @@ export function KanbanBoard({ atendimentos, onUpdateStatus, onEdit, onDelete, on
       console.error('Erro ao carregar colunas:', error);
     }
   };
+
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
 
   const handleDragStart = (id: string) => {
@@ -90,6 +94,15 @@ export function KanbanBoard({ atendimentos, onUpdateStatus, onEdit, onDelete, on
     }
   };
 
+  const getVisibleCount = (statusName: string) => visibleCounts[statusName] || CARDS_PER_PAGE;
+
+  const handleLoadMore = (statusName: string) => {
+    setVisibleCounts(prev => ({
+      ...prev,
+      [statusName]: (prev[statusName] || CARDS_PER_PAGE) + CARDS_PER_PAGE,
+    }));
+  };
+
   const needsScroll = columns.length > 4;
 
   return (
@@ -103,8 +116,18 @@ export function KanbanBoard({ atendimentos, onUpdateStatus, onEdit, onDelete, on
           style={needsScroll ? { minWidth: `${columns.length * 320}px` } : {}}
         >
           {columns.map((column) => {
-            const columnAtendimentos = atendimentos.filter((a) => a.status === column.nome);
+            const columnAtendimentos = atendimentos
+              .filter((a) => a.status === column.nome)
+              .sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return dateB - dateA;
+              });
             
+            const visibleCount = getVisibleCount(column.nome);
+            const visibleAtendimentos = columnAtendimentos.slice(0, visibleCount);
+            const hasMore = columnAtendimentos.length > visibleCount;
+
             return (
               <div key={column.id} className={cn(needsScroll ? 'w-80 flex-shrink-0' : 'min-w-0')}>
                 <KanbanColumn
@@ -113,7 +136,7 @@ export function KanbanBoard({ atendimentos, onUpdateStatus, onEdit, onDelete, on
                   color={column.cor}
                   onDrop={() => handleDrop(column.nome)}
                 >
-                  {columnAtendimentos.map((atendimento) => (
+                  {visibleAtendimentos.map((atendimento) => (
                     <AtendimentoCard
                       key={atendimento.id}
                       atendimento={atendimento}
@@ -127,6 +150,18 @@ export function KanbanBoard({ atendimentos, onUpdateStatus, onEdit, onDelete, on
                       isDragging={draggedItem === atendimento.id}
                     />
                   ))}
+
+                  {hasMore && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-xs text-muted-foreground"
+                      onClick={() => handleLoadMore(column.nome)}
+                    >
+                      <ChevronDown className="h-3 w-3 mr-1" />
+                      Carregar mais ({columnAtendimentos.length - visibleCount} restantes)
+                    </Button>
+                  )}
                 </KanbanColumn>
               </div>
             );

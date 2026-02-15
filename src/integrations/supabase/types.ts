@@ -4368,6 +4368,7 @@ export type Database = {
       }
       sga_eventos: {
         Row: {
+          analista_responsavel: string | null
           ano_fabricacao: number | null
           associado_estado: string | null
           categoria_veiculo: string | null
@@ -4382,6 +4383,7 @@ export type Database = {
           data_evento: string | null
           data_previsao_entrega: string | null
           data_ultima_alteracao_situacao: string | null
+          data_ultima_descricao_interna: string | null
           envolvimento: string | null
           envolvimento_terceiro: string | null
           evento_cidade: string | null
@@ -4392,6 +4394,7 @@ export type Database = {
           modelo_veiculo: string | null
           modelo_veiculo_terceiro: string | null
           motivo_evento: string | null
+          numero_bo: string | null
           participacao: number | null
           passivel_ressarcimento: string | null
           placa: string | null
@@ -4405,6 +4408,8 @@ export type Database = {
           solicitou_carro_reserva: string | null
           tipo_evento: string | null
           tipo_veiculo_terceiro: string | null
+          ultima_descricao_bo: string | null
+          ultima_descricao_interna: string | null
           usuario_alteracao: string | null
           valor_mao_de_obra: number | null
           valor_protegido_veiculo: number | null
@@ -4412,6 +4417,7 @@ export type Database = {
           voluntario: string | null
         }
         Insert: {
+          analista_responsavel?: string | null
           ano_fabricacao?: number | null
           associado_estado?: string | null
           categoria_veiculo?: string | null
@@ -4426,6 +4432,7 @@ export type Database = {
           data_evento?: string | null
           data_previsao_entrega?: string | null
           data_ultima_alteracao_situacao?: string | null
+          data_ultima_descricao_interna?: string | null
           envolvimento?: string | null
           envolvimento_terceiro?: string | null
           evento_cidade?: string | null
@@ -4436,6 +4443,7 @@ export type Database = {
           modelo_veiculo?: string | null
           modelo_veiculo_terceiro?: string | null
           motivo_evento?: string | null
+          numero_bo?: string | null
           participacao?: number | null
           passivel_ressarcimento?: string | null
           placa?: string | null
@@ -4449,6 +4457,8 @@ export type Database = {
           solicitou_carro_reserva?: string | null
           tipo_evento?: string | null
           tipo_veiculo_terceiro?: string | null
+          ultima_descricao_bo?: string | null
+          ultima_descricao_interna?: string | null
           usuario_alteracao?: string | null
           valor_mao_de_obra?: number | null
           valor_protegido_veiculo?: number | null
@@ -4456,6 +4466,7 @@ export type Database = {
           voluntario?: string | null
         }
         Update: {
+          analista_responsavel?: string | null
           ano_fabricacao?: number | null
           associado_estado?: string | null
           categoria_veiculo?: string | null
@@ -4470,6 +4481,7 @@ export type Database = {
           data_evento?: string | null
           data_previsao_entrega?: string | null
           data_ultima_alteracao_situacao?: string | null
+          data_ultima_descricao_interna?: string | null
           envolvimento?: string | null
           envolvimento_terceiro?: string | null
           evento_cidade?: string | null
@@ -4480,6 +4492,7 @@ export type Database = {
           modelo_veiculo?: string | null
           modelo_veiculo_terceiro?: string | null
           motivo_evento?: string | null
+          numero_bo?: string | null
           participacao?: number | null
           passivel_ressarcimento?: string | null
           placa?: string | null
@@ -4493,6 +4506,8 @@ export type Database = {
           solicitou_carro_reserva?: string | null
           tipo_evento?: string | null
           tipo_veiculo_terceiro?: string | null
+          ultima_descricao_bo?: string | null
+          ultima_descricao_interna?: string | null
           usuario_alteracao?: string | null
           valor_mao_de_obra?: number | null
           valor_protegido_veiculo?: number | null
