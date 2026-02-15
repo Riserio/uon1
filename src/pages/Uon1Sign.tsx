@@ -113,9 +113,7 @@ export default function Uon1Sign() {
         .select(`*, contrato_assinaturas(*), contrato_templates:template_id(logo_url)`)
         .order("created_at", { ascending: false });
 
-      if (!showArchived) {
-        query = query.eq("arquivado", false);
-      }
+      query = query.eq("arquivado", showArchived);
 
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
@@ -361,7 +359,7 @@ export default function Uon1Sign() {
               variant={showArchived ? "default" : "outline"}
               size="sm"
               onClick={() => setShowArchived(!showArchived)}
-              className="bg-card/50"
+              className={showArchived ? "" : "bg-card/50"}
               title={showArchived ? "Ocultar arquivados" : "Mostrar arquivados"}
             >
               <Archive className="h-4 w-4 mr-2" />
