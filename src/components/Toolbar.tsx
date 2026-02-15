@@ -46,7 +46,7 @@ export function Toolbar({
   onImportJSON,
   onManageCorretoras,
   onManageContatos,
-  responsaveis,
+  responsaveis
 }: ToolbarProps) {
   const isMobile = useIsMobile();
   const [corretoraSearchOpen, setCorretoraSearchOpen] = useState(false);
@@ -64,7 +64,7 @@ export function Toolbar({
 
   return (
     <div className="bg-gradient-to-r from-card/95 via-card to-card/95 backdrop-blur-sm border-b border-border/50 sticky top-0 z-10 shadow-sm">
-      <div className="container mx-auto px-4 py-3">
+      <div className="container mx-auto px-4 py-3 border-none border-0 opacity-100 rounded">
         <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
           <div className="flex items-center gap-2 w-full lg:w-auto">
             <div className="flex items-center gap-2 bg-secondary/50 rounded-lg p-1">
@@ -73,8 +73,8 @@ export function Toolbar({
                 size="sm"
                 onClick={() => onViewModeChange("kanban")}
                 className="h-8"
-                title="Visualização Kanban"
-              >
+                title="Visualização Kanban">
+
                 <LayoutGrid className="h-4 w-4" />
               </Button>
               <Button
@@ -82,8 +82,8 @@ export function Toolbar({
                 size="sm"
                 onClick={() => onViewModeChange("list")}
                 className="h-8"
-                title="Visualização Lista"
-              >
+                title="Visualização Lista">
+
                 <List className="h-4 w-4" />
               </Button>
             </div>
@@ -111,8 +111,8 @@ export function Toolbar({
                     role="combobox"
                     aria-expanded={corretoraSearchOpen}
                     className="w-[180px] justify-between text-sm"
-                    size="sm"
-                  >
+                    size="sm">
+
                     <Building2 className="h-4 w-4 mr-1 shrink-0" />
                     <span className="truncate">
                       {filterCorretora === "all" ? "Buscar associações" : filterCorretora}
@@ -125,8 +125,8 @@ export function Toolbar({
                     <CommandInput
                       placeholder="Digite 3 caracteres..."
                       value={corretoraSearch}
-                      onValueChange={setCorretoraSearch}
-                    />
+                      onValueChange={setCorretoraSearch} />
+
                     <CommandEmpty>
                       {corretoraSearch.length < 3 ? "Digite pelo menos 3 caracteres" : "Nenhuma corretora encontrada"}
                     </CommandEmpty>
@@ -137,34 +137,34 @@ export function Toolbar({
                           onFilterCorretoraChange("all");
                           setCorretoraSearchOpen(false);
                           setCorretoraSearch("");
-                        }}
-                      >
+                        }}>
+
                         <Check
-                          className={cn("mr-2 h-4 w-4", filterCorretora === "all" ? "opacity-100" : "opacity-0")}
-                        />
+                          className={cn("mr-2 h-4 w-4", filterCorretora === "all" ? "opacity-100" : "opacity-0")} />
+
                         Todas as associações
                       </CommandItem>
                     </CommandGroup>
-                    {filteredCorretoras.length > 0 && (
-                      <CommandGroup>
-                        {filteredCorretoras.map((c) => (
-                          <CommandItem
-                            key={c}
-                            value={c}
-                            onSelect={(currentValue) => {
-                              onFilterCorretoraChange(currentValue);
-                              setCorretoraSearchOpen(false);
-                              setCorretoraSearch("");
-                            }}
-                          >
+                    {filteredCorretoras.length > 0 &&
+                    <CommandGroup>
+                        {filteredCorretoras.map((c) =>
+                      <CommandItem
+                        key={c}
+                        value={c}
+                        onSelect={(currentValue) => {
+                          onFilterCorretoraChange(currentValue);
+                          setCorretoraSearchOpen(false);
+                          setCorretoraSearch("");
+                        }}>
+
                             <Check
-                              className={cn("mr-2 h-4 w-4", filterCorretora === c ? "opacity-100" : "opacity-0")}
-                            />
+                          className={cn("mr-2 h-4 w-4", filterCorretora === c ? "opacity-100" : "opacity-0")} />
+
                             {c}
                           </CommandItem>
-                        ))}
+                      )}
                       </CommandGroup>
-                    )}
+                    }
                   </Command>
                 </PopoverContent>
               </Popover>
@@ -187,11 +187,11 @@ export function Toolbar({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Responsável</SelectItem>
-                  {responsaveis.map((r) => (
-                    <SelectItem key={r} value={r}>
+                  {responsaveis.map((r) =>
+                  <SelectItem key={r} value={r}>
                       {r}
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
 
@@ -203,6 +203,6 @@ export function Toolbar({
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>);
+
 }
