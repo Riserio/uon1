@@ -1,0 +1,1 @@
+ALTER TABLE public.contratos ADD COLUMN arquivado boolean NOT NULL DEFAULT false;

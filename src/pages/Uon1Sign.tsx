@@ -25,6 +25,7 @@ import {
   ArrowRight,
   AlertTriangle,
   CalendarDays,
+  Archive,
 } from "lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
 import {
@@ -99,17 +100,22 @@ export default function Uon1Sign() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [showArchived, setShowArchived] = useState(false);
   const [novoContratoOpen, setNovoContratoOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [visualizarContrato, setVisualizarContrato] = useState<any>(null);
 
   const { data: contratos, isLoading } = useQuery({
-    queryKey: ["contratos", statusFilter],
+    queryKey: ["contratos", statusFilter, showArchived],
     queryFn: async () => {
       let query = supabase
         .from("contratos")
         .select(`*, contrato_assinaturas(*), contrato_templates:template_id(logo_url)`)
         .order("created_at", { ascending: false });
+
+      if (!showArchived) {
+        query = query.eq("arquivado", false);
+      }
 
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
@@ -178,6 +184,23 @@ export default function Uon1Sign() {
     },
     onError: (error) => {
       toast.error("Erro ao cancelar contrato: " + error.message);
+    },
+  });
+
+  const arquivarContrato = useMutation({
+    mutationFn: async ({ id, arquivado }: { id: string; arquivado: boolean }) => {
+      const { error } = await supabase
+        .from("contratos")
+        .update({ arquivado })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_, { arquivado }) => {
+      queryClient.invalidateQueries({ queryKey: ["contratos"] });
+      toast.success(arquivado ? "Contrato arquivado!" : "Contrato desarquivado!");
+    },
+    onError: (error) => {
+      toast.error("Erro: " + error.message);
     },
   });
 
@@ -334,6 +357,16 @@ export default function Uon1Sign() {
                 <SelectItem value="cancelado">Cancelado</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant={showArchived ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowArchived(!showArchived)}
+              className="bg-card/50"
+              title={showArchived ? "Ocultar arquivados" : "Mostrar arquivados"}
+            >
+              <Archive className="h-4 w-4 mr-2" />
+              {showArchived ? "Arquivados" : "Arquivo"}
+            </Button>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setTemplateOpen(true)} className="bg-card/50">
@@ -520,6 +553,13 @@ export default function Uon1Sign() {
                                 </DropdownMenuItem>
                               </>
                             )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => arquivarContrato.mutate({ id: contrato.id, arquivado: !contrato.arquivado })}
+                            >
+                              <Archive className="h-4 w-4 mr-2" />
+                              {contrato.arquivado ? "Desarquivar" : "Arquivar"}
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
