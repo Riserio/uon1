@@ -23,6 +23,8 @@ import {
   Mail,
   MoreHorizontal,
   ArrowRight,
+  AlertTriangle,
+  CalendarDays,
 } from "lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
 import {
@@ -34,12 +36,30 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, differenceInDays, isPast, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import NovoContratoDialog from "@/components/gestao/NovoContratoDialog";
 import TemplateContratoDialog from "@/components/gestao/TemplateContratoDialog";
 import VisualizarContratoDialog from "@/components/gestao/VisualizarContratoDialog";
 import { downloadContratoPDF } from "@/components/gestao/utils/downloadContratoPDF";
+
+const getVigenciaBadge = (dataFim: string | null, status: string) => {
+  if (!dataFim || status === "cancelado") return null;
+  const fim = new Date(dataFim);
+  const hoje = new Date();
+  const dias = differenceInDays(fim, hoje);
+
+  if (isPast(fim) && !isSameDay(fim, hoje)) {
+    return { label: "Vencido", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200", icon: <XCircle className="h-3 w-3" /> };
+  }
+  if (isSameDay(fim, hoje)) {
+    return { label: "Vence hoje!", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 animate-pulse", icon: <AlertTriangle className="h-3 w-3" /> };
+  }
+  if (dias <= 30) {
+    return { label: `Vence em ${dias}d`, className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200", icon: <AlertTriangle className="h-3 w-3" /> };
+  }
+  return { label: "Vigente", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200", icon: <CheckCircle2 className="h-3 w-3" /> };
+};
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode; bgClass: string }> = {
   rascunho: {
@@ -356,6 +376,7 @@ export default function Uon1Sign() {
               const assinaturas = contrato.contrato_assinaturas || [];
               const assinaturasCompletas = assinaturas.filter((a: any) => a.status === "assinado").length;
               const hasLink = contrato.status === "aguardando_assinatura" || contrato.link_token;
+              const vigenciaBadge = getVigenciaBadge(contrato.data_fim, contrato.status);
 
               return (
                 <Card
@@ -373,13 +394,19 @@ export default function Uon1Sign() {
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className="text-xs font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
                             {contrato.numero}
                           </span>
                           <Badge variant="outline" className={`${status.color} border-current/20`}>
                             {status.label}
                           </Badge>
+                          {vigenciaBadge && (
+                            <Badge variant="outline" className={`${vigenciaBadge.className} flex items-center gap-1 text-xs`}>
+                              {vigenciaBadge.icon}
+                              {vigenciaBadge.label}
+                            </Badge>
+                          )}
                         </div>
 
                         <h3 className="font-semibold text-foreground truncate mb-2">{contrato.titulo}</h3>
@@ -407,7 +434,16 @@ export default function Uon1Sign() {
                           )}
                         </div>
 
-                        <p className="text-xs text-muted-foreground mt-2">
+                        {(contrato.data_inicio || contrato.data_fim) && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5">
+                            <CalendarDays className="h-3 w-3" />
+                            <span>
+                              Vigência: {contrato.data_inicio ? format(new Date(contrato.data_inicio), "dd/MM/yyyy") : "—"} a {contrato.data_fim ? format(new Date(contrato.data_fim), "dd/MM/yyyy") : "—"}
+                            </span>
+                          </div>
+                        )}
+
+                        <p className="text-xs text-muted-foreground mt-1.5">
                           Criado em {format(new Date(contrato.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                         </p>
                       </div>
