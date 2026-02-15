@@ -58,11 +58,7 @@ interface GroupedUser {
   created_at: string;
 }
 
-function StatusCell({ status, ultima, erro, ativo }: { status: string | null; ultima: string | null; erro: string | null; ativo: boolean }) {
-  // Se já teve execução (tem status ou data), considerar ativo independente do flag
-  const temExecucao = !!status || !!ultima;
-  const efetivamenteAtivo = ativo || temExecucao;
-
+function StatusCell({ status, ultima, erro }: { status: string | null; ultima: string | null; erro: string | null; ativo: boolean }) {
   const icon = status === "sucesso" ? <CheckCircle className="h-3.5 w-3.5 text-green-500" /> :
     status === "erro" ? <XCircle className="h-3.5 w-3.5 text-destructive" /> :
     status === "executando" ? <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" /> :
@@ -72,7 +68,6 @@ function StatusCell({ status, ultima, erro, ativo }: { status: string | null; ul
     <div className="flex flex-col items-center gap-0.5">
       <div className="flex items-center gap-1">
         {icon}
-        {!efetivamenteAtivo && <Badge variant="secondary" className="text-[9px] px-1 py-0">Off</Badge>}
       </div>
       {ultima && (
         <span className="text-[10px] text-muted-foreground">

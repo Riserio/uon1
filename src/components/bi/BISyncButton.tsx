@@ -484,7 +484,6 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm">{MODULE_LABELS[mod]}</span>
-                            {!isActive && <Badge variant="secondary" className="text-[10px] px-1 py-0">Inativo</Badge>}
                           </div>
                           {status.lastExecution && (
                             <p className="text-[11px] opacity-70">
