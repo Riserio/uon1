@@ -28,6 +28,9 @@ import { FluxoVisualizationDialog } from "@/components/FluxoVisualizationDialog"
 import { AcompanhamentoLinkDialog } from "@/components/AcompanhamentoLinkDialog";
 import { NovoAtendimentoDialog } from "@/components/NovoAtendimentoDialog";
 import { ConcluirFluxoManualDialog } from "@/components/ConcluirFluxoManualDialog";
+import { GestaoAssociacaoKanban } from "@/components/gestao-associacao/GestaoAssociacaoKanban";
+import { GestaoAssociacaoStatusConfig } from "@/components/gestao-associacao/GestaoAssociacaoStatusConfig";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Index = () => {
   const isMobile = useIsMobile();
@@ -51,6 +54,9 @@ const Index = () => {
   const [acompanhamentoLinkOpen, setAcompanhamentoLinkOpen] = useState(false);
   const [novoAtendimentoDialogOpen, setNovoAtendimentoDialogOpen] = useState(false);
   const [concluirFluxoDialogOpen, setConcluirFluxoDialogOpen] = useState(false);
+  const [gestaoAssociacaoConfigOpen, setGestaoAssociacaoConfigOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("administradora");
+  const [gestaoAssociacaoKey, setGestaoAssociacaoKey] = useState(0);
   const [pendingConcluirData, setPendingConcluirData] = useState<{
     atendimentoId: string;
     currentFluxoId: string;
@@ -824,12 +830,18 @@ const Index = () => {
               <div>
                 <h1 className="text-2xl font-bold text-foreground">Gestão de Atendimentos</h1>
               </div>
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="ml-4">
+                <TabsList>
+                  <TabsTrigger value="administradora">Gestão Administradora</TabsTrigger>
+                  <TabsTrigger value="associacao">Gestão Associação</TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
 
             <div className="flex items-center gap-2">
               <AlertasDialog overdueCount={overdueCount} overdueList={overdueList} />
 
-              {canManageStatus && (
+              {canManageStatus && activeTab === 'administradora' && (
                 <>
                   <Button
                     variant="ghost"
@@ -869,6 +881,17 @@ const Index = () => {
                 </>
               )}
 
+              {canManageStatus && activeTab === 'associacao' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setGestaoAssociacaoConfigOpen(true)}
+                  title="Configurar Status da Gestão Associação"
+                >
+                  <Settings2 className="h-4 w-4" />
+                </Button>
+              )}
+
               <ArquivoDialog onRestaurar={handleRestaurar} refreshKey={arquivoRefreshKey} />
               <UserProfile />
             </div>
@@ -876,70 +899,80 @@ const Index = () => {
         </div>
       </div>
 
-      <div className="bg-muted/30 border-b border-border/50">
-        <div className="container mx-auto px-6 py-4">
-          <Toolbar
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-            filterPriority={filterPriority}
-            onFilterPriorityChange={setFilterPriority}
-            filterResponsavel={filterResponsavel}
-            onFilterResponsavelChange={setFilterResponsavel}
-            filterCorretora={filterCorretora}
-            onFilterCorretoraChange={setFilterCorretora}
-            corretoras={corretoras}
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            onNewAtendimento={handleNewAtendimento}
-            onExportJSON={handleExportJSON}
-            onImportJSON={handleImportJSON}
-            onManageCorretoras={handleManageCorretoras}
-            onManageContatos={handleManageContatos}
-            responsaveis={responsaveis}
-          />
-        </div>
-      </div>
-
-      <div className="bg-card border-b border-border/50">
-        <div className="container mx-auto px-6 py-3 bg-slate-100">
-          <FluxoSelector
-            selectedFluxoId={selectedFluxoId}
-            onFluxoSelect={setSelectedFluxoId}
-            onConfigureFluxos={() => setWorkflowConfigOpen(true)}
-            cardCounts={fluxoCardCounts}
-          />
-        </div>
-      </div>
-
-      <main className="container mx-auto px-6 py-6">
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Carregando atendimentos...</p>
+      {activeTab === 'administradora' && (
+        <>
+          <div className="bg-muted/30 border-b border-border/50">
+            <div className="container mx-auto px-6 py-4">
+              <Toolbar
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                filterPriority={filterPriority}
+                onFilterPriorityChange={setFilterPriority}
+                filterResponsavel={filterResponsavel}
+                onFilterResponsavelChange={setFilterResponsavel}
+                filterCorretora={filterCorretora}
+                onFilterCorretoraChange={setFilterCorretora}
+                corretoras={corretoras}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                onNewAtendimento={handleNewAtendimento}
+                onExportJSON={handleExportJSON}
+                onImportJSON={handleImportJSON}
+                onManageCorretoras={handleManageCorretoras}
+                onManageContatos={handleManageContatos}
+                responsaveis={responsaveis}
+              />
             </div>
           </div>
-        ) : viewMode === "kanban" ? (
-          <KanbanBoard
-            atendimentos={filteredAtendimentos}
-            onUpdateStatus={handleUpdateStatus}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onArquivar={handleArquivar}
-            onViewAndamentos={handleViewAndamentos}
-            statusPrazo={statusPrazo}
-            selectedFluxoId={selectedFluxoId}
-          />
-        ) : (
-          <ListView
-            atendimentos={filteredAtendimentos}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onArquivar={handleArquivar}
-            onViewAndamentos={handleViewAndamentos}
-          />
-        )}
-      </main>
+
+          <div className="bg-card border-b border-border/50">
+            <div className="container mx-auto px-6 py-3 bg-muted/50">
+              <FluxoSelector
+                selectedFluxoId={selectedFluxoId}
+                onFluxoSelect={setSelectedFluxoId}
+                onConfigureFluxos={() => setWorkflowConfigOpen(true)}
+                cardCounts={fluxoCardCounts}
+              />
+            </div>
+          </div>
+
+          <main className="container mx-auto px-6 py-6">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Carregando atendimentos...</p>
+                </div>
+              </div>
+            ) : viewMode === "kanban" ? (
+              <KanbanBoard
+                atendimentos={filteredAtendimentos}
+                onUpdateStatus={handleUpdateStatus}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onArquivar={handleArquivar}
+                onViewAndamentos={handleViewAndamentos}
+                statusPrazo={statusPrazo}
+                selectedFluxoId={selectedFluxoId}
+              />
+            ) : (
+              <ListView
+                atendimentos={filteredAtendimentos}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onArquivar={handleArquivar}
+                onViewAndamentos={handleViewAndamentos}
+              />
+            )}
+          </main>
+        </>
+      )}
+
+      {activeTab === 'associacao' && (
+        <main className="container mx-auto px-6 py-6">
+          <GestaoAssociacaoKanban key={gestaoAssociacaoKey} />
+        </main>
+      )}
 
       <AtendimentoDialog
         open={dialogOpen}
@@ -974,6 +1007,12 @@ const Index = () => {
       <AcompanhamentoLinkDialog open={acompanhamentoLinkOpen} onOpenChange={setAcompanhamentoLinkOpen} />
 
       <NovoAtendimentoDialog open={novoAtendimentoDialogOpen} onOpenChange={setNovoAtendimentoDialogOpen} />
+
+      <GestaoAssociacaoStatusConfig
+        open={gestaoAssociacaoConfigOpen}
+        onOpenChange={setGestaoAssociacaoConfigOpen}
+        onStatusChange={() => setGestaoAssociacaoKey(k => k + 1)}
+      />
 
       {pendingConcluirData && (
         <ConcluirFluxoManualDialog

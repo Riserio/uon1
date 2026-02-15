@@ -8,13 +8,14 @@ import PIDOperacional from "@/components/portal/PIDOperacional";
 import PIDEstudoBase from "@/components/portal/PIDEstudoBase";
 import PIDHistorico from "@/components/portal/PIDHistorico";
 import PortalSinistros from "@/components/portal/PortalSinistros";
+import { GestaoAssociacaoKanban } from "@/components/gestao-associacao/GestaoAssociacaoKanban";
 import PortalComite from "@/components/portal/PortalComite";
 import PortalHeader from "@/components/portal/PortalHeader";
 import PortalPageWrapper from "@/components/portal/PortalPageWrapper";
 import { PortalCarouselProvider } from "@/contexts/PortalCarouselContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare } from "lucide-react";
+import { LogOut, Building2, Activity, BarChart3, Car, Calendar, ShieldCheck, MessageSquare, KanbanSquare } from "lucide-react";
 
 /**
  * PORTAL BI - Business Intelligence para Parceiros
@@ -283,6 +284,7 @@ export default function Portal() {
     { id: "historico", label: "Histórico", icon: Calendar },
     { id: "sinistros", label: "Sinistros", icon: ShieldCheck },
     { id: "comite", label: "Comitê", icon: MessageSquare },
+    { id: "gestao", label: "Gestão", icon: KanbanSquare },
   ];
 
   // Lista de módulos disponíveis para o carrossel
@@ -359,6 +361,10 @@ export default function Portal() {
 
               <TabsContent value="comite" className="space-y-4 mt-0">
                 <PortalComite corretoraId={corretora.id} />
+              </TabsContent>
+
+              <TabsContent value="gestao" className="space-y-4 mt-0">
+                <GestaoAssociacaoKanban readOnly corretoraId={corretora.id} />
               </TabsContent>
             </Tabs>
           </div>

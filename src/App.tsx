@@ -61,6 +61,7 @@ import Landing from "./pages/Landing";
 import Gestao from "./pages/Gestao";
 import Uon1Sign from "./pages/Uon1Sign";
 import ContratoAssinatura from "./pages/ContratoAssinatura";
+import PortalGestaoAssociacao from "./pages/portal/PortalGestaoAssociacao";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -236,6 +237,7 @@ const App = () => (
               <Route path="/portal/mgf-insights" element={<PortalRoute><MGFInsights /></PortalRoute>} />
               <Route path="/portal/cobranca-insights" element={<PortalRoute><CobrancaInsights /></PortalRoute>} />
               <Route path="/portal/estudo-base-insights" element={<PortalRoute><EstudoBaseInsights /></PortalRoute>} />
+              <Route path="/portal/gestao-associacao" element={<PortalRoute><PortalGestaoAssociacao /></PortalRoute>} />
               <Route path="/portal" element={<PortalRoute><Portal /></PortalRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
