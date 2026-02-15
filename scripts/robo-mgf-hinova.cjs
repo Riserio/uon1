@@ -2632,12 +2632,16 @@ async function rodarRobo() {
       
       // Buscar todos os selects
       const todosSelects = document.querySelectorAll('select');
+      let fallbackSelect = null;
+      let fallbackIndex = -1;
+      
       for (const select of todosSelects) {
         const opcoes = Array.from(select.options).map(o => o.text?.trim() || '');
         
         for (let i = 0; i < select.options.length; i++) {
           const optText = normalizar(select.options[i].text || '');
           
+          // Match exato: BI + VANGARD
           if (optText.includes('BI') && optText.includes('VANGARD')) {
             if (resultado.opcoesDisponiveis.length === 0) {
               resultado.opcoesDisponiveis = opcoes;
@@ -2650,6 +2654,15 @@ async function rodarRobo() {
             resultado.valorSelecionado = select.options[i].text?.trim();
             return resultado;
           }
+          
+          // Fallback: qualquer opção contendo VANGARD
+          if (optText.includes('VANGARD') && fallbackSelect === null) {
+            fallbackSelect = select;
+            fallbackIndex = i;
+            if (resultado.opcoesDisponiveis.length === 0) {
+              resultado.opcoesDisponiveis = opcoes;
+            }
+          }
         }
         
         // Guardar opções para diagnóstico
@@ -2660,6 +2673,17 @@ async function rodarRobo() {
         if (temLayoutOuVisualizacao && resultado.opcoesDisponiveis.length === 0) {
           resultado.opcoesDisponiveis = opcoes;
         }
+      }
+      
+      // Fallback: usar qualquer opção com VANGARD no nome
+      if (fallbackSelect && fallbackIndex >= 0) {
+        fallbackSelect.selectedIndex = fallbackIndex;
+        fallbackSelect.dispatchEvent(new Event('input', { bubbles: true }));
+        fallbackSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        resultado.sucesso = true;
+        resultado.metodo = 'SELECT_VANGARD_FALLBACK';
+        resultado.valorSelecionado = fallbackSelect.options[fallbackIndex].text?.trim();
+        return resultado;
       }
       
       return resultado;
