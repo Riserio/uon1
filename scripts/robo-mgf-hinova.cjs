@@ -32,6 +32,13 @@ const readline = require('readline');
 // URL de LOGIN: usar variável de ambiente ou default
 const HINOVA_LOGIN_URL = process.env.HINOVA_URL || 'https://eris.hinova.com.br/sga/sgav4_valecar/v5/login.php';
 
+// Centros de Custo permitidos (EXATAMENTE esses)
+const CENTROS_CUSTO_PERMITIDOS = [
+  'EVENTOS',
+  'EVENTOS NAO PROVISIONADO',
+  'EVENTOS RATEAVEIS',
+];
+
 // Função para derivar URL do relatório MGF a partir da URL de login
 function deriveMGFRelatorioUrl(loginUrl) {
   try {
