@@ -63,6 +63,67 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
     loadData();
   }, [effectiveCorretoraId]);
 
+  const fetchAllBatched = async (activeStatusNames: string[]): Promise<EventoCard[]> => {
+    const BATCH_SIZE = 1000;
+    const MAX_ROWS = 100000;
+    const allData: EventoCard[] = [];
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore && offset < MAX_ROWS) {
+      let query = supabase
+        .from('sga_eventos')
+        .select(`
+          id, protocolo, placa, modelo_veiculo, motivo_evento, situacao_evento,
+          data_evento, data_cadastro_evento, evento_cidade, evento_estado,
+          cooperativa, regional, custo_evento, valor_reparo, valor_protegido_veiculo,
+          classificacao, tipo_evento,
+          sga_importacoes!inner(corretora_id, corretoras(id, nome))
+        `)
+        .in('situacao_evento', activeStatusNames)
+        .order('data_cadastro_evento', { ascending: false })
+        .range(offset, offset + BATCH_SIZE - 1);
+
+      if (effectiveCorretoraId) {
+        query = query.eq('sga_importacoes.corretora_id', effectiveCorretoraId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const mapped = data.map((e: any) => ({
+          id: e.id,
+          protocolo: e.protocolo,
+          placa: e.placa,
+          modelo_veiculo: e.modelo_veiculo,
+          motivo_evento: e.motivo_evento,
+          situacao_evento: e.situacao_evento,
+          data_evento: e.data_evento,
+          data_cadastro_evento: e.data_cadastro_evento,
+          evento_cidade: e.evento_cidade,
+          evento_estado: e.evento_estado,
+          cooperativa: e.cooperativa,
+          regional: e.regional,
+          custo_evento: e.custo_evento,
+          valor_reparo: e.valor_reparo,
+          valor_protegido_veiculo: e.valor_protegido_veiculo,
+          classificacao: e.classificacao,
+          tipo_evento: e.tipo_evento,
+          corretora_id: e.sga_importacoes?.corretora_id || null,
+          corretora_nome: e.sga_importacoes?.corretoras?.nome || null,
+        }));
+        allData.push(...mapped);
+        offset += BATCH_SIZE;
+        hasMore = data.length === BATCH_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    return allData;
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -89,48 +150,7 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
       }
 
       const activeStatusNames = configs.map(c => c.nome);
-
-      let query = supabase
-        .from('sga_eventos')
-        .select(`
-          id, protocolo, placa, modelo_veiculo, motivo_evento, situacao_evento,
-          data_evento, data_cadastro_evento, evento_cidade, evento_estado,
-          cooperativa, regional, custo_evento, valor_reparo, valor_protegido_veiculo,
-          classificacao, tipo_evento,
-          sga_importacoes!inner(corretora_id, corretoras(id, nome))
-        `)
-        .in('situacao_evento', activeStatusNames)
-        .order('data_cadastro_evento', { ascending: false });
-
-      if (effectiveCorretoraId) {
-        query = query.eq('sga_importacoes.corretora_id', effectiveCorretoraId);
-      }
-
-      const { data: eventosData, error: eventosError } = await query.limit(5000);
-      if (eventosError) throw eventosError;
-
-      const mapped: EventoCard[] = (eventosData || []).map((e: any) => ({
-        id: e.id,
-        protocolo: e.protocolo,
-        placa: e.placa,
-        modelo_veiculo: e.modelo_veiculo,
-        motivo_evento: e.motivo_evento,
-        situacao_evento: e.situacao_evento,
-        data_evento: e.data_evento,
-        data_cadastro_evento: e.data_cadastro_evento,
-        evento_cidade: e.evento_cidade,
-        evento_estado: e.evento_estado,
-        cooperativa: e.cooperativa,
-        regional: e.regional,
-        custo_evento: e.custo_evento,
-        valor_reparo: e.valor_reparo,
-        valor_protegido_veiculo: e.valor_protegido_veiculo,
-        classificacao: e.classificacao,
-        tipo_evento: e.tipo_evento,
-        corretora_id: e.sga_importacoes?.corretora_id || null,
-        corretora_nome: e.sga_importacoes?.corretoras?.nome || null,
-      }));
-
+      const mapped = await fetchAllBatched(activeStatusNames);
       setEventos(mapped);
 
       // Load corretoras for filter (admin view without specific association selected)

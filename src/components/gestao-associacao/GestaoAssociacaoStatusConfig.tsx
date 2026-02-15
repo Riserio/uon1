@@ -280,17 +280,17 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent className="max-w-3xl max-h-[90vh]">
-        <DialogHeader>
+      <ResponsiveDialogContent className="max-w-3xl flex flex-col" style={{ maxHeight: '90vh' }}>
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Configurar Status - Gestão Associação</DialogTitle>
           <DialogDescription>
             Selecione a associação e defina quais situações dos eventos serão exibidas como colunas no kanban.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="flex flex-col flex-1 min-h-0 gap-4">
           {/* Association selector */}
-          <div className="space-y-2">
+          <div className="space-y-2 flex-shrink-0">
             <Label className="text-sm font-medium">Associação</Label>
             <Select value={configCorretoraId || ''} onValueChange={(v) => setConfigCorretoraId(v)}>
               <SelectTrigger>
@@ -308,26 +308,28 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
             <>
               {/* Unconfigured statuses from BI */}
               {unconfiguredSituacoes.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-2 flex-shrink-0">
                   <Label className="text-sm font-medium">Situações disponíveis no BI (clique para adicionar)</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {unconfiguredSituacoes.map(s => (
-                      <Badge
-                        key={s}
-                        variant="outline"
-                        className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
-                        onClick={() => handleImportSituacao(s)}
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        {s}
-                      </Badge>
-                    ))}
-                  </div>
+                  <ScrollArea className="max-h-32">
+                    <div className="flex flex-wrap gap-2 pr-4">
+                      {unconfiguredSituacoes.map(s => (
+                        <Badge
+                          key={s}
+                          variant="outline"
+                          className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                          onClick={() => handleImportSituacao(s)}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          {s}
+                        </Badge>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </div>
               )}
 
               {/* Configured statuses */}
-              <ScrollArea className="h-[calc(90vh-400px)] pr-4">
+              <div className="flex-1 min-h-0 overflow-y-auto pr-2">
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                   <SortableContext items={statuses.map(s => s.id)} strategy={verticalListSortingStrategy}>
                     <div className="space-y-2">
@@ -347,9 +349,9 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
                     </div>
                   </SortableContext>
                 </DndContext>
-              </ScrollArea>
+              </div>
 
-              <Button variant="outline" onClick={loadData} disabled={loading} className="w-full">
+              <Button variant="outline" onClick={loadData} disabled={loading} className="w-full flex-shrink-0">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Recarregar situações do BI
               </Button>
