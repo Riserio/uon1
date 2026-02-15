@@ -26,30 +26,39 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const githubPat = Deno.env.get("GITHUB_PAT");
     const githubRepoOwner = Deno.env.get("GITHUB_REPO_OWNER");
     const githubRepoName = Deno.env.get("GITHUB_REPO_NAME");
-    
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Verificar autenticação
     const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
+    if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
         JSON.stringify({ success: false, message: "Não autorizado" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    // Usar anon key + auth header para validar o token do usuário
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { data, error: claimsError } = await authClient.auth.getClaims(token);
     
-    if (authError || !user) {
+    if (claimsError || !data?.claims) {
       return new Response(
         JSON.stringify({ success: false, message: "Token inválido" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const user = { id: data.claims.sub as string, email: data.claims.email as string };
+
+    // Cliente admin para operações no banco
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Verificar secrets do GitHub
     if (!githubPat || !githubRepoOwner || !githubRepoName) {
