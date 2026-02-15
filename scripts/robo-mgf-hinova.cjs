@@ -1729,35 +1729,10 @@ async function aguardarDownloadHibrido(context, page, downloadDir, semanticName,
 // ============================================
 // MAPEAMENTO DE COLUNAS MGF
 // ============================================
-const COLUMN_MAP = {
-  "DATA": "Data",
-  "DATA LANCAMENTO": "Data",
-  "DATA LANÇAMENTO": "Data",
-  "CENTRO DE CUSTO": "Centro de Custo",
-  "DEPARTAMENTO": "Departamento",
-  "DESCRICAO": "Descricao",
-  "DESCRIÇÃO": "Descricao",
-  "HISTORICO": "Historico",
-  "HISTÓRICO": "Historico",
-  "VALOR": "Valor",
-  "TIPO": "Tipo",
-  "ENTRADA": "Entrada",
-  "SAIDA": "Saida",
-  "SAÍDA": "Saida",
-  "SALDO": "Saldo",
-  "DOCUMENTO": "Documento",
-  "NUMERO DOCUMENTO": "Numero Documento",
-  "NÚMERO DOCUMENTO": "Numero Documento",
-  "CONTA": "Conta",
-  "BANCO": "Banco",
-  "CATEGORIA": "Categoria",
-  "SUBCATEGORIA": "Subcategoria",
-  "OBSERVACAO": "Observacao",
-  "OBSERVAÇÃO": "Observacao",
-  "STATUS": "Status",
-  "SITUACAO": "Situacao",
-  "SITUAÇÃO": "Situacao",
-};
+// PASSTHROUGH MODE: O robô envia TODAS as colunas do relatório para o webhook.
+// O webhook (webhook-mgf-hinova) possui o COLUMN_MAP completo e faz o mapeamento correto.
+// Isso garante que campos como Protocolo Evento, Associado, Placa, Cooperativa etc. não se percam.
+const PASSTHROUGH_MODE = true;
 
 function normalizeHeader(header) {
   return String(header).trim().toUpperCase().replace(/\s+/g, ' ');
@@ -1871,27 +1846,16 @@ async function processarHtmlRelatorioStream(filePath) {
     if (headerRowIndex === -1 && currentRowIndex <= 500) {
       if (isHeaderRow(cells)) {
         headerRowIndex = currentRowIndex;
-        headersEncontrados = cells.map(h => normalizeHeader(h));
+        headersEncontrados = cells.map(h => h.trim());
         log(`🎯 Cabeçalho detectado na linha ${currentRowIndex}: ${cells.length} colunas`, LOG_LEVELS.SUCCESS);
         log(`📋 Cabeçalhos: ${cells.slice(0, 8).join(' | ')}...`, LOG_LEVELS.DEBUG);
         
+        // PASSTHROUGH: usar nome original do cabeçalho como chave
+        // O webhook já possui o COLUMN_MAP completo para mapeamento
         for (let i = 0; i < headersEncontrados.length; i++) {
-          const normalized = headersEncontrados[i];
-          let mappedName = null;
-          
-          if (COLUMN_MAP[normalized]) {
-            mappedName = COLUMN_MAP[normalized];
-          } else {
-            for (const [key, value] of Object.entries(COLUMN_MAP)) {
-              if (normalized.includes(key) || key.includes(normalized)) {
-                mappedName = value;
-                break;
-              }
-            }
-          }
-          headerMapping.push(mappedName);
+          headerMapping.push(headersEncontrados[i] || null);
         }
-        log(`Mapeamento: ${headerMapping.filter(Boolean).length} colunas reconhecidas`, LOG_LEVELS.DEBUG);
+        log(`Passthrough: ${headerMapping.filter(Boolean).length} colunas serão enviadas ao webhook`, LOG_LEVELS.DEBUG);
         return;
       }
     }
@@ -1909,22 +1873,16 @@ async function processarHtmlRelatorioStream(filePath) {
     const rowData = {};
     let temDados = false;
     
+    // PASSTHROUGH: enviar todas as colunas com nome original como chave
     for (let j = 0; j < cells.length && j < headerMapping.length; j++) {
-      const mappedHeader = headerMapping[j];
-      if (!mappedHeader) continue;
+      const headerName = headerMapping[j];
+      if (!headerName) continue;
       
       let value = cells[j];
-      
-      if (mappedHeader.includes('Data')) {
-        value = parseExcelDate(value);
-      } else if (mappedHeader === 'Valor' || mappedHeader === 'Entrada' || mappedHeader === 'Saida' || mappedHeader === 'Saldo') {
-        value = parseMoneyValue(value);
-      } else {
-        value = value ? String(value).trim() : null;
-      }
+      value = value ? String(value).trim() : null;
       
       if (value !== null && value !== '') {
-        rowData[mappedHeader] = value;
+        rowData[headerName] = value;
         temDados = true;
       }
     }
@@ -2078,9 +2036,9 @@ function processarHtmlRelatorio(filePath) {
   for (let i = 0; i < Math.min(rows.length, 500); i++) {
     if (isHeaderRow(rows[i])) {
       headerRowIndex = i;
-      headersEncontrados = rows[i].map(h => normalizeHeader(h));
-      log(`🎯 Cabeçalho detectado na linha ${i}: ${rows[i].length} colunas`, LOG_LEVELS.SUCCESS);
-      log(`📋 Cabeçalhos: ${rows[i].slice(0, 8).join(' | ')}...`, LOG_LEVELS.DEBUG);
+      headersEncontrados = rows[headerRowIndex].map(h => h.trim());
+      log(`🎯 Cabeçalho detectado na linha ${headerRowIndex}: ${rows[headerRowIndex].length} colunas`, LOG_LEVELS.SUCCESS);
+      log(`📋 Cabeçalhos: ${rows[headerRowIndex].slice(0, 8).join(' | ')}...`, LOG_LEVELS.DEBUG);
       break;
     }
   }
@@ -2099,25 +2057,9 @@ function processarHtmlRelatorio(filePath) {
     headerRowIndex = 0;
   }
   
-  const headerMapping = [];
-  for (let i = 0; i < headersEncontrados.length; i++) {
-    const normalized = headersEncontrados[i];
-    let mappedName = null;
-    
-    if (COLUMN_MAP[normalized]) {
-      mappedName = COLUMN_MAP[normalized];
-    } else {
-      for (const [key, value] of Object.entries(COLUMN_MAP)) {
-        if (normalized.includes(key) || key.includes(normalized)) {
-          mappedName = value;
-          break;
-        }
-      }
-    }
-    headerMapping.push(mappedName);
-  }
-  
-  log(`Mapeamento: ${headerMapping.filter(Boolean).length} colunas reconhecidas`, LOG_LEVELS.DEBUG);
+  // PASSTHROUGH: usar nome original do cabeçalho
+  const headerMapping = headersEncontrados.map(h => h || null);
+  log(`Passthrough: ${headerMapping.filter(Boolean).length} colunas serão enviadas ao webhook`, LOG_LEVELS.DEBUG);
   
   const dataStartIndex = headerRowIndex + 1;
   const totalDataRows = rows.length - dataStartIndex;
@@ -2129,22 +2071,16 @@ function processarHtmlRelatorio(filePath) {
     const rowData = {};
     let temDados = false;
     
+    // PASSTHROUGH: enviar todas as colunas com nome original
     for (let j = 0; j < cells.length && j < headerMapping.length; j++) {
-      const mappedHeader = headerMapping[j];
-      if (!mappedHeader) continue;
+      const headerName = headerMapping[j];
+      if (!headerName) continue;
       
       let value = cells[j];
-      
-      if (mappedHeader.includes('Data')) {
-        value = parseExcelDate(value);
-      } else if (mappedHeader === 'Valor' || mappedHeader === 'Entrada' || mappedHeader === 'Saida' || mappedHeader === 'Saldo') {
-        value = parseMoneyValue(value);
-      } else {
-        value = value ? String(value).trim() : null;
-      }
+      value = value ? String(value).trim() : null;
       
       if (value !== null && value !== '') {
-        rowData[mappedHeader] = value;
+        rowData[headerName] = value;
         temDados = true;
       }
     }
@@ -2205,21 +2141,10 @@ function processarExcel(filePath) {
   const headersOriginais = Object.keys(primeiraLinha);
   log(`Colunas encontradas: ${headersOriginais.length}`, LOG_LEVELS.DEBUG);
   
-  log(`🔄 Mapeando colunas...`, LOG_LEVELS.DEBUG);
-  const headerMapping = {};
-  for (const header of headersOriginais) {
-    const normalized = normalizeHeader(header);
-    if (COLUMN_MAP[normalized]) {
-      headerMapping[header] = COLUMN_MAP[normalized];
-    } else {
-      for (const [key, value] of Object.entries(COLUMN_MAP)) {
-        if (normalized.includes(key) || key.includes(normalized)) {
-          headerMapping[header] = value;
-          break;
-        }
-      }
-    }
-  }
+  // PASSTHROUGH: enviar TODAS as colunas com nome original para o webhook
+  // O webhook possui o COLUMN_MAP completo e faz o mapeamento correto
+  log(`🔄 Passthrough: ${headersOriginais.length} colunas serão enviadas ao webhook`, LOG_LEVELS.DEBUG);
+  log(`📋 Colunas: ${headersOriginais.slice(0, 8).join(' | ')}...`, LOG_LEVELS.DEBUG);
   
   log(`🔄 Processando ${rawData.length} registros...`, LOG_LEVELS.INFO);
   const dados = [];
@@ -2230,19 +2155,12 @@ function processarExcel(filePath) {
     const rowData = {};
     let temDados = false;
     
-    for (const [originalHeader, mappedHeader] of Object.entries(headerMapping)) {
-      let value = row[originalHeader];
-      
-      if (mappedHeader.includes('Data')) {
-        value = parseExcelDate(value);
-      } else if (mappedHeader === 'Valor' || mappedHeader === 'Entrada' || mappedHeader === 'Saida' || mappedHeader === 'Saldo') {
-        value = parseMoneyValue(value);
-      } else {
-        value = value ? String(value).trim() : null;
-      }
+    for (const header of headersOriginais) {
+      let value = row[header];
+      value = value !== undefined && value !== null && value !== '' ? String(value).trim() : null;
       
       if (value !== null && value !== '') {
-        rowData[mappedHeader] = value;
+        rowData[header] = value;
         temDados = true;
       }
     }
