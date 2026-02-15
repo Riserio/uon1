@@ -2845,6 +2845,37 @@ async function rodarRobo() {
     log('═'.repeat(50), LOG_LEVELS.INFO);
     log('   Marcar APENAS: EVENTOS, EVENTOS NAO PROVISIONADO, EVENTOS RATEAVEIS', LOG_LEVELS.INFO);
     
+    // PASSO 1: Expandir a seção "CENTRO CUSTO" clicando nela
+    log('   🔍 Procurando seção "CENTRO CUSTO" para expandir...', LOG_LEVELS.INFO);
+    const expandiuCentroCusto = await page.evaluate(() => {
+      // Procurar por links, botões, labels, spans, divs que contenham "CENTRO CUSTO" ou "Centro de Custo"
+      const seletores = [
+        'a', 'button', 'label', 'span', 'div', 'td', 'th', 'legend', 'h3', 'h4', 'h5', 'p',
+        'li', 'dt', 'summary', '.accordion-toggle', '.panel-title', '.card-header'
+      ];
+      
+      for (const sel of seletores) {
+        const elements = document.querySelectorAll(sel);
+        for (const el of elements) {
+          const texto = (el.textContent || '').toUpperCase().trim();
+          // Verifica se contém "CENTRO" e "CUSTO" (pode ser "CENTRO CUSTO", "Centro de Custo", etc)
+          if (texto.includes('CENTRO') && texto.includes('CUSTO') && texto.length < 80) {
+            el.click();
+            return { found: true, text: texto, tag: el.tagName };
+          }
+        }
+      }
+      return { found: false };
+    });
+    
+    if (expandiuCentroCusto.found) {
+      log(`   ✅ Seção expandida: "${expandiuCentroCusto.text}" (${expandiuCentroCusto.tag})`, LOG_LEVELS.SUCCESS);
+      // Aguardar checkboxes aparecerem após expandir
+      await page.waitForTimeout(2000);
+    } else {
+      log('   ⚠️ Seção "CENTRO CUSTO" não encontrada como botão/link, tentando prosseguir...', LOG_LEVELS.WARN);
+    }
+    
     const MAX_TENTATIVAS_CENTRO_CUSTO = 3;
     let centroCustoValidado = false;
     
