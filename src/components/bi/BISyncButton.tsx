@@ -543,7 +543,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           </TabsContent>
 
           <TabsContent value="config" className="m-0 p-3">
-            <ScrollArea className="max-h-[400px]">
+            <ScrollArea className="max-h-[500px]">
               {loading ? (
                 <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" /></div>
               ) : (
