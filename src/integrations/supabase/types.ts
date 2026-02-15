@@ -2373,6 +2373,9 @@ export type Database = {
           layout_eventos: string | null
           layout_mgf: string | null
           updated_at: string
+          url_cobranca: string | null
+          url_eventos: string | null
+          url_mgf: string | null
         }
         Insert: {
           ativo_cobranca?: boolean | null
@@ -2390,6 +2393,9 @@ export type Database = {
           layout_eventos?: string | null
           layout_mgf?: string | null
           updated_at?: string
+          url_cobranca?: string | null
+          url_eventos?: string | null
+          url_mgf?: string | null
         }
         Update: {
           ativo_cobranca?: boolean | null
@@ -2407,6 +2413,9 @@ export type Database = {
           layout_eventos?: string | null
           layout_mgf?: string | null
           updated_at?: string
+          url_cobranca?: string | null
+          url_eventos?: string | null
+          url_mgf?: string | null
         }
         Relationships: [
           {

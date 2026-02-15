@@ -30,6 +30,9 @@ interface HinovaCredenciais {
   layout_cobranca: string;
   layout_eventos: string;
   layout_mgf: string;
+  url_cobranca: string;
+  url_eventos: string;
+  url_mgf: string;
   hora_agendada: string;
   ativo_cobranca: boolean;
   ativo_eventos: boolean;
@@ -92,6 +95,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     corretora_id: corretoraId,
     hinova_url: "", hinova_user: "", hinova_pass: "", hinova_codigo_cliente: "",
     layout_cobranca: "", layout_eventos: "", layout_mgf: "",
+    url_cobranca: "", url_eventos: "", url_mgf: "",
     hora_agendada: "09:00",
     ativo_cobranca: false, ativo_eventos: false, ativo_mgf: false,
   });
@@ -132,6 +136,9 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           layout_cobranca: data.layout_cobranca || "",
           layout_eventos: data.layout_eventos || "",
           layout_mgf: data.layout_mgf || "",
+          url_cobranca: data.url_cobranca || "",
+          url_eventos: data.url_eventos || "",
+          url_mgf: data.url_mgf || "",
           hora_agendada: data.hora_agendada || "09:00",
           ativo_cobranca: data.ativo_cobranca || false,
           ativo_eventos: data.ativo_eventos || false,
@@ -214,6 +221,9 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         layout_cobranca: creds.layout_cobranca,
         layout_eventos: creds.layout_eventos,
         layout_mgf: creds.layout_mgf,
+        url_cobranca: creds.url_cobranca,
+        url_eventos: creds.url_eventos,
+        url_mgf: creds.url_mgf,
         hora_agendada: creds.hora_agendada,
         ativo_cobranca: creds.ativo_cobranca,
         ativo_eventos: creds.ativo_eventos,
@@ -421,16 +431,16 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         <Button
           variant="outline"
           size="sm"
-          className={`gap-2 relative ${anyExecuting ? 'border-blue-400 text-blue-600' : ''}`}
+          className={`gap-2 relative rounded-xl border-2 transition-all duration-300 ${anyExecuting ? 'border-blue-400 bg-blue-500/10 text-blue-600 shadow-md shadow-blue-500/20' : 'hover:border-primary/50 hover:bg-primary/5'}`}
         >
           {anyExecuting ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <Zap className="h-4 w-4" />
           )}
-          <span className="hidden sm:inline">Sincronizar</span>
+          <span className="hidden sm:inline font-medium">Sincronizar</span>
           {anyExecuting && (
-            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" />
+            <span className="absolute -top-1.5 -right-1.5 h-3 w-3 rounded-full bg-blue-500 animate-pulse ring-2 ring-background" />
           )}
         </Button>
       </PopoverTrigger>
@@ -538,9 +548,11 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                 <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" /></div>
               ) : (
                 <div className="space-y-3">
+                  {/* Credenciais */}
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Credenciais</p>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">URL do Portal Hinova</Label>
-                    <Input value={creds.hinova_url} onChange={e => setCreds(p => ({...p, hinova_url: e.target.value}))} placeholder="https://..." className="h-8 text-xs" />
+                    <Label className="text-xs">URL de Login Hinova</Label>
+                    <Input value={creds.hinova_url} onChange={e => setCreds(p => ({...p, hinova_url: e.target.value}))} placeholder="https://sga.hinova.com.br/..." className="h-8 text-xs" />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1.5">
@@ -566,32 +578,34 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                     </div>
                   </div>
                   
+                  {/* URLs dos relatórios */}
                   <div className="pt-2 border-t space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Layouts por Módulo</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">URLs dos Relatórios</p>
+                    <p className="text-[11px] text-muted-foreground">URLs diretas das páginas de relatório. Após login, o robô navega direto para elas.</p>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Cobrança</Label>
                       <div className="flex items-center gap-2">
-                        <Input value={creds.layout_cobranca} onChange={e => setCreds(p => ({...p, layout_cobranca: e.target.value}))} placeholder="BI - VANGARD COBRANÇA" className="h-8 text-xs flex-1" />
+                        <Input value={creds.url_cobranca} onChange={e => setCreds(p => ({...p, url_cobranca: e.target.value}))} placeholder="https://sga.hinova.com.br/.../relatorio/relatorioBoletos.php" className="h-8 text-xs flex-1" />
                         <Switch checked={creds.ativo_cobranca} onCheckedChange={v => setCreds(p => ({...p, ativo_cobranca: v}))} />
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Eventos</Label>
                       <div className="flex items-center gap-2">
-                        <Input value={creds.layout_eventos} onChange={e => setCreds(p => ({...p, layout_eventos: e.target.value}))} placeholder="BI - VANGARD" className="h-8 text-xs flex-1" />
+                        <Input value={creds.url_eventos} onChange={e => setCreds(p => ({...p, url_eventos: e.target.value}))} placeholder="https://sga.hinova.com.br/.../relatorio/relatorioEvento.php" className="h-8 text-xs flex-1" />
                         <Switch checked={creds.ativo_eventos} onCheckedChange={v => setCreds(p => ({...p, ativo_eventos: v}))} />
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">MGF</Label>
                       <div className="flex items-center gap-2">
-                        <Input value={creds.layout_mgf} onChange={e => setCreds(p => ({...p, layout_mgf: e.target.value}))} placeholder="BI VANGARD FINANCEIROS EVENTOS" className="h-8 text-xs flex-1" />
+                        <Input value={creds.url_mgf} onChange={e => setCreds(p => ({...p, url_mgf: e.target.value}))} placeholder="https://sga.hinova.com.br/.../v5/Sgfrelatorio/lancamento" className="h-8 text-xs flex-1" />
                         <Switch checked={creds.ativo_mgf} onCheckedChange={v => setCreds(p => ({...p, ativo_mgf: v}))} />
                       </div>
                     </div>
                   </div>
 
-                  <Button onClick={handleSave} disabled={saving} className="w-full h-8 text-xs gap-1.5">
+                  <Button onClick={handleSave} disabled={saving} className="w-full h-8 text-xs gap-1.5 rounded-xl">
                     {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                     Salvar Configuração
                   </Button>
