@@ -1004,7 +1004,7 @@ const Index = () => {
             </div>
           </div>
           <main className="container mx-auto px-6 py-6">
-            <GestaoAssociacaoKanban key={gestaoAssociacaoKey} selectedCorretoraId={gestaoAssocCorretoraId} />
+            <GestaoAssociacaoKanban key={gestaoAssociacaoKey} selectedCorretoraId={gestaoAssocCorretoraId} onConfigureFluxos={() => setGestaoAssociacaoConfigOpen(true)} />
           </main>
         </>
       )}

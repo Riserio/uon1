@@ -2225,12 +2225,57 @@ export type Database = {
           },
         ]
       }
+      gestao_associacao_fluxos: {
+        Row: {
+          ativo: boolean
+          cor: string
+          corretora_id: string
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          ordem: number
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string
+          corretora_id: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          ordem?: number
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string
+          corretora_id?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          ordem?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gestao_associacao_fluxos_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gestao_associacao_status_config: {
         Row: {
           ativo: boolean
           cor: string
           corretora_id: string | null
           created_at: string
+          fluxo_id: string | null
           id: string
           nome: string
           ordem: number
@@ -2241,6 +2286,7 @@ export type Database = {
           cor?: string
           corretora_id?: string | null
           created_at?: string
+          fluxo_id?: string | null
           id?: string
           nome: string
           ordem?: number
@@ -2251,6 +2297,7 @@ export type Database = {
           cor?: string
           corretora_id?: string | null
           created_at?: string
+          fluxo_id?: string | null
           id?: string
           nome?: string
           ordem?: number
@@ -2262,6 +2309,13 @@ export type Database = {
             columns: ["corretora_id"]
             isOneToOne: false
             referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gestao_associacao_status_config_fluxo_id_fkey"
+            columns: ["fluxo_id"]
+            isOneToOne: false
+            referencedRelation: "gestao_associacao_fluxos"
             referencedColumns: ["id"]
           },
         ]

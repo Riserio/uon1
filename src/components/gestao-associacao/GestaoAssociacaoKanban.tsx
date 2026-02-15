@@ -10,6 +10,7 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { KanbanColumn } from '@/components/KanbanColumn';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { GestaoAssociacaoFluxoSelector } from './GestaoAssociacaoFluxoSelector';
 
 interface StatusConfig {
   id: string;
@@ -18,6 +19,7 @@ interface StatusConfig {
   ordem: number;
   ativo: boolean;
   corretora_id: string | null;
+  fluxo_id: string | null;
 }
 
 interface EventoCard {
@@ -45,18 +47,20 @@ interface EventoCard {
 interface GestaoAssociacaoKanbanProps {
   readOnly?: boolean;
   corretoraId?: string | null;
-  selectedCorretoraId?: string | null; // For admin filtering by association
+  selectedCorretoraId?: string | null;
+  onConfigureFluxos?: () => void;
 }
 
-export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selectedCorretoraId }: GestaoAssociacaoKanbanProps) {
-  const [statusConfigs, setStatusConfigs] = useState<StatusConfig[]>([]);
+export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selectedCorretoraId, onConfigureFluxos }: GestaoAssociacaoKanbanProps) {
+  const [allStatusConfigs, setAllStatusConfigs] = useState<StatusConfig[]>([]);
   const [eventos, setEventos] = useState<EventoCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCorretora, setFilterCorretora] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [corretoras, setCorretoras] = useState<{ id: string; nome: string }[]>([]);
+  const [selectedFluxoId, setSelectedFluxoId] = useState<string | null>(null);
+  const [fluxoRefreshKey, setFluxoRefreshKey] = useState(0);
 
-  // The effective corretora for filtering: portal mode or admin selected
   const effectiveCorretoraId = corretoraId || selectedCorretoraId || null;
 
   useEffect(() => {
@@ -93,23 +97,14 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
 
       if (data && data.length > 0) {
         const mapped = data.map((e: any) => ({
-          id: e.id,
-          protocolo: e.protocolo,
-          placa: e.placa,
-          modelo_veiculo: e.modelo_veiculo,
-          motivo_evento: e.motivo_evento,
-          situacao_evento: e.situacao_evento,
-          data_evento: e.data_evento,
-          data_cadastro_evento: e.data_cadastro_evento,
-          evento_cidade: e.evento_cidade,
-          evento_estado: e.evento_estado,
-          cooperativa: e.cooperativa,
-          regional: e.regional,
-          custo_evento: e.custo_evento,
-          valor_reparo: e.valor_reparo,
-          valor_protegido_veiculo: e.valor_protegido_veiculo,
-          classificacao: e.classificacao,
-          tipo_evento: e.tipo_evento,
+          id: e.id, protocolo: e.protocolo, placa: e.placa,
+          modelo_veiculo: e.modelo_veiculo, motivo_evento: e.motivo_evento,
+          situacao_evento: e.situacao_evento, data_evento: e.data_evento,
+          data_cadastro_evento: e.data_cadastro_evento, evento_cidade: e.evento_cidade,
+          evento_estado: e.evento_estado, cooperativa: e.cooperativa,
+          regional: e.regional, custo_evento: e.custo_evento,
+          valor_reparo: e.valor_reparo, valor_protegido_veiculo: e.valor_protegido_veiculo,
+          classificacao: e.classificacao, tipo_evento: e.tipo_evento,
           corretora_id: e.sga_importacoes?.corretora_id || null,
           corretora_nome: e.sga_importacoes?.corretoras?.nome || null,
         }));
@@ -120,7 +115,6 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
         hasMore = false;
       }
     }
-
     return allData;
   };
 
@@ -128,7 +122,6 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
     try {
       setLoading(true);
 
-      // Load status configs filtered by corretora if applicable
       let configQuery = supabase
         .from('gestao_associacao_status_config')
         .select('*')
@@ -141,7 +134,7 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
 
       const { data: configs, error: configError } = await configQuery;
       if (configError) throw configError;
-      setStatusConfigs((configs || []) as StatusConfig[]);
+      setAllStatusConfigs((configs || []) as StatusConfig[]);
 
       if (!configs || configs.length === 0) {
         setEventos([]);
@@ -153,13 +146,10 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
       const mapped = await fetchAllBatched(activeStatusNames);
       setEventos(mapped);
 
-      // Load corretoras for filter (admin view without specific association selected)
       if (!effectiveCorretoraId) {
         const uniqueCorretoras = new Map<string, string>();
         mapped.forEach(e => {
-          if (e.corretora_id && e.corretora_nome) {
-            uniqueCorretoras.set(e.corretora_id, e.corretora_nome);
-          }
+          if (e.corretora_id && e.corretora_nome) uniqueCorretoras.set(e.corretora_id, e.corretora_nome);
         });
         setCorretoras(Array.from(uniqueCorretoras.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome)));
       }
@@ -169,6 +159,24 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
       setLoading(false);
     }
   };
+
+  // Filter status configs by selected fluxo
+  const statusConfigs = useMemo(() => {
+    if (!selectedFluxoId) return allStatusConfigs;
+    return allStatusConfigs.filter(s => s.fluxo_id === selectedFluxoId);
+  }, [allStatusConfigs, selectedFluxoId]);
+
+  // Compute card counts per fluxo
+  const fluxoCardCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    allStatusConfigs.forEach(config => {
+      if (config.fluxo_id) {
+        const count = eventos.filter(e => e.situacao_evento === config.nome).length;
+        counts[config.fluxo_id] = (counts[config.fluxo_id] || 0) + count;
+      }
+    });
+    return counts;
+  }, [allStatusConfigs, eventos]);
 
   const filteredEventos = useMemo(() => {
     return eventos.filter(e => {
@@ -185,11 +193,8 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    try {
-      return format(parseISO(dateStr), 'dd/MM/yyyy', { locale: ptBR });
-    } catch {
-      return dateStr;
-    }
+    try { return format(parseISO(dateStr), 'dd/MM/yyyy', { locale: ptBR }); }
+    catch { return dateStr; }
   };
 
   const formatCurrency = (value: number | null) => {
@@ -210,12 +215,12 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
     );
   }
 
-  if (statusConfigs.length === 0) {
+  if (allStatusConfigs.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         <p className="text-lg font-medium">Nenhum status configurado</p>
         <p className="text-sm mt-1">
-          {effectiveCorretoraId 
+          {effectiveCorretoraId
             ? 'Configure os status para esta associação nas configurações.'
             : 'Selecione uma associação e configure os status nas configurações.'}
         </p>
@@ -225,6 +230,20 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
 
   return (
     <div className="space-y-4">
+      {/* Fluxo Selector */}
+      {effectiveCorretoraId && (
+        <div className="bg-card border-b border-border/50 rounded-lg">
+          <GestaoAssociacaoFluxoSelector
+            corretoraId={effectiveCorretoraId}
+            selectedFluxoId={selectedFluxoId}
+            onFluxoSelect={setSelectedFluxoId}
+            onConfigureFluxos={onConfigureFluxos}
+            cardCounts={fluxoCardCounts}
+            refreshKey={fluxoRefreshKey}
+          />
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -254,103 +273,79 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
         </Badge>
       </div>
 
-      {/* Kanban Board - using same KanbanColumn layout as admin */}
-      <div className="w-full">
-        <ScrollArea className={needsScroll ? "w-full" : ""}>
-          <div
-            className={cn(
-              "flex gap-4",
-              needsScroll ? 'min-w-max pb-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-            )}
-            style={needsScroll ? { minWidth: `${statusConfigs.length * 320}px` } : {}}
-          >
-            {statusConfigs.map((config) => {
-              const columnEventos = filteredEventos.filter(e => e.situacao_evento === config.nome);
-
-              return (
-                <div key={config.id} className={cn(needsScroll ? 'w-80 flex-shrink-0' : 'min-w-0')}>
-                  <KanbanColumn
-                    title={config.nome}
-                    count={columnEventos.length}
-                    color={config.cor}
-                    onDrop={() => {}} // read-only, no drop
-                  >
-                    {columnEventos.map((evento) => (
-                      <Card key={evento.id} className="shadow-sm hover:shadow-md transition-shadow cursor-default">
-                        <CardContent className="p-3 space-y-2">
-                          {/* Header */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5">
-                              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="text-xs font-mono font-medium text-primary">
-                                {evento.protocolo || 'S/N'}
-                              </span>
+      {/* Kanban Board */}
+      {statusConfigs.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <p>Nenhum status vinculado a este fluxo.</p>
+          <p className="text-sm mt-1">Configure os status nas configurações e vincule-os a um fluxo.</p>
+        </div>
+      ) : (
+        <div className="w-full">
+          <ScrollArea className={needsScroll ? "w-full" : ""}>
+            <div
+              className={cn(
+                "flex gap-4",
+                needsScroll ? 'min-w-max pb-4' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+              )}
+              style={needsScroll ? { minWidth: `${statusConfigs.length * 320}px` } : {}}
+            >
+              {statusConfigs.map((config) => {
+                const columnEventos = filteredEventos.filter(e => e.situacao_evento === config.nome);
+                return (
+                  <div key={config.id} className={cn(needsScroll ? 'w-80 flex-shrink-0' : 'min-w-0')}>
+                    <KanbanColumn title={config.nome} count={columnEventos.length} color={config.cor} onDrop={() => {}}>
+                      {columnEventos.map((evento) => (
+                        <Card key={evento.id} className="shadow-sm hover:shadow-md transition-shadow cursor-default">
+                          <CardContent className="p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-xs font-mono font-medium text-primary">{evento.protocolo || 'S/N'}</span>
+                              </div>
+                              {evento.classificacao && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">{evento.classificacao}</Badge>
+                              )}
                             </div>
-                            {evento.classificacao && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                {evento.classificacao}
-                              </Badge>
+                            <p className="text-sm font-medium truncate">{evento.motivo_evento || 'Sem motivo'}</p>
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Car className="h-3 w-3" />
+                              <span className="truncate">{evento.placa || '-'} {evento.modelo_veiculo ? `• ${evento.modelo_veiculo}` : ''}</span>
+                            </div>
+                            {(evento.evento_cidade || evento.evento_estado) && (
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <MapPin className="h-3 w-3" />
+                                <span className="truncate">{[evento.evento_cidade, evento.evento_estado].filter(Boolean).join(' - ')}</span>
+                              </div>
                             )}
-                          </div>
-
-                          {/* Motivo */}
-                          <p className="text-sm font-medium truncate">
-                            {evento.motivo_evento || 'Sem motivo'}
-                          </p>
-
-                          {/* Vehicle */}
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Car className="h-3 w-3" />
-                            <span className="truncate">
-                              {evento.placa || '-'} {evento.modelo_veiculo ? `• ${evento.modelo_veiculo}` : ''}
-                            </span>
-                          </div>
-
-                          {/* Location */}
-                          {(evento.evento_cidade || evento.evento_estado) && (
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <MapPin className="h-3 w-3" />
-                              <span className="truncate">
-                                {[evento.evento_cidade, evento.evento_estado].filter(Boolean).join(' - ')}
-                              </span>
+                              <Calendar className="h-3 w-3" />
+                              <span>{formatDate(evento.data_cadastro_evento || evento.data_evento)}</span>
                             </div>
-                          )}
-
-                          {/* Date */}
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Calendar className="h-3 w-3" />
-                            <span>{formatDate(evento.data_cadastro_evento || evento.data_evento)}</span>
-                          </div>
-
-                          {/* Values */}
-                          {(evento.custo_evento || evento.valor_reparo) && (
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <DollarSign className="h-3 w-3" />
-                              <span>
-                                {evento.custo_evento ? `Custo: ${formatCurrency(evento.custo_evento)}` : ''}
-                                {evento.custo_evento && evento.valor_reparo ? ' | ' : ''}
-                                {evento.valor_reparo ? `Reparo: ${formatCurrency(evento.valor_reparo)}` : ''}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Association name (admin view) */}
-                          {!effectiveCorretoraId && evento.corretora_nome && (
-                            <Badge variant="secondary" className="text-[10px]">
-                              {evento.corretora_nome}
-                            </Badge>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </KanbanColumn>
-                </div>
-              );
-            })}
-          </div>
-          {needsScroll && <ScrollBar orientation="horizontal" />}
-        </ScrollArea>
-      </div>
+                            {(evento.custo_evento || evento.valor_reparo) && (
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <DollarSign className="h-3 w-3" />
+                                <span>
+                                  {evento.custo_evento ? `Custo: ${formatCurrency(evento.custo_evento)}` : ''}
+                                  {evento.custo_evento && evento.valor_reparo ? ' | ' : ''}
+                                  {evento.valor_reparo ? `Reparo: ${formatCurrency(evento.valor_reparo)}` : ''}
+                                </span>
+                              </div>
+                            )}
+                            {!effectiveCorretoraId && evento.corretora_nome && (
+                              <Badge variant="secondary" className="text-[10px]">{evento.corretora_nome}</Badge>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </KanbanColumn>
+                  </div>
+                );
+              })}
+            </div>
+            {needsScroll && <ScrollBar orientation="horizontal" />}
+          </ScrollArea>
+        </div>
+      )}
     </div>
   );
 }
