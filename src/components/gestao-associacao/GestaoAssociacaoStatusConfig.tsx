@@ -201,8 +201,8 @@ export function GestaoAssociacaoStatusConfig({ open, onOpenChange, onStatusChang
       const [configsRes, fluxosRes, situacoesRes] = await Promise.all([
         supabase.from('gestao_associacao_status_config').select('*').eq('corretora_id', configCorretoraId).order('ordem'),
         supabase.from('gestao_associacao_fluxos').select('*').eq('corretora_id', configCorretoraId).order('ordem'),
-        supabase.from('sga_eventos').select('situacao_evento, sga_importacoes!inner(corretora_id)')
-          .not('situacao_evento', 'is', null).eq('sga_importacoes.corretora_id', configCorretoraId),
+        supabase.from('sga_eventos').select('situacao_evento, sga_importacoes!inner(corretora_id, ativo)')
+          .not('situacao_evento', 'is', null).eq('sga_importacoes.corretora_id', configCorretoraId).eq('sga_importacoes.ativo', true),
       ]);
 
       if (configsRes.error) throw configsRes.error;
