@@ -329,34 +329,42 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     }
     setExecutingModule(mod);
     try {
-      const { data, error } = await supabase.functions.invoke(DISPATCH_FUNCTIONS[mod], {
-        body: { action: "dispatch", corretora_id: corretoraId },
+      // Use fetch directly to avoid supabase-js throwing on non-2xx
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const session = (await supabase.auth.getSession()).data.session;
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/${DISPATCH_FUNCTIONS[mod]}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || supabaseKey}`,
+          'apikey': supabaseKey,
+        },
+        body: JSON.stringify({ action: "dispatch", corretora_id: corretoraId }),
       });
-      if (error) {
-        const msg = parseEdgeFunctionError(error, data);
-        if (msg && isDuplicateError(msg)) {
+
+      const responseData = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const msg = responseData?.message || `Erro ${response.status}`;
+        if (isDuplicateError(msg)) {
           const horaAgendada = creds.hora_agendada || "08:30";
           toast.info(`${MODULE_LABELS[mod]}: Já foi importado hoje com sucesso. A próxima importação está programada para amanhã às ${horaAgendada}.`, { duration: 6000 });
         } else {
-          toast.error(msg || "Erro ao iniciar sincronização");
+          toast.error(msg);
         }
-      } else if (data?.success) {
+      } else if (responseData?.success) {
         toast.success(`${MODULE_LABELS[mod]} sincronização iniciada!`);
         setModuleStatuses(prev => ({
           ...prev,
           [mod]: { ...prev[mod], isExecuting: true, lastStatus: "executando" }
         }));
       } else {
-        toast.error(data?.message || "Erro ao iniciar");
+        toast.error(responseData?.message || "Erro ao iniciar");
       }
     } catch (e: any) {
-      const msg = parseEdgeFunctionError(e, null);
-      if (msg && isDuplicateError(msg)) {
-        const horaAgendada = creds.hora_agendada || "08:30";
-        toast.info(`${MODULE_LABELS[mod]}: Já foi importado hoje com sucesso. A próxima importação está programada para amanhã às ${horaAgendada}.`, { duration: 6000 });
-      } else {
-        toast.error(msg || e.message || "Erro ao iniciar sincronização");
-      }
+      toast.error(e.message || "Erro ao iniciar sincronização");
     } finally {
       setExecutingModule(null);
     }
@@ -418,28 +426,36 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
 
     for (const mod of modules) {
       try {
-        const { data, error } = await supabase.functions.invoke(DISPATCH_FUNCTIONS[mod], {
-          body: { action: "dispatch", corretora_id: corretoraId },
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        const session = (await supabase.auth.getSession()).data.session;
+        
+        const response = await fetch(`${supabaseUrl}/functions/v1/${DISPATCH_FUNCTIONS[mod]}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || supabaseKey}`,
+            'apikey': supabaseKey,
+          },
+          body: JSON.stringify({ action: "dispatch", corretora_id: corretoraId }),
         });
-        if (error) {
-          const msg = parseEdgeFunctionError(error, data);
-          if (msg && isDuplicateError(msg)) {
+
+        const responseData = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          const msg = responseData?.message || '';
+          if (isDuplicateError(msg)) {
             skipped++;
           } else {
             errors++;
           }
-        } else if (data?.success) {
+        } else if (responseData?.success) {
           success++;
         } else {
           errors++;
         }
-      } catch (e: any) {
-        const msg = parseEdgeFunctionError(e, null);
-        if (msg && isDuplicateError(msg)) {
-          skipped++;
-        } else {
-          errors++;
-        }
+      } catch {
+        errors++;
       }
     }
 
