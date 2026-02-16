@@ -101,7 +101,7 @@ export default function BIAdminAnalytics() {
   const [logs, setLogs] = useState<VisitorLog[]>([]);
   const [profiles, setProfiles] = useState<Map<string, UserProfile>>(new Map());
   const [realtimeLogs, setRealtimeLogs] = useState<VisitorLog[]>([]);
-  const [activityTotals, setActivityTotals] = useState({ cobranca: 0, eventos: 0, mgf: 0, atendimentos: 0, vistorias: 0 });
+  const [activityTotals, setActivityTotals] = useState({ cobranca: 0, eventos: 0, mgf: 0 });
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Load profiles for user names
@@ -169,19 +169,15 @@ export default function BIAdminAnalytics() {
       }
 
       // Load activity totals (importações e atividades)
-      const [cobCount, sgaCount, mgfCount, atendCount, vistCount] = await Promise.all([
+      const [cobCount, sgaCount, mgfCount] = await Promise.all([
         supabase.from("cobranca_importacoes").select("id", { count: "exact", head: true }),
         supabase.from("sga_importacoes").select("id", { count: "exact", head: true }),
         supabase.from("mgf_importacoes").select("id", { count: "exact", head: true }),
-        supabase.from("atendimentos").select("id", { count: "exact", head: true }),
-        supabase.from("vistorias").select("id", { count: "exact", head: true }),
       ]);
       setActivityTotals({
         cobranca: cobCount.count || 0,
         eventos: sgaCount.count || 0,
         mgf: mgfCount.count || 0,
-        atendimentos: atendCount.count || 0,
-        vistorias: vistCount.count || 0,
       });
     } catch (e) {
       console.error("Erro ao carregar analytics:", e);
@@ -378,13 +374,11 @@ export default function BIAdminAnalytics() {
         <KPICard icon={<TrendingUp className="h-5 w-5 text-purple-600" />} label="Págs/Sessão" value={uniqueSessions > 0 ? (totalPageViews / uniqueSessions).toFixed(1) : "0"} bgClass="bg-purple-500/10" />
       </div>
 
-      {/* KPI Cards - Atividades do Sistema */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      {/* KPI Cards - Importações */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <KPICard icon={<Database className="h-5 w-5 text-red-600" />} label="Importações Cobrança" value={activityTotals.cobranca.toLocaleString("pt-BR")} bgClass="bg-red-500/10" />
         <KPICard icon={<Database className="h-5 w-5 text-orange-600" />} label="Importações Eventos" value={activityTotals.eventos.toLocaleString("pt-BR")} bgClass="bg-orange-500/10" />
         <KPICard icon={<Database className="h-5 w-5 text-teal-600" />} label="Importações MGF" value={activityTotals.mgf.toLocaleString("pt-BR")} bgClass="bg-teal-500/10" />
-        <KPICard icon={<FileText className="h-5 w-5 text-indigo-600" />} label="Atendimentos" value={activityTotals.atendimentos.toLocaleString("pt-BR")} bgClass="bg-indigo-500/10" />
-        <KPICard icon={<BarChart3 className="h-5 w-5 text-cyan-600" />} label="Vistorias" value={activityTotals.vistorias.toLocaleString("pt-BR")} bgClass="bg-cyan-500/10" />
       </div>
 
       {/* Activity Chart */}
