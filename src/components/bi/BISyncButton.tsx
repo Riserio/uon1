@@ -304,7 +304,15 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
       if (typeof data === 'string') {
         try { return JSON.parse(data)?.message || data; } catch { return data; }
       }
-      if (error?.message) return error.message;
+      // supabase-js often puts the JSON body in error.message like:
+      // "Edge function returned 409: Error, {"success":false,"message":"..."}"
+      if (error?.message) {
+        const jsonMatch = error.message.match(/\{.*\}/s);
+        if (jsonMatch) {
+          try { return JSON.parse(jsonMatch[0])?.message || error.message; } catch { /* ignore */ }
+        }
+        return error.message;
+      }
     } catch { /* ignore */ }
     return null;
   };
@@ -342,7 +350,13 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         toast.error(data?.message || "Erro ao iniciar");
       }
     } catch (e: any) {
-      toast.error(e.message || "Erro ao iniciar sincronização");
+      const msg = parseEdgeFunctionError(e, null);
+      if (msg && isDuplicateError(msg)) {
+        const horaAgendada = creds.hora_agendada || "08:30";
+        toast.info(`${MODULE_LABELS[mod]}: Já foi importado hoje com sucesso. A próxima importação está programada para amanhã às ${horaAgendada}.`, { duration: 6000 });
+      } else {
+        toast.error(msg || e.message || "Erro ao iniciar sincronização");
+      }
     } finally {
       setExecutingModule(null);
     }
@@ -419,8 +433,13 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         } else {
           errors++;
         }
-      } catch {
-        errors++;
+      } catch (e: any) {
+        const msg = parseEdgeFunctionError(e, null);
+        if (msg && isDuplicateError(msg)) {
+          skipped++;
+        } else {
+          errors++;
+        }
       }
     }
 
