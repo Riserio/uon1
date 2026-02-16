@@ -283,26 +283,15 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     }
   };
 
-  const parseEdgeFunctionError = async (error: any, data: any): Promise<string | null> => {
-    // Try to get message from data first (some versions put parsed body there)
-    if (data?.message) return data.message;
-    // Try to read the response body from the error context
+  const parseEdgeFunctionError = (error: any, data: any): string | null => {
     try {
-      if (error?.context?.body) {
-        const reader = error.context.body.getReader?.();
-        if (reader) {
-          const { value } = await reader.read();
-          const text = new TextDecoder().decode(value);
-          const parsed = JSON.parse(text);
-          return parsed.message || null;
-        }
+      if (data?.message) return data.message;
+      if (typeof data === 'string') {
+        try { return JSON.parse(data)?.message || data; } catch { return data; }
       }
-      if (error?.context?.json) {
-        const json = await error.context.json();
-        return json?.message || null;
-      }
-    } catch { /* ignore parse errors */ }
-    return error?.message || null;
+      if (error?.message) return error.message;
+    } catch { /* ignore */ }
+    return null;
   };
 
   const isDuplicateError = (msg: string) => {
@@ -321,12 +310,12 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         body: { action: "dispatch", corretora_id: corretoraId },
       });
       if (error) {
-        const msg = await parseEdgeFunctionError(error, data);
+        const msg = parseEdgeFunctionError(error, data);
         if (msg && isDuplicateError(msg)) {
           const horaAgendada = creds.hora_agendada || "08:30";
           toast.info(`${MODULE_LABELS[mod]}: Já foi importado hoje com sucesso. A próxima importação está programada para amanhã às ${horaAgendada}.`, { duration: 6000 });
         } else {
-          throw new Error(msg || "Erro ao iniciar sincronização");
+          toast.error(msg || "Erro ao iniciar sincronização");
         }
       } else if (data?.success) {
         toast.success(`${MODULE_LABELS[mod]} sincronização iniciada!`);
@@ -404,7 +393,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           body: { action: "dispatch", corretora_id: corretoraId },
         });
         if (error) {
-          const msg = await parseEdgeFunctionError(error, data);
+          const msg = parseEdgeFunctionError(error, data);
           if (msg && isDuplicateError(msg)) {
             skipped++;
           } else {
