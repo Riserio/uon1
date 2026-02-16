@@ -143,6 +143,7 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
           sga_importacoes!inner(corretora_id, corretoras(id, nome))
         `)
         .in('situacao_evento', activeStatusNames)
+        .eq('sga_importacoes.ativo', true)
         .order('data_cadastro_evento', { ascending: false })
         .range(offset, offset + BATCH_SIZE - 1);
 
