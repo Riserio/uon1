@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { usePontoAlertas } from "@/hooks/usePontoAlertas";
+import { useVisitorTracking } from "@/hooks/useVisitorTracking";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import Auth from "./pages/Auth";
@@ -94,6 +95,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isParceiro } = useAuth();
   usePushNotifications();
   usePontoAlertas();
+  useVisitorTracking();
   
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
