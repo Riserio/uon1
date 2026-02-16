@@ -426,10 +426,20 @@ export default function BIAdminDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {u.ultimo_acesso_geral
-                            ? format(new Date(u.ultimo_acesso_geral), "dd/MM/yy HH:mm", { locale: ptBR })
-                            : <span className="text-muted-foreground/50">Nunca</span>
-                          }
+                          <div className="flex items-center gap-1.5">
+                            {(() => {
+                              if (!u.ultimo_acesso_geral) return <span className="text-muted-foreground/50">Nunca</span>;
+                              const diffMs = Date.now() - new Date(u.ultimo_acesso_geral).getTime();
+                              const isOnline = diffMs < 5 * 60 * 1000;
+                              const isRecent = diffMs < 60 * 60 * 1000;
+                              return (
+                                <>
+                                  <span className={`inline-block w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : isRecent ? 'bg-yellow-500' : 'bg-muted-foreground/30'}`} title={isOnline ? 'Online' : isRecent ? 'Recente' : 'Offline'} />
+                                  <span>{format(new Date(u.ultimo_acesso_geral), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
+                                </>
+                              );
+                            })()}
+                          </div>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {format(new Date(u.created_at), "dd/MM/yy", { locale: ptBR })}
