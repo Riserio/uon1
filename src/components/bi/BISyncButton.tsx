@@ -283,6 +283,32 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     }
   };
 
+  const parseEdgeFunctionError = async (error: any, data: any): Promise<string | null> => {
+    // Try to get message from data first (some versions put parsed body there)
+    if (data?.message) return data.message;
+    // Try to read the response body from the error context
+    try {
+      if (error?.context?.body) {
+        const reader = error.context.body.getReader?.();
+        if (reader) {
+          const { value } = await reader.read();
+          const text = new TextDecoder().decode(value);
+          const parsed = JSON.parse(text);
+          return parsed.message || null;
+        }
+      }
+      if (error?.context?.json) {
+        const json = await error.context.json();
+        return json?.message || null;
+      }
+    } catch { /* ignore parse errors */ }
+    return error?.message || null;
+  };
+
+  const isDuplicateError = (msg: string) => {
+    return msg.includes("Já houve") || msg.includes("Já existe") || msg.includes("uma por dia") || msg.includes("já integrado");
+  };
+
   const handleExecuteModule = async (mod: ModuleType) => {
     if (!creds.hinova_url || !creds.hinova_user || !creds.hinova_pass) {
       toast.error("Configure as credenciais Hinova primeiro");
@@ -295,13 +321,12 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         body: { action: "dispatch", corretora_id: corretoraId },
       });
       if (error) {
-        // When edge function returns non-2xx, supabase-js puts the response body in data
-        // and sets error. Check for duplicate/409 messages in both data and error.
-        const msg = data?.message || error.message || '';
-        if (msg.includes("Já houve") || msg.includes("Já existe") || msg.includes("uma por dia") || error.context?.status === 409) {
-          toast.warning(msg || "Já houve uma integração hoje");
+        const msg = await parseEdgeFunctionError(error, data);
+        if (msg && isDuplicateError(msg)) {
+          const horaAgendada = creds.hora_agendada || "08:30";
+          toast.info(`${MODULE_LABELS[mod]}: Já foi importado hoje com sucesso. A próxima importação está programada para amanhã às ${horaAgendada}.`, { duration: 6000 });
         } else {
-          throw error;
+          throw new Error(msg || "Erro ao iniciar sincronização");
         }
       } else if (data?.success) {
         toast.success(`${MODULE_LABELS[mod]} sincronização iniciada!`);
@@ -371,7 +396,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
   const handleExecuteAll = async () => {
     setExecutingModule("all");
     const modules: ModuleType[] = ["cobranca", "eventos", "mgf"];
-    let success = 0, errors = 0;
+    let success = 0, errors = 0, skipped = 0;
 
     for (const mod of modules) {
       try {
@@ -379,9 +404,9 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           body: { action: "dispatch", corretora_id: corretoraId },
         });
         if (error) {
-          const msg = data?.message || error.message || '';
-          if (msg.includes("Já houve") || msg.includes("Já existe") || msg.includes("uma por dia") || error.context?.status === 409) {
-            toast.warning(`${MODULE_LABELS[mod]}: ${msg || "Já integrado hoje"}`);
+          const msg = await parseEdgeFunctionError(error, data);
+          if (msg && isDuplicateError(msg)) {
+            skipped++;
           } else {
             errors++;
           }
@@ -396,6 +421,10 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     }
 
     if (success > 0) toast.success(`${success} módulo(s) iniciado(s)`);
+    if (skipped > 0) {
+      const horaAgendada = creds.hora_agendada || "08:30";
+      toast.info(`${skipped} módulo(s) já importado(s) hoje. Próxima importação amanhã às ${horaAgendada}.`, { duration: 6000 });
+    }
     if (errors > 0) toast.error(`${errors} erro(s)`);
     loadModuleStatuses();
     setExecutingModule(null);
