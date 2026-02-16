@@ -57,6 +57,14 @@ interface EventoCard {
   usuario_alteracao: string | null;
 }
 
+interface FluxoConfig {
+  id: string;
+  nome: string;
+  cor: string;
+  ordem: number;
+  ativo: boolean;
+}
+
 interface GestaoAssociacaoKanbanProps {
   readOnly?: boolean;
   corretoraId?: string | null;
@@ -86,6 +94,7 @@ const getAgeBadgeVariant = (dataCadastro: string | null): { color: string; days:
 
 export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selectedCorretoraId, onConfigureFluxos }: GestaoAssociacaoKanbanProps) {
   const [allStatusConfigs, setAllStatusConfigs] = useState<StatusConfig[]>([]);
+  const [fluxos, setFluxos] = useState<FluxoConfig[]>([]);
   const [eventos, setEventos] = useState<EventoCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCorretora, setFilterCorretora] = useState<string>('all');
@@ -194,13 +203,25 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
         .eq('ativo', true)
         .order('ordem');
 
+      let fluxoQuery = supabase
+        .from('gestao_associacao_fluxos')
+        .select('id, nome, cor, ordem, ativo')
+        .eq('ativo', true)
+        .order('ordem');
+
       if (effectiveCorretoraId) {
         configQuery = configQuery.eq('corretora_id', effectiveCorretoraId);
+        fluxoQuery = fluxoQuery.eq('corretora_id', effectiveCorretoraId);
       }
 
-      const { data: configs, error: configError } = await configQuery;
+      const [{ data: configs, error: configError }, { data: fluxosData, error: fluxoError }] = await Promise.all([
+        configQuery,
+        fluxoQuery,
+      ]);
       if (configError) throw configError;
+      if (fluxoError) throw fluxoError;
       setAllStatusConfigs((configs || []) as StatusConfig[]);
+      setFluxos((fluxosData || []) as FluxoConfig[]);
 
       if (!configs || configs.length === 0) {
         setEventos([]);
@@ -245,15 +266,45 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
   const filteredEventos = useMemo(() => {
     return eventos.filter(e => {
       const matchCorretora = filterCorretora === 'all' || e.corretora_id === filterCorretora;
+      const searchLower = searchTerm.toLowerCase();
       const matchSearch = !searchTerm ||
-        e.protocolo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.placa?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.modelo_veiculo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.motivo_evento?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.cooperativa?.toLowerCase().includes(searchTerm.toLowerCase());
+        e.protocolo?.toLowerCase().includes(searchLower) ||
+        e.placa?.toLowerCase().includes(searchLower) ||
+        e.modelo_veiculo?.toLowerCase().includes(searchLower) ||
+        e.motivo_evento?.toLowerCase().includes(searchLower) ||
+        e.cooperativa?.toLowerCase().includes(searchLower) ||
+        e.analista_responsavel?.toLowerCase().includes(searchLower) ||
+        e.numero_bo?.toLowerCase().includes(searchLower);
       return matchCorretora && matchSearch;
     });
   }, [eventos, filterCorretora, searchTerm]);
+
+  // Build search results summary showing fluxo + status for each matched event
+  const searchResultsSummary = useMemo(() => {
+    if (!searchTerm || filteredEventos.length === 0) return [];
+    const seen = new Set<string>();
+    const results: { identifier: string; situacao: string; fluxoNome: string | null; fluxoCor: string | null; statusCor: string }[] = [];
+    for (const e of filteredEventos) {
+      const key = `${e.placa || e.protocolo}-${e.situacao_evento}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const sc = allStatusConfigs.find(s => s.nome === e.situacao_evento);
+      let fluxoNome: string | null = null;
+      let fluxoCor: string | null = null;
+      if (sc?.fluxo_id) {
+        const f = fluxos.find(fl => fl.id === sc.fluxo_id);
+        if (f) { fluxoNome = f.nome; fluxoCor = f.cor; }
+      }
+      results.push({
+        identifier: e.placa || e.protocolo || e.id,
+        situacao: e.situacao_evento || 'Sem status',
+        fluxoNome,
+        fluxoCor,
+        statusCor: sc?.cor || '#6b7280',
+      });
+    }
+    return results;
+  }, [searchTerm, filteredEventos, allStatusConfigs, fluxos]);
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
@@ -348,6 +399,27 @@ export function GestaoAssociacaoKanban({ readOnly = false, corretoraId, selected
           {filteredEventos.length} evento{filteredEventos.length !== 1 ? 's' : ''}
         </Badge>
       </div>
+
+      {/* Search results summary showing fluxo + status */}
+      {searchTerm && searchResultsSummary.length > 0 && (
+        <div className="flex flex-wrap gap-2 items-center">
+          {searchResultsSummary.map((item, idx) => (
+            <div key={idx} className="flex items-center gap-1.5 bg-muted/50 border border-border rounded-lg px-3 py-1.5 text-sm">
+              <span className="font-medium">{item.identifier}</span>
+              <span className="text-muted-foreground">→</span>
+              {item.fluxoNome && (
+                <>
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.fluxoCor || undefined }} />
+                  <span className="text-muted-foreground">{item.fluxoNome}</span>
+                  <span className="text-muted-foreground">/</span>
+                </>
+              )}
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.statusCor }} />
+              <span className="font-medium">{item.situacao}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {statusConfigs.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
