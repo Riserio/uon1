@@ -294,8 +294,14 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
       const { data, error } = await supabase.functions.invoke(DISPATCH_FUNCTIONS[mod], {
         body: { action: "dispatch", corretora_id: corretoraId },
       });
-      if (error) throw error;
-      if (data?.success) {
+      if (error) {
+        // Check if it's a 409 (duplicate) - the error context contains the response
+        if (error.context?.status === 409 || data?.message?.includes("Já houve") || data?.message?.includes("Já existe")) {
+          toast.warning(data?.message || "Já houve uma integração hoje");
+        } else {
+          throw error;
+        }
+      } else if (data?.success) {
         toast.success(`${MODULE_LABELS[mod]} sincronização iniciada!`);
         setModuleStatuses(prev => ({
           ...prev,
@@ -370,9 +376,17 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         const { data, error } = await supabase.functions.invoke(DISPATCH_FUNCTIONS[mod], {
           body: { action: "dispatch", corretora_id: corretoraId },
         });
-        if (error) throw error;
-        if (data?.success) success++;
-        else errors++;
+        if (error) {
+          if (error.context?.status === 409 || data?.message?.includes("Já houve") || data?.message?.includes("Já existe")) {
+            toast.warning(`${MODULE_LABELS[mod]}: ${data?.message || "Já integrado hoje"}`);
+          } else {
+            errors++;
+          }
+        } else if (data?.success) {
+          success++;
+        } else {
+          errors++;
+        }
       } catch {
         errors++;
       }

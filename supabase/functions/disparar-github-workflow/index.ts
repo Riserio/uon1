@@ -128,6 +128,25 @@ serve(async (req) => {
 
       console.log(`[GitHub Workflow] Iniciando para corretora: ${corretora_id}`);
 
+      // Verificar se já houve execução com sucesso ou em andamento hoje
+      const hoje = new Date().toISOString().split('T')[0];
+      const { data: execucoesHoje } = await supabase
+        .from("cobranca_automacao_execucoes")
+        .select("id, status")
+        .eq("corretora_id", corretora_id)
+        .gte("created_at", `${hoje}T00:00:00`)
+        .in("status", ["sucesso", "executando"])
+        .limit(1);
+
+      if (execucoesHoje && execucoesHoje.length > 0) {
+        const st = execucoesHoje[0].status;
+        console.log(`[GitHub Workflow] Corretora ${corretora_id} já tem execução '${st}' hoje, bloqueando disparo`);
+        return new Response(
+          JSON.stringify({ success: false, message: st === "executando" ? "Já existe uma execução em andamento hoje" : "Já houve uma integração com sucesso hoje. Apenas uma por dia é permitida." }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       // Buscar configuração da automação
       const { data: config, error: configError } = await supabase
         .from("cobranca_automacao_config")
