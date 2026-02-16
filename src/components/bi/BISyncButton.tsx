@@ -155,6 +155,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     if (!corretoraId || corretoraId === "__admin__") return;
     const modules: ModuleType[] = ["cobranca", "eventos", "mgf"];
     const newStatuses = { ...moduleStatuses };
+    const hoje = new Date().toISOString().split('T')[0];
 
     for (const mod of modules) {
       try {
@@ -164,11 +165,25 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           .eq("corretora_id", corretoraId)
           .maybeSingle() as any;
 
+        // Check if there's a successful execution TODAY
+        const { data: sucessoHoje } = await supabase
+          .from(EXEC_TABLES[mod] as any)
+          .select("id, created_at")
+          .eq("corretora_id", corretoraId)
+          .eq("status", "sucesso")
+          .gte("created_at", `${hoje}T00:00:00`)
+          .order("created_at", { ascending: false })
+          .limit(1) as any;
+
         if (data) {
+          const hadSuccessToday = sucessoHoje && sucessoHoje.length > 0;
+          const effectiveStatus = hadSuccessToday && data.ultimo_status !== "executando" ? "sucesso" : data.ultimo_status;
+          const effectiveError = hadSuccessToday && effectiveStatus === "sucesso" ? null : data.ultimo_erro;
+
           newStatuses[mod] = {
-            lastExecution: data.ultima_execucao,
-            lastStatus: data.ultimo_status,
-            lastError: data.ultimo_erro,
+            lastExecution: hadSuccessToday ? sucessoHoje[0].created_at : data.ultima_execucao,
+            lastStatus: effectiveStatus,
+            lastError: effectiveError,
             isExecuting: data.ultimo_status === "executando",
           };
         }
