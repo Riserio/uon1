@@ -295,9 +295,11 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         body: { action: "dispatch", corretora_id: corretoraId },
       });
       if (error) {
-        // Check if it's a 409 (duplicate) - the error context contains the response
-        if (error.context?.status === 409 || data?.message?.includes("Já houve") || data?.message?.includes("Já existe")) {
-          toast.warning(data?.message || "Já houve uma integração hoje");
+        // When edge function returns non-2xx, supabase-js puts the response body in data
+        // and sets error. Check for duplicate/409 messages in both data and error.
+        const msg = data?.message || error.message || '';
+        if (msg.includes("Já houve") || msg.includes("Já existe") || msg.includes("uma por dia") || error.context?.status === 409) {
+          toast.warning(msg || "Já houve uma integração hoje");
         } else {
           throw error;
         }
@@ -377,8 +379,9 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           body: { action: "dispatch", corretora_id: corretoraId },
         });
         if (error) {
-          if (error.context?.status === 409 || data?.message?.includes("Já houve") || data?.message?.includes("Já existe")) {
-            toast.warning(`${MODULE_LABELS[mod]}: ${data?.message || "Já integrado hoje"}`);
+          const msg = data?.message || error.message || '';
+          if (msg.includes("Já houve") || msg.includes("Já existe") || msg.includes("uma por dia") || error.context?.status === 409) {
+            toast.warning(`${MODULE_LABELS[mod]}: ${msg || "Já integrado hoje"}`);
           } else {
             errors++;
           }
