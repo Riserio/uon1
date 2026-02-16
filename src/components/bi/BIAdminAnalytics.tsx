@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Users, Eye, Clock, Monitor, Smartphone, Tablet, Globe, Activity, TrendingUp } from "lucide-react";
+import { Loader2, Users, Eye, Clock, Monitor, Smartphone, Tablet, Globe, Activity, TrendingUp, Crown, Medal } from "lucide-react";
 import { format, subDays, eachDayOfInterval, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
@@ -27,6 +27,13 @@ interface VisitorLog {
   duration_seconds: number | null;
 }
 
+interface UserProfile {
+  id: string;
+  nome: string;
+  email: string;
+  avatar_url?: string | null;
+}
+
 const COLORS = [
   "hsl(var(--primary))",
   "hsl(210, 70%, 55%)",
@@ -39,41 +46,22 @@ const COLORS = [
 ];
 
 const TZ_COUNTRY_MAP: Record<string, string> = {
-  "America/Sao_Paulo": "Brasil",
-  "America/Fortaleza": "Brasil",
-  "America/Recife": "Brasil",
-  "America/Bahia": "Brasil",
-  "America/Belem": "Brasil",
-  "America/Manaus": "Brasil",
-  "America/Cuiaba": "Brasil",
-  "America/Campo_Grande": "Brasil",
-  "America/Araguaina": "Brasil",
-  "America/Maceio": "Brasil",
-  "America/New_York": "EUA",
-  "America/Chicago": "EUA",
-  "America/Denver": "EUA",
-  "America/Los_Angeles": "EUA",
-  "America/Phoenix": "EUA",
-  "Europe/London": "Reino Unido",
-  "Europe/Lisbon": "Portugal",
-  "Europe/Paris": "França",
-  "Europe/Berlin": "Alemanha",
-  "Europe/Madrid": "Espanha",
-  "Asia/Tokyo": "Japão",
-  "Australia/Sydney": "Austrália",
-  "America/Buenos_Aires": "Argentina",
-  "America/Bogota": "Colômbia",
-  "America/Mexico_City": "México",
-  "America/Santiago": "Chile",
-  "America/Lima": "Peru",
+  "America/Sao_Paulo": "Brasil", "America/Fortaleza": "Brasil", "America/Recife": "Brasil",
+  "America/Bahia": "Brasil", "America/Belem": "Brasil", "America/Manaus": "Brasil",
+  "America/Cuiaba": "Brasil", "America/Campo_Grande": "Brasil", "America/Araguaina": "Brasil",
+  "America/Maceio": "Brasil", "America/New_York": "EUA", "America/Chicago": "EUA",
+  "America/Denver": "EUA", "America/Los_Angeles": "EUA", "America/Phoenix": "EUA",
+  "Europe/London": "Reino Unido", "Europe/Lisbon": "Portugal", "Europe/Paris": "França",
+  "Europe/Berlin": "Alemanha", "Europe/Madrid": "Espanha", "Asia/Tokyo": "Japão",
+  "Australia/Sydney": "Austrália", "America/Buenos_Aires": "Argentina",
+  "America/Bogota": "Colômbia", "America/Mexico_City": "México",
+  "America/Santiago": "Chile", "America/Lima": "Peru",
 };
 
 function getCountryFromTZ(tz: string | null): string {
   if (!tz) return "Desconhecido";
   if (TZ_COUNTRY_MAP[tz]) return TZ_COUNTRY_MAP[tz];
-  // Try partial matches
   if (tz.startsWith("America/")) {
-    // Check if it's a Brazilian timezone
     const brTZs = ["Sao_Paulo", "Fortaleza", "Recife", "Bahia", "Belem", "Manaus", "Cuiaba", "Campo_Grande", "Araguaina", "Maceio", "Porto_Velho", "Boa_Vista", "Noronha", "Rio_Branco"];
     const city = tz.split("/")[1];
     if (brTZs.includes(city)) return "Brasil";
@@ -100,10 +88,39 @@ function formatDuration(seconds: number): string {
   return `${hr}h ${min % 60}m`;
 }
 
+function RankMedal({ position }: { position: number }) {
+  if (position === 0) return <Crown className="h-4 w-4 text-yellow-500" />;
+  if (position === 1) return <Medal className="h-4 w-4 text-gray-400" />;
+  if (position === 2) return <Medal className="h-4 w-4 text-amber-700" />;
+  return <span className="text-xs text-muted-foreground font-medium w-4 text-center">{position + 1}</span>;
+}
+
 export default function BIAdminAnalytics() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("7");
   const [logs, setLogs] = useState<VisitorLog[]>([]);
+  const [profiles, setProfiles] = useState<Map<string, UserProfile>>(new Map());
+  const [realtimeLogs, setRealtimeLogs] = useState<VisitorLog[]>([]);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // Load profiles for user names
+  const loadProfiles = useCallback(async (userIds: string[]) => {
+    if (userIds.length === 0) return;
+    const uniqueIds = [...new Set(userIds)].filter(id => !profiles.has(id));
+    if (uniqueIds.length === 0) return;
+
+    // Fetch in batches of 50
+    const newProfiles = new Map(profiles);
+    for (let i = 0; i < uniqueIds.length; i += 50) {
+      const batch = uniqueIds.slice(i, i + 50);
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, nome, email, avatar_url")
+        .in("id", batch);
+      data?.forEach(p => newProfiles.set(p.id, p));
+    }
+    setProfiles(newProfiles);
+  }, [profiles]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -112,7 +129,6 @@ export default function BIAdminAnalytics() {
       const startDate = subDays(new Date(), days);
       const startStr = startDate.toISOString();
 
-      // Batch fetch up to 100k records in chunks of 1000
       const allLogs: VisitorLog[] = [];
       const CHUNK = 1000;
       const MAX = 100000;
@@ -138,12 +154,48 @@ export default function BIAdminAnalytics() {
       }
 
       setLogs(allLogs);
+
+      // Load profiles for all user_ids
+      const userIds = [...new Set(allLogs.map(l => l.user_id))];
+      if (userIds.length > 0) {
+        const profileMap = new Map<string, UserProfile>();
+        for (let i = 0; i < userIds.length; i += 50) {
+          const batch = userIds.slice(i, i + 50);
+          const { data } = await supabase.from("profiles").select("id, nome, email, avatar_url").in("id", batch);
+          data?.forEach(p => profileMap.set(p.id, p));
+        }
+        setProfiles(profileMap);
+      }
     } catch (e) {
       console.error("Erro ao carregar analytics:", e);
     } finally {
       setLoading(false);
     }
   }, [period]);
+
+  // Realtime subscription
+  useEffect(() => {
+    channelRef.current = supabase
+      .channel("visitor-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "visitor_logs" },
+        async (payload) => {
+          const newLog = payload.new as VisitorLog;
+          setRealtimeLogs(prev => [newLog, ...prev].slice(0, 50));
+          // Load profile if unknown
+          if (!profiles.has(newLog.user_id)) {
+            const { data } = await supabase.from("profiles").select("id, nome, email, avatar_url").eq("id", newLog.user_id).single();
+            if (data) setProfiles(prev => new Map(prev).set(data.id, data));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    };
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -155,23 +207,33 @@ export default function BIAdminAnalytics() {
     );
   }
 
+  // Merge realtime logs with loaded logs (deduplicate)
+  const allLogs = [...realtimeLogs, ...logs];
+  const seenIds = new Set<string>();
+  const mergedLogs = allLogs.filter(l => {
+    if (seenIds.has(l.id)) return false;
+    seenIds.add(l.id);
+    return true;
+  });
+
   // === Compute metrics ===
   const days = parseInt(period);
-  const uniqueSessions = new Set(logs.map(l => l.session_id)).size;
-  const uniqueUsers = new Set(logs.map(l => l.user_id)).size;
-  const totalPageViews = logs.length;
-  const totalDuration = logs.reduce((sum, l) => sum + (l.duration_seconds || 0), 0);
+  const uniqueSessions = new Set(mergedLogs.map(l => l.session_id)).size;
+  const uniqueUsers = new Set(mergedLogs.map(l => l.user_id)).size;
+  const totalPageViews = mergedLogs.length;
+  const totalDuration = mergedLogs.reduce((sum, l) => sum + (l.duration_seconds || 0), 0);
   const avgDuration = uniqueSessions > 0 ? Math.round(totalDuration / uniqueSessions) : 0;
 
   // Online now (active in last 5 min)
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
-  const onlineNow = new Set(logs.filter(l => new Date(l.created_at) > fiveMinAgo).map(l => l.user_id)).size;
+  const onlineUserIds = [...new Set(mergedLogs.filter(l => new Date(l.created_at) > fiveMinAgo).map(l => l.user_id))];
+  const onlineNow = onlineUserIds.length;
 
   // Daily data
   const startDate = subDays(new Date(), days);
   const allDays = eachDayOfInterval({ start: startDate, end: new Date() });
   const dayMap = new Map<string, { visitors: Set<string>; views: number }>();
-  logs.forEach(l => {
+  mergedLogs.forEach(l => {
     const day = format(new Date(l.created_at), "yyyy-MM-dd");
     const existing = dayMap.get(day) || { visitors: new Set<string>(), views: 0 };
     existing.visitors.add(l.session_id);
@@ -181,88 +243,99 @@ export default function BIAdminAnalytics() {
   const dailyData = allDays.map(d => {
     const key = format(d, "yyyy-MM-dd");
     const data = dayMap.get(key);
-    return {
-      date: key,
-      label: format(d, "dd MMM", { locale: ptBR }),
-      visitantes: data?.visitors.size || 0,
-      pageviews: data?.views || 0,
-    };
+    return { date: key, label: format(d, "dd MMM", { locale: ptBR }), visitantes: data?.visitors.size || 0, pageviews: data?.views || 0 };
   });
 
   // Top pages
   const pageMap = new Map<string, number>();
-  logs.forEach(l => pageMap.set(l.page, (pageMap.get(l.page) || 0) + 1));
-  const topPages = Array.from(pageMap.entries())
-    .map(([page, count]) => ({ page, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
+  mergedLogs.forEach(l => pageMap.set(l.page, (pageMap.get(l.page) || 0) + 1));
+  const topPages = Array.from(pageMap.entries()).map(([page, count]) => ({ page, count })).sort((a, b) => b.count - a.count).slice(0, 10);
 
   // Devices
   const deviceMap = new Map<string, number>();
-  logs.forEach(l => {
-    const dt = l.device_type || "desktop";
-    deviceMap.set(dt, (deviceMap.get(dt) || 0) + 1);
-  });
-  const devices = Array.from(deviceMap.entries())
-    .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))
-    .sort((a, b) => b.value - a.value);
+  mergedLogs.forEach(l => deviceMap.set(l.device_type || "desktop", (deviceMap.get(l.device_type || "desktop") || 0) + 1));
+  const devices = Array.from(deviceMap.entries()).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value })).sort((a, b) => b.value - a.value);
 
   // Browsers
   const browserMap = new Map<string, number>();
-  logs.forEach(l => {
-    const b = l.browser || "Outro";
-    browserMap.set(b, (browserMap.get(b) || 0) + 1);
-  });
-  const browsers = Array.from(browserMap.entries())
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 6);
+  mergedLogs.forEach(l => browserMap.set(l.browser || "Outro", (browserMap.get(l.browser || "Outro") || 0) + 1));
+  const browsers = Array.from(browserMap.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
 
-  // Countries from timezone
+  // Countries
   const countryMap = new Map<string, number>();
-  logs.forEach(l => {
-    const country = getCountryFromTZ(l.timezone);
-    countryMap.set(country, (countryMap.get(country) || 0) + 1);
-  });
-  const countries = Array.from(countryMap.entries())
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 8);
+  mergedLogs.forEach(l => { const c = getCountryFromTZ(l.timezone); countryMap.set(c, (countryMap.get(c) || 0) + 1); });
+  const countries = Array.from(countryMap.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
 
   // OS
   const osMap = new Map<string, number>();
-  logs.forEach(l => {
-    const o = l.os || "Outro";
-    osMap.set(o, (osMap.get(o) || 0) + 1);
-  });
-  const osList = Array.from(osMap.entries())
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
+  mergedLogs.forEach(l => osMap.set(l.os || "Outro", (osMap.get(l.os || "Outro") || 0) + 1));
+  const osList = Array.from(osMap.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
-  // Recent visits (last 20 unique sessions)
+  // === USER RANKING ===
+  const userStatsMap = new Map<string, { views: number; sessions: Set<string>; totalDuration: number; lastSeen: string; lastPage: string }>();
+  mergedLogs.forEach(l => {
+    const existing = userStatsMap.get(l.user_id) || { views: 0, sessions: new Set<string>(), totalDuration: 0, lastSeen: "", lastPage: "" };
+    existing.views++;
+    existing.sessions.add(l.session_id);
+    existing.totalDuration += l.duration_seconds || 0;
+    if (!existing.lastSeen || l.created_at > existing.lastSeen) {
+      existing.lastSeen = l.created_at;
+      existing.lastPage = l.page;
+    }
+    userStatsMap.set(l.user_id, existing);
+  });
+  const userRanking = Array.from(userStatsMap.entries())
+    .map(([userId, stats]) => ({
+      userId,
+      nome: profiles.get(userId)?.nome || profiles.get(userId)?.email || userId.slice(0, 8),
+      views: stats.views,
+      sessions: stats.sessions.size,
+      totalDuration: stats.totalDuration,
+      lastSeen: stats.lastSeen,
+      lastPage: stats.lastPage,
+      isOnline: onlineUserIds.includes(userId),
+    }))
+    .sort((a, b) => b.views - a.views);
+
+  // Recent visits with user names
   const seenSessions = new Set<string>();
   const recentVisits: VisitorLog[] = [];
-  for (const l of logs) {
+  for (const l of mergedLogs) {
     if (!seenSessions.has(l.session_id)) {
       seenSessions.add(l.session_id);
       recentVisits.push(l);
-      if (recentVisits.length >= 15) break;
+      if (recentVisits.length >= 20) break;
     }
   }
 
+  const getUserName = (userId: string) => {
+    const p = profiles.get(userId);
+    return p?.nome || p?.email || userId.slice(0, 8);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Period selector */}
+      {/* Period selector + Online */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {onlineNow > 0 && (
-            <Badge variant="outline" className="gap-1.5 text-green-600 border-green-300 bg-green-50">
+            <Badge variant="outline" className="gap-1.5 text-green-600 border-green-300 bg-green-50 dark:bg-green-950/30">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
               </span>
               {onlineNow} online agora
             </Badge>
+          )}
+          {onlineNow > 0 && (
+            <div className="flex items-center gap-1 ml-1">
+              {onlineUserIds.slice(0, 5).map(uid => (
+                <Badge key={uid} variant="secondary" className="text-[10px] px-1.5 py-0">
+                  {getUserName(uid)}
+                </Badge>
+              ))}
+              {onlineUserIds.length > 5 && <span className="text-xs text-muted-foreground">+{onlineUserIds.length - 5}</span>}
+            </div>
           )}
         </div>
         <Select value={period} onValueChange={setPeriod}>
@@ -310,10 +383,7 @@ export default function BIAdminAnalytics() {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-muted-foreground" />
                 <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "hsl(var(--popover))", borderColor: "hsl(var(--border))", borderRadius: 12, fontSize: 12 }}
-                  labelStyle={{ fontWeight: 600 }}
-                />
+                <Tooltip contentStyle={{ backgroundColor: "hsl(var(--popover))", borderColor: "hsl(var(--border))", borderRadius: 12, fontSize: 12 }} labelStyle={{ fontWeight: 600 }} />
                 <Area type="monotone" dataKey="visitantes" name="Visitantes" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#colorVisitantes)" dot={{ r: 3, fill: "hsl(var(--primary))" }} />
                 <Area type="monotone" dataKey="pageviews" name="Pageviews" stroke="hsl(210, 70%, 55%)" strokeWidth={2} fill="url(#colorPageviews)" dot={{ r: 2, fill: "hsl(210, 70%, 55%)" }} />
               </AreaChart>
@@ -321,6 +391,113 @@ export default function BIAdminAnalytics() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Ranking + Online Users */}
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* User Ranking */}
+        <Card className="rounded-2xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+              <Crown className="h-4 w-4 text-yellow-500" />
+              Ranking de Acessos
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ScrollArea className="h-[350px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8">#</TableHead>
+                    <TableHead>Usuário</TableHead>
+                    <TableHead className="text-center">Views</TableHead>
+                    <TableHead className="text-center">Sessões</TableHead>
+                    <TableHead className="text-right">Tempo Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {userRanking.map((u, i) => (
+                    <TableRow key={u.userId} className={u.isOnline ? "bg-green-50/50 dark:bg-green-950/20" : ""}>
+                      <TableCell className="py-2">
+                        <RankMedal position={i} />
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <div className="flex items-center gap-2">
+                          {u.isOnline && (
+                            <span className="relative flex h-2 w-2 shrink-0">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                            </span>
+                          )}
+                          <div>
+                            <span className="text-sm font-medium">{u.nome}</span>
+                            {u.isOnline && <span className="text-[10px] text-green-600 ml-1.5">online</span>}
+                            <p className="text-[10px] text-muted-foreground font-mono">{u.lastPage}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center text-sm tabular-nums">{u.views}</TableCell>
+                      <TableCell className="text-center text-sm tabular-nums">{u.sessions}</TableCell>
+                      <TableCell className="text-right text-xs tabular-nums">{formatDuration(u.totalDuration)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {userRanking.length === 0 && (
+                    <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">Sem dados</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* Recent Visits with User Names */}
+        <Card className="rounded-2xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold">Últimas Visitas (tempo real)</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ScrollArea className="h-[350px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Quando</TableHead>
+                    <TableHead>Usuário</TableHead>
+                    <TableHead>Página</TableHead>
+                    <TableHead>Dispositivo</TableHead>
+                    <TableHead className="text-right">Duração</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recentVisits.map(v => {
+                    const mins = differenceInMinutes(new Date(), new Date(v.created_at));
+                    const isRecent = mins < 5;
+                    return (
+                      <TableRow key={v.id} className={isRecent ? "bg-green-50/50 dark:bg-green-950/20" : ""}>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {mins < 1 ? (
+                            <Badge variant="outline" className="text-[10px] text-green-600 border-green-300 px-1.5 py-0">Agora</Badge>
+                          ) : mins < 60 ? `${mins}min` : mins < 1440 ? `${Math.floor(mins / 60)}h` : format(new Date(v.created_at), "dd/MM HH:mm", { locale: ptBR })}
+                        </TableCell>
+                        <TableCell className="text-xs font-medium">{getUserName(v.user_id)}</TableCell>
+                        <TableCell className="font-mono text-xs">{v.page}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <DeviceIcon type={v.device_type} />
+                            <span className="text-[10px] capitalize">{v.device_type || "desktop"}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-right tabular-nums">{v.duration_seconds ? formatDuration(v.duration_seconds) : "—"}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {recentVisits.length === 0 && (
+                    <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">Nenhuma visita registrada ainda.</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Grid: Pages + Devices + Countries */}
       <div className="grid md:grid-cols-3 gap-6">
@@ -348,7 +525,7 @@ export default function BIAdminAnalytics() {
           </CardContent>
         </Card>
 
-        {/* Devices + OS */}
+        {/* Devices + Browsers + OS */}
         <Card className="rounded-2xl">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">Dispositivos & Navegadores</CardTitle>
@@ -389,9 +566,7 @@ export default function BIAdminAnalytics() {
             <div>
               <p className="text-xs text-muted-foreground mb-2 font-medium">Sist. Operacional</p>
               <div className="flex flex-wrap gap-1.5">
-                {osList.map(o => (
-                  <Badge key={o.name} variant="outline" className="text-[10px]">{o.name} ({o.value})</Badge>
-                ))}
+                {osList.map(o => <Badge key={o.name} variant="outline" className="text-[10px]">{o.name} ({o.value})</Badge>)}
               </div>
             </div>
           </CardContent>
@@ -419,61 +594,6 @@ export default function BIAdminAnalytics() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Recent Visits */}
-      <Card className="rounded-2xl">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold">Últimas Visitas</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <ScrollArea className="h-[350px]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Quando</TableHead>
-                  <TableHead>Página</TableHead>
-                  <TableHead>Dispositivo</TableHead>
-                  <TableHead>Navegador</TableHead>
-                  <TableHead>Região</TableHead>
-                  <TableHead className="text-right">Duração</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentVisits.map(v => (
-                  <TableRow key={v.id}>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                      {(() => {
-                        const mins = differenceInMinutes(new Date(), new Date(v.created_at));
-                        if (mins < 1) return "Agora";
-                        if (mins < 60) return `${mins}min atrás`;
-                        if (mins < 1440) return `${Math.floor(mins / 60)}h atrás`;
-                        return format(new Date(v.created_at), "dd/MM HH:mm", { locale: ptBR });
-                      })()}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{v.page}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <DeviceIcon type={v.device_type} />
-                        <span className="text-xs capitalize">{v.device_type || "desktop"}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs">{v.browser || "—"}</TableCell>
-                    <TableCell className="text-xs">{getCountryFromTZ(v.timezone)}</TableCell>
-                    <TableCell className="text-xs text-right tabular-nums">{v.duration_seconds ? formatDuration(v.duration_seconds) : "—"}</TableCell>
-                  </TableRow>
-                ))}
-                {recentVisits.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">
-                      Nenhuma visita registrada ainda. Os dados aparecerão conforme os usuários navegam pelo sistema.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </ScrollArea>
-        </CardContent>
-      </Card>
     </div>
   );
 }
