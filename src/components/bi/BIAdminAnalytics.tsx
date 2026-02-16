@@ -110,16 +110,34 @@ export default function BIAdminAnalytics() {
     try {
       const days = parseInt(period);
       const startDate = subDays(new Date(), days);
+      const startStr = startDate.toISOString();
 
-      const { data, error } = await supabase
-        .from("visitor_logs")
-        .select("*")
-        .gte("created_at", startDate.toISOString())
-        .order("created_at", { ascending: false })
-        .limit(5000);
+      // Batch fetch up to 100k records in chunks of 1000
+      const allLogs: VisitorLog[] = [];
+      const CHUNK = 1000;
+      const MAX = 100000;
+      let offset = 0;
+      let hasMore = true;
 
-      if (error) throw error;
-      setLogs((data as VisitorLog[]) || []);
+      while (hasMore && offset < MAX) {
+        const { data, error } = await supabase
+          .from("visitor_logs")
+          .select("*")
+          .gte("created_at", startStr)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + CHUNK - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          hasMore = false;
+        } else {
+          allLogs.push(...(data as VisitorLog[]));
+          if (data.length < CHUNK) hasMore = false;
+          offset += CHUNK;
+        }
+      }
+
+      setLogs(allLogs);
     } catch (e) {
       console.error("Erro ao carregar analytics:", e);
     } finally {
