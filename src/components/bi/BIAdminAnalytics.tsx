@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Users, Eye, Clock, Monitor, Smartphone, Tablet, Globe, Activity, TrendingUp, Crown, Medal } from "lucide-react";
+import { Loader2, Users, Eye, Clock, Monitor, Smartphone, Tablet, Globe, Activity, TrendingUp, Crown, Medal, Database, FileText, BarChart3 } from "lucide-react";
 import { format, subDays, eachDayOfInterval, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
@@ -101,6 +101,7 @@ export default function BIAdminAnalytics() {
   const [logs, setLogs] = useState<VisitorLog[]>([]);
   const [profiles, setProfiles] = useState<Map<string, UserProfile>>(new Map());
   const [realtimeLogs, setRealtimeLogs] = useState<VisitorLog[]>([]);
+  const [activityTotals, setActivityTotals] = useState({ cobranca: 0, eventos: 0, mgf: 0, atendimentos: 0, vistorias: 0 });
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Load profiles for user names
@@ -166,6 +167,22 @@ export default function BIAdminAnalytics() {
         }
         setProfiles(profileMap);
       }
+
+      // Load activity totals (importações e atividades)
+      const [cobCount, sgaCount, mgfCount, atendCount, vistCount] = await Promise.all([
+        supabase.from("cobranca_importacoes").select("id", { count: "exact", head: true }),
+        supabase.from("sga_importacoes").select("id", { count: "exact", head: true }),
+        supabase.from("mgf_importacoes").select("id", { count: "exact", head: true }),
+        supabase.from("atendimentos").select("id", { count: "exact", head: true }),
+        supabase.from("vistorias").select("id", { count: "exact", head: true }),
+      ]);
+      setActivityTotals({
+        cobranca: cobCount.count || 0,
+        eventos: sgaCount.count || 0,
+        mgf: mgfCount.count || 0,
+        atendimentos: atendCount.count || 0,
+        vistorias: vistCount.count || 0,
+      });
     } catch (e) {
       console.error("Erro ao carregar analytics:", e);
     } finally {
@@ -352,13 +369,22 @@ export default function BIAdminAnalytics() {
         </Select>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards - Visitantes */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <KPICard icon={<Users className="h-5 w-5 text-primary" />} label="Visitantes" value={uniqueUsers.toString()} bgClass="bg-primary/10" />
         <KPICard icon={<Eye className="h-5 w-5 text-blue-600" />} label="Pageviews" value={totalPageViews.toLocaleString("pt-BR")} bgClass="bg-blue-500/10" />
         <KPICard icon={<Activity className="h-5 w-5 text-green-600" />} label="Sessões" value={uniqueSessions.toString()} bgClass="bg-green-500/10" />
         <KPICard icon={<Clock className="h-5 w-5 text-amber-600" />} label="Tempo Médio" value={formatDuration(avgDuration)} bgClass="bg-amber-500/10" />
         <KPICard icon={<TrendingUp className="h-5 w-5 text-purple-600" />} label="Págs/Sessão" value={uniqueSessions > 0 ? (totalPageViews / uniqueSessions).toFixed(1) : "0"} bgClass="bg-purple-500/10" />
+      </div>
+
+      {/* KPI Cards - Atividades do Sistema */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <KPICard icon={<Database className="h-5 w-5 text-red-600" />} label="Importações Cobrança" value={activityTotals.cobranca.toLocaleString("pt-BR")} bgClass="bg-red-500/10" />
+        <KPICard icon={<Database className="h-5 w-5 text-orange-600" />} label="Importações Eventos" value={activityTotals.eventos.toLocaleString("pt-BR")} bgClass="bg-orange-500/10" />
+        <KPICard icon={<Database className="h-5 w-5 text-teal-600" />} label="Importações MGF" value={activityTotals.mgf.toLocaleString("pt-BR")} bgClass="bg-teal-500/10" />
+        <KPICard icon={<FileText className="h-5 w-5 text-indigo-600" />} label="Atendimentos" value={activityTotals.atendimentos.toLocaleString("pt-BR")} bgClass="bg-indigo-500/10" />
+        <KPICard icon={<BarChart3 className="h-5 w-5 text-cyan-600" />} label="Vistorias" value={activityTotals.vistorias.toLocaleString("pt-BR")} bgClass="bg-cyan-500/10" />
       </div>
 
       {/* Activity Chart */}
