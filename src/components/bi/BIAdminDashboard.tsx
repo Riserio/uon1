@@ -382,7 +382,6 @@ export default function BIAdminDashboard() {
                       <TableHead>Associações</TableHead>
                       <TableHead className="text-center">TOTP</TableHead>
                       <TableHead className="text-center">Status</TableHead>
-                      <TableHead>Último Acesso</TableHead>
                       <TableHead>Criado em</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -426,22 +425,6 @@ export default function BIAdminDashboard() {
                           <Badge variant={u.associacoes.every(a => a.ativo) ? "default" : u.associacoes.some(a => a.ativo) ? "outline" : "destructive"} className="text-[10px]">
                             {u.associacoes.every(a => a.ativo) ? "Ativo" : u.associacoes.some(a => a.ativo) ? "Parcial" : "Bloqueado"}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1.5">
-                            {(() => {
-                              if (!u.ultimo_acesso_geral) return <span className="text-muted-foreground/50">Nunca</span>;
-                              const diffMs = Date.now() - new Date(u.ultimo_acesso_geral).getTime();
-                              const isOnline = diffMs < 5 * 60 * 1000;
-                              const isRecent = diffMs < 60 * 60 * 1000;
-                              return (
-                                <>
-                                  <span className={`inline-block w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : isRecent ? 'bg-yellow-500' : 'bg-muted-foreground/30'}`} title={isOnline ? 'Online' : isRecent ? 'Recente' : 'Offline'} />
-                                  <span>{format(new Date(u.ultimo_acesso_geral), "dd/MM/yy HH:mm", { locale: ptBR })}</span>
-                                </>
-                              );
-                            })()}
-                          </div>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {format(new Date(u.created_at), "dd/MM/yy", { locale: ptBR })}
