@@ -1,5 +1,4 @@
 import { Toaster } from "@/components/ui/toaster";
-import ComiteDeliberacao from "./pages/ComiteDeliberacao";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,63 +9,66 @@ import { usePontoAlertas } from "@/hooks/usePontoAlertas";
 import { useVisitorTracking } from "@/hooks/useVisitorTracking";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import Auth from "./pages/Auth";
-import ResetPassword from "./pages/ResetPassword";
-import ChangePassword from "./pages/ChangePassword";
-import Index from "./pages/Index";
-import Dashboard from "./pages/Dashboard";
-import DashboardAnalytics from "./pages/DashboardAnalytics";
-import Corretoras from "./pages/Corretoras";
-import Contatos from "./pages/Contatos";
-import Termos from "./pages/Termos";
-import Usuarios from "./pages/Usuarios";
-import Equipes from "./pages/Equipes";
-import Financeiro from "./pages/Financeiro";
-import Agenda from "./pages/Agenda";
-import Comunicados from "./pages/Comunicados";
-import Documentos from "./pages/Documentos";
-import Mensagens from "./pages/Mensagens";
-import Emails from "./pages/Emails";
-import Configuracoes from "./pages/Configuracoes";
-
-import NotFound from "./pages/NotFound";
-import IndividualPerformance from "./pages/IndividualPerformance";
-import DesempenhoCorretoras from "./pages/DesempenhoCorretoras";
-import Sinistros from "./pages/Sinistros";
-import VistoriaDigital from "./pages/VistoriaDigital";
-import VistoriaManual from "./pages/VistoriaManual";
-import VistoriaDetalhe from "./pages/VistoriaDetalhe";
-import VistoriaPublicaLanding from './pages/VistoriaPublicaLanding';
-import VistoriaPublicaCaptura from './pages/VistoriaPublicaCaptura';
-import VistoriaPublicaFormulario from './pages/VistoriaPublicaFormulario';
-import VistoriaPublicaTermos from './pages/VistoriaPublicaTermos';
-import VistoriaPublicaConclusao from './pages/VistoriaPublicaConclusao';
-import AcompanhamentoSinistro from './pages/AcompanhamentoSinistro';
-import AcompanhamentoSinistroInterno from './pages/AcompanhamentoSinistroInterno';
-import ConfiguracaoStatusPublico from './pages/ConfiguracaoStatusPublico';
-import Administradora from "./pages/Administradora";
 import { PortalAuthProvider } from '@/contexts/PortalAuthContext';
-import PortalLogin from './pages/portal/PortalLogin';
-import PortalDashboard from './pages/portal/PortalDashboard';
-import PID from './pages/PID';
-import Portal from './pages/Portal';
-import DashboardFinanceiro from "@/pages/DashboardFinanceiro";
-import CustosSinistros from "@/pages/CustosSinistros";
-import SinistroConfiguracoes from "@/pages/SinistroConfiguracoes";
-import SGAInsights from "@/pages/SGAInsights";
-import MGFInsights from "@/pages/MGFInsights";
-import CobrancaInsights from "@/pages/CobrancaInsights";
-import EstudoBaseInsights from "@/pages/EstudoBaseInsights";
-import AcompanhamentoEventos from "@/pages/AcompanhamentoEventos";
-import BILayout from "@/components/bi/BILayout";
-import Landing from "./pages/Landing";
-import Gestao from "./pages/Gestao";
-import Uon1Sign from "./pages/Uon1Sign";
-import ContratoAssinatura from "./pages/ContratoAssinatura";
-import PortalGestaoAssociacao from "./pages/portal/PortalGestaoAssociacao";
-import PortalLayout from "./components/portal/PortalLayout";
 import { PortalLayoutProvider } from "./contexts/PortalLayoutContext";
-import PortalAcompanhamentoEventos from "./pages/portal/PortalAcompanhamentoEventos";
+import { lazy, Suspense } from "react";
+
+// Lazy-loaded pages for code splitting
+const Auth = lazy(() => import("./pages/Auth"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const ChangePassword = lazy(() => import("./pages/ChangePassword"));
+const Index = lazy(() => import("./pages/Index"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const DashboardAnalytics = lazy(() => import("./pages/DashboardAnalytics"));
+const Corretoras = lazy(() => import("./pages/Corretoras"));
+const Contatos = lazy(() => import("./pages/Contatos"));
+const Termos = lazy(() => import("./pages/Termos"));
+const Usuarios = lazy(() => import("./pages/Usuarios"));
+const Equipes = lazy(() => import("./pages/Equipes"));
+const Financeiro = lazy(() => import("./pages/Financeiro"));
+const Agenda = lazy(() => import("./pages/Agenda"));
+const Comunicados = lazy(() => import("./pages/Comunicados"));
+const Documentos = lazy(() => import("./pages/Documentos"));
+const Mensagens = lazy(() => import("./pages/Mensagens"));
+const Emails = lazy(() => import("./pages/Emails"));
+const Configuracoes = lazy(() => import("./pages/Configuracoes"));
+const ComiteDeliberacao = lazy(() => import("./pages/ComiteDeliberacao"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const IndividualPerformance = lazy(() => import("./pages/IndividualPerformance"));
+const DesempenhoCorretoras = lazy(() => import("./pages/DesempenhoCorretoras"));
+const Sinistros = lazy(() => import("./pages/Sinistros"));
+const VistoriaDigital = lazy(() => import("./pages/VistoriaDigital"));
+const VistoriaManual = lazy(() => import("./pages/VistoriaManual"));
+const VistoriaDetalhe = lazy(() => import("./pages/VistoriaDetalhe"));
+const VistoriaPublicaLanding = lazy(() => import('./pages/VistoriaPublicaLanding'));
+const VistoriaPublicaCaptura = lazy(() => import('./pages/VistoriaPublicaCaptura'));
+const VistoriaPublicaFormulario = lazy(() => import('./pages/VistoriaPublicaFormulario'));
+const VistoriaPublicaTermos = lazy(() => import('./pages/VistoriaPublicaTermos'));
+const VistoriaPublicaConclusao = lazy(() => import('./pages/VistoriaPublicaConclusao'));
+const AcompanhamentoSinistro = lazy(() => import('./pages/AcompanhamentoSinistro'));
+const AcompanhamentoSinistroInterno = lazy(() => import('./pages/AcompanhamentoSinistroInterno'));
+const ConfiguracaoStatusPublico = lazy(() => import('./pages/ConfiguracaoStatusPublico'));
+const Administradora = lazy(() => import("./pages/Administradora"));
+const PortalLogin = lazy(() => import('./pages/portal/PortalLogin'));
+const PortalDashboard = lazy(() => import('./pages/portal/PortalDashboard'));
+const PID = lazy(() => import('./pages/PID'));
+const Portal = lazy(() => import('./pages/Portal'));
+const DashboardFinanceiro = lazy(() => import("./pages/DashboardFinanceiro"));
+const CustosSinistros = lazy(() => import("./pages/CustosSinistros"));
+const SinistroConfiguracoes = lazy(() => import("./pages/SinistroConfiguracoes"));
+const SGAInsights = lazy(() => import("./pages/SGAInsights"));
+const MGFInsights = lazy(() => import("./pages/MGFInsights"));
+const CobrancaInsights = lazy(() => import("./pages/CobrancaInsights"));
+const EstudoBaseInsights = lazy(() => import("./pages/EstudoBaseInsights"));
+const AcompanhamentoEventos = lazy(() => import("./pages/AcompanhamentoEventos"));
+const BILayout = lazy(() => import("./components/bi/BILayout"));
+const Landing = lazy(() => import("./pages/Landing"));
+const Gestao = lazy(() => import("./pages/Gestao"));
+const Uon1Sign = lazy(() => import("./pages/Uon1Sign"));
+const ContratoAssinatura = lazy(() => import("./pages/ContratoAssinatura"));
+const PortalGestaoAssociacao = lazy(() => import("./pages/portal/PortalGestaoAssociacao"));
+const PortalLayout = lazy(() => import("./components/portal/PortalLayout"));
+const PortalAcompanhamentoEventos = lazy(() => import("./pages/portal/PortalAcompanhamentoEventos"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -184,6 +186,7 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
+            <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
             <Routes>
               {/* Portal PID Routes */}
           <Route path="/:slug/login" element={<PortalLogin />} />
@@ -252,6 +255,7 @@ const App = () => (
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </TooltipProvider>
         </AuthProvider>
       </PortalAuthProvider>
