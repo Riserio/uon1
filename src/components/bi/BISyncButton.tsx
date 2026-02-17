@@ -151,11 +151,52 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     }
   }, [corretoraId]);
 
+  const STALE_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes
+
+  const autoResolveStaleExecution = async (mod: ModuleType) => {
+    try {
+      const { data: staleExecs } = await supabase
+        .from(EXEC_TABLES[mod] as any)
+        .select("id, created_at, github_run_id")
+        .eq("corretora_id", corretoraId)
+        .eq("status", "executando")
+        .order("created_at", { ascending: false })
+        .limit(5) as any;
+
+      if (!staleExecs?.length) return;
+
+      const now = Date.now();
+      for (const exec of staleExecs) {
+        const elapsed = now - new Date(exec.created_at).getTime();
+        if (elapsed > STALE_TIMEOUT_MS) {
+          await supabase
+            .from(EXEC_TABLES[mod] as any)
+            .update({
+              status: "erro",
+              erro: "Timeout: execução não respondeu em 60 minutos",
+              finalizado_at: new Date().toISOString(),
+            } as any)
+            .eq("id", exec.id);
+
+          await supabase
+            .from(CONFIG_TABLES[mod] as any)
+            .update({ ultimo_status: "erro", ultimo_erro: "Timeout: execução não respondeu" } as any)
+            .eq("corretora_id", corretoraId);
+        }
+      }
+    } catch (e) {
+      console.error(`Erro ao resolver execuções travadas ${mod}:`, e);
+    }
+  };
+
   const loadModuleStatuses = useCallback(async () => {
     if (!corretoraId || corretoraId === "__admin__") return;
     const modules: ModuleType[] = ["cobranca", "eventos", "mgf"];
     const newStatuses = { ...moduleStatuses };
     const hoje = new Date().toISOString().split('T')[0];
+
+    // Auto-resolve stale executions first
+    await Promise.all(modules.map(mod => autoResolveStaleExecution(mod)));
 
     for (const mod of modules) {
       try {

@@ -80,6 +80,8 @@ export default function MGFAutomacaoLogs({ configId, corretoraId }: MGFAutomacao
     };
   }, [configId]);
 
+  const STALE_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes
+
   const loadExecucoes = async () => {
     try {
       const { data, error } = await supabase
@@ -90,7 +92,23 @@ export default function MGFAutomacaoLogs({ configId, corretoraId }: MGFAutomacao
         .limit(20);
 
       if (error) throw error;
-      setExecucoes(data || []);
+
+      // Auto-resolve stale "executando" records
+      const now = Date.now();
+      const resolved = (data || []).map(exec => {
+        if (exec.status === "executando" && (now - new Date(exec.created_at).getTime()) > STALE_TIMEOUT_MS) {
+          // Update in background
+          supabase
+            .from("mgf_automacao_execucoes")
+            .update({ status: "erro", erro: "Timeout: execução não respondeu em 60 minutos", finalizado_at: new Date().toISOString() })
+            .eq("id", exec.id)
+            .then();
+          return { ...exec, status: "erro", erro: "Timeout: execução não respondeu em 60 minutos" };
+        }
+        return exec;
+      });
+
+      setExecucoes(resolved || []);
     } catch (error) {
       console.error("Erro ao carregar execuções:", error);
     } finally {
