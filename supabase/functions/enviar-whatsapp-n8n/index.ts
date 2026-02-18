@@ -117,16 +117,29 @@ serve(async (req) => {
     if (!n8nResponse.ok) {
       const errorText = await n8nResponse.text();
       console.error('[n8n-whatsapp] Erro n8n:', errorText);
+
+      // Parse n8n error for friendlier message
+      let friendlyError = `Erro n8n: ${n8nResponse.status}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (n8nResponse.status === 404 && errorJson.hint) {
+          friendlyError = `Webhook não encontrado (404): ${errorJson.hint}`;
+        } else if (errorJson.message) {
+          friendlyError = `Erro n8n (${n8nResponse.status}): ${errorJson.message}`;
+        }
+      } catch {
+        friendlyError = `Erro n8n (${n8nResponse.status}): ${errorText.substring(0, 200)}`;
+      }
       
       // Update config with error
       await supabase
         .from('whatsapp_config')
         .update({
-          ultimo_erro_envio: `Erro n8n: ${n8nResponse.status} - ${errorText}`,
+          ultimo_erro_envio: friendlyError,
         })
         .eq('id', config.id);
       
-      throw new Error(`Erro ao enviar para n8n: ${n8nResponse.status}`);
+      throw new Error(friendlyError);
     }
 
     console.log('[n8n-whatsapp] Mensagem enviada com sucesso!');
