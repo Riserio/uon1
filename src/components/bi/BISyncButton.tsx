@@ -130,6 +130,8 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
   // Elapsed time ticker — updated every second for active executions
   const [tick, setTick] = useState(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const anyRunningRef = useRef(false);
 
   const loadCredenciais = useCallback(async () => {
     if (!corretoraId || corretoraId === "__admin__") return;
@@ -210,64 +212,70 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
   const loadModuleStatuses = useCallback(async () => {
     if (!corretoraId || corretoraId === "__admin__") return;
     const modules: ModuleType[] = ["cobranca", "eventos", "mgf"];
-    const newStatuses = { ...moduleStatuses };
     const hoje = new Date().toISOString().split('T')[0];
 
     // Auto-resolve stale executions first
     await Promise.all(modules.map(mod => autoResolveStaleExecution(mod)));
 
-    for (const mod of modules) {
+    const results: Partial<Record<ModuleType, ModuleStatus>> = {};
+
+    await Promise.all(modules.map(async (mod) => {
       try {
-        const { data } = await supabase
-          .from(CONFIG_TABLES[mod] as any)
-          .select("ultima_execucao, ultimo_status, ultimo_erro")
-          .eq("corretora_id", corretoraId)
-          .maybeSingle() as any;
-
-        // Check if there's a successful execution TODAY
-        const { data: sucessoHoje } = await supabase
-          .from(EXEC_TABLES[mod] as any)
-          .select("id, created_at")
-          .eq("corretora_id", corretoraId)
-          .eq("status", "sucesso")
-          .gte("created_at", `${hoje}T00:00:00`)
-          .order("created_at", { ascending: false })
-          .limit(1) as any;
-
-        // Fetch active execution details for monitoring panel
-        let activeExecution: ActiveExecution | null = null;
-        if (data?.ultimo_status === "executando") {
-          const { data: activeData } = await supabase
+        // Query config and active execution in parallel
+        const [configRes, sucessoHojeRes, activeExecRes] = await Promise.all([
+          supabase
+            .from(CONFIG_TABLES[mod] as any)
+            .select("ultima_execucao, ultimo_status, ultimo_erro")
+            .eq("corretora_id", corretoraId)
+            .maybeSingle() as any,
+          supabase
+            .from(EXEC_TABLES[mod] as any)
+            .select("id, created_at")
+            .eq("corretora_id", corretoraId)
+            .eq("status", "sucesso")
+            .gte("created_at", `${hoje}T00:00:00`)
+            .order("created_at", { ascending: false })
+            .limit(1) as any,
+          // Always fetch the most recent executing row directly — don't rely on config table
+          supabase
             .from(EXEC_TABLES[mod] as any)
             .select("id, created_at, etapa_atual, bytes_baixados, bytes_total, progresso_download, github_run_url")
             .eq("corretora_id", corretoraId)
             .eq("status", "executando")
             .order("created_at", { ascending: false })
-            .limit(1) as any;
+            .limit(1) as any,
+        ]);
 
-          if (activeData?.[0]) {
-            activeExecution = { ...activeData[0], module: mod };
-          }
-        }
+        const data = configRes.data;
+        const sucessoHoje = sucessoHojeRes.data;
+        const activeRow = activeExecRes.data?.[0] ?? null;
+
+        const activeExecution: ActiveExecution | null = activeRow
+          ? { ...activeRow, module: mod }
+          : null;
+
+        const isExecuting = !!activeRow;
 
         if (data) {
           const hadSuccessToday = sucessoHoje && sucessoHoje.length > 0;
-          const effectiveStatus = hadSuccessToday && data.ultimo_status !== "executando" ? "sucesso" : data.ultimo_status;
+          const effectiveStatus = hadSuccessToday && !isExecuting ? "sucesso" : (isExecuting ? "executando" : data.ultimo_status);
           const effectiveError = hadSuccessToday && effectiveStatus === "sucesso" ? null : data.ultimo_erro;
 
-          newStatuses[mod] = {
+          results[mod] = {
             lastExecution: hadSuccessToday ? sucessoHoje[0].created_at : data.ultima_execucao,
             lastStatus: effectiveStatus,
             lastError: effectiveError,
-            isExecuting: data.ultimo_status === "executando",
+            isExecuting,
             activeExecution,
           };
         }
       } catch (e) {
         console.error(`Erro ao carregar status ${mod}:`, e);
       }
-    }
-    setModuleStatuses(newStatuses);
+    }));
+
+    // Use functional updater to avoid stale closure issues
+    setModuleStatuses(prev => ({ ...prev, ...results }));
   }, [corretoraId]);
 
   useEffect(() => {
@@ -288,10 +296,11 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
   }, [open, moduleStatuses]);
 
-  // Realtime for execution updates — refresh every 15s to capture byte progress
+  // Realtime + aggressive polling while any execution is active
   useEffect(() => {
     if (!open || !corretoraId) return;
 
+    // Realtime subscriptions for instant reaction to DB changes
     const channels = (["cobranca", "eventos", "mgf"] as ModuleType[]).map(mod => {
       return supabase
         .channel(`sync-btn-${mod}-${corretoraId}`)
@@ -303,15 +312,28 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         .subscribe();
     });
 
-    // Poll every 15s during active executions for byte progress updates
-    const pollInterval = setInterval(() => {
-      const anyRunning = Object.values(moduleStatuses).some(s => s.isExecuting);
-      if (anyRunning) loadModuleStatuses();
-    }, 15000);
-
     return () => {
       channels.forEach(ch => supabase.removeChannel(ch));
-      clearInterval(pollInterval);
+    };
+  }, [open, corretoraId, loadModuleStatuses]);
+
+  // Keep anyRunningRef in sync so the poll interval can check without stale closure
+  useEffect(() => {
+    anyRunningRef.current = Object.values(moduleStatuses).some(s => s.isExecuting);
+  }, [moduleStatuses]);
+
+  // Fast-poll: 3s while any module is executing; single interval, no recreation
+  useEffect(() => {
+    if (!open || !corretoraId) return;
+
+    pollRef.current = setInterval(() => {
+      if (anyRunningRef.current) {
+        loadModuleStatuses();
+      }
+    }, 3000);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [open, corretoraId, loadModuleStatuses]);
 
