@@ -61,13 +61,10 @@ const FAIXAS_VALOR = [
   { label: "Acima de R$ 100.000", value: "100000-999999999" },
 ];
 
-// ---------- helpers ----------
-
 function formatPct(n: number) {
   return `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2, minimumFractionDigits: 2 })}%`;
 }
 
-/** Build dynamic faixas from actual max value in data */
 function buildFaixasValorDinamicas(maxValue: number) {
   const step = 10000;
   const maxFaixa = Math.ceil(maxValue / step) * step;
@@ -76,31 +73,11 @@ function buildFaixasValorDinamicas(maxValue: number) {
     const max = min + step;
     const label = min === 0
       ? `Até ${(max / 1000).toFixed(0)}k`
-      : max > maxFaixa
-        ? `+${(min / 1000).toFixed(0)}k`
-        : `${(min / 1000).toFixed(0)}-${(max / 1000).toFixed(0)}k`;
+      : `${(min / 1000).toFixed(0)}-${(max / 1000).toFixed(0)}k`;
     faixas.push({ label, min, max });
   }
   faixas.push({ label: `+${(maxFaixa / 1000).toFixed(0)}k`, min: maxFaixa, max: Infinity });
   return faixas;
-}
-
-function NumbersList({
-  items, valueKey = "value", nameKey = "name", max = 10,
-}: {
-  items: any[]; valueKey?: string; nameKey?: string; max?: number;
-}) {
-  if (!items?.length) return null;
-  return (
-    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-      {items.slice(0, max).map((it, idx) => (
-        <div key={`${it[nameKey]}-${idx}`} className="flex items-center justify-between rounded-md border border-border/60 bg-muted/20 px-2 py-1 text-xs">
-          <span className="truncate max-w-[70%]">{String(it[nameKey])}</span>
-          <span className="font-semibold tabular-nums">{Number(it[valueKey] ?? 0).toLocaleString("pt-BR")}</span>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 type MonthItem = { mes: string; total: number; raw: string; variacao?: number | null };
@@ -110,23 +87,23 @@ function MonthsCounterList({ items, maxHeightClass = "max-h-[260px]" }: { items:
   const total = items.reduce((s, i) => s + (i.total || 0), 0);
   return (
     <div className="mt-3">
-      <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1.5">
         <span>Mês</span>
         <span className="flex items-center gap-6"><span>Qtd</span><span>%</span><span>Variação</span></span>
       </div>
       <div className={`overflow-y-auto pr-1 ${maxHeightClass}`}>
-        <div className="space-y-2">
+        <div className="space-y-1">
           {items.map((it, idx) => {
             const v = it.variacao;
             const hasVar = typeof v === "number" && Number.isFinite(v);
             const pct = total > 0 ? (it.total / total) * 100 : 0;
             return (
-              <div key={`${it.raw}-${idx}`} className="flex items-center justify-between rounded-md border border-border/60 bg-muted/20 px-2 py-2">
+              <div key={`${it.raw}-${idx}`} className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/20 px-2.5 py-1.5">
                 <span className="text-xs font-medium">{it.mes}</span>
                 <div className="flex items-center gap-6">
-                  <span className="text-sm font-bold tabular-nums min-w-[56px] text-right">{Number(it.total).toLocaleString("pt-BR")}</span>
-                  <span className="text-xs font-semibold tabular-nums min-w-[64px] text-right text-muted-foreground">{formatPct(pct)}</span>
-                  <span className={["text-xs font-semibold tabular-nums min-w-[86px] text-right", hasVar ? "" : "text-muted-foreground", hasVar && v! > 0 ? "text-green-600" : "", hasVar && v! < 0 ? "text-destructive" : ""].join(" ")}>
+                  <span className="text-xs font-bold tabular-nums min-w-[48px] text-right">{Number(it.total).toLocaleString("pt-BR")}</span>
+                  <span className="text-[11px] tabular-nums min-w-[56px] text-right text-muted-foreground">{formatPct(pct)}</span>
+                  <span className={["text-[11px] tabular-nums min-w-[80px] text-right font-medium", !hasVar ? "text-muted-foreground" : v! > 0 ? "text-emerald-600" : "text-destructive"].join(" ")}>
                     {hasVar ? `${v! > 0 ? "+" : ""}${formatPct(v!)}` : "—"}
                   </span>
                 </div>
@@ -135,14 +112,14 @@ function MonthsCounterList({ items, maxHeightClass = "max-h-[260px]" }: { items:
           })}
         </div>
       </div>
-      <p className="mt-2 text-[11px] text-muted-foreground">Variação calculada vs mês anterior.</p>
+      <p className="mt-1.5 text-[10px] text-muted-foreground">Variação vs mês anterior.</p>
     </div>
   );
 }
 
 function ScrollCounterList({
   titleLeft = "Item", titleRight = "Qtd", titlePct = "%",
-  items, maxHeightClass = "max-h-[240px]", totalBase,
+  items, maxHeightClass = "max-h-[200px]", totalBase,
 }: {
   titleLeft?: string; titleRight?: string; titlePct?: string;
   items: { name: string; value: number }[]; maxHeightClass?: string; totalBase?: number;
@@ -151,20 +128,20 @@ function ScrollCounterList({
   const total = typeof totalBase === "number" ? totalBase : items.reduce((s, i) => s + (i.value || 0), 0);
   return (
     <div className="mt-3">
-      <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1.5">
         <span>{titleLeft}</span>
         <span className="flex items-center gap-6"><span>{titleRight}</span><span>{titlePct}</span></span>
       </div>
       <div className={`overflow-y-auto pr-1 ${maxHeightClass}`}>
-        <div className="space-y-2">
+        <div className="space-y-1">
           {items.map((it, idx) => {
             const pct = total > 0 ? (it.value / total) * 100 : 0;
             return (
-              <div key={`${it.name}-${idx}`} className="flex items-center justify-between rounded-md border border-border/60 bg-muted/20 px-2 py-2">
+              <div key={`${it.name}-${idx}`} className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/20 px-2.5 py-1.5">
                 <span className="text-xs font-medium truncate max-w-[55%]">{it.name}</span>
                 <div className="flex items-center gap-6">
-                  <span className="text-sm font-bold tabular-nums min-w-[56px] text-right">{Number(it.value).toLocaleString("pt-BR")}</span>
-                  <span className="text-xs font-semibold tabular-nums min-w-[72px] text-right text-muted-foreground">{formatPct(pct)}</span>
+                  <span className="text-xs font-bold tabular-nums min-w-[48px] text-right">{Number(it.value).toLocaleString("pt-BR")}</span>
+                  <span className="text-[11px] tabular-nums min-w-[64px] text-right text-muted-foreground">{formatPct(pct)}</span>
                 </div>
               </div>
             );
@@ -175,16 +152,14 @@ function ScrollCounterList({
   );
 }
 
-
 // ---------- Component ----------
 
 export default function EstudoBaseDashboard({ registros, loading, filters, onFiltersChange }: Props) {
   const filterOptions = useMemo(() => {
     const situacoes = [...new Set(registros.map((r) => r.situacao_veiculo).filter(Boolean))].sort();
     const regionais = [...new Set(registros.map((r) => r.cooperativa || r.regional).filter(Boolean))].sort();
-    const cooperativas = [...new Set(registros.map((r) => r.cooperativa).filter(Boolean))].sort();
     const montadoras = [...new Set(registros.map((r) => r.montadora).filter(Boolean))].sort();
-    return { situacoes, regionais, cooperativas, montadoras };
+    return { situacoes, regionais, montadoras };
   }, [registros]);
 
   const filtered = useMemo(() => {
@@ -214,7 +189,6 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
     return result;
   }, [registros, filters]);
 
-  // KPIs
   const totalPlacas = filtered.length;
   const totalValorProtegido = useMemo(
     () => filtered.reduce((sum, r) => sum + Math.round((r.valor_fipe || 0) * 100), 0) / 100,
@@ -224,11 +198,9 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
   const totalComEventos = filtered.filter((r) => (r.qtde_evento || 0) > 0).length;
   const taxaEventos = totalPlacas > 0 ? (totalComEventos / totalPlacas) * 100 : 0;
 
-  // Charts data
   const placasPorSituacao = useMemo(() => {
     const map = new Map<string, number>();
     filtered.forEach((r) => {
-      // Normalize: trim + uppercase + remove accents to group "ATIVO", "Ativo", "Situação do Veículo" variants
       const raw = r.situacao_veiculo ? String(r.situacao_veiculo).trim() : "N/I";
       const sit = raw.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       map.set(sit, (map.get(sit) || 0) + 1);
@@ -243,8 +215,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
     filtered.forEach((r) => {
       if (r.data_contrato) {
         try {
-          const d = parseISO(r.data_contrato);
-          const key = format(d, "yyyy-MM");
+          const key = format(parseISO(r.data_contrato), "yyyy-MM");
           map.set(key, (map.get(key) || 0) + 1);
         } catch {}
       }
@@ -265,25 +236,6 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
 
   const cadastrosPorMesChart = useMemo(() => [...cadastrosPorMes].reverse(), [cadastrosPorMes]);
 
-  const eventosPorMes = useMemo(() => {
-    const map = new Map<string, number>();
-    filtered.forEach((r) => {
-      if (!r.data_contrato || (r.qtde_evento || 0) <= 0) return;
-      try {
-        const d = parseISO(r.data_contrato);
-        const key = format(d, "yyyy-MM");
-        map.set(key, (map.get(key) || 0) + 1);
-      } catch {}
-    });
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, value]) => {
-        try { return { mes: format(parseISO(key + "-01"), "MMM/yy", { locale: ptBR }), total: value, raw: key }; }
-        catch { return { mes: key, total: value, raw: key }; }
-      });
-  }, [filtered]);
-
-  // Dynamic faixas based on max valor_fipe in data
   const valorProtegidoPorFaixa = useMemo(() => {
     const maxVal = Math.max(...filtered.map((r) => r.valor_fipe || 0), 0);
     if (maxVal === 0) return [];
@@ -329,11 +281,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
   const voluntarioData = useMemo(() => buildRanking("voluntario", 30), [filtered]);
   const combustivelData = useMemo(() => buildRanking("combustivel", 10), [filtered]);
   const tipoVeiculoData = useMemo(() => buildRanking("tipo_veiculo", 15), [filtered]);
-  const corData = useMemo(() => buildRanking("cor", 15), [filtered]);
-
-  const voluntarioTotal = useMemo(() => voluntarioData.reduce((s: number, i: any) => s + (i.value || 0), 0), [voluntarioData]);
-  const eventosPorMesList = useMemo(() => [...eventosPorMes].sort((a, b) => (b.raw || "").localeCompare(a.raw || "")).map((i) => ({ name: i.mes, value: i.total })), [eventosPorMes]);
-  const eventosTotal = useMemo(() => eventosPorMesList.reduce((s, i) => s + (i.value || 0), 0), [eventosPorMesList]);
+  const voluntarioTotal = useMemo(() => voluntarioData.reduce((s, i) => s + (i.value || 0), 0), [voluntarioData]);
 
   const clearFilters = () => {
     onFiltersChange({
@@ -343,24 +291,24 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
     });
   };
 
+  const ttStyle = { borderRadius: 10, fontSize: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (registros.length === 0) {
     return (
-      <Card className="border-yellow-500/20 bg-yellow-500/5">
-        <CardContent className="p-6">
-          <div className="flex gap-3 items-center">
-            <AlertTriangle className="h-6 w-6 text-yellow-500" />
-            <div>
-              <p className="font-medium text-yellow-600">Sem dados importados</p>
-              <p className="text-sm text-muted-foreground mt-1">Importe uma planilha de Estudo de Base na aba Importar Dados.</p>
-            </div>
+      <Card className="border-yellow-500/20 bg-yellow-500/5 rounded-2xl">
+        <CardContent className="p-6 flex gap-3 items-center">
+          <AlertTriangle className="h-6 w-6 text-yellow-500 shrink-0" />
+          <div>
+            <p className="font-semibold text-yellow-600">Sem dados importados</p>
+            <p className="text-sm text-muted-foreground mt-0.5">Importe uma planilha de Estudo de Base na aba Importar Dados.</p>
           </div>
         </CardContent>
       </Card>
@@ -368,467 +316,395 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
   }
 
   return (
-    <div className="space-y-6">
-      {/* Filters */}
-      <Card className="bg-card/50 backdrop-blur border-border/50">
+    <div className="space-y-3">
+      {/* ── Filters ── */}
+      <Card className="bg-card/60 border-border/40 rounded-2xl">
         <CardContent className="p-4">
           <div className="flex items-center gap-2 mb-3">
-            <Filter className="h-4 w-4 text-primary" />
-            <span className="font-semibold text-sm">Filtros</span>
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-2 text-xs">Limpar</Button>
+            <Filter className="h-3.5 w-3.5 text-primary" />
+            <span className="font-semibold text-xs tracking-wide uppercase text-muted-foreground">Filtros</span>
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="h-6 px-2 text-xs ml-auto">Limpar</Button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Situação</Label>
-              <Select
-                value={filters.situacao.length === 0 ? "todas" : filters.situacao.join(",")}
-                onValueChange={(v) => onFiltersChange({ ...filters, situacao: v === "todas" ? [] : v.split(",") })}
-              >
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas</SelectItem>
-                  <SelectItem value="ATIVO,SUSPENSO">Ativas e Suspensas</SelectItem>
-                  <SelectItem value="ATIVO">Apenas Ativas</SelectItem>
-                  <SelectItem value="SUSPENSO">Apenas Suspensas</SelectItem>
-                  {filterOptions.situacoes.filter((s) => s !== "ATIVO" && s !== "SUSPENSO").map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Regional/Cooperativa</Label>
-              <Select value={filters.regional} onValueChange={(v) => onFiltersChange({ ...filters, regional: v })}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Todas" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todas</SelectItem>
-                  {filterOptions.regionais.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Data Contrato De</Label>
-              <Input type="date" value={filters.dataContratoInicio} onChange={(e) => onFiltersChange({ ...filters, dataContratoInicio: e.target.value })} className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Data Contrato Até</Label>
-              <Input type="date" value={filters.dataContratoFim} onChange={(e) => onFiltersChange({ ...filters, dataContratoFim: e.target.value })} className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Montadora</Label>
-              <Select value={filters.montadora} onValueChange={(v) => onFiltersChange({ ...filters, montadora: v })}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Todas" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todas</SelectItem>
-                  {filterOptions.montadoras.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Faixa Valor Protegido</Label>
-              <Select value={filters.faixaValorProtegido} onValueChange={(v) => onFiltersChange({ ...filters, faixaValorProtegido: v })}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {FAIXAS_VALOR.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            {[
+              {
+                label: "Situação",
+                el: (
+                  <Select value={filters.situacao.length === 0 ? "todas" : filters.situacao.join(",")} onValueChange={(v) => onFiltersChange({ ...filters, situacao: v === "todas" ? [] : v.split(",") })}>
+                    <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas</SelectItem>
+                      <SelectItem value="ATIVO,SUSPENSO">Ativas e Suspensas</SelectItem>
+                      <SelectItem value="ATIVO">Apenas Ativas</SelectItem>
+                      <SelectItem value="SUSPENSO">Apenas Suspensas</SelectItem>
+                      {filterOptions.situacoes.filter((s) => s !== "ATIVO" && s !== "SUSPENSO").map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ),
+              },
+              {
+                label: "Regional",
+                el: (
+                  <Select value={filters.regional} onValueChange={(v) => onFiltersChange({ ...filters, regional: v })}>
+                    <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Todas" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas</SelectItem>
+                      {filterOptions.regionais.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ),
+              },
+              { label: "Contrato De", el: <Input type="date" value={filters.dataContratoInicio} onChange={(e) => onFiltersChange({ ...filters, dataContratoInicio: e.target.value })} className="h-8 text-xs rounded-lg" /> },
+              { label: "Contrato Até", el: <Input type="date" value={filters.dataContratoFim} onChange={(e) => onFiltersChange({ ...filters, dataContratoFim: e.target.value })} className="h-8 text-xs rounded-lg" /> },
+              {
+                label: "Montadora",
+                el: (
+                  <Select value={filters.montadora} onValueChange={(v) => onFiltersChange({ ...filters, montadora: v })}>
+                    <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Todas" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas</SelectItem>
+                      {filterOptions.montadoras.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ),
+              },
+              {
+                label: "Faixa Valor",
+                el: (
+                  <Select value={filters.faixaValorProtegido} onValueChange={(v) => onFiltersChange({ ...filters, faixaValorProtegido: v })}>
+                    <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {FAIXAS_VALOR.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ),
+              },
+            ].map(({ label, el }) => (
+              <div key={label} className="space-y-1">
+                <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</Label>
+                {el}
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* KPIs */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Car className="h-4 w-4" />Total de Placas</div>
-            <div className="mt-1 text-2xl font-bold">{totalPlacas.toLocaleString("pt-BR")}</div>
+      {/* ── KPIs ── */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[
+          { label: "Total de Placas", value: totalPlacas.toLocaleString("pt-BR"), icon: Car, cls: "text-primary bg-primary/5 border-primary/20" },
+          { label: "Valor Protegido", value: formatCurrency(totalValorProtegido), icon: DollarSign, cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
+          { label: "Ticket Médio", value: formatCurrency(ticketMedio), icon: DollarSign, cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
+          { label: "Com Eventos", value: totalComEventos.toLocaleString("pt-BR"), icon: ShieldCheck, cls: "text-violet-600 bg-violet-500/5 border-violet-500/20" },
+          { label: "Taxa Sinistro", value: `${taxaEventos.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`, icon: TrendingUp, cls: "text-rose-600 bg-rose-500/5 border-rose-500/20" },
+        ].map(({ label, value, icon: Icon, cls }) => (
+          <Card key={label} className={`rounded-2xl border ${cls}`}>
+            <CardContent className="p-4">
+              <div className={`flex items-center gap-1.5 text-[11px] font-medium mb-1.5 ${cls.split(" ")[0]}`}>
+                <Icon className="h-3 w-3" />{label}
+              </div>
+              <div className="text-xl font-bold tracking-tight">{value}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── Situação + Tipo Veículo ── */}
+      <div className="grid gap-3 lg:grid-cols-3">
+        <Card className="lg:col-span-2 rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Placas por Situação</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            {placasPorSituacao.length > 0 ? (
+              <ResponsiveContainer width="100%" height={Math.max(120, placasPorSituacao.length * 38)}>
+                <BarChart data={placasPorSituacao} layout="vertical" margin={{ top: 2, right: 64, bottom: 2, left: 4 }}>
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Placas"]} contentStyle={ttStyle} />
+                  <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={26} background={{ fill: "hsl(var(--muted)/0.25)", radius: 6 }}>
+                    {placasPorSituacao.map((e, i) => <Cell key={i} fill={e.fill} />)}
+                    <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 11, fontWeight: 700, fill: "hsl(var(--foreground))" }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <p className="text-sm text-muted-foreground py-8 text-center">Sem dados</p>}
           </CardContent>
         </Card>
-        <Card className="border-green-500/20 bg-green-500/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><DollarSign className="h-4 w-4" />Valor Protegido Total</div>
-            <div className="mt-1 text-xl font-bold">{formatCurrency(totalValorProtegido)}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-amber-500/20 bg-amber-500/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><DollarSign className="h-4 w-4" />Ticket Médio</div>
-            <div className="mt-1 text-xl font-bold">{formatCurrency(ticketMedio)}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-purple-500/20 bg-purple-500/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck className="h-4 w-4" />Veículos com Eventos</div>
-            <div className="mt-1 text-2xl font-bold">{totalComEventos.toLocaleString("pt-BR")}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-rose-500/20 bg-rose-500/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><TrendingUp className="h-4 w-4" />Taxa de Sinistro</div>
-            <div className="mt-1 text-2xl font-bold">{taxaEventos.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</div>
+
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Tipo de Veículo</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            {tipoVeiculoData.length > 0 ? (
+              <div className="space-y-2.5 pt-1">
+                {tipoVeiculoData.slice(0, 8).map((item) => {
+                  const pct = totalPlacas > 0 ? (item.value / totalPlacas) * 100 : 0;
+                  return (
+                    <div key={item.name} className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground truncate w-20 shrink-0">{item.name}</span>
+                      <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: item.fill }} />
+                      </div>
+                      <span className="text-[11px] font-bold tabular-nums w-10 text-right">{item.value.toLocaleString("pt-BR")}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : <p className="text-sm text-muted-foreground py-8 text-center">Sem dados</p>}
           </CardContent>
         </Card>
       </div>
 
-      {/* Placas por Situação (full width) */}
-      <Card>
-        <CardHeader><CardTitle className="text-lg">Placas por Situação</CardTitle></CardHeader>
-        <CardContent>
-          {placasPorSituacao.length > 0 ? (
-            <ResponsiveContainer width="100%" height={Math.max(200, placasPorSituacao.length * 44)}>
-              <BarChart data={placasPorSituacao} layout="vertical" margin={{ top: 4, right: 90, bottom: 4, left: 12 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} tickFormatter={(v) => Number(v).toLocaleString("pt-BR")} />
-                <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 12, fontWeight: 500 }} />
-                <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Placas"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={36}>
-                  {placasPorSituacao.map((e, i) => <Cell key={i} fill={e.fill} />)}
-                  <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 12, fontWeight: 700, fill: "hsl(var(--foreground))" }} />
+      {/* ── Valor FIPE por Faixa + Combustível ── */}
+      <div className="grid gap-3 lg:grid-cols-3">
+        <Card className="lg:col-span-2 rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Valor FIPE por Faixa</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <div className="h-[200px]">
+              {valorProtegidoPorFaixa.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={valorProtegidoPorFaixa} margin={{ top: 16, right: 8, bottom: 4, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                    <XAxis dataKey="faixa" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
+                    <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={ttStyle} />
+                    <Bar dataKey="total" fill="hsl(var(--primary))" radius={[5, 5, 0, 0]} maxBarSize={36}>
+                      <LabelList dataKey="total" position="top" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 9, fontWeight: 600, fill: "hsl(var(--muted-foreground))" }} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Sem dados</div>}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Combustível</CardTitle></CardHeader>
+          <CardContent className="px-3 pb-4">
+            {combustivelData.length > 0 ? (
+              <>
+                <div className="h-[120px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={combustivelData} dataKey="value" cx="50%" cy="50%" innerRadius={34} outerRadius={54} paddingAngle={3} label={false} labelLine={false} isAnimationActive={false}>
+                        {combustivelData.map((e, i) => <Cell key={i} fill={e.fill} />)}
+                      </Pie>
+                      <Tooltip formatter={(v: any, name: any) => [Number(v).toLocaleString("pt-BR"), name]} contentStyle={ttStyle} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-1.5 mt-2">
+                  {combustivelData.slice(0, 5).map((item) => (
+                    <div key={item.name} className="flex items-center gap-2 text-xs">
+                      <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
+                      <span className="truncate flex-1 text-muted-foreground">{item.name}</span>
+                      <span className="font-semibold tabular-nums">{item.value.toLocaleString("pt-BR")}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : <p className="text-sm text-muted-foreground py-8 text-center">Sem dados</p>}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Montadoras + Modelos ── */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Top Montadoras</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <ResponsiveContainer width="100%" height={Math.max(140, montadoraData.length * 30)}>
+              <BarChart data={montadoraData} layout="vertical" margin={{ top: 2, right: 56, bottom: 2, left: 4 }}>
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={ttStyle} />
+                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 5, 5, 0]} maxBarSize={20} background={{ fill: "hsl(var(--muted)/0.25)", radius: 5 }}>
+                  <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 10, fontWeight: 600, fill: "hsl(var(--muted-foreground))" }} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center py-16 text-muted-foreground">Sem dados</div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Valor Protegido por Faixa (dinâmico) + Tipo de Veículo */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Valor Protegido por Faixa</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              {valorProtegidoPorFaixa.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={valorProtegidoPorFaixa} margin={{ top: 20, right: 16, bottom: 4, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="faixa" tick={{ fontSize: 10 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                    <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}>
-                      <LabelList dataKey="total" position="top" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 10, fontWeight: 600, fill: "hsl(var(--foreground))" }} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados de valor protegido</div>
-              )}
-            </div>
-            <NumbersList items={valorProtegidoPorFaixa.map((i) => ({ name: i.faixa, value: i.total }))} max={12} />
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Tipo de Veículo</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={Math.max(180, tipoVeiculoData.length * 42)}>
-              {tipoVeiculoData.length > 0 ? (
-                <BarChart data={tipoVeiculoData} layout="vertical" margin={{ top: 4, right: 80, bottom: 4, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 10 }} />
-                  <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                  <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={32}>
-                    {tipoVeiculoData.map((e, i) => <Cell key={i} fill={e.fill} />)}
-                    <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 11, fontWeight: 600, fill: "hsl(var(--foreground))" }} />
-                  </Bar>
-                </BarChart>
-              ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
-              )}
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Top Modelos</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <ResponsiveContainer width="100%" height={Math.max(140, modeloData.length * 30)}>
+              <BarChart data={modeloData} layout="vertical" margin={{ top: 2, right: 56, bottom: 2, left: 4 }}>
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={ttStyle} />
+                <Bar dataKey="value" fill="#f97316" radius={[0, 5, 5, 0]} maxBarSize={20} background={{ fill: "hsl(var(--muted)/0.25)", radius: 5 }}>
+                  <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 10, fontWeight: 600, fill: "hsl(var(--muted-foreground))" }} />
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Top Montadoras + Combustível */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Top Montadoras</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={Math.max(200, montadoraData.length * 38)}>
-              {montadoraData.length > 0 ? (
-                <BarChart data={montadoraData} layout="vertical" margin={{ top: 4, right: 80, bottom: 4, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                  <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} maxBarSize={32}>
-                    <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 10, fontWeight: 600, fill: "hsl(var(--foreground))" }} />
-                  </Bar>
-                </BarChart>
-              ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
-              )}
-            </ResponsiveContainer>
-            <NumbersList items={montadoraData} max={15} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Combustível</CardTitle></CardHeader>
-          <CardContent>
-            {combustivelData.length > 0 ? (
-              <>
-                <div className="h-[220px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={combustivelData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} label={false} labelLine={false} isAnimationActive={false}>
-                        {combustivelData.map((e, i) => <Cell key={i} fill={e.fill} />)}
-                      </Pie>
-                      <Tooltip formatter={(v: any, name: any) => [Number(v).toLocaleString("pt-BR"), name]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                      <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <ScrollCounterList titleLeft="Combustível" titleRight="Qtd" items={combustivelData.map((i) => ({ name: i.name, value: i.value }))} maxHeightClass="max-h-[140px]" />
-              </>
-            ) : (
-              <div className="flex items-center justify-center py-16 text-muted-foreground">Sem dados</div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Eventos por Mês */}
-      <Card>
-        <CardHeader><CardTitle className="text-lg">Total de Veículos com Evento (por mês)</CardTitle></CardHeader>
-        <CardContent>
-          <div className="h-[280px]">
-            {eventosPorMes.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={eventosPorMes} margin={{ top: 20, right: 16, bottom: 4, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                  <Bar dataKey="total" fill="#7c3aed" radius={[6, 6, 0, 0]} maxBarSize={48}>
-                    <LabelList dataKey="total" position="top" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 11, fontWeight: 600, fill: "hsl(var(--foreground))" }} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">Sem eventos no período filtrado</div>
-            )}
-          </div>
-          <ScrollCounterList titleLeft="Mês" titleRight="Qtd" items={eventosPorMesList} totalBase={eventosTotal} maxHeightClass="max-h-[180px]" />
-        </CardContent>
-      </Card>
-
-      {/* Cadastros por Mês */}
-      <Card>
-        <CardHeader><CardTitle className="text-lg">Cadastros por Mês (Data Contrato)</CardTitle></CardHeader>
-        <CardContent>
-          <div className="h-[360px]">
+      {/* ── Cadastros por Mês ── */}
+      <Card className="rounded-2xl border-border/40">
+        <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Cadastros por Mês</CardTitle></CardHeader>
+        <CardContent className="px-4 pb-4">
+          <div className="h-[190px]">
             {cadastrosPorMesChart.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={cadastrosPorMesChart} margin={{ top: 20, right: 16, bottom: 4, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                  <Bar dataKey="total" fill="#2563eb" radius={[6, 6, 0, 0]}>
-                    <LabelList dataKey="total" position="top" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                <BarChart data={cadastrosPorMesChart} margin={{ top: 16, right: 8, bottom: 4, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="mes" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
+                  <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Cadastros"]} contentStyle={ttStyle} />
+                  <Bar dataKey="total" fill="#2563eb" radius={[5, 5, 0, 0]} maxBarSize={38}>
+                    <LabelList dataKey="total" position="top" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
-            )}
+            ) : <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Sem dados</div>}
           </div>
-          <MonthsCounterList items={cadastrosPorMes} maxHeightClass="max-h-[260px]" />
+          <MonthsCounterList items={cadastrosPorMes} maxHeightClass="max-h-[160px]" />
         </CardContent>
       </Card>
 
-      {/* Sexo + Estado Civil */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Sexo</CardTitle></CardHeader>
-          <CardContent>
-            {sexoData.length > 0 ? (
-              <>
-                <div className="h-[220px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={sexoData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} label={false} labelLine={false} isAnimationActive={false}>
-                        {sexoData.map((e, i) => <Cell key={i} fill={e.fill} />)}
-                      </Pie>
-                      <Tooltip formatter={(v: any, name: any) => [Number(v).toLocaleString("pt-BR"), name]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                      <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <ScrollCounterList titleLeft="Sexo" titleRight="Qtd" items={sexoData.map((i) => ({ name: i.name, value: i.value }))} maxHeightClass="max-h-[160px]" />
-              </>
-            ) : (
-              <div className="flex items-center justify-center py-16 text-muted-foreground">Sem dados</div>
-            )}
-          </CardContent>
-        </Card>
+      {/* ── Demográficos: Sexo + Estado Civil + Faixa Etária ── */}
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+        {[
+          { title: "Sexo", data: sexoData },
+          { title: "Estado Civil", data: estadoCivilData },
+        ].map(({ title, data }) => (
+          <Card key={title} className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">{title}</CardTitle></CardHeader>
+            <CardContent className="px-4 pb-4">
+              {data.length > 0 ? (
+                <>
+                  <div className="h-[110px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={data} dataKey="value" cx="50%" cy="50%" innerRadius={28} outerRadius={48} paddingAngle={4} label={false} labelLine={false} isAnimationActive={false}>
+                          {data.map((e, i) => <Cell key={i} fill={e.fill} />)}
+                        </Pie>
+                        <Tooltip formatter={(v: any, n: any) => [Number(v).toLocaleString("pt-BR"), n]} contentStyle={ttStyle} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="space-y-1.5 mt-1">
+                    {data.map((item) => (
+                      <div key={item.name} className="flex items-center gap-2 text-xs">
+                        <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
+                        <span className="truncate flex-1 text-muted-foreground">{item.name}</span>
+                        <span className="font-semibold tabular-nums">{item.value.toLocaleString("pt-BR")}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : <p className="text-sm text-muted-foreground py-6 text-center">Sem dados</p>}
+            </CardContent>
+          </Card>
+        ))}
 
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Estado Civil</CardTitle></CardHeader>
-          <CardContent>
-            {estadoCivilData.length > 0 ? (
-              <>
-                <div className="h-[220px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={estadoCivilData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} label={false} labelLine={false} isAnimationActive={false}>
-                        {estadoCivilData.map((e, i) => <Cell key={i} fill={e.fill} />)}
-                      </Pie>
-                      <Tooltip formatter={(v: any, name: any) => [Number(v).toLocaleString("pt-BR"), name]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                      <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <ScrollCounterList titleLeft="Estado Civil" titleRight="Qtd" items={estadoCivilData.map((i) => ({ name: i.name, value: i.value }))} maxHeightClass="max-h-[160px]" />
-              </>
-            ) : (
-              <div className="flex items-center justify-center py-16 text-muted-foreground">Sem dados</div>
-            )}
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Faixa Etária</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <div className="h-[200px]">
+              {idadeData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={idadeData} margin={{ top: 14, right: 4, bottom: 4, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                    <XAxis dataKey="faixa" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
+                    <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Associados"]} contentStyle={ttStyle} />
+                    <Bar dataKey="total" fill="#ec4899" radius={[5, 5, 0, 0]} maxBarSize={40}>
+                      <LabelList dataKey="total" position="top" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 9, fontWeight: 600, fill: "hsl(var(--muted-foreground))" }} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Sem dados</div>}
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Faixa Etária + Categoria */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Faixa Etária</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-[280px]">
-              {idadeData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={idadeData} margin={{ top: 20, right: 16, bottom: 4, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="faixa" tick={{ fontSize: 12 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Associados"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                    <Bar dataKey="total" fill="#ec4899" radius={[6, 6, 0, 0]} maxBarSize={56}>
-                      <LabelList dataKey="total" position="top" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 11, fontWeight: 600, fill: "hsl(var(--foreground))" }} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados de idade</div>
-              )}
-            </div>
+      {/* ── Voluntário + Categoria ── */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Voluntário</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            {voluntarioData.length > 0 ? (
+              <>
+                <div className="h-[270px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={voluntarioData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={75} outerRadius={120} paddingAngle={2} label={false} labelLine={false} minAngle={3} isAnimationActive={false}>
+                        {voluntarioData.map((e, i) => <Cell key={i} fill={e.fill} />)}
+                      </Pie>
+                      <Tooltip formatter={(v: any, name: any) => [Number(v).toLocaleString("pt-BR"), name]} contentStyle={ttStyle} />
+                      <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 11 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <ScrollCounterList titleLeft="Voluntário" titleRight="Qtd" items={voluntarioData.map((i) => ({ name: i.name, value: i.value }))} totalBase={voluntarioTotal} maxHeightClass="max-h-[120px]" />
+              </>
+            ) : <p className="text-sm text-muted-foreground py-8 text-center">Sem dados</p>}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Categoria</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={Math.max(180, categoriaData.length * 40)}>
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Categoria</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <ResponsiveContainer width="100%" height={Math.max(140, categoriaData.length * 32)}>
               {categoriaData.length > 0 ? (
-                <BarChart data={categoriaData} layout="vertical" margin={{ top: 4, right: 80, bottom: 4, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                  <Bar dataKey="value" fill="#14b8a6" radius={[0, 6, 6, 0]} maxBarSize={32}>
+                <BarChart data={categoriaData} layout="vertical" margin={{ top: 2, right: 56, bottom: 2, left: 4 }}>
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={ttStyle} />
+                  <Bar dataKey="value" fill="#14b8a6" radius={[0, 5, 5, 0]} maxBarSize={22} background={{ fill: "hsl(var(--muted)/0.25)", radius: 5 }}>
                     {categoriaData.map((e, i) => <Cell key={i} fill={e.fill} />)}
-                    <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 12, fontWeight: 600, fill: "hsl(var(--foreground))" }} />
+                    <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 10, fontWeight: 600, fill: "hsl(var(--muted-foreground))" }} />
                   </Bar>
                 </BarChart>
-              ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
-              )}
+              ) : <p className="text-sm text-muted-foreground py-6 text-center">Sem dados</p>}
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Top Modelos + Ano Modelo */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Top Modelos</CardTitle></CardHeader>
-          <CardContent className="h-[400px]">
-            {modeloData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={modeloData} layout="vertical" margin={{ top: 4, right: 70, bottom: 4, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" width={190} tick={{ fontSize: 9 }} />
-                  <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                  <Bar dataKey="value" fill="#f97316" radius={[0, 4, 4, 0]}>
-                    <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Ano Modelo</CardTitle></CardHeader>
-          <CardContent className="h-[400px]">
+      {/* ── Ano do Modelo ── */}
+      <Card className="rounded-2xl border-border/40">
+        <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Ano do Modelo</CardTitle></CardHeader>
+        <CardContent className="px-4 pb-4">
+          <div className="h-[200px]">
             {anoModeloData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={anoModeloData} margin={{ top: 20, right: 16, bottom: 40, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-45} textAnchor="end" />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                  <Bar dataKey="value" fill="#06b6d4" radius={[4, 4, 0, 0]}>
+                <BarChart data={anoModeloData} margin={{ top: 14, right: 8, bottom: 20, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-45} textAnchor="end" axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={30} />
+                  <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={ttStyle} />
+                  <Bar dataKey="value" fill="#06b6d4" radius={[5, 5, 0, 0]} maxBarSize={30}>
                     {anoModeloData.map((e, i) => <Cell key={i} fill={e.fill} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Voluntário - donut full width */}
-      <Card>
-        <CardHeader><CardTitle className="text-lg">Voluntário</CardTitle></CardHeader>
-        <CardContent>
-          {voluntarioData.length > 0 ? (
-            <>
-              <div className="h-[340px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={voluntarioData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={90} outerRadius={145} paddingAngle={2} label={false} labelLine={false} minAngle={3} isAnimationActive={false}>
-                      {voluntarioData.map((e, i) => <Cell key={i} fill={e.fill} />)}
-                    </Pie>
-                    <Tooltip formatter={(v: any, name: any) => [Number(v).toLocaleString("pt-BR"), name]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                    <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <ScrollCounterList titleLeft="Voluntário" titleRight="Qtd" items={voluntarioData.map((i) => ({ name: i.name, value: i.value }))} totalBase={voluntarioTotal} maxHeightClass="max-h-[200px]" />
-            </>
-          ) : (
-            <div className="flex items-center justify-center py-16 text-muted-foreground">Sem dados</div>
-          )}
+            ) : <div className="flex items-center justify-center h-full text-sm text-muted-foreground">Sem dados</div>}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Regional */}
-      <Card>
-        <CardHeader><CardTitle className="text-lg">Regional/Cooperativa</CardTitle></CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={Math.max(200, regionalData.length * 40)}>
+      {/* ── Regional / Cooperativa ── */}
+      <Card className="rounded-2xl border-border/40">
+        <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Regional / Cooperativa</CardTitle></CardHeader>
+        <CardContent className="px-4 pb-4">
+          <ResponsiveContainer width="100%" height={Math.max(100, regionalData.length * 32)}>
             {regionalData.length > 0 ? (
-              <BarChart data={regionalData} layout="vertical" margin={{ top: 4, right: 80, bottom: 4, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="name" width={180} tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                <Bar dataKey="value" fill="#2563eb" radius={[0, 4, 4, 0]}>
-                  <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 10, fontWeight: 600, fill: "hsl(var(--foreground))" }} />
+              <BarChart data={regionalData} layout="vertical" margin={{ top: 2, right: 56, bottom: 2, left: 4 }}>
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="name" width={180} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={ttStyle} />
+                <Bar dataKey="value" fill="#2563eb" radius={[0, 5, 5, 0]} maxBarSize={22} background={{ fill: "hsl(var(--muted)/0.25)", radius: 5 }}>
+                  <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 10, fontWeight: 600, fill: "hsl(var(--muted-foreground))" }} />
                 </Bar>
               </BarChart>
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
-            )}
+            ) : <p className="text-sm text-muted-foreground py-6 text-center">Sem dados</p>}
           </ResponsiveContainer>
         </CardContent>
       </Card>
