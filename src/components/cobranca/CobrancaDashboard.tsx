@@ -711,60 +711,27 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-primary">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total de Boletos Emitidos</p>
-                <p className="text-2xl font-bold">{stats.totalBoletos.toLocaleString('pt-BR')}</p>
-                <p className="text-sm text-blue-600 font-medium">{formatCurrency(stats.totalValor)}</p>
-              </div>
-              <FileText className="h-8 w-8 text-primary/30" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total de Boletos Pagos</p>
-                <p className="text-2xl font-bold">{stats.qtdePagos.toLocaleString('pt-BR')}</p>
-                <p className="text-sm text-green-600 font-medium">{formatCurrency(stats.totalPago)}</p>
-              </div>
-              <CheckCircle2 className="h-8 w-8 text-green-500/30" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-red-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total de Boletos em Aberto</p>
-                <p className="text-2xl font-bold">{stats.qtdeAbertos.toLocaleString('pt-BR')}</p>
-                <p className="text-sm text-red-600 font-medium">{formatCurrency(stats.totalAberto)}</p>
-              </div>
-              <Clock className="h-8 w-8 text-red-500/30" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-yellow-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">% Inadimplência</p>
-                <p className="text-2xl font-bold">{formatPercent(stats.percentualInadimplencia)}</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-yellow-500/30" />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        {[
+          { label: "Boletos Emitidos", value: stats.totalBoletos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalValor), cls: "text-primary bg-primary/5 border-primary/20" },
+          { label: "Boletos Pagos", value: stats.qtdePagos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalPago), cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
+          { label: "Em Aberto", value: stats.qtdeAbertos.toLocaleString('pt-BR'), sub: formatCurrency(stats.totalAberto), cls: "text-red-600 bg-red-500/5 border-red-500/20" },
+          { label: "Inadimplência", value: formatPercent(stats.percentualInadimplencia), sub: "do total emitido", cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
+        ].map(({ label, value, sub, cls }) => (
+          <Card key={label} className={`rounded-2xl border ${cls}`}>
+            <CardContent className="p-4">
+              <div className={`text-[11px] font-medium mb-1 ${cls.split(" ")[0]}`}>{label}</div>
+              <div className="text-xl font-bold tracking-tight">{value}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Boletos por Dia de Vencimento - Card Integrado */}
-      <Card className="overflow-hidden">
+      <Card className="rounded-2xl overflow-hidden border-border/40">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Calendar className="h-5 w-5 text-primary" />
@@ -894,7 +861,7 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
       </Card>
 
       {/* Gráfico de Inadimplência com duas linhas */}
-      <Card>
+      <Card className="rounded-2xl border-border/40">
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-4">
             <CardTitle className="flex items-center gap-2">
@@ -1069,185 +1036,75 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
         </CardContent>
       </Card>
 
-      {/* Rankings de Inadimplência por Regional */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-5 w-5 text-green-500" />
-              Menor Inadimplência (Regional)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-[350px] overflow-y-auto">
-              {stats.regionaisMenorInadimplencia.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhum dado disponível
-                </p>
-              ) : (
-                stats.regionaisMenorInadimplencia.map((item, index) => (
-                  <div key={item.name} className="flex items-center gap-3 p-2 bg-green-500/10 rounded-lg">
-                    <span className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold">
-                      {index + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate text-sm">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.abertos} de {item.total} boletos</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-green-600">{item.percentual.toFixed(1)}%</p>
-                    </div>
+      {/* Rankings compactos */}
+      {[
+        { title: "Menor Inadimplência (Regional)", data: stats.regionaisMenorInadimplencia, isGreen: true, showPct: true },
+        { title: "Maior Inadimplência (Regional)", data: stats.regionaisMaiorInadimplencia, isGreen: false, showPct: true },
+        { title: "Menor Inadimplência (Cooperativa)", data: stats.cooperativasMenorInadimplencia, isGreen: true, showPct: true },
+        { title: "Maior Inadimplência (Cooperativa)", data: stats.cooperativasMaiorInadimplencia, isGreen: false, showPct: true },
+      ].reduce((rows: any[][], item, i) => {
+        if (i % 2 === 0) rows.push([]);
+        rows[rows.length - 1].push(item);
+        return rows;
+      }, []).map((pair, rowIdx) => (
+        <div key={rowIdx} className="grid gap-3 md:grid-cols-2">
+          {pair.map(({ title, data, isGreen, showPct }: any) => (
+            <Card key={title} className="rounded-2xl border-border/40">
+              <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">{title}</CardTitle></CardHeader>
+              <CardContent className="px-4 pb-4">
+                {data.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">Nenhum dado disponível</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-[240px] overflow-y-auto pr-0.5">
+                    {data.map((item: any, i: number) => (
+                      <div key={item.name} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/30">
+                        <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
+                        <span className="text-[11px] font-medium truncate flex-1">{item.name}</span>
+                        {showPct && <span className="text-[10px] text-muted-foreground tabular-nums">{item.abertos}/{item.total}</span>}
+                        <span className={`text-[11px] font-bold tabular-nums w-14 text-right ${isGreen ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {showPct ? `${item.percentual.toFixed(1)}%` : formatCompactCurrency(item.valor)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ))}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertCircle className="h-5 w-5 text-red-500" />
-              Maior Inadimplência (Regional)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-[350px] overflow-y-auto">
-              {stats.regionaisMaiorInadimplencia.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhum dado disponível
-                </p>
-              ) : (
-                stats.regionaisMaiorInadimplencia.map((item, index) => (
-                  <div key={item.name} className="flex items-center gap-3 p-2 bg-red-500/10 rounded-lg">
-                    <span className="w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center text-xs font-bold">
-                      {index + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate text-sm">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.abertos} de {item.total} boletos</p>
+      {/* Rankings Regionais/Cooperativas Pagos vs Abertos */}
+      {[
+        { title: "Ranking Regionais - Pagos", data: stats.regionaisPagosData, isGreen: true },
+        { title: "Ranking Regionais - Abertos", data: stats.regionaisAbertosData, isGreen: false },
+        { title: "Ranking Cooperativas - Pagos", data: stats.cooperativasPagosData, isGreen: true },
+        { title: "Ranking Cooperativas - Abertos", data: stats.cooperativasAbertosData, isGreen: false },
+      ].reduce((rows: any[][], item, i) => {
+        if (i % 2 === 0) rows.push([]);
+        rows[rows.length - 1].push(item);
+        return rows;
+      }, []).map((pair, rowIdx) => (
+        <div key={rowIdx} className="grid gap-3 md:grid-cols-2">
+          {pair.map(({ title, data, isGreen }: any) => (
+            <Card key={title} className="rounded-2xl border-border/40">
+              <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">{title}</CardTitle></CardHeader>
+              <CardContent className="px-4 pb-4">
+                <div className="space-y-1.5 max-h-[240px] overflow-y-auto pr-0.5">
+                  {data.map((item: any, i: number) => (
+                    <div key={item.name} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/30">
+                      <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
+                      <span className="text-[11px] font-medium truncate flex-1">{item.name}</span>
+                      <span className="text-[11px] text-muted-foreground tabular-nums">{item.qtde} bol.</span>
+                      <span className={`text-[11px] font-bold tabular-nums w-16 text-right ${isGreen ? 'text-emerald-600' : 'text-red-600'}`}>{formatCompactCurrency(item.valor)}</span>
                     </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-red-600">{item.percentual.toFixed(1)}%</p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Rankings de Inadimplência por Cooperativa */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-5 w-5 text-green-500" />
-              Menor Inadimplência (Cooperativa)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-[350px] overflow-y-auto">
-              {stats.cooperativasMenorInadimplencia.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhum dado disponível
-                </p>
-              ) : (
-                stats.cooperativasMenorInadimplencia.map((item, index) => (
-                  <div key={item.name} className="flex items-center gap-3 p-2 bg-green-500/10 rounded-lg">
-                    <span className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold">
-                      {index + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate text-sm">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.abertos} de {item.total} boletos</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-green-600">{item.percentual.toFixed(1)}%</p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertCircle className="h-5 w-5 text-red-500" />
-              Maior Inadimplência (Cooperativa)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-[350px] overflow-y-auto">
-              {stats.cooperativasMaiorInadimplencia.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhum dado disponível
-                </p>
-              ) : (
-                stats.cooperativasMaiorInadimplencia.map((item, index) => (
-                  <div key={item.name} className="flex items-center gap-3 p-2 bg-red-500/10 rounded-lg">
-                    <span className="w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center text-xs font-bold">
-                      {index + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate text-sm">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.abertos} de {item.total} boletos</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-red-600">{item.percentual.toFixed(1)}%</p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Building2 className="h-5 w-5 text-green-500" />
-              Ranking Regionais - Boletos Pagos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-[350px] overflow-y-auto">
-              {stats.regionaisPagosData.map((item, index) => (
-                <div key={item.name} className="flex items-center gap-3 p-2 bg-green-500/10 rounded-lg">
-                  <span className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold">
-                    {index + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate text-sm">{item.name}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">{item.qtde} boletos</p>
-                    <p className="text-xs text-green-600">{formatCurrency(item.valor)}</p>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Building2 className="h-5 w-5 text-red-500" />
-              Ranking Regionais - Boletos em Aberto
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-[350px] overflow-y-auto">
-              {stats.regionaisAbertosData.map((item, index) => (
-                <div key={item.name} className="flex items-center gap-3 p-2 bg-red-500/10 rounded-lg">
-                  <span className="w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center text-xs font-bold">
-                    {index + 1}
-                  </span>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ))}
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate text-sm">{item.name}</p>
                   </div>
