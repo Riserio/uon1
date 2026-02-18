@@ -66,6 +66,9 @@ verify_jwt = false
 [functions.enviar-whatsapp]
 verify_jwt = false
 
+[functions.enviar-whatsapp-meta]
+verify_jwt = false
+
 [functions.gerar-resumo-cobranca]
 verify_jwt = true
 

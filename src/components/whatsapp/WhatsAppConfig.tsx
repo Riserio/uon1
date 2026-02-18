@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { MessageCircle, Save, Clock, Zap, ExternalLink, TestTube, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { MessageCircle, Save, Clock, TestTube, CheckCircle, XCircle, AlertCircle, Smartphone } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface WhatsAppConfigProps {
@@ -61,7 +61,7 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
       .from('corretoras')
       .select('id, nome')
       .order('nome');
-    
+
     if (data) {
       setCorretoras(data);
       if (!selectedCorretora && data.length > 0) {
@@ -118,11 +118,6 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
       return;
     }
 
-    if (config.n8n_ativo && !config.n8n_webhook_url) {
-      toast.error('Configure a URL do webhook n8n para ativar a integração');
-      return;
-    }
-
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -146,43 +141,53 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
           .from('whatsapp_config')
           .update(payload)
           .eq('id', config.id);
-        
+
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('whatsapp_config')
           .insert(payload);
-        
+
         if (error) throw error;
       }
 
       toast.success('Configuração salva com sucesso!');
       loadConfig(selectedCorretora);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving config:', error);
-      toast.error('Erro ao salvar: ' + error.message);
+      toast.error('Erro ao salvar: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleTestN8N = async () => {
-    if (!config.n8n_webhook_url) {
-      toast.error('Configure a URL do webhook n8n primeiro');
+  const handleTestMeta = async () => {
+    if (!config.id) {
+      toast.error('Salve a configuração primeiro');
       return;
     }
 
     setTesting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('enviar-whatsapp-n8n', {
-        body: {
+      const { data: { session } } = await supabase.auth.getSession();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/enviar-whatsapp-meta`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': anonKey,
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+        },
+        body: JSON.stringify({
           corretora_id: selectedCorretora,
           tipo: 'cobranca',
-          mensagem: '🧪 *TESTE DE INTEGRAÇÃO*\n\nSe você recebeu esta mensagem, a integração n8n está funcionando corretamente!',
-        },
+          mensagem: '🧪 *TESTE DE INTEGRAÇÃO*\n\nSe você recebeu esta mensagem, a integração WhatsApp Business API está funcionando corretamente! ✅',
+        }),
       });
 
-      if (error) throw error;
+      const data = await response.json();
 
       if (data?.success) {
         toast.success('Mensagem de teste enviada com sucesso!');
@@ -190,9 +195,9 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
       } else {
         throw new Error(data?.error || 'Erro desconhecido');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Test error:', error);
-      toast.error('Erro no teste: ' + error.message);
+      toast.error('Erro no teste: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
     } finally {
       setTesting(false);
     }
@@ -229,9 +234,9 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>Número do WhatsApp *</Label>
+              <Label>Número de Destino (WhatsApp) *</Label>
               <Input
-                placeholder="(11) 99999-9999"
+                placeholder="(31) 98313-1491"
                 value={config.telefone_whatsapp}
                 onChange={(e) => setConfig({ ...config, telefone_whatsapp: e.target.value })}
               />
@@ -258,7 +263,7 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
               />
               <Label>WhatsApp ativo para esta associação</Label>
             </div>
-            
+
             <Button onClick={handleSave} disabled={loading}>
               <Save className="h-4 w-4 mr-2" />
               {loading ? 'Salvando...' : 'Salvar Configuração'}
@@ -267,19 +272,19 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
         </CardContent>
       </Card>
 
-      {/* n8n Integration Card */}
-      <Card className="border-orange-200 dark:border-orange-800">
+      {/* Meta WhatsApp Business API Card */}
+      <Card className="border-green-200 dark:border-green-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-orange-500" />
-            Integração n8n (Envio Automático)
+            <Smartphone className="h-5 w-5 text-green-600" />
+            WhatsApp Business API (Meta)
           </CardTitle>
           <CardDescription>
-            Configure a automação via n8n para envio automático de mensagens
+            Envio direto via API oficial do Meta — gratuito para mensagens dentro da janela de 24h
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Status Alert */}
+          {/* Status alerts */}
           {config.ultimo_erro_envio && (
             <Alert variant="destructive">
               <XCircle className="h-4 w-4" />
@@ -298,52 +303,33 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
             </Alert>
           )}
 
-          {/* Setup Instructions */}
+          {/* Info */}
           <Alert>
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Como configurar o n8n</AlertTitle>
-            <AlertDescription className="space-y-2">
-              <p>1. Crie uma conta gratuita em <a href="https://n8n.io" target="_blank" rel="noopener noreferrer" className="underline font-medium">n8n.io</a></p>
-              <p>2. Crie um workflow com: <strong>Webhook → WhatsApp</strong></p>
-              <p>3. Cole a URL do webhook abaixo</p>
-              <Button variant="outline" size="sm" className="mt-2" asChild>
-                <a href="https://n8n.io" target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Abrir n8n
-                </a>
-              </Button>
+            <AlertTitle>Como funciona</AlertTitle>
+            <AlertDescription className="space-y-1 text-sm">
+              <p>✅ <strong>Token e Phone Number ID</strong> já configurados nos secrets do sistema.</p>
+              <p>✅ <strong>Gratuito:</strong> mensagens dentro da janela de 24h após o destinatário interagir.</p>
+              <p>⚠️ <strong>Fora da janela:</strong> use templates aprovados no Meta Business.</p>
             </AlertDescription>
           </Alert>
 
-          <div className="space-y-2">
-            <Label>URL do Webhook n8n</Label>
-            <Input
-              placeholder="https://seu-n8n.app.n8n.cloud/webhook/..."
-              value={config.n8n_webhook_url}
-              onChange={(e) => setConfig({ ...config, n8n_webhook_url: e.target.value })}
-            />
-            <p className="text-xs text-muted-foreground">
-              Copie a URL do nó Webhook no seu workflow n8n
-            </p>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={config.n8n_ativo}
-                onCheckedChange={(checked) => setConfig({ ...config, n8n_ativo: checked })}
-              />
-              <Label>Ativar integração n8n</Label>
+          {/* Test button */}
+          <div className="flex items-center justify-between border rounded-lg p-4">
+            <div>
+              <p className="font-medium text-sm">Testar integração</p>
+              <p className="text-xs text-muted-foreground">
+                Envia uma mensagem de teste para o número configurado acima
+              </p>
             </div>
-            
-            <Button 
-              variant="outline" 
-              onClick={handleTestN8N} 
-              disabled={testing || !config.n8n_webhook_url || !config.id}
+            <Button
+              variant="outline"
+              onClick={handleTestMeta}
+              disabled={testing || !config.id}
               title={!config.id ? 'Salve a configuração primeiro' : ''}
             >
               <TestTube className="h-4 w-4 mr-2" />
-              {testing ? 'Testando...' : !config.id ? 'Salve primeiro' : 'Testar Integração'}
+              {testing ? 'Testando...' : !config.id ? 'Salve primeiro' : 'Testar Envio'}
             </Button>
           </div>
 
@@ -351,7 +337,7 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
           <div className="space-y-4 border-t pt-4">
             <h4 className="font-medium flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Envio Automático via n8n
+              Envio Automático
             </h4>
 
             <div className="space-y-2">
@@ -375,7 +361,6 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
                 <Switch
                   checked={config.envio_automatico_cobranca}
                   onCheckedChange={(checked) => setConfig({ ...config, envio_automatico_cobranca: checked })}
-                  disabled={!config.n8n_ativo}
                 />
               </div>
 
@@ -389,7 +374,6 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
                 <Switch
                   checked={config.envio_automatico_eventos}
                   onCheckedChange={(checked) => setConfig({ ...config, envio_automatico_eventos: checked })}
-                  disabled={!config.n8n_ativo}
                 />
               </div>
 
@@ -403,7 +387,6 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
                 <Switch
                   checked={config.envio_automatico_mgf}
                   onCheckedChange={(checked) => setConfig({ ...config, envio_automatico_mgf: checked })}
-                  disabled={!config.n8n_ativo}
                 />
               </div>
             </div>
