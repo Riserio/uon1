@@ -405,17 +405,17 @@ export default function SGAInsights() {
       {/* Filtros colapsáveis */}
       {eventos.length > 0 && (
         <div className="container mx-auto px-4 pt-4">
-          <Card className="bg-card/50 backdrop-blur border-border/50 overflow-hidden">
+          <Card className="border-violet-500/30 bg-violet-500/3 backdrop-blur overflow-hidden shadow-sm shadow-violet-500/10">
             {/* Filtros Header - sempre visível */}
             <button
               onClick={() => setFiltersOpen(o => !o)}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors"
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-violet-500/5 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-primary" />
-                <span className="font-semibold text-sm">Filtros</span>
+                <Filter className="h-4 w-4 text-violet-600" />
+                <span className="font-semibold text-sm text-violet-700 dark:text-violet-400">Filtros</span>
                 {hasActiveFilters && (
-                  <span className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 bg-violet-500/15 text-violet-700 dark:text-violet-300 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-violet-500/20">
                     ativo
                   </span>
                 )}
@@ -443,7 +443,7 @@ export default function SGAInsights() {
                     Limpar
                   </Button>
                 )}
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`h-4 w-4 text-violet-500 transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
               </div>
             </button>
 
@@ -522,24 +522,24 @@ export default function SGAInsights() {
       {filteredEventos.length > 0 && (
         <div className="container mx-auto px-4 pt-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className="bg-card/50 backdrop-blur border-border/50">
+            <Card className="bg-violet-500/5 backdrop-blur border-violet-500/20 shadow-sm shadow-violet-500/10">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Car className="h-5 w-5 text-primary" />
+                  <div className="p-2 rounded-lg bg-violet-500/15">
+                    <Car className="h-5 w-5 text-violet-600" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{filteredEventos.length.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-violet-700 dark:text-violet-300">{filteredEventos.length.toLocaleString()}</p>
                     <p className="text-xs text-muted-foreground">Total Eventos</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
-            <Card className="bg-card/50 backdrop-blur border-border/50">
+            <Card className="bg-violet-500/5 backdrop-blur border-violet-500/20 shadow-sm shadow-violet-500/10">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-green-500/10">
-                    <TrendingUp className="h-5 w-5 text-green-500" />
+                  <div className="p-2 rounded-lg bg-emerald-500/15">
+                    <TrendingUp className="h-5 w-5 text-emerald-600" />
                   </div>
                   <div>
                     <p className="text-2xl font-bold">
@@ -550,11 +550,11 @@ export default function SGAInsights() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="bg-card/50 backdrop-blur border-border/50">
+            <Card className="bg-violet-500/5 backdrop-blur border-violet-500/20 shadow-sm shadow-violet-500/10">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-yellow-500/10">
-                    <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                  <div className="p-2 rounded-lg bg-amber-500/15">
+                    <AlertTriangle className="h-5 w-5 text-amber-600" />
                   </div>
                   <div>
                     <p className="text-2xl font-bold">
@@ -565,11 +565,11 @@ export default function SGAInsights() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="bg-card/50 backdrop-blur border-border/50">
+            <Card className="bg-violet-500/5 backdrop-blur border-violet-500/20 shadow-sm shadow-violet-500/10">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-destructive/10">
-                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                  <div className="p-2 rounded-lg bg-rose-500/15">
+                    <DollarSign className="h-5 w-5 text-rose-600" />
                   </div>
                   <div>
                     <p className="text-2xl font-bold">
@@ -589,15 +589,16 @@ export default function SGAInsights() {
       <div className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
-            <TabsList className="inline-flex md:flex md:w-full max-w-3xl mx-auto gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">
+            <TabsList className="inline-flex md:flex md:w-full max-w-3xl mx-auto gap-1 p-1.5 bg-violet-500/8 border border-violet-500/20 rounded-xl min-w-max md:min-w-0 shadow-sm shadow-violet-500/10">
               {tabs.map((tab) => (
                 <TabsTrigger
                   key={tab.id}
                   value={tab.id}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
                     text-muted-foreground transition-all
-                    data-[state=active]:bg-background data-[state=active]:text-foreground
-                    data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50
+                    data-[state=active]:bg-violet-600 data-[state=active]:text-white
+                    data-[state=active]:shadow-md data-[state=active]:shadow-violet-500/30
+                    hover:text-violet-700 hover:bg-violet-500/10
                     whitespace-nowrap"
                 >
                   <tab.icon className="h-4 w-4" />

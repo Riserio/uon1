@@ -14,7 +14,7 @@ import MGFTabela from "@/components/mgf/MGFTabela";
 import MGFRelatorioEventos from "@/components/mgf/MGFRelatorioEventos";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
-import { Badge } from "@/components/ui/badge";
+
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -454,20 +454,20 @@ export default function MGFInsights() {
       {/* Filtros Globais (estilo SGA) */}
       {dados.length > 0 && (
         <div className="container mx-auto px-4 pt-4">
-          <Card className="border-orange-500/20 bg-card/50 backdrop-blur">
+          <Card className="border-amber-500/30 bg-amber-500/3 backdrop-blur shadow-sm shadow-amber-500/10">
             <CardContent className="p-0">
               {/* Header clicável */}
               <button
                 onClick={() => setFiltersOpen(o => !o)}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors rounded-xl"
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-500/5 transition-colors rounded-xl"
               >
                 <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-orange-500" />
-                  <span className="font-semibold text-sm">Filtros</span>
+                  <Filter className="h-4 w-4 text-amber-600" />
+                  <span className="font-semibold text-sm text-amber-700 dark:text-amber-400">Filtros</span>
                   {activeFiltersCount > 0 && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    <span className="inline-flex items-center gap-1 bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-amber-500/20">
                       {activeFiltersCount} ativo{activeFiltersCount > 1 ? "s" : ""}
-                    </Badge>
+                    </span>
                   )}
                   {!filtersOpen && activeFiltersCount > 0 && (
                     <span className="text-xs text-muted-foreground truncate max-w-[300px]">
@@ -487,7 +487,7 @@ export default function MGFInsights() {
                       Limpar
                     </button>
                   )}
-                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-4 w-4 text-amber-500 transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
                 </div>
               </button>
               {filtersOpen && (
@@ -626,15 +626,16 @@ export default function MGFInsights() {
       <div className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
-            <TabsList className="inline-flex md:flex md:w-full max-w-xl mx-auto gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">
+            <TabsList className="inline-flex md:flex md:w-full max-w-xl mx-auto gap-1 p-1.5 bg-amber-500/8 border border-amber-500/20 rounded-xl min-w-max md:min-w-0 shadow-sm shadow-amber-500/10">
               {tabs.map((tab) => (
                 <TabsTrigger
                   key={tab.id}
                   value={tab.id}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
                     text-muted-foreground transition-all
-                    data-[state=active]:bg-background data-[state=active]:text-foreground
-                    data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50
+                    data-[state=active]:bg-amber-500 data-[state=active]:text-white
+                    data-[state=active]:shadow-md data-[state=active]:shadow-amber-500/30
+                    hover:text-amber-700 hover:bg-amber-500/10
                     whitespace-nowrap"
                 >
                   <tab.icon className="h-4 w-4" />

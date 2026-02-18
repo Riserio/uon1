@@ -302,7 +302,7 @@ export default function EstudoBaseInsights() {
       <div className="container mx-auto px-4 sm:px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="w-full overflow-x-auto pb-2">
-            <TabsList className="inline-flex md:flex md:w-auto gap-1 p-1.5 bg-muted/40 rounded-xl min-w-max md:min-w-0">
+            <TabsList className="inline-flex md:flex md:w-auto gap-1 p-1.5 bg-rose-500/8 border border-rose-500/20 rounded-xl min-w-max md:min-w-0 shadow-sm shadow-rose-500/10">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
@@ -311,8 +311,9 @@ export default function EstudoBaseInsights() {
                     value={tab.id}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
                                text-muted-foreground transition-all
-                               data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
-                               data-[state=active]:shadow-md hover:text-foreground hover:bg-muted/60
+                               data-[state=active]:bg-rose-600 data-[state=active]:text-white
+                               data-[state=active]:shadow-md data-[state=active]:shadow-rose-500/30
+                               hover:text-rose-700 hover:bg-rose-500/10
                                whitespace-nowrap"
                   >
                     <Icon className="h-4 w-4" />
