@@ -452,19 +452,19 @@ export default function CobrancaInsights() {
       {/* Filtros Globais */}
       {boletos.length > 0 && (
         <div className="container mx-auto px-4 pt-4">
-          <Card className="border-emerald-500/30 bg-emerald-500/3 backdrop-blur shadow-sm shadow-emerald-500/10">
+          <Card className="border-emerald-500/20 bg-card/50 backdrop-blur">
             <CardContent className="p-0">
               {/* Header clicável */}
               <button
                 onClick={() => setFiltersOpen(o => !o)}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-emerald-500/5 transition-colors rounded-xl"
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors rounded-xl"
               >
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-emerald-600" />
-                  <span className="font-semibold text-sm text-emerald-700 dark:text-emerald-400">Filtros</span>
+                  <span className="font-semibold text-sm">Filtros</span>
                   {hasActiveFilters && (
-                    <span className="inline-flex items-center gap-1 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-emerald-500/20">
-                      {[filters.situacao !== "todos", filters.regional !== "todos", filters.cooperativa !== "todos", filters.diaVencimento !== "todos"].filter(Boolean).length + (filters.mesReferencia ? 1 : 0)} ativo
+                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-emerald-600 text-[10px] text-white font-bold">
+                      {[filters.situacao !== "todos", filters.regional !== "todos", filters.cooperativa !== "todos", filters.diaVencimento !== "todos"].filter(Boolean).length + (filters.mesReferencia ? 1 : 0)}
                     </span>
                   )}
                   {!filtersOpen && hasActiveFilters && (
@@ -485,7 +485,7 @@ export default function CobrancaInsights() {
                       Limpar
                     </button>
                   )}
-                  <ChevronDown className={`h-4 w-4 text-emerald-500 transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
                 </div>
               </button>
               {filtersOpen && (
@@ -627,7 +627,7 @@ export default function CobrancaInsights() {
       <div className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
-            <TabsList className="inline-flex md:flex md:w-full max-w-xl mx-auto gap-1 p-1.5 bg-transparent border border-emerald-500/30 rounded-xl min-w-max md:min-w-0 shadow-sm shadow-emerald-500/10">
+            <TabsList className="inline-flex md:flex md:w-full max-w-xl mx-auto gap-1 p-1.5 bg-muted/50 rounded-xl min-w-max md:min-w-0 shadow-sm">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
@@ -635,10 +635,9 @@ export default function CobrancaInsights() {
                     key={tab.id}
                     value={tab.id}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                      text-muted-foreground transition-all border border-transparent
-                      data-[state=active]:bg-transparent data-[state=active]:text-emerald-600
-                      data-[state=active]:border-emerald-500/60 data-[state=active]:shadow-sm data-[state=active]:shadow-emerald-500/20
-                      hover:text-emerald-600 hover:bg-emerald-500/5
+                      text-muted-foreground transition-all
+                      data-[state=active]:bg-background data-[state=active]:text-foreground
+                      data-[state=active]:shadow-md hover:text-foreground hover:bg-background/50
                       whitespace-nowrap"
                   >
                     <Icon className="h-4 w-4" />
