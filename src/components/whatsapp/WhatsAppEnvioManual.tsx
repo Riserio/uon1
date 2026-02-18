@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Send, RefreshCw, MessageCircle, Eye } from 'lucide-react';
+import { Send, RefreshCw, MessageCircle, Eye, Zap } from 'lucide-react';
 import { openWhatsApp } from '@/utils/whatsapp';
 
 interface Template {
@@ -129,6 +129,55 @@ export function WhatsAppEnvioManual() {
     }
   };
 
+  const handleEnviarAPI = async () => {
+    if (!selectedCorretora) {
+      toast.error('Selecione uma associação');
+      return;
+    }
+    if (!config?.telefone_whatsapp) {
+      toast.error('Associação não tem WhatsApp configurado');
+      return;
+    }
+    if (!mensagem) {
+      toast.error('Gere ou digite uma mensagem');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/enviar-whatsapp-meta`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': anonKey,
+          'Authorization': `Bearer ${session?.access_token || anonKey}`,
+        },
+        body: JSON.stringify({
+          corretora_id: selectedCorretora,
+          tipo: templates.find(t => t.id === selectedTemplate)?.tipo || 'manual',
+          mensagem,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data?.success) {
+        toast.success('Mensagem enviada via API com sucesso!');
+      } else {
+        throw new Error(data?.error || 'Erro desconhecido');
+      }
+    } catch (error: unknown) {
+      console.error('Error sending via API:', error);
+      toast.error('Erro ao enviar: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEnviar = async () => {
     if (!selectedCorretora) {
       toast.error('Selecione uma associação');
@@ -168,9 +217,9 @@ export function WhatsAppEnvioManual() {
       });
 
       toast.success('WhatsApp aberto! Envie a mensagem manualmente.');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error sending:', error);
-      toast.error('Erro ao enviar: ' + error.message);
+      toast.error('Erro ao enviar: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
     } finally {
       setLoading(false);
     }
@@ -259,14 +308,25 @@ export function WhatsAppEnvioManual() {
           />
         </div>
 
-        <Button 
-          onClick={handleEnviar} 
-          disabled={loading || !config?.telefone_whatsapp || !mensagem}
-          className="w-full bg-green-600 hover:bg-green-700"
-        >
-          <Send className="h-4 w-4 mr-2" />
-          {loading ? 'Abrindo WhatsApp...' : 'Enviar via WhatsApp'}
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            onClick={handleEnviarAPI}
+            disabled={loading || !config?.telefone_whatsapp || !mensagem}
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+          >
+            <Zap className="h-4 w-4 mr-2" />
+            {loading ? 'Enviando...' : 'Enviar via API (automático)'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleEnviar}
+            disabled={loading || !config?.telefone_whatsapp || !mensagem}
+            className="flex-1"
+          >
+            <Send className="h-4 w-4 mr-2" />
+            Abrir WhatsApp (manual)
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
