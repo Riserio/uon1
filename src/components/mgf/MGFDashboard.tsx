@@ -461,8 +461,8 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
         )}
       </div>
 
-      {/* Tipo Veículo (Donut) + Regional (Barras) */}
-      <div className="grid gap-3 lg:grid-cols-2">
+      {/* Tipo Veículo (Donut) + Regional + Fornecedor */}
+      <div className="grid gap-3 lg:grid-cols-3">
         {stats.tipoVeiculoData.length > 0 && (
           <Card className="rounded-2xl border-border/40">
             <CardHeader className="pb-1 pt-4 px-5">
@@ -483,10 +483,6 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
             </CardContent>
           </Card>
         )}
-      </div>
-
-      {/* Fornecedor + Cooperativa + Motivo Evento - barras horizontais */}
-      <div className="grid gap-3 lg:grid-cols-3">
         {stats.fornecedorData.length > 0 && (
           <Card className="rounded-2xl border-border/40">
             <CardHeader className="pb-1 pt-4 px-5">
@@ -497,6 +493,10 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
             </CardContent>
           </Card>
         )}
+      </div>
+
+      {/* Cooperativa + Motivo Evento + Centro de Custo */}
+      <div className="grid gap-3 lg:grid-cols-3">
         {stats.cooperativaData.length > 0 && (
           <Card className="rounded-2xl border-border/40">
             <CardHeader className="pb-1 pt-4 px-5">
@@ -517,10 +517,6 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
             </CardContent>
           </Card>
         )}
-      </div>
-
-      {/* Centro de Custo + Associado */}
-      <div className="grid gap-3 lg:grid-cols-2">
         {stats.centroCustoData.length > 0 && (
           <Card className="rounded-2xl border-border/40">
             <CardHeader className="pb-1 pt-4 px-5">
@@ -531,17 +527,20 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
             </CardContent>
           </Card>
         )}
-        {stats.associadoData.length > 0 && (
-          <Card className="rounded-2xl border-border/40">
-            <CardHeader className="pb-1 pt-4 px-5">
-              <div className="flex items-center gap-2"><Users className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Top Associados</CardTitle></div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.associadoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} />
-            </CardContent>
-          </Card>
-        )}
       </div>
+
+      {/* Top Associados - largura total */}
+      {stats.associadoData.length > 0 && (
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5">
+            <div className="flex items-center gap-2"><Users className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Top Associados</CardTitle></div>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <BarWidget data={stats.associadoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
+
