@@ -986,7 +986,20 @@ export default function Usuarios() {
         return;
       }
 
-      await navigator.clipboard.writeText(password);
+      // Copy to clipboard with fallback for restricted contexts (iframes, etc.)
+      try {
+        await navigator.clipboard.writeText(password);
+      } catch {
+        const el = document.createElement('textarea');
+        el.value = password;
+        el.style.position = 'fixed';
+        el.style.opacity = '0';
+        document.body.appendChild(el);
+        el.focus();
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+      }
       
       // Set force_password_change flag
       await supabase
@@ -1175,8 +1188,20 @@ export default function Usuarios() {
                               <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(tempPassword);
+                                onClick={async () => {
+                                  try {
+                                    await navigator.clipboard.writeText(tempPassword);
+                                  } catch {
+                                    const el = document.createElement('textarea');
+                                    el.value = tempPassword;
+                                    el.style.position = 'fixed';
+                                    el.style.opacity = '0';
+                                    document.body.appendChild(el);
+                                    el.focus();
+                                    el.select();
+                                    document.execCommand('copy');
+                                    document.body.removeChild(el);
+                                  }
                                   toast.success("Senha copiada!");
                                 }}
                                 title="Copiar senha"
