@@ -2,11 +2,11 @@ import { useMemo, useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area, ComposedChart, ReferenceLine
+  LineChart, Line, Legend, ComposedChart, PieChart, Pie, Cell, AreaChart, Area
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, DollarSign, AlertCircle, Calendar, FileText, CheckCircle2, Clock, Building2, ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { TrendingUp, DollarSign, AlertCircle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Settings, TrendingDown } from "lucide-react";
 import { InadimplenciaReferenciaConfigDialog } from "./InadimplenciaReferenciaConfigDialog";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -730,53 +730,63 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
         ))}
       </div>
 
-      {/* Boletos por Dia de Vencimento - Card Integrado */}
+      {/* Boletos por Dia de Vencimento - Card moderno com gráfico + tabela */}
       <Card className="rounded-2xl overflow-hidden border-border/40">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Calendar className="h-5 w-5 text-primary" />
+        <CardHeader className="pb-2 pt-4 px-5">
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+            <Calendar className="h-4 w-4 text-primary" />
             Boletos por Dia de Vencimento
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {/* Header com Totais */}
-          <div className="grid grid-cols-3 border-b bg-muted/30">
-            <div className="p-4 border-r">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-2 h-2 rounded-full bg-primary" />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Emitidos</span>
+          {/* Totais */}
+          <div className="grid grid-cols-3 border-b bg-muted/20 px-5 py-3 gap-4">
+            {[
+              { label: "Emitidos", count: stats.totalBoletos, valor: stats.totalValor, color: "text-primary" },
+              { label: "Pagos", count: stats.qtdePagos, valor: stats.totalPago, color: "text-emerald-600" },
+              { label: "Em Aberto", count: stats.qtdeAbertos, valor: stats.totalAberto, color: "text-red-600" },
+            ].map(({ label, count, valor, color }) => (
+              <div key={label}>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">{label}</p>
+                <p className={`text-lg font-bold ${color}`}>{count.toLocaleString('pt-BR')}</p>
+                <p className={`text-xs ${color} opacity-80`}>{formatCurrency(valor)}</p>
               </div>
-              <p className="text-xl font-bold">{stats.totalBoletos.toLocaleString('pt-BR')}</p>
-              <p className="text-sm text-primary font-medium">{formatCurrency(stats.totalValor)}</p>
-            </div>
-            <div className="p-4 border-r">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pagos</span>
-              </div>
-              <p className="text-xl font-bold text-green-600">{stats.qtdePagos.toLocaleString('pt-BR')}</p>
-              <p className="text-sm text-green-600 font-medium">{formatCurrency(stats.totalPago)}</p>
-            </div>
-            <div className="p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-2 h-2 rounded-full bg-red-500" />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Em Aberto</span>
-              </div>
-              <p className="text-xl font-bold text-red-600">{stats.qtdeAbertos.toLocaleString('pt-BR')}</p>
-              <p className="text-sm text-red-600 font-medium">{formatCurrency(stats.totalAberto)}</p>
-            </div>
+            ))}
           </div>
-          
-          {/* Tabela Integrada */}
-          <div className="max-h-[400px] overflow-y-auto">
-            <table className="w-full">
-              <thead className="bg-muted/50 sticky top-0 z-10">
+
+          {/* Mini gráfico de barras empilhadas */}
+          {stats.diasVencimentoData.length > 0 && (
+            <div className="px-4 pt-3 pb-2 overflow-x-auto scrollbar-hide">
+              <div style={{ minWidth: Math.max(500, stats.diasVencimentoData.length * 38) + 'px' }}>
+                <ResponsiveContainer width="100%" height={100}>
+                  <BarChart data={stats.diasVencimentoData.map(item => {
+                    const pagos = stats.diasVencimentoPagosData.find(p => p.diaNum === item.diaNum)?.qtde || 0;
+                    const abertos = stats.diasVencimentoAbertosData.find(a => a.diaNum === item.diaNum)?.qtde || 0;
+                    return { ...item, pagos, abertos };
+                  })} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barSize={20}>
+                    <XAxis dataKey="dia" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v) => v.replace('Dia ', '')} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 10, fontSize: 11, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+                      formatter={(v: any, name: string) => [v.toLocaleString('pt-BR'), name === 'pagos' ? 'Pagos' : name === 'abertos' ? 'Em Aberto' : 'Emitidos']}
+                    />
+                    <Bar dataKey="pagos" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="abertos" stackId="a" fill="#ef4444" radius={[2, 2, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Tabela compacta */}
+          <div className="max-h-[320px] overflow-y-auto border-t border-border/40">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 sticky top-0 z-10">
                 <tr>
-                  <th className="text-left p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dia Venc.</th>
-                  <th className="text-center p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Emitidos</th>
-                  <th className="text-center p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pagos</th>
-                  <th className="text-center p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Em Aberto</th>
-                  <th className="text-right p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Taxa Pgto.</th>
+                  <th className="text-left px-4 py-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Dia</th>
+                  <th className="text-center px-3 py-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Emitidos</th>
+                  <th className="text-center px-3 py-2.5 text-[11px] font-semibold text-emerald-600 uppercase tracking-wide">Pagos</th>
+                  <th className="text-center px-3 py-2.5 text-[11px] font-semibold text-red-600 uppercase tracking-wide">Aberto</th>
+                  <th className="text-right px-4 py-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Taxa</th>
                 </tr>
               </thead>
               <tbody>
@@ -784,51 +794,34 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
                   const pagosItem = stats.diasVencimentoPagosData.find(p => p.diaNum === item.diaNum);
                   const abertosItem = stats.diasVencimentoAbertosData.find(a => a.diaNum === item.diaNum);
                   const taxaPagamento = item.qtde > 0 ? (pagosItem?.qtde || 0) / item.qtde * 100 : 0;
-                  
+                  const taxaColor = taxaPagamento >= 80 ? 'text-emerald-600' : taxaPagamento >= 50 ? 'text-amber-600' : 'text-red-600';
+                  const barColor = taxaPagamento >= 80 ? 'bg-emerald-500' : taxaPagamento >= 50 ? 'bg-amber-500' : 'bg-red-500';
+
                   return (
-                    <tr 
-                      key={item.dia} 
-                      className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${index % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}
-                    >
-                      <td className="p-3">
+                    <tr key={item.dia} className={`border-b border-border/30 hover:bg-muted/20 transition-colors ${index % 2 === 0 ? '' : 'bg-muted/5'}`}>
+                      <td className="px-4 py-2">
                         <span className="font-semibold text-sm">{item.dia}</span>
                       </td>
-                      <td className="p-3 text-center">
-                        <div>
-                          <span className="font-medium">{item.qtde.toLocaleString('pt-BR')}</span>
-                          <p className="text-xs text-muted-foreground">{formatCurrency(item.valor)}</p>
-                        </div>
+                      <td className="px-3 py-2 text-center">
+                        <span className="font-medium text-sm">{item.qtde.toLocaleString('pt-BR')}</span>
                       </td>
-                      <td className="p-3 text-center">
-                        {pagosItem ? (
-                          <div>
-                            <span className="font-medium text-green-600">{pagosItem.qtde.toLocaleString('pt-BR')}</span>
-                            <p className="text-xs text-green-600/70">{formatCurrency(pagosItem.valor)}</p>
-                          </div>
+                      <td className="px-3 py-2 text-center">
+                        <span className="font-medium text-sm text-emerald-600">{(pagosItem?.qtde || 0).toLocaleString('pt-BR')}</span>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {(abertosItem?.qtde || 0) > 0 ? (
+                          <span className="font-medium text-sm text-red-600">{abertosItem!.qtde.toLocaleString('pt-BR')}</span>
                         ) : (
-                          <span className="text-muted-foreground">-</span>
+                          <span className="text-emerald-500 text-sm">✓</span>
                         )}
                       </td>
-                      <td className="p-3 text-center">
-                        {abertosItem && abertosItem.qtde > 0 ? (
-                          <div>
-                            <span className="font-medium text-red-600">{abertosItem.qtde.toLocaleString('pt-BR')}</span>
-                            <p className="text-xs text-red-600/70">{formatCurrency(abertosItem.valor)}</p>
-                          </div>
-                        ) : (
-                          <span className="text-green-600 text-sm">✓</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-right">
+                      <td className="px-4 py-2">
                         <div className="flex items-center justify-end gap-2">
-                          <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full transition-all ${taxaPagamento >= 80 ? 'bg-green-500' : taxaPagamento >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                              style={{ width: `${Math.min(100, taxaPagamento)}%` }}
-                            />
+                          <div className="w-14 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(100, taxaPagamento)}%` }} />
                           </div>
-                          <span className={`text-xs font-semibold min-w-[45px] text-right ${taxaPagamento >= 80 ? 'text-green-600' : taxaPagamento >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
-                            {formatPercent(taxaPagamento)}
+                          <span className={`text-[11px] font-bold tabular-nums w-10 text-right ${taxaColor}`}>
+                            {taxaPagamento.toFixed(0)}%
                           </span>
                         </div>
                       </td>
@@ -838,275 +831,280 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
               </tbody>
             </table>
           </div>
-          
-          {/* Footer com legenda */}
-          <div className="p-3 bg-muted/30 border-t flex items-center justify-between text-xs text-muted-foreground">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-2 bg-green-500 rounded" />
-                <span>≥80% Pago</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-2 bg-yellow-500 rounded" />
-                <span>50-79% Pago</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-2 bg-red-500 rounded" />
-                <span>&lt;50% Pago</span>
-              </div>
-            </div>
-            <span>{stats.diasVencimentoData.length} dias com vencimento</span>
-          </div>
         </CardContent>
       </Card>
 
-      {/* Gráfico de Inadimplência com duas linhas */}
+      {/* Gráfico de Inadimplência */}
       <Card className="rounded-2xl border-border/40">
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Inadimplência
-            </CardTitle>
-            {/* Botão de configuração - oculto para parceiros */}
+        <CardHeader className="pb-2 pt-4 px-5">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-semibold">Inadimplência por Dia</CardTitle>
+            </div>
             {!isPortalAccess && corretoraId && mesReferencia && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setConfigDialogOpen(true)}
-                className="gap-2"
-              >
-                <Settings className="h-4 w-4" />
+              <Button variant="outline" size="sm" onClick={() => setConfigDialogOpen(true)} className="gap-1.5 h-8 text-xs">
+                <Settings className="h-3.5 w-3.5" />
                 Configurar Referência
               </Button>
             )}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-4">
           <div className="relative">
-            {/* Scroll Indicator Left */}
             {showScrollIndicators.left && (
-              <button
-                onClick={() => handleScroll('left')}
-                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-background/90 hover:bg-background border shadow-lg rounded-full p-2 transition-all"
-                aria-label="Scroll para esquerda"
-              >
-                <ChevronLeft className="h-5 w-5 text-muted-foreground" />
+              <button onClick={() => handleScroll('left')} className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-card/90 border shadow-md rounded-full p-1.5">
+                <ChevronLeft className="h-4 w-4 text-muted-foreground" />
               </button>
             )}
-            
-            {/* Scroll Indicator Right */}
             {showScrollIndicators.right && (
-              <button
-                onClick={() => handleScroll('right')}
-                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-background/90 hover:bg-background border shadow-lg rounded-full p-2 transition-all"
-                aria-label="Scroll para direita"
-              >
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              <button onClick={() => handleScroll('right')} className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-card/90 border shadow-md rounded-full p-1.5">
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </button>
             )}
-
-            <div 
-              className="overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent"
-              ref={inadimplenciaScrollRef}
-              onScroll={updateScrollIndicators}
-            >
-              <div style={{ minWidth: Math.max(800, stats.inadimplenciaPorDia.length * 30) + 'px' }}>
-                <ResponsiveContainer width="100%" height={350}>
-                  <LineChart data={stats.inadimplenciaPorDia}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis 
-                      dataKey="diaLabel" 
-                      tick={{ fontSize: 10 }} 
-                      interval={0}
-                      angle={-45}
-                      textAnchor="end"
-                      height={50}
-                    />
-                    <YAxis 
-                      tick={{ fontSize: 11 }} 
-                      tickFormatter={(v) => `${v.toFixed(0)}%`}
-                      domain={[0, 100]}
-                    />
-                    <Tooltip 
-                      content={({ active, payload, label }) => {
-                        if (active && payload && payload.length) {
-                          const dataPoint = stats.inadimplenciaPorDia.find(d => d.diaLabel === label);
-                          return (
-                            <div className="bg-background border rounded-lg shadow-lg p-3 text-sm">
-                              <p className="font-medium mb-1">Dia {label}</p>
-                              {payload.map((entry: any, index: number) => (
-                                <p key={index} style={{ color: entry.color }}>
-                                  {entry.name}: {formatPercent(entry.value)}
-                                </p>
-                              ))}
-                              {dataPoint && (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {`${dataPoint.qtdeVencidos} abertos de ${dataPoint.qtdeEmitidos} emitidos`}
-                                </p>
-                              )}
-                            </div>
-                          );
-                        }
-                        return null;
+            <div className="overflow-x-auto scrollbar-hide" ref={inadimplenciaScrollRef} onScroll={updateScrollIndicators}>
+              <div style={{ minWidth: Math.max(700, stats.inadimplenciaPorDia.length * 28) + 'px' }}>
+                <ResponsiveContainer width="100%" height={280}>
+                  <AreaChart data={stats.inadimplenciaPorDia} margin={{ top: 16, right: 8, bottom: 4, left: 0 }}>
+                    <defs>
+                      <linearGradient id="gradInadimplencia" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="diaLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
+                    <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v.toFixed(0)}%`} domain={[0, 100]} width={36} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 10, fontSize: 11, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+                      formatter={(v: any, name: string) => [formatPercent(v), name]}
+                      labelFormatter={(label) => {
+                        const d = stats.inadimplenciaPorDia.find(x => x.diaLabel === label);
+                        return d ? `Dia ${label} · ${d.qtdeVencidos} ab. de ${d.qtdeEmitidos}` : `Dia ${label}`;
                       }}
                     />
-                    <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="inadimplenciaReal"
-                      stroke="#3b82f6" 
-                      strokeWidth={2}
-                      name="Inadimplência Real" 
-                      dot={{ fill: '#3b82f6', r: 2 }}
-                      connectNulls
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="inadimplenciaReferencia"
-                      stroke="#10b981" 
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      name="Inadimplência Referência" 
-                      dot={false}
-                      connectNulls
-                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Area type="monotone" dataKey="inadimplenciaReal" stroke="#3b82f6" fill="url(#gradInadimplencia)" strokeWidth={2} name="Real" dot={false} connectNulls />
+                    <Line type="monotone" dataKey="inadimplenciaReferencia" stroke="#10b981" strokeWidth={1.5} strokeDasharray="5 4" name="Referência" dot={false} connectNulls />
                     {inadimplenciaHistorico.size > 0 && (
-                      <Line 
-                        type="monotone" 
-                        dataKey="inadimplenciaHistorico"
-                        stroke="#f59e0b" 
-                        strokeWidth={2}
-                        strokeDasharray="3 3"
-                        name="Histórico (dia anterior)" 
-                        dot={{ fill: '#f59e0b', r: 1.5 }}
-                        connectNulls
-                      />
+                      <Line type="monotone" dataKey="inadimplenciaHistorico" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="3 3" name="Histórico" dot={false} connectNulls />
                     )}
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
-            
-            {/* Scroll hint text */}
-            <p className="text-[10px] text-muted-foreground text-center mt-2">
-              ← Arraste para ver mais dias →
-            </p>
+            <p className="text-[10px] text-muted-foreground text-center mt-1">← Arraste para navegar →</p>
           </div>
         </CardContent>
       </Card>
 
       {/* Arrecadação Projetada x Recebida */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-primary" />
-            Arrecadação Projetada x Recebida no Dia
-          </CardTitle>
+      <Card className="rounded-2xl border-border/40">
+        <CardHeader className="pb-2 pt-4 px-5">
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm font-semibold">Arrecadação: Vencimentos vs Pagamentos</CardTitle>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <div style={{ minWidth: Math.max(800, stats.arrecadacaoData.length * 50) + 'px' }}>
-              <ResponsiveContainer width="100%" height={350}>
-                <ComposedChart data={stats.arrecadacaoData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="diaLabel" tick={{ fontSize: 11 }} />
-                  <YAxis 
-                    tick={{ fontSize: 11 }} 
-                    tickFormatter={(v) => formatCompactCurrency(v)}
+        <CardContent className="px-4 pb-4">
+          <div className="overflow-x-auto scrollbar-hide">
+            <div style={{ minWidth: Math.max(600, stats.arrecadacaoData.length * 44) + 'px' }}>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={stats.arrecadacaoData} margin={{ top: 8, right: 8, bottom: 4, left: 0 }} barGap={2}>
+                  <XAxis dataKey="diaLabel" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v) => v.replace('Dia ', '')} />
+                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={formatCompactCurrency} width={48} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 10, fontSize: 11, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+                    formatter={(v: any, name: string) => [formatCurrency(v), name]}
                   />
-                  <Tooltip content={<CustomTooltip isCurrency />} />
-                  <Legend />
-                  <Bar 
-                    dataKey="projetado" 
-                    fill="#3b82f6" 
-                    name="Vencimentos (Projetado)" 
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar 
-                    dataKey="recebido" 
-                    fill="#10b981" 
-                    name="Pagamentos (Recebido)" 
-                    radius={[4, 4, 0, 0]}
-                  />
-                </ComposedChart>
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="projetado" fill="hsl(var(--primary))" name="Vencimentos" radius={[3, 3, 0, 0]} fillOpacity={0.7} />
+                  <Bar dataKey="recebido" fill="#22c55e" name="Recebido" radius={[3, 3, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Rankings compactos */}
-      {[
-        { title: "Menor Inadimplência (Regional)", data: stats.regionaisMenorInadimplencia, isGreen: true, showPct: true },
-        { title: "Maior Inadimplência (Regional)", data: stats.regionaisMaiorInadimplencia, isGreen: false, showPct: true },
-        { title: "Menor Inadimplência (Cooperativa)", data: stats.cooperativasMenorInadimplencia, isGreen: true, showPct: true },
-        { title: "Maior Inadimplência (Cooperativa)", data: stats.cooperativasMaiorInadimplencia, isGreen: false, showPct: true },
-      ].reduce((rows: any[][], item, i) => {
-        if (i % 2 === 0) rows.push([]);
-        rows[rows.length - 1].push(item);
-        return rows;
-      }, []).map((pair, rowIdx) => (
-        <div key={rowIdx} className="grid gap-3 md:grid-cols-2">
-          {pair.map(({ title, data, isGreen, showPct }: any) => (
-            <Card key={title} className="rounded-2xl border-border/40">
-              <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">{title}</CardTitle></CardHeader>
-              <CardContent className="px-4 pb-4">
-                {data.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">Nenhum dado disponível</p>
-                ) : (
-                  <div className="space-y-1.5 max-h-[240px] overflow-y-auto pr-0.5">
-                    {data.map((item: any, i: number) => (
-                      <div key={item.name} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/30">
-                        <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
-                        <span className="text-[11px] font-medium truncate flex-1">{item.name}</span>
-                        {showPct && <span className="text-[10px] text-muted-foreground tabular-nums">{item.abertos}/{item.total}</span>}
-                        <span className={`text-[11px] font-bold tabular-nums w-14 text-right ${isGreen ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {showPct ? `${item.percentual.toFixed(1)}%` : formatCompactCurrency(item.valor)}
-                        </span>
-                      </div>
-                    ))}
+      {/* Rankings de Inadimplência - modernos com barras de progresso */}
+      <div className="grid gap-3 md:grid-cols-2">
+        {/* Menor Inadimplência por Regional */}
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <CardTitle className="text-sm font-semibold">Menor Inadimplência — Regional</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {stats.regionaisMenorInadimplencia.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Sem dados suficientes</p>
+            ) : (
+              <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                {stats.regionaisMenorInadimplencia.slice(0, 8).map((item, i) => (
+                  <div key={item.name} className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
+                    <span className="text-[11px] truncate flex-1" title={item.name}>{item.name}</span>
+                    <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, item.percentual)}%` }} />
+                    </div>
+                    <span className="text-[11px] font-bold text-emerald-600 tabular-nums w-12 text-right">{item.percentual.toFixed(1)}%</span>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ))}
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Rankings Regionais/Cooperativas Pagos vs Abertos */}
-      {[
-        { title: "Ranking Regionais - Pagos", data: stats.regionaisPagosData, isGreen: true },
-        { title: "Ranking Regionais - Abertos", data: stats.regionaisAbertosData, isGreen: false },
-        { title: "Ranking Cooperativas - Pagos", data: stats.cooperativasPagosData, isGreen: true },
-        { title: "Ranking Cooperativas - Abertos", data: stats.cooperativasAbertosData, isGreen: false },
-      ].reduce((rows: any[][], item, i) => {
-        if (i % 2 === 0) rows.push([]);
-        rows[rows.length - 1].push(item);
-        return rows;
-      }, []).map((pair, rowIdx) => (
-        <div key={rowIdx} className="grid gap-3 md:grid-cols-2">
-          {pair.map(({ title, data, isGreen }: any) => (
-            <Card key={title} className="rounded-2xl border-border/40">
-              <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">{title}</CardTitle></CardHeader>
-              <CardContent className="px-4 pb-4">
-                <div className="space-y-1.5 max-h-[240px] overflow-y-auto pr-0.5">
-                  {data.map((item: any, i: number) => (
-                    <div key={item.name} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/30">
+        {/* Maior Inadimplência por Regional */}
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5">
+            <div className="flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 text-red-600" />
+              <CardTitle className="text-sm font-semibold">Maior Inadimplência — Regional</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {stats.regionaisMaiorInadimplencia.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Sem dados suficientes</p>
+            ) : (
+              <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                {stats.regionaisMaiorInadimplencia.slice(0, 8).map((item, i) => (
+                  <div key={item.name} className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
+                    <span className="text-[11px] truncate flex-1" title={item.name}>{item.name}</span>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">{item.abertos}/{item.total}</span>
+                    <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full bg-red-500" style={{ width: `${Math.min(100, item.percentual)}%` }} />
+                    </div>
+                    <span className="text-[11px] font-bold text-red-600 tabular-nums w-12 text-right">{item.percentual.toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Menor Inadimplência por Cooperativa */}
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <CardTitle className="text-sm font-semibold">Menor Inadimplência — Cooperativa</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {stats.cooperativasMenorInadimplencia.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Sem dados suficientes</p>
+            ) : (
+              <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                {stats.cooperativasMenorInadimplencia.slice(0, 8).map((item, i) => (
+                  <div key={item.name} className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
+                    <span className="text-[11px] truncate flex-1" title={item.name}>{item.name}</span>
+                    <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, item.percentual)}%` }} />
+                    </div>
+                    <span className="text-[11px] font-bold text-emerald-600 tabular-nums w-12 text-right">{item.percentual.toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Maior Inadimplência por Cooperativa */}
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5">
+            <div className="flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 text-red-600" />
+              <CardTitle className="text-sm font-semibold">Maior Inadimplência — Cooperativa</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {stats.cooperativasMaiorInadimplencia.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Sem dados suficientes</p>
+            ) : (
+              <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                {stats.cooperativasMaiorInadimplencia.slice(0, 8).map((item, i) => (
+                  <div key={item.name} className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
+                    <span className="text-[11px] truncate flex-1" title={item.name}>{item.name}</span>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">{item.abertos}/{item.total}</span>
+                    <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full bg-red-500" style={{ width: `${Math.min(100, item.percentual)}%` }} />
+                    </div>
+                    <span className="text-[11px] font-bold text-red-600 tabular-nums w-12 text-right">{item.percentual.toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Rankings Regionais/Cooperativas: Pagos vs Abertos */}
+      <div className="grid gap-3 md:grid-cols-2">
+        {[
+          { title: "Regionais — Mais Pagos", data: stats.regionaisPagosData, isGreen: true },
+          { title: "Regionais — Mais Abertos", data: stats.regionaisAbertosData, isGreen: false },
+        ].map(({ title, data, isGreen }) => (
+          <Card key={title} className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">{title}</CardTitle></CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                {data.slice(0, 10).map((item: any, i: number) => {
+                  const maxVal = data[0]?.valor || 1;
+                  const pct = (item.valor / maxVal) * 100;
+                  return (
+                    <div key={item.name} className="flex items-center gap-2">
                       <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
-                      <span className="text-[11px] font-medium truncate flex-1">{item.name}</span>
-                      <span className="text-[11px] text-muted-foreground tabular-nums">{item.qtde} bol.</span>
+                      <span className="text-[11px] truncate flex-1" title={item.name}>{item.name}</span>
+                      <span className="text-[10px] text-muted-foreground">{item.qtde} bol.</span>
+                      <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div className={`h-full rounded-full ${isGreen ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${Math.max(pct, 2)}%` }} />
+                      </div>
                       <span className={`text-[11px] font-bold tabular-nums w-16 text-right ${isGreen ? 'text-emerald-600' : 'text-red-600'}`}>{formatCompactCurrency(item.valor)}</span>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ))}
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
-      {/* Dialog de configuração de inadimplência */}
+      <div className="grid gap-3 md:grid-cols-2">
+        {[
+          { title: "Cooperativas — Mais Pagas", data: stats.cooperativasPagosData, isGreen: true },
+          { title: "Cooperativas — Mais Abertas", data: stats.cooperativasAbertosData, isGreen: false },
+        ].map(({ title, data, isGreen }) => (
+          <Card key={title} className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">{title}</CardTitle></CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                {data.slice(0, 10).map((item: any, i: number) => {
+                  const maxVal = data[0]?.valor || 1;
+                  const pct = (item.valor / maxVal) * 100;
+                  return (
+                    <div key={item.name} className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">{i + 1}</span>
+                      <span className="text-[11px] truncate flex-1" title={item.name}>{item.name}</span>
+                      <span className="text-[10px] text-muted-foreground">{item.qtde} bol.</span>
+                      <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div className={`h-full rounded-full ${isGreen ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${Math.max(pct, 2)}%` }} />
+                      </div>
+                      <span className={`text-[11px] font-bold tabular-nums w-16 text-right ${isGreen ? 'text-emerald-600' : 'text-red-600'}`}>{formatCompactCurrency(item.valor)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Dialog de configuração */}
       {corretoraId && mesReferencia && (
         <InadimplenciaReferenciaConfigDialog
           open={configDialogOpen}
@@ -1119,3 +1117,4 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
     </div>
   );
 }
+

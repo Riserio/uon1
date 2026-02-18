@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, LabelList, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, RadialBarChart, RadialBar } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
@@ -41,12 +41,13 @@ const getTipoVeiculo = (modelo: string): string => {
 };
 
 // Compact horizontal bar widget
-function BarWidget({ data, total, colorFn }: { data: { name: string; value: number; fill?: string }[]; total: number; colorFn?: (i: number) => string }) {
+function BarWidget({ data, total, colorFn, isCurrency }: { data: { name: string; value: number; fill?: string }[]; total: number; colorFn?: (i: number) => string; isCurrency?: boolean }) {
   if (!data.length) return <p className="text-xs text-muted-foreground text-center py-4">Sem dados</p>;
+  const maxVal = data[0]?.value || 1;
   return (
     <div className="space-y-2 pt-1">
       {data.map((item, i) => {
-        const pct = total > 0 ? (item.value / total) * 100 : 0;
+        const pct = isCurrency ? (item.value / maxVal) * 100 : (total > 0 ? (item.value / total) * 100 : 0);
         const color = item.fill ?? (colorFn ? colorFn(i) : COLORS[i % COLORS.length]);
         return (
           <div key={item.name} className="flex items-center gap-2">
@@ -54,11 +55,45 @@ function BarWidget({ data, total, colorFn }: { data: { name: string; value: numb
             <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
               <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: color }} />
             </div>
-            <span className="text-[11px] font-bold tabular-nums w-12 text-right">{item.value.toLocaleString("pt-BR")}</span>
-            <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">{pct.toFixed(1)}%</span>
+            <span className="text-[11px] font-bold tabular-nums w-16 text-right">
+              {isCurrency ? formatCompactCurrency(item.value) : item.value.toLocaleString("pt-BR")}
+            </span>
+            {!isCurrency && <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">{pct.toFixed(0)}%</span>}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Mini Donut Chart for small categorical data
+function MiniDonut({ data, total }: { data: { name: string; value: number }[]; total: number }) {
+  if (!data.length) return <p className="text-xs text-muted-foreground text-center py-4">Sem dados</p>;
+  const top6 = data.slice(0, 6);
+  return (
+    <div className="flex items-center gap-4">
+      <div className="shrink-0">
+        <ResponsiveContainer width={120} height={120}>
+          <PieChart>
+            <Pie data={top6} dataKey="value" innerRadius={32} outerRadius={54} paddingAngle={2} startAngle={90} endAngle={-270}>
+              {top6.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />)}
+            </Pie>
+            <Tooltip contentStyle={ttStyle} formatter={(v: any, n: string) => [v.toLocaleString('pt-BR'), n]} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex-1 space-y-1.5 min-w-0">
+        {top6.map((item, i) => {
+          const pct = total > 0 ? (item.value / total) * 100 : 0;
+          return (
+            <div key={item.name} className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+              <span className="text-[11px] text-muted-foreground truncate flex-1">{item.name}</span>
+              <span className="text-[11px] font-bold tabular-nums">{pct.toFixed(0)}%</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -84,10 +119,10 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
   const stats = useMemo(() => {
     if (!eventos.length) return null;
 
-    const reduce = (field: string, filterFn?: (e: any) => boolean) => eventos.reduce((acc: any, e) => {
+    const reduce = (field: string) => eventos.reduce((acc: any, e) => {
       const val = e[field] || "";
       if (val && val !== "N/I" && val !== "NAO INFORMADO" && val !== "NÃO INFORMADO") {
-        if (!filterFn || filterFn(e)) acc[val] = (acc[val] || 0) + 1;
+        acc[val] = (acc[val] || 0) + 1;
       }
       return acc;
     }, {});
@@ -263,7 +298,7 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
                     <YAxis yAxisId="left" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
                     <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={formatCompactCurrency} axisLine={false} tickLine={false} width={52} />
                     <Tooltip contentStyle={ttStyle} formatter={(v: any, name: string) => [name === 'custo' ? formatCurrency(v) : v.toLocaleString('pt-BR'), name === 'custo' ? 'Custo' : 'Eventos']} />
-                    <Area yAxisId="left" type="monotone" dataKey="eventos" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.15} strokeWidth={2} name="Eventos" />
+                    <Area yAxisId="left" type="monotone" dataKey="eventos" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.15} strokeWidth={2} name="Eventos" />
                     <Area yAxisId="right" type="monotone" dataKey="custo" stroke="#ef4444" fill="#ef4444" fillOpacity={0.1} strokeWidth={2} name="Custo" />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -274,23 +309,23 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
         </CardContent>
       </Card>
 
-      {/* Situação + Regional */}
+      {/* Situação (Donut) + Regional (Bars) */}
       <div className="grid gap-3 lg:grid-cols-2">
         <Card className="rounded-2xl border-border/40">
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Situação dos Eventos</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
-            <BarWidget data={stats.situacaoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+            <MiniDonut data={stats.situacaoData} total={totalEventos} />
           </CardContent>
         </Card>
         <Card className="rounded-2xl border-border/40">
-          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Eventos por Regional (Top 10)</CardTitle></CardHeader>
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Eventos por Regional</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
             <BarWidget data={stats.regionalData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
           </CardContent>
         </Card>
       </div>
 
-      {/* Motivo + Estado */}
+      {/* Motivo (bars) + Tipo Evento (donut) */}
       <div className="grid gap-3 lg:grid-cols-2">
         <Card className="rounded-2xl border-border/40">
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Motivo do Evento</CardTitle></CardHeader>
@@ -301,9 +336,25 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
           </CardContent>
         </Card>
         <Card className="rounded-2xl border-border/40">
-          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Eventos por Estado (Top 10)</CardTitle></CardHeader>
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Tipo de Evento</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <MiniDonut data={stats.tipoData} total={totalEventos} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Estado (bars) + Tipo Veículo (donut) */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Eventos por Estado</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
             <BarWidget data={stats.estadoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+          </CardContent>
+        </Card>
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Tipo de Veículo</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <MiniDonut data={stats.tipoVeiculoData} total={totalEventos} />
           </CardContent>
         </Card>
       </div>
@@ -311,65 +362,40 @@ export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
       {/* Cooperativa Eventos + Custos */}
       <div className="grid gap-3 lg:grid-cols-2">
         <Card className="rounded-2xl border-border/40">
-          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Eventos por Cooperativa (Top 10)</CardTitle></CardHeader>
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Eventos por Cooperativa</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
-            <BarWidget data={stats.cooperativaData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+            <div className="overflow-y-auto max-h-[240px]">
+              <BarWidget data={stats.cooperativaData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+            </div>
           </CardContent>
         </Card>
         <Card className="rounded-2xl border-border/40">
-          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Custo por Cooperativa (Top 10)</CardTitle></CardHeader>
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Custo por Cooperativa</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
-            {stats.custosCooperativaData.length > 0 ? (
-              <div className="space-y-2 pt-1">
-                {stats.custosCooperativaData.map((item: any, i) => {
-                  const maxVal = stats.custosCooperativaData[0]?.value || 1;
-                  const pct = (item.value / maxVal) * 100;
-                  return (
-                    <div key={item.name} className="flex items-center gap-2">
-                      <span className="text-[11px] text-muted-foreground truncate w-28 shrink-0" title={item.name}>{item.name}</span>
-                      <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: COLORS[i % COLORS.length] }} />
-                      </div>
-                      <span className="text-[11px] font-bold tabular-nums text-right whitespace-nowrap">{formatCompactCurrency(item.value)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : <p className="text-xs text-muted-foreground text-center py-4">Sem dados</p>}
+            <div className="overflow-y-auto max-h-[240px]">
+              <BarWidget data={stats.custosCooperativaData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={stats.totalCusto} isCurrency />
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Tipo Veículo + Tipo Evento + Envolvimento */}
-      <div className="grid gap-3 lg:grid-cols-3">
-        <Card className="rounded-2xl border-border/40">
-          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Tipo de Veículo</CardTitle></CardHeader>
-          <CardContent className="px-4 pb-4">
-            <BarWidget data={stats.tipoVeiculoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-border/40">
-          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Tipo de Evento</CardTitle></CardHeader>
-          <CardContent className="px-4 pb-4">
-            <BarWidget data={stats.tipoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
-          </CardContent>
-        </Card>
+      {/* Envolvimento */}
+      {stats.envolvimentoData.length > 0 && (
         <Card className="rounded-2xl border-border/40">
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Envolvimento</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
-            <BarWidget data={stats.envolvimentoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+            <MiniDonut data={stats.envolvimentoData} total={totalEventos} />
           </CardContent>
         </Card>
-      </div>
+      )}
 
-      {/* Detail Dialog */}
       <SGAEventosDetailDialog
         open={detailDialog.open}
-        onOpenChange={(open) => setDetailDialog((prev) => ({ ...prev, open }))}
+        onOpenChange={(open) => setDetailDialog(d => ({ ...d, open }))}
         title={detailDialog.title}
+        eventos={eventos}
         filterType={detailDialog.filterType}
         filterValue={detailDialog.filterValue}
-        eventos={eventos}
       />
     </div>
   );

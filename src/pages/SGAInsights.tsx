@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter, DollarSign, CreditCard, LogOut, ArrowLeftRight, Building2, Activity } from "lucide-react";
+import { ArrowLeft, Upload, Database, Map, BarChart3, TrendingUp, AlertTriangle, Car, History, Calendar, Filter, DollarSign, CreditCard, LogOut, ArrowLeftRight, Building2, Activity, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import SGADashboard from "@/components/sga/SGADashboard";
@@ -64,6 +64,8 @@ export default function SGAInsights() {
     tipoVeiculo: "todos",
   });
   
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   // Detectar se é acesso via portal (parceiro)
   const isPortalAccess = location.pathname.startsWith('/portal');
   
@@ -400,83 +402,118 @@ export default function SGAInsights() {
         />
       )}
 
-      {/* Filtros */}
+      {/* Filtros colapsáveis */}
       {eventos.length > 0 && (
         <div className="container mx-auto px-4 pt-4">
-          <Card className="bg-card/50 backdrop-blur border-border/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
+          <Card className="bg-card/50 backdrop-blur border-border/50 overflow-hidden">
+            {/* Filtros Header - sempre visível */}
+            <button
+              onClick={() => setFiltersOpen(o => !o)}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors"
+            >
+              <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-primary" />
                 <span className="font-semibold text-sm">Filtros</span>
                 {hasActiveFilters && (
-                  <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-2 text-xs">
-                    Limpar filtros
-                  </Button>
+                  <span className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                    ativo
+                  </span>
+                )}
+                {/* Resumo dos filtros ativos quando fechado */}
+                {!filtersOpen && hasActiveFilters && (
+                  <span className="text-xs text-muted-foreground truncate max-w-[300px]">
+                    {[
+                      filters.dataInicio && `De: ${filters.dataInicio}`,
+                      filters.dataFim && `Até: ${filters.dataFim}`,
+                      filters.regional !== "todos" && filters.regional,
+                      filters.cooperativa !== "todos" && filters.cooperativa,
+                      filters.tipoVeiculo !== "todos" && filters.tipoVeiculo,
+                    ].filter(Boolean).join(" · ")}
+                  </span>
                 )}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Data Início</Label>
-                  <Input
-                    type="date"
-                    value={filters.dataInicio}
-                    onChange={(e) => setFilters(f => ({ ...f, dataInicio: e.target.value }))}
-                    className="h-9"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Data Fim</Label>
-                  <Input
-                    type="date"
-                    value={filters.dataFim}
-                    onChange={(e) => setFilters(f => ({ ...f, dataFim: e.target.value }))}
-                    className="h-9"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Regional</Label>
-                  <Select value={filters.regional} onValueChange={(v) => setFilters(f => ({ ...f, regional: v }))}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Todas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todas Regionais</SelectItem>
-                      {filterOptions.regionais.map(r => (
-                        <SelectItem key={r} value={r}>{r}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Cooperativa</Label>
-                  <Select value={filters.cooperativa} onValueChange={(v) => setFilters(f => ({ ...f, cooperativa: v }))}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Todas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todas Cooperativas</SelectItem>
-                      {filterOptions.cooperativas.map(c => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Tipo Veículo</Label>
-                  <Select value={filters.tipoVeiculo} onValueChange={(v) => setFilters(f => ({ ...f, tipoVeiculo: v }))}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Todos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todos Tipos</SelectItem>
-                      <SelectItem value="Passeio">Passeio</SelectItem>
-                      <SelectItem value="Motocicleta">Motocicleta</SelectItem>
-                      <SelectItem value="Caminhão">Caminhão</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div className="flex items-center gap-2">
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); clearFilters(); }}
+                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Limpar
+                  </Button>
+                )}
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
+
+            {/* Filtros corpo - colapsável */}
+            {filtersOpen && (
+              <div className="px-4 pb-4 border-t border-border/50">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Data Início</Label>
+                    <Input
+                      type="date"
+                      value={filters.dataInicio}
+                      onChange={(e) => setFilters(f => ({ ...f, dataInicio: e.target.value }))}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Data Fim</Label>
+                    <Input
+                      type="date"
+                      value={filters.dataFim}
+                      onChange={(e) => setFilters(f => ({ ...f, dataFim: e.target.value }))}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Regional</Label>
+                    <Select value={filters.regional} onValueChange={(v) => setFilters(f => ({ ...f, regional: v }))}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Todas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todas Regionais</SelectItem>
+                        {filterOptions.regionais.map(r => (
+                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Cooperativa</Label>
+                    <Select value={filters.cooperativa} onValueChange={(v) => setFilters(f => ({ ...f, cooperativa: v }))}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Todas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todas Cooperativas</SelectItem>
+                        {filterOptions.cooperativas.map(c => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Tipo Veículo</Label>
+                    <Select value={filters.tipoVeiculo} onValueChange={(v) => setFilters(f => ({ ...f, tipoVeiculo: v }))}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos Tipos</SelectItem>
+                        <SelectItem value="Passeio">Passeio</SelectItem>
+                        <SelectItem value="Motocicleta">Motocicleta</SelectItem>
+                        <SelectItem value="Caminhão">Caminhão</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
-            </CardContent>
+            )}
           </Card>
         </div>
       )}
