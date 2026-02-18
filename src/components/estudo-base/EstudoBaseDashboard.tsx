@@ -46,6 +46,147 @@ interface Props {
   loading: boolean;
   filters: EstudoBaseFilters;
   onFiltersChange: (filters: EstudoBaseFilters) => void;
+  hideFilters?: boolean;
+}
+
+// ── Exported collapsible filter card (used by parent page above the tabs) ──
+export interface EstudoBaseFilterBarProps {
+  registros: any[];
+  filters: EstudoBaseFilters;
+  onFiltersChange: (filters: EstudoBaseFilters) => void;
+}
+
+export function EstudoBaseFilterBar({ registros, filters, onFiltersChange }: EstudoBaseFilterBarProps) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const filterOptions = useMemo(() => {
+    const situacoes = [...new Set(registros.map((r) => r.situacao_veiculo).filter(Boolean))].sort();
+    const regionais = [...new Set(registros.map((r) => r.cooperativa || r.regional).filter(Boolean))].sort();
+    const montadoras = [...new Set(registros.map((r) => r.montadora).filter(Boolean))].sort();
+    return { situacoes, regionais, montadoras };
+  }, [registros]);
+
+  const clearFilters = () => {
+    onFiltersChange({
+      situacao: [], regional: "todos", cooperativa: "todos",
+      dataContratoInicio: "", dataContratoFim: "",
+      montadora: "todos", faixaValorProtegido: "todos",
+    });
+  };
+
+  const activeCount = [
+    filters.situacao.length > 0,
+    filters.regional !== "todos",
+    filters.montadora !== "todos",
+    !!filters.dataContratoInicio,
+    !!filters.dataContratoFim,
+    filters.faixaValorProtegido !== "todos",
+  ].filter(Boolean).length;
+
+  return (
+    <Card className="bg-card/60 border-border/40 rounded-2xl">
+      <CardContent className="p-0">
+        <button
+          className="w-full flex items-center gap-2 px-4 py-3 text-left"
+          onClick={() => setFiltersOpen((o) => !o)}
+        >
+          <Filter className="h-3.5 w-3.5 text-primary shrink-0" />
+          <span className="font-semibold text-xs tracking-wide uppercase text-muted-foreground flex-1">Filtros</span>
+          {!filtersOpen && activeCount > 0 && (
+            <span className="text-[11px] text-muted-foreground truncate max-w-[45%]">
+              {[
+                filters.situacao.length > 0 ? filters.situacao.join(", ") : null,
+                filters.regional !== "todos" ? filters.regional : null,
+                filters.montadora !== "todos" ? filters.montadora : null,
+                filters.dataContratoInicio ? `De: ${filters.dataContratoInicio}` : null,
+                filters.dataContratoFim ? `Até: ${filters.dataContratoFim}` : null,
+                filters.faixaValorProtegido !== "todos" ? FAIXAS_VALOR.find(f => f.value === filters.faixaValorProtegido)?.label : null,
+              ].filter(Boolean).join(" · ")}
+            </span>
+          )}
+          {activeCount > 0 && (
+            <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold shrink-0">
+              {activeCount}
+            </span>
+          )}
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0 ${filtersOpen ? "rotate-180" : ""}`} />
+        </button>
+
+        {filtersOpen && (
+          <div className="px-4 pb-4 border-t border-border/30 pt-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+              {[
+                {
+                  label: "Situação",
+                  el: (
+                    <Select value={filters.situacao.length === 0 ? "todas" : filters.situacao.join(",")} onValueChange={(v) => onFiltersChange({ ...filters, situacao: v === "todas" ? [] : v.split(",") })}>
+                      <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todas">Todas</SelectItem>
+                        <SelectItem value="ATIVO,SUSPENSO">Ativas e Suspensas</SelectItem>
+                        <SelectItem value="ATIVO">Apenas Ativas</SelectItem>
+                        <SelectItem value="SUSPENSO">Apenas Suspensas</SelectItem>
+                        {filterOptions.situacoes.filter((s) => s !== "ATIVO" && s !== "SUSPENSO").map((s) => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ),
+                },
+                {
+                  label: "Regional",
+                  el: (
+                    <Select value={filters.regional} onValueChange={(v) => onFiltersChange({ ...filters, regional: v })}>
+                      <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Todas" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todas</SelectItem>
+                        {filterOptions.regionais.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ),
+                },
+                { label: "Contrato De", el: <Input type="date" value={filters.dataContratoInicio} onChange={(e) => onFiltersChange({ ...filters, dataContratoInicio: e.target.value })} className="h-8 text-xs rounded-lg" /> },
+                { label: "Contrato Até", el: <Input type="date" value={filters.dataContratoFim} onChange={(e) => onFiltersChange({ ...filters, dataContratoFim: e.target.value })} className="h-8 text-xs rounded-lg" /> },
+                {
+                  label: "Montadora",
+                  el: (
+                    <Select value={filters.montadora} onValueChange={(v) => onFiltersChange({ ...filters, montadora: v })}>
+                      <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Todas" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todas</SelectItem>
+                        {filterOptions.montadoras.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ),
+                },
+                {
+                  label: "Faixa Valor",
+                  el: (
+                    <Select value={filters.faixaValorProtegido} onValueChange={(v) => onFiltersChange({ ...filters, faixaValorProtegido: v })}>
+                      <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {FAIXAS_VALOR.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ),
+                },
+              ].map(({ label, el }) => (
+                <div key={label} className="space-y-1">
+                  <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</Label>
+                  {el}
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end mt-3">
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-3 text-xs">
+                <X className="h-3 w-3 mr-1" />Limpar filtros
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 const FAIXAS_VALOR = [
@@ -156,7 +297,7 @@ function ScrollCounterList({
 
 // ---------- Component ----------
 
-export default function EstudoBaseDashboard({ registros, loading, filters, onFiltersChange }: Props) {
+export default function EstudoBaseDashboard({ registros, loading, filters, onFiltersChange, hideFilters = false }: Props) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterOptions = useMemo(() => {
     const situacoes = [...new Set(registros.map((r) => r.situacao_veiculo).filter(Boolean))].sort();
@@ -350,112 +491,110 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
 
   return (
     <div className="space-y-3">
-      {/* ── Filters (collapsible) ── */}
-      <Card className="bg-card/60 border-border/40 rounded-2xl">
-        <CardContent className="p-0">
-          {/* Header toggle */}
-          <button
-            className="w-full flex items-center gap-2 px-4 py-3 text-left"
-            onClick={() => setFiltersOpen((o) => !o)}
-          >
-            <Filter className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span className="font-semibold text-xs tracking-wide uppercase text-muted-foreground flex-1">Filtros</span>
-            {/* Active filter summary when collapsed */}
-            {!filtersOpen && (() => {
-              const parts: string[] = [];
-              if (filters.situacao.length > 0) parts.push(filters.situacao.join(", "));
-              if (filters.regional !== "todos") parts.push(filters.regional);
-              if (filters.montadora !== "todos") parts.push(filters.montadora);
-              if (filters.dataContratoInicio) parts.push(`De: ${filters.dataContratoInicio}`);
-              if (filters.dataContratoFim) parts.push(`Até: ${filters.dataContratoFim}`);
-              if (filters.faixaValorProtegido !== "todos") parts.push(FAIXAS_VALOR.find(f => f.value === filters.faixaValorProtegido)?.label || "");
-              return parts.length > 0 ? (
-                <span className="text-[11px] text-muted-foreground truncate max-w-[45%]">{parts.join(" · ")}</span>
-              ) : null;
-            })()}
-            {!filtersOpen && (filters.situacao.length > 0 || filters.regional !== "todos" || filters.montadora !== "todos" || filters.dataContratoInicio || filters.dataContratoFim || filters.faixaValorProtegido !== "todos") && (
-              <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold shrink-0">
-                {[filters.situacao.length > 0, filters.regional !== "todos", filters.montadora !== "todos", !!filters.dataContratoInicio, !!filters.dataContratoFim, filters.faixaValorProtegido !== "todos"].filter(Boolean).length}
-              </span>
+      {/* ── Filters (collapsible, only when not controlled externally) ── */}
+      {!hideFilters && (
+        <Card className="bg-card/60 border-border/40 rounded-2xl">
+          <CardContent className="p-0">
+            <button
+              className="w-full flex items-center gap-2 px-4 py-3 text-left"
+              onClick={() => setFiltersOpen((o) => !o)}
+            >
+              <Filter className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span className="font-semibold text-xs tracking-wide uppercase text-muted-foreground flex-1">Filtros</span>
+              {!filtersOpen && (() => {
+                const parts: string[] = [];
+                if (filters.situacao.length > 0) parts.push(filters.situacao.join(", "));
+                if (filters.regional !== "todos") parts.push(filters.regional);
+                if (filters.montadora !== "todos") parts.push(filters.montadora);
+                if (filters.dataContratoInicio) parts.push(`De: ${filters.dataContratoInicio}`);
+                if (filters.dataContratoFim) parts.push(`Até: ${filters.dataContratoFim}`);
+                if (filters.faixaValorProtegido !== "todos") parts.push(FAIXAS_VALOR.find(f => f.value === filters.faixaValorProtegido)?.label || "");
+                return parts.length > 0 ? (
+                  <span className="text-[11px] text-muted-foreground truncate max-w-[45%]">{parts.join(" · ")}</span>
+                ) : null;
+              })()}
+              {!filtersOpen && (filters.situacao.length > 0 || filters.regional !== "todos" || filters.montadora !== "todos" || filters.dataContratoInicio || filters.dataContratoFim || filters.faixaValorProtegido !== "todos") && (
+                <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold shrink-0">
+                  {[filters.situacao.length > 0, filters.regional !== "todos", filters.montadora !== "todos", !!filters.dataContratoInicio, !!filters.dataContratoFim, filters.faixaValorProtegido !== "todos"].filter(Boolean).length}
+                </span>
+              )}
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0 ${filtersOpen ? "rotate-180" : ""}`} />
+            </button>
+            {filtersOpen && (
+              <div className="px-4 pb-4 border-t border-border/30 pt-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                  {[
+                    {
+                      label: "Situação",
+                      el: (
+                        <Select value={filters.situacao.length === 0 ? "todas" : filters.situacao.join(",")} onValueChange={(v) => onFiltersChange({ ...filters, situacao: v === "todas" ? [] : v.split(",") })}>
+                          <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todas">Todas</SelectItem>
+                            <SelectItem value="ATIVO,SUSPENSO">Ativas e Suspensas</SelectItem>
+                            <SelectItem value="ATIVO">Apenas Ativas</SelectItem>
+                            <SelectItem value="SUSPENSO">Apenas Suspensas</SelectItem>
+                            {filterOptions.situacoes.filter((s) => s !== "ATIVO" && s !== "SUSPENSO").map((s) => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ),
+                    },
+                    {
+                      label: "Regional",
+                      el: (
+                        <Select value={filters.regional} onValueChange={(v) => onFiltersChange({ ...filters, regional: v })}>
+                          <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Todas" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todos">Todas</SelectItem>
+                            {filterOptions.regionais.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ),
+                    },
+                    { label: "Contrato De", el: <Input type="date" value={filters.dataContratoInicio} onChange={(e) => onFiltersChange({ ...filters, dataContratoInicio: e.target.value })} className="h-8 text-xs rounded-lg" /> },
+                    { label: "Contrato Até", el: <Input type="date" value={filters.dataContratoFim} onChange={(e) => onFiltersChange({ ...filters, dataContratoFim: e.target.value })} className="h-8 text-xs rounded-lg" /> },
+                    {
+                      label: "Montadora",
+                      el: (
+                        <Select value={filters.montadora} onValueChange={(v) => onFiltersChange({ ...filters, montadora: v })}>
+                          <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Todas" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todos">Todas</SelectItem>
+                            {filterOptions.montadoras.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ),
+                    },
+                    {
+                      label: "Faixa Valor",
+                      el: (
+                        <Select value={filters.faixaValorProtegido} onValueChange={(v) => onFiltersChange({ ...filters, faixaValorProtegido: v })}>
+                          <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {FAIXAS_VALOR.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ),
+                    },
+                  ].map(({ label, el }) => (
+                    <div key={label} className="space-y-1">
+                      <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</Label>
+                      {el}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-end mt-3">
+                  <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-3 text-xs">
+                    <X className="h-3 w-3 mr-1" />Limpar filtros
+                  </Button>
+                </div>
+              </div>
             )}
-            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0 ${filtersOpen ? "rotate-180" : ""}`} />
-          </button>
-
-          {/* Expandable filter grid */}
-          {filtersOpen && (
-            <div className="px-4 pb-4 border-t border-border/30 pt-3">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                {[
-                  {
-                    label: "Situação",
-                    el: (
-                      <Select value={filters.situacao.length === 0 ? "todas" : filters.situacao.join(",")} onValueChange={(v) => onFiltersChange({ ...filters, situacao: v === "todas" ? [] : v.split(",") })}>
-                        <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="todas">Todas</SelectItem>
-                          <SelectItem value="ATIVO,SUSPENSO">Ativas e Suspensas</SelectItem>
-                          <SelectItem value="ATIVO">Apenas Ativas</SelectItem>
-                          <SelectItem value="SUSPENSO">Apenas Suspensas</SelectItem>
-                          {filterOptions.situacoes.filter((s) => s !== "ATIVO" && s !== "SUSPENSO").map((s) => (
-                            <SelectItem key={s} value={s}>{s}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ),
-                  },
-                  {
-                    label: "Regional",
-                    el: (
-                      <Select value={filters.regional} onValueChange={(v) => onFiltersChange({ ...filters, regional: v })}>
-                        <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Todas" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="todos">Todas</SelectItem>
-                          {filterOptions.regionais.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    ),
-                  },
-                  { label: "Contrato De", el: <Input type="date" value={filters.dataContratoInicio} onChange={(e) => onFiltersChange({ ...filters, dataContratoInicio: e.target.value })} className="h-8 text-xs rounded-lg" /> },
-                  { label: "Contrato Até", el: <Input type="date" value={filters.dataContratoFim} onChange={(e) => onFiltersChange({ ...filters, dataContratoFim: e.target.value })} className="h-8 text-xs rounded-lg" /> },
-                  {
-                    label: "Montadora",
-                    el: (
-                      <Select value={filters.montadora} onValueChange={(v) => onFiltersChange({ ...filters, montadora: v })}>
-                        <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Todas" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="todos">Todas</SelectItem>
-                          {filterOptions.montadoras.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    ),
-                  },
-                  {
-                    label: "Faixa Valor",
-                    el: (
-                      <Select value={filters.faixaValorProtegido} onValueChange={(v) => onFiltersChange({ ...filters, faixaValorProtegido: v })}>
-                        <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {FAIXAS_VALOR.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    ),
-                  },
-                ].map(({ label, el }) => (
-                  <div key={label} className="space-y-1">
-                    <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</Label>
-                    {el}
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-end mt-3">
-                <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-3 text-xs">
-                  <X className="h-3 w-3 mr-1" />Limpar filtros
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── KPIs ── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

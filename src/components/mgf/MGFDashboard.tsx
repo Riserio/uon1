@@ -411,9 +411,9 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       )}
 
       {/* Operação (Donut) + SubOperação (Barras) */}
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-3">
         {stats.operacaoData.length > 0 && (
-          <Card className="rounded-2xl border-border/40">
+          <Card className="rounded-2xl border-border/40 lg:col-span-1">
             <CardHeader className="pb-1 pt-4 px-5">
               <div className="flex items-center gap-2"><Package className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Operação</CardTitle></div>
             </CardHeader>
@@ -426,12 +426,12 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
           </Card>
         )}
         {stats.subOperacaoData.length > 0 && (
-          <Card className="rounded-2xl border-border/40">
+          <Card className="rounded-2xl border-border/40 lg:col-span-2">
             <CardHeader className="pb-1 pt-4 px-5">
               <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por SubOperação</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.subOperacaoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
+              <BarWidget data={stats.subOperacaoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency maxItems={12} />
             </CardContent>
           </Card>
         )}
