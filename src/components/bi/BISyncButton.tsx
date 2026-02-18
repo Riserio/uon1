@@ -171,72 +171,72 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     }
   }, [corretoraId]);
 
-  const STALE_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes
+  // Fetch only executing rows — cheap query used by the 3s poll
+  const loadActiveExecutions = useCallback(async () => {
+    if (!corretoraId || corretoraId === "__admin__") return;
+    const modules: ModuleType[] = ["cobranca", "eventos", "mgf"];
 
-  const autoResolveStaleExecution = async (mod: ModuleType) => {
-    try {
-      const { data: staleExecs } = await supabase
-        .from(EXEC_TABLES[mod] as any)
-        .select("id, created_at, github_run_id")
-        .eq("corretora_id", corretoraId)
-        .eq("status", "executando")
-        .order("created_at", { ascending: false })
-        .limit(5) as any;
+    const results: Partial<Record<ModuleType, Pick<ModuleStatus, "isExecuting" | "activeExecution" | "lastStatus">>> = {};
 
-      if (!staleExecs?.length) return;
+    await Promise.all(modules.map(async (mod) => {
+      try {
+        const { data } = await supabase
+          .from(EXEC_TABLES[mod] as any)
+          .select("id, created_at, etapa_atual, bytes_baixados, bytes_total, progresso_download, github_run_url")
+          .eq("corretora_id", corretoraId)
+          .eq("status", "executando")
+          .order("created_at", { ascending: false })
+          .limit(1) as any;
 
-      const now = Date.now();
-      for (const exec of staleExecs) {
-        const elapsed = now - new Date(exec.created_at).getTime();
-        if (elapsed > STALE_TIMEOUT_MS) {
-          await supabase
-            .from(EXEC_TABLES[mod] as any)
-            .update({
-              status: "erro",
-              erro: "Timeout: execução não respondeu em 60 minutos",
-              finalizado_at: new Date().toISOString(),
-            } as any)
-            .eq("id", exec.id);
+        const activeRow = data?.[0] ?? null;
+        results[mod] = {
+          isExecuting: !!activeRow,
+          activeExecution: activeRow ? { ...activeRow, module: mod } : null,
+          lastStatus: activeRow ? "executando" : undefined,
+        };
+      } catch (e) {
+        console.error(`Erro ao carregar execução ativa ${mod}:`, e);
+      }
+    }));
 
-          await supabase
-            .from(CONFIG_TABLES[mod] as any)
-            .update({ ultimo_status: "erro", ultimo_erro: "Timeout: execução não respondeu" } as any)
-            .eq("corretora_id", corretoraId);
+    setModuleStatuses(prev => {
+      const next = { ...prev };
+      for (const mod of modules) {
+        const r = results[mod as ModuleType];
+        if (r) {
+          next[mod as ModuleType] = {
+            ...prev[mod as ModuleType],
+            isExecuting: r.isExecuting,
+            activeExecution: r.activeExecution ?? null,
+            // Only override lastStatus if currently executing or was executing before
+            lastStatus: r.isExecuting
+              ? "executando"
+              : prev[mod as ModuleType].isExecuting
+              ? prev[mod as ModuleType].lastStatus  // keep until full reload clears it
+              : prev[mod as ModuleType].lastStatus,
+          };
         }
       }
-    } catch (e) {
-      console.error(`Erro ao resolver execuções travadas ${mod}:`, e);
-    }
-  };
+      return next;
+    });
+  }, [corretoraId]);
 
+  // Full status load (config + history) — used on open and via realtime
   const loadModuleStatuses = useCallback(async () => {
     if (!corretoraId || corretoraId === "__admin__") return;
     const modules: ModuleType[] = ["cobranca", "eventos", "mgf"];
     const hoje = new Date().toISOString().split('T')[0];
 
-    // Auto-resolve stale executions first
-    await Promise.all(modules.map(mod => autoResolveStaleExecution(mod)));
-
     const results: Partial<Record<ModuleType, ModuleStatus>> = {};
 
     await Promise.all(modules.map(async (mod) => {
       try {
-        // Query config and active execution in parallel
-        const [configRes, sucessoHojeRes, activeExecRes] = await Promise.all([
+        const [configRes, activeExecRes] = await Promise.all([
           supabase
             .from(CONFIG_TABLES[mod] as any)
             .select("ultima_execucao, ultimo_status, ultimo_erro")
             .eq("corretora_id", corretoraId)
             .maybeSingle() as any,
-          supabase
-            .from(EXEC_TABLES[mod] as any)
-            .select("id, created_at")
-            .eq("corretora_id", corretoraId)
-            .eq("status", "sucesso")
-            .gte("created_at", `${hoje}T00:00:00`)
-            .order("created_at", { ascending: false })
-            .limit(1) as any,
-          // Always fetch the most recent executing row directly — don't rely on config table
           supabase
             .from(EXEC_TABLES[mod] as any)
             .select("id, created_at, etapa_atual, bytes_baixados, bytes_total, progresso_download, github_run_url")
@@ -247,25 +247,24 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         ]);
 
         const data = configRes.data;
-        const sucessoHoje = sucessoHojeRes.data;
         const activeRow = activeExecRes.data?.[0] ?? null;
-
-        const activeExecution: ActiveExecution | null = activeRow
-          ? { ...activeRow, module: mod }
-          : null;
-
+        const activeExecution: ActiveExecution | null = activeRow ? { ...activeRow, module: mod } : null;
         const isExecuting = !!activeRow;
 
         if (data) {
-          const hadSuccessToday = sucessoHoje && sucessoHoje.length > 0;
-          const effectiveStatus = hadSuccessToday && !isExecuting ? "sucesso" : (isExecuting ? "executando" : data.ultimo_status);
-          const effectiveError = hadSuccessToday && effectiveStatus === "sucesso" ? null : data.ultimo_erro;
-
           results[mod] = {
-            lastExecution: hadSuccessToday ? sucessoHoje[0].created_at : data.ultima_execucao,
-            lastStatus: effectiveStatus,
-            lastError: effectiveError,
+            lastExecution: data.ultima_execucao,
+            lastStatus: isExecuting ? "executando" : data.ultimo_status,
+            lastError: isExecuting ? null : data.ultimo_erro,
             isExecuting,
+            activeExecution,
+          };
+        } else if (isExecuting) {
+          results[mod] = {
+            lastExecution: null,
+            lastStatus: "executando",
+            lastError: null,
+            isExecuting: true,
             activeExecution,
           };
         }
@@ -274,7 +273,6 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
       }
     }));
 
-    // Use functional updater to avoid stale closure issues
     setModuleStatuses(prev => ({ ...prev, ...results }));
   }, [corretoraId]);
 
@@ -285,57 +283,42 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     }
   }, [open, corretoraId, loadCredenciais, loadModuleStatuses]);
 
-  // Ticker for elapsed time display — updates every second when there are active executions
+  // Elapsed time ticker — 1s interval, only when dialog open and something running
   useEffect(() => {
-    const anyRunning = Object.values(moduleStatuses).some(s => s.isExecuting);
-    if (anyRunning && open) {
-      tickRef.current = setInterval(() => setTick(t => t + 1), 1000);
-    } else {
-      if (tickRef.current) clearInterval(tickRef.current);
-    }
+    if (!open) return;
+    tickRef.current = setInterval(() => setTick(t => t + 1), 1000);
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
-  }, [open, moduleStatuses]);
+  }, [open]);
 
-  // Realtime + aggressive polling while any execution is active
+  // Realtime subscriptions — trigger full reload on any change
   useEffect(() => {
     if (!open || !corretoraId) return;
-
-    // Realtime subscriptions for instant reaction to DB changes
-    const channels = (["cobranca", "eventos", "mgf"] as ModuleType[]).map(mod => {
-      return supabase
-        .channel(`sync-btn-${mod}-${corretoraId}`)
+    const channels = (["cobranca", "eventos", "mgf"] as ModuleType[]).map(mod =>
+      supabase
+        .channel(`sync-btn-${mod}-${corretoraId}-${Date.now()}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: EXEC_TABLES[mod], filter: `corretora_id=eq.${corretoraId}` },
-          () => loadModuleStatuses()
+          () => {
+            // Light poll first for immediate UI update, then full reload
+            loadActiveExecutions();
+            loadModuleStatuses();
+          }
         )
-        .subscribe();
-    });
+        .subscribe()
+    );
+    return () => { channels.forEach(ch => supabase.removeChannel(ch)); };
+  }, [open, corretoraId, loadActiveExecutions, loadModuleStatuses]);
 
-    return () => {
-      channels.forEach(ch => supabase.removeChannel(ch));
-    };
-  }, [open, corretoraId, loadModuleStatuses]);
-
-  // Keep anyRunningRef in sync so the poll interval can check without stale closure
-  useEffect(() => {
-    anyRunningRef.current = Object.values(moduleStatuses).some(s => s.isExecuting);
-  }, [moduleStatuses]);
-
-  // Fast-poll: 3s while any module is executing; single interval, no recreation
+  // Fast-poll every 3s using the LIGHTWEIGHT query (only active executions)
+  // Always runs while dialog is open — no dependency on anyRunningRef
   useEffect(() => {
     if (!open || !corretoraId) return;
-
     pollRef.current = setInterval(() => {
-      if (anyRunningRef.current) {
-        loadModuleStatuses();
-      }
+      loadActiveExecutions();
     }, 3000);
-
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [open, corretoraId, loadModuleStatuses]);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [open, corretoraId, loadActiveExecutions]);
 
 
   const handleSave = async () => {
