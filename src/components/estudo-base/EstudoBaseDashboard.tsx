@@ -1,15 +1,17 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Filter, Car, DollarSign, ShieldCheck, AlertTriangle, Loader2, TrendingUp } from "lucide-react";
+import { Filter, Car, DollarSign, ShieldCheck, AlertTriangle, Loader2, TrendingUp, ChevronDown, X } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  AreaChart,
+  Area,
   PieChart,
   Pie,
   Cell,
@@ -155,6 +157,7 @@ function ScrollCounterList({
 // ---------- Component ----------
 
 export default function EstudoBaseDashboard({ registros, loading, filters, onFiltersChange }: Props) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const filterOptions = useMemo(() => {
     const situacoes = [...new Set(registros.map((r) => r.situacao_veiculo).filter(Boolean))].sort();
     const regionais = [...new Set(registros.map((r) => r.cooperativa || r.regional).filter(Boolean))].sort();
@@ -287,6 +290,32 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
   const tipoVeiculoData = useMemo(() => buildRanking("tipo_veiculo", 15), [filtered]);
   const voluntarioTotal = useMemo(() => voluntarioData.reduce((s, i) => s + (i.value || 0), 0), [voluntarioData]);
 
+  // Veículos com evento por mês (últimos 12 meses)
+  const eventosPorMesChart = useMemo(() => {
+    const map = new Map<string, { total: number; comEvento: number }>();
+    filtered.forEach((r) => {
+      if (r.data_contrato) {
+        try {
+          const key = format(parseISO(r.data_contrato), "yyyy-MM");
+          const cur = map.get(key) || { total: 0, comEvento: 0 };
+          cur.total++;
+          if ((r.qtde_evento || 0) > 0) cur.comEvento++;
+          map.set(key, cur);
+        } catch {}
+      }
+    });
+    const sorted = Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([raw, { total, comEvento }]) => {
+        let mes = raw;
+        try { mes = format(parseISO(raw + "-01"), "MMM/yy", { locale: ptBR }); } catch {}
+        const taxa = total > 0 ? ((comEvento / total) * 100) : 0;
+        return { mes, total, comEvento, semEvento: total - comEvento, taxa };
+      });
+    return sorted;
+  }, [filtered]);
+
   const clearFilters = () => {
     onFiltersChange({
       situacao: [], regional: "todos", cooperativa: "todos",
@@ -321,77 +350,110 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
 
   return (
     <div className="space-y-3">
-      {/* ── Filters ── */}
+      {/* ── Filters (collapsible) ── */}
       <Card className="bg-card/60 border-border/40 rounded-2xl">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Filter className="h-3.5 w-3.5 text-primary" />
-            <span className="font-semibold text-xs tracking-wide uppercase text-muted-foreground">Filtros</span>
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="h-6 px-2 text-xs ml-auto">Limpar</Button>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            {[
-              {
-                label: "Situação",
-                el: (
-                  <Select value={filters.situacao.length === 0 ? "todas" : filters.situacao.join(",")} onValueChange={(v) => onFiltersChange({ ...filters, situacao: v === "todas" ? [] : v.split(",") })}>
-                    <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todas">Todas</SelectItem>
-                      <SelectItem value="ATIVO,SUSPENSO">Ativas e Suspensas</SelectItem>
-                      <SelectItem value="ATIVO">Apenas Ativas</SelectItem>
-                      <SelectItem value="SUSPENSO">Apenas Suspensas</SelectItem>
-                      {filterOptions.situacoes.filter((s) => s !== "ATIVO" && s !== "SUSPENSO").map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ),
-              },
-              {
-                label: "Regional",
-                el: (
-                  <Select value={filters.regional} onValueChange={(v) => onFiltersChange({ ...filters, regional: v })}>
-                    <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Todas" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todas</SelectItem>
-                      {filterOptions.regionais.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                ),
-              },
-              { label: "Contrato De", el: <Input type="date" value={filters.dataContratoInicio} onChange={(e) => onFiltersChange({ ...filters, dataContratoInicio: e.target.value })} className="h-8 text-xs rounded-lg" /> },
-              { label: "Contrato Até", el: <Input type="date" value={filters.dataContratoFim} onChange={(e) => onFiltersChange({ ...filters, dataContratoFim: e.target.value })} className="h-8 text-xs rounded-lg" /> },
-              {
-                label: "Montadora",
-                el: (
-                  <Select value={filters.montadora} onValueChange={(v) => onFiltersChange({ ...filters, montadora: v })}>
-                    <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Todas" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todas</SelectItem>
-                      {filterOptions.montadoras.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                ),
-              },
-              {
-                label: "Faixa Valor",
-                el: (
-                  <Select value={filters.faixaValorProtegido} onValueChange={(v) => onFiltersChange({ ...filters, faixaValorProtegido: v })}>
-                    <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {FAIXAS_VALOR.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                ),
-              },
-            ].map(({ label, el }) => (
-              <div key={label} className="space-y-1">
-                <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</Label>
-                {el}
+        <CardContent className="p-0">
+          {/* Header toggle */}
+          <button
+            className="w-full flex items-center gap-2 px-4 py-3 text-left"
+            onClick={() => setFiltersOpen((o) => !o)}
+          >
+            <Filter className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="font-semibold text-xs tracking-wide uppercase text-muted-foreground flex-1">Filtros</span>
+            {/* Active filter summary when collapsed */}
+            {!filtersOpen && (() => {
+              const parts: string[] = [];
+              if (filters.situacao.length > 0) parts.push(filters.situacao.join(", "));
+              if (filters.regional !== "todos") parts.push(filters.regional);
+              if (filters.montadora !== "todos") parts.push(filters.montadora);
+              if (filters.dataContratoInicio) parts.push(`De: ${filters.dataContratoInicio}`);
+              if (filters.dataContratoFim) parts.push(`Até: ${filters.dataContratoFim}`);
+              if (filters.faixaValorProtegido !== "todos") parts.push(FAIXAS_VALOR.find(f => f.value === filters.faixaValorProtegido)?.label || "");
+              return parts.length > 0 ? (
+                <span className="text-[11px] text-muted-foreground truncate max-w-[45%]">{parts.join(" · ")}</span>
+              ) : null;
+            })()}
+            {!filtersOpen && (filters.situacao.length > 0 || filters.regional !== "todos" || filters.montadora !== "todos" || filters.dataContratoInicio || filters.dataContratoFim || filters.faixaValorProtegido !== "todos") && (
+              <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold shrink-0">
+                {[filters.situacao.length > 0, filters.regional !== "todos", filters.montadora !== "todos", !!filters.dataContratoInicio, !!filters.dataContratoFim, filters.faixaValorProtegido !== "todos"].filter(Boolean).length}
+              </span>
+            )}
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0 ${filtersOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {/* Expandable filter grid */}
+          {filtersOpen && (
+            <div className="px-4 pb-4 border-t border-border/30 pt-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                {[
+                  {
+                    label: "Situação",
+                    el: (
+                      <Select value={filters.situacao.length === 0 ? "todas" : filters.situacao.join(",")} onValueChange={(v) => onFiltersChange({ ...filters, situacao: v === "todas" ? [] : v.split(",") })}>
+                        <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todas">Todas</SelectItem>
+                          <SelectItem value="ATIVO,SUSPENSO">Ativas e Suspensas</SelectItem>
+                          <SelectItem value="ATIVO">Apenas Ativas</SelectItem>
+                          <SelectItem value="SUSPENSO">Apenas Suspensas</SelectItem>
+                          {filterOptions.situacoes.filter((s) => s !== "ATIVO" && s !== "SUSPENSO").map((s) => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ),
+                  },
+                  {
+                    label: "Regional",
+                    el: (
+                      <Select value={filters.regional} onValueChange={(v) => onFiltersChange({ ...filters, regional: v })}>
+                        <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Todas" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos">Todas</SelectItem>
+                          {filterOptions.regionais.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ),
+                  },
+                  { label: "Contrato De", el: <Input type="date" value={filters.dataContratoInicio} onChange={(e) => onFiltersChange({ ...filters, dataContratoInicio: e.target.value })} className="h-8 text-xs rounded-lg" /> },
+                  { label: "Contrato Até", el: <Input type="date" value={filters.dataContratoFim} onChange={(e) => onFiltersChange({ ...filters, dataContratoFim: e.target.value })} className="h-8 text-xs rounded-lg" /> },
+                  {
+                    label: "Montadora",
+                    el: (
+                      <Select value={filters.montadora} onValueChange={(v) => onFiltersChange({ ...filters, montadora: v })}>
+                        <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue placeholder="Todas" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos">Todas</SelectItem>
+                          {filterOptions.montadoras.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ),
+                  },
+                  {
+                    label: "Faixa Valor",
+                    el: (
+                      <Select value={filters.faixaValorProtegido} onValueChange={(v) => onFiltersChange({ ...filters, faixaValorProtegido: v })}>
+                        <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {FAIXAS_VALOR.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ),
+                  },
+                ].map(({ label, el }) => (
+                  <div key={label} className="space-y-1">
+                    <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</Label>
+                    {el}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+              <div className="flex justify-end mt-3">
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-3 text-xs">
+                  <X className="h-3 w-3 mr-1" />Limpar filtros
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -584,7 +646,81 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
         </CardContent>
       </Card>
 
-      {/* ── Demográficos: Sexo + Estado Civil + Faixa Etária ── */}
+      {/* ── Veículos com Evento por Mês ── */}
+      <Card className="rounded-2xl border-border/40">
+        <CardHeader className="pb-1 pt-4 px-5">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold">
+              Veículos com Evento por Mês
+              <span className="text-[11px] font-normal text-muted-foreground ml-1">(últimos 12 meses)</span>
+            </CardTitle>
+            {eventosPorMesChart.length > 0 && (
+              <div className="flex items-center gap-4 text-[11px]">
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-violet-500 inline-block" />Com Evento</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-muted inline-block" />Sem Evento</span>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          {eventosPorMesChart.length > 0 ? (
+            <>
+              <div className="overflow-x-auto">
+                <div style={{ minWidth: Math.max(600, eventosPorMesChart.length * 72) }}>
+                  <div style={{ height: 200 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={eventosPorMesChart} margin={{ top: 18, right: 12, bottom: 4, left: 0 }} barCategoryGap="30%">
+                        <defs>
+                          <linearGradient id="gradEvento" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.9} />
+                            <stop offset="100%" stopColor="#7c3aed" stopOpacity={0.7} />
+                          </linearGradient>
+                          <linearGradient id="gradSemEvento" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.3} />
+                            <stop offset="100%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.1} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis dataKey="mes" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
+                        <Tooltip
+                          contentStyle={ttStyle}
+                          formatter={(v: any, name: string) => [Number(v).toLocaleString("pt-BR"), name]}
+                        />
+                        <Bar dataKey="semEvento" name="Sem Evento" stackId="a" fill="url(#gradSemEvento)" maxBarSize={48} />
+                        <Bar dataKey="comEvento" name="Com Evento" stackId="a" fill="url(#gradEvento)" radius={[5, 5, 0, 0]} maxBarSize={48}>
+                          <LabelList dataKey="comEvento" position="top" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 9, fontWeight: 600, fill: "hsl(var(--muted-foreground))" }} />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+              {/* Taxa de evento por mês */}
+              <div className="mt-3">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1.5">
+                  <span>Mês</span>
+                  <span className="flex items-center gap-6"><span>Com Evento</span><span>Total</span><span>Taxa %</span></span>
+                </div>
+                <div className="overflow-y-auto max-h-[160px] pr-1 space-y-1">
+                  {[...eventosPorMesChart].reverse().map((it) => (
+                    <div key={it.mes} className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/20 px-2.5 py-1.5">
+                      <span className="text-xs font-medium">{it.mes}</span>
+                      <div className="flex items-center gap-6">
+                        <span className="text-xs font-bold tabular-nums min-w-[52px] text-right text-violet-600">{Number(it.comEvento).toLocaleString("pt-BR")}</span>
+                        <span className="text-xs tabular-nums min-w-[48px] text-right text-muted-foreground">{Number(it.total).toLocaleString("pt-BR")}</span>
+                        <span className="text-[11px] font-semibold tabular-nums min-w-[56px] text-right text-rose-500">{it.taxa.toFixed(2)}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : <div className="flex items-center justify-center h-[200px] text-sm text-muted-foreground">Sem dados de evento</div>}
+        </CardContent>
+      </Card>
+
+
       <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
         {[
           { title: "Sexo", data: sexoData },
