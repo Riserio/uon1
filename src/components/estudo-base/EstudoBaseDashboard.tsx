@@ -468,7 +468,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
 
   const clearFilters = () => {
     onFiltersChange({
-      situacao: ["ATIVO", "SUSPENSO"],
+      situacao: [],
       regional: "todos",
       cooperativa: "todos",
       dataContratoInicio: "",
@@ -521,13 +521,14 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Situação</Label>
               <Select
-                value={filters.situacao.join(",") || "ATIVO,SUSPENSO"}
-                onValueChange={(v) => onFiltersChange({ ...filters, situacao: v.split(",") })}
+                value={filters.situacao.length === 0 ? "todas" : filters.situacao.join(",")}
+                onValueChange={(v) => onFiltersChange({ ...filters, situacao: v === "todas" ? [] : v.split(",") })}
               >
                 <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="todas">Todas</SelectItem>
                   <SelectItem value="ATIVO,SUSPENSO">Ativas e Suspensas</SelectItem>
                   <SelectItem value="ATIVO">Apenas Ativas</SelectItem>
                   <SelectItem value="SUSPENSO">Apenas Suspensas</SelectItem>

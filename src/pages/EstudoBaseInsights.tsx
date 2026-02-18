@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Upload, Database, MapPin } from "lucide-react";
+import { BarChart3, Upload, Database, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BIPageHeader from "@/components/bi/BIPageHeader";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,8 +35,13 @@ export default function EstudoBaseInsights() {
   const [selectedAssociacao, setSelectedAssociacao] = useState<string>("");
   const [loadingAssociacoes, setLoadingAssociacoes] = useState(true);
   const canViewHistorico = userRole === "superintendente" || userRole === "admin";
+
+  // Pagination for "Dados Completos" tab
+  const [tabelaPage, setTabelaPage] = useState(1);
+  const [tabelaPerPage, setTabelaPerPage] = useState(50);
+
   const [filters, setFilters] = useState<EstudoBaseFilters>({
-    situacao: ["ATIVO", "SUSPENSO"],
+    situacao: [],
     regional: "todos",
     cooperativa: "todos",
     dataContratoInicio: "",
@@ -207,7 +214,10 @@ export default function EstudoBaseInsights() {
   }, [selectedAssociacao]);
 
   useEffect(() => {
-    if (selectedAssociacao) fetchRegistros();
+    if (selectedAssociacao) {
+      fetchRegistros();
+      setTabelaPage(1);
+    }
   }, [selectedAssociacao, fetchRegistros]);
 
   // Realtime
@@ -322,44 +332,81 @@ export default function EstudoBaseInsights() {
           </TabsContent>
 
           <TabsContent value="tabela" className="space-y-4 mt-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs border">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    {["Placa", "Tipo", "Montadora", "Modelo", "Categoria", "Ano", "Situação", "Valor Protegido", "Cooperativa", "Sexo", "Idade", "Data Contrato"].map((h) => (
-                      <th key={h} className="text-left py-2 px-2 font-medium whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {registros.slice(0, 500).map((r, i) => (
-                    <tr key={r.id || i} className="border-b hover:bg-muted/30">
-                      <td className="py-1.5 px-2">{r.placa}</td>
-                      <td className="py-1.5 px-2">{r.tipo_veiculo}</td>
-                      <td className="py-1.5 px-2">{r.montadora}</td>
-                      <td className="py-1.5 px-2 max-w-[200px] truncate">{r.modelo}</td>
-                      <td className="py-1.5 px-2">{r.categoria}</td>
-                      <td className="py-1.5 px-2">{r.ano_modelo}</td>
-                      <td className="py-1.5 px-2">{r.situacao_veiculo}</td>
-                      <td className="py-1.5 px-2 whitespace-nowrap">
-                        {r.valor_protegido
-                          ? `R$ ${Number(r.valor_protegido).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                          : "-"}
-                      </td>
-                      <td className="py-1.5 px-2 max-w-[200px] truncate">{r.cooperativa}</td>
-                      <td className="py-1.5 px-2">{r.sexo}</td>
-                      <td className="py-1.5 px-2">{r.idade_associado}</td>
-                      <td className="py-1.5 px-2">{r.data_contrato}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {registros.length > 500 && (
-                <p className="text-xs text-muted-foreground mt-2 text-center">
-                  Exibindo 500 de {registros.length.toLocaleString("pt-BR")} registros
-                </p>
-              )}
-            </div>
+            {(() => {
+              const totalPages = Math.ceil(registros.length / tabelaPerPage);
+              const startIdx = (tabelaPage - 1) * tabelaPerPage;
+              const pageRecords = registros.slice(startIdx, startIdx + tabelaPerPage);
+              return (
+                <>
+                  {/* Pagination top controls */}
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Itens por página:</span>
+                      <Select
+                        value={tabelaPerPage.toString()}
+                        onValueChange={(v) => { setTabelaPerPage(Number(v)); setTabelaPage(1); }}
+                      >
+                        <SelectTrigger className="w-20 h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="25">25</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                          <SelectItem value="100">100</SelectItem>
+                          <SelectItem value="200">200</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">
+                        {startIdx + 1}–{Math.min(startIdx + tabelaPerPage, registros.length)} de {registros.length.toLocaleString("pt-BR")}
+                      </span>
+                      <Button variant="outline" size="sm" onClick={() => setTabelaPage(p => Math.max(1, p - 1))} disabled={tabelaPage === 1}>
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-sm font-medium px-2">Pág. {tabelaPage} / {totalPages}</span>
+                      <Button variant="outline" size="sm" onClick={() => setTabelaPage(p => Math.min(totalPages, p + 1))} disabled={tabelaPage === totalPages || totalPages === 0}>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          {["Placa", "Tipo", "Montadora", "Modelo", "Categoria", "Ano", "Situação", "Valor Protegido", "Cooperativa", "Sexo", "Idade", "Data Contrato"].map((h) => (
+                            <th key={h} className="text-left py-2 px-2 font-medium whitespace-nowrap">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pageRecords.map((r, i) => (
+                          <tr key={r.id || i} className="border-b hover:bg-muted/30">
+                            <td className="py-1.5 px-2">{r.placa}</td>
+                            <td className="py-1.5 px-2">{r.tipo_veiculo}</td>
+                            <td className="py-1.5 px-2">{r.montadora}</td>
+                            <td className="py-1.5 px-2 max-w-[200px] truncate">{r.modelo}</td>
+                            <td className="py-1.5 px-2">{r.categoria}</td>
+                            <td className="py-1.5 px-2">{r.ano_modelo}</td>
+                            <td className="py-1.5 px-2">{r.situacao_veiculo}</td>
+                            <td className="py-1.5 px-2 whitespace-nowrap">
+                              {r.valor_protegido
+                                ? `R$ ${Number(r.valor_protegido).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                                : "-"}
+                            </td>
+                            <td className="py-1.5 px-2 max-w-[200px] truncate">{r.cooperativa}</td>
+                            <td className="py-1.5 px-2">{r.sexo}</td>
+                            <td className="py-1.5 px-2">{r.idade_associado}</td>
+                            <td className="py-1.5 px-2">{r.data_contrato}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              );
+            })()}
           </TabsContent>
 
           {!isPortalAccess && (
