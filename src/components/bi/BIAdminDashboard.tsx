@@ -105,6 +105,40 @@ export default function BIAdminDashboard() {
   const [activeTab, setActiveTab] = useState("visao-geral");
   const [togglingUser, setTogglingUser] = useState<string | null>(null);
 
+  const STALE_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes
+
+  const resolveStaleStatuses = async (corretoraIds: string[]) => {
+    if (!corretoraIds.length) return;
+    const tables = [
+      { exec: "cobranca_automacao_execucoes", config: "cobranca_automacao_config" },
+      { exec: "sga_automacao_execucoes", config: "sga_automacao_config" },
+      { exec: "mgf_automacao_execucoes", config: "mgf_automacao_config" },
+    ] as const;
+    const now = Date.now();
+    await Promise.all(
+      tables.map(async ({ exec, config }) => {
+        const { data: stale } = await supabase
+          .from(exec as any)
+          .select("id, corretora_id, created_at")
+          .eq("status", "executando")
+          .in("corretora_id", corretoraIds) as any;
+        if (!stale?.length) return;
+        for (const row of stale) {
+          if (now - new Date(row.created_at).getTime() > STALE_TIMEOUT_MS) {
+            await supabase
+              .from(exec as any)
+              .update({ status: "erro", erro: "Timeout: execução não respondeu em 60 minutos", finalizado_at: new Date().toISOString() } as any)
+              .eq("id", row.id);
+            await supabase
+              .from(config as any)
+              .update({ ultimo_status: "erro", ultimo_erro: "Timeout: execução não respondeu" } as any)
+              .eq("corretora_id", row.corretora_id);
+          }
+        }
+      })
+    );
+  };
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -114,6 +148,9 @@ export default function BIAdminDashboard() {
         .order("nome");
 
       if (!corretoras) return;
+
+      // Auto-resolve stale "executando" statuses before loading
+      await resolveStaleStatuses(corretoras.map(c => c.id));
 
       const { data: credenciais } = await supabase
         .from("hinova_credenciais")
