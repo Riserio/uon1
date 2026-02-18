@@ -1,9 +1,9 @@
 name: Cobrança Hinova - Importação Automática
 
 on:
-  # Agendamento diário às 09:00 (horário de Brasília = 12:00 UTC)
+  # Agendamento: dias úteis às 09:00 (horário de Brasília = 12:00 UTC)
   schedule:
-    - cron: '0 12 * * *'
+    - cron: '0 12 * * 1-5'
   
   # Permite execução manual pelo GitHub ou via API
   workflow_dispatch:
@@ -54,15 +54,41 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
+
+      # Cache para módulos npm (economiza ~2-3 min por run)
+      - name: Cache dependências npm
+        uses: actions/cache@v4
+        id: npm-cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-npm-cobranca-${{ hashFiles('package-lock.json') }}-v1
+          restore-keys: |
+            ${{ runner.os }}-npm-cobranca-
+
+      # Cache para binários do Playwright/Chromium (economiza ~3-5 min por run)
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('package-lock.json') }}-v1
+          restore-keys: |
+            ${{ runner.os }}-playwright-chromium-
+
       - name: Instalar dependências
-        run: |
-          npm install playwright axios xlsx
-          npx playwright install chromium --with-deps
+        if: steps.npm-cache.outputs.cache-hit != 'true'
+        run: npm install playwright axios xlsx
+
+      - name: Instalar Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+
+      - name: Instalar dependências do sistema (se browser em cache)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       
       - name: Executar robô de cobrança
         env:
-          # Inputs do workflow_dispatch têm prioridade sobre secrets
           HINOVA_URL: ${{ inputs.hinova_url || secrets.HINOVA_URL }}
           HINOVA_CODIGO_CLIENTE: ${{ inputs.hinova_codigo_cliente || secrets.HINOVA_CODIGO_CLIENTE }}
           HINOVA_USER: ${{ inputs.hinova_user || secrets.HINOVA_USER }}
@@ -75,7 +101,7 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/robo-cobranca-hinova.cjs
-      
+
       - name: Notificar erro ao webhook (fallback)
         if: failure()
         env:
@@ -101,7 +127,7 @@ jobs:
           else
             echo "WEBHOOK_URL ou CORRETORA_ID não definidos, pulando notificação"
           fi
-
+      
       - name: Upload screenshots de debug (se houver)
         if: always()
         uses: actions/upload-artifact@v4
@@ -121,4 +147,4 @@ jobs:
             debug_nova_aba.png
             debug_download_retry_*.png
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
