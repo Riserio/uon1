@@ -5,38 +5,50 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileSpreadsheet, CheckCircle2, Loader2, AlertCircle, Download } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import EstudoBaseHistoricoImportacoes from "./EstudoBaseHistoricoImportacoes";
 import { useBIAuditLog } from "@/hooks/useBIAuditLog";
 
-// Column mapping from Excel headers to DB fields
-const COLUMN_MAP: Record<string, string> = {
+/**
+ * Normalizes a header string: trim, uppercase, remove accents, collapse spaces.
+ * This ensures "Situação Veículo" == "SITUACAO VEICULO"
+ */
+const normalizeHeader = (header: string): string =>
+  String(header ?? "")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+
+/**
+ * Lookup table: normalized header -> DB field name.
+ */
+const COLUMN_MAP_NORMALIZED: Record<string, string> = {
   "PLACA": "placa",
+  "RENAVAM": "renavam",
   "TIPO VEICULO": "tipo_veiculo",
-  "TIPO VEÍCULO": "tipo_veiculo",
   "MONTADORA": "montadora",
   "ANO FAB.": "ano_fabricacao",
   "ANO FAB": "ano_fabricacao",
   "ANO FABRICACAO": "ano_fabricacao",
-  "ANO FABRICAÇÃO": "ano_fabricacao",
   "COTA": "cota",
   "COMBUSTIVEL": "combustivel",
-  "COMBUSTÍVEL": "combustivel",
   "VALOR PROTEGIDO": "valor_protegido",
   "COOPERATIVA": "cooperativa",
   "N DE PASSAGEIROS": "num_passageiros",
-  "Nº DE PASSAGEIROS": "num_passageiros",
-  "N° DE PASSAGEIROS": "num_passageiros",
+  "NO DE PASSAGEIROS": "num_passageiros",
   "NUMERO DE PASSAGEIROS": "num_passageiros",
   "SITUACAO VEICULO": "situacao_veiculo",
-  "SITUAÇÃO VEÍCULO": "situacao_veiculo",
   "SITUACAO": "situacao_veiculo",
-  "SITUAÇÃO": "situacao_veiculo",
+  "LOGRADOURO PROPRIETARIO": "logradouro",
   "LOGRADOURO": "logradouro",
+  "CIDADE PROPRIETARIO": "cidade_veiculo",
   "CIDADE VEICULO": "cidade_veiculo",
-  "CIDADE VEÍCULO": "cidade_veiculo",
+  "BAIRRO PROPRIETARIO": "bairro",
+  "BAIRRO": "bairro",
   "DATA CONTRATO": "data_contrato",
   "MOTIVO EVENTO": "motivo_evento",
   "PONTOS": "pontos",
@@ -47,60 +59,52 @@ const COLUMN_MAP: Record<string, string> = {
   "CATEGORIA": "categoria",
   "COR": "cor",
   "VALOR FIPE VEICULO": "valor_fipe",
-  "VALOR FIPE VEÍCULO": "valor_fipe",
   "VALOR FIPE": "valor_fipe",
   "VOLUNTARIO": "voluntario",
-  "VOLUNTÁRIO": "voluntario",
   "ALIENACAO": "alienacao",
-  "ALIENAÇÃO": "alienacao",
-  "BAIRRO": "bairro",
-  "ESTADO": "estado",
   "QTDE. EVENTO": "qtde_evento",
   "QTDE EVENTO": "qtde_evento",
   "QUANTIDADE EVENTO": "qtde_evento",
   "DATA ULTIMO EVENTO": "data_ultimo_evento",
-  "DATA ÚLTIMO EVENTO": "data_ultimo_evento",
   "SPA - SERVICO DE PROTECAO A ASSOCIACOES (SBL)": "spa",
   "SPA": "spa",
   "GARAGEM": "garagem",
   "ALERTA USUARIO": "alerta_usuario",
   "BOLETO FISICO": "boleto_fisico",
-  "BOLETO FÍSICO": "boleto_fisico",
   "SEXO": "sexo",
   "IDADE ASSOCIADO": "idade_associado",
   "PROFISSAO": "profissao",
-  "PROFISSÃO": "profissao",
   "ESTADO CIVIL ASSOCIADO": "estado_civil",
   "ESTADO CIVIL": "estado_civil",
   "VENCIMENTO": "vencimento",
   "SITUACAO SPC/SERASA": "situacao_spc",
-  "SITUAÇÃO SPC/SERASA": "situacao_spc",
   "REGIONAL": "regional",
 };
 
-const normalizeHeader = (header: string): string =>
-  header.trim().toUpperCase().replace(/\s+/g, " ").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+/** Build a map from normalized row key -> db field, given the actual headers in a row */
+function buildHeaderMap(rowKeys: string[]): Record<string, string> {
+  const result: Record<string, string> = {};
+  const processedDbCols = new Set<string>();
+  for (const key of rowKeys) {
+    const normalized = normalizeHeader(key);
+    if (COLUMN_MAP_NORMALIZED[normalized] && !processedDbCols.has(COLUMN_MAP_NORMALIZED[normalized])) {
+      result[key] = COLUMN_MAP_NORMALIZED[normalized];
+      processedDbCols.add(COLUMN_MAP_NORMALIZED[normalized]);
+    }
+  }
+  return result;
+}
 
 /** Remove unpaired unicode surrogates that break Postgres JSON parsing */
-const sanitizeString = (value: any): string | null => {
+const sanitizeString = (value: unknown): string | null => {
   if (value === undefined || value === null || value === "") return null;
   const str = String(value).trim();
   if (!str) return null;
-  // Remove lone surrogates (high without low, or low without high)
   return str.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, "")
             .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
 };
 
-const getValueFromRow = (row: any, targetHeader: string): any => {
-  if (row[targetHeader] !== undefined) return row[targetHeader];
-  const normalizedTarget = normalizeHeader(targetHeader);
-  for (const key of Object.keys(row)) {
-    if (normalizeHeader(key) === normalizedTarget) return row[key];
-  }
-  return undefined;
-};
-
-const parseExcelDate = (value: any): string | null => {
+const parseExcelDate = (value: unknown): string | null => {
   if (!value) return null;
   if (typeof value === "number") {
     if (value < 1 || value > 100000) return null;
@@ -111,37 +115,51 @@ const parseExcelDate = (value: any): string | null => {
     } catch { return null; }
   }
   if (typeof value === "string") {
+    // Try MM/DD/YY or DD/MM/YY
     const parts = value.split("/");
     if (parts.length === 3) {
       const [p1, p2, p3] = parts;
-      const day = parseInt(p1), month = parseInt(p2);
       let year = parseInt(p3);
       if (year < 100) year += 2000;
+      const month = parseInt(p2), day = parseInt(p1);
       if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1900 && year <= 2100)
         return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      // Try US format: MM/DD/YY
+      const monthUs = parseInt(p1), dayUs = parseInt(p2);
+      if (monthUs >= 1 && monthUs <= 12 && dayUs >= 1 && dayUs <= 31 && year >= 1900 && year <= 2100)
+        return `${year}-${String(monthUs).padStart(2, "0")}-${String(dayUs).padStart(2, "0")}`;
     }
   }
   return null;
 };
 
-const parseMoneyValue = (value: any): number => {
+/**
+ * Parse money value - handles both PT-BR (1.234,56) and US (1,234.56) formats
+ * and "R$ 25,529.00" style (US format with R$ prefix)
+ */
+const parseMoneyValue = (value: unknown): number => {
   if (!value) return 0;
   if (typeof value === "number") return value;
-  const cleaned = String(value).replace(/R\$\s*/g, "").replace(/\./g, "").replace(",", ".").trim();
+  let cleaned = String(value).replace(/R\$\s*/g, "").trim();
+  if (!cleaned) return 0;
+
+  const lastDot = cleaned.lastIndexOf(".");
+  const lastComma = cleaned.lastIndexOf(",");
+
+  if (lastDot === -1 && lastComma === -1) {
+    return parseFloat(cleaned) || 0;
+  }
+
+  if (lastDot > lastComma) {
+    // US format: 25,529.00 -> remove commas
+    cleaned = cleaned.replace(/,/g, "");
+  } else {
+    // PT-BR format: 25.529,00 -> remove dots, replace comma with dot
+    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+  }
+
   const num = parseFloat(cleaned);
   return isNaN(num) ? 0 : num;
-};
-
-// Extract regional from cooperativa field (e.g. "REGIONAL CAMARAGIBE - PE ( D&E)" -> keep as is, but also check for dedicated REGIONAL column)
-const extractRegional = (row: any): string | null => {
-  // First check dedicated REGIONAL column
-  for (const key of Object.keys(row)) {
-    if (normalizeHeader(key) === "REGIONAL") return row[key] || null;
-  }
-  // Fallback: extract from cooperativa
-  const coop = getValueFromRow(row, "COOPERATIVA");
-  if (coop && typeof coop === "string") return coop;
-  return null;
 };
 
 interface Props {
@@ -155,8 +173,39 @@ export default function EstudoBaseImportacao({ onImportSuccess, corretoraId, cor
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState("");
   const [preview, setPreview] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Parse sheet rows using heuristic header detection.
+   * Returns array of objects with original header keys.
+   */
+  const parseSheet = (firstSheet: XLSX.WorkSheet): any[] => {
+    const allRows = XLSX.utils.sheet_to_json(firstSheet, { defval: "", header: 1 }) as unknown[][];
+    const headerRowIdx = allRows.findIndex((row) => {
+      const vals = (row as unknown[]).map((v) => normalizeHeader(String(v)));
+      return vals.some((k) => k === "PLACA") && vals.some((k) => k === "MODELO" || k === "MONTADORA");
+    });
+
+    if (headerRowIdx < 0) {
+      return XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+    }
+
+    const headers = (allRows[headerRowIdx] as unknown[]).map((h) => String(h ?? "").trim());
+    return allRows
+      .slice(headerRowIdx + 1)
+      .filter((row) => (row as unknown[]).some((cell) => cell !== "" && cell !== undefined && cell !== null))
+      .map((row) => {
+        const obj: Record<string, unknown> = {};
+        headers.forEach((h, i) => { obj[h] = (row as unknown[])[i] ?? ""; });
+        return obj;
+      })
+      .filter((row) => {
+        const placa = row["Placa"] ?? row["PLACA"] ?? Object.values(row)[0];
+        return placa && String(placa).trim().length >= 5;
+      });
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -167,27 +216,7 @@ export default function EstudoBaseImportacao({ onImportSuccess, corretoraId, cor
       const buffer = await selectedFile.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
-      
-      // Find header row (heuristic: look for PLACA)
-      let dataRows = jsonData;
-      const headerRow = jsonData.findIndex((row: any) => {
-        const keys = Object.values(row).map(v => String(v).toUpperCase());
-        return keys.some(k => k.includes("PLACA"));
-      });
-      if (headerRow >= 0) {
-        // Re-read with correct header
-        const allRows = XLSX.utils.sheet_to_json(firstSheet, { defval: "", header: 1 }) as any[][];
-        const headers = allRows[headerRow].map((h: any) => String(h).trim());
-        dataRows = allRows.slice(headerRow + 1)
-          .filter((row: any[]) => row.some(cell => cell !== ""))
-          .map((row: any[]) => {
-            const obj: any = {};
-            headers.forEach((h, i) => { obj[h] = row[i] ?? ""; });
-            return obj;
-          });
-      }
-      
+      const dataRows = parseSheet(firstSheet);
       setPreview(dataRows.slice(0, 5));
     } catch (error) {
       console.error("Erro ao ler preview:", error);
@@ -199,44 +228,21 @@ export default function EstudoBaseImportacao({ onImportSuccess, corretoraId, cor
     if (!file || !corretoraId) { toast.error("Selecione um arquivo e uma associação"); return; }
     setImporting(true);
     setProgress(0);
+    setProgressLabel("Lendo arquivo...");
 
     try {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      
-      // Parse with heuristic header detection
-      const allRows = XLSX.utils.sheet_to_json(firstSheet, { defval: "", header: 1 }) as any[][];
-      const headerRowIdx = allRows.findIndex((row: any[]) => {
-        const vals = row.map(v => String(v).toUpperCase());
-        return vals.some(k => k.includes("PLACA")) && vals.some(k => k.includes("MODELO") || k.includes("MONTADORA"));
-      });
-
-      let jsonData: any[];
-      if (headerRowIdx >= 0) {
-        const headers = allRows[headerRowIdx].map((h: any) => String(h).trim());
-        jsonData = allRows.slice(headerRowIdx + 1)
-          .filter((row: any[]) => row.some(cell => cell !== "" && cell !== undefined))
-          .map((row: any[]) => {
-            const obj: any = {};
-            headers.forEach((h, i) => { obj[h] = row[i] ?? ""; });
-            return obj;
-          })
-          .filter((row: any) => {
-            // Must have at least a placa or modelo
-            const placa = getValueFromRow(row, "PLACA");
-            return placa && String(placa).trim().length >= 5;
-          });
-      } else {
-        jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
-      }
+      const jsonData = parseSheet(firstSheet);
 
       if (!jsonData.length) { toast.error("Arquivo vazio ou sem dados válidos"); setImporting(false); return; }
       setProgress(10);
+      setProgressLabel("Preparando importação...");
 
       // Deactivate previous imports
       await supabase.from("estudo_base_importacoes").update({ ativo: false }).eq("ativo", true).eq("corretora_id", corretoraId);
-      setProgress(20);
+      setProgress(15);
 
       // Create import record
       const { data: importacao, error: impError } = await supabase
@@ -245,45 +251,51 @@ export default function EstudoBaseImportacao({ onImportSuccess, corretoraId, cor
         .select()
         .single();
       if (impError) throw impError;
-      setProgress(30);
+      setProgress(20);
 
-      // Process in batches
-      const batchSize = 100;
-      const totalBatches = Math.ceil(jsonData.length / batchSize);
+      // Build header map once from first row
+      const headerMap = buildHeaderMap(Object.keys(jsonData[0] || {}));
+
+      // Process in larger batches for performance
+      const BATCH_SIZE = 500;
+      const totalBatches = Math.ceil(jsonData.length / BATCH_SIZE);
 
       for (let i = 0; i < totalBatches; i++) {
-        const batch = jsonData.slice(i * batchSize, (i + 1) * batchSize);
-        const records = batch.map((row: any) => {
-          const record: any = { importacao_id: importacao.id };
-          const processedCols = new Set<string>();
+        const batch = jsonData.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+        const records = batch.map((row: Record<string, unknown>) => {
+          const record: Record<string, unknown> = { importacao_id: importacao.id };
 
-          Object.entries(COLUMN_MAP).forEach(([excelCol, dbCol]) => {
-            if (processedCols.has(dbCol)) return;
-            const value = getValueFromRow(row, excelCol);
-            if (value !== undefined && value !== null && value !== "") processedCols.add(dbCol);
+          for (const [excelKey, dbCol] of Object.entries(headerMap)) {
+            const value = row[excelKey];
+            if (value === undefined || value === null || value === "") continue;
 
             if (dbCol === "data_contrato" || dbCol === "data_ultimo_evento") {
               record[dbCol] = parseExcelDate(value);
             } else if (["valor_protegido", "valor_fipe", "pontos"].includes(dbCol)) {
-              record[dbCol] = parseMoneyValue(value);
+              const parsed = parseMoneyValue(value);
+              record[dbCol] = parsed > 0 ? parsed : null;
             } else if (["ano_fabricacao", "ano_modelo", "num_passageiros", "qtde_evento", "vencimento", "idade_associado"].includes(dbCol)) {
-              record[dbCol] = value ? parseInt(String(value)) || null : null;
+              const parsed = parseInt(String(value));
+              record[dbCol] = isNaN(parsed) ? null : parsed;
             } else {
               record[dbCol] = sanitizeString(value);
             }
-          });
+          }
 
-          // Regional fallback
-          if (!record.regional) {
-            record.regional = extractRegional(row);
+          // Regional fallback: if no dedicated column, use cooperativa
+          if (!record.regional && record.cooperativa) {
+            record.regional = record.cooperativa;
           }
 
           return record;
         });
 
-        const { error: batchError } = await supabase.from("estudo_base_registros").insert(records);
+        const { error: batchError } = await supabase.from("estudo_base_registros").insert(records as any);
         if (batchError) { console.error("Erro no batch:", batchError); throw batchError; }
-        setProgress(30 + Math.round((i + 1) / totalBatches * 70));
+
+        const pct = 20 + Math.round((i + 1) / totalBatches * 78);
+        setProgress(pct);
+        setProgressLabel(`Inserindo registros... ${Math.min((i + 1) * BATCH_SIZE, jsonData.length).toLocaleString("pt-BR")} / ${jsonData.length.toLocaleString("pt-BR")}`);
       }
 
       await registrarLog({
@@ -294,17 +306,19 @@ export default function EstudoBaseImportacao({ onImportSuccess, corretoraId, cor
         dadosNovos: { arquivo: file.name, total_registros: jsonData.length, corretora: corretoraNome },
       });
 
+      setProgress(100);
       toast.success(`${jsonData.length.toLocaleString('pt-BR')} registros importados com sucesso!`);
       setFile(null);
       setPreview([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
       onImportSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro na importação:", error);
-      toast.error("Erro ao importar: " + (error.message || "Erro desconhecido"));
+      toast.error("Erro ao importar: " + ((error as Error).message || "Erro desconhecido"));
     } finally {
       setImporting(false);
       setProgress(0);
+      setProgressLabel("");
     }
   };
 
@@ -360,7 +374,7 @@ export default function EstudoBaseImportacao({ onImportSuccess, corretoraId, cor
           {importing && (
             <div className="space-y-2">
               <Progress value={progress} className="h-2" />
-              <p className="text-sm text-muted-foreground text-center">Importando... {progress}%</p>
+              <p className="text-sm text-muted-foreground text-center">{progressLabel || `Importando... ${progress}%`}</p>
             </div>
           )}
 
