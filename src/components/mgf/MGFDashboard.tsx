@@ -74,9 +74,9 @@ function MiniDonut({ data, isCurrency = false }: {
   const total = data.reduce((s, d) => s + d.value, 0);
   const items = data.slice(0, 8);
   return (
-    <div className="flex gap-3 items-center">
-      <div className="shrink-0">
-        <ResponsiveContainer width={110} height={110}>
+    <div className="flex gap-3 items-center min-w-0">
+      <div className="shrink-0 w-[110px] h-[110px]">
+        <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie data={items} cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" paddingAngle={2} strokeWidth={0}>
               {items.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
