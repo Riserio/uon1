@@ -44,7 +44,7 @@ on:
 jobs:
   importar-cobranca:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 40
     
     steps:
       - name: Checkout código

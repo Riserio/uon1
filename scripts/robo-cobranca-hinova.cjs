@@ -183,26 +183,23 @@ async function trySelectHinovaLayout(page) {
 // CONSTANTES DE TIMEOUT E CONTROLE
 // ============================================
 const TIMEOUTS = {
-  PAGE_LOAD: 90000,           // 90s para carregar página
-  LOGIN_RETRY_WAIT: 8000,     // 8s entre tentativas de login
-  DOWNLOAD_EVENT: 3 * 60000,  // 3 min para evento de download
-  DOWNLOAD_TOTAL: 40 * 60000, // 40 min total para download (portal pode demorar)
-  DOWNLOAD_SAVE: 40 * 60000,  // 40 min para salvar arquivo (portal Hinova é lento)
-  // O portal pode levar MUITO tempo para iniciar a transmissão do relatório.
-  // Se o idle for curto, o replay HTTP aborta cedo e acabamos caindo no `saveAs()`,
-  // que pode ser cancelado se o popup/contexto fechar antes do download iniciar.
-  DOWNLOAD_IDLE: 40 * 60000,  // 40 min sem receber bytes -> abortar
-  DOWNLOAD_HARD: 55 * 60000,  // 55 min limite rígido (abaixo do timeout do workflow de 60 min)
-  POPUP_CLOSE: 800,           // 800ms para fechar popup
-  FILE_PROGRESS_INTERVAL: 5000, // 5s entre logs de progresso do arquivo
+  PAGE_LOAD: 90000,              // 90s para carregar página
+  LOGIN_RETRY_WAIT: 5000,        // Reduzido de 8s → 5s entre tentativas de login
+  DOWNLOAD_EVENT: 3 * 60000,     // 3 min para evento de download
+  DOWNLOAD_TOTAL: 25 * 60000,    // Reduzido de 40 min → 25 min total para download
+  DOWNLOAD_SAVE: 25 * 60000,     // Reduzido de 40 min → 25 min para salvar arquivo
+  DOWNLOAD_IDLE: 25 * 60000,     // Reduzido de 40 min → 25 min sem receber bytes -> abortar
+  DOWNLOAD_HARD: 30 * 60000,     // Reduzido de 55 min → 30 min limite rígido
+  POPUP_CLOSE: 800,              // 800ms para fechar popup
+  FILE_PROGRESS_INTERVAL: 5000,  // 5s entre logs de progresso do arquivo
 };
 
 const LIMITS = {
-  MAX_LOGIN_RETRIES: 20,
+  MAX_LOGIN_RETRIES: 5,          // Reduzido de 20 → 5
   MAX_DOWNLOAD_RETRIES: 3,
   MAX_POPUP_CLOSE_ATTEMPTS: 10,
-  MAX_LOOP_ITERATIONS: 100,   // Limite para evitar loops infinitos
-  MIN_FILE_SIZE_BYTES: 100,   // Tamanho mínimo para arquivo válido
+  MAX_LOOP_ITERATIONS: 100,      // Limite para evitar loops infinitos
+  MIN_FILE_SIZE_BYTES: 100,      // Tamanho mínimo para arquivo válido
 };
 
 // ============================================
@@ -2944,8 +2941,6 @@ async function rodarRobo() {
     }
     
     log('Aguardando formulário de login...');
-    await page.waitForTimeout(3000);
-    
     try {
       await page.waitForSelector('input[placeholder="Usuário"], input[type="password"]', {
         timeout: 30000
@@ -3148,10 +3143,12 @@ async function rodarRobo() {
     });
     
     log('Aguardando carregamento...');
-    await page.waitForTimeout(5000);
+    await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {
+      log('DOMContentLoaded timeout - continuando...', LOG_LEVELS.WARN);
+    });
     await fecharPopups(page);
     
-    await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {
       log('NetworkIdle timeout - continuando...', LOG_LEVELS.WARN);
     });
     

@@ -48,7 +48,7 @@ on:
 jobs:
   importar-mgf:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 50
     
     steps:
       - name: Checkout código

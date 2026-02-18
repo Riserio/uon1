@@ -93,18 +93,18 @@ const CONFIG = {
 // ============================================
 const TIMEOUTS = {
   PAGE_LOAD: 90000,
-  LOGIN_RETRY_WAIT: 8000,
+  LOGIN_RETRY_WAIT: 5000,       // Reduzido de 8s → 5s
   DOWNLOAD_EVENT: 3 * 60000,
-  DOWNLOAD_TOTAL: 55 * 60000,
-  DOWNLOAD_SAVE: 55 * 60000,
-  DOWNLOAD_IDLE: 40 * 60000,
-  DOWNLOAD_HARD: 55 * 60000,
+  DOWNLOAD_TOTAL: 20 * 60000,   // Reduzido de 55 min → 20 min
+  DOWNLOAD_SAVE: 20 * 60000,    // Reduzido de 55 min → 20 min
+  DOWNLOAD_IDLE: 15 * 60000,    // Reduzido de 40 min → 15 min (stall detection)
+  DOWNLOAD_HARD: 20 * 60000,    // Reduzido de 55 min → 20 min
   POPUP_CLOSE: 800,
   FILE_PROGRESS_INTERVAL: 10000,
 };
 
 const LIMITS = {
-  MAX_LOGIN_RETRIES: 20,
+  MAX_LOGIN_RETRIES: 5,         // Reduzido de 20 → 5
   MAX_POPUP_CLOSE_ATTEMPTS: 10,
   MAX_DOWNLOAD_RETRIES: 3,
 };
@@ -1387,9 +1387,6 @@ async function main() {
       timeout: TIMEOUTS.PAGE_LOAD
     });
 
-    await page.waitForTimeout(3000);
-    await saveDebugInfo(page, context, 'Antes do login');
-
     log('Aguardando formulário de login...');
     await page.waitForSelector('input[type="password"], input[name*="senha" i], input[id*="senha" i]', {
       timeout: 30000
@@ -1506,10 +1503,12 @@ async function main() {
       timeout: TIMEOUTS.PAGE_LOAD
     });
 
-    await page.waitForTimeout(5000);
+    await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {
+      log('DOMContentLoaded timeout - continuando...', LOG_LEVELS.WARN);
+    });
     await fecharPopups(page);
 
-    await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {
       log('NetworkIdle timeout - continuando...', LOG_LEVELS.WARN);
     });
 
@@ -1531,7 +1530,6 @@ async function main() {
     if (!datasOk) {
       log('⚠️ ALERTA: Datas podem não ter sido preenchidas corretamente!', LOG_LEVELS.WARN);
     }
-    await saveDebugInfo(page, context, 'Após datas');
 
     // PASSO 2: Layout
     await updateProgress('executando', 'campos');
@@ -1539,8 +1537,7 @@ async function main() {
     if (!layoutOk) {
       log('⚠️ ALERTA: Layout pode não ter sido selecionado - verificar opções disponíveis no portal!', LOG_LEVELS.WARN);
     }
-    await page.waitForTimeout(2000);
-    await saveDebugInfo(page, context, 'Após layout');
+    await page.waitForTimeout(500);
 
     // PASSO 3: Em Excel
     const excelOk = await selecionarFormaExibicaoEmExcel(page);
@@ -1548,8 +1545,7 @@ async function main() {
       log('⚠️ ALERTA: Forma de exibição Excel pode não ter sido selecionada!', LOG_LEVELS.WARN);
     }
     await page.waitForTimeout(1000);
-    await saveDebugInfo(page, context, 'Após excel');
-    
+
     // Log final dos filtros
     log(`=== RESUMO FILTROS ===`, LOG_LEVELS.INFO);
     log(`Datas: ${datasOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
