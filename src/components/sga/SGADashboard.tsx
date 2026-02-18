@@ -1,12 +1,9 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area 
-} from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, LabelList, Cell } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle, Building2, Truck, ChevronLeft, ChevronRight } from "lucide-react";
+import { TrendingUp, Car, MapPin, Calendar, DollarSign, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import SGAEventosDetailDialog from "./SGAEventosDetailDialog";
 
 interface SGADashboardProps {
@@ -23,903 +20,344 @@ interface DetailDialogState {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#14b8a6'];
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-};
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
 const formatCompactCurrency = (value: number) => {
-  if (value >= 1000000) {
-    return `R$ ${(value / 1000000).toFixed(1)}M`;
-  }
-  if (value >= 1000) {
-    return `R$ ${(value / 1000).toFixed(0)}k`;
-  }
+  if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}k`;
   return `R$ ${value.toFixed(0)}`;
 };
 
-// Filtrar valores N/I e vazios
-const filterValidValues = (data: any[], excludeNI = true) => {
-  if (!excludeNI) return data;
-  return data.filter(item => 
-    item.name && 
-    item.name !== "N/I" && 
-    item.name !== "" && 
-    item.name !== "NAO INFORMADO" &&
-    item.name !== "NÃO INFORMADO"
-  );
-};
+const ttStyle = { borderRadius: 10, fontSize: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" };
 
-// Truncar texto longo
-const truncateText = (text: string, maxLength: number = 15) => {
-  if (!text) return "-";
-  return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
-};
-
-// Custom tooltip
-const CustomTooltip = ({ active, payload, label, isCurrency = false }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-background border rounded-lg shadow-lg p-3 text-sm">
-        <p className="font-medium mb-1">{label}</p>
-        {payload.map((entry: any, index: number) => (
-          <p key={index} style={{ color: entry.color }}>
-            {entry.name}: {isCurrency ? formatCurrency(entry.value) : entry.value.toLocaleString('pt-BR')}
-          </p>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
-
-// Detectar tipo de veículo baseado no modelo
 const getTipoVeiculo = (modelo: string): string => {
   if (!modelo) return "Não Informado";
   const m = modelo.toLowerCase();
   if (m.includes("moto") || m.includes("honda") || m.includes("yamaha") || m.includes("suzuki") || m.includes("kawasaki")) return "Motocicleta";
-  if (m.includes("caminhao") || m.includes("caminhão") || m.includes("truck") || m.includes("scania") || m.includes("volvo") || m.includes("mercedes")) return "Caminhão";
-  if (m.includes("van") || m.includes("furgao") || m.includes("furgão") || m.includes("sprinter")) return "Van/Utilitário";
+  if (m.includes("caminhao") || m.includes("caminhão") || m.includes("truck") || m.includes("scania") || m.includes("volvo")) return "Caminhão";
+  if (m.includes("van") || m.includes("furgao") || m.includes("sprinter")) return "Van/Utilitário";
   return "Passeio";
 };
+
+// Compact horizontal bar widget
+function BarWidget({ data, total, colorFn }: { data: { name: string; value: number; fill?: string }[]; total: number; colorFn?: (i: number) => string }) {
+  if (!data.length) return <p className="text-xs text-muted-foreground text-center py-4">Sem dados</p>;
+  return (
+    <div className="space-y-2 pt-1">
+      {data.map((item, i) => {
+        const pct = total > 0 ? (item.value / total) * 100 : 0;
+        const color = item.fill ?? (colorFn ? colorFn(i) : COLORS[i % COLORS.length]);
+        return (
+          <div key={item.name} className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground truncate w-28 shrink-0" title={item.name}>{item.name}</span>
+            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: color }} />
+            </div>
+            <span className="text-[11px] font-bold tabular-nums w-12 text-right">{item.value.toLocaleString("pt-BR")}</span>
+            <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">{pct.toFixed(1)}%</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function SGADashboard({ eventos, loading }: SGADashboardProps) {
   const [evolucaoView, setEvolucaoView] = useState<'mes' | 'dia'>('mes');
   const evolucaoScrollRef = useRef<HTMLDivElement>(null);
-  const [showScrollIndicators, setShowScrollIndicators] = useState({ left: false, right: false });
-  const [detailDialog, setDetailDialog] = useState<DetailDialogState>({
-    open: false,
-    title: "",
-    filterType: "",
-    filterValue: "",
-  });
+  const [showScroll, setShowScroll] = useState({ left: false, right: false });
+  const [detailDialog, setDetailDialog] = useState<DetailDialogState>({ open: false, title: "", filterType: "", filterValue: "" });
 
-  const openDetailDialog = (title: string, filterType: string, filterValue: string) => {
+  const openDetailDialog = (title: string, filterType: string, filterValue: string) =>
     setDetailDialog({ open: true, title, filterType, filterValue });
-  };
 
-  // Function to update scroll indicators
   const updateScrollIndicators = () => {
     const el = evolucaoScrollRef.current;
-    if (el) {
-      const canScrollLeft = el.scrollLeft > 10;
-      const canScrollRight = el.scrollLeft < el.scrollWidth - el.clientWidth - 10;
-      setShowScrollIndicators({ left: canScrollLeft, right: canScrollRight });
-    }
+    if (el) setShowScroll({ left: el.scrollLeft > 10, right: el.scrollLeft < el.scrollWidth - el.clientWidth - 10 });
   };
 
-  // Handle manual scroll
-  const handleScroll = (direction: 'left' | 'right') => {
-    const el = evolucaoScrollRef.current;
-    if (el) {
-      const scrollAmount = 300;
-      el.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
-    }
+  const handleScroll = (dir: 'left' | 'right') => {
+    evolucaoScrollRef.current?.scrollBy({ left: dir === 'left' ? -300 : 300, behavior: 'smooth' });
   };
-  
+
   const stats = useMemo(() => {
     if (!eventos.length) return null;
 
-    // Por Estado (filtrar N/I)
-    const porEstado = eventos.reduce((acc: any, e) => {
-      const estado = e.evento_estado || "";
-      // Filtrar apenas siglas de estado válidas (2 caracteres)
-      if (estado && estado !== "N/I" && estado !== "NAO INFORMADO" && estado.length === 2) {
-        acc[estado] = (acc[estado] || 0) + 1;
+    const reduce = (field: string, filterFn?: (e: any) => boolean) => eventos.reduce((acc: any, e) => {
+      const val = e[field] || "";
+      if (val && val !== "N/I" && val !== "NAO INFORMADO" && val !== "NÃO INFORMADO") {
+        if (!filterFn || filterFn(e)) acc[val] = (acc[val] || 0) + 1;
       }
       return acc;
     }, {});
-    const totalEstadosDistintos = Object.keys(porEstado).length;
-    const estadoData = Object.entries(porEstado)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a: any, b: any) => b.value - a.value)
-      .slice(0, 10);
 
-    // Por Motivo (filtrar N/I)
-    const porMotivo = eventos.reduce((acc: any, e) => {
-      const motivo = e.motivo_evento || "";
-      if (motivo && motivo !== "N/I" && motivo !== "NAO INFORMADO") {
-        acc[motivo] = (acc[motivo] || 0) + 1;
-      }
-      return acc;
-    }, {});
-    const motivoData = Object.entries(porMotivo)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a: any, b: any) => b.value - a.value);
+    const toArr = (obj: any, limit = 10) =>
+      Object.entries(obj).map(([name, value]) => ({ name, value: value as number })).sort((a, b) => b.value - a.value).slice(0, limit);
 
-    // Por Situação (filtrar N/I)
-    const porSituacao = eventos.reduce((acc: any, e) => {
-      const situacao = e.situacao_evento || "";
-      if (situacao && situacao !== "N/I" && situacao !== "NAO INFORMADO") {
-        acc[situacao] = (acc[situacao] || 0) + 1;
-      }
-      return acc;
-    }, {});
-    const situacaoData = Object.entries(porSituacao)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a: any, b: any) => b.value - a.value);
+    const porEstado = reduce("evento_estado");
+    const porMotivo = reduce("motivo_evento");
+    const porSituacao = reduce("situacao_evento");
+    const porRegional = reduce("regional");
+    const porTipo = reduce("tipo_evento");
+    const porCooperativa = reduce("cooperativa");
+    const porEnvolvimento = reduce("envolvimento");
 
-    // Por Regional (filtrar N/I)
-    const porRegional = eventos.reduce((acc: any, e) => {
-      const regional = e.regional || "";
-      if (regional && regional !== "N/I" && regional !== "NAO INFORMADO") {
-        acc[regional] = (acc[regional] || 0) + 1;
-      }
-      return acc;
-    }, {});
-    const regionalData = Object.entries(porRegional)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a: any, b: any) => b.value - a.value)
-      .slice(0, 10);
-
-    // Por Tipo Evento
-    const porTipo = eventos.reduce((acc: any, e) => {
-      const tipo = e.tipo_evento || "";
-      if (tipo && tipo !== "N/I" && tipo !== "NAO INFORMADO") {
-        acc[tipo] = (acc[tipo] || 0) + 1;
-      }
-      return acc;
-    }, {});
-    const tipoData = Object.entries(porTipo)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a: any, b: any) => b.value - a.value);
-
-    // Por Cooperativa
-    const porCooperativa = eventos.reduce((acc: any, e) => {
-      const cooperativa = e.cooperativa || "";
-      if (cooperativa && cooperativa !== "N/I" && cooperativa !== "NAO INFORMADO") {
-        acc[cooperativa] = (acc[cooperativa] || 0) + 1;
-      }
-      return acc;
-    }, {});
-    const cooperativaData = Object.entries(porCooperativa)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a: any, b: any) => b.value - a.value)
-      .slice(0, 10);
-
-    // Custos por Cooperativa
     const custosPorCooperativa = eventos.reduce((acc: any, e) => {
-      const cooperativa = e.cooperativa || "";
-      if (cooperativa && cooperativa !== "N/I" && cooperativa !== "NAO INFORMADO") {
-        acc[cooperativa] = (acc[cooperativa] || 0) + (e.custo_evento || 0);
-      }
+      const c = e.cooperativa;
+      if (c && c !== "N/I") acc[c] = (acc[c] || 0) + (e.custo_evento || 0);
       return acc;
     }, {});
-    const custosCooperativaData = Object.entries(custosPorCooperativa)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a: any, b: any) => b.value - a.value)
-      .slice(0, 10);
 
-    // Por Tipo de Veículo
     const porTipoVeiculo = eventos.reduce((acc: any, e) => {
       const tipo = getTipoVeiculo(e.modelo_veiculo);
       acc[tipo] = (acc[tipo] || 0) + 1;
       return acc;
     }, {});
-    const tipoVeiculoData = Object.entries(porTipoVeiculo)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a: any, b: any) => b.value - a.value);
 
-    // Custos por Tipo de Veículo
-    const custosPorTipoVeiculo = eventos.reduce((acc: any, e) => {
-      const tipo = getTipoVeiculo(e.modelo_veiculo);
-      acc[tipo] = (acc[tipo] || 0) + (e.custo_evento || 0);
-      return acc;
-    }, {});
-    const custosTipoVeiculoData = Object.entries(custosPorTipoVeiculo)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a: any, b: any) => b.value - a.value);
-
-    // Timeline por mês
     const porMes = eventos.reduce((acc: any, e) => {
       if (e.data_evento) {
         const date = new Date(e.data_evento);
-        const mesAno = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        acc[mesAno] = acc[mesAno] || { eventos: 0, custo: 0 };
-        acc[mesAno].eventos += 1;
-        acc[mesAno].custo += e.custo_evento || 0;
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        acc[key] = acc[key] || { eventos: 0, custo: 0 };
+        acc[key].eventos += 1;
+        acc[key].custo += e.custo_evento || 0;
       }
       return acc;
     }, {});
     const timelineData = Object.entries(porMes)
-      .map(([mes, data]: [string, any]) => ({
-        mes,
-        mesLabel: new Date(mes + "-01").toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-        eventos: data.eventos,
-        custo: data.custo
-      }))
-      .sort((a, b) => a.mes.localeCompare(b.mes));
+      .map(([mes, d]: [string, any]) => ({
+        mes, mesLabel: new Date(mes + "-01").toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+        eventos: d.eventos, custo: d.custo
+      })).sort((a, b) => a.mes.localeCompare(b.mes));
 
-    // Timeline por dia
     const porDia = eventos.reduce((acc: any, e) => {
       if (e.data_evento) {
-        const date = new Date(e.data_evento);
-        const diaKey = date.toISOString().split('T')[0];
-        acc[diaKey] = acc[diaKey] || { eventos: 0, custo: 0 };
-        acc[diaKey].eventos += 1;
-        acc[diaKey].custo += e.custo_evento || 0;
+        const key = new Date(e.data_evento).toISOString().split('T')[0];
+        acc[key] = acc[key] || { eventos: 0, custo: 0 };
+        acc[key].eventos += 1;
+        acc[key].custo += e.custo_evento || 0;
       }
       return acc;
     }, {});
     const timelineDiaData = Object.entries(porDia)
-      .map(([dia, data]: [string, any]) => ({
-        dia,
-        diaLabel: new Date(dia + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-        eventos: data.eventos,
-        custo: data.custo
-      }))
-      .sort((a, b) => a.dia.localeCompare(b.dia));
-
-    // Custos por Regional
-    const custosPorRegional = eventos.reduce((acc: any, e) => {
-      const regional = e.regional || "";
-      if (regional && regional !== "N/I" && regional !== "NAO INFORMADO") {
-        acc[regional] = (acc[regional] || 0) + (e.custo_evento || 0);
-      }
-      return acc;
-    }, {});
-    const custosRegionalData = Object.entries(custosPorRegional)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a: any, b: any) => b.value - a.value)
-      .slice(0, 10);
-
-    // Envolvimento
-    const porEnvolvimento = eventos.reduce((acc: any, e) => {
-      const env = e.envolvimento || "";
-      if (env && env !== "N/I" && env !== "NAO INFORMADO") {
-        acc[env] = (acc[env] || 0) + 1;
-      }
-      return acc;
-    }, {});
-    const envolvimentoData = Object.entries(porEnvolvimento)
-      .map(([name, value]) => ({ name, value }));
+      .map(([dia, d]: [string, any]) => ({
+        dia, diaLabel: new Date(dia + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        eventos: d.eventos, custo: d.custo
+      })).sort((a, b) => a.dia.localeCompare(b.dia));
 
     return {
-      estadoData,
-      motivoData,
-      situacaoData,
-      regionalData,
-      tipoData,
-      cooperativaData,
-      custosCooperativaData,
-      tipoVeiculoData,
-      custosTipoVeiculoData,
+      estadoData: toArr(porEstado),
+      motivoData: toArr(porMotivo, 15),
+      situacaoData: toArr(porSituacao, 15),
+      regionalData: toArr(porRegional),
+      tipoData: toArr(porTipo, 15),
+      cooperativaData: toArr(porCooperativa),
+      custosCooperativaData: Object.entries(custosPorCooperativa).map(([name, value]) => ({ name, value: value as number })).sort((a, b) => b.value - a.value).slice(0, 10),
+      tipoVeiculoData: toArr(porTipoVeiculo, 10),
+      envolvimentoData: toArr(porEnvolvimento, 10),
       timelineData,
       timelineDiaData,
-      custosRegionalData,
-      envolvimentoData,
       totalCusto: eventos.reduce((acc, e) => acc + (e.custo_evento || 0), 0),
       totalReparo: eventos.reduce((acc, e) => acc + (e.valor_reparo || 0), 0),
       mediaParticipacao: eventos.reduce((acc, e) => acc + (e.participacao || 0), 0) / eventos.length,
-      totalEstadosDistintos
+      totalEstadosDistintos: Object.keys(porEstado).length,
     };
   }, [eventos]);
 
-  // Center on current month when data loads or view changes
   useEffect(() => {
     const el = evolucaoScrollRef.current;
     if (!el || !stats) return;
-
     const now = new Date();
     const currentMesAno = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const currentDia = now.toISOString().split('T')[0];
-
-    let targetIndex = -1;
-    
     if (evolucaoView === 'mes' && stats.timelineData.length > 0) {
-      targetIndex = stats.timelineData.findIndex(d => d.mes === currentMesAno);
-      if (targetIndex === -1) {
-        targetIndex = stats.timelineData.findIndex(d => d.mes >= currentMesAno);
-        if (targetIndex === -1) targetIndex = stats.timelineData.length - 1;
-      }
-      const itemWidth = 70;
-      const targetScroll = Math.max(0, (targetIndex * itemWidth) - (el.clientWidth / 2) + (itemWidth / 2));
-      el.scrollTo({ left: targetScroll, behavior: 'auto' });
+      let idx = stats.timelineData.findIndex(d => d.mes === currentMesAno);
+      if (idx === -1) idx = stats.timelineData.length - 1;
+      el.scrollTo({ left: Math.max(0, idx * 70 - el.clientWidth / 2 + 35), behavior: 'auto' });
     } else if (evolucaoView === 'dia' && stats.timelineDiaData.length > 0) {
-      targetIndex = stats.timelineDiaData.findIndex(d => d.dia === currentDia);
-      if (targetIndex === -1) {
-        targetIndex = stats.timelineDiaData.findIndex(d => d.dia >= currentDia);
-        if (targetIndex === -1) targetIndex = stats.timelineDiaData.length - 1;
-      }
-      const itemWidth = 45;
-      const targetScroll = Math.max(0, (targetIndex * itemWidth) - (el.clientWidth / 2) + (itemWidth / 2));
-      el.scrollTo({ left: targetScroll, behavior: 'auto' });
+      let idx = stats.timelineDiaData.findIndex(d => d.dia === currentDia);
+      if (idx === -1) idx = stats.timelineDiaData.length - 1;
+      el.scrollTo({ left: Math.max(0, idx * 45 - el.clientWidth / 2 + 22), behavior: 'auto' });
     }
-
     setTimeout(updateScrollIndicators, 100);
   }, [stats?.timelineData, stats?.timelineDiaData, evolucaoView]);
 
   if (loading) {
     return (
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {[...Array(6)].map((_, i) => (
-          <Card key={i}>
-            <CardHeader>
-              <Skeleton className="h-6 w-32" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-64 w-full" />
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        {[...Array(6)].map((_, i) => <Card key={i} className="rounded-2xl"><CardContent className="p-4"><Skeleton className="h-32 w-full" /></CardContent></Card>)}
       </div>
     );
   }
 
   if (!eventos.length || !stats) {
     return (
-      <Card className="text-center py-12">
+      <Card className="rounded-2xl text-center py-12">
         <CardContent>
-          <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Nenhum Dado Disponível</h3>
-          <p className="text-muted-foreground">
-            Importe uma planilha do SGA para visualizar os dashboards.
-          </p>
+          <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+          <p className="font-semibold">Nenhum Dado Disponível</p>
+          <p className="text-sm text-muted-foreground mt-1">Importe uma planilha do SGA para visualizar os dashboards.</p>
         </CardContent>
       </Card>
     );
   }
 
+  const totalEventos = eventos.length;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border-l-4 border-l-primary">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Custo Total Eventos</p>
-                <p className="text-2xl font-bold">{formatCurrency(stats.totalCusto)}</p>
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        {[
+          { label: "Custo Total", value: formatCompactCurrency(stats.totalCusto), icon: DollarSign, cls: "text-primary bg-primary/5 border-primary/20" },
+          { label: "Total Reparo", value: formatCompactCurrency(stats.totalReparo), icon: Car, cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
+          { label: "Média Participação", value: formatCompactCurrency(stats.mediaParticipacao), icon: TrendingUp, cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
+          { label: "Estados Distintos", value: stats.totalEstadosDistintos.toString(), icon: MapPin, cls: "text-violet-600 bg-violet-500/5 border-violet-500/20" },
+        ].map(({ label, value, icon: Icon, cls }) => (
+          <Card key={label} className={`rounded-2xl border ${cls}`}>
+            <CardContent className="p-4">
+              <div className={`flex items-center gap-1.5 text-[11px] font-medium mb-1.5 ${cls.split(" ")[0]}`}>
+                <Icon className="h-3 w-3" />{label}
               </div>
-              <DollarSign className="h-8 w-8 text-primary/30" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Valor Reparo</p>
-                <p className="text-2xl font-bold">{formatCurrency(stats.totalReparo)}</p>
-              </div>
-              <Car className="h-8 w-8 text-green-500/30" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-yellow-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Média Participação</p>
-                <p className="text-2xl font-bold">{formatCurrency(stats.mediaParticipacao)}</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-yellow-500/30" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-purple-500">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Estados Distintos</p>
-                <p className="text-2xl font-bold">{stats.totalEstadosDistintos}</p>
-              </div>
-              <MapPin className="h-8 w-8 text-purple-500/30" />
-            </div>
-          </CardContent>
-        </Card>
+              <div className="text-xl font-bold tracking-tight">{value}</div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Timeline Chart */}
-      <Card>
-        <CardHeader>
+      {/* Evolução Timeline */}
+      <Card className="rounded-2xl border-border/40">
+        <CardHeader className="pb-2 pt-4 px-5">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              Evolução de Eventos
-            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-semibold">Evolução de Eventos</CardTitle>
+            </div>
             <div className="flex gap-1">
-              <Button
-                variant={evolucaoView === 'mes' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setEvolucaoView('mes')}
-              >
-                Mês
-              </Button>
-              <Button
-                variant={evolucaoView === 'dia' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setEvolucaoView('dia')}
-              >
-                Dia
-              </Button>
+              {(['mes', 'dia'] as const).map(v => (
+                <Button key={v} variant={evolucaoView === v ? 'default' : 'outline'} size="sm" className="h-7 px-3 text-xs" onClick={() => setEvolucaoView(v)}>
+                  {v === 'mes' ? 'Mês' : 'Dia'}
+                </Button>
+              ))}
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-4">
           <div className="relative">
-            {/* Scroll Indicator Left */}
-            {showScrollIndicators.left && (
-              <button
-                onClick={() => handleScroll('left')}
-                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-background/90 hover:bg-background border shadow-lg rounded-full p-2 transition-all"
-                aria-label="Scroll para esquerda"
-              >
-                <ChevronLeft className="h-5 w-5 text-muted-foreground" />
+            {showScroll.left && (
+              <button onClick={() => handleScroll('left')} className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-card/90 border shadow-md rounded-full p-1.5 transition-all">
+                <ChevronLeft className="h-4 w-4 text-muted-foreground" />
               </button>
             )}
-            
-            {/* Scroll Indicator Right */}
-            {showScrollIndicators.right && (
-              <button
-                onClick={() => handleScroll('right')}
-                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-background/90 hover:bg-background border shadow-lg rounded-full p-2 transition-all"
-                aria-label="Scroll para direita"
-              >
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            {showScroll.right && (
+              <button onClick={() => handleScroll('right')} className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-card/90 border shadow-md rounded-full p-1.5 transition-all">
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </button>
             )}
-
-            <div 
-              className="overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent"
-              ref={evolucaoScrollRef}
-              onScroll={updateScrollIndicators}
-            >
-              <div style={{ 
-                minWidth: evolucaoView === 'mes' 
-                  ? Math.max(800, stats.timelineData.length * 70) + 'px'
-                  : Math.max(800, stats.timelineDiaData.length * 45) + 'px'
-              }}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart 
-                    data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData}
-                    onClick={(data) => {
-                      if (data && data.activePayload && data.activePayload[0]) {
-                        const payload = data.activePayload[0].payload;
-                        if (evolucaoView === 'mes') {
-                          openDetailDialog(`Eventos de ${payload.mesLabel}`, "mes", payload.mes);
-                        } else {
-                          openDetailDialog(`Eventos de ${payload.diaLabel}`, "dia", payload.dia);
-                        }
-                      }
-                    }}
-                    className="cursor-pointer"
-                  >
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis 
-                      dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} 
-                      tick={{ fontSize: 11 }}
-                      interval={0}
-                    />
-                    <YAxis 
-                      yAxisId="left" 
-                      tick={{ fontSize: 11 }}
-                      width={50}
-                    />
-                    <YAxis 
-                      yAxisId="right" 
-                      orientation="right" 
-                      tick={{ fontSize: 11 }}
-                      tickFormatter={(v) => formatCompactCurrency(v)}
-                      width={70}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Area yAxisId="left" type="monotone" dataKey="eventos" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="Eventos" />
-                    <Line yAxisId="right" type="monotone" dataKey="custo" stroke="#ef4444" name="Custo (R$)" dot={false} />
+            <div className="overflow-x-auto scrollbar-hide" ref={evolucaoScrollRef} onScroll={updateScrollIndicators}>
+              <div style={{ minWidth: evolucaoView === 'mes' ? Math.max(700, stats.timelineData.length * 70) + 'px' : Math.max(700, stats.timelineDiaData.length * 45) + 'px' }}>
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData} margin={{ top: 16, right: 8, bottom: 4, left: 0 }}>
+                    <XAxis dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={formatCompactCurrency} axisLine={false} tickLine={false} width={52} />
+                    <Tooltip contentStyle={ttStyle} formatter={(v: any, name: string) => [name === 'custo' ? formatCurrency(v) : v.toLocaleString('pt-BR'), name === 'custo' ? 'Custo' : 'Eventos']} />
+                    <Area yAxisId="left" type="monotone" dataKey="eventos" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.15} strokeWidth={2} name="Eventos" />
+                    <Area yAxisId="right" type="monotone" dataKey="custo" stroke="#ef4444" fill="#ef4444" fillOpacity={0.1} strokeWidth={2} name="Custo" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
-            
-            {/* Scroll hint text */}
-            <p className="text-[10px] text-muted-foreground text-center mt-2">
-              ← Arraste para ver mais meses →
-            </p>
+            <p className="text-[10px] text-muted-foreground text-center mt-1">← Arraste para navegar →</p>
           </div>
         </CardContent>
       </Card>
 
-      {/* Por Tipo de Veículo */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Truck className="h-5 w-5 text-primary" />
-              Eventos por Tipo de Veículo
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <ResponsiveContainer width="50%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={stats.tipoVeiculoData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={70}
-                    paddingAngle={2}
-                    dataKey="value"
-                    onClick={(data) => openDetailDialog(`Eventos - ${data.name}`, "tipoVeiculo", data.name)}
-                    className="cursor-pointer"
-                  >
-                    {stats.tipoVeiculoData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="hover:opacity-80 transition-opacity" />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => [value.toLocaleString('pt-BR'), 'Quantidade']} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex-1 space-y-2">
-                {stats.tipoVeiculoData.map((item, index) => (
-                  <div 
-                    key={item.name} 
-                    className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded-md px-2 py-1 -mx-2 transition-colors"
-                    onClick={() => openDetailDialog(`Eventos - ${item.name}`, "tipoVeiculo", item.name)}
-                  >
-                    <div 
-                      className="w-3 h-3 rounded-full shrink-0" 
-                      style={{ backgroundColor: COLORS[index % COLORS.length] }} 
-                    />
-                    <span className="truncate flex-1">{item.name}</span>
-                    <span className="font-medium text-muted-foreground">{String(item.value)}</span>
-                  </div>
-                ))}
-              </div>
+      {/* Situação + Regional */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Situação dos Eventos</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <BarWidget data={stats.situacaoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+          </CardContent>
+        </Card>
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Eventos por Regional (Top 10)</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <BarWidget data={stats.regionalData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Motivo + Estado */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Motivo do Evento</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <div className="overflow-y-auto max-h-[280px] pr-0.5">
+              <BarWidget data={stats.motivoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
             </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Custos por Tipo de Veículo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={stats.custosTipoVeiculoData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                <XAxis 
-                  type="number" 
-                  tick={{ fontSize: 10 }} 
-                  tickFormatter={(v) => formatCompactCurrency(v)}
-                />
-                <YAxis 
-                  type="category" 
-                  dataKey="name" 
-                  tick={{ fontSize: 10 }} 
-                  width={80}
-                />
-                <Tooltip content={<CustomTooltip isCurrency />} />
-                <Bar 
-                  dataKey="value" 
-                  fill="#f59e0b" 
-                  radius={[0, 4, 4, 0]} 
-                  name="Custo" 
-                  onClick={(data) => openDetailDialog(`Custos - ${data.name}`, "tipoVeiculo", data.name)}
-                  className="cursor-pointer"
-                />
-              </BarChart>
-            </ResponsiveContainer>
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Eventos por Estado (Top 10)</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <BarWidget data={stats.estadoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
           </CardContent>
         </Card>
       </div>
 
-      {/* Por Cooperativa */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Building2 className="h-5 w-5 text-primary" />
-              Eventos por Cooperativa (Top 10)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={stats.cooperativaData} layout="vertical" margin={{ left: 20, right: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis 
-                  type="category" 
-                  dataKey="name" 
-                  tick={{ fontSize: 10 }} 
-                  width={140}
-                  tickFormatter={(v) => truncateText(v, 20)}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar 
-                  dataKey="value" 
-                  fill="#06b6d4" 
-                  radius={[0, 4, 4, 0]} 
-                  name="Eventos" 
-                  onClick={(data) => openDetailDialog(`Cooperativa: ${data.name}`, "cooperativa", data.name)}
-                  className="cursor-pointer"
-                />
-              </BarChart>
-            </ResponsiveContainer>
+      {/* Cooperativa Eventos + Custos */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Eventos por Cooperativa (Top 10)</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <BarWidget data={stats.cooperativaData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Custos por Cooperativa (Top 10)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={stats.custosCooperativaData} layout="vertical" margin={{ left: 20, right: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                <XAxis 
-                  type="number" 
-                  tick={{ fontSize: 10 }} 
-                  tickFormatter={(v) => formatCompactCurrency(v)}
-                />
-                <YAxis 
-                  type="category" 
-                  dataKey="name" 
-                  tick={{ fontSize: 10 }} 
-                  width={140}
-                  tickFormatter={(v) => truncateText(v, 20)}
-                />
-                <Tooltip content={<CustomTooltip isCurrency />} />
-                <Bar 
-                  dataKey="value" 
-                  fill="#ec4899" 
-                  radius={[0, 4, 4, 0]} 
-                  name="Custo" 
-                  onClick={(data) => openDetailDialog(`Custos Cooperativa: ${data.name}`, "cooperativa", data.name)}
-                  className="cursor-pointer"
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Por Situação - Full Width */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Eventos por Situação</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={stats.situacaoData} layout="vertical" margin={{ left: 20, right: 30 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11 }} />
-              <YAxis 
-                type="category" 
-                dataKey="name" 
-                tick={{ fontSize: 11 }} 
-                width={150}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar 
-                dataKey="value" 
-                fill="#10b981" 
-                radius={[0, 4, 4, 0]} 
-                name="Eventos" 
-                onClick={(data) => openDetailDialog(`Situação: ${data.name}`, "situacao", data.name)}
-                className="cursor-pointer"
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* Por Regional */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Eventos por Regional (Top 10)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={stats.regionalData} layout="vertical" margin={{ left: 20, right: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis 
-                  type="category" 
-                  dataKey="name" 
-                  tick={{ fontSize: 10 }} 
-                  width={140}
-                  tickFormatter={(v) => truncateText(v, 20)}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar 
-                  dataKey="value" 
-                  fill="#8b5cf6" 
-                  radius={[0, 4, 4, 0]} 
-                  name="Eventos" 
-                  onClick={(data) => openDetailDialog(`Regional: ${data.name}`, "regional", data.name)}
-                  className="cursor-pointer"
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Custos por Regional (Top 10)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={stats.custosRegionalData} layout="vertical" margin={{ left: 20, right: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                <XAxis 
-                  type="number" 
-                  tick={{ fontSize: 10 }} 
-                  tickFormatter={(v) => formatCompactCurrency(v)}
-                />
-                <YAxis 
-                  type="category" 
-                  dataKey="name" 
-                  tick={{ fontSize: 10 }} 
-                  width={140}
-                  tickFormatter={(v) => truncateText(v, 20)}
-                />
-                <Tooltip content={<CustomTooltip isCurrency />} />
-                <Bar 
-                  dataKey="value" 
-                  fill="#ef4444" 
-                  radius={[0, 4, 4, 0]} 
-                  name="Custo" 
-                  onClick={(data) => openDetailDialog(`Custos Regional: ${data.name}`, "regional", data.name)}
-                  className="cursor-pointer"
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Grid */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Por Estado */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Eventos por Estado (Top 10)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.estadoData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis 
-                  type="category" 
-                  dataKey="name" 
-                  tick={{ fontSize: 11 }} 
-                  width={35}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar 
-                  dataKey="value" 
-                  fill="#3b82f6" 
-                  radius={[0, 4, 4, 0]} 
-                  name="Eventos" 
-                  onClick={(data) => openDetailDialog(`Estado: ${data.name}`, "estado", data.name)}
-                  className="cursor-pointer"
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Por Motivo - Donut com legenda */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Eventos por Motivo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <ResponsiveContainer width="50%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={stats.motivoData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    dataKey="value"
-                    onClick={(data) => openDetailDialog(`Motivo: ${data.name}`, "motivo", data.name)}
-                    className="cursor-pointer"
-                  >
-                    {stats.motivoData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="hover:opacity-80 transition-opacity" />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => [value.toLocaleString('pt-BR'), 'Quantidade']} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex-1 space-y-2 max-h-[250px] overflow-y-auto">
-                {stats.motivoData.map((item, index) => (
-                  <div 
-                    key={item.name} 
-                    className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded-md px-2 py-1 -mx-2 transition-colors"
-                    onClick={() => openDetailDialog(`Motivo: ${item.name}`, "motivo", item.name)}
-                  >
-                    <div 
-                      className="w-3 h-3 rounded-full shrink-0" 
-                      style={{ backgroundColor: COLORS[index % COLORS.length] }} 
-                    />
-                    <span className="truncate flex-1" title={item.name}>{item.name}</span>
-                    <span className="font-medium text-muted-foreground">{String(item.value)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Por Tipo / Envolvimento */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Tipo de Evento vs Envolvimento</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground mb-2 font-medium">Tipo de Evento</p>
-                <div className="space-y-1.5">
-                  {stats.tipoData.map((item, i) => (
-                    <div 
-                      key={item.name} 
-                      className="flex items-center justify-between py-1 cursor-pointer hover:bg-muted/50 rounded-md px-2 -mx-2 transition-colors"
-                      onClick={() => openDetailDialog(`Tipo: ${item.name}`, "tipoEvento", item.name)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-2.5 h-2.5 rounded-full" 
-                          style={{ backgroundColor: COLORS[i % COLORS.length] }} 
-                        />
-                        <span className="text-sm truncate max-w-[120px]" title={item.name}>{item.name}</span>
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Custo por Cooperativa (Top 10)</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            {stats.custosCooperativaData.length > 0 ? (
+              <div className="space-y-2 pt-1">
+                {stats.custosCooperativaData.map((item: any, i) => {
+                  const maxVal = stats.custosCooperativaData[0]?.value || 1;
+                  const pct = (item.value / maxVal) * 100;
+                  return (
+                    <div key={item.name} className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground truncate w-28 shrink-0" title={item.name}>{item.name}</span>
+                      <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: COLORS[i % COLORS.length] }} />
                       </div>
-                      <span className="text-sm font-medium">{String(item.value)}</span>
+                      <span className="text-[11px] font-bold tabular-nums text-right whitespace-nowrap">{formatCompactCurrency(item.value)}</span>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-2 font-medium">Envolvimento</p>
-                <div className="space-y-1.5">
-                  {stats.envolvimentoData.map((item, i) => (
-                    <div 
-                      key={item.name} 
-                      className="flex items-center justify-between py-1 cursor-pointer hover:bg-muted/50 rounded-md px-2 -mx-2 transition-colors"
-                      onClick={() => openDetailDialog(`Envolvimento: ${item.name}`, "envolvimento", item.name)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-2.5 h-2.5 rounded-full" 
-                          style={{ backgroundColor: COLORS[(i + 4) % COLORS.length] }} 
-                        />
-                        <span className="text-sm truncate max-w-[120px]" title={item.name}>{item.name}</span>
-                      </div>
-                      <span className="text-sm font-medium">{String(item.value)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            ) : <p className="text-xs text-muted-foreground text-center py-4">Sem dados</p>}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tipo Veículo + Tipo Evento + Envolvimento */}
+      <div className="grid gap-3 lg:grid-cols-3">
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Tipo de Veículo</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <BarWidget data={stats.tipoVeiculoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+          </CardContent>
+        </Card>
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Tipo de Evento</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <BarWidget data={stats.tipoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
+          </CardContent>
+        </Card>
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Envolvimento</CardTitle></CardHeader>
+          <CardContent className="px-4 pb-4">
+            <BarWidget data={stats.envolvimentoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} total={totalEventos} />
           </CardContent>
         </Card>
       </div>
