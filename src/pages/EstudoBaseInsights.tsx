@@ -300,6 +300,15 @@ export default function EstudoBaseInsights() {
       )}
 
       <div className="container mx-auto px-4 sm:px-6 py-6">
+        {/* Filter bar ABOVE the tabs — same position as Cobrança */}
+        <div className="mb-4">
+          <EstudoBaseFilterBar
+            registros={registros}
+            filters={filters}
+            onFiltersChange={setFilters}
+          />
+        </div>
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <div className="w-full overflow-x-auto pb-2">
             <TabsList className="inline-flex md:flex md:w-auto gap-1 p-1.5 bg-muted/40 rounded-xl min-w-max md:min-w-0">
@@ -322,13 +331,6 @@ export default function EstudoBaseInsights() {
               })}
             </TabsList>
           </div>
-
-          {/* Filter bar above all tab content */}
-          <EstudoBaseFilterBar
-            registros={registros}
-            filters={filters}
-            onFiltersChange={setFilters}
-          />
 
           <TabsContent value="dashboard" className="space-y-4 mt-0">
             <EstudoBaseDashboard registros={registros} loading={loading} filters={filters} onFiltersChange={setFilters} hideFilters />
