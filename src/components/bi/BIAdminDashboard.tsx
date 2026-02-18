@@ -105,7 +105,7 @@ export default function BIAdminDashboard() {
   const [activeTab, setActiveTab] = useState("visao-geral");
   const [togglingUser, setTogglingUser] = useState<string | null>(null);
 
-  const STALE_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes
+  const STALE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes (detecta falhas de setup rapidamente)
 
   const resolveStaleStatuses = async (corretoraIds: string[]) => {
     if (!corretoraIds.length) return;
