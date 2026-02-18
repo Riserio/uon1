@@ -732,79 +732,85 @@ export default function CobrancaDashboard({ boletos, loading, corretoraId, mesRe
 
       {/* Boletos por Dia de Vencimento - Card moderno com gráfico + tabela */}
       <Card className="rounded-2xl overflow-hidden border-border/40">
-        <CardHeader className="pb-2 pt-4 px-5">
+        <CardHeader className="pb-0 pt-4 px-5">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
             <Calendar className="h-4 w-4 text-primary" />
             Boletos por Dia de Vencimento
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {/* Totais */}
-          <div className="grid grid-cols-3 border-b bg-muted/20 px-5 py-3 gap-4">
-            {[
-              { label: "Emitidos", count: stats.totalBoletos, valor: stats.totalValor, color: "text-primary" },
-              { label: "Pagos", count: stats.qtdePagos, valor: stats.totalPago, color: "text-emerald-600" },
-              { label: "Em Aberto", count: stats.qtdeAbertos, valor: stats.totalAberto, color: "text-red-600" },
-            ].map(({ label, count, valor, color }) => (
-              <div key={label}>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">{label}</p>
-                <p className={`text-lg font-bold ${color}`}>{count.toLocaleString('pt-BR')}</p>
-                <p className={`text-xs ${color} opacity-80`}>{formatCurrency(valor)}</p>
-              </div>
-            ))}
+          {/* Totais - destaque visual com separadores */}
+          <div className="grid grid-cols-3 divide-x divide-border/40 border-b border-border/40 px-1 py-4">
+            <div className="px-5">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Emitidos</p>
+              <p className="text-2xl font-bold text-primary tabular-nums">{stats.totalBoletos.toLocaleString('pt-BR')}</p>
+              <p className="text-xs text-primary/70 mt-0.5">{formatCurrency(stats.totalValor)}</p>
+            </div>
+            <div className="px-5">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Pagos</p>
+              <p className="text-2xl font-bold text-emerald-600 tabular-nums">{stats.qtdePagos.toLocaleString('pt-BR')}</p>
+              <p className="text-xs text-emerald-600/70 mt-0.5">{formatCurrency(stats.totalPago)}</p>
+            </div>
+            <div className="px-5">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">Em Aberto</p>
+              <p className="text-2xl font-bold text-destructive tabular-nums">{stats.qtdeAbertos.toLocaleString('pt-BR')}</p>
+              <p className="text-xs text-destructive/70 mt-0.5">{formatCurrency(stats.totalAberto)}</p>
+            </div>
           </div>
 
           {/* Gráfico de barras agrupadas - Emitidos, Pagos, Abertos por dia */}
           {stats.diasVencimentoData.length > 0 && (
-            <div className="px-4 pt-3 pb-1 overflow-x-auto scrollbar-hide">
-              <div style={{ minWidth: Math.max(500, stats.diasVencimentoData.length * 44) + 'px' }}>
-                <ResponsiveContainer width="100%" height={130}>
+            <div className="px-4 pt-4 pb-1 overflow-x-auto scrollbar-hide">
+              <div style={{ minWidth: Math.max(500, stats.diasVencimentoData.length * 52) + 'px' }}>
+                <ResponsiveContainer width="100%" height={150}>
                   <BarChart
                     data={stats.diasVencimentoData.map(item => {
                       const pagos = stats.diasVencimentoPagosData.find(p => p.diaNum === item.diaNum)?.qtde || 0;
                       const abertos = stats.diasVencimentoAbertosData.find(a => a.diaNum === item.diaNum)?.qtde || 0;
                       return { ...item, pagos, abertos };
                     })}
-                    margin={{ top: 4, right: 4, bottom: 4, left: 0 }}
-                    barCategoryGap="20%"
+                    margin={{ top: 4, right: 8, bottom: 4, left: 0 }}
+                    barCategoryGap="25%"
                     barGap={2}
                   >
                     <defs>
                       <linearGradient id="gradEmitidos" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
-                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.85} />
+                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
                       </linearGradient>
                       <linearGradient id="gradPagos" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#22c55e" stopOpacity={0.9} />
-                        <stop offset="100%" stopColor="#22c55e" stopOpacity={0.5} />
+                        <stop offset="100%" stopColor="#22c55e" stopOpacity={0.3} />
                       </linearGradient>
                       <linearGradient id="gradAbertos" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
-                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.5} />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.3} />
                       </linearGradient>
                     </defs>
-                    <XAxis dataKey="dia" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v) => v.replace('Dia ', '')} />
-                    <YAxis tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={28} />
+                    <XAxis dataKey="dia" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} tickFormatter={(v) => v.replace('Dia ', '')} />
+                    <YAxis tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} width={30} />
                     <Tooltip
-                      contentStyle={{ borderRadius: 10, fontSize: 11, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
-                      formatter={(v: any, name: string) => [v.toLocaleString('pt-BR'), name === 'qtde' ? 'Emitidos' : name === 'pagos' ? 'Pagos' : 'Em Aberto']}
+                      contentStyle={{ borderRadius: 10, fontSize: 11, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", boxShadow: "0 4px 16px rgba(0,0,0,0.1)" }}
+                      labelStyle={{ fontWeight: 700, marginBottom: 6, fontSize: 12 }}
+                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
+                      formatter={(v: any, name: string) => [v.toLocaleString('pt-BR'), name]}
                     />
-                    <Bar dataKey="qtde" name="Emitidos" fill="url(#gradEmitidos)" radius={[3, 3, 0, 0]} maxBarSize={14} />
-                    <Bar dataKey="pagos" name="Pagos" fill="url(#gradPagos)" radius={[3, 3, 0, 0]} maxBarSize={14} />
-                    <Bar dataKey="abertos" name="Em Aberto" fill="url(#gradAbertos)" radius={[3, 3, 0, 0]} maxBarSize={14} />
+                    <Bar dataKey="qtde" name="Emitidos" fill="url(#gradEmitidos)" radius={[4, 4, 0, 0]} maxBarSize={16} />
+                    <Bar dataKey="pagos" name="Pagos" fill="url(#gradPagos)" radius={[4, 4, 0, 0]} maxBarSize={16} />
+                    <Bar dataKey="abertos" name="Em Aberto" fill="url(#gradAbertos)" radius={[4, 4, 0, 0]} maxBarSize={16} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
               {/* Legenda manual compacta */}
-              <div className="flex items-center gap-4 justify-center pb-2 mt-1">
+              <div className="flex items-center gap-5 justify-center pb-3 mt-2">
                 {[
                   { label: "Emitidos", color: "hsl(var(--primary))" },
                   { label: "Pagos", color: "#22c55e" },
                   { label: "Em Aberto", color: "#ef4444" },
                 ].map(({ label, color }) => (
-                  <div key={label} className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: color }} />
-                    <span className="text-[10px] text-muted-foreground">{label}</span>
+                  <div key={label} className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
+                    <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
                   </div>
                 ))}
               </div>
