@@ -1,18 +1,18 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  RefreshCw, Play, Loader2, CheckCircle, XCircle, Clock, 
-  Settings, Eye, EyeOff, Save, ChevronDown, ChevronUp,
-  Zap, AlertTriangle, ExternalLink, History, Square
+  Play, Loader2, CheckCircle, XCircle, Clock, 
+  Settings, Eye, EyeOff, Save,
+  Zap, AlertTriangle, ExternalLink, History, Square,
+  Download, LogIn, Filter, Send, Timer, HardDrive
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -49,6 +49,20 @@ interface ExecutionLog {
   github_run_url: string | null;
   github_run_id: string | null;
   etapa_atual: string | null;
+  bytes_baixados?: number | null;
+  bytes_total?: number | null;
+  progresso_download?: number | null;
+}
+
+interface ActiveExecution {
+  id: string;
+  module: ModuleType;
+  created_at: string;
+  etapa_atual: string | null;
+  bytes_baixados: number | null;
+  bytes_total: number | null;
+  progresso_download: number | null;
+  github_run_url: string | null;
 }
 
 interface ModuleStatus {
@@ -56,6 +70,7 @@ interface ModuleStatus {
   lastStatus: string | null;
   lastError: string | null;
   isExecuting: boolean;
+  activeExecution?: ActiveExecution | null;
 }
 
 const MODULE_LABELS: Record<ModuleType, string> = {
@@ -104,14 +119,17 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
   const [executingModule, setExecutingModule] = useState<ModuleType | "all" | null>(null);
   const [stoppingModule, setStoppingModule] = useState<ModuleType | null>(null);
   const [moduleStatuses, setModuleStatuses] = useState<Record<ModuleType, ModuleStatus>>({
-    cobranca: { lastExecution: null, lastStatus: null, lastError: null, isExecuting: false },
-    eventos: { lastExecution: null, lastStatus: null, lastError: null, isExecuting: false },
-    mgf: { lastExecution: null, lastStatus: null, lastError: null, isExecuting: false },
+    cobranca: { lastExecution: null, lastStatus: null, lastError: null, isExecuting: false, activeExecution: null },
+    eventos: { lastExecution: null, lastStatus: null, lastError: null, isExecuting: false, activeExecution: null },
+    mgf: { lastExecution: null, lastStatus: null, lastError: null, isExecuting: false, activeExecution: null },
   });
   const [historyModule, setHistoryModule] = useState<ModuleType>("cobranca");
   const [historyLogs, setHistoryLogs] = useState<ExecutionLog[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Elapsed time ticker — updated every second for active executions
+  const [tick, setTick] = useState(0);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadCredenciais = useCallback(async () => {
     if (!corretoraId || corretoraId === "__admin__") return;
@@ -216,6 +234,22 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           .order("created_at", { ascending: false })
           .limit(1) as any;
 
+        // Fetch active execution details for monitoring panel
+        let activeExecution: ActiveExecution | null = null;
+        if (data?.ultimo_status === "executando") {
+          const { data: activeData } = await supabase
+            .from(EXEC_TABLES[mod] as any)
+            .select("id, created_at, etapa_atual, bytes_baixados, bytes_total, progresso_download, github_run_url")
+            .eq("corretora_id", corretoraId)
+            .eq("status", "executando")
+            .order("created_at", { ascending: false })
+            .limit(1) as any;
+
+          if (activeData?.[0]) {
+            activeExecution = { ...activeData[0], module: mod };
+          }
+        }
+
         if (data) {
           const hadSuccessToday = sucessoHoje && sucessoHoje.length > 0;
           const effectiveStatus = hadSuccessToday && data.ultimo_status !== "executando" ? "sucesso" : data.ultimo_status;
@@ -226,6 +260,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
             lastStatus: effectiveStatus,
             lastError: effectiveError,
             isExecuting: data.ultimo_status === "executando",
+            activeExecution,
           };
         }
       } catch (e) {
@@ -242,7 +277,18 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     }
   }, [open, corretoraId, loadCredenciais, loadModuleStatuses]);
 
-  // Realtime for execution updates
+  // Ticker for elapsed time display — updates every second when there are active executions
+  useEffect(() => {
+    const anyRunning = Object.values(moduleStatuses).some(s => s.isExecuting);
+    if (anyRunning && open) {
+      tickRef.current = setInterval(() => setTick(t => t + 1), 1000);
+    } else {
+      if (tickRef.current) clearInterval(tickRef.current);
+    }
+    return () => { if (tickRef.current) clearInterval(tickRef.current); };
+  }, [open, moduleStatuses]);
+
+  // Realtime for execution updates — refresh every 15s to capture byte progress
   useEffect(() => {
     if (!open || !corretoraId) return;
 
@@ -257,8 +303,18 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         .subscribe();
     });
 
-    return () => { channels.forEach(ch => supabase.removeChannel(ch)); };
+    // Poll every 15s during active executions for byte progress updates
+    const pollInterval = setInterval(() => {
+      const anyRunning = Object.values(moduleStatuses).some(s => s.isExecuting);
+      if (anyRunning) loadModuleStatuses();
+    }, 15000);
+
+    return () => {
+      channels.forEach(ch => supabase.removeChannel(ch));
+      clearInterval(pollInterval);
+    };
   }, [open, corretoraId, loadModuleStatuses]);
+
 
   const handleSave = async () => {
     if (!creds.hinova_url || !creds.hinova_user || !creds.hinova_pass) {
@@ -531,20 +587,73 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
 
   const getStatusIcon = (status: string | null) => {
     switch (status) {
-      case "sucesso": return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case "sucesso": return <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />;
       case "erro": return <XCircle className="h-4 w-4 text-destructive" />;
-      case "executando": return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
+      case "executando": return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
       default: return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
   const getStatusColor = (status: string | null) => {
     switch (status) {
-      case "sucesso": return "bg-green-500/10 border-green-500/30 text-green-700";
+      case "sucesso": return "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-400";
       case "erro": return "bg-destructive/10 border-destructive/30 text-destructive";
-      case "executando": return "bg-blue-500/10 border-blue-500/30 text-blue-700";
+      case "executando": return "bg-primary/10 border-primary/30 text-primary";
       default: return "bg-muted border-border text-muted-foreground";
     }
+  };
+
+  // Format elapsed seconds as mm:ss or hh:mm:ss
+  const formatElapsed = (startIso: string) => {
+    const secs = Math.floor((Date.now() - new Date(startIso).getTime()) / 1000);
+    if (secs < 0) return "00:00";
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    const mm = String(m).padStart(2, "0");
+    const ss = String(s).padStart(2, "0");
+    return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  };
+
+  // Format bytes to human readable
+  const formatBytes = (bytes: number | null | undefined): string => {
+    if (!bytes || bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  };
+
+  // Step labels and icons
+  const STEP_INFO: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
+    LOGIN: { label: "Fazendo login", icon: <LogIn className="h-3.5 w-3.5" />, color: "text-amber-500" },
+    NAVEGACAO: { label: "Navegando", icon: <Filter className="h-3.5 w-3.5" />, color: "text-amber-500" },
+    NAVEGACAO_RELATORIO: { label: "Abrindo relatório", icon: <Filter className="h-3.5 w-3.5" />, color: "text-amber-500" },
+    FILTROS: { label: "Preenchendo filtros", icon: <Filter className="h-3.5 w-3.5" />, color: "text-amber-500" },
+    DOWNLOAD: { label: "Baixando arquivo", icon: <Download className="h-3.5 w-3.5" />, color: "text-primary" },
+    PROCESSANDO: { label: "Processando dados", icon: <Timer className="h-3.5 w-3.5" />, color: "text-primary" },
+    ENVIANDO: { label: "Enviando ao sistema", icon: <Send className="h-3.5 w-3.5" />, color: "text-green-500" },
+    CONCLUIDO: { label: "Concluído", icon: <CheckCircle className="h-3.5 w-3.5" />, color: "text-green-500" },
+  };
+
+  const getStepInfo = (etapa: string | null) => {
+    if (!etapa) return null;
+    return STEP_INFO[etapa.toUpperCase()] || { label: etapa, icon: <Timer className="h-3.5 w-3.5" />, color: "text-muted-foreground" };
+  };
+
+  // Estimate completion based on download progress
+  const estimateCompletion = (exec: ActiveExecution): string | null => {
+    if (!exec.bytes_baixados || !exec.bytes_total || exec.bytes_baixados === 0) return null;
+    const ratio = exec.bytes_baixados / exec.bytes_total;
+    if (ratio <= 0 || ratio >= 1) return null;
+    const elapsed = (Date.now() - new Date(exec.created_at).getTime()) / 1000;
+    const estimated = elapsed / ratio;
+    const remaining = Math.max(0, estimated - elapsed);
+    if (remaining > 3600) return null;
+    const m = Math.floor(remaining / 60);
+    const s = Math.floor(remaining % 60);
+    if (m > 0) return `~${m}min restantes`;
+    return `~${s}s restantes`;
   };
 
   const anyExecuting = Object.values(moduleStatuses).some(s => s.isExecuting);
@@ -556,7 +665,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         <Button
           variant="outline"
           size="sm"
-          className={`gap-2 relative rounded-xl border-2 transition-all duration-300 ${anyExecuting ? 'border-blue-400 bg-blue-500/10 text-blue-600 shadow-md shadow-blue-500/20' : 'hover:border-primary/50 hover:bg-primary/5'}`}
+          className={`gap-2 relative rounded-xl border-2 transition-all duration-300 ${anyExecuting ? 'border-primary/60 bg-primary/10 text-primary shadow-md' : 'hover:border-primary/50 hover:bg-primary/5'}`}
         >
           {anyExecuting ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -565,7 +674,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           )}
           <span className="hidden sm:inline font-medium">Sincronizar</span>
           {anyExecuting && (
-            <span className="absolute -top-1.5 -right-1.5 h-3 w-3 rounded-full bg-blue-500 animate-pulse ring-2 ring-background" />
+            <span className="absolute -top-1.5 -right-1.5 h-3 w-3 rounded-full bg-primary animate-pulse ring-2 ring-background" />
           )}
         </Button>
       </DialogTrigger>
@@ -601,7 +710,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           <TabsContent value="sync" className="m-0 p-4 space-y-2.5">
             {!hasCredentials ? (
               <div className="text-center py-6 space-y-2">
-                <AlertTriangle className="h-8 w-8 mx-auto text-amber-500" />
+                <AlertTriangle className="h-8 w-8 mx-auto text-warning" />
                 <p className="text-sm text-muted-foreground">Credenciais não configuradas</p>
                 <Button size="sm" variant="outline" onClick={() => setActiveTab("config")}>
                   <Settings className="h-3.5 w-3.5 mr-1.5" />
@@ -611,62 +720,181 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
             ) : (
               (["cobranca", "eventos", "mgf"] as ModuleType[]).map((mod) => {
                 const status = moduleStatuses[mod];
-                const isActive = mod === "cobranca" ? creds.ativo_cobranca : mod === "eventos" ? creds.ativo_eventos : creds.ativo_mgf;
+                const exec = status.activeExecution;
+                const stepInfo = exec ? getStepInfo(exec.etapa_atual) : null;
+                const estimation = exec ? estimateCompletion(exec) : null;
+                const downloadPct = exec?.progresso_download ?? 
+                  (exec?.bytes_baixados && exec?.bytes_total && exec.bytes_total > 0
+                    ? Math.round((exec.bytes_baixados / exec.bytes_total) * 100)
+                    : null);
+
                 return (
-                  <div key={mod} className={`rounded-lg border p-3 ${getStatusColor(status.lastStatus)}`}>
-                    <div className="flex items-center justify-between">
+                  <div key={mod} className={`rounded-xl border overflow-hidden transition-all ${getStatusColor(status.lastStatus)}`}>
+                    {/* Module header row */}
+                    <div className="flex items-center justify-between px-3 py-2.5">
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         {getStatusIcon(status.lastStatus)}
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">{MODULE_LABELS[mod]}</span>
+                            <span className="font-semibold text-sm">{MODULE_LABELS[mod]}</span>
+                            {/* Elapsed time badge when executing */}
+                            {status.isExecuting && exec && (
+                              <span className="flex items-center gap-1 text-[10px] font-mono bg-background/60 border px-1.5 py-0.5 rounded-full">
+                                <Timer className="h-2.5 w-2.5" />
+                                {formatElapsed(exec.created_at)}
+                              </span>
+                            )}
                           </div>
-                          {status.lastExecution && (
+                          {status.isExecuting && stepInfo ? (
+                            <div className={`flex items-center gap-1 text-[11px] ${stepInfo.color} mt-0.5`}>
+                              {stepInfo.icon}
+                              <span>{stepInfo.label}</span>
+                            </div>
+                          ) : status.lastExecution ? (
                             <p className="text-[11px] opacity-70">
                               {format(new Date(status.lastExecution), "dd/MM HH:mm", { locale: ptBR })}
                             </p>
-                          )}
+                          ) : null}
                           {status.lastStatus === "erro" && status.lastError && (
                             <p className="text-[11px] opacity-80 truncate max-w-[220px]">{status.lastError}</p>
                           )}
                         </div>
                       </div>
-                      {status.isExecuting ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleStopModule(mod)}
-                          disabled={stoppingModule === mod}
-                          className="h-7 px-2.5 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          title="Parar sincronização"
-                        >
-                          {stoppingModule === mod ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Square className="h-3.5 w-3.5 fill-current" />
-                          )}
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleExecuteModule(mod)}
-                          disabled={executingModule !== null}
-                          className="h-7 px-2.5 shrink-0"
-                        >
-                          {executingModule === mod ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Play className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {/* GitHub link when executing */}
+                        {status.isExecuting && exec?.github_run_url && (
+                          <a
+                            href={exec.github_run_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                            title="Ver no GitHub Actions"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                        {status.isExecuting ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleStopModule(mod)}
+                            disabled={stoppingModule === mod}
+                            className="h-7 px-2.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            title="Parar sincronização"
+                          >
+                            {stoppingModule === mod ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Square className="h-3.5 w-3.5 fill-current" />
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleExecuteModule(mod)}
+                            disabled={executingModule !== null}
+                            className="h-7 px-2.5"
+                          >
+                            {executingModule === mod ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Play className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Monitoring panel — visible only when executing */}
+                    {status.isExecuting && exec && (
+                      <div className="border-t bg-background/50 px-3 py-2.5 space-y-2">
+                        {/* Download progress bar */}
+                        {exec.etapa_atual?.toUpperCase() === "DOWNLOAD" && (
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <Download className="h-3 w-3" />
+                                <span>Download</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {exec.bytes_baixados != null && (
+                                  <span className="flex items-center gap-0.5">
+                                    <HardDrive className="h-2.5 w-2.5" />
+                                    {formatBytes(exec.bytes_baixados)}
+                                    {exec.bytes_total && exec.bytes_total > 0 && (
+                                      <span className="opacity-60"> / {formatBytes(exec.bytes_total)}</span>
+                                    )}
+                                  </span>
+                                )}
+                                {downloadPct != null && (
+                                  <span className="font-medium text-primary">{downloadPct}%</span>
+                                )}
+                              </div>
+                            </div>
+                            <Progress
+                              value={downloadPct ?? 0}
+                              className="h-1.5"
+                            />
+                            {estimation && (
+                              <p className="text-[10px] text-muted-foreground text-right">{estimation}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Step progress dots */}
+                        <div className="flex items-center gap-1.5">
+                          {(["LOGIN", "FILTROS", "DOWNLOAD", "ENVIANDO"] as const).map((step) => {
+                            const currentStep = exec.etapa_atual?.toUpperCase() || "";
+                            const steps = ["LOGIN", "NAVEGACAO", "NAVEGACAO_RELATORIO", "FILTROS", "DOWNLOAD", "PROCESSANDO", "ENVIANDO", "CONCLUIDO"];
+                            const currentIdx = steps.indexOf(currentStep);
+                            const stepIdx = steps.indexOf(step === "FILTROS" ? "FILTROS" : step === "ENVIANDO" ? "ENVIANDO" : step);
+                            const isPast = currentIdx > stepIdx;
+                            const isCurrent = step === "FILTROS"
+                              ? ["FILTROS", "NAVEGACAO", "NAVEGACAO_RELATORIO"].includes(currentStep)
+                              : currentStep === step || (step === "DOWNLOAD" && currentStep === "PROCESSANDO");
+                            const info = STEP_INFO[step];
+                            return (
+                              <div
+                                key={step}
+                                className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] border transition-all flex-1 justify-center ${
+                                  isCurrent ? "bg-primary/15 border-primary/40 text-primary font-medium" :
+                                  isPast ? "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400" :
+                                  "bg-muted/50 border-border/50 text-muted-foreground/50"
+                                }`}
+                              >
+                                {isCurrent ? (
+                                  <Loader2 className="h-2.5 w-2.5 animate-spin shrink-0" />
+                                ) : isPast ? (
+                                  <CheckCircle className="h-2.5 w-2.5 shrink-0" />
+                                ) : (
+                                  info?.icon && <span className="opacity-40 shrink-0">{info.icon}</span>
+                                )}
+                                <span className="hidden sm:inline">{
+                                  step === "LOGIN" ? "Login" :
+                                  step === "FILTROS" ? "Filtros" :
+                                  step === "DOWNLOAD" ? "Download" : "Envio"
+                                }</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Bytes received when not in download step */}
+                        {exec.etapa_atual?.toUpperCase() !== "DOWNLOAD" && exec.bytes_baixados != null && exec.bytes_baixados > 0 && (
+                          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                            <HardDrive className="h-3 w-3" />
+                            <span>Dados recebidos: <span className="font-medium text-foreground">{formatBytes(exec.bytes_baixados)}</span></span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })
             )}
           </TabsContent>
+
 
           <TabsContent value="config" className="m-0 p-4">
               {loading ? (
@@ -780,7 +1008,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                             </span>
                           </div>
                           {log.status === "sucesso" && log.registros_processados && (
-                            <p className="text-green-700 mt-0.5">✓ {log.registros_processados.toLocaleString('pt-BR')} registros</p>
+                            <p className="text-green-600 dark:text-green-400 mt-0.5">✓ {log.registros_processados.toLocaleString('pt-BR')} registros</p>
                           )}
                           {log.status === "erro" && log.erro && (
                             <p className="text-destructive mt-0.5 line-clamp-2">{log.erro}</p>
