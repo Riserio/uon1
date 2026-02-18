@@ -1616,7 +1616,7 @@ async function main() {
     const dados = await processarArquivo(filePath);
 
     if (dados.length === 0) {
-      log('⚠️ Arquivo processado, mas sem registros', LOG_LEVELS.WARN);
+      throw new Error('Arquivo baixado do portal não contém registros. Verifique os filtros aplicados no portal Hinova (data, layout e situação).');
     }
 
     // ============================================

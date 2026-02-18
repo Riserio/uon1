@@ -249,8 +249,19 @@ serve(async (req) => {
           .eq("id", configData.config_id);
       }
 
-      // Se não há dados para importar, retornar
+      // Se sucesso mas sem dados, tratar como erro para preservar importação anterior
       if (!dados || dados.length === 0) {
+        if (status === 'sucesso') {
+          console.error("[Webhook SGA] Sucesso reportado mas sem dados - convertendo para erro");
+          await supabase
+            .from("sga_automacao_execucoes")
+            .update({
+              status: 'erro',
+              erro: 'Robô finalizou sem retornar registros. O arquivo baixado estava vazio ou não foi reconhecido pelo parser.',
+              finalizado_at: new Date().toISOString(),
+            })
+            .eq("id", execucao_id);
+        }
         return new Response(
           JSON.stringify({ success: true, message: "Status atualizado" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
