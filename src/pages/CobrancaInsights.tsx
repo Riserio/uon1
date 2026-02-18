@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Upload, Database, BarChart3, History, Filter, Calendar as CalendarIcon, CreditCard, MapPin, DollarSign, LogOut, Building2, Activity, TrendingUp, ArrowLeftRight } from "lucide-react";
+import { ArrowLeft, Upload, Database, BarChart3, History, Filter, Calendar as CalendarIcon, CreditCard, MapPin, DollarSign, LogOut, Building2, Activity, TrendingUp, ArrowLeftRight, ChevronDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -47,6 +47,7 @@ export default function CobrancaInsights() {
   const [loading, setLoading] = useState(true);
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   
   // Filtros globais - padrão: mês atual
   const getMesAtual = () => format(new Date(), "yyyy-MM");
@@ -452,174 +453,175 @@ export default function CobrancaInsights() {
       {boletos.length > 0 && (
         <div className="container mx-auto px-4 pt-4">
           <Card className="border-emerald-500/20 bg-card/50 backdrop-blur">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Filter className="h-4 w-4 text-emerald-600" />
-                <span className="font-semibold text-sm">Filtros</span>
-                {hasActiveFilters && (
-                  <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-2 text-xs">
-                    Limpar filtros
-                  </Button>
-                )}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Mês Referência</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "h-9 w-full justify-start text-left font-normal",
-                          !filters.mesReferencia && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {filters.mesReferencia ? (
-                          format(parse(filters.mesReferencia, "yyyy-MM", new Date()), "MMMM 'de' yyyy", { locale: ptBR })
-                        ) : (
-                          <span>Selecione o mês</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-4" align="start">
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Mês</Label>
-                            <Select
-                              value={filters.mesReferencia ? filters.mesReferencia.split("-")[1] : ""}
-                              onValueChange={(mes) => {
-                                const ano = filters.mesReferencia ? filters.mesReferencia.split("-")[0] : String(new Date().getFullYear());
-                                setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
-                              }}
-                            >
-                              <SelectTrigger className="h-9">
-                                <SelectValue placeholder="Mês" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {[
-                                  { value: "01", label: "Janeiro" },
-                                  { value: "02", label: "Fevereiro" },
-                                  { value: "03", label: "Março" },
-                                  { value: "04", label: "Abril" },
-                                  { value: "05", label: "Maio" },
-                                  { value: "06", label: "Junho" },
-                                  { value: "07", label: "Julho" },
-                                  { value: "08", label: "Agosto" },
-                                  { value: "09", label: "Setembro" },
-                                  { value: "10", label: "Outubro" },
-                                  { value: "11", label: "Novembro" },
-                                  { value: "12", label: "Dezembro" },
-                                ].map((m) => (
-                                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Ano</Label>
-                            <Select
-                              value={filters.mesReferencia ? filters.mesReferencia.split("-")[0] : ""}
-                              onValueChange={(ano) => {
-                                const mes = filters.mesReferencia ? filters.mesReferencia.split("-")[1] : "01";
-                                setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
-                              }}
-                            >
-                              <SelectTrigger className="h-9">
-                                <SelectValue placeholder="Ano" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((ano) => (
-                                  <SelectItem key={ano} value={String(ano)}>{ano}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div className="flex justify-between pt-2 border-t">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-emerald-600 hover:text-emerald-700"
-                            onClick={() => setFilters(f => ({ ...f, mesReferencia: "" }))}
+            <CardContent className="p-0">
+              {/* Header clicável */}
+              <button
+                onClick={() => setFiltersOpen(o => !o)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors rounded-xl"
+              >
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-emerald-600" />
+                  <span className="font-semibold text-sm">Filtros</span>
+                  {hasActiveFilters && (
+                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-emerald-600 text-[10px] text-white font-bold">
+                      {[filters.situacao !== "todos", filters.regional !== "todos", filters.cooperativa !== "todos", filters.diaVencimento !== "todos"].filter(Boolean).length + (filters.mesReferencia ? 1 : 0)}
+                    </span>
+                  )}
+                  {!filtersOpen && hasActiveFilters && (
+                    <span className="text-xs text-muted-foreground truncate max-w-[280px]">
+                      {[
+                        filters.mesReferencia && format(new Date(filters.mesReferencia + "-01"), "MMM/yy", { locale: ptBR }),
+                        filters.situacao !== "todos" && filters.situacao,
+                        filters.regional !== "todos" && filters.regional,
+                        filters.cooperativa !== "todos" && filters.cooperativa,
+                        filters.diaVencimento !== "todos" && `Dia ${filters.diaVencimento}`,
+                      ].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {hasActiveFilters && (
+                    <button onClick={(e) => { e.stopPropagation(); clearFilters(); }} className="text-xs text-muted-foreground hover:text-foreground px-2 py-0.5 rounded">
+                      Limpar
+                    </button>
+                  )}
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+              {filtersOpen && (
+                <div className="px-4 pb-4 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Mês Referência</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "h-9 w-full justify-start text-left font-normal",
+                              !filters.mesReferencia && "text-muted-foreground"
+                            )}
                           >
-                            Limpar
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {filters.mesReferencia ? (
+                              format(new Date(filters.mesReferencia + "-01"), "MMMM 'de' yyyy", { locale: ptBR })
+                            ) : (
+                              <span>Selecione o mês</span>
+                            )}
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-emerald-600 hover:text-emerald-700"
-                            onClick={() => setFilters(f => ({ ...f, mesReferencia: format(new Date(), "yyyy-MM") }))}
-                          >
-                            Mês Atual
-                          </Button>
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-4" align="start">
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <label className="text-xs">Mês</label>
+                                <Select
+                                  value={filters.mesReferencia ? filters.mesReferencia.split("-")[1] : ""}
+                                  onValueChange={(mes) => {
+                                    const ano = filters.mesReferencia ? filters.mesReferencia.split("-")[0] : String(new Date().getFullYear());
+                                    setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
+                                  }}
+                                >
+                                  <SelectTrigger className="h-9">
+                                    <SelectValue placeholder="Mês" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[
+                                      { value: "01", label: "Janeiro" },
+                                      { value: "02", label: "Fevereiro" },
+                                      { value: "03", label: "Março" },
+                                      { value: "04", label: "Abril" },
+                                      { value: "05", label: "Maio" },
+                                      { value: "06", label: "Junho" },
+                                      { value: "07", label: "Julho" },
+                                      { value: "08", label: "Agosto" },
+                                      { value: "09", label: "Setembro" },
+                                      { value: "10", label: "Outubro" },
+                                      { value: "11", label: "Novembro" },
+                                      { value: "12", label: "Dezembro" },
+                                    ].map((m) => (
+                                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs">Ano</label>
+                                <Select
+                                  value={filters.mesReferencia ? filters.mesReferencia.split("-")[0] : ""}
+                                  onValueChange={(ano) => {
+                                    const mes = filters.mesReferencia ? filters.mesReferencia.split("-")[1] : "01";
+                                    setFilters(f => ({ ...f, mesReferencia: `${ano}-${mes}` }));
+                                  }}
+                                >
+                                  <SelectTrigger className="h-9">
+                                    <SelectValue placeholder="Ano" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((ano) => (
+                                      <SelectItem key={ano} value={String(ano)}>{ano}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            <div className="flex justify-between pt-2 border-t">
+                              <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => setFilters(f => ({ ...f, mesReferencia: "" }))}>Limpar</Button>
+                              <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => setFilters(f => ({ ...f, mesReferencia: format(new Date(), "yyyy-MM") }))}>Mês Atual</Button>
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Situação</label>
+                      <Select value={filters.situacao} onValueChange={(v) => setFilters(f => ({ ...f, situacao: v }))}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="Todas" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos">Todas</SelectItem>
+                          {filterOptions.situacoes.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Regional</label>
+                      <Select value={filters.regional} onValueChange={(v) => setFilters(f => ({ ...f, regional: v }))}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="Todas" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos">Todas Regionais</SelectItem>
+                          {filterOptions.regionais.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Cooperativa</label>
+                      <Select value={filters.cooperativa} onValueChange={(v) => setFilters(f => ({ ...f, cooperativa: v }))}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="Todas" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos">Todas Cooperativas</SelectItem>
+                          {filterOptions.cooperativas.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Dia Vencimento</label>
+                      <Select value={filters.diaVencimento} onValueChange={(v) => setFilters(f => ({ ...f, diaVencimento: v }))}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos">Todos</SelectItem>
+                          {filterOptions.diasVencimento.map(d => <SelectItem key={d} value={String(d)}>Dia {d}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Situação</Label>
-                  <Select value={filters.situacao} onValueChange={(v) => setFilters(f => ({ ...f, situacao: v }))}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Todas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todas</SelectItem>
-                      {filterOptions.situacoes.map(s => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Regional</Label>
-                  <Select value={filters.regional} onValueChange={(v) => setFilters(f => ({ ...f, regional: v }))}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Todas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todas Regionais</SelectItem>
-                      {filterOptions.regionais.map(r => (
-                        <SelectItem key={r} value={r}>{r}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Cooperativa</Label>
-                  <Select value={filters.cooperativa} onValueChange={(v) => setFilters(f => ({ ...f, cooperativa: v }))}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Todas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todas Cooperativas</SelectItem>
-                      {filterOptions.cooperativas.map(c => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Dia Vencimento</Label>
-                  <Select value={filters.diaVencimento} onValueChange={(v) => setFilters(f => ({ ...f, diaVencimento: v }))}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Todos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todos</SelectItem>
-                      {filterOptions.diasVencimento.map(d => (
-                        <SelectItem key={d} value={String(d)}>Dia {d}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </div>
       )}
+
+
 
       {/* Tabs */}
       <div className="container mx-auto px-4 py-6">

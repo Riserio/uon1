@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Upload, Database, BarChart3, History, Filter, X, Calendar, MapPin, CreditCard, FileSpreadsheet, LogOut, Building2, Activity, DollarSign, TrendingUp, ArrowLeftRight } from "lucide-react";
+import { ArrowLeft, Upload, Database, BarChart3, History, Filter, X, Calendar, MapPin, CreditCard, FileSpreadsheet, LogOut, Building2, Activity, DollarSign, TrendingUp, ArrowLeftRight, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import MGFDashboard from "@/components/mgf/MGFDashboard";
 import MGFImportacao from "@/components/mgf/MGFImportacao";
@@ -56,6 +56,7 @@ export default function MGFInsights() {
   const [loading, setLoading] = useState(true);
   const [importacaoAtiva, setImportacaoAtiva] = useState<any>(null);
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   
   // Associações e permissões
   const [associacoes, setAssociacoes] = useState<any[]>([]);
@@ -454,24 +455,44 @@ export default function MGFInsights() {
       {dados.length > 0 && (
         <div className="container mx-auto px-4 pt-4">
           <Card className="border-orange-500/20 bg-card/50 backdrop-blur">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Filter className="h-4 w-4 text-orange-500" />
-                <span className="font-semibold text-sm">Filtros Globais</span>
-                {activeFiltersCount > 0 && (
-                  <>
-                    <Badge variant="secondary" className="ml-2">
+            <CardContent className="p-0">
+              {/* Header clicável */}
+              <button
+                onClick={() => setFiltersOpen(o => !o)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors rounded-xl"
+              >
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-orange-500" />
+                  <span className="font-semibold text-sm">Filtros</span>
+                  {activeFiltersCount > 0 && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                       {activeFiltersCount} ativo{activeFiltersCount > 1 ? "s" : ""}
                     </Badge>
-                    <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 px-2 text-xs">
-                      <X className="h-3 w-3 mr-1" />
+                  )}
+                  {!filtersOpen && activeFiltersCount > 0 && (
+                    <span className="text-xs text-muted-foreground truncate max-w-[300px]">
+                      {[
+                        filters.operacao !== "all" && filters.operacao,
+                        filters.situacao !== "all" && filters.situacao,
+                        filters.regional !== "all" && filters.regional,
+                        filters.cooperativa !== "all" && filters.cooperativa,
+                        filters.dateRange?.from && format(filters.dateRange.from, "dd/MM/yy", { locale: ptBR }),
+                      ].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {activeFiltersCount > 0 && (
+                    <button onClick={(e) => { e.stopPropagation(); clearFilters(); }} className="text-xs text-muted-foreground hover:text-foreground px-2 py-0.5 rounded hover:bg-muted/50">
                       Limpar
-                    </Button>
-                  </>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2">
+                    </button>
+                  )}
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+              {filtersOpen && (
+                <div className="px-4 pb-4 pt-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2">
                 {/* Operação */}
                 <Select value={filters.operacao} onValueChange={(v) => setFilters(f => ({ ...f, operacao: v }))}>
                   <SelectTrigger className="h-9 text-xs">
@@ -594,6 +615,8 @@ export default function MGFInsights() {
                   </PopoverContent>
                 </Popover>
               </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
