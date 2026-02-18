@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import BIPageHeader from "@/components/bi/BIPageHeader";
 import { BIAuditLogDialog } from "@/components/BIAuditLogDialog";
 import { useAuth } from "@/hooks/useAuth";
-import EstudoBaseDashboard, { type EstudoBaseFilters } from "@/components/estudo-base/EstudoBaseDashboard";
+import EstudoBaseDashboard, { type EstudoBaseFilters, EstudoBaseFilterBar } from "@/components/estudo-base/EstudoBaseDashboard";
 import EstudoBaseImportacao from "@/components/estudo-base/EstudoBaseImportacao";
 import EstudoBaseMapa from "@/components/estudo-base/EstudoBaseMapa";
 import { getBICachedData, setBICachedData, getCachedAssociacoes, setCachedAssociacoes } from "@/hooks/useBIGlobalCache";
@@ -300,7 +300,7 @@ export default function EstudoBaseInsights() {
       )}
 
       <div className="container mx-auto px-4 sm:px-6 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <div className="w-full overflow-x-auto pb-2">
             <TabsList className="inline-flex md:flex md:w-auto gap-1 p-1.5 bg-muted/40 rounded-xl min-w-max md:min-w-0">
               {tabs.map((tab) => {
@@ -323,8 +323,15 @@ export default function EstudoBaseInsights() {
             </TabsList>
           </div>
 
+          {/* Filter bar above all tab content */}
+          <EstudoBaseFilterBar
+            registros={registros}
+            filters={filters}
+            onFiltersChange={setFilters}
+          />
+
           <TabsContent value="dashboard" className="space-y-4 mt-0">
-            <EstudoBaseDashboard registros={registros} loading={loading} filters={filters} onFiltersChange={setFilters} />
+            <EstudoBaseDashboard registros={registros} loading={loading} filters={filters} onFiltersChange={setFilters} hideFilters />
           </TabsContent>
 
           <TabsContent value="mapa" className="space-y-4 mt-0">
