@@ -48,6 +48,11 @@ const COLUMN_MAP_NORMALIZED: Record<string, string> = {
   "LOGRADOURO": "logradouro",
   "CIDADE PROPRIETARIO": "cidade_veiculo",
   "CIDADE VEICULO": "cidade_veiculo",
+  "CIDADE": "cidade_veiculo",
+  "ESTADO PROPRIETARIO": "estado",
+  "ESTADO VEICULO": "estado",
+  "ESTADO": "estado",
+  "UF": "estado",
   "BAIRRO PROPRIETARIO": "bairro",
   "BAIRRO": "bairro",
   "DATA CONTRATO": "data_contrato",
@@ -278,6 +283,20 @@ export default function EstudoBaseImportacao({ onImportSuccess, corretoraId, cor
             } else if (["ano_fabricacao", "ano_modelo", "num_passageiros", "qtde_evento", "vencimento", "idade_associado"].includes(dbCol)) {
               const parsed = parseInt(String(value));
               record[dbCol] = isNaN(parsed) ? null : parsed;
+            } else if (dbCol === "cidade_veiculo" || dbCol === "estado") {
+              // Normalize accents and special chars in city/state names
+              const raw = sanitizeString(value);
+              if (raw) {
+                record[dbCol] = raw
+                  .normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .toUpperCase()
+                  .replace(/[^A-Z0-9\s\-\.]/g, "")
+                  .replace(/\s+/g, " ")
+                  .trim();
+              } else {
+                record[dbCol] = null;
+              }
             } else {
               record[dbCol] = sanitizeString(value);
             }

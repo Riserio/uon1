@@ -467,7 +467,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
             <div className="h-[200px]">
               {valorProtegidoPorFaixa.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={valorProtegidoPorFaixa} margin={{ top: 16, right: 8, bottom: 4, left: 0 }}>
+                  <BarChart data={valorProtegidoPorFaixa} margin={{ top: 18, right: 8, bottom: 4, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                     <XAxis dataKey="faixa" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
@@ -486,27 +486,21 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Combustível</CardTitle></CardHeader>
           <CardContent className="px-3 pb-4">
             {combustivelData.length > 0 ? (
-              <>
-                <div className="h-[120px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={combustivelData} dataKey="value" cx="50%" cy="50%" innerRadius={34} outerRadius={54} paddingAngle={3} label={false} labelLine={false} isAnimationActive={false}>
-                        {combustivelData.map((e, i) => <Cell key={i} fill={e.fill} />)}
-                      </Pie>
-                      <Tooltip formatter={(v: any, name: any) => [Number(v).toLocaleString("pt-BR"), name]} contentStyle={ttStyle} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="space-y-1.5 mt-2">
-                  {combustivelData.slice(0, 5).map((item) => (
-                    <div key={item.name} className="flex items-center gap-2 text-xs">
-                      <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
-                      <span className="truncate flex-1 text-muted-foreground">{item.name}</span>
-                      <span className="font-semibold tabular-nums">{item.value.toLocaleString("pt-BR")}</span>
+              <div className="space-y-2 pt-1">
+                {combustivelData.map((item) => {
+                  const total = combustivelData.reduce((s, i) => s + i.value, 0);
+                  const pct = total > 0 ? (item.value / total) * 100 : 0;
+                  return (
+                    <div key={item.name} className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground truncate w-20 shrink-0">{item.name}</span>
+                      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: item.fill }} />
+                      </div>
+                      <span className="text-[11px] font-bold tabular-nums w-10 text-right">{item.value.toLocaleString("pt-BR")}</span>
                     </div>
-                  ))}
-                </div>
-              </>
+                  );
+                })}
+              </div>
             ) : <p className="text-sm text-muted-foreground py-8 text-center">Sem dados</p>}
           </CardContent>
         </Card>
@@ -517,32 +511,46 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
         <Card className="rounded-2xl border-border/40">
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Top Montadoras</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
-            <ResponsiveContainer width="100%" height={Math.max(140, montadoraData.length * 30)}>
-              <BarChart data={montadoraData} layout="vertical" margin={{ top: 2, right: 56, bottom: 2, left: 4 }}>
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={ttStyle} />
-                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 5, 5, 0]} maxBarSize={20} background={{ fill: "hsl(var(--muted)/0.25)", radius: 5 }}>
-                  <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 10, fontWeight: 600, fill: "hsl(var(--muted-foreground))" }} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {montadoraData.length > 0 ? (
+              <div className="space-y-2 pt-1">
+                {montadoraData.map((item) => {
+                  const pct = totalPlacas > 0 ? (item.value / totalPlacas) * 100 : 0;
+                  return (
+                    <div key={item.name} className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground truncate w-24 shrink-0">{item.name}</span>
+                      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: item.fill }} />
+                      </div>
+                      <span className="text-[11px] font-bold tabular-nums w-12 text-right">{item.value.toLocaleString("pt-BR")}</span>
+                      <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">{pct.toFixed(1)}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : <p className="text-sm text-muted-foreground py-6 text-center">Sem dados</p>}
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl border-border/40">
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Top Modelos</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
-            <ResponsiveContainer width="100%" height={Math.max(140, modeloData.length * 30)}>
-              <BarChart data={modeloData} layout="vertical" margin={{ top: 2, right: 56, bottom: 2, left: 4 }}>
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={ttStyle} />
-                <Bar dataKey="value" fill="#f97316" radius={[0, 5, 5, 0]} maxBarSize={20} background={{ fill: "hsl(var(--muted)/0.25)", radius: 5 }}>
-                  <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 10, fontWeight: 600, fill: "hsl(var(--muted-foreground))" }} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {modeloData.length > 0 ? (
+              <div className="space-y-2 pt-1">
+                {modeloData.map((item) => {
+                  const pct = totalPlacas > 0 ? (item.value / totalPlacas) * 100 : 0;
+                  return (
+                    <div key={item.name} className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground truncate w-32 shrink-0">{item.name}</span>
+                      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: item.fill }} />
+                      </div>
+                      <span className="text-[11px] font-bold tabular-nums w-12 text-right">{item.value.toLocaleString("pt-BR")}</span>
+                      <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">{pct.toFixed(1)}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : <p className="text-sm text-muted-foreground py-6 text-center">Sem dados</p>}
           </CardContent>
         </Card>
       </div>
@@ -586,27 +594,22 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
             <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">{title}</CardTitle></CardHeader>
             <CardContent className="px-4 pb-4">
               {data.length > 0 ? (
-                <>
-                  <div className="h-[110px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={data} dataKey="value" cx="50%" cy="50%" innerRadius={28} outerRadius={48} paddingAngle={4} label={false} labelLine={false} isAnimationActive={false}>
-                          {data.map((e, i) => <Cell key={i} fill={e.fill} />)}
-                        </Pie>
-                        <Tooltip formatter={(v: any, n: any) => [Number(v).toLocaleString("pt-BR"), n]} contentStyle={ttStyle} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="space-y-1.5 mt-1">
-                    {data.map((item) => (
-                      <div key={item.name} className="flex items-center gap-2 text-xs">
-                        <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
-                        <span className="truncate flex-1 text-muted-foreground">{item.name}</span>
-                        <span className="font-semibold tabular-nums">{item.value.toLocaleString("pt-BR")}</span>
+                <div className="space-y-2 pt-1">
+                  {data.map((item) => {
+                    const total = data.reduce((s, i) => s + i.value, 0);
+                    const pct = total > 0 ? (item.value / total) * 100 : 0;
+                    return (
+                      <div key={item.name} className="flex items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground truncate w-20 shrink-0">{item.name}</span>
+                        <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: item.fill }} />
+                        </div>
+                        <span className="text-[11px] font-bold tabular-nums w-12 text-right">{item.value.toLocaleString("pt-BR")}</span>
+                        <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">{pct.toFixed(1)}%</span>
                       </div>
-                    ))}
-                  </div>
-                </>
+                    );
+                  })}
+                </div>
               ) : <p className="text-sm text-muted-foreground py-6 text-center">Sem dados</p>}
             </CardContent>
           </Card>
@@ -640,17 +643,17 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
           <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Voluntário</CardTitle></CardHeader>
           <CardContent className="px-4 pb-4">
             {voluntarioData.length > 0 ? (
-              <div className="space-y-2 pt-1">
+              <div className="overflow-y-auto max-h-[240px] pr-1 space-y-1.5 pt-1">
                 {voluntarioData.map((item) => {
                   const pct = voluntarioTotal > 0 ? (item.value / voluntarioTotal) * 100 : 0;
                   return (
                     <div key={item.name} className="flex items-center gap-2.5">
                       <span className="text-[11px] text-muted-foreground truncate w-32 shrink-0">{item.name}</span>
-                      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                      <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                         <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: item.fill }} />
                       </div>
-                      <span className="text-[11px] font-bold tabular-nums w-14 text-right">{item.value.toLocaleString("pt-BR")}</span>
-                      <span className="text-[10px] text-muted-foreground tabular-nums w-12 text-right">{pct.toFixed(1)}%</span>
+                      <span className="text-[11px] font-bold tabular-nums w-12 text-right">{item.value.toLocaleString("pt-BR")}</span>
+                      <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">{pct.toFixed(1)}%</span>
                     </div>
                   );
                 })}
