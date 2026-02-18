@@ -589,16 +589,16 @@ export default function SGAInsights() {
       <div className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
-            <TabsList className="inline-flex md:flex md:w-full max-w-3xl mx-auto gap-1 p-1.5 bg-violet-500/8 border border-violet-500/20 rounded-xl min-w-max md:min-w-0 shadow-sm shadow-violet-500/10">
+            <TabsList className="inline-flex md:flex md:w-full max-w-3xl mx-auto gap-1 p-1.5 bg-transparent border border-violet-500/30 rounded-xl min-w-max md:min-w-0 shadow-sm shadow-violet-500/10">
               {tabs.map((tab) => (
                 <TabsTrigger
                   key={tab.id}
                   value={tab.id}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                    text-muted-foreground transition-all
-                    data-[state=active]:bg-violet-600 data-[state=active]:text-white
-                    data-[state=active]:shadow-md data-[state=active]:shadow-violet-500/30
-                    hover:text-violet-700 hover:bg-violet-500/10
+                    text-muted-foreground transition-all border border-transparent
+                    data-[state=active]:bg-transparent data-[state=active]:text-violet-600
+                    data-[state=active]:border-violet-500/60 data-[state=active]:shadow-sm data-[state=active]:shadow-violet-500/20
+                    hover:text-violet-600 hover:bg-violet-500/5
                     whitespace-nowrap"
                 >
                   <tab.icon className="h-4 w-4" />
