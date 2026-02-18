@@ -175,21 +175,6 @@ function ScrollCounterList({
   );
 }
 
-function VoluntarioTooltip({ active, payload, total }: { active?: boolean; payload?: any[]; total: number }) {
-  if (!active || !payload?.length) return null;
-  const p = payload[0]?.payload;
-  const value = Number(p?.value ?? 0);
-  const pct = total > 0 ? (value / total) * 100 : 0;
-  return (
-    <div className="rounded-md border border-border bg-background px-3 py-2 shadow-sm">
-      <div className="text-xs font-semibold">{String(p?.name ?? "")}</div>
-      <div className="mt-1 text-xs text-muted-foreground">
-        <span className="font-semibold text-foreground">{value.toLocaleString("pt-BR")}</span>{" "}
-        <span>({formatPct(pct)})</span>
-      </div>
-    </div>
-  );
-}
 
 // ---------- Component ----------
 
@@ -224,7 +209,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
     }
     if (filters.faixaValorProtegido !== "todos") {
       const [min, max] = filters.faixaValorProtegido.split("-").map(Number);
-      result = result.filter((r) => (r.valor_protegido || 0) >= min && (r.valor_protegido || 0) <= max);
+      result = result.filter((r) => (r.valor_fipe || 0) >= min && (r.valor_fipe || 0) <= max);
     }
     return result;
   }, [registros, filters]);
@@ -232,7 +217,7 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
   // KPIs
   const totalPlacas = filtered.length;
   const totalValorProtegido = useMemo(
-    () => filtered.reduce((sum, r) => sum + Math.round((r.valor_protegido || 0) * 100), 0) / 100,
+    () => filtered.reduce((sum, r) => sum + Math.round((r.valor_fipe || 0) * 100), 0) / 100,
     [filtered]
   );
   const ticketMedio = totalPlacas > 0 ? totalValorProtegido / totalPlacas : 0;
@@ -243,8 +228,9 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
   const placasPorSituacao = useMemo(() => {
     const map = new Map<string, number>();
     filtered.forEach((r) => {
-      // Normalize: trim + uppercase to group "ATIVO" and "Ativo" together
-      const sit = r.situacao_veiculo ? String(r.situacao_veiculo).trim().toUpperCase() : "N/I";
+      // Normalize: trim + uppercase + remove accents to group "ATIVO", "Ativo", "Situação do Veículo" variants
+      const raw = r.situacao_veiculo ? String(r.situacao_veiculo).trim() : "N/I";
+      const sit = raw.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       map.set(sit, (map.get(sit) || 0) + 1);
     });
     return Array.from(map.entries())
@@ -297,15 +283,15 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
       });
   }, [filtered]);
 
-  // Dynamic faixas based on max valor_protegido in data
+  // Dynamic faixas based on max valor_fipe in data
   const valorProtegidoPorFaixa = useMemo(() => {
-    const maxVal = Math.max(...filtered.map((r) => r.valor_protegido || 0), 0);
+    const maxVal = Math.max(...filtered.map((r) => r.valor_fipe || 0), 0);
     if (maxVal === 0) return [];
     const faixas = buildFaixasValorDinamicas(maxVal);
     return faixas
       .map((f) => ({
         faixa: f.label,
-        total: filtered.filter((r) => (r.valor_protegido || 0) >= f.min && (r.valor_protegido || 0) < f.max).length,
+        total: filtered.filter((r) => (r.valor_fipe || 0) >= f.min && (r.valor_fipe || 0) < f.max).length,
       }))
       .filter((f) => f.total > 0);
   }, [filtered]);
@@ -828,22 +814,18 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
           <CardHeader><CardTitle className="text-lg">Voluntário</CardTitle></CardHeader>
           <CardContent>
             {voluntarioData.length > 0 ? (
-              <>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
-                      <Pie data={voluntarioData} dataKey="value" nameKey="name" cx="50%" cy="45%" innerRadius={75} outerRadius={120} paddingAngle={2} label={false} labelLine={false} minAngle={3} isAnimationActive={false}>
-                        {voluntarioData.map((e, i) => <Cell key={i} fill={e.fill} />)}
-                      </Pie>
-                      <Tooltip content={<VoluntarioTooltip total={voluntarioTotal} />} />
-                      <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12 }} />
-                      <text x="50%" y="42%" textAnchor="middle" dominantBaseline="central" style={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}>Total</text>
-                      <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" style={{ fontSize: 18, fontWeight: 800, fill: "hsl(var(--foreground))" }}>{voluntarioTotal.toLocaleString("pt-BR")}</text>
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <ScrollCounterList titleLeft="Voluntário" titleRight="Qtd" items={voluntarioData.map((i) => ({ name: i.name, value: i.value }))} totalBase={voluntarioTotal} maxHeightClass="max-h-[200px]" />
-              </>
+              <ResponsiveContainer width="100%" height={Math.max(200, voluntarioData.length * 44)}>
+                <BarChart data={voluntarioData} layout="vertical" margin={{ top: 4, right: 90, bottom: 4, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} tickFormatter={(v) => Number(v).toLocaleString("pt-BR")} />
+                  <YAxis type="category" dataKey="name" width={170} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                  <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={36}>
+                    {voluntarioData.map((e, i) => <Cell key={i} fill={e.fill} />)}
+                    <LabelList dataKey="value" position="right" formatter={(v: any) => Number(v).toLocaleString("pt-BR")} style={{ fontSize: 12, fontWeight: 700, fill: "hsl(var(--foreground))" }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center py-16 text-muted-foreground">Sem dados</div>
             )}

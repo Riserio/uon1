@@ -42,6 +42,7 @@ const COLUMN_MAP_NORMALIZED: Record<string, string> = {
   "NO DE PASSAGEIROS": "num_passageiros",
   "NUMERO DE PASSAGEIROS": "num_passageiros",
   "SITUACAO VEICULO": "situacao_veiculo",
+  "SITUACAO DO VEICULO": "situacao_veiculo",
   "SITUACAO": "situacao_veiculo",
   "LOGRADOURO PROPRIETARIO": "logradouro",
   "LOGRADOURO": "logradouro",
