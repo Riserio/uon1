@@ -177,19 +177,19 @@ async function trySelectHinovaLayout(page) {
 // ============================================
 const TIMEOUTS = {
   PAGE_LOAD: 90000,
-  LOGIN_RETRY_WAIT: 8000,
+  LOGIN_RETRY_WAIT: 5000,        // Reduzido de 8s → 5s
   DOWNLOAD_EVENT: 3 * 60000,
-  DOWNLOAD_TOTAL: 55 * 60000,   // 55 min - servidor MGF leva 30-40 min para gerar relatório de 255MB
-  DOWNLOAD_SAVE: 55 * 60000,
-  DOWNLOAD_IDLE: 55 * 60000,
-  DOWNLOAD_HARD: 55 * 60000,
+  DOWNLOAD_TOTAL: 40 * 60000,    // Reduzido de 55 min → 40 min (MGF tem relatórios maiores ~255MB)
+  DOWNLOAD_SAVE: 40 * 60000,     // Reduzido de 55 min → 40 min
+  DOWNLOAD_IDLE: 30 * 60000,     // Reduzido de 55 min → 30 min (stall detection)
+  DOWNLOAD_HARD: 40 * 60000,     // Reduzido de 55 min → 40 min
   POPUP_CLOSE: 800,
   FILE_PROGRESS_INTERVAL: 5000,
 };
 
 const LIMITS = {
-  MAX_LOGIN_RETRIES: 20,
-  MAX_DOWNLOAD_RETRIES: 1,       // Sem retries - relatório de 255MB consome todo o tempo do GitHub Actions (60 min)
+  MAX_LOGIN_RETRIES: 5,          // Reduzido de 20 → 5
+  MAX_DOWNLOAD_RETRIES: 1,       // Sem retries - relatório de 255MB consome todo o tempo do GitHub Actions
   MAX_POPUP_CLOSE_ATTEMPTS: 10,
   MAX_LOOP_ITERATIONS: 100,
   MIN_FILE_SIZE_BYTES: 100,
@@ -2401,8 +2401,6 @@ async function rodarRobo() {
     }
     
     log('Aguardando formulário de login...');
-    await page.waitForTimeout(3000);
-    
     try {
       await page.waitForSelector('input[placeholder="Usuário"], input[type="password"]', {
         timeout: 30000
@@ -2596,10 +2594,12 @@ async function rodarRobo() {
     });
     
     log('Aguardando carregamento...');
-    await page.waitForTimeout(5000);
+    await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {
+      log('DOMContentLoaded timeout - continuando...', LOG_LEVELS.WARN);
+    });
     await fecharPopups(page);
     
-    await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {
       log('NetworkIdle timeout - continuando...', LOG_LEVELS.WARN);
     });
     
