@@ -74,11 +74,8 @@ function formatPct(n: number) {
   return `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2, minimumFractionDigits: 2 })}%`;
 }
 
-const pieLabel = (props: any) => {
-  const { name, value, percent } = props;
-  const pct = typeof percent === "number" ? `${(percent * 100).toFixed(0)}%` : "";
-  return `${name}: ${Number(value).toLocaleString("pt-BR")}${pct ? ` (${pct})` : ""}`;
-};
+
+
 
 function NumbersList({
   items,
@@ -662,91 +659,88 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
         </Card>
       </div>
 
-      {/* ROW: Placas por Situação + Eventos por Mês */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Placas por Situação</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[320px]">
-              {placasPorSituacao.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={placasPorSituacao}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={95}
-                      paddingAngle={2}
-                      label={pieLabel}
-                      labelLine={false}
-                    >
-                      {placasPorSituacao.map((e, i) => (
-                        <Cell key={i} fill={e.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
-              )}
-            </div>
+      {/* ROW: Placas por Situação (full width - horizontal bar) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Placas por Situação</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {placasPorSituacao.length > 0 ? (
+            <ResponsiveContainer width="100%" height={Math.max(200, placasPorSituacao.length * 42)}>
+              <BarChart
+                data={placasPorSituacao}
+                layout="vertical"
+                margin={{ top: 4, right: 80, bottom: 4, left: 8 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} tickFormatter={(v) => Number(v).toLocaleString("pt-BR")} />
+                <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 12, fontWeight: 500 }} />
+                <Tooltip
+                  formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Placas"]}
+                  contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                />
+                <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={32}>
+                  {placasPorSituacao.map((e, i) => (
+                    <Cell key={i} fill={e.fill} />
+                  ))}
+                  <LabelList
+                    dataKey="value"
+                    position="right"
+                    formatter={(v: any) => Number(v).toLocaleString("pt-BR")}
+                    style={{ fontSize: 12, fontWeight: 600, fill: "hsl(var(--foreground))" }}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center py-16 text-muted-foreground">Sem dados</div>
+          )}
+        </CardContent>
+      </Card>
 
-            <ScrollCounterList
-              titleLeft="Situação"
-              titleRight="Qtd"
-              items={placasPorSituacao.map((i) => ({ name: i.name, value: i.value }))}
-              maxHeightClass="max-h-[220px]"
-            />
-          </CardContent>
-        </Card>
+      {/* ROW: Eventos por Mês */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Total de Veículos com Evento (por mês)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[280px]">
+            {eventosPorMes.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={eventosPorMes} margin={{ top: 20, right: 16, bottom: 4, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip
+                    formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]}
+                    contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                  />
+                  <Bar dataKey="total" fill="#7c3aed" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                    <LabelList
+                      dataKey="total"
+                      position="top"
+                      formatter={(v: any) => Number(v).toLocaleString("pt-BR")}
+                      style={{ fontSize: 11, fontWeight: 600, fill: "hsl(var(--foreground))" }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                Sem eventos no período filtrado
+              </div>
+            )}
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Total de Veículos com Evento (por mês)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[320px]">
-              {eventosPorMes.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={eventosPorMes}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
-                    <Bar dataKey="total" fill="#7c3aed" radius={[4, 4, 0, 0]}>
-                      <LabelList
-                        dataKey="total"
-                        position="top"
-                        formatter={(v: any) => Number(v).toLocaleString("pt-BR")}
-                        style={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  Sem eventos no período filtrado
-                </div>
-              )}
-            </div>
-
-            <ScrollCounterList
-              titleLeft="Mês"
-              titleRight="Qtd"
-              items={eventosPorMesList}
-              totalBase={eventosTotal}
-              maxHeightClass="max-h-[220px]"
-            />
-          </CardContent>
-        </Card>
-      </div>
+          <ScrollCounterList
+            titleLeft="Mês"
+            titleRight="Qtd"
+            items={eventosPorMesList}
+            totalBase={eventosTotal}
+            maxHeightClass="max-h-[180px]"
+          />
+        </CardContent>
+      </Card>
 
       {/* Cadastros por Mês (full width) */}
       <div className="grid gap-4">
@@ -850,70 +844,129 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
         </Card>
       </div>
 
-      {/* Sexo + Faixa Etária */}
+      {/* Sexo + Estado Civil (donut sem labels sobrepostos) */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Sexo</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
-              {sexoData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={sexoData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={95}
-                      paddingAngle={2}
-                      label={pieLabel}
-                      labelLine={false}
-                    >
-                      {sexoData.map((e, i) => (
-                        <Cell key={i} fill={e.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
-              )}
-            </div>
-
-            <ScrollCounterList
-              titleLeft="Sexo"
-              titleRight="Qtd"
-              items={sexoData.map((i) => ({ name: i.name, value: i.value }))}
-              maxHeightClass="max-h-[220px]"
-            />
+            {sexoData.length > 0 ? (
+              <>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={sexoData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={3}
+                        label={false}
+                        labelLine={false}
+                        isAnimationActive={false}
+                      >
+                        {sexoData.map((e, i) => (
+                          <Cell key={i} fill={e.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(v: any, name: any) => [Number(v).toLocaleString("pt-BR"), name]}
+                        contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                      />
+                      <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <ScrollCounterList
+                  titleLeft="Sexo"
+                  titleRight="Qtd"
+                  items={sexoData.map((i) => ({ name: i.name, value: i.value }))}
+                  maxHeightClass="max-h-[160px]"
+                />
+              </>
+            ) : (
+              <div className="flex items-center justify-center py-16 text-muted-foreground">Sem dados</div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
+            <CardTitle className="text-lg">Estado Civil</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {estadoCivilData.length > 0 ? (
+              <>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={estadoCivilData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={3}
+                        label={false}
+                        labelLine={false}
+                        isAnimationActive={false}
+                      >
+                        {estadoCivilData.map((e, i) => (
+                          <Cell key={i} fill={e.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(v: any, name: any) => [Number(v).toLocaleString("pt-BR"), name]}
+                        contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                      />
+                      <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <ScrollCounterList
+                  titleLeft="Estado Civil"
+                  titleRight="Qtd"
+                  items={estadoCivilData.map((i) => ({ name: i.name, value: i.value }))}
+                  maxHeightClass="max-h-[160px]"
+                />
+              </>
+            ) : (
+              <div className="flex items-center justify-center py-16 text-muted-foreground">Sem dados</div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Faixa Etária + Categoria */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
             <CardTitle className="text-lg">Faixa Etária</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[280px]">
               {idadeData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={idadeData}>
+                  <BarChart data={idadeData} margin={{ top: 20, right: 16, bottom: 4, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="faixa" />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
-                    <Bar dataKey="total" fill="#ec4899" radius={[4, 4, 0, 0]}>
+                    <XAxis dataKey="faixa" tick={{ fontSize: 12 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <Tooltip
+                      formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Associados"]}
+                      contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                    />
+                    <Bar dataKey="total" fill="#ec4899" radius={[6, 6, 0, 0]} maxBarSize={56}>
                       <LabelList
                         dataKey="total"
                         position="top"
                         formatter={(v: any) => Number(v).toLocaleString("pt-BR")}
-                        style={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                        style={{ fontSize: 11, fontWeight: 600, fill: "hsl(var(--foreground))" }}
                       />
                     </Bar>
                   </BarChart>
@@ -922,59 +975,6 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
                 <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
               )}
             </div>
-
-            <ScrollCounterList
-              titleLeft="Faixa"
-              titleRight="Qtd"
-              items={idadeData.map((i) => ({ name: i.faixa, value: i.total }))}
-              maxHeightClass="max-h-[220px]"
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Estado Civil + Categoria */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Estado Civil</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              {estadoCivilData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={estadoCivilData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={95}
-                      paddingAngle={2}
-                      label={pieLabel}
-                      labelLine={false}
-                    >
-                      {estadoCivilData.map((e, i) => (
-                        <Cell key={i} fill={e.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
-              )}
-            </div>
-
-            <ScrollCounterList
-              titleLeft="Estado"
-              titleRight="Qtd"
-              items={estadoCivilData.map((i) => ({ name: i.name, value: i.value }))}
-              maxHeightClass="max-h-[220px]"
-            />
           </CardContent>
         </Card>
 
@@ -982,27 +982,30 @@ export default function EstudoBaseDashboard({ registros, loading, filters, onFil
           <CardHeader>
             <CardTitle className="text-lg">Categoria</CardTitle>
           </CardHeader>
-          <CardContent className="h-[300px]">
-            {categoriaData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={categoriaData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis type="number" allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 10 }} />
-                  <Tooltip formatter={(v: any) => Number(v).toLocaleString("pt-BR")} />
-                  <Bar dataKey="value" fill="#14b8a6" radius={[0, 4, 4, 0]}>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={Math.max(180, categoriaData.length * 38)}>
+              {categoriaData.length > 0 ? (
+                <BarChart data={categoriaData} layout="vertical" margin={{ top: 4, right: 80, bottom: 4, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
+                  <Tooltip
+                    formatter={(v: any) => [Number(v).toLocaleString("pt-BR"), "Veículos"]}
+                    contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                  />
+                  <Bar dataKey="value" fill="#14b8a6" radius={[0, 6, 6, 0]} maxBarSize={32}>
                     <LabelList
                       dataKey="value"
                       position="right"
                       formatter={(v: any) => Number(v).toLocaleString("pt-BR")}
-                      style={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      style={{ fontSize: 12, fontWeight: 600, fill: "hsl(var(--foreground))" }}
                     />
                   </Bar>
                 </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
-            )}
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">Sem dados</div>
+              )}
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
