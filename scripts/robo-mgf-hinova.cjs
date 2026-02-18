@@ -2588,10 +2588,37 @@ async function rodarRobo() {
     log('Navegando para Relatório de Lançamentos MGF...');
     await fecharPopups(page);
     
-    await page.goto(CONFIG.HINOVA_RELATORIO_URL, { 
-      waitUntil: 'domcontentloaded',
-      timeout: TIMEOUTS.PAGE_LOAD
-    });
+    // Tenta navegar com retry e fallback de waitUntil
+    let navegacaoRelatorioOk = false;
+    for (let tentativa = 1; tentativa <= 3 && !navegacaoRelatorioOk; tentativa++) {
+      try {
+        log(`Tentativa ${tentativa}/3 de navegar para relatório MGF...`);
+        // 'commit' resolve assim que a resposta HTTP inicia (muito mais rápido que domcontentloaded em SPA)
+        const waitUntilOpt = tentativa === 1 ? 'commit' : 'domcontentloaded';
+        const timeoutMs = tentativa === 1 ? 30000 : 60000;
+        await page.goto(CONFIG.HINOVA_RELATORIO_URL, { 
+          waitUntil: waitUntilOpt,
+          timeout: timeoutMs
+        });
+        navegacaoRelatorioOk = true;
+        log(`Navegação ao relatório OK na tentativa ${tentativa}`, LOG_LEVELS.SUCCESS);
+      } catch (e) {
+        log(`Tentativa ${tentativa} falhou: ${e.message}`, LOG_LEVELS.WARN);
+        if (tentativa === 3) {
+          // Verificar se a página carregou mesmo com timeout
+          const currentUrl = page.url();
+          log(`URL atual após timeout: ${currentUrl}`, LOG_LEVELS.DEBUG);
+          if (currentUrl && (currentUrl.includes('relatorio') || currentUrl.includes('lancamento') || currentUrl.includes('Sgf') || currentUrl.includes('mgf'))) {
+            log('Página de relatório carregada apesar do timeout — continuando', LOG_LEVELS.WARN);
+            navegacaoRelatorioOk = true;
+          } else {
+            throw e;
+          }
+        } else {
+          await page.waitForTimeout(3000);
+        }
+      }
+    }
     
     log('Aguardando carregamento...');
     await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {
