@@ -2,7 +2,10 @@ import { useMemo, useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, LabelList, Cell } from "recharts";
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, RadialBarChart, RadialBar, Legend,
+} from "recharts";
 import {
   TrendingUp, DollarSign, Calendar, Building2, MapPin, AlertTriangle,
   CheckCircle, Clock, Banknote, CreditCard, Truck, FileText, Users,
@@ -32,6 +35,7 @@ const formatCompactCurrency = (value: number) => {
 
 const ttStyle = { borderRadius: 10, fontSize: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" };
 
+// Horizontal bar widget for higher-cardinality rankings
 function BarWidget({ data, isCurrency = false, maxItems = 10 }: {
   data: { name: string; value: number; fill?: string }[];
   isCurrency?: boolean;
@@ -57,6 +61,58 @@ function BarWidget({ data, isCurrency = false, maxItems = 10 }: {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Donut chart for small-cardinality categories
+function MiniDonut({ data, isCurrency = false }: {
+  data: { name: string; value: number }[];
+  isCurrency?: boolean;
+}) {
+  if (!data.length) return <p className="text-xs text-muted-foreground text-center py-4">Sem dados</p>;
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const items = data.slice(0, 8);
+  return (
+    <div className="flex gap-3 items-center">
+      <div className="shrink-0">
+        <ResponsiveContainer width={110} height={110}>
+          <PieChart>
+            <Pie data={items} cx="50%" cy="50%" innerRadius={32} outerRadius={50} dataKey="value" paddingAngle={2} strokeWidth={0}>
+              {items.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+            </Pie>
+            <Tooltip contentStyle={ttStyle} formatter={(v: any) => [isCurrency ? formatCompactCurrency(Number(v)) : Number(v).toLocaleString("pt-BR"), ""]} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex-1 min-w-0 space-y-1.5">
+        {items.map((item, i) => {
+          const pct = total > 0 ? (item.value / total) * 100 : 0;
+          return (
+            <div key={item.name} className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+              <span className="text-[10px] text-muted-foreground truncate flex-1" title={item.name}>{item.name}</span>
+              <span className="text-[10px] font-semibold tabular-nums shrink-0">{pct.toFixed(0)}%</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Radial bar for a single metric comparison (e.g. pago vs total)
+function RadialProgress({ value, label, color }: { value: number; label: string; color: string }) {
+  const data = [{ value, fill: color }];
+  return (
+    <div className="flex flex-col items-center">
+      <ResponsiveContainer width={80} height={80}>
+        <RadialBarChart cx="50%" cy="50%" innerRadius={24} outerRadius={36} startAngle={90} endAngle={-270} data={data}>
+          <RadialBar dataKey="value" cornerRadius={4} background={{ fill: "hsl(var(--muted))" }} />
+        </RadialBarChart>
+      </ResponsiveContainer>
+      <span className="text-[11px] font-bold -mt-1">{value.toFixed(0)}%</span>
+      <span className="text-[10px] text-muted-foreground">{label}</span>
     </div>
   );
 }
@@ -100,6 +156,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
     const totalJuros = dados.reduce((acc, d) => acc + (d.juros || 0), 0);
     const ticketMedio = valorTotal / totalRegistros;
     const fornecedoresUnicos = new Set(dados.filter(d => d.fornecedor || d.nome_fantasia_fornecedor).map(d => d.fornecedor || d.nome_fantasia_fornecedor)).size;
+    const taxaPagamento = valorTotal > 0 ? (valorPago / valorTotal) * 100 : 0;
 
     const filterAVencer = (fim: number) => {
       const f = new Date(hoje); f.setDate(f.getDate() + fim);
@@ -182,7 +239,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
 
     return {
       totalRegistros, valorTotal, valorPago, qtdPagos, valorAPagar, qtdAPagar,
-      valorVencido, qtdVencidos, totalMulta, totalJuros, ticketMedio, fornecedoresUnicos,
+      valorVencido, qtdVencidos, totalMulta, totalJuros, ticketMedio, fornecedoresUnicos, taxaPagamento,
       qtdAVencer7: aVencer7.length, valorAVencer7: aVencer7.reduce((acc, d) => acc + (d.valor || 0), 0),
       qtdAVencer30: aVencer30.length, valorAVencer30: aVencer30.reduce((acc, d) => acc + (d.valor || 0), 0),
       qtdAVencer60: aVencer60.length, valorAVencer60: aVencer60.reduce((acc, d) => acc + (d.valor || 0), 0),
@@ -247,7 +304,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       {/* KPI Cards Row 1 */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-5">
         {[
-          { label: "Valor Total", value: formatFullCurrency(stats.valorTotal), sub: `${stats.totalRegistros.toLocaleString()} registros`, icon: Banknote, cls: "text-blue-600 bg-blue-500/5 border-blue-500/20" },
+          { label: "Valor Total", value: formatFullCurrency(stats.valorTotal), sub: `${stats.totalRegistros.toLocaleString()} registros`, icon: Banknote, cls: "text-primary bg-primary/5 border-primary/20" },
           { label: "Pago", value: formatCurrency(stats.valorPago), sub: `${stats.qtdPagos.toLocaleString()} registros`, icon: CheckCircle, cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
           { label: "A Pagar", value: formatCurrency(stats.valorAPagar), sub: `${stats.qtdAPagar.toLocaleString()} registros`, icon: Clock, cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
           { label: "Vencido", value: formatCurrency(stats.valorVencido), sub: `${stats.qtdVencidos.toLocaleString()} registros`, icon: AlertTriangle, cls: "text-red-600 bg-red-500/5 border-red-500/20" },
@@ -265,22 +322,33 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
         ))}
       </div>
 
-      {/* KPI Vencimentos */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-        {[
-          { label: "Vence em 7 dias", value: formatCurrency(stats.valorAVencer7), qtd: stats.qtdAVencer7, cls: "border-l-yellow-500" },
-          { label: "Vence em 30 dias", value: formatCurrency(stats.valorAVencer30), qtd: stats.qtdAVencer30, cls: "border-l-amber-500" },
-          { label: "Vence em 60 dias", value: formatCurrency(stats.valorAVencer60), qtd: stats.qtdAVencer60, cls: "border-l-orange-500" },
-          { label: "Vence em 90 dias", value: formatCurrency(stats.valorAVencer90), qtd: stats.qtdAVencer90, cls: "border-l-cyan-500" },
-        ].map(({ label, value, qtd, cls }) => (
-          <Card key={label} className={`rounded-2xl border-l-4 ${cls}`}>
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="text-base font-bold">{value}</p>
-              <p className="text-[10px] text-muted-foreground">{qtd} registro(s)</p>
-            </CardContent>
-          </Card>
-        ))}
+      {/* Taxa de Pagamento + Vencimentos Row */}
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-5">
+        {/* Taxa de pagamento card com radial */}
+        <Card className="rounded-2xl border-border/40 md:col-span-1">
+          <CardContent className="p-4 flex flex-col items-center justify-center gap-1 h-full">
+            <RadialProgress value={stats.taxaPagamento} label="Taxa Pgto" color="#22c55e" />
+            <p className="text-[10px] text-muted-foreground text-center mt-1">{stats.fornecedoresUnicos} fornecedor{stats.fornecedoresUnicos !== 1 ? "es" : ""}</p>
+          </CardContent>
+        </Card>
+
+        {/* Vencimentos */}
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-4 md:col-span-4">
+          {[
+            { label: "Vence em 7 dias", value: formatCurrency(stats.valorAVencer7), qtd: stats.qtdAVencer7, cls: "border-l-yellow-500" },
+            { label: "Vence em 30 dias", value: formatCurrency(stats.valorAVencer30), qtd: stats.qtdAVencer30, cls: "border-l-amber-500" },
+            { label: "Vence em 60 dias", value: formatCurrency(stats.valorAVencer60), qtd: stats.qtdAVencer60, cls: "border-l-orange-500" },
+            { label: "Vence em 90 dias", value: formatCurrency(stats.valorAVencer90), qtd: stats.qtdAVencer90, cls: "border-l-cyan-500" },
+          ].map(({ label, value, qtd, cls }) => (
+            <Card key={label} className={`rounded-2xl border-l-4 ${cls}`}>
+              <CardContent className="p-3">
+                <p className="text-xs text-muted-foreground">{label}</p>
+                <p className="text-base font-bold">{value}</p>
+                <p className="text-[10px] text-muted-foreground">{qtd} registro(s)</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
       {/* Evolução Temporal */}
@@ -317,11 +385,21 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
                 <div style={{ minWidth: evolucaoView === 'mes' ? Math.max(700, stats.timelineData.length * 70) + 'px' : Math.max(700, stats.timelineDiaData.length * 45) + 'px' }}>
                   <ResponsiveContainer width="100%" height={220}>
                     <AreaChart data={evolucaoView === 'mes' ? stats.timelineData : stats.timelineDiaData} margin={{ top: 16, right: 8, bottom: 4, left: 0 }}>
+                      <defs>
+                        <linearGradient id="mgfGradTotal" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="mgfGradPago" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
                       <XAxis dataKey={evolucaoView === 'mes' ? 'mesLabel' : 'diaLabel'} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
                       <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={formatCompactCurrency} width={52} />
                       <Tooltip contentStyle={ttStyle} formatter={(v: any, name: string) => [formatFullCurrency(Number(v)), name === 'pago' ? 'Pago' : 'Total']} />
-                      <Area type="monotone" dataKey="valor" stroke="#f97316" fill="#f97316" fillOpacity={0.15} strokeWidth={2} name="Valor Total" />
-                      <Area type="monotone" dataKey="pago" stroke="#22c55e" fill="#22c55e" fillOpacity={0.1} strokeWidth={2} name="Pago" />
+                      <Area type="monotone" dataKey="valor" stroke="#f97316" fill="url(#mgfGradTotal)" strokeWidth={2} name="Valor Total" dot={false} />
+                      <Area type="monotone" dataKey="pago" stroke="#22c55e" fill="url(#mgfGradPago)" strokeWidth={2} name="Pago" dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -332,7 +410,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
         </Card>
       )}
 
-      {/* Operação + SubOperação */}
+      {/* Operação (Donut) + SubOperação (Barras) */}
       <div className="grid gap-3 lg:grid-cols-2">
         {stats.operacaoData.length > 0 && (
           <Card className="rounded-2xl border-border/40">
@@ -340,7 +418,10 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
               <div className="flex items-center gap-2"><Package className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Operação</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.operacaoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
+              {stats.operacaoData.length <= 6
+                ? <MiniDonut data={stats.operacaoData} isCurrency />
+                : <BarWidget data={stats.operacaoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
+              }
             </CardContent>
           </Card>
         )}
@@ -356,13 +437,15 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
         )}
       </div>
 
-      {/* Situação + Forma Pagamento */}
+      {/* Situação Pagamento (Donut) + Forma de Pagamento (Donut) */}
       <div className="grid gap-3 lg:grid-cols-2">
         {stats.situacaoData.length > 0 && (
           <Card className="rounded-2xl border-border/40">
-            <CardHeader className="pb-1 pt-4 px-5"><CardTitle className="text-sm font-semibold">Por Situação de Pagamento</CardTitle></CardHeader>
+            <CardHeader className="pb-1 pt-4 px-5">
+              <div className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-emerald-500" /><CardTitle className="text-sm font-semibold">Por Situação de Pagamento</CardTitle></div>
+            </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.situacaoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
+              <MiniDonut data={stats.situacaoData} isCurrency />
             </CardContent>
           </Card>
         )}
@@ -372,13 +455,37 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
               <div className="flex items-center gap-2"><CreditCard className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Forma de Pagamento</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.formaPagamentoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
+              <MiniDonut data={stats.formaPagamentoData} isCurrency />
             </CardContent>
           </Card>
         )}
       </div>
 
-      {/* Fornecedor + Cooperativa + Regional */}
+      {/* Tipo Veículo (Donut) + Motivo Evento (Barras) */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        {stats.tipoVeiculoData.length > 0 && (
+          <Card className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5">
+              <div className="flex items-center gap-2"><Truck className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Tipo de Veículo</CardTitle></div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <MiniDonut data={stats.tipoVeiculoData} isCurrency />
+            </CardContent>
+          </Card>
+        )}
+        {stats.motivoEventoData.length > 0 && (
+          <Card className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5">
+              <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Motivo Evento</CardTitle></div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <BarWidget data={stats.motivoEventoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Fornecedor + Cooperativa + Regional - barras horizontais */}
       <div className="grid gap-3 lg:grid-cols-3">
         {stats.fornecedorData.length > 0 && (
           <Card className="rounded-2xl border-border/40">
@@ -412,18 +519,8 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
         )}
       </div>
 
-      {/* Tipo Veículo + Centro Custo + Motivo */}
-      <div className="grid gap-3 lg:grid-cols-3">
-        {stats.tipoVeiculoData.length > 0 && (
-          <Card className="rounded-2xl border-border/40">
-            <CardHeader className="pb-1 pt-4 px-5">
-              <div className="flex items-center gap-2"><Truck className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Tipo de Veículo</CardTitle></div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.tipoVeiculoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
-            </CardContent>
-          </Card>
-        )}
+      {/* Centro de Custo + Associado */}
+      <div className="grid gap-3 lg:grid-cols-2">
         {stats.centroCustoData.length > 0 && (
           <Card className="rounded-2xl border-border/40">
             <CardHeader className="pb-1 pt-4 px-5">
@@ -434,29 +531,17 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
             </CardContent>
           </Card>
         )}
-        {stats.motivoEventoData.length > 0 && (
+        {stats.associadoData.length > 0 && (
           <Card className="rounded-2xl border-border/40">
             <CardHeader className="pb-1 pt-4 px-5">
-              <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Motivo Evento</CardTitle></div>
+              <div className="flex items-center gap-2"><Users className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Top Associados</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.motivoEventoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
+              <BarWidget data={stats.associadoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} />
             </CardContent>
           </Card>
         )}
       </div>
-
-      {/* Associado */}
-      {stats.associadoData.length > 0 && (
-        <Card className="rounded-2xl border-border/40">
-          <CardHeader className="pb-1 pt-4 px-5">
-            <div className="flex items-center gap-2"><Users className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Top Associados</CardTitle></div>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <BarWidget data={stats.associadoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} />
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
