@@ -627,7 +627,7 @@ export default function CobrancaInsights() {
       <div className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
-            <TabsList className="inline-flex md:flex md:w-full max-w-xl mx-auto gap-1 p-1.5 bg-emerald-500/8 border border-emerald-500/20 rounded-xl min-w-max md:min-w-0 shadow-sm shadow-emerald-500/10">
+            <TabsList className="inline-flex md:flex md:w-full max-w-xl mx-auto gap-1 p-1.5 bg-transparent border border-emerald-500/30 rounded-xl min-w-max md:min-w-0 shadow-sm shadow-emerald-500/10">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
@@ -635,9 +635,10 @@ export default function CobrancaInsights() {
                     key={tab.id}
                     value={tab.id}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium
-                      text-muted-foreground transition-all
-                      data-[state=active]:bg-emerald-600 data-[state=active]:text-white
-                      data-[state=active]:shadow-md data-[state=active]:shadow-emerald-500/30 hover:text-emerald-700 hover:bg-emerald-500/10
+                      text-muted-foreground transition-all border border-transparent
+                      data-[state=active]:bg-transparent data-[state=active]:text-emerald-600
+                      data-[state=active]:border-emerald-500/60 data-[state=active]:shadow-sm data-[state=active]:shadow-emerald-500/20
+                      hover:text-emerald-600 hover:bg-emerald-500/5
                       whitespace-nowrap"
                   >
                     <Icon className="h-4 w-4" />

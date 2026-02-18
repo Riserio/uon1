@@ -127,14 +127,35 @@ export default function BIPageHeader({
 
           {/* Row 2: Module navigation - hide when admin view */}
           {currentModule !== 'admin' && (
-            <nav className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          <nav className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               {modules.map(mod => {
               const Icon = mod.icon;
               const isActive = currentModule === mod.id;
-              return <Button key={mod.id} variant="outline" size="sm" onClick={() => navigate(`${mod.path}${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)} className={`gap-2 shrink-0 transition-all duration-300 ${isActive ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground' : 'hover:bg-muted'}`}>
-                    <Icon className="h-4 w-4" />
-                    <span>{mod.label}</span>
-                  </Button>;
+
+              // Cor de borda por módulo
+              const moduleColors: Record<string, string> = {
+                indicadores: 'border-yellow-400/70 text-yellow-600 hover:bg-yellow-500/5 hover:border-yellow-400',
+                eventos: 'border-violet-500/60 text-violet-600 hover:bg-violet-500/5 hover:border-violet-500',
+                mgf: 'border-amber-500/60 text-amber-600 hover:bg-amber-500/5 hover:border-amber-500',
+                cobranca: 'border-emerald-500/60 text-emerald-600 hover:bg-emerald-500/5 hover:border-emerald-500',
+                'estudo-base': 'border-rose-500/60 text-rose-600 hover:bg-rose-500/5 hover:border-rose-500',
+                'acompanhamento-eventos': 'border-yellow-500/60 text-yellow-600 hover:bg-yellow-500/5 hover:border-yellow-500',
+              };
+
+              return <Button
+                key={mod.id}
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`${mod.path}${selectedAssociacao ? `?associacao=${selectedAssociacao}` : ''}`)}
+                className={`gap-2 shrink-0 transition-all duration-200 bg-transparent ${
+                  isActive
+                    ? 'bg-primary text-primary-foreground border-primary shadow-md hover:bg-primary/90 hover:text-primary-foreground'
+                    : `${moduleColors[mod.id] || 'border-border hover:bg-muted'}`
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span>{mod.label}</span>
+              </Button>;
             })}
             </nav>
           )}
