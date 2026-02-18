@@ -375,7 +375,7 @@ export default function EstudoBaseInsights() {
                     <table className="w-full text-xs border">
                       <thead>
                         <tr className="border-b bg-muted/50">
-                          {["Placa", "Tipo", "Montadora", "Modelo", "Categoria", "Ano", "Situação", "Valor Protegido", "Cooperativa", "Sexo", "Idade", "Data Contrato"].map((h) => (
+                          {["Placa", "Tipo", "Montadora", "Modelo", "Categoria", "Ano", "Situação", "Valor FIPE", "Cooperativa", "Cidade", "Estado", "Sexo", "Idade", "Data Contrato"].map((h) => (
                             <th key={h} className="text-left py-2 px-2 font-medium whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -391,11 +391,15 @@ export default function EstudoBaseInsights() {
                             <td className="py-1.5 px-2">{r.ano_modelo}</td>
                             <td className="py-1.5 px-2">{r.situacao_veiculo}</td>
                             <td className="py-1.5 px-2 whitespace-nowrap">
-                              {r.valor_protegido
+                              {r.valor_fipe
+                                ? `R$ ${Number(r.valor_fipe).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                                : r.valor_protegido
                                 ? `R$ ${Number(r.valor_protegido).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
                                 : "-"}
                             </td>
-                            <td className="py-1.5 px-2 max-w-[200px] truncate">{r.cooperativa}</td>
+                            <td className="py-1.5 px-2 max-w-[160px] truncate">{r.cooperativa}</td>
+                            <td className="py-1.5 px-2 max-w-[160px] truncate">{r.cidade_veiculo}</td>
+                            <td className="py-1.5 px-2">{r.estado}</td>
                             <td className="py-1.5 px-2">{r.sexo}</td>
                             <td className="py-1.5 px-2">{r.idade_associado}</td>
                             <td className="py-1.5 px-2">{r.data_contrato}</td>
