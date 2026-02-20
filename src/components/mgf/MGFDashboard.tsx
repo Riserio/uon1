@@ -3,13 +3,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, RadialBarChart, RadialBar, Legend,
 } from "recharts";
 import {
   TrendingUp, DollarSign, Calendar, Building2, MapPin, AlertTriangle,
   CheckCircle, Clock, Banknote, CreditCard, Truck, FileText, Users,
-  Package, BarChart3, ChevronLeft, ChevronRight,
+  Package, BarChart3, ChevronLeft, ChevronRight, Eye,
 } from "lucide-react";
 
 interface MGFDashboardProps {
@@ -36,10 +44,11 @@ const formatCompactCurrency = (value: number) => {
 const ttStyle = { borderRadius: 10, fontSize: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" };
 
 // Horizontal bar widget for higher-cardinality rankings
-function BarWidget({ data, isCurrency = false, maxItems = 10 }: {
-  data: { name: string; value: number; fill?: string }[];
+function BarWidget({ data, isCurrency = false, maxItems = 10, onItemClick }: {
+  data: { name: string; value: number; fill?: string; count?: number }[];
   isCurrency?: boolean;
   maxItems?: number;
+  onItemClick?: (name: string) => void;
 }) {
   if (!data.length) return <p className="text-xs text-muted-foreground text-center py-4">Sem dados</p>;
   const items = data.slice(0, maxItems);
@@ -50,8 +59,12 @@ function BarWidget({ data, isCurrency = false, maxItems = 10 }: {
         const pct = (item.value / maxVal) * 100;
         const color = item.fill ?? COLORS[i % COLORS.length];
         return (
-          <div key={item.name} className="flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground truncate w-28 shrink-0" title={item.name}>{item.name}</span>
+          <div
+            key={item.name}
+            className={`flex items-center gap-2 ${onItemClick ? 'cursor-pointer hover:bg-muted/50 rounded px-1 -mx-1 py-0.5' : ''}`}
+            onClick={() => onItemClick?.(item.name)}
+          >
+            <span className="text-[11px] text-muted-foreground truncate w-40 shrink-0" title={item.name}>{item.name}</span>
             <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
               <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: color }} />
             </div>
@@ -121,6 +134,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
   const [evolucaoView, setEvolucaoView] = useState<'mes' | 'dia'>('mes');
   const evolucaoScrollRef = useRef<HTMLDivElement>(null);
   const [showScroll, setShowScroll] = useState({ left: false, right: false });
+  const [drilldown, setDrilldown] = useState<{ title: string; field: string; value: string } | null>(null);
 
   const updateScrollIndicators = () => {
     const el = evolucaoScrollRef.current;
@@ -134,19 +148,25 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
   const stats = useMemo(() => {
     if (!dados.length) return null;
 
+    const isPago = (d: any) => {
+      const sit = d.situacao_pagamento?.toLowerCase() || '';
+      return sit.includes('pago') || sit.includes('paga') || !!d.data_pagamento;
+    };
+
     const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
     hoje.setHours(0, 0, 0, 0);
 
     const totalRegistros = dados.length;
     const valorTotal = dados.reduce((acc, d) => acc + (d.valor || 0), 0);
-    const pagos = dados.filter(d => d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento);
+    const pagos = dados.filter(d => isPago(d));
     const valorPago = pagos.reduce((acc, d) => acc + (d.valor_pagamento || d.valor || 0), 0);
     const qtdPagos = pagos.length;
-    const aPagar = dados.filter(d => !d.situacao_pagamento?.toLowerCase().includes('pago') && !d.data_pagamento);
+    const aPagar = dados.filter(d => !isPago(d));
     const valorAPagar = aPagar.reduce((acc, d) => acc + (d.valor || 0), 0);
     const qtdAPagar = aPagar.length;
     const vencidos = dados.filter(d => {
-      if (d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento) return false;
+      if (isPago(d)) return false;
       if (!d.data_vencimento) return false;
       return new Date(d.data_vencimento) < hoje;
     });
@@ -161,7 +181,9 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
     const filterAVencer = (fim: number) => {
       const f = new Date(hoje); f.setDate(f.getDate() + fim);
       return dados.filter(d => {
-        if (d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento) return false;
+        if (isPago(d)) return false;
+        const sit = d.situacao_pagamento?.toLowerCase() || '';
+        if (sit.includes('cancel')) return false;
         if (!d.data_vencimento) return false;
         const venc = new Date(d.data_vencimento);
         return venc >= hoje && venc <= f;
@@ -202,7 +224,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
           acc[key] = acc[key] || { count: 0, valor: 0, pago: 0 };
           acc[key].count += 1;
           acc[key].valor += d.valor || 0;
-          if (d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento) {
+          if (isPago(d)) {
             acc[key].pago += d.valor_pagamento || d.valor || 0;
           }
         }
@@ -224,7 +246,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
           acc[key] = acc[key] || { count: 0, valor: 0, pago: 0 };
           acc[key].count += 1;
           acc[key].valor += d.valor || 0;
-          if (d.situacao_pagamento?.toLowerCase().includes('pago') || d.data_pagamento) {
+          if (isPago(d)) {
             acc[key].pago += d.valor_pagamento || d.valor || 0;
           }
         }
@@ -254,7 +276,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
       tipoVeiculoData: buildRanking("tipo_veiculo"),
       centroCustoData: buildRanking("centro_custo"),
       motivoEventoData: buildRanking("motivo_evento"),
-      associadoData: buildCountRanking("associado"),
+      associadoData: buildRanking("associado"),
       timelineData, timelineDiaData,
     };
   }, [dados]);
@@ -479,7 +501,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
               <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Regional</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.regionalData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
+              <BarWidget data={stats.regionalData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Regional: ${name}`, field: 'regional', value: name })} />
             </CardContent>
           </Card>
         )}
@@ -489,7 +511,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
               <div className="flex items-center gap-2"><Building2 className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Fornecedor</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.fornecedorData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
+              <BarWidget data={stats.fornecedorData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Fornecedor: ${name}`, field: 'fornecedor', value: name })} />
             </CardContent>
           </Card>
         )}
@@ -503,7 +525,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
               <div className="flex items-center gap-2"><Users className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Cooperativa</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.cooperativaData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
+              <BarWidget data={stats.cooperativaData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Cooperativa: ${name}`, field: 'cooperativa', value: name })} />
             </CardContent>
           </Card>
         )}
@@ -513,7 +535,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
               <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Motivo Evento</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.motivoEventoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
+              <BarWidget data={stats.motivoEventoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Motivo: ${name}`, field: 'motivo_evento', value: name })} />
             </CardContent>
           </Card>
         )}
@@ -523,7 +545,7 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
               <div className="flex items-center gap-2"><BarChart3 className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Por Centro de Custo</CardTitle></div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <BarWidget data={stats.centroCustoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency />
+              <BarWidget data={stats.centroCustoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Centro de Custo: ${name}`, field: 'centro_custo', value: name })} />
             </CardContent>
           </Card>
         )}
@@ -536,11 +558,75 @@ export default function MGFDashboard({ dados, colunas, loading, associacaoNome }
             <div className="flex items-center gap-2"><Users className="h-4 w-4 text-amber-500" /><CardTitle className="text-sm font-semibold">Top Associados</CardTitle></div>
           </CardHeader>
           <CardContent className="px-4 pb-4">
-            <BarWidget data={stats.associadoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} />
+            <BarWidget data={stats.associadoData.map((d, i) => ({ ...d, fill: COLORS[i % COLORS.length] }))} isCurrency onItemClick={(name) => setDrilldown({ title: `Associado: ${name}`, field: 'associado', value: name })} />
           </CardContent>
         </Card>
       )}
+      {/* Drilldown Dialog */}
+      <DrilldownDialog
+        open={!!drilldown}
+        onClose={() => setDrilldown(null)}
+        title={drilldown?.title || ''}
+        dados={drilldown ? dados.filter(d => d[drilldown.field] === drilldown.value) : []}
+      />
     </div>
   );
 }
 
+function DrilldownDialog({ open, onClose, title, dados }: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  dados: any[];
+}) {
+  const totalValor = dados.reduce((acc, d) => acc + (d.valor || 0), 0);
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[85vh]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Eye className="h-5 w-5" />
+            {title}
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            {dados.length} registro(s) — Total: {formatFullCurrency(totalValor)}
+          </p>
+        </DialogHeader>
+        <ScrollArea className="max-h-[60vh]">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">Descrição</TableHead>
+                <TableHead className="text-xs">Operação</TableHead>
+                <TableHead className="text-xs">Fornecedor</TableHead>
+                <TableHead className="text-xs text-right">Valor</TableHead>
+                <TableHead className="text-xs">Vencimento</TableHead>
+                <TableHead className="text-xs">Situação</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {dados.slice(0, 200).map((d, i) => (
+                <TableRow key={i}>
+                  <TableCell className="text-xs max-w-[200px] truncate" title={d.descricao}>{d.descricao || '-'}</TableCell>
+                  <TableCell className="text-xs">{d.operacao || '-'}</TableCell>
+                  <TableCell className="text-xs max-w-[150px] truncate" title={d.fornecedor}>{d.fornecedor || '-'}</TableCell>
+                  <TableCell className="text-xs text-right font-medium">
+                    {d.valor != null ? formatFullCurrency(d.valor) : '-'}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {d.data_vencimento ? new Date(d.data_vencimento).toLocaleDateString('pt-BR') : '-'}
+                  </TableCell>
+                  <TableCell className="text-xs">{d.situacao_pagamento || '-'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {dados.length > 200 && (
+            <p className="text-xs text-muted-foreground text-center py-2">Exibindo 200 de {dados.length} registros</p>
+          )}
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}

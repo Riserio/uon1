@@ -143,7 +143,7 @@ serve(async (req) => {
       })
       .eq('id', config.id);
 
-    // Log in history
+    // Log in history with meta_message_id
     const authHeader = req.headers.get('Authorization');
     let userId: string | null = null;
     if (authHeader) {
@@ -151,6 +151,8 @@ serve(async (req) => {
       const { data: { user } } = await supabase.auth.getUser(token);
       userId = user?.id || null;
     }
+
+    const metaMessageId = metaData.messages?.[0]?.id || null;
 
     await supabase
       .from('whatsapp_historico')
@@ -160,6 +162,8 @@ serve(async (req) => {
         mensagem: messageContent,
         tipo,
         status: 'enviado',
+        status_entrega: 'enviado',
+        meta_message_id: metaMessageId,
         enviado_em: new Date().toISOString(),
         enviado_por: userId,
       });

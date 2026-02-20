@@ -5824,12 +5824,16 @@ export type Database = {
         Row: {
           corretora_id: string | null
           created_at: string | null
+          entregue_em: string | null
           enviado_em: string | null
           enviado_por: string | null
           erro_mensagem: string | null
           id: string
+          lido_em: string | null
           mensagem: string
+          meta_message_id: string | null
           status: string | null
+          status_entrega: string | null
           telefone_destino: string
           template_id: string | null
           tipo: string
@@ -5837,12 +5841,16 @@ export type Database = {
         Insert: {
           corretora_id?: string | null
           created_at?: string | null
+          entregue_em?: string | null
           enviado_em?: string | null
           enviado_por?: string | null
           erro_mensagem?: string | null
           id?: string
+          lido_em?: string | null
           mensagem: string
+          meta_message_id?: string | null
           status?: string | null
+          status_entrega?: string | null
           telefone_destino: string
           template_id?: string | null
           tipo: string
@@ -5850,12 +5858,16 @@ export type Database = {
         Update: {
           corretora_id?: string | null
           created_at?: string | null
+          entregue_em?: string | null
           enviado_em?: string | null
           enviado_por?: string | null
           erro_mensagem?: string | null
           id?: string
+          lido_em?: string | null
           mensagem?: string
+          meta_message_id?: string | null
           status?: string | null
+          status_entrega?: string | null
           telefone_destino?: string
           template_id?: string | null
           tipo?: string

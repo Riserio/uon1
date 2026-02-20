@@ -20,6 +20,10 @@ interface HistoricoItem {
   mensagem: string;
   tipo: string;
   status: string;
+  status_entrega: string | null;
+  meta_message_id: string | null;
+  entregue_em: string | null;
+  lido_em: string | null;
   enviado_em: string | null;
   created_at: string;
   corretoras?: { nome: string } | null;
@@ -65,8 +69,23 @@ export function WhatsAppHistorico() {
     setLoading(false);
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
+  const getStatusBadge = (status: string, statusEntrega?: string | null) => {
+    const effectiveStatus = statusEntrega || status;
+    switch (effectiveStatus) {
+      case 'lido':
+        return (
+          <Badge className="bg-blue-100 text-blue-800 flex items-center gap-1">
+            <CheckCircle2 className="h-3 w-3" />
+            Lido
+          </Badge>
+        );
+      case 'entregue':
+        return (
+          <Badge className="bg-emerald-100 text-emerald-800 flex items-center gap-1">
+            <CheckCircle2 className="h-3 w-3" />
+            Entregue
+          </Badge>
+        );
       case 'enviado':
         return (
           <Badge className="bg-green-100 text-green-800 flex items-center gap-1">
@@ -89,7 +108,7 @@ export function WhatsAppHistorico() {
           </Badge>
         );
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary">{effectiveStatus}</Badge>;
     }
   };
 
@@ -146,7 +165,7 @@ export function WhatsAppHistorico() {
                           {item.corretoras?.nome || 'Associação não encontrada'}
                         </span>
                         {getTipoBadge(item.tipo)}
-                        {getStatusBadge(item.status)}
+                        {getStatusBadge(item.status, item.status_entrega)}
                       </div>
                       <div className="text-sm text-muted-foreground space-y-1">
                         <p className="flex items-center gap-1">
@@ -186,7 +205,7 @@ export function WhatsAppHistorico() {
             <div className="space-y-4">
               <div className="flex gap-2 flex-wrap">
                 {getTipoBadge(selectedMessage.tipo)}
-                {getStatusBadge(selectedMessage.status)}
+                {getStatusBadge(selectedMessage.status, selectedMessage.status_entrega)}
               </div>
               <div className="grid gap-2 text-sm">
                 <div>

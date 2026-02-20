@@ -74,3 +74,6 @@ verify_jwt = true
 
 [functions.gerar-resumo-eventos]
 verify_jwt = true
+
+[functions.webhook-whatsapp-meta]
+verify_jwt = false
