@@ -196,27 +196,34 @@ export function WhatsAppEnvioManual() {
 
     setLoading(true);
     try {
-      // Log the message
       const { data: { user } } = await supabase.auth.getUser();
       
-      await supabase.from('whatsapp_historico').insert({
-        corretora_id: selectedCorretora,
-        template_id: selectedTemplate || null,
-        telefone_destino: config.telefone_whatsapp,
-        mensagem,
-        tipo: templates.find(t => t.id === selectedTemplate)?.tipo || 'manual',
-        status: 'enviado',
-        enviado_em: new Date().toISOString(),
-        enviado_por: user?.id,
-      });
+      // Split multiple numbers
+      const phoneNumbers = config.telefone_whatsapp
+        .split(',')
+        .map((p: string) => p.trim())
+        .filter((p: string) => p.length > 0);
 
-      // Open WhatsApp
-      openWhatsApp({
-        phone: config.telefone_whatsapp,
-        message: mensagem,
-      });
+      for (const phone of phoneNumbers) {
+        await supabase.from('whatsapp_historico').insert({
+          corretora_id: selectedCorretora,
+          template_id: selectedTemplate || null,
+          telefone_destino: phone,
+          mensagem,
+          tipo: templates.find(t => t.id === selectedTemplate)?.tipo || 'manual',
+          status: 'enviado',
+          enviado_em: new Date().toISOString(),
+          enviado_por: user?.id,
+        });
 
-      toast.success('WhatsApp aberto! Envie a mensagem manualmente.');
+        openWhatsApp({ phone, message: mensagem });
+      }
+
+      toast.success(
+        phoneNumbers.length > 1
+          ? `WhatsApp aberto para ${phoneNumbers.length} números! Envie cada mensagem manualmente.`
+          : 'WhatsApp aberto! Envie a mensagem manualmente.'
+      );
     } catch (error: unknown) {
       console.error('Error sending:', error);
       toast.error('Erro ao enviar: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
