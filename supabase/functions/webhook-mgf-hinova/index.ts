@@ -629,8 +629,64 @@ serve(async (req) => {
         if (waConfig?.envio_automatico_mgf) {
           console.log("[Webhook MGF] Envio automático de WhatsApp ativado, disparando...");
           
-          // For MGF, generate a simple summary since there's no dedicated summary function yet
-          const messageContent = `📊 *Relatório MGF Atualizado*\n\n✅ Importação concluída com sucesso\n📁 Arquivo: ${nome_arquivo || "Automação"}\n📋 Registros: ${records.length}\n📅 Data: ${new Date().toLocaleDateString("pt-BR")}\n\n_Relatório gerado automaticamente._`;
+          // Buscar nome da associação/corretora
+          const { data: corretoraData } = await supabase
+            .from("corretoras")
+            .select("nome")
+            .eq("id", corretora_id)
+            .single();
+          const nomeAssociacao = corretoraData?.nome || "Associação";
+
+          // Buscar template do banco de dados
+          const { data: templateData } = await supabase
+            .from("whatsapp_templates")
+            .select("mensagem")
+            .eq("tipo", "mgf")
+            .eq("ativo", true)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          // Calcular dados do resumo MGF a partir dos registros importados
+          const now = new Date();
+          const mesRef = now.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+          const totalLancamentos = records.length;
+          
+          // Somar valores
+          let valorTotal = 0;
+          const categoriaContagem: Record<string, number> = {};
+          for (const rec of records) {
+            const val = typeof rec.valor === "number" ? rec.valor : (typeof rec.valor_total_lancamento === "number" ? rec.valor_total_lancamento : 0);
+            valorTotal += val;
+            const cat = (rec.centro_custo as string) || (rec.operacao as string) || "Outros";
+            categoriaContagem[cat] = (categoriaContagem[cat] || 0) + 1;
+          }
+
+          // Formatar lançamentos por categoria
+          const lancamentosPorCategoria = Object.entries(categoriaContagem)
+            .sort((a, b) => b[1] - a[1])
+            .map(([cat, qtd]) => `• ${cat}: *${qtd}*`)
+            .join("\n");
+
+          const valorTotalFormatado = valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+          let messageContent: string;
+          
+          if (templateData?.mensagem) {
+            // Usar template do banco substituindo as tags
+            messageContent = templateData.mensagem
+              .replace(/\{nome_associacao\}/g, nomeAssociacao)
+              .replace(/\{mes_referencia\}/g, mesRef)
+              .replace(/\{total_lancamentos\}/g, String(totalLancamentos))
+              .replace(/\{valor_total\}/g, valorTotalFormatado)
+              .replace(/\{lancamentos_por_categoria\}/g, lancamentosPorCategoria)
+              .replace(/\{data_atual\}/g, now.toLocaleDateString("pt-BR"));
+            console.log("[Webhook MGF] Usando template do banco de dados");
+          } else {
+            // Fallback caso não tenha template cadastrado
+            messageContent = `*Resumo VANGARD da sua operação - ${nomeAssociacao}*\n\nO BI de indicadores de resultados da sua associação foi atualizado.\n\nSeguem abaixo informações importantes para sua gestão:\n\n📊 *RESUMO MGF*\n📅 *${mesRef}*\n\n💰 Total lançamentos: *${totalLancamentos}*\n💵 Valor total: *R$ ${valorTotalFormatado}*\n\n📊 *Por categoria:*\n${lancamentosPorCategoria}`;
+            console.log("[Webhook MGF] Nenhum template encontrado, usando fallback");
+          }
 
           const phoneNumbers = (waConfig.telefone_whatsapp || "").split(",").map((p: string) => p.trim()).filter(Boolean);
 
