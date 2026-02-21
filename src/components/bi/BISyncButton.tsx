@@ -707,9 +707,9 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         <div className="flex-1 overflow-y-auto min-h-0">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
           <TabsList className="w-full rounded-none border-b bg-transparent h-10 sticky top-0 z-10 bg-background">
-            <TabsTrigger value="sync" className="text-xs flex-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Módulos</TabsTrigger>
-            <TabsTrigger value="config" className="text-xs flex-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Credenciais</TabsTrigger>
-            <TabsTrigger value="historico" className="text-xs flex-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Histórico</TabsTrigger>
+            <TabsTrigger value="sync" className="text-xs flex-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none">Módulos</TabsTrigger>
+            <TabsTrigger value="config" className="text-xs flex-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none">Credenciais</TabsTrigger>
+            <TabsTrigger value="historico" className="text-xs flex-1 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none">Histórico</TabsTrigger>
           </TabsList>
 
           <TabsContent value="sync" className="m-0 p-4 space-y-2.5">
