@@ -56,21 +56,23 @@ function BILayoutInner() {
 
   return (
     <div className="min-h-screen bg-background">
-      <BIPageHeader
-        title={info.title}
-        subtitle={info.subtitle}
-        associacoes={associacoes}
-        selectedAssociacao={selectedAssociacao}
-        onAssociacaoChange={setSelectedAssociacao}
-        loadingAssociacoes={loadingAssociacoes}
-        currentModule={currentModule}
-        showHistorico={canViewHistorico && !isAdminView}
-        onHistoricoClick={() => setHistoricoDialogOpen(true)}
-        showAdminOption={canViewAdmin}
-        recordCount={headerDynamic.recordCount}
-        hasActiveFilters={headerDynamic.hasActiveFilters}
-        fileName={headerDynamic.fileName}
-      />
+      <div className="container mx-auto px-4 sm:px-6">
+        <BIPageHeader
+          title={info.title}
+          subtitle={info.subtitle}
+          associacoes={associacoes}
+          selectedAssociacao={selectedAssociacao}
+          onAssociacaoChange={setSelectedAssociacao}
+          loadingAssociacoes={loadingAssociacoes}
+          currentModule={currentModule}
+          showHistorico={canViewHistorico && !isAdminView}
+          onHistoricoClick={() => setHistoricoDialogOpen(true)}
+          showAdminOption={canViewAdmin}
+          recordCount={headerDynamic.recordCount}
+          hasActiveFilters={headerDynamic.hasActiveFilters}
+          fileName={headerDynamic.fileName}
+        />
+      </div>
 
       <Outlet />
 
