@@ -324,6 +324,12 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
   }, [open, corretoraId, loadActiveExecutions]);
 
 
+  // Auto-generate layout name with association name
+  const generateLayoutName = (moduleSuffix: string) => {
+    const nome = corretoraNome || "";
+    return nome ? `Resumo VANGARD da sua operação - ${nome}` : `BI VANGARD ${moduleSuffix}`;
+  };
+
   const handleSave = async () => {
     if (!creds.hinova_url || !creds.hinova_user || !creds.hinova_pass) {
       toast.error("URL, usuário e senha são obrigatórios");
@@ -331,15 +337,20 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     }
     setSaving(true);
     try {
+      // Auto-populate layout names with association name if empty
+      const layoutCobranca = creds.layout_cobranca || generateLayoutName("COBRANÇA");
+      const layoutEventos = creds.layout_eventos || generateLayoutName("EVENTOS");
+      const layoutMgf = creds.layout_mgf || generateLayoutName("FINANCEIROS EVENTOS");
+
       const dataToSave = {
         corretora_id: corretoraId,
         hinova_url: creds.hinova_url,
         hinova_user: creds.hinova_user,
         hinova_pass: creds.hinova_pass,
         hinova_codigo_cliente: creds.hinova_codigo_cliente,
-        layout_cobranca: creds.layout_cobranca,
-        layout_eventos: creds.layout_eventos,
-        layout_mgf: creds.layout_mgf,
+        layout_cobranca: layoutCobranca,
+        layout_eventos: layoutEventos,
+        layout_mgf: layoutMgf,
         url_cobranca: creds.url_cobranca,
         url_eventos: creds.url_eventos,
         url_mgf: creds.url_mgf,
@@ -358,6 +369,14 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         if (error) throw error;
         setCreds(prev => ({ ...prev, id: data.id }));
       }
+
+      // Update local state with generated names
+      setCreds(prev => ({
+        ...prev,
+        layout_cobranca: layoutCobranca,
+        layout_eventos: layoutEventos,
+        layout_mgf: layoutMgf,
+      }));
 
       // Sync to individual config tables
       await syncToConfigTables();
