@@ -614,6 +614,105 @@ serve(async (req) => {
         
         console.log("[MGF Webhook] Execuções com erro/parado anteriores removidas");
       }
+
+      // ============================================
+      // Auto-send WhatsApp report after successful import
+      // ============================================
+      try {
+        const { data: waConfig } = await supabase
+          .from("whatsapp_config")
+          .select("*")
+          .eq("corretora_id", corretora_id)
+          .eq("ativo", true)
+          .maybeSingle();
+
+        if (waConfig?.envio_automatico_mgf) {
+          console.log("[Webhook MGF] Envio automático de WhatsApp ativado, disparando...");
+          
+          // For MGF, generate a simple summary since there's no dedicated summary function yet
+          const messageContent = `📊 *Relatório MGF Atualizado*\n\n✅ Importação concluída com sucesso\n📁 Arquivo: ${nome_arquivo || "Automação"}\n📋 Registros: ${records.length}\n📅 Data: ${new Date().toLocaleDateString("pt-BR")}\n\n_Relatório gerado automaticamente._`;
+
+          const phoneNumbers = (waConfig.telefone_whatsapp || "").split(",").map((p: string) => p.trim()).filter(Boolean);
+
+          const metaToken = Deno.env.get("META_WHATSAPP_TOKEN");
+          const metaPhoneNumberId = Deno.env.get("META_WHATSAPP_PHONE_NUMBER_ID");
+
+          if (metaToken && metaPhoneNumberId && phoneNumbers.length > 0) {
+            for (const phone of phoneNumbers) {
+              const cleanPhone = phone.replace(/\D/g, "");
+              const formattedPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
+
+              try {
+                const metaResponse = await fetch(
+                  `https://graph.facebook.com/v22.0/${metaPhoneNumberId}/messages`,
+                  {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Bearer ${metaToken}`,
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                      messaging_product: "whatsapp",
+                      to: formattedPhone,
+                      type: "text",
+                      text: { preview_url: false, body: messageContent },
+                    }),
+                  }
+                );
+
+                const metaData = await metaResponse.json();
+                const metaMessageId = metaData?.messages?.[0]?.id || null;
+
+                await supabase.from("whatsapp_historico").insert({
+                  corretora_id,
+                  telefone_destino: formattedPhone,
+                  mensagem: messageContent,
+                  tipo: "mgf",
+                  status: metaResponse.ok ? "enviado" : "erro",
+                  status_entrega: metaResponse.ok ? "enviado" : "erro",
+                  meta_message_id: metaMessageId,
+                  enviado_em: new Date().toISOString(),
+                  enviado_por: null,
+                });
+
+                const { data: waContact } = await supabase
+                  .from("whatsapp_contacts")
+                  .select("id")
+                  .eq("phone", formattedPhone)
+                  .maybeSingle();
+
+                if (waContact) {
+                  await supabase.from("whatsapp_messages").insert({
+                    contact_id: waContact.id,
+                    direction: "out",
+                    body: messageContent,
+                    type: "text",
+                    status: metaResponse.ok ? "sent" : "failed",
+                    meta_message_id: metaMessageId,
+                    sent_by: null,
+                  });
+
+                  await supabase.from("whatsapp_contacts").update({
+                    last_message_at: new Date().toISOString(),
+                    last_message_preview: messageContent.substring(0, 100),
+                  }).eq("id", waContact.id);
+                }
+
+                console.log(`[Webhook MGF] WhatsApp enviado para ${formattedPhone}: ${metaResponse.ok ? "sucesso" : "erro"}`);
+              } catch (sendErr) {
+                console.error(`[Webhook MGF] Erro ao enviar WhatsApp para ${formattedPhone}:`, sendErr);
+              }
+            }
+
+            await supabase.from("whatsapp_config").update({
+              ultimo_envio_automatico: new Date().toISOString(),
+              ultimo_erro_envio: null,
+            }).eq("id", waConfig.id);
+          }
+        }
+      } catch (waError) {
+        console.error("[Webhook MGF] Erro no envio automático WhatsApp:", waError);
+      }
     }
 
     console.log(`MGF Webhook: ${records.length} registros importados`);

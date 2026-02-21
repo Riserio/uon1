@@ -111,14 +111,26 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
       .eq('id', selectedContact.id)
       .then();
 
-    // Realtime messages
+    // Realtime messages — incremental updates to avoid flickering
     const msgChannel = supabase
       .channel(`wa-messages-${selectedContact.id}`)
       .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'whatsapp_messages',
+        event: 'INSERT', schema: 'public', table: 'whatsapp_messages',
         filter: `contact_id=eq.${selectedContact.id}`,
-      }, () => {
-        loadMessages(selectedContact.id);
+      }, (payload) => {
+        const newMsg = payload.new as Message;
+        setMessages(prev => {
+          // Avoid duplicates
+          if (prev.some(m => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'whatsapp_messages',
+        filter: `contact_id=eq.${selectedContact.id}`,
+      }, (payload) => {
+        const updated = payload.new as Message;
+        setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
       })
       .subscribe();
 
