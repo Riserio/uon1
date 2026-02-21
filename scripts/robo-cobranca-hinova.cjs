@@ -534,6 +534,26 @@ function setStep(step) {
   log(`Iniciando etapa: ${step}`);
 }
 
+// Notificar progresso da etapa via webhook (para atualizar UI em tempo real)
+async function notificarProgresso(dados) {
+  if (!CONFIG.WEBHOOK_URL || !CONFIG.CORRETORA_ID) return;
+  
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (CONFIG.WEBHOOK_SECRET) headers['x-webhook-secret'] = CONFIG.WEBHOOK_SECRET;
+    
+    await axios.post(CONFIG.WEBHOOK_URL, {
+      update_progress: true,
+      corretora_id: CONFIG.CORRETORA_ID,
+      execucao_id: CONFIG.EXECUCAO_ID || null,
+      github_run_id: CONFIG.GITHUB_RUN_ID || null,
+      ...dados,
+    }, { headers, timeout: 15000 });
+  } catch (e) {
+    // Silenciar erros de progresso para não atrapalhar o fluxo
+  }
+}
+
 // ============================================
 // GESTÃO DE DIRETÓRIOS
 // ============================================
@@ -2923,6 +2943,7 @@ async function rodarRobo() {
     // ETAPA: LOGIN
     // ============================================
     setStep('LOGIN');
+    await notificarProgresso({ etapa_atual: 'LOGIN' });
     
     let navegacaoOk = false;
     for (let tentativa = 1; tentativa <= 3 && !navegacaoOk; tentativa++) {
@@ -3133,6 +3154,7 @@ async function rodarRobo() {
     // ETAPA: NAVEGAÇÃO PARA RELATÓRIO
     // ============================================
     setStep('NAVEGACAO_RELATORIO');
+    await notificarProgresso({ etapa_atual: 'NAVEGACAO_RELATORIO' });
     
     log('Navegando para Relatório de Boletos...');
     await fecharPopups(page);
@@ -3159,6 +3181,7 @@ async function rodarRobo() {
     // ETAPA: PREENCHIMENTO DE FILTROS
     // ============================================
     setStep('FILTROS');
+    await notificarProgresso({ etapa_atual: 'FILTROS' });
     
     log(`Preenchendo Data Vencimento Original: ${inicio} até ${fim}`);
     
@@ -4425,6 +4448,7 @@ async function rodarRobo() {
     // 4. Etapa DOWNLOAD finaliza imediatamente após salvar
     // ============================================
     setStep('DOWNLOAD');
+    await notificarProgresso({ etapa_atual: 'DOWNLOAD' });
     
     // AUMENTAR timeout apenas durante download (55 minutos)
     log('Aumentando timeout para aguardar download longo...', LOG_LEVELS.DEBUG);
@@ -4778,6 +4802,7 @@ async function rodarRobo() {
     // ============================================
     // ETAPA: ENVIO PARA WEBHOOK
     // ============================================
+    await notificarProgresso({ etapa_atual: 'ENVIANDO' });
     const sucesso = await enviarWebhook(dados, nomeArquivoFinal);
     
     // ============================================

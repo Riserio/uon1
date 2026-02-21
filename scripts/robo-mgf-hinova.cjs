@@ -1147,7 +1147,7 @@ class DownloadController {
       if (Date.now() - lastWebhookUpdate >= WEBHOOK_INTERVAL) {
         lastWebhookUpdate = Date.now();
         notificarProgresso({
-          etapa_atual: 'aguardando_geracao',
+          etapa_atual: 'DOWNLOAD',
           progresso_download: progressPct,
           mensagem: `Servidor gerando relatório... ${minutos}m ${segundos}s`,
         }).catch(() => {});
@@ -2200,7 +2200,7 @@ async function enviarWebhook(dados, nomeArquivo) {
   setStep('IMPORTACAO');
   
   await notificarProgresso({
-    etapa_atual: 'importacao',
+    etapa_atual: 'ENVIANDO',
     mensagem: `Enviando ${dados.length.toLocaleString()} registros para o servidor...`,
   });
 
@@ -2383,6 +2383,7 @@ async function rodarRobo() {
     // ETAPA: LOGIN (IDÊNTICO À COBRANÇA)
     // ============================================
     setStep('LOGIN');
+    await notificarProgresso({ etapa_atual: 'LOGIN' });
     
     let navegacaoOk = false;
     for (let tentativa = 1; tentativa <= 3 && !navegacaoOk; tentativa++) {
@@ -2584,6 +2585,7 @@ async function rodarRobo() {
     // ETAPA: NAVEGAÇÃO PARA RELATÓRIO MGF
     // ============================================
     setStep('NAVEGACAO_RELATORIO');
+    await notificarProgresso({ etapa_atual: 'NAVEGACAO_RELATORIO' });
     
     log('Navegando para Relatório de Lançamentos MGF...');
     await fecharPopups(page);
@@ -2638,6 +2640,7 @@ async function rodarRobo() {
     // MGF: NÃO PREENCHE PERÍODO - deixar em branco
     // ============================================
     setStep('FILTROS');
+    await notificarProgresso({ etapa_atual: 'FILTROS' });
     
     log('MGF: Período NÃO será preenchido (configuração padrão do portal)', LOG_LEVELS.INFO);
     
@@ -3114,7 +3117,7 @@ async function rodarRobo() {
     
     // Notificar que estamos iniciando o download (relatório grande ~255MB, leva ~35min)
     await notificarProgresso({
-      etapa_atual: 'aguardando_geracao',
+      etapa_atual: 'DOWNLOAD',
       progresso_download: 0,
       mensagem: 'Clicando em Gerar Relatório... O servidor pode levar até 40 minutos para gerar o arquivo.',
     });
@@ -3234,7 +3237,7 @@ async function rodarRobo() {
         log('Processando arquivo...', LOG_LEVELS.INFO);
         
         await notificarProgresso({
-          etapa_atual: 'processamento',
+          etapa_atual: 'PROCESSANDO',
           progresso_download: 100,
           mensagem: `Download concluído (${(result.size / 1024 / 1024).toFixed(1)} MB). Processando dados...`,
         });
