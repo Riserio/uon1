@@ -6185,6 +6185,30 @@ export type Database = {
           },
         ]
       }
+      whatsapp_notificacao_global: {
+        Row: {
+          created_at: string | null
+          id: string
+          notificar_ativo: boolean | null
+          notificar_numero: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          notificar_ativo?: boolean | null
+          notificar_numero?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          notificar_ativo?: boolean | null
+          notificar_numero?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_queue: {
         Row: {
           agendado_para: string | null

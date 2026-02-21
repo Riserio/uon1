@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { WhatsAppConfig } from '@/components/whatsapp/WhatsAppConfig';
+import { WhatsAppNotificacaoGlobal } from '@/components/whatsapp/WhatsAppNotificacaoGlobal';
 import { WhatsAppTemplates } from '@/components/whatsapp/WhatsAppTemplates';
 import { WhatsAppEnvioManual } from '@/components/whatsapp/WhatsAppEnvioManual';
 import { WhatsAppHistorico } from '@/components/whatsapp/WhatsAppHistorico';
@@ -519,7 +520,10 @@ export default function Emails() {
               </TabsList>
 
               <TabsContent value="config">
-                <WhatsAppConfig />
+                <div className="space-y-6">
+                  <WhatsAppNotificacaoGlobal />
+                  <WhatsAppConfig />
+                </div>
               </TabsContent>
               <TabsContent value="templates">
                 <WhatsAppTemplates />

@@ -149,10 +149,10 @@ serve(async (req) => {
           continue;
         }
 
-        // ---- NOTIFY EXTERNAL NUMBER ----
+        // ---- NOTIFY EXTERNAL NUMBER (global, not per-corretora) ----
         try {
           const { data: notifConfigs } = await supabase
-            .from('whatsapp_config')
+            .from('whatsapp_notificacao_global')
             .select('notificar_numero, notificar_ativo')
             .eq('notificar_ativo', true);
 
