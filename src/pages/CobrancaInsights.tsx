@@ -89,8 +89,9 @@ export default function CobrancaInsights() {
     
     if (filters.mesReferencia) {
       result = result.filter(b => {
-        if (!b.data_vencimento_original) return false;
-        const mes = b.data_vencimento_original.substring(0, 7);
+        const dataRef = b.data_vencimento_original || b.data_vencimento;
+        if (!dataRef) return false;
+        const mes = String(dataRef).substring(0, 7);
         return mes === filters.mesReferencia;
       });
     }
