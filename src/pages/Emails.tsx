@@ -18,7 +18,6 @@ import { Progress } from '@/components/ui/progress';
 import { WhatsAppConfig } from '@/components/whatsapp/WhatsAppConfig';
 import { WhatsAppTemplates } from '@/components/whatsapp/WhatsAppTemplates';
 import { WhatsAppEnvioManual } from '@/components/whatsapp/WhatsAppEnvioManual';
-import { WhatsAppHistorico } from '@/components/whatsapp/WhatsAppHistorico';
 
 interface ResendConfig {
   from_email: string;
@@ -456,71 +455,118 @@ export default function Emails() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Headset className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">Central de Atendimento</h1>
-              <p className="text-sm text-muted-foreground">
-                E-mails, WhatsApp, central de mensagens e automações
-              </p>
-            </div>
+      <div className="container mx-auto p-6 md:p-8 space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg">
+            <Headset className="h-6 w-6 text-primary-foreground" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Central de Atendimento</h1>
+            <p className="text-sm text-muted-foreground">
+              Gerencie conversas, automações e comunicações
+            </p>
           </div>
         </div>
 
-        <Tabs defaultValue="email" className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4 h-12">
-            <TabsTrigger value="email" className="gap-2 h-10 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Mail className="h-5 w-5" />
-              E-mail
-            </TabsTrigger>
-            <TabsTrigger value="whatsapp" className="gap-2 h-10 text-base data-[state=active]:bg-green-600 data-[state=active]:text-white">
-              <MessageCircle className="h-5 w-5" />
-              WhatsApp
-            </TabsTrigger>
-            <TabsTrigger value="central" className="gap-2 h-10 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Headset className="h-5 w-5" />
+        {/* Top-level tabs — modern pill style */}
+        <Tabs defaultValue="central" className="space-y-6">
+          <div className="inline-flex items-center rounded-2xl bg-muted/60 backdrop-blur-sm p-1.5 border shadow-sm">
+            <TabsTrigger
+              value="central"
+              className="rounded-xl px-5 py-2.5 text-sm font-medium transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md gap-2"
+            >
+              <Headset className="h-4 w-4" />
               Central
             </TabsTrigger>
-            <TabsTrigger value="automacoes" className="gap-2 h-10 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Bot className="h-5 w-5" />
-              Automações
+            <TabsTrigger
+              value="whatsapp"
+              className="rounded-xl px-5 py-2.5 text-sm font-medium transition-all data-[state=active]:bg-green-600 data-[state=active]:text-white data-[state=active]:shadow-md gap-2"
+            >
+              <MessageCircle className="h-4 w-4" />
+              WhatsApp
             </TabsTrigger>
-          </TabsList>
+            <TabsTrigger
+              value="email"
+              className="rounded-xl px-5 py-2.5 text-sm font-medium transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md gap-2"
+            >
+              <Mail className="h-4 w-4" />
+              E-mail
+            </TabsTrigger>
+          </div>
 
-          {/* E-mail Tab Content */}
+          {/* =================== CENTRAL TAB =================== */}
+          <TabsContent value="central">
+            <CentralAtendimento embedded />
+          </TabsContent>
+
+          {/* =================== WHATSAPP TAB (unified) =================== */}
+          <TabsContent value="whatsapp" className="space-y-6">
+            <Tabs defaultValue="config" className="space-y-4">
+              <div className="inline-flex items-center rounded-xl bg-muted/50 p-1 border gap-0.5">
+                <TabsTrigger value="config" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-green-600 data-[state=active]:text-white gap-1.5">
+                  <Settings className="h-3.5 w-3.5" />
+                  Config
+                </TabsTrigger>
+                <TabsTrigger value="templates" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-green-600 data-[state=active]:text-white gap-1.5">
+                  <FileText className="h-3.5 w-3.5" />
+                  Templates
+                </TabsTrigger>
+                <TabsTrigger value="envio" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-green-600 data-[state=active]:text-white gap-1.5">
+                  <Send className="h-3.5 w-3.5" />
+                  Envio
+                </TabsTrigger>
+                <TabsTrigger value="automacoes" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-green-600 data-[state=active]:text-white gap-1.5">
+                  <Bot className="h-3.5 w-3.5" />
+                  Automações
+                </TabsTrigger>
+              </div>
+
+              <TabsContent value="config">
+                <WhatsAppConfig />
+              </TabsContent>
+              <TabsContent value="templates">
+                <WhatsAppTemplates />
+              </TabsContent>
+              <TabsContent value="envio">
+                <WhatsAppEnvioManual />
+              </TabsContent>
+              <TabsContent value="automacoes">
+                <WhatsAppFlows embedded />
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+
+          {/* =================== E-MAIL TAB =================== */}
           <TabsContent value="email" className="space-y-6">
             <Tabs defaultValue="dashboard" className="space-y-4">
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 gap-1.5 h-auto p-1.5 bg-muted">
-                  <TabsTrigger value="dashboard" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                    <BarChart3 className="h-4 w-4" />
+                <div className="inline-flex items-center rounded-xl bg-muted/50 p-1 border gap-0.5">
+                  <TabsTrigger value="dashboard" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+                    <BarChart3 className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Dashboard</span>
                   </TabsTrigger>
-                  <TabsTrigger value="resend" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                    <Settings className="h-4 w-4" />
+                  <TabsTrigger value="resend" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+                    <Settings className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Resend</span>
                   </TabsTrigger>
-                  <TabsTrigger value="smtp" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                    <Mail className="h-4 w-4" />
+                  <TabsTrigger value="smtp" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+                    <Mail className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">SMTP</span>
                   </TabsTrigger>
-                  <TabsTrigger value="templates" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                    <FileText className="h-4 w-4" />
+                  <TabsTrigger value="templates" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+                    <FileText className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Templates</span>
                   </TabsTrigger>
-                  <TabsTrigger value="regras" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                    <Target className="h-4 w-4" />
+                  <TabsTrigger value="regras" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+                    <Target className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Regras</span>
                   </TabsTrigger>
-                  <TabsTrigger value="historico" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                    <History className="h-4 w-4" />
+                  <TabsTrigger value="historico" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+                    <History className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Histórico</span>
                   </TabsTrigger>
-                </TabsList>
+                </div>
                 <div className="flex items-center gap-3 bg-muted/50 px-4 py-2.5 rounded-lg border shrink-0">
                   <Label className="text-sm font-medium cursor-pointer whitespace-nowrap" htmlFor="email-auto-toggle">
                     Envio Automático
@@ -1244,56 +1290,6 @@ export default function Emails() {
             </Card>
           </TabsContent>
             </Tabs>
-          </TabsContent>
-
-          {/* WhatsApp Tab Content */}
-          <TabsContent value="whatsapp" className="space-y-6">
-            <Tabs defaultValue="config" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1.5 h-auto p-1.5 bg-muted">
-                <TabsTrigger value="config" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
-                  <Settings className="h-4 w-4" />
-                  <span className="hidden sm:inline">Configuração</span>
-                </TabsTrigger>
-                <TabsTrigger value="templates" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
-                  <FileText className="h-4 w-4" />
-                  <span className="hidden sm:inline">Templates</span>
-                </TabsTrigger>
-                <TabsTrigger value="envio" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
-                  <Send className="h-4 w-4" />
-                  <span className="hidden sm:inline">Envio Manual</span>
-                </TabsTrigger>
-                <TabsTrigger value="historico" className="gap-2 data-[state=active]:bg-green-600 data-[state=active]:text-white">
-                  <History className="h-4 w-4" />
-                  <span className="hidden sm:inline">Histórico</span>
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="config">
-                <WhatsAppConfig />
-              </TabsContent>
-
-              <TabsContent value="templates">
-                <WhatsAppTemplates />
-              </TabsContent>
-
-              <TabsContent value="envio">
-                <WhatsAppEnvioManual />
-              </TabsContent>
-
-              <TabsContent value="historico">
-                <WhatsAppHistorico />
-              </TabsContent>
-            </Tabs>
-          </TabsContent>
-
-          {/* Central Tab Content */}
-          <TabsContent value="central">
-            <CentralAtendimento embedded />
-          </TabsContent>
-
-          {/* Automações Tab Content */}
-          <TabsContent value="automacoes">
-            <WhatsAppFlows embedded />
           </TabsContent>
         </Tabs>
       </div>
