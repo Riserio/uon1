@@ -2604,6 +2604,94 @@ async function rodarRobo() {
     });
     
     await fecharPopups(page);
+    
+    // ============================================
+    // FALLBACK: Se a página não carregou conteúdo (ex: APVALE v2),
+    // navegar via menu Relatório > De Lançamentos
+    // ============================================
+    const paginaVazia = await page.evaluate(() => {
+      const bodyText = (document.body.innerText || '').toLowerCase();
+      const hasNoAccess = bodyText.includes('não possui acesso') || bodyText.includes('nao possui acesso');
+      const hasNoSelects = document.querySelectorAll('select').length === 0;
+      const hasNoForms = document.querySelectorAll('form').length === 0;
+      // Página vazia: sem formulários/selects OU mensagem de "sem acesso"
+      return hasNoAccess || (hasNoSelects && hasNoForms && bodyText.length < 500);
+    }).catch(() => false);
+    
+    if (paginaVazia) {
+      log('⚠️ Página de relatório vazia ou sem acesso — tentando fallback via menu Relatório > De Lançamentos', LOG_LEVELS.WARN);
+      await saveDebugInfo(page, context, 'Página vazia - tentando fallback via menu');
+      
+      let fallbackOk = false;
+      
+      // Tentar clicar no menu "Relatório"
+      try {
+        // Estratégia 1: Clicar no link/dropdown "Relatório" no menu superior
+        const relatorioMenu = page.locator('a, button, [data-toggle="dropdown"]').filter({ hasText: /Relat[oó]rio/i }).first();
+        if (await relatorioMenu.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await relatorioMenu.click({ force: true });
+          await page.waitForTimeout(1500);
+          log('Menu "Relatório" clicado', LOG_LEVELS.DEBUG);
+          
+          // Clicar em "De Lançamentos" ou "6.1) ... de Lançamentos"
+          const lancamentosLink = page.locator('a').filter({ hasText: /Lan[cç]amento/i }).first();
+          if (await lancamentosLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+            await lancamentosLink.click({ force: true });
+            await page.waitForLoadState('domcontentloaded', { timeout: 30000 }).catch(() => {});
+            await page.waitForTimeout(3000);
+            await fecharPopups(page);
+            fallbackOk = true;
+            log('✅ Navegação via menu "Relatório > De Lançamentos" bem sucedida', LOG_LEVELS.SUCCESS);
+          }
+        }
+      } catch (e) {
+        log(`Erro no fallback via menu: ${e.message}`, LOG_LEVELS.WARN);
+      }
+      
+      // Estratégia 2: Tentar via JavaScript procurando links no DOM
+      if (!fallbackOk) {
+        try {
+          const menuUrl = await page.evaluate(() => {
+            const links = Array.from(document.querySelectorAll('a[href]'));
+            for (const link of links) {
+              const href = (link.getAttribute('href') || '').toLowerCase();
+              const text = (link.textContent || '').toLowerCase();
+              if ((href.includes('sgfrelatorio') || href.includes('lancamento')) && 
+                  (text.includes('lançamento') || text.includes('lancamento') || text.includes('relat'))) {
+                return link.getAttribute('href');
+              }
+            }
+            // Procurar qualquer link que contenha 'Sgfrelatorio' ou 'lancamento' no href
+            for (const link of links) {
+              const href = (link.getAttribute('href') || '').toLowerCase();
+              if (href.includes('sgfrelatorio') && href.includes('lancamento')) {
+                return link.getAttribute('href');
+              }
+            }
+            return null;
+          });
+          
+          if (menuUrl) {
+            // Se é URL relativa, resolver
+            const fullUrl = menuUrl.startsWith('http') ? menuUrl : new URL(menuUrl, page.url()).href;
+            log(`Navegando via link encontrado no DOM: ${fullUrl}`, LOG_LEVELS.DEBUG);
+            await page.goto(fullUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+            await page.waitForTimeout(3000);
+            await fecharPopups(page);
+            fallbackOk = true;
+            log('✅ Navegação via link do DOM bem sucedida', LOG_LEVELS.SUCCESS);
+          }
+        } catch (e) {
+          log(`Erro no fallback via DOM: ${e.message}`, LOG_LEVELS.WARN);
+        }
+      }
+      
+      if (!fallbackOk) {
+        log('❌ Fallback de navegação falhou — continuando com a página atual', LOG_LEVELS.ERROR);
+        await saveDebugInfo(page, context, 'Fallback de navegação falhou');
+      }
+    }
+    
     log('Página de relatório aberta', LOG_LEVELS.SUCCESS);
     
     // ============================================
