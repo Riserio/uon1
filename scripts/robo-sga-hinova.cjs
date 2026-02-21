@@ -3,9 +3,9 @@
  * Robô de Automação - SGA Hinova (Eventos)
  * =========================================
  * 
- * FLUXO IDÊNTICO AO ROBÔ DE COBRANÇA, apenas com:
- * - URL do relatório: relatorioEvento.php (ao invés de relatorioBoleto.php)
- * - Filtros: Data Cadastro Item + Layout "BI - VANGARD" + Em Excel
+ * FLUXO SIMPLIFICADO:
+ * - URL do relatório: relatorioEvento.php
+ * - Filtros: Data Cadastro Item + Layout "VANGARD" + Em Excel (sem Centro Custo)
  * 
  * REQUISITOS:
  * -----------
@@ -1599,154 +1599,6 @@ async function main() {
       }
     }).catch(() => {});
 
-    // PASSO 2.7: Expandir "CENTRO CUSTO" e selecionar checkboxes com EVENTO(S)
-    log('Expandindo seção CENTRO CUSTO...', LOG_LEVELS.INFO);
-    
-    // Verificar se CENTRO CUSTO já está aberto (tem checkboxes visíveis)
-    const centroCustoJaAberto = await page.evaluate(() => {
-      const normalizar = (t) => (t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-      const elementos = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
-      for (const el of elementos) {
-        const textoRaw = (el.textContent || '').trim();
-        const texto = normalizar(textoRaw);
-        if (texto.includes('CENTRO CUSTO') && textoRaw.length < 30) {
-          // Procurar checkboxes no container/sibling
-          const parent = el.closest('fieldset') || el.closest('table') || el.parentElement?.parentElement;
-          if (parent) {
-            const cbs = parent.querySelectorAll('input[type="checkbox"]');
-            for (const cb of cbs) {
-              if (cb.offsetParent !== null) return true;
-            }
-          }
-          // Tentar sibling
-          let sib = el.nextElementSibling || el.parentElement?.nextElementSibling;
-          if (sib) {
-            const cbs2 = sib.querySelectorAll('input[type="checkbox"]');
-            for (const cb of cbs2) {
-              if (cb.offsetParent !== null) return true;
-            }
-          }
-          return false;
-        }
-      }
-      return false;
-    }).catch(() => false);
-
-    if (!centroCustoJaAberto) {
-      const centroCustoExpandido = await page.evaluate(() => {
-        const normalizar = (t) => (t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-        const elementos = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
-        let melhorMatch = null;
-        let menorLength = Infinity;
-        for (const el of elementos) {
-          const textoRaw = (el.textContent || '').trim();
-          const texto = normalizar(textoRaw);
-          if (texto.includes('CENTRO CUSTO') && textoRaw.length < menorLength && textoRaw.length < 30) {
-            melhorMatch = el;
-            menorLength = textoRaw.length;
-          }
-        }
-        if (melhorMatch) { melhorMatch.click(); return true; }
-        return false;
-      }).catch(() => false);
-
-      if (centroCustoExpandido) {
-        log('Seção CENTRO CUSTO expandida', LOG_LEVELS.SUCCESS);
-      } else {
-        log('Seção CENTRO CUSTO não encontrada', LOG_LEVELS.WARN);
-      }
-    } else {
-      log('Seção CENTRO CUSTO já está aberta', LOG_LEVELS.DEBUG);
-    }
-    await page.waitForTimeout(1500);
-
-    // Selecionar checkboxes com EVENTO/EVENTOS APENAS dentro de CENTRO CUSTO
-    const eventosResult = await page.evaluate(() => {
-      const normalizar = (t) => (t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-      const result = { found: 0, selected: 0, labels: [] };
-
-      // Encontrar a seção CENTRO CUSTO no DOM
-      let centroCustoContainer = null;
-      const allElements = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
-      for (const el of allElements) {
-        const texto = normalizar(el.textContent || '');
-        if (texto.includes('CENTRO CUSTO') && el.textContent.trim().length < 30) {
-          // O container é o pai ou o próximo sibling que contém os checkboxes
-          centroCustoContainer = el.closest('fieldset') || el.closest('table') || el.closest('div.panel') || el.closest('.collapse') || el.parentElement?.parentElement;
-          // Também tentar o próximo elemento irmão
-          if (centroCustoContainer) {
-            // Verificar se tem checkboxes aqui
-            const cbs = centroCustoContainer.querySelectorAll('input[type="checkbox"]');
-            if (cbs.length > 0) break;
-          }
-          // Tentar nextElementSibling
-          let sibling = el.nextElementSibling || el.parentElement?.nextElementSibling;
-          if (sibling) {
-            const sibCbs = sibling.querySelectorAll('input[type="checkbox"]');
-            if (sibCbs.length > 0) {
-              centroCustoContainer = sibling;
-              break;
-            }
-          }
-          // Subir mais um nível
-          let parent = el.parentElement?.parentElement?.parentElement;
-          if (parent) {
-            const nextDiv = parent.nextElementSibling;
-            if (nextDiv) {
-              const cbs2 = nextDiv.querySelectorAll('input[type="checkbox"]');
-              if (cbs2.length > 0) {
-                centroCustoContainer = nextDiv;
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      // Se não encontrou container específico, buscar em toda a página mas com cuidado
-      const searchContainer = centroCustoContainer || document;
-      const checkboxes = searchContainer.querySelectorAll('input[type="checkbox"]');
-
-      for (const cb of checkboxes) {
-        // Encontrar label associada
-        let labelText = '';
-        // Por for=id
-        if (cb.id) {
-          const label = document.querySelector(`label[for="${cb.id}"]`);
-          if (label) labelText = normalizar(label.textContent || '');
-        }
-        // Por container
-        if (!labelText) {
-          const parent = cb.closest('label') || cb.closest('td') || cb.parentElement;
-          if (parent) labelText = normalizar(parent.textContent || '');
-        }
-        // Por nextSibling text
-        if (!labelText && cb.nextSibling) {
-          labelText = normalizar(cb.nextSibling.textContent || '');
-        }
-
-        if (labelText.includes('EVENTO') || labelText.includes('EVENTOS')) {
-          result.found++;
-          if (!cb.checked) {
-            cb.checked = true;
-            cb.dispatchEvent(new Event('click', { bubbles: true }));
-            cb.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-          result.selected++;
-          result.labels.push(labelText.substring(0, 50));
-        }
-      }
-
-      return result;
-    }).catch(() => ({ found: 0, selected: 0, labels: [] }));
-
-    if (eventosResult.selected > 0) {
-      log(`✅ ${eventosResult.selected} checkbox(es) EVENTO selecionado(s): ${eventosResult.labels.join(', ')}`, LOG_LEVELS.SUCCESS);
-    } else {
-      log('⚠️ Nenhum checkbox EVENTO encontrado no CENTRO CUSTO - prosseguindo sem filtro', LOG_LEVELS.WARN);
-    }
-    await page.waitForTimeout(500);
-
     // PASSO 3: Em Excel
     const excelOk = await selecionarFormaExibicaoEmExcel(page);
     if (!excelOk) {
@@ -1758,7 +1610,6 @@ async function main() {
     log(`=== RESUMO FILTROS ===`, LOG_LEVELS.INFO);
     log(`Datas: ${datasOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
     log(`Layout: ${layoutOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
-    log(`Centro Custo Eventos: ${eventosResult.selected > 0 ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
     log(`Excel: ${excelOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
 
     // ============================================
