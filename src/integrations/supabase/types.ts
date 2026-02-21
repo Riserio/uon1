@@ -5820,6 +5820,227 @@ export type Database = {
           },
         ]
       }
+      whatsapp_contact_flow_state: {
+        Row: {
+          completed_at: string | null
+          contact_id: string
+          current_step_key: string | null
+          flow_id: string
+          id: string
+          last_interaction_at: string | null
+          started_at: string
+          status: string
+          variables: Json | null
+        }
+        Insert: {
+          completed_at?: string | null
+          contact_id: string
+          current_step_key?: string | null
+          flow_id: string
+          id?: string
+          last_interaction_at?: string | null
+          started_at?: string
+          status?: string
+          variables?: Json | null
+        }
+        Update: {
+          completed_at?: string | null
+          contact_id?: string
+          current_step_key?: string | null
+          flow_id?: string
+          id?: string
+          last_interaction_at?: string | null
+          started_at?: string
+          status?: string
+          variables?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_contact_flow_state_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_contact_flow_state_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_contacts: {
+        Row: {
+          assigned_to: string | null
+          avatar_url: string | null
+          corretora_id: string | null
+          created_at: string
+          human_mode: boolean
+          human_mode_at: string | null
+          human_mode_by: string | null
+          id: string
+          last_message_at: string | null
+          last_message_preview: string | null
+          metadata: Json | null
+          name: string | null
+          phone: string
+          profile_name: string | null
+          tags: string[] | null
+          unread_count: number
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          avatar_url?: string | null
+          corretora_id?: string | null
+          created_at?: string
+          human_mode?: boolean
+          human_mode_at?: string | null
+          human_mode_by?: string | null
+          id?: string
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          metadata?: Json | null
+          name?: string | null
+          phone: string
+          profile_name?: string | null
+          tags?: string[] | null
+          unread_count?: number
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          avatar_url?: string | null
+          corretora_id?: string | null
+          created_at?: string
+          human_mode?: boolean
+          human_mode_at?: string | null
+          human_mode_by?: string | null
+          id?: string
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          metadata?: Json | null
+          name?: string | null
+          phone?: string
+          profile_name?: string | null
+          tags?: string[] | null
+          unread_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_contacts_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_contacts_corretora_id_fkey"
+            columns: ["corretora_id"]
+            isOneToOne: false
+            referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_contacts_human_mode_by_fkey"
+            columns: ["human_mode_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_flow_steps: {
+        Row: {
+          config: Json
+          created_at: string
+          flow_id: string
+          id: string
+          next_step_key: string | null
+          step_key: string
+          step_order: number
+          type: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          flow_id: string
+          id?: string
+          next_step_key?: string | null
+          step_key: string
+          step_order?: number
+          type: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          flow_id?: string
+          id?: string
+          next_step_key?: string | null
+          step_key?: string
+          step_order?: number
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_flow_steps_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_flows: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          priority: number
+          trigger_config: Json | null
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          priority?: number
+          trigger_config?: Json | null
+          trigger_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          priority?: number
+          trigger_config?: Json | null
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_flows_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_historico: {
         Row: {
           corretora_id: string | null
@@ -5885,6 +6106,75 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_messages: {
+        Row: {
+          body: string | null
+          contact_id: string
+          created_at: string
+          direction: string
+          error_message: string | null
+          id: string
+          media_mime_type: string | null
+          media_url: string | null
+          meta_message_id: string | null
+          raw_payload: Json | null
+          sent_by: string | null
+          status: string | null
+          template_name: string | null
+          template_variables: Json | null
+          type: string
+        }
+        Insert: {
+          body?: string | null
+          contact_id: string
+          created_at?: string
+          direction: string
+          error_message?: string | null
+          id?: string
+          media_mime_type?: string | null
+          media_url?: string | null
+          meta_message_id?: string | null
+          raw_payload?: Json | null
+          sent_by?: string | null
+          status?: string | null
+          template_name?: string | null
+          template_variables?: Json | null
+          type?: string
+        }
+        Update: {
+          body?: string | null
+          contact_id?: string
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          id?: string
+          media_mime_type?: string | null
+          media_url?: string | null
+          meta_message_id?: string | null
+          raw_payload?: Json | null
+          sent_by?: string | null
+          status?: string | null
+          template_name?: string | null
+          template_variables?: Json | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
