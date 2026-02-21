@@ -227,13 +227,20 @@ export function AppSidebar() {
                 {canView("emails") && <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink to="/central-atendimento" activeClassName="bg-primary text-primary-foreground">
-                        <div className="flex items-center justify-between w-full">
+                        <div className="relative flex items-center justify-between w-full">
                           <div className="flex items-center gap-2">
-                            <Headset className="h-4 w-4" />
+                            <div className="relative">
+                              <Headset className="h-4 w-4" />
+                              {collapsed && whatsAppUnread > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground h-4 min-w-4 flex items-center justify-center text-[9px] rounded-full px-1 font-bold">
+                                  {whatsAppUnread > 99 ? '99+' : whatsAppUnread}
+                                </span>
+                              )}
+                            </div>
                             {!collapsed && <span>Central de Atendimento</span>}
                           </div>
-                          {whatsAppUnread > 0 && (
-                            <Badge className="bg-primary text-primary-foreground h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
+                          {!collapsed && whatsAppUnread > 0 && (
+                            <Badge className="bg-destructive text-destructive-foreground h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
                               {whatsAppUnread}
                             </Badge>
                           )}
