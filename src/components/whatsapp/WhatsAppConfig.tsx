@@ -179,8 +179,6 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
         n8n_webhook_url: config.n8n_webhook_url,
         n8n_ativo: config.n8n_ativo,
         created_by: user?.id,
-        notificar_numero: config.notificar_numero?.replace(/\D/g, '') || null,
-        notificar_ativo: config.notificar_ativo,
       };
 
       if (config.id) {
@@ -454,38 +452,6 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
                 />
               </div>
             </div>
-          </div>
-
-          {/* Notification config */}
-          <div className="space-y-4 border-t pt-4">
-            <h4 className="font-medium flex items-center gap-2">
-              <MessageCircle className="h-4 w-4" />
-              Notificação de Mensagens Recebidas
-            </h4>
-            <p className="text-xs text-muted-foreground">
-              Receba uma notificação no WhatsApp toda vez que uma nova mensagem chegar no sistema.
-            </p>
-            <div className="flex items-center gap-3">
-              <Switch
-                checked={config.notificar_ativo}
-                onCheckedChange={(checked) => setConfig({ ...config, notificar_ativo: checked })}
-              />
-              <Label>Ativar notificação</Label>
-            </div>
-            {config.notificar_ativo && (
-              <div className="space-y-2">
-                <Label>Número para notificação</Label>
-                <Input
-                  placeholder="(31) 99172-8585"
-                  value={config.notificar_numero ? formatPhone(config.notificar_numero) : ''}
-                  onChange={(e) => setConfig({ ...config, notificar_numero: formatPhone(e.target.value) })}
-                  maxLength={16}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Este número receberá uma mensagem automática quando novas mensagens chegarem.
-                </p>
-              </div>
-            )}
           </div>
 
           <div className="flex justify-end pt-4">
