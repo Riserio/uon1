@@ -20,6 +20,7 @@ interface Template {
 
 const TAGS_BY_TYPE: Record<string, { tag: string; descricao: string }[]> = {
   cobranca: [
+    { tag: '{nome_associacao}', descricao: 'Nome da associação' },
     { tag: '{data_atual}', descricao: 'Data atual' },
     { tag: '{percentual_inadimplencia}', descricao: 'Percentual de inadimplência' },
     { tag: '{total_gerados}', descricao: 'Total de boletos gerados' },
@@ -32,6 +33,7 @@ const TAGS_BY_TYPE: Record<string, { tag: string; descricao: string }[]> = {
     { tag: '{cooperativa_menor_inadimplencia}', descricao: 'Cooperativa com menor inadimplência' },
   ],
   eventos: [
+    { tag: '{nome_associacao}', descricao: 'Nome da associação' },
     { tag: '{mes_referencia}', descricao: 'Mês de referência' },
     { tag: '{total_eventos}', descricao: 'Total de eventos' },
     { tag: '{eventos_colisao}', descricao: 'Eventos de colisão' },
@@ -42,6 +44,7 @@ const TAGS_BY_TYPE: Record<string, { tag: string; descricao: string }[]> = {
     { tag: '{cooperativa_mais_eventos}', descricao: 'Cooperativa com mais eventos' },
   ],
   mgf: [
+    { tag: '{nome_associacao}', descricao: 'Nome da associação' },
     { tag: '{mes_referencia}', descricao: 'Mês de referência' },
     { tag: '{total_lancamentos}', descricao: 'Total de lançamentos' },
     { tag: '{valor_total}', descricao: 'Valor total' },
