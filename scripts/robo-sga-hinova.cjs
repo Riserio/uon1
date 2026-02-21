@@ -324,22 +324,10 @@ async function trySelectHinovaLayout(page) {
     }
   } catch {}
 
-  // 2) Input autocomplete
-  try {
-    const input = page.locator(
-      'input[placeholder*="Sistema" i], input[placeholder*="Layout" i], input[placeholder*="Perfil" i], input[placeholder*="Relat" i], input[placeholder*="Empresa" i]'
-    ).first();
-    if (await input.isVisible().catch(() => false)) {
-      await input.click({ force: true }).catch(() => null);
-      await input.fill(CONFIG.HINOVA_LAYOUT).catch(() => null);
-      await input.press('Enter').catch(() => null);
-      log(`Layout preenchido via input: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.SUCCESS);
-      return true;
-    }
-  } catch {}
+  // 2) Input autocomplete REMOVIDO — preenchia campos de texto errados
+  //    (ex: "Usuário Alteração") com VANGARD. Apenas <select> é seguro.
 
-  // 3) Fallback removed — filling arbitrary inputs caused "Usuário Alteração" field
-  //    to be incorrectly filled with VANGARD. Only select/autocomplete strategies are safe.
+  // 3) Fallback removed — same reason as above.
 
   return false;
 }
