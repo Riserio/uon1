@@ -210,17 +210,19 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
   const getStepTypeInfo = (type: string) => STEP_TYPES.find(s => s.value === type) || STEP_TYPES[0];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className={embedded ? "space-y-6" : "p-6 space-y-6"}>
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Bot className="h-6 w-6 text-primary" />
-            Fluxos de Automação
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Configure respostas automáticas e chatbots para WhatsApp
-          </p>
-        </div>
+        {!embedded && (
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Bot className="h-6 w-6 text-primary" />
+              Fluxos de Automação
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Configure respostas automáticas e chatbots para WhatsApp
+            </p>
+          </div>
+        )}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-2" /> Novo Fluxo</Button>
