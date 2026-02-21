@@ -1789,94 +1789,12 @@ async function main() {
       log('Botão Gerar clicado via fallback', LOG_LEVELS.DEBUG);
     }
 
-    log('Aguardando resultado (download direto ou tela de resultados)...', LOG_LEVELS.INFO);
+    // Padrão cobrança: radio "Em Excel" já selecionado + "Gerar Relatório" dispara download direto
+    // Aguardar download com timeout completo (o portal pode demorar para gerar)
+    log('Aguardando download direto (radio Em Excel selecionado)...', LOG_LEVELS.INFO);
 
-    // Esperar um pouco para ver se é download direto ou tela de resultados
-    let downloadResult = null;
-    let downloadIniciado = false;
-
-    // Tentar capturar download direto por 15 segundos
-    const downloadPromise = aguardarDownloadHibrido(context, page, downloadDir, semanticName, 15000);
-    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ success: false, timeout: true }), 15000));
-    
-    const primeiroResultado = await Promise.race([downloadPromise, timeoutPromise]);
-
-    if (primeiroResultado.success) {
-      log('Download direto capturado!', LOG_LEVELS.SUCCESS);
-      downloadResult = primeiroResultado;
-      downloadIniciado = true;
-    } else {
-      // Não houve download direto - verificar se abriu tela de resultados com botão Excel
-      log('Download direto não iniciou - verificando tela de resultados...', LOG_LEVELS.INFO);
-      
-      // Aguardar carregamento da tela de resultados
-      await page.waitForTimeout(3000);
-      await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
-      
-      // Procurar botão de Excel/XLS/Planilha na tela de resultados
-      const botaoExcelEncontrado = await page.evaluate(() => {
-        const normalizar = (t) => (t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-        // Buscar em todas as abas/páginas
-        const candidatos = document.querySelectorAll('a, button, input[type="submit"], input[type="button"], [role="button"], img');
-        
-        // Filtrar candidatos: excluir botões que contenham ATUALIZAR, IMPORTAR, CADASTR
-        const excluir = ['ATUALIZAR', 'IMPORTAR', 'CADASTR', 'UPLOAD'];
-        const matches = [];
-        
-        for (const el of candidatos) {
-          const texto = normalizar(el.textContent || el.value || el.title || el.alt || '');
-          const href = (el.href || '').toLowerCase();
-          const classes = (el.className || '').toLowerCase();
-          
-          // Pular se contém palavras de ação não relacionadas a exportação
-          if (excluir.some(e => texto.includes(e))) continue;
-          
-          if (texto.includes('EXCEL') || texto.includes('XLS') || texto.includes('PLANILHA') ||
-              href.includes('excel') || href.includes('xls') || 
-              classes.includes('excel') || classes.includes('xls')) {
-            // Priorizar elementos com texto curto (mais provável ser botão de exportação)
-            matches.push({ el, texto, len: texto.length });
-          }
-        }
-        
-        // Ordenar por tamanho de texto (menor = mais específico = mais provável exportação)
-        matches.sort((a, b) => a.len - b.len);
-        
-        if (matches.length > 0) {
-          matches[0].el.click();
-          return { found: true, text: matches[0].texto.substring(0, 50) };
-        }
-        
-        // Tentar por ícones/imagens que possam representar Excel
-        const imgs = document.querySelectorAll('img');
-        for (const img of imgs) {
-          const src = (img.src || '').toLowerCase();
-          const alt = normalizar(img.alt || '');
-          const title = normalizar(img.title || '');
-          if (src.includes('excel') || src.includes('xls') || alt.includes('EXCEL') || title.includes('EXCEL')) {
-            const parent = img.closest('a') || img.closest('button') || img;
-            parent.click();
-            return { found: true, text: `img: ${alt || src.substring(src.lastIndexOf('/') + 1)}` };
-          }
-        }
-        
-        return { found: false };
-      }).catch(() => ({ found: false }));
-
-      if (botaoExcelEncontrado.found) {
-        log(`Botão Excel encontrado na tela de resultados: ${botaoExcelEncontrado.text}`, LOG_LEVELS.SUCCESS);
-        
-        // Agora aguardar o download real
-        downloadResult = await aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
-        downloadIniciado = downloadResult.success;
-      } else {
-        log('Nenhum botão Excel encontrado - tentando aguardar download completo...', LOG_LEVELS.WARN);
-        await saveDebugInfo(page, context, 'Sem botão Excel na tela de resultados');
-        // Tentar aguardar mais tempo como último recurso
-        downloadResult = await aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
-        downloadIniciado = downloadResult.success;
-      }
-    }
+    const downloadResult = await aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
+    const downloadIniciado = downloadResult.success;
 
     if (!downloadIniciado || !downloadResult || !downloadResult.success) {
       await saveDebugInfo(page, context, 'Timeout download');
