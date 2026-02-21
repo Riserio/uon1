@@ -12,7 +12,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Search, Send, Check, CheckCheck, Clock, XCircle, User, Bot,
-  UserCheck, MessageCircle, Phone, MoreVertical, RefreshCw, Plus
+  UserCheck, MessageCircle, Phone, MoreVertical, RefreshCw, Plus, Archive, ArchiveRestore
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
@@ -33,6 +33,7 @@ interface Contact {
   last_message_preview: string | null;
   unread_count: number;
   human_mode: boolean;
+  archived: boolean;
   tags: string[];
 }
 
@@ -67,6 +68,7 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
   const [contatosList, setContatosList] = useState<{ id: string; nome: string; whatsapp: string | null; telefone: string | null }[]>([]);
   const [contatosSearch, setContatosSearch] = useState('');
   const [startingConversation, setStartingConversation] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Load contacts (only those with messages)
   const loadContacts = useCallback(async () => {
@@ -282,12 +284,27 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
   };
 
   const filteredContacts = contacts.filter(c => {
+    // Filter by archived status
+    if (showArchived !== (c.archived || false)) return false;
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (c.name?.toLowerCase().includes(q)) ||
       (c.profile_name?.toLowerCase().includes(q)) ||
       c.phone.includes(q);
   });
+
+  const archiveContact = async (contact: Contact) => {
+    const newArchived = !contact.archived;
+    await supabase
+      .from('whatsapp_contacts')
+      .update({ archived: newArchived } as any)
+      .eq('id', contact.id);
+    toast.success(newArchived ? 'Conversa arquivada' : 'Conversa desarquivada');
+    if (selectedContact?.id === contact.id) {
+      setSelectedContact(null);
+    }
+    loadContacts();
+  };
 
   const getStatusIcon = (status: string | null) => {
     switch (status) {
@@ -478,6 +495,15 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
               className="pl-9"
             />
           </div>
+          <Button
+            variant={showArchived ? 'secondary' : 'ghost'}
+            size="sm"
+            className="w-full justify-start text-xs gap-2"
+            onClick={() => setShowArchived(!showArchived)}
+          >
+            <Archive className="h-3.5 w-3.5" />
+            {showArchived ? 'Ver conversas ativas' : 'Ver arquivadas'}
+          </Button>
         </div>
 
         {/* Contact list */}
@@ -579,6 +605,13 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                       <><Bot className="h-4 w-4 mr-2" /> Reativar automação</>
                     ) : (
                       <><UserCheck className="h-4 w-4 mr-2" /> Modo humano</>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => archiveContact(selectedContact)}>
+                    {selectedContact.archived ? (
+                      <><ArchiveRestore className="h-4 w-4 mr-2" /> Desarquivar</>
+                    ) : (
+                      <><Archive className="h-4 w-4 mr-2" /> Arquivar conversa</>
                     )}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
