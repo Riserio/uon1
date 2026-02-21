@@ -89,13 +89,15 @@ export default function PortalHeader({
             </div>
             
             <div className="flex items-center gap-2">
-              {/* Controles do carrossel */}
+              {/* Controles do carrossel - oculto no mobile */}
               {showCarouselControls && modulosDisponiveis > 1 && currentModule && (
-                <PortalCarouselControls 
-                  corretoraId={corretora.id}
-                  availableModules={availableModules}
-                  currentModule={currentModule || 'indicadores'}
-                />
+                <div className="hidden md:flex">
+                  <PortalCarouselControls 
+                    corretoraId={corretora.id}
+                    availableModules={availableModules}
+                    currentModule={currentModule || 'indicadores'}
+                  />
+                </div>
               )}
               
               {showChangeButton && onChangeCorretora && (
