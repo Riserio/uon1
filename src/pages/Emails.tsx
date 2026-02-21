@@ -8,7 +8,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Mail, Plus, Trash2, Save, FileText, History, Settings, Target, AlertTriangle, BarChart3, Send, Clock, CheckCircle2, XCircle, RefreshCw, MessageCircle } from 'lucide-react';
+import { Mail, Plus, Trash2, Save, FileText, History, Settings, Target, AlertTriangle, BarChart3, Send, Clock, CheckCircle2, XCircle, RefreshCw, MessageCircle, Headset, Bot } from 'lucide-react';
+import CentralAtendimento from '@/pages/CentralAtendimento';
+import WhatsAppFlows from '@/pages/WhatsAppFlows';
 import { useAuth } from '@/hooks/useAuth';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -458,19 +460,19 @@ export default function Emails() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Mail className="h-5 w-5 text-primary" />
+              <Headset className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">E-mails / WhatsApp</h1>
+              <h1 className="text-2xl font-bold">Central de Atendimento</h1>
               <p className="text-sm text-muted-foreground">
-                Gerencie templates e envios de e-mail e WhatsApp
+                E-mails, WhatsApp, central de mensagens e automações
               </p>
             </div>
           </div>
         </div>
 
         <Tabs defaultValue="email" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2 h-12">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4 h-12">
             <TabsTrigger value="email" className="gap-2 h-10 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Mail className="h-5 w-5" />
               E-mail
@@ -478,6 +480,14 @@ export default function Emails() {
             <TabsTrigger value="whatsapp" className="gap-2 h-10 text-base data-[state=active]:bg-green-600 data-[state=active]:text-white">
               <MessageCircle className="h-5 w-5" />
               WhatsApp
+            </TabsTrigger>
+            <TabsTrigger value="central" className="gap-2 h-10 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Headset className="h-5 w-5" />
+              Central
+            </TabsTrigger>
+            <TabsTrigger value="automacoes" className="gap-2 h-10 text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Bot className="h-5 w-5" />
+              Automações
             </TabsTrigger>
           </TabsList>
 
@@ -1274,6 +1284,16 @@ export default function Emails() {
                 <WhatsAppHistorico />
               </TabsContent>
             </Tabs>
+          </TabsContent>
+
+          {/* Central Tab Content */}
+          <TabsContent value="central">
+            <CentralAtendimento embedded />
+          </TabsContent>
+
+          {/* Automações Tab Content */}
+          <TabsContent value="automacoes">
+            <WhatsAppFlows embedded />
           </TabsContent>
         </Tabs>
       </div>
