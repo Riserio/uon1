@@ -279,155 +279,53 @@ export default function WhatsAppDashboard() {
           </Card>
         </div>
 
-        {/* Row 2: Bar chart + Template breakdown */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Card className="rounded-2xl lg:col-span-2">
-            <CardContent className="p-5">
-              <h4 className="text-sm font-semibold text-foreground mb-4">Status de entrega por dia</h4>
-              <div className="h-[240px] w-full">
+        {/* Row 2: Bar chart full width */}
+        <Card className="rounded-2xl">
+          <CardContent className="p-5">
+            <h4 className="text-sm font-semibold text-foreground mb-4">Status de entrega por dia</h4>
+            <div className="h-[240px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dailyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                  <RechartsTooltip contentStyle={{ borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }} />
+                  <Legend />
+                  <Bar dataKey="entregues" name="Entregues" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="lidas" name="Lidas" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="falhas" name="Falhas" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Row 3: Association breakdown full width */}
+        <Card className="rounded-2xl">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <h4 className="text-sm font-semibold text-foreground">Envios por associação</h4>
+            </div>
+            {assocStats.length > 0 ? (
+              <div style={{ height: Math.max(200, assocStats.length * 45) }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dailyData}>
+                  <BarChart data={assocStats} layout="vertical" margin={{ left: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                    <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                    <XAxis type="number" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                    <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                     <RechartsTooltip contentStyle={{ borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }} />
                     <Legend />
-                    <Bar dataKey="entregues" name="Entregues" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="lidas" name="Lidas" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="falhas" name="Falhas" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="cobranca" name="Cobrança" stackId="a" fill={BAR_COLORS[0]} radius={0} />
+                    <Bar dataKey="eventos" name="Eventos" stackId="a" fill={BAR_COLORS[1]} radius={0} />
+                    <Bar dataKey="mgf" name="MGF" stackId="a" fill={BAR_COLORS[2]} radius={0} />
+                    <Bar dataKey="manual" name="Manual" stackId="a" fill={BAR_COLORS[3]} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Template breakdown */}
-          <Card className="rounded-2xl">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <FileText className="h-4 w-4 text-muted-foreground" />
-                <h4 className="text-sm font-semibold text-foreground">Envios por template</h4>
-              </div>
-              {templateStats.length > 0 ? (
-                <div className="space-y-2.5">
-                  {templateStats.map((t, i) => (
-                    <div key={t.name} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground truncate max-w-[180px]" title={t.name}>{t.name}</span>
-                        <span className="font-medium text-foreground">{t.value}</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${Math.max(5, (t.value / Math.max(...templateStats.map(s => s.value))) * 100)}%`,
-                            background: PIE_COLORS[i % PIE_COLORS.length],
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : <EmptyState text="Nenhum template usado no período" />}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Row 3: Association breakdown + Costs + Summary */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Association bar chart */}
-          <Card className="rounded-2xl lg:col-span-2">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                <h4 className="text-sm font-semibold text-foreground">Envios por associação</h4>
-              </div>
-              {assocStats.length > 0 ? (
-                <div className="h-[Math.max(200, assocStats.length * 40)]" style={{ height: Math.max(200, assocStats.length * 45) }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={assocStats} layout="vertical" margin={{ left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis type="number" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                      <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                      <RechartsTooltip contentStyle={{ borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }} />
-                      <Legend />
-                      <Bar dataKey="cobranca" name="Cobrança" stackId="a" fill={BAR_COLORS[0]} radius={0} />
-                      <Bar dataKey="eventos" name="Eventos" stackId="a" fill={BAR_COLORS[1]} radius={0} />
-                      <Bar dataKey="mgf" name="MGF" stackId="a" fill={BAR_COLORS[2]} radius={0} />
-                      <Bar dataKey="manual" name="Manual" stackId="a" fill={BAR_COLORS[3]} radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : <EmptyState text="Nenhum envio por associação no período" />}
-            </CardContent>
-          </Card>
-
-          {/* Cost card */}
-          <Card className="rounded-2xl">
-            <CardContent className="p-5 space-y-4">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-                <h4 className="text-sm font-semibold text-foreground">Cobrança estimada</h4>
-              </div>
-
-              {convByCategory.length > 0 ? (
-                <>
-                  <div className="h-[130px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={convByCategory} cx="50%" cy="50%" innerRadius={30} outerRadius={50} paddingAngle={3} dataKey="value">
-                          {convByCategory.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                        </Pie>
-                        <RechartsTooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="space-y-1.5">
-                    {convByCategory.map((cat, i) => (
-                      <div key={cat.name} className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                          <span className="text-muted-foreground">{cat.name}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-medium text-foreground">{cat.value}</span>
-                          <span className="text-muted-foreground">${cat.cost.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="border-t pt-1.5 flex justify-between text-xs font-semibold">
-                      <span className="text-foreground">Total</span>
-                      <span className="text-foreground">{totalConversations} conv · ${totalCostMeta.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <MetricRow color="bg-green-500" label="Janela 24h (grátis)" value={localStats.freeWindow} tooltip="Mensagens de texto dentro da janela" />
-                    <MetricRow color="bg-orange-500" label="Templates (cobrados)" value={localStats.templates} tooltip="Templates fora da janela de 24h" />
-                  </div>
-                  <div className="border-t pt-3 space-y-1.5">
-                    <p className="text-xs text-muted-foreground font-medium">Custo estimado (tabela Meta BR):</p>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Utilidade × {localStats.templates}</span>
-                      <span className="font-medium text-foreground">${(localStats.templates * COST_PER_CATEGORY.UTILITY).toFixed(4)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Serviço (janela 24h)</span>
-                      <span className="font-medium text-green-600">Grátis</span>
-                    </div>
-                    <div className="border-t pt-1.5 flex justify-between text-xs font-semibold">
-                      <span className="text-foreground">Total estimado</span>
-                      <span className="text-foreground">${estimatedCost.toFixed(4)}</span>
-                    </div>
-                  </div>
-                  {metaError && <p className="text-xs text-yellow-600"><AlertTriangle className="h-3 w-3 inline mr-1" />{metaError}</p>}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+            ) : <EmptyState text="Nenhum envio por associação no período" />}
+          </CardContent>
+        </Card>
 
         {/* Summary cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
