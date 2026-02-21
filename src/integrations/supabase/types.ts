@@ -5882,6 +5882,7 @@ export type Database = {
       }
       whatsapp_contacts: {
         Row: {
+          archived: boolean
           assigned_to: string | null
           avatar_url: string | null
           corretora_id: string | null
@@ -5901,6 +5902,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archived?: boolean
           assigned_to?: string | null
           avatar_url?: string | null
           corretora_id?: string | null
@@ -5920,6 +5922,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archived?: boolean
           assigned_to?: string | null
           avatar_url?: string | null
           corretora_id?: string | null

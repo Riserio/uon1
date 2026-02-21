@@ -1,0 +1,1 @@
+ALTER TABLE public.whatsapp_contacts ADD COLUMN archived boolean NOT NULL DEFAULT false;
