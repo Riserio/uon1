@@ -22,6 +22,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { formatPhone } from '@/lib/validators';
 
 interface Contact {
   id: string;
@@ -307,7 +308,8 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                       <Input
                         placeholder="(00) 00000-0000"
                         value={newContactPhone}
-                        onChange={(e) => setNewContactPhone(e.target.value)}
+                        onChange={(e) => setNewContactPhone(formatPhone(e.target.value))}
+                        maxLength={16}
                       />
                     </div>
                   </div>
