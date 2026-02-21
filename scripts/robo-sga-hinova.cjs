@@ -1360,7 +1360,7 @@ async function main() {
   log(`URL Relatório: ${CONFIG.HINOVA_RELATORIO_URL}`, LOG_LEVELS.INFO);
 
   // Notificar início
-  await updateProgress('executando', 'login');
+  await updateProgress('executando', 'LOGIN');
 
   const browser = await chromium.launch({
     headless: true,
@@ -1494,7 +1494,7 @@ async function main() {
     // ETAPA: NAVEGAÇÃO PARA RELATÓRIO
     // ============================================
     setStep('NAVEGACAO');
-    await updateProgress('executando', 'filtros');
+    await updateProgress('executando', 'FILTROS');
 
     log(`Navegando para Relatório de Eventos: ${CONFIG.HINOVA_RELATORIO_URL}`);
 
@@ -1532,7 +1532,7 @@ async function main() {
     }
 
     // PASSO 2: Layout
-    await updateProgress('executando', 'campos');
+    await updateProgress('executando', 'FILTROS');
     const layoutOk = await selecionarLayoutRelatorio(page);
     if (!layoutOk) {
       log('⚠️ ALERTA: Layout pode não ter sido selecionado - verificar opções disponíveis no portal!', LOG_LEVELS.WARN);
@@ -1556,7 +1556,7 @@ async function main() {
     // ETAPA: DOWNLOAD (multi-watcher robusto)
     // ============================================
     setStep('DOWNLOAD');
-    await updateProgress('executando', 'download');
+    await updateProgress('executando', 'DOWNLOAD');
 
     const downloadDir = getDownloadDirectory();
     const semanticName = generateSemanticFilename();
@@ -1623,7 +1623,7 @@ async function main() {
     // ETAPA: ENVIAR DADOS
     // ============================================
     setStep('ENVIO');
-    await updateProgress('executando', 'envio');
+    await updateProgress('executando', 'ENVIANDO');
 
     log(`Enviando ${dados.length} registros via webhook em chunks...`, LOG_LEVELS.INFO);
 
@@ -1657,7 +1657,7 @@ async function main() {
     // ============================================
     setStep('FINALIZACAO');
 
-    await updateProgress('sucesso', 'concluido', {
+    await updateProgress('sucesso', 'CONCLUIDO', {
       registros_total: dados.length,
       nome_arquivo: semanticName,
     });
