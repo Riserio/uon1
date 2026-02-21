@@ -4,6 +4,7 @@ import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
+import { useWhatsAppUnread } from "@/hooks/useWhatsAppUnread";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar, SidebarSeparator, SidebarFooter, SidebarHeader } from "@/components/ui/sidebar";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,6 +88,7 @@ export function AppSidebar() {
     config
   } = useAppConfig();
   const unreadMessages = useUnreadMessages();
+  const whatsAppUnread = useWhatsAppUnread();
   const collapsed = state === "collapsed";
   const {
     canView
@@ -225,8 +227,17 @@ export function AppSidebar() {
                 {canView("emails") && <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <NavLink to="/central-atendimento" activeClassName="bg-primary text-primary-foreground">
-                        <Headset className="h-4 w-4" />
-                        {!collapsed && <span>Central de Atendimento</span>}
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-2">
+                            <Headset className="h-4 w-4" />
+                            {!collapsed && <span>Central de Atendimento</span>}
+                          </div>
+                          {whatsAppUnread > 0 && (
+                            <Badge className="bg-primary text-primary-foreground h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
+                              {whatsAppUnread}
+                            </Badge>
+                          )}
+                        </div>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>}

@@ -420,10 +420,10 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
             )}
             <div>
               <Label>Próximo passo (step_key)</Label>
-              <Select value={stepNextKey} onValueChange={setStepNextKey}>
+              <Select value={stepNextKey || '__none__'} onValueChange={(v) => setStepNextKey(v === '__none__' ? '' : v)}>
                 <SelectTrigger><SelectValue placeholder="Nenhum (encerrar)" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="__none__">Nenhum</SelectItem>
                   {steps.filter(s => s.id !== editingStep?.id).map(s => (
                     <SelectItem key={s.step_key} value={s.step_key}>{s.step_key} ({getStepTypeInfo(s.type).label})</SelectItem>
                   ))}
