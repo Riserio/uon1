@@ -66,6 +66,8 @@ const Landing = lazy(() => import("./pages/Landing"));
 const Gestao = lazy(() => import("./pages/Gestao"));
 const Uon1Sign = lazy(() => import("./pages/Uon1Sign"));
 const ContratoAssinatura = lazy(() => import("./pages/ContratoAssinatura"));
+const CentralAtendimento = lazy(() => import("./pages/CentralAtendimento"));
+const WhatsAppFlows = lazy(() => import("./pages/WhatsAppFlows"));
 const PortalGestaoAssociacao = lazy(() => import("./pages/portal/PortalGestaoAssociacao"));
 const PortalLayout = lazy(() => import("./components/portal/PortalLayout"));
 const PortalAcompanhamentoEventos = lazy(() => import("./pages/portal/PortalAcompanhamentoEventos"));
@@ -232,6 +234,8 @@ const App = () => (
               <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
               <Route path="/mensagens" element={<ProtectedRoute><Mensagens /></ProtectedRoute>} />
               <Route path="/emails" element={<ProtectedRoute><Emails /></ProtectedRoute>} />
+              <Route path="/central-whatsapp" element={<ProtectedRoute><CentralAtendimento /></ProtectedRoute>} />
+              <Route path="/whatsapp-flows" element={<ProtectedRoute><WhatsAppFlows /></ProtectedRoute>} />
               <Route path="/comunicados" element={<ProtectedRoute><AdminRoute><Comunicados /></AdminRoute></ProtectedRoute>} />
               <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
               <Route element={<ProtectedRoute><BILayout /></ProtectedRoute>}>

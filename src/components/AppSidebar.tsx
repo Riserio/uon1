@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, Mail, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Palette, Briefcase } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, Mail, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Palette, Briefcase, Headset, Bot } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -227,6 +227,26 @@ export function AppSidebar() {
                       <NavLink to="/emails" activeClassName="bg-primary text-primary-foreground">
                         <Mail className="h-4 w-4" />
                         {!collapsed && <span>E-mails / WhatsApp</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>}
+
+                {/* Central WhatsApp */}
+                {canView("emails") && <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/central-whatsapp" activeClassName="bg-primary text-primary-foreground">
+                        <Headset className="h-4 w-4" />
+                        {!collapsed && <span>Central WhatsApp</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>}
+
+                {/* Fluxos WhatsApp */}
+                {canView("emails") && <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/whatsapp-flows" activeClassName="bg-primary text-primary-foreground">
+                        <Bot className="h-4 w-4" />
+                        {!collapsed && <span>Automações WhatsApp</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
