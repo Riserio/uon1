@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { MessageCircle, Save, Clock, TestTube, CheckCircle, XCircle, AlertCircle, Smartphone, Plus, Trash2, Phone } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { formatPhone } from '@/lib/validators';
 
 interface WhatsAppConfigProps {
   corretoraId?: string;
@@ -288,8 +289,9 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
                   <Input
                     placeholder="(31) 98313-1491"
                     value={phone.number}
-                    onChange={(e) => updatePhoneNumber(index, 'number', e.target.value)}
+                    onChange={(e) => updatePhoneNumber(index, 'number', formatPhone(e.target.value))}
                     className="flex-1"
+                    maxLength={16}
                   />
                   <Input
                     placeholder="Nome (opcional)"
