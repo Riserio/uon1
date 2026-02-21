@@ -514,7 +514,8 @@ async function selecionarLayoutRelatorio(page) {
       const norm = normalizar(texto);
       return norm.includes('VANGARD') || 
              (norm.includes('BI') && norm.includes('VANGARD')) ||
-             norm.includes('BI - VANGARD');
+             norm.includes('BI - VANGARD') ||
+             norm.includes('RESUMO VANGARD');
     };
 
     const todosSelects = document.querySelectorAll('select');
@@ -1499,6 +1500,43 @@ async function main() {
     log(`Data Fim: ${fim}`, LOG_LEVELS.INFO);
     log(`Layout desejado: ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.INFO);
 
+    // PASSO 0: Limpar campo "Usuário Alteração" se preenchido indevidamente
+    await page.evaluate(() => {
+      const labels = document.querySelectorAll('td, th, label, span, div');
+      for (const label of labels) {
+        const texto = (label.textContent || '').trim().toLowerCase();
+        if (texto.includes('usuário alteração') || texto.includes('usuario alteracao') || texto.includes('usuário alteraçao')) {
+          const row = label.closest('tr') || label.closest('div') || label.parentElement;
+          if (row) {
+            const inputs = row.querySelectorAll('input[type="text"], input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="password"])');
+            for (const input of inputs) {
+              if (input.value) {
+                input.value = '';
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            }
+          }
+        }
+      }
+    }).catch(() => {});
+    log('Campo "Usuário Alteração" limpo (se existia)', LOG_LEVELS.DEBUG);
+
+    // PASSO 0.5: Expandir seção "Dados Visualizados" se estiver colapsada
+    await page.evaluate(() => {
+      const secoes = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
+      for (const secao of secoes) {
+        const texto = (secao.textContent || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        if (texto.includes('DADOS VISUALIZADOS') && (secao.tagName === 'A' || secao.tagName === 'BUTTON' || secao.tagName === 'TD' || secao.tagName === 'SPAN')) {
+          // Tentar clicar para expandir se for um accordion/colapsável
+          secao.click();
+          return true;
+        }
+      }
+      return false;
+    }).catch(() => false);
+    await page.waitForTimeout(1500);
+
     // PASSO 1: Data Cadastro Item
     const datasOk = await preencherDataCadastroItem(page, inicio, fim);
     if (!datasOk) {
@@ -1512,6 +1550,27 @@ async function main() {
       log('⚠️ ALERTA: Layout pode não ter sido selecionado - verificar opções disponíveis no portal!', LOG_LEVELS.WARN);
     }
     await page.waitForTimeout(500);
+
+    // PASSO 2.5: Limpar "Usuário Alteração" novamente após seleção de layout
+    await page.evaluate(() => {
+      const labels = document.querySelectorAll('td, th, label, span, div');
+      for (const label of labels) {
+        const texto = (label.textContent || '').trim().toLowerCase();
+        if (texto.includes('usuário alteração') || texto.includes('usuario alteracao') || texto.includes('usuário alteraçao')) {
+          const row = label.closest('tr') || label.closest('div') || label.parentElement;
+          if (row) {
+            const inputs = row.querySelectorAll('input[type="text"], input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="password"])');
+            for (const input of inputs) {
+              if (input.value) {
+                input.value = '';
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            }
+          }
+        }
+      }
+    }).catch(() => {});
 
     // PASSO 3: Em Excel
     const excelOk = await selecionarFormaExibicaoEmExcel(page);
