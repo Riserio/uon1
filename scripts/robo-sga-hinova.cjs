@@ -1819,17 +1819,32 @@ async function main() {
         // Buscar em todas as abas/páginas
         const candidatos = document.querySelectorAll('a, button, input[type="submit"], input[type="button"], [role="button"], img');
         
+        // Filtrar candidatos: excluir botões que contenham ATUALIZAR, IMPORTAR, CADASTR
+        const excluir = ['ATUALIZAR', 'IMPORTAR', 'CADASTR', 'UPLOAD'];
+        const matches = [];
+        
         for (const el of candidatos) {
           const texto = normalizar(el.textContent || el.value || el.title || el.alt || '');
           const href = (el.href || '').toLowerCase();
           const classes = (el.className || '').toLowerCase();
           
+          // Pular se contém palavras de ação não relacionadas a exportação
+          if (excluir.some(e => texto.includes(e))) continue;
+          
           if (texto.includes('EXCEL') || texto.includes('XLS') || texto.includes('PLANILHA') ||
               href.includes('excel') || href.includes('xls') || 
               classes.includes('excel') || classes.includes('xls')) {
-            el.click();
-            return { found: true, text: texto.substring(0, 50) };
+            // Priorizar elementos com texto curto (mais provável ser botão de exportação)
+            matches.push({ el, texto, len: texto.length });
           }
+        }
+        
+        // Ordenar por tamanho de texto (menor = mais específico = mais provável exportação)
+        matches.sort((a, b) => a.len - b.len);
+        
+        if (matches.length > 0) {
+          matches[0].el.click();
+          return { found: true, text: matches[0].texto.substring(0, 50) };
         }
         
         // Tentar por ícones/imagens que possam representar Excel
