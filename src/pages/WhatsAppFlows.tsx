@@ -55,7 +55,7 @@ const TRIGGER_TYPES = [
   { value: 'manual', label: 'Manual' },
 ];
 
-export default function WhatsAppFlowEditor() {
+export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean }) {
   const { user } = useAuth();
   const [flows, setFlows] = useState<Flow[]>([]);
   const [selectedFlow, setSelectedFlow] = useState<Flow | null>(null);

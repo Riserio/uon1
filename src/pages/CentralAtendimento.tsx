@@ -43,7 +43,7 @@ interface Message {
   sent_by: string | null;
 }
 
-export default function CentralAtendimento() {
+export default function CentralAtendimento({ embedded }: { embedded?: boolean }) {
   const { user } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);

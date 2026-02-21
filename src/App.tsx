@@ -233,9 +233,10 @@ const App = () => (
               <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
               <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
               <Route path="/mensagens" element={<ProtectedRoute><Mensagens /></ProtectedRoute>} />
-              <Route path="/emails" element={<ProtectedRoute><Emails /></ProtectedRoute>} />
-              <Route path="/central-whatsapp" element={<ProtectedRoute><CentralAtendimento /></ProtectedRoute>} />
-              <Route path="/whatsapp-flows" element={<ProtectedRoute><WhatsAppFlows /></ProtectedRoute>} />
+              <Route path="/central-atendimento" element={<ProtectedRoute><Emails /></ProtectedRoute>} />
+              <Route path="/emails" element={<Navigate to="/central-atendimento" replace />} />
+              <Route path="/central-whatsapp" element={<Navigate to="/central-atendimento" replace />} />
+              <Route path="/whatsapp-flows" element={<Navigate to="/central-atendimento" replace />} />
               <Route path="/comunicados" element={<ProtectedRoute><AdminRoute><Comunicados /></AdminRoute></ProtectedRoute>} />
               <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Configuracoes /></AdminRoute></ProtectedRoute>} />
               <Route element={<ProtectedRoute><BILayout /></ProtectedRoute>}>
