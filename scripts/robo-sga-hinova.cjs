@@ -1523,19 +1523,46 @@ async function main() {
     log('Campo "Usuário Alteração" limpo (se existia)', LOG_LEVELS.DEBUG);
 
     // PASSO 0.5: Expandir seção "Dados Visualizados" se estiver colapsada
-    await page.evaluate(() => {
+    // Verificar se a seção já tem selects visíveis — se sim, já está aberta
+    const dadosVizJaAberto = await page.evaluate(() => {
       const secoes = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
       for (const secao of secoes) {
-        const texto = (secao.textContent || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-        if (texto.includes('DADOS VISUALIZADOS') && (secao.tagName === 'A' || secao.tagName === 'BUTTON' || secao.tagName === 'TD' || secao.tagName === 'SPAN')) {
-          // Tentar clicar para expandir se for um accordion/colapsável
-          secao.click();
-          return true;
+        const textoRaw = (secao.textContent || '').trim();
+        const texto = textoRaw.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (texto.includes('DADOS VISUALIZADOS') && textoRaw.length < 40) {
+          const container = secao.closest('table') || secao.closest('div') || secao.parentElement;
+          if (container) {
+            const selects = container.querySelectorAll('select');
+            for (const s of selects) {
+              if (s.offsetParent !== null) return true;
+            }
+          }
+          return false;
         }
       }
       return false;
     }).catch(() => false);
-    await page.waitForTimeout(1500);
+
+    if (!dadosVizJaAberto) {
+      log('Seção Dados Visualizados parece colapsada - expandindo...', LOG_LEVELS.DEBUG);
+      await page.evaluate(() => {
+        const secoes = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
+        let melhorMatch = null;
+        let menorLength = Infinity;
+        for (const secao of secoes) {
+          const textoRaw = (secao.textContent || '').trim();
+          const texto = textoRaw.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          if (texto.includes('DADOS VISUALIZADOS') && textoRaw.length < menorLength && textoRaw.length < 40) {
+            melhorMatch = secao;
+            menorLength = textoRaw.length;
+          }
+        }
+        if (melhorMatch) melhorMatch.click();
+      }).catch(() => {});
+      await page.waitForTimeout(1500);
+    } else {
+      log('Seção Dados Visualizados já está aberta', LOG_LEVELS.DEBUG);
+    }
 
     // PASSO 1: Data Cadastro Item
     const datasOk = await preencherDataCadastroItem(page, inicio, fim);
@@ -1574,26 +1601,62 @@ async function main() {
 
     // PASSO 2.7: Expandir "CENTRO CUSTO" e selecionar checkboxes com EVENTO(S)
     log('Expandindo seção CENTRO CUSTO...', LOG_LEVELS.INFO);
-    const centroCustoExpandido = await page.evaluate(() => {
+    
+    // Verificar se CENTRO CUSTO já está aberto (tem checkboxes visíveis)
+    const centroCustoJaAberto = await page.evaluate(() => {
       const normalizar = (t) => (t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-      // Procurar header do accordion "CENTRO CUSTO"
       const elementos = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
       for (const el of elementos) {
-        const texto = normalizar(el.textContent || '');
-        // Verificar se é especificamente o header (não um container grande)
-        if ((texto === 'CENTRO CUSTO' || texto === 'CENTRO CUSTO' || texto === '▶ CENTRO CUSTO' || texto === '▼ CENTRO CUSTO') ||
-            (texto.includes('CENTRO CUSTO') && el.textContent.trim().length < 30)) {
-          el.click();
-          return true;
+        const textoRaw = (el.textContent || '').trim();
+        const texto = normalizar(textoRaw);
+        if (texto.includes('CENTRO CUSTO') && textoRaw.length < 30) {
+          // Procurar checkboxes no container/sibling
+          const parent = el.closest('fieldset') || el.closest('table') || el.parentElement?.parentElement;
+          if (parent) {
+            const cbs = parent.querySelectorAll('input[type="checkbox"]');
+            for (const cb of cbs) {
+              if (cb.offsetParent !== null) return true;
+            }
+          }
+          // Tentar sibling
+          let sib = el.nextElementSibling || el.parentElement?.nextElementSibling;
+          if (sib) {
+            const cbs2 = sib.querySelectorAll('input[type="checkbox"]');
+            for (const cb of cbs2) {
+              if (cb.offsetParent !== null) return true;
+            }
+          }
+          return false;
         }
       }
       return false;
     }).catch(() => false);
 
-    if (centroCustoExpandido) {
-      log('Seção CENTRO CUSTO expandida', LOG_LEVELS.SUCCESS);
+    if (!centroCustoJaAberto) {
+      const centroCustoExpandido = await page.evaluate(() => {
+        const normalizar = (t) => (t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        const elementos = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
+        let melhorMatch = null;
+        let menorLength = Infinity;
+        for (const el of elementos) {
+          const textoRaw = (el.textContent || '').trim();
+          const texto = normalizar(textoRaw);
+          if (texto.includes('CENTRO CUSTO') && textoRaw.length < menorLength && textoRaw.length < 30) {
+            melhorMatch = el;
+            menorLength = textoRaw.length;
+          }
+        }
+        if (melhorMatch) { melhorMatch.click(); return true; }
+        return false;
+      }).catch(() => false);
+
+      if (centroCustoExpandido) {
+        log('Seção CENTRO CUSTO expandida', LOG_LEVELS.SUCCESS);
+      } else {
+        log('Seção CENTRO CUSTO não encontrada', LOG_LEVELS.WARN);
+      }
     } else {
-      log('Seção CENTRO CUSTO não encontrada ou já expandida', LOG_LEVELS.WARN);
+      log('Seção CENTRO CUSTO já está aberta', LOG_LEVELS.DEBUG);
     }
     await page.waitForTimeout(1500);
 
