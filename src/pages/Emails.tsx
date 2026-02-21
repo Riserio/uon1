@@ -503,7 +503,7 @@ export default function Emails() {
           {/* =================== WHATSAPP TAB (unified) =================== */}
           <TabsContent value="whatsapp" className="space-y-6">
             <Tabs defaultValue="config" className="space-y-4">
-              <div className="inline-flex items-center rounded-xl bg-muted/50 p-1 border gap-0.5">
+              <TabsList className="inline-flex items-center rounded-xl bg-muted/50 p-1 border gap-0.5 h-auto">
                 <TabsTrigger value="config" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-green-600 data-[state=active]:text-white gap-1.5">
                   <Settings className="h-3.5 w-3.5" />
                   Config
@@ -520,7 +520,7 @@ export default function Emails() {
                   <Bot className="h-3.5 w-3.5" />
                   Automações
                 </TabsTrigger>
-              </div>
+              </TabsList>
 
               <TabsContent value="config">
                 <WhatsAppConfig />
@@ -541,7 +541,7 @@ export default function Emails() {
           <TabsContent value="email" className="space-y-6">
             <Tabs defaultValue="dashboard" className="space-y-4">
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                <div className="inline-flex items-center rounded-xl bg-muted/50 p-1 border gap-0.5">
+                <TabsList className="inline-flex items-center rounded-xl bg-muted/50 p-1 border gap-0.5 h-auto">
                   <TabsTrigger value="dashboard" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
                     <BarChart3 className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Dashboard</span>
@@ -566,7 +566,7 @@ export default function Emails() {
                     <History className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Histórico</span>
                   </TabsTrigger>
-                </div>
+                </TabsList>
                 <div className="flex items-center gap-3 bg-muted/50 px-4 py-2.5 rounded-lg border shrink-0">
                   <Label className="text-sm font-medium cursor-pointer whitespace-nowrap" htmlFor="email-auto-toggle">
                     Envio Automático
