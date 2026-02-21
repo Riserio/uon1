@@ -33,6 +33,7 @@ interface HinovaCredenciais {
   url_eventos: string;
   url_mgf: string;
   hora_agendada: string;
+  dias_agendados: number[] | null;
   ativo_cobranca: boolean;
   ativo_eventos: boolean;
   ativo_mgf: boolean;
@@ -111,6 +112,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
     layout_cobranca: "", layout_eventos: "", layout_mgf: "",
     url_cobranca: "", url_eventos: "", url_mgf: "",
     hora_agendada: "09:00",
+    dias_agendados: null,
     ativo_cobranca: false, ativo_eventos: false, ativo_mgf: false,
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -159,6 +161,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
           url_eventos: data.url_eventos || "",
           url_mgf: data.url_mgf || "",
           hora_agendada: data.hora_agendada || "09:00",
+          dias_agendados: data.dias_agendados || null,
           ativo_cobranca: data.ativo_cobranca || false,
           ativo_eventos: data.ativo_eventos || false,
           ativo_mgf: data.ativo_mgf || false,
@@ -341,6 +344,7 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
         url_eventos: creds.url_eventos,
         url_mgf: creds.url_mgf,
         hora_agendada: creds.hora_agendada,
+        dias_agendados: creds.dias_agendados,
         ativo_cobranca: creds.ativo_cobranca,
         ativo_eventos: creds.ativo_eventos,
         ativo_mgf: creds.ativo_mgf,
@@ -921,6 +925,47 @@ export default function BISyncButton({ corretoraId, corretoraNome }: BISyncButto
                       <Label className="text-xs">Horário Sync</Label>
                       <Input type="time" value={creds.hora_agendada} onChange={e => setCreds(p => ({...p, hora_agendada: e.target.value}))} className="h-9 text-sm" />
                     </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Dias da Semana</Label>
+                    <div className="flex gap-1">
+                      {[
+                        { label: "D", value: 0 },
+                        { label: "S", value: 1 },
+                        { label: "T", value: 2 },
+                        { label: "Q", value: 3 },
+                        { label: "Q", value: 4 },
+                        { label: "S", value: 5 },
+                        { label: "S", value: 6 },
+                      ].map((dia) => {
+                        const isSelected = !creds.dias_agendados || creds.dias_agendados.includes(dia.value);
+                        return (
+                          <button
+                            key={dia.value}
+                            type="button"
+                            onClick={() => {
+                              setCreds(prev => {
+                                const current = prev.dias_agendados ?? [0,1,2,3,4,5,6];
+                                const next = current.includes(dia.value)
+                                  ? current.filter(d => d !== dia.value)
+                                  : [...current, dia.value].sort();
+                                return { ...prev, dias_agendados: next.length === 7 ? null : next.length === 0 ? [dia.value] : next };
+                              });
+                            }}
+                            className={`h-8 w-8 rounded-lg text-xs font-medium border transition-all ${
+                              isSelected
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-muted/50 text-muted-foreground border-border hover:border-primary/50"
+                            }`}
+                          >
+                            {dia.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {!creds.dias_agendados ? "Todos os dias" : `${creds.dias_agendados.length} dia(s) selecionado(s)`}
+                    </p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">

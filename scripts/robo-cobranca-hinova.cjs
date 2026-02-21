@@ -144,37 +144,8 @@ async function trySelectHinovaLayout(page) {
     }
   } catch {}
 
-  // 3) Fallback: se houver 4+ inputs visíveis, preencher o último (o replay mostra um campo extra de layout)
-  try {
-    const ok = await page
-      .evaluate(({ layout }) => {
-        const isVisible = (el) => {
-          const r = el.getBoundingClientRect();
-          const style = window.getComputedStyle(el);
-          return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
-        };
-
-        const inputs = Array.from(
-          document.querySelectorAll('input:not([type="hidden"]):not([type="submit"])')
-        ).filter(isVisible);
-
-        if (inputs.length < 4) return false;
-
-        // Preferir o último input vazio (muito comum ser o campo de layout)
-        const candidate = [...inputs].reverse().find((i) => !i.value);
-        if (!candidate) return false;
-        candidate.value = layout;
-        candidate.dispatchEvent(new Event('input', { bubbles: true }));
-        candidate.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-      }, { layout: CONFIG.HINOVA_LAYOUT })
-      .catch(() => false);
-
-    if (ok) {
-      log(`Layout preenchido via fallback (último input): ${CONFIG.HINOVA_LAYOUT}`, LOG_LEVELS.DEBUG);
-      return true;
-    }
-  } catch {}
+  // 3) Fallback removed — filling arbitrary inputs caused "Usuário Alteração" field
+  //    to be incorrectly filled with VANGARD. Only select/autocomplete strategies are safe.
 
   return false;
 }
