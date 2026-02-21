@@ -22,6 +22,14 @@ serve(async (req) => {
       throw new Error('corretora_id é obrigatório');
     }
 
+    // Get corretora name
+    const { data: corretora } = await supabase
+      .from('corretoras')
+      .select('nome')
+      .eq('id', corretora_id)
+      .single();
+    const nomeAssociacao = corretora?.nome || 'Associação';
+
     // Get current month reference - filter by current month only
     const now = new Date();
     const mesReferencia = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -134,8 +142,8 @@ serve(async (req) => {
       }
     });
 
-    // Build message with standard header
-    const resumo = `*Resumo VANGARD da sua operação!*
+    // Build message with standard header including association name
+    const resumo = `*Resumo VANGARD da sua operação - ${nomeAssociacao}*
 
 O BI de indicadores de resultados da sua associação foi atualizado.
 
