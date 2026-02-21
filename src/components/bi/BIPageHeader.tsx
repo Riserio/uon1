@@ -1,4 +1,5 @@
 import { ArrowLeft, Activity, DollarSign, CreditCard, Database, History, TrendingUp, KanbanSquare } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
@@ -71,14 +72,18 @@ export default function BIPageHeader({
   showAdminOption
 }: BIPageHeaderProps) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const selectedAssociacaoNome = associacoes.find(a => a.id === selectedAssociacao)?.nome;
 
   return <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-40 shadow-sm">
       <div className="container mx-auto px-4 sm:px-6 py-3">
         <div className="flex flex-col gap-3">
-          {/* Row 1: Title + Association + Sync + Actions */}
+          {/* Row 1: Back + Title + Association + Sync + Actions */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => navigate('/dashboard')}>
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
               <div className="min-w-0">
                 <h1 className="text-lg sm:text-xl font-bold leading-tight text-foreground">{title}</h1>
                 <p className="text-xs text-muted-foreground">{subtitle}</p>
