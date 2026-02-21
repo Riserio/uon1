@@ -367,34 +367,6 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
             </Alert>
           )}
 
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Como funciona</AlertTitle>
-            <AlertDescription className="space-y-1 text-sm">
-              <p>✅ <strong>Token e Phone Number ID</strong> já configurados nos secrets do sistema.</p>
-              <p>✅ <strong>Gratuito:</strong> mensagens dentro da janela de 24h após o destinatário interagir.</p>
-              <p>⚠️ <strong>Fora da janela:</strong> use templates aprovados no Meta Business.</p>
-            </AlertDescription>
-          </Alert>
-
-          <div className="flex items-center justify-between border rounded-lg p-4">
-            <div>
-              <p className="font-medium text-sm">Testar integração</p>
-              <p className="text-xs text-muted-foreground">
-                Envia uma mensagem de teste para todos os números configurados
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              onClick={handleTestMeta}
-              disabled={testing || !config.id}
-              title={!config.id ? 'Salve a configuração primeiro' : ''}
-            >
-              <TestTube className="h-4 w-4 mr-2" />
-              {testing ? 'Testando...' : !config.id ? 'Salve primeiro' : 'Testar Envio'}
-            </Button>
-          </div>
-
           {/* Auto-send options */}
           <div className="space-y-4 border-t pt-4">
             <h4 className="font-medium flex items-center gap-2">
