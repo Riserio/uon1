@@ -471,7 +471,7 @@ export default function Emails() {
 
         {/* Top-level tabs — modern pill style */}
         <Tabs defaultValue="central" className="space-y-6">
-          <div className="inline-flex items-center rounded-2xl bg-muted/60 backdrop-blur-sm p-1.5 border shadow-sm">
+          <TabsList className="inline-flex items-center rounded-2xl bg-muted/60 backdrop-blur-sm p-1.5 border shadow-sm h-auto">
             <TabsTrigger
               value="central"
               className="rounded-xl px-5 py-2.5 text-sm font-medium transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md gap-2"
@@ -493,7 +493,7 @@ export default function Emails() {
               <Mail className="h-4 w-4" />
               E-mail
             </TabsTrigger>
-          </div>
+          </TabsList>
 
           {/* =================== CENTRAL TAB =================== */}
           <TabsContent value="central">
