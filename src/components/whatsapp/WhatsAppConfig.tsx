@@ -374,15 +374,9 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
               Envio Automático
             </h4>
 
-            <div className="space-y-2">
-              <Label>Horário do Envio</Label>
-              <Input
-                type="time"
-                value={config.horario_envio}
-                onChange={(e) => setConfig({ ...config, horario_envio: e.target.value })}
-                className="w-32"
-              />
-            </div>
+            <p className="text-xs text-muted-foreground">
+              O envio ocorre automaticamente assim que a importação do relatório for concluída.
+            </p>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
