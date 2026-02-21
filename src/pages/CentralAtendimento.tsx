@@ -1,28 +1,41 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Separator } from '@/components/ui/separator';
-import { useAuth } from '@/hooks/useAuth';
-import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
-  Search, Send, Check, CheckCheck, Clock, XCircle, User, Bot,
-  UserCheck, MessageCircle, Phone, MoreVertical, RefreshCw, Plus, Archive, ArchiveRestore
-} from 'lucide-react';
+  Search,
+  Send,
+  Check,
+  CheckCheck,
+  Clock,
+  XCircle,
+  User,
+  Bot,
+  UserCheck,
+  MessageCirclePlus,
+  Phone,
+  MoreVertical,
+  RefreshCw,
+  Plus,
+} from "lucide-react";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { formatPhone } from '@/lib/validators';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { formatPhone } from "@/lib/validators";
 
 interface Contact {
   id: string;
@@ -33,14 +46,13 @@ interface Contact {
   last_message_preview: string | null;
   unread_count: number;
   human_mode: boolean;
-  archived: boolean;
   tags: string[];
 }
 
 interface Message {
   id: string;
   contact_id: string;
-  direction: 'in' | 'out';
+  direction: "in" | "out";
   body: string | null;
   type: string;
   status: string | null;
@@ -54,29 +66,23 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [messageText, setMessageText] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [messageText, setMessageText] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [showNewContact, setShowNewContact] = useState(false);
-  const [showNewConversation, setShowNewConversation] = useState(false);
-  const [newContactName, setNewContactName] = useState('');
-  const [newContactPhone, setNewContactPhone] = useState('');
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactPhone, setNewContactPhone] = useState("");
   const [creatingContact, setCreatingContact] = useState(false);
-  const [contatosList, setContatosList] = useState<{ id: string; nome: string; whatsapp: string | null; telefone: string | null }[]>([]);
-  const [contatosSearch, setContatosSearch] = useState('');
-  const [startingConversation, setStartingConversation] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
 
-  // Load contacts (only those with messages)
+  // Load contacts
   const loadContacts = useCallback(async () => {
     const { data } = await supabase
-      .from('whatsapp_contacts')
-      .select('*')
-      .not('last_message_at', 'is', null)
-      .order('last_message_at', { ascending: false, nullsFirst: false });
+      .from("whatsapp_contacts")
+      .select("*")
+      .order("last_message_at", { ascending: false, nullsFirst: false });
     if (data) setContacts(data as Contact[]);
   }, []);
 
@@ -85,23 +91,25 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
 
     // Realtime contacts
     const contactChannel = supabase
-      .channel('wa-contacts-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_contacts' }, () => {
+      .channel("wa-contacts-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "whatsapp_contacts" }, () => {
         loadContacts();
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(contactChannel); };
+    return () => {
+      supabase.removeChannel(contactChannel);
+    };
   }, [loadContacts]);
 
   // Load messages when contact selected
   const loadMessages = useCallback(async (contactId: string) => {
     setLoadingMessages(true);
     const { data } = await supabase
-      .from('whatsapp_messages')
-      .select('*')
-      .eq('contact_id', contactId)
-      .order('created_at', { ascending: true })
+      .from("whatsapp_messages")
+      .select("*")
+      .eq("contact_id", contactId)
+      .order("created_at", { ascending: true })
       .limit(200);
     if (data) setMessages(data as Message[]);
     setLoadingMessages(false);
@@ -112,41 +120,51 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
     loadMessages(selectedContact.id);
 
     // Mark as read
-    supabase
-      .from('whatsapp_contacts')
-      .update({ unread_count: 0 })
-      .eq('id', selectedContact.id)
-      .then();
+    supabase.from("whatsapp_contacts").update({ unread_count: 0 }).eq("id", selectedContact.id).then();
 
     // Realtime messages — incremental updates to avoid flickering
     const msgChannel = supabase
       .channel(`wa-messages-${selectedContact.id}`)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'whatsapp_messages',
-        filter: `contact_id=eq.${selectedContact.id}`,
-      }, (payload) => {
-        const newMsg = payload.new as Message;
-        setMessages(prev => {
-          // Avoid duplicates
-          if (prev.some(m => m.id === newMsg.id)) return prev;
-          return [...prev, newMsg];
-        });
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'whatsapp_messages',
-        filter: `contact_id=eq.${selectedContact.id}`,
-      }, (payload) => {
-        const updated = payload.new as Message;
-        setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
-      })
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "whatsapp_messages",
+          filter: `contact_id=eq.${selectedContact.id}`,
+        },
+        (payload) => {
+          const newMsg = payload.new as Message;
+          setMessages((prev) => {
+            // Avoid duplicates
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "whatsapp_messages",
+          filter: `contact_id=eq.${selectedContact.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as Message;
+          setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+        },
+      )
       .subscribe();
 
-    return () => { supabase.removeChannel(msgChannel); };
+    return () => {
+      supabase.removeChannel(msgChannel);
+    };
   }, [selectedContact, loadMessages]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSelectContact = (contact: Contact) => {
@@ -156,31 +174,30 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
   const handleSendMessage = async () => {
     if (!messageText.trim() || !selectedContact || sending) return;
     const text = messageText.trim();
-    setMessageText('');
+    setMessageText("");
     setSending(true);
 
     try {
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/whatsapp-send-message`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({ contact_id: selectedContact.id, message: text }),
-        }
-      );
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/whatsapp-send-message`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ contact_id: selectedContact.id, message: text }),
+      });
 
       const result = await response.json();
       if (!response.ok) {
-        toast.error(result.error || 'Erro ao enviar mensagem');
+        toast.error(result.error || "Erro ao enviar mensagem");
       }
     } catch (err) {
-      toast.error('Erro ao enviar mensagem');
+      toast.error("Erro ao enviar mensagem");
     } finally {
       setSending(false);
     }
@@ -189,192 +206,101 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
   const toggleHumanMode = async (contact: Contact) => {
     const newMode = !contact.human_mode;
     await supabase
-      .from('whatsapp_contacts')
+      .from("whatsapp_contacts")
       .update({
         human_mode: newMode,
         human_mode_by: newMode ? user?.id : null,
         human_mode_at: newMode ? new Date().toISOString() : null,
       })
-      .eq('id', contact.id);
-    toast.success(newMode ? 'Modo humano ativado' : 'Automação reativada');
+      .eq("id", contact.id);
+    toast.success(newMode ? "Modo humano ativado" : "Automação reativada");
     loadContacts();
     if (selectedContact?.id === contact.id) {
       setSelectedContact({ ...contact, human_mode: newMode });
     }
   };
 
-  // Create new contact (upsert: update name if phone exists)
+  // Create new contact
   const handleCreateContact = async () => {
     if (!newContactPhone.trim()) {
-      toast.error('Informe o número do WhatsApp');
+      toast.error("Informe o número do WhatsApp");
       return;
     }
     setCreatingContact(true);
     try {
-      const cleanPhone = newContactPhone.replace(/\D/g, '');
-      const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-      // Phone without country code for contatos table (DDD + number)
-      const phoneWithoutCountry = formattedPhone.startsWith('55') ? formattedPhone.slice(2) : formattedPhone;
-      const nameValue = newContactName.trim() || null;
+      const cleanPhone = newContactPhone.replace(/\D/g, "");
+      const formattedPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
 
-      // Check if contact already exists in whatsapp_contacts
+      // Check if contact already exists by phone
       const { data: existing } = await supabase
-        .from('whatsapp_contacts')
-        .select('id, name')
-        .eq('phone', formattedPhone)
+        .from("whatsapp_contacts")
+        .select("id")
+        .eq("phone", formattedPhone)
         .maybeSingle();
 
       if (existing) {
-        // Update name if provided
-        if (nameValue) {
-          await supabase
-            .from('whatsapp_contacts')
-            .update({ name: nameValue, profile_name: nameValue })
-            .eq('id', existing.id);
-          toast.success('Contato atualizado com sucesso');
-        } else {
-          toast.info('Contato já cadastrado com este número');
-        }
-      } else {
-        // Create new whatsapp contact
-        const { error } = await supabase
-          .from('whatsapp_contacts')
-          .insert({
-            phone: formattedPhone,
-            name: nameValue,
-            profile_name: nameValue,
-          });
-        if (error) throw error;
-        toast.success('Contato criado com sucesso');
+        toast.error("Contato já cadastrado com este número");
+        setCreatingContact(false);
+        return;
       }
 
-      // Sync to contatos table with proper phone formatting
+      const { error } = await supabase.from("whatsapp_contacts").insert({
+        phone: formattedPhone,
+        name: newContactName.trim() || null,
+        profile_name: newContactName.trim() || null,
+      });
+
+      if (error) throw error;
+
+      // Also create in contatos table if it doesn't exist
       const { data: existingContato } = await supabase
-        .from('contatos')
-        .select('id')
-        .or(`whatsapp.eq.${formattedPhone},whatsapp.eq.${phoneWithoutCountry}`)
+        .from("contatos")
+        .select("id")
+        .eq("whatsapp", formattedPhone)
         .maybeSingle();
 
-      if (existingContato) {
-        // Update name if provided
-        if (nameValue) {
-          await supabase.from('contatos')
-            .update({ nome: nameValue, whatsapp: phoneWithoutCountry, telefone: phoneWithoutCountry })
-            .eq('id', existingContato.id);
-        }
-      } else if (nameValue) {
-        await supabase.from('contatos').insert({
-          nome: nameValue,
-          whatsapp: phoneWithoutCountry,
-          telefone: phoneWithoutCountry,
+      if (!existingContato && newContactName.trim()) {
+        await supabase.from("contatos").insert({
+          nome: newContactName.trim(),
+          whatsapp: formattedPhone,
+          telefone: formattedPhone,
           created_by: user?.id,
         });
       }
 
-      setNewContactName('');
-      setNewContactPhone('');
+      toast.success("Contato criado com sucesso");
+      setNewContactName("");
+      setNewContactPhone("");
       setShowNewContact(false);
       loadContacts();
     } catch (err) {
       console.error(err);
-      toast.error('Erro ao criar contato');
+      toast.error("Erro ao criar contato");
     } finally {
       setCreatingContact(false);
     }
   };
 
-  const filteredContacts = contacts.filter(c => {
-    // Filter by archived status
-    if (showArchived !== (c.archived || false)) return false;
+  const filteredContacts = contacts.filter((c) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
-    return (c.name?.toLowerCase().includes(q)) ||
-      (c.profile_name?.toLowerCase().includes(q)) ||
-      c.phone.includes(q);
+    return c.name?.toLowerCase().includes(q) || c.profile_name?.toLowerCase().includes(q) || c.phone.includes(q);
   });
-
-  const archiveContact = async (contact: Contact) => {
-    const newArchived = !contact.archived;
-    await supabase
-      .from('whatsapp_contacts')
-      .update({ archived: newArchived } as any)
-      .eq('id', contact.id);
-    toast.success(newArchived ? 'Conversa arquivada' : 'Conversa desarquivada');
-    if (selectedContact?.id === contact.id) {
-      setSelectedContact(null);
-    }
-    loadContacts();
-  };
 
   const getStatusIcon = (status: string | null) => {
     switch (status) {
-      case 'sent': return <Check className="h-3 w-3 text-muted-foreground" />;
-      case 'delivered': return <CheckCheck className="h-3 w-3 text-muted-foreground" />;
-      case 'read': return <CheckCheck className="h-3 w-3 text-blue-500" />;
-      case 'failed': return <XCircle className="h-3 w-3 text-destructive" />;
-      case 'pending': return <Clock className="h-3 w-3 text-muted-foreground" />;
-      default: return null;
-    }
-  };
-
-  // Load contatos for "Nova Conversa"
-  const loadContatosList = async () => {
-    const { data } = await supabase
-      .from('contatos')
-      .select('id, nome, whatsapp, telefone')
-      .order('nome');
-    setContatosList(data || []);
-  };
-
-  const filteredContatosList = contatosList.filter(c => {
-    if (!contatosSearch) return true;
-    const q = contatosSearch.toLowerCase();
-    return c.nome.toLowerCase().includes(q) || c.whatsapp?.includes(q) || c.telefone?.includes(q);
-  });
-
-  const handleStartConversation = async (contato: { nome: string; whatsapp: string | null; telefone: string | null }) => {
-    const phone = contato.whatsapp || contato.telefone;
-    if (!phone) {
-      toast.error('Contato sem número de telefone/WhatsApp');
-      return;
-    }
-    setStartingConversation(true);
-    try {
-      const cleanPhone = phone.replace(/\D/g, '');
-      const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-
-      // Check if whatsapp_contact already exists
-      const { data: existing } = await supabase
-        .from('whatsapp_contacts')
-        .select('*')
-        .eq('phone', formattedPhone)
-        .maybeSingle();
-
-      if (existing) {
-        // Select existing contact
-        setSelectedContact(existing as Contact);
-      } else {
-        // Create whatsapp contact
-        const { data: newContact, error } = await supabase
-          .from('whatsapp_contacts')
-          .insert({
-            phone: formattedPhone,
-            name: contato.nome,
-            profile_name: contato.nome,
-          })
-          .select()
-          .single();
-        if (error) throw error;
-        setSelectedContact(newContact as Contact);
-        loadContacts();
-      }
-      setShowNewConversation(false);
-      setContatosSearch('');
-    } catch (err) {
-      console.error(err);
-      toast.error('Erro ao iniciar conversa');
-    } finally {
-      setStartingConversation(false);
+      case "sent":
+        return <Check className="h-3 w-3 text-muted-foreground" />;
+      case "delivered":
+        return <CheckCheck className="h-3 w-3 text-muted-foreground" />;
+      case "read":
+        return <CheckCheck className="h-3 w-3 text-blue-500" />;
+      case "failed":
+        return <XCircle className="h-3 w-3 text-destructive" />;
+      case "pending":
+        return <Clock className="h-3 w-3 text-muted-foreground" />;
+      default:
+        return null;
     }
   };
 
@@ -396,57 +322,9 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
               Central WhatsApp
             </h2>
             <div className="flex items-center gap-1">
-              {/* Nova Conversa button */}
-              <Dialog open={showNewConversation} onOpenChange={(open) => { setShowNewConversation(open); if (open) loadContatosList(); }}>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" title="Nova Conversa">
-                    <MessageCircle className="h-4 w-4" />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Nova Conversa</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-3 py-2">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar contato..."
-                        value={contatosSearch}
-                        onChange={(e) => setContatosSearch(e.target.value)}
-                        className="pl-9"
-                      />
-                    </div>
-                    <ScrollArea className="h-64">
-                      {filteredContatosList.length === 0 ? (
-                        <p className="text-center text-sm text-muted-foreground py-4">Nenhum contato encontrado</p>
-                      ) : (
-                        filteredContatosList.map((contato) => (
-                          <div
-                            key={contato.id}
-                            onClick={() => !startingConversation && handleStartConversation(contato)}
-                            className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                          >
-                            <Avatar className="h-8 w-8 shrink-0">
-                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                                {contato.nome.substring(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{contato.nome}</p>
-                              <p className="text-xs text-muted-foreground">{formatPhone(contato.whatsapp || contato.telefone || '')}</p>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </ScrollArea>
-                  </div>
-                </DialogContent>
-              </Dialog>
-              {/* Add contact button */}
               <Dialog open={showNewContact} onOpenChange={setShowNewContact}>
                 <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" title="Novo Contato">
+                  <Button variant="ghost" size="icon">
                     <Plus className="h-4 w-4" />
                   </Button>
                 </DialogTrigger>
@@ -474,9 +352,11 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setShowNewContact(false)}>Cancelar</Button>
+                    <Button variant="outline" onClick={() => setShowNewContact(false)}>
+                      Cancelar
+                    </Button>
                     <Button onClick={handleCreateContact} disabled={creatingContact}>
-                      {creatingContact ? 'Criando...' : 'Criar Contato'}
+                      {creatingContact ? "Criando..." : "Criar Contato"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -495,15 +375,6 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
               className="pl-9"
             />
           </div>
-          <Button
-            variant={showArchived ? 'secondary' : 'ghost'}
-            size="sm"
-            className="w-full justify-start text-xs gap-2"
-            onClick={() => setShowArchived(!showArchived)}
-          >
-            <Archive className="h-3.5 w-3.5" />
-            {showArchived ? 'Ver conversas ativas' : 'Ver arquivadas'}
-          </Button>
         </div>
 
         {/* Contact list */}
@@ -519,23 +390,19 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                 key={contact.id}
                 onClick={() => handleSelectContact(contact)}
                 className={cn(
-                  'flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors border-b border-border/50',
-                  selectedContact?.id === contact.id && 'bg-primary/10'
+                  "flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors border-b border-border/50",
+                  selectedContact?.id === contact.id && "bg-primary/10",
                 )}
               >
                 <Avatar className="h-10 w-10 shrink-0">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                    {getInitials(contact)}
-                  </AvatarFallback>
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs">{getInitials(contact)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm truncate">
-                      {getContactDisplayName(contact)}
-                    </span>
+                    <span className="font-medium text-sm truncate">{getContactDisplayName(contact)}</span>
                     {contact.last_message_at && (
                       <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">
-                        {format(new Date(contact.last_message_at), 'HH:mm', { locale: ptBR })}
+                        {format(new Date(contact.last_message_at), "HH:mm", { locale: ptBR })}
                       </span>
                     )}
                   </div>
@@ -544,9 +411,7 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                       {contact.last_message_preview || contact.phone}
                     </span>
                     <div className="flex items-center gap-1 ml-2 shrink-0">
-                      {contact.human_mode && (
-                        <UserCheck className="h-3 w-3 text-amber-500" />
-                      )}
+                      {contact.human_mode && <UserCheck className="h-3 w-3 text-amber-500" />}
                       {contact.unread_count > 0 && (
                         <Badge className="bg-primary text-primary-foreground h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
                           {contact.unread_count}
@@ -602,16 +467,13 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => toggleHumanMode(selectedContact)}>
                     {selectedContact.human_mode ? (
-                      <><Bot className="h-4 w-4 mr-2" /> Reativar automação</>
+                      <>
+                        <Bot className="h-4 w-4 mr-2" /> Reativar automação
+                      </>
                     ) : (
-                      <><UserCheck className="h-4 w-4 mr-2" /> Modo humano</>
-                    )}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => archiveContact(selectedContact)}>
-                    {selectedContact.archived ? (
-                      <><ArchiveRestore className="h-4 w-4 mr-2" /> Desarquivar</>
-                    ) : (
-                      <><Archive className="h-4 w-4 mr-2" /> Arquivar conversa</>
+                      <>
+                        <UserCheck className="h-4 w-4 mr-2" /> Modo humano
+                      </>
                     )}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -627,35 +489,29 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                   <div className="text-center py-8 text-muted-foreground text-sm">Nenhuma mensagem</div>
                 ) : (
                   messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={cn(
-                        'flex',
-                        msg.direction === 'out' ? 'justify-end' : 'justify-start'
-                      )}
-                    >
+                    <div key={msg.id} className={cn("flex", msg.direction === "out" ? "justify-end" : "justify-start")}>
                       <div
                         className={cn(
-                          'max-w-[70%] rounded-2xl px-4 py-2 shadow-sm',
-                          msg.direction === 'out'
-                            ? 'bg-primary text-primary-foreground rounded-br-md'
-                            : 'bg-muted rounded-bl-md'
+                          "max-w-[70%] rounded-2xl px-4 py-2 shadow-sm",
+                          msg.direction === "out"
+                            ? "bg-primary text-primary-foreground rounded-br-md"
+                            : "bg-muted rounded-bl-md",
                         )}
                       >
-                        {msg.type !== 'text' && msg.type !== 'template' && (
+                        {msg.type !== "text" && msg.type !== "template" && (
                           <Badge variant="secondary" className="text-[10px] mb-1">
                             {msg.type}
                           </Badge>
                         )}
                         <p className="text-sm whitespace-pre-wrap break-words">{msg.body}</p>
-                        <div className={cn(
-                          'flex items-center justify-end gap-1 mt-1',
-                          msg.direction === 'out' ? 'text-primary-foreground/60' : 'text-muted-foreground'
-                        )}>
-                          <span className="text-[10px]">
-                            {format(new Date(msg.created_at), 'HH:mm')}
-                          </span>
-                          {msg.direction === 'out' && getStatusIcon(msg.status)}
+                        <div
+                          className={cn(
+                            "flex items-center justify-end gap-1 mt-1",
+                            msg.direction === "out" ? "text-primary-foreground/60" : "text-muted-foreground",
+                          )}
+                        >
+                          <span className="text-[10px]">{format(new Date(msg.created_at), "HH:mm")}</span>
+                          {msg.direction === "out" && getStatusIcon(msg.status)}
                         </div>
                       </div>
                     </div>
@@ -668,7 +524,10 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
             {/* Input */}
             <div className="p-3 border-t bg-card">
               <form
-                onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendMessage();
+                }}
                 className="flex items-center gap-2 max-w-3xl mx-auto"
               >
                 <Input
