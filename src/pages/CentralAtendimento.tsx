@@ -60,15 +60,20 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [showNewContact, setShowNewContact] = useState(false);
+  const [showNewConversation, setShowNewConversation] = useState(false);
   const [newContactName, setNewContactName] = useState('');
   const [newContactPhone, setNewContactPhone] = useState('');
   const [creatingContact, setCreatingContact] = useState(false);
+  const [contatosList, setContatosList] = useState<{ id: string; nome: string; whatsapp: string | null; telefone: string | null }[]>([]);
+  const [contatosSearch, setContatosSearch] = useState('');
+  const [startingConversation, setStartingConversation] = useState(false);
 
-  // Load contacts
+  // Load contacts (only those with messages)
   const loadContacts = useCallback(async () => {
     const { data } = await supabase
       .from('whatsapp_contacts')
       .select('*')
+      .not('last_message_at', 'is', null)
       .order('last_message_at', { ascending: false, nullsFirst: false });
     if (data) setContacts(data as Contact[]);
   }, []);
@@ -196,7 +201,7 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
     }
   };
 
-  // Create new contact
+  // Create new contact (upsert: update name if phone exists)
   const handleCreateContact = async () => {
     if (!newContactPhone.trim()) {
       toast.error('Informe o número do WhatsApp');
@@ -206,47 +211,64 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
     try {
       const cleanPhone = newContactPhone.replace(/\D/g, '');
       const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+      // Phone without country code for contatos table (DDD + number)
+      const phoneWithoutCountry = formattedPhone.startsWith('55') ? formattedPhone.slice(2) : formattedPhone;
+      const nameValue = newContactName.trim() || null;
 
-      // Check if contact already exists by phone
+      // Check if contact already exists in whatsapp_contacts
       const { data: existing } = await supabase
         .from('whatsapp_contacts')
-        .select('id')
+        .select('id, name')
         .eq('phone', formattedPhone)
         .maybeSingle();
 
       if (existing) {
-        toast.error('Contato já cadastrado com este número');
-        setCreatingContact(false);
-        return;
+        // Update name if provided
+        if (nameValue) {
+          await supabase
+            .from('whatsapp_contacts')
+            .update({ name: nameValue, profile_name: nameValue })
+            .eq('id', existing.id);
+          toast.success('Contato atualizado com sucesso');
+        } else {
+          toast.info('Contato já cadastrado com este número');
+        }
+      } else {
+        // Create new whatsapp contact
+        const { error } = await supabase
+          .from('whatsapp_contacts')
+          .insert({
+            phone: formattedPhone,
+            name: nameValue,
+            profile_name: nameValue,
+          });
+        if (error) throw error;
+        toast.success('Contato criado com sucesso');
       }
 
-      const { error } = await supabase
-        .from('whatsapp_contacts')
-        .insert({
-          phone: formattedPhone,
-          name: newContactName.trim() || null,
-          profile_name: newContactName.trim() || null,
-        });
-
-      if (error) throw error;
-
-      // Also create in contatos table if it doesn't exist
+      // Sync to contatos table with proper phone formatting
       const { data: existingContato } = await supabase
         .from('contatos')
         .select('id')
-        .eq('whatsapp', formattedPhone)
+        .or(`whatsapp.eq.${formattedPhone},whatsapp.eq.${phoneWithoutCountry}`)
         .maybeSingle();
 
-      if (!existingContato && newContactName.trim()) {
+      if (existingContato) {
+        // Update name if provided
+        if (nameValue) {
+          await supabase.from('contatos')
+            .update({ nome: nameValue, whatsapp: phoneWithoutCountry, telefone: phoneWithoutCountry })
+            .eq('id', existingContato.id);
+        }
+      } else if (nameValue) {
         await supabase.from('contatos').insert({
-          nome: newContactName.trim(),
-          whatsapp: formattedPhone,
-          telefone: formattedPhone,
+          nome: nameValue,
+          whatsapp: phoneWithoutCountry,
+          telefone: phoneWithoutCountry,
           created_by: user?.id,
         });
       }
 
-      toast.success('Contato criado com sucesso');
       setNewContactName('');
       setNewContactPhone('');
       setShowNewContact(false);
@@ -278,6 +300,67 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
     }
   };
 
+  // Load contatos for "Nova Conversa"
+  const loadContatosList = async () => {
+    const { data } = await supabase
+      .from('contatos')
+      .select('id, nome, whatsapp, telefone')
+      .order('nome');
+    setContatosList(data || []);
+  };
+
+  const filteredContatosList = contatosList.filter(c => {
+    if (!contatosSearch) return true;
+    const q = contatosSearch.toLowerCase();
+    return c.nome.toLowerCase().includes(q) || c.whatsapp?.includes(q) || c.telefone?.includes(q);
+  });
+
+  const handleStartConversation = async (contato: { nome: string; whatsapp: string | null; telefone: string | null }) => {
+    const phone = contato.whatsapp || contato.telefone;
+    if (!phone) {
+      toast.error('Contato sem número de telefone/WhatsApp');
+      return;
+    }
+    setStartingConversation(true);
+    try {
+      const cleanPhone = phone.replace(/\D/g, '');
+      const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+
+      // Check if whatsapp_contact already exists
+      const { data: existing } = await supabase
+        .from('whatsapp_contacts')
+        .select('*')
+        .eq('phone', formattedPhone)
+        .maybeSingle();
+
+      if (existing) {
+        // Select existing contact
+        setSelectedContact(existing as Contact);
+      } else {
+        // Create whatsapp contact
+        const { data: newContact, error } = await supabase
+          .from('whatsapp_contacts')
+          .insert({
+            phone: formattedPhone,
+            name: contato.nome,
+            profile_name: contato.nome,
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        setSelectedContact(newContact as Contact);
+        loadContacts();
+      }
+      setShowNewConversation(false);
+      setContatosSearch('');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao iniciar conversa');
+    } finally {
+      setStartingConversation(false);
+    }
+  };
+
   const getContactDisplayName = (c: Contact) => c.name || c.profile_name || c.phone;
   const getInitials = (c: Contact) => {
     const name = c.name || c.profile_name || c.phone;
@@ -296,9 +379,57 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
               Central WhatsApp
             </h2>
             <div className="flex items-center gap-1">
+              {/* Nova Conversa button */}
+              <Dialog open={showNewConversation} onOpenChange={(open) => { setShowNewConversation(open); if (open) loadContatosList(); }}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" title="Nova Conversa">
+                    <MessageCircle className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Nova Conversa</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3 py-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar contato..."
+                        value={contatosSearch}
+                        onChange={(e) => setContatosSearch(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                    <ScrollArea className="h-64">
+                      {filteredContatosList.length === 0 ? (
+                        <p className="text-center text-sm text-muted-foreground py-4">Nenhum contato encontrado</p>
+                      ) : (
+                        filteredContatosList.map((contato) => (
+                          <div
+                            key={contato.id}
+                            onClick={() => !startingConversation && handleStartConversation(contato)}
+                            className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                          >
+                            <Avatar className="h-8 w-8 shrink-0">
+                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                                {contato.nome.substring(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{contato.nome}</p>
+                              <p className="text-xs text-muted-foreground">{formatPhone(contato.whatsapp || contato.telefone || '')}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </ScrollArea>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              {/* Add contact button */}
               <Dialog open={showNewContact} onOpenChange={setShowNewContact}>
                 <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon">
+                  <Button variant="ghost" size="icon" title="Novo Contato">
                     <Plus className="h-4 w-4" />
                   </Button>
                 </DialogTrigger>
