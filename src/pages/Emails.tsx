@@ -471,25 +471,16 @@ export default function Emails() {
 
         {/* Top-level tabs — modern pill style */}
         <Tabs defaultValue="central" className="space-y-6">
-          <TabsList className="inline-flex items-center rounded-2xl bg-muted/60 backdrop-blur-sm p-1.5 border shadow-sm h-auto">
-            <TabsTrigger
-              value="central"
-              className="rounded-xl px-5 py-2.5 text-sm font-medium transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md gap-2"
-            >
+          <TabsList>
+            <TabsTrigger value="central" className="gap-2">
               <Headset className="h-4 w-4" />
               Central
             </TabsTrigger>
-            <TabsTrigger
-              value="whatsapp"
-              className="rounded-xl px-5 py-2.5 text-sm font-medium transition-all data-[state=active]:bg-green-600 data-[state=active]:text-white data-[state=active]:shadow-md gap-2"
-            >
+            <TabsTrigger value="whatsapp" className="gap-2">
               <MessageCircle className="h-4 w-4" />
               WhatsApp
             </TabsTrigger>
-            <TabsTrigger
-              value="email"
-              className="rounded-xl px-5 py-2.5 text-sm font-medium transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-md gap-2"
-            >
+            <TabsTrigger value="email" className="gap-2">
               <Mail className="h-4 w-4" />
               E-mail
             </TabsTrigger>
@@ -503,20 +494,20 @@ export default function Emails() {
           {/* =================== WHATSAPP TAB (unified) =================== */}
           <TabsContent value="whatsapp" className="space-y-6">
             <Tabs defaultValue="config" className="space-y-4">
-              <TabsList className="inline-flex items-center rounded-xl bg-muted/50 p-1 border gap-0.5 h-auto">
-                <TabsTrigger value="config" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-green-600 data-[state=active]:text-white gap-1.5">
+              <TabsList>
+                <TabsTrigger value="config" className="gap-1.5">
                   <Settings className="h-3.5 w-3.5" />
                   Config
                 </TabsTrigger>
-                <TabsTrigger value="templates" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-green-600 data-[state=active]:text-white gap-1.5">
+                <TabsTrigger value="templates" className="gap-1.5">
                   <FileText className="h-3.5 w-3.5" />
                   Templates
                 </TabsTrigger>
-                <TabsTrigger value="envio" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-green-600 data-[state=active]:text-white gap-1.5">
+                <TabsTrigger value="envio" className="gap-1.5">
                   <Send className="h-3.5 w-3.5" />
                   Envio
                 </TabsTrigger>
-                <TabsTrigger value="automacoes" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-green-600 data-[state=active]:text-white gap-1.5">
+                <TabsTrigger value="automacoes" className="gap-1.5">
                   <Bot className="h-3.5 w-3.5" />
                   Automações
                 </TabsTrigger>
@@ -541,30 +532,30 @@ export default function Emails() {
           <TabsContent value="email" className="space-y-6">
             <Tabs defaultValue="dashboard" className="space-y-4">
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                <TabsList className="inline-flex items-center rounded-xl bg-muted/50 p-1 border gap-0.5 h-auto">
-                  <TabsTrigger value="dashboard" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+                <TabsList>
+                  <TabsTrigger value="dashboard" className="gap-1.5">
                     <BarChart3 className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Dashboard</span>
+                    Dashboard
                   </TabsTrigger>
-                  <TabsTrigger value="resend" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+                  <TabsTrigger value="resend" className="gap-1.5">
                     <Settings className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Resend</span>
+                    Resend
                   </TabsTrigger>
-                  <TabsTrigger value="smtp" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+                  <TabsTrigger value="smtp" className="gap-1.5">
                     <Mail className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">SMTP</span>
+                    SMTP
                   </TabsTrigger>
-                  <TabsTrigger value="templates" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+                  <TabsTrigger value="templates" className="gap-1.5">
                     <FileText className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Templates</span>
+                    Templates
                   </TabsTrigger>
-                  <TabsTrigger value="regras" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+                  <TabsTrigger value="regras" className="gap-1.5">
                     <Target className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Regras</span>
+                    Regras
                   </TabsTrigger>
-                  <TabsTrigger value="historico" className="rounded-lg px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5">
+                  <TabsTrigger value="historico" className="gap-1.5">
                     <History className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Histórico</span>
+                    Histórico
                   </TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-3 bg-muted/50 px-4 py-2.5 rounded-lg border shrink-0">
