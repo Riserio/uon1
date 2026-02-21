@@ -18,6 +18,7 @@ import { Progress } from '@/components/ui/progress';
 import { WhatsAppConfig } from '@/components/whatsapp/WhatsAppConfig';
 import { WhatsAppTemplates } from '@/components/whatsapp/WhatsAppTemplates';
 import { WhatsAppEnvioManual } from '@/components/whatsapp/WhatsAppEnvioManual';
+import { WhatsAppHistorico } from '@/components/whatsapp/WhatsAppHistorico';
 
 interface ResendConfig {
   from_email: string;
@@ -511,6 +512,10 @@ export default function Emails() {
                   <Bot className="h-3.5 w-3.5" />
                   Automações
                 </TabsTrigger>
+                <TabsTrigger value="historico" className="gap-1.5">
+                  <History className="h-3.5 w-3.5" />
+                  Histórico
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="config">
@@ -524,6 +529,9 @@ export default function Emails() {
               </TabsContent>
               <TabsContent value="automacoes">
                 <WhatsAppFlows embedded />
+              </TabsContent>
+              <TabsContent value="historico">
+                <WhatsAppHistorico />
               </TabsContent>
             </Tabs>
           </TabsContent>
