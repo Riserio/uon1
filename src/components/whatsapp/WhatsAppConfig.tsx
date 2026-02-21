@@ -7,11 +7,16 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { MessageCircle, Save, Clock, TestTube, CheckCircle, XCircle, AlertCircle, Smartphone } from 'lucide-react';
+import { MessageCircle, Save, Clock, TestTube, CheckCircle, XCircle, AlertCircle, Smartphone, Plus, Trash2, Phone } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface WhatsAppConfigProps {
   corretoraId?: string;
+}
+
+interface PhoneEntry {
+  number: string;
+  label: string;
 }
 
 interface WhatsAppConfigData {
@@ -41,6 +46,7 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
     n8n_webhook_url: '',
     n8n_ativo: false,
   });
+  const [phoneNumbers, setPhoneNumbers] = useState<PhoneEntry[]>([{ number: '', label: '' }]);
   const [corretoras, setCorretoras] = useState<{ id: string; nome: string }[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState<string>(corretoraId || '');
   const [loading, setLoading] = useState(false);
@@ -70,14 +76,24 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
     }
   };
 
-  const loadConfig = async (corretoraId: string) => {
+  const parsePhoneNumbers = (telefone: string, nome: string): PhoneEntry[] => {
+    if (!telefone) return [{ number: '', label: '' }];
+    const numbers = telefone.split(',').map(n => n.trim()).filter(Boolean);
+    const labels = nome.split(',').map(n => n.trim());
+    if (numbers.length === 0) return [{ number: '', label: '' }];
+    return numbers.map((num, i) => ({ number: num, label: labels[i] || '' }));
+  };
+
+  const loadConfig = async (cId: string) => {
     const { data } = await supabase
       .from('whatsapp_config')
       .select('*')
-      .eq('corretora_id', corretoraId)
+      .eq('corretora_id', cId)
       .maybeSingle();
 
     if (data) {
+      const phones = parsePhoneNumbers(data.telefone_whatsapp || '', data.nome_exibicao || '');
+      setPhoneNumbers(phones);
       setConfig({
         id: data.id,
         telefone_whatsapp: data.telefone_whatsapp || '',
@@ -93,6 +109,7 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
         ultimo_erro_envio: data.ultimo_erro_envio,
       });
     } else {
+      setPhoneNumbers([{ number: '', label: '' }]);
       setConfig({
         telefone_whatsapp: '',
         nome_exibicao: '',
@@ -107,14 +124,30 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
     }
   };
 
+  const addPhoneNumber = () => {
+    setPhoneNumbers([...phoneNumbers, { number: '', label: '' }]);
+  };
+
+  const removePhoneNumber = (index: number) => {
+    if (phoneNumbers.length <= 1) return;
+    setPhoneNumbers(phoneNumbers.filter((_, i) => i !== index));
+  };
+
+  const updatePhoneNumber = (index: number, field: 'number' | 'label', value: string) => {
+    const updated = [...phoneNumbers];
+    updated[index] = { ...updated[index], [field]: value };
+    setPhoneNumbers(updated);
+  };
+
   const handleSave = async () => {
     if (!selectedCorretora) {
       toast.error('Selecione uma associação');
       return;
     }
 
-    if (!config.telefone_whatsapp) {
-      toast.error('Informe o número do WhatsApp');
+    const validPhones = phoneNumbers.filter(p => p.number.trim());
+    if (validPhones.length === 0) {
+      toast.error('Informe ao menos um número de WhatsApp');
       return;
     }
 
@@ -122,10 +155,13 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
+      const telefones = validPhones.map(p => p.number.trim()).join(', ');
+      const nomes = validPhones.map(p => p.label.trim()).join(', ');
+
       const payload = {
         corretora_id: selectedCorretora,
-        telefone_whatsapp: config.telefone_whatsapp,
-        nome_exibicao: config.nome_exibicao,
+        telefone_whatsapp: telefones,
+        nome_exibicao: nomes,
         ativo: config.ativo,
         envio_automatico_cobranca: config.envio_automatico_cobranca,
         envio_automatico_eventos: config.envio_automatico_eventos,
@@ -141,13 +177,11 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
           .from('whatsapp_config')
           .update(payload)
           .eq('id', config.id);
-
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('whatsapp_config')
           .insert(payload);
-
         if (error) throw error;
       }
 
@@ -212,7 +246,7 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
             Configuração do WhatsApp
           </CardTitle>
           <CardDescription>
-            Configure o número do WhatsApp e as opções de envio automático
+            Configure os números do WhatsApp e as opções de envio automático
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -232,27 +266,48 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
             </Select>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Número de Destino (WhatsApp) *</Label>
-              <Input
-                placeholder="(31) 98313-1491"
-                value={config.telefone_whatsapp}
-                onChange={(e) => setConfig({ ...config, telefone_whatsapp: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">
-                Número que receberá os resumos automáticos
-              </p>
+          {/* Multiple phone numbers */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                Números de Destino
+              </Label>
+              <Button variant="outline" size="sm" onClick={addPhoneNumber} className="gap-1">
+                <Plus className="h-3.5 w-3.5" />
+                Adicionar número
+              </Button>
             </div>
-
+            
             <div className="space-y-2">
-              <Label>Nome de Exibição</Label>
-              <Input
-                placeholder="Nome do destinatário"
-                value={config.nome_exibicao}
-                onChange={(e) => setConfig({ ...config, nome_exibicao: e.target.value })}
-              />
+              {phoneNumbers.map((phone, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <div className="flex items-center justify-center h-8 w-8 rounded-full bg-green-100 text-green-700 text-xs font-bold shrink-0 dark:bg-green-900 dark:text-green-300">
+                    {index + 1}
+                  </div>
+                  <Input
+                    placeholder="(31) 98313-1491"
+                    value={phone.number}
+                    onChange={(e) => updatePhoneNumber(index, 'number', e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="Nome (opcional)"
+                    value={phone.label}
+                    onChange={(e) => updatePhoneNumber(index, 'label', e.target.value)}
+                    className="flex-1"
+                  />
+                  {phoneNumbers.length > 1 && (
+                    <Button variant="ghost" size="icon" onClick={() => removePhoneNumber(index)} className="shrink-0 text-destructive hover:text-destructive">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Todos os números receberão os resumos automáticos configurados abaixo.
+            </p>
           </div>
 
           <div className="flex items-center justify-between border-t pt-4">
@@ -266,7 +321,7 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
 
             <Button onClick={handleSave} disabled={loading}>
               <Save className="h-4 w-4 mr-2" />
-              {loading ? 'Salvando...' : 'Salvar Configuração'}
+              {loading ? 'Salvando...' : 'Salvar'}
             </Button>
           </div>
         </CardContent>
@@ -284,7 +339,6 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Status alerts */}
           {config.ultimo_erro_envio && (
             <Alert variant="destructive">
               <XCircle className="h-4 w-4" />
@@ -303,7 +357,6 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
             </Alert>
           )}
 
-          {/* Info */}
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Como funciona</AlertTitle>
@@ -314,12 +367,11 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
             </AlertDescription>
           </Alert>
 
-          {/* Test button */}
           <div className="flex items-center justify-between border rounded-lg p-4">
             <div>
               <p className="font-medium text-sm">Testar integração</p>
               <p className="text-xs text-muted-foreground">
-                Envia uma mensagem de teste para o número configurado acima
+                Envia uma mensagem de teste para todos os números configurados
               </p>
             </div>
             <Button
@@ -395,7 +447,7 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
           <div className="flex justify-end pt-4">
             <Button onClick={handleSave} disabled={loading}>
               <Save className="h-4 w-4 mr-2" />
-              {loading ? 'Salvando...' : 'Salvar Configuração'}
+              {loading ? 'Salvando...' : 'Salvar'}
             </Button>
           </div>
         </CardContent>
