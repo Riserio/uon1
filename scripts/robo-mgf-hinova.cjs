@@ -2937,67 +2937,97 @@ async function rodarRobo() {
     // PASSO 1: Expandir a seção colapsável "CENTRO CUSTO" na página do relatório
     log('   🔍 Procurando seção colapsável "CENTRO CUSTO" para expandir...', LOG_LEVELS.INFO);
     
-    // A seção é um accordion/colapsável com header contendo exatamente "CENTRO CUSTO"
-    // Não confundir com o item de menu "4.12) Departamento / Centro de Custo"
-    const expandiuCentroCusto = await page.evaluate(() => {
-      // Estratégia 1: Procurar headers de accordion/seções colapsáveis
-      // Esses são tipicamente elementos com ícones de seta (▼/▶) e texto em negrito
-      const candidatos = document.querySelectorAll(
-        'a[data-toggle], a[data-bs-toggle], [data-toggle="collapse"], [data-bs-toggle="collapse"], ' +
-        '.panel-heading a, .card-header a, .accordion-toggle, ' +
-        'a.collapsed, a[aria-expanded], ' +
-        'h3 a, h4 a, h5 a, ' +
-        // Headers genéricos que podem ser clicáveis
-        '.panel-heading, .card-header, .accordion-header'
-      );
-      
-      for (const el of candidatos) {
-        const texto = (el.textContent || '').toUpperCase().trim();
-        // Deve conter "CENTRO CUSTO" mas NÃO "DEPARTAMENTO" (para evitar o item de menu 4.12)
-        if (texto.includes('CENTRO') && texto.includes('CUSTO') && !texto.includes('DEPARTAMENTO') && !texto.includes('4.12')) {
-          el.click();
-          return { found: true, text: texto, tag: el.tagName, strategy: 'accordion-selector' };
-        }
-      }
-      
-      // Estratégia 2: Procurar qualquer <a> ou elemento clicável com texto curto "CENTRO CUSTO"
-      const allLinks = document.querySelectorAll('a, button, [role="button"]');
-      for (const el of allLinks) {
-        // Pegar apenas o texto direto do elemento (sem filhos profundos)
-        const textoDirecto = Array.from(el.childNodes)
-          .filter(n => n.nodeType === Node.TEXT_NODE || (n.nodeType === Node.ELEMENT_NODE && ['B', 'STRONG', 'SPAN', 'I'].includes(n.nodeName)))
-          .map(n => n.textContent || '')
-          .join('')
-          .toUpperCase()
-          .trim();
+    // Tentar expandir até 2 vezes (pode precisar de duplo-clique em alguns portais)
+    for (let expandTentativa = 1; expandTentativa <= 2; expandTentativa++) {
+      const expandiuCentroCusto = await page.evaluate(() => {
+        const normalizar = (t) => (t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
         
-        // Texto curto tipo "CENTRO CUSTO" (sem números de menu como "4.12)")
-        if (textoDirecto.includes('CENTRO CUSTO') && textoDirecto.length < 30 && !textoDirecto.includes('4.')) {
-          el.click();
-          return { found: true, text: textoDirecto, tag: el.tagName, strategy: 'direct-text' };
+        // Estratégia 1: Accordion toggles
+        const candidatos = document.querySelectorAll(
+          'a[data-toggle], a[data-bs-toggle], [data-toggle="collapse"], [data-bs-toggle="collapse"], ' +
+          '.panel-heading a, .card-header a, .accordion-toggle, ' +
+          'a.collapsed, a[aria-expanded], ' +
+          'h3 a, h4 a, h5 a, ' +
+          '.panel-heading, .card-header, .accordion-header'
+        );
+        
+        for (const el of candidatos) {
+          const texto = normalizar(el.textContent || '');
+          if (texto.includes('CENTRO') && texto.includes('CUSTO') && !texto.includes('DEPARTAMENTO') && !texto.includes('4.12')) {
+            // Scroll into view first
+            el.scrollIntoView({ block: 'center', behavior: 'instant' });
+            el.click();
+            return { found: true, text: texto, tag: el.tagName, strategy: 'accordion-selector' };
+          }
+        }
+        
+        // Estratégia 2: Links/buttons com texto direto "CENTRO CUSTO"
+        const allLinks = document.querySelectorAll('a, button, [role="button"], td, th');
+        for (const el of allLinks) {
+          const textoDirecto = Array.from(el.childNodes)
+            .filter(n => n.nodeType === Node.TEXT_NODE || (n.nodeType === Node.ELEMENT_NODE && ['B', 'STRONG', 'SPAN', 'I'].includes(n.nodeName)))
+            .map(n => n.textContent || '')
+            .join('')
+            .toUpperCase()
+            .trim();
+          
+          if (textoDirecto.includes('CENTRO CUSTO') && textoDirecto.length < 30 && !textoDirecto.includes('4.')) {
+            el.scrollIntoView({ block: 'center', behavior: 'instant' });
+            // For <td>/<th>, look for a clickable child first
+            const clickable = el.querySelector('a, button, [data-toggle], [data-bs-toggle]');
+            if (clickable) {
+              clickable.click();
+            } else {
+              el.click();
+            }
+            return { found: true, text: textoDirecto, tag: el.tagName, strategy: 'direct-text' };
+          }
+        }
+        
+        // Estratégia 3: Texto exato com setas
+        const allElements = document.querySelectorAll('a, div[onclick], span[onclick]');
+        for (const el of allElements) {
+          const texto = normalizar(el.textContent || '');
+          if (texto === 'CENTRO CUSTO' || texto === 'CENTRO CUSTO' || texto.startsWith('CENTRO CUSTO')) {
+            el.scrollIntoView({ block: 'center', behavior: 'instant' });
+            el.click();
+            return { found: true, text: texto, tag: el.tagName, strategy: 'exact-match' };
+          }
+        }
+        
+        return { found: false };
+      });
+      
+      if (expandiuCentroCusto.found) {
+        log(`   ✅ Seção expandida (tentativa ${expandTentativa}): "${expandiuCentroCusto.text}" (${expandiuCentroCusto.tag}, estratégia: ${expandiuCentroCusto.strategy})`, LOG_LEVELS.SUCCESS);
+        await page.waitForTimeout(3000);
+        
+        // Verificar se checkboxes ficaram visíveis
+        const checkboxesVisiveis = await page.evaluate(() => {
+          const cbs = document.querySelectorAll('input[type="checkbox"]');
+          let visCount = 0;
+          for (const cb of cbs) {
+            if (cb.offsetParent !== null) visCount++;
+          }
+          return visCount;
+        });
+        
+        if (checkboxesVisiveis > 0) {
+          log(`   ✅ ${checkboxesVisiveis} checkboxes visíveis após expandir`, LOG_LEVELS.SUCCESS);
+          break;
+        } else if (expandTentativa < 2) {
+          log(`   ⚠️ Nenhum checkbox visível, tentando expandir novamente...`, LOG_LEVELS.WARN);
+          await page.waitForTimeout(1000);
+        }
+      } else {
+        if (expandTentativa === 1) {
+          log('   ⚠️ Seção "CENTRO CUSTO" não encontrada na tentativa 1, scrolling e tentando novamente...', LOG_LEVELS.WARN);
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
+          await page.waitForTimeout(2000);
+        } else {
+          log('   ⚠️ Seção "CENTRO CUSTO" não encontrada, tentando prosseguir com checkboxes já visíveis...', LOG_LEVELS.WARN);
         }
       }
-      
-      // Estratégia 3: Procurar pela estrutura visual - seções com seta ▼ ou ▶
-      const allElements = document.querySelectorAll('a, div[onclick], span[onclick]');
-      for (const el of allElements) {
-        const texto = (el.textContent || '').toUpperCase().trim();
-        if (texto === 'CENTRO CUSTO' || texto === '▼ CENTRO CUSTO' || texto === '▶ CENTRO CUSTO' || 
-            texto === '◄ CENTRO CUSTO' || texto === '► CENTRO CUSTO') {
-          el.click();
-          return { found: true, text: texto, tag: el.tagName, strategy: 'exact-match' };
-        }
-      }
-      
-      return { found: false };
-    });
-    
-    if (expandiuCentroCusto.found) {
-      log(`   ✅ Seção expandida: "${expandiuCentroCusto.text}" (${expandiuCentroCusto.tag}, estratégia: ${expandiuCentroCusto.strategy})`, LOG_LEVELS.SUCCESS);
-      // Aguardar checkboxes aparecerem após expandir
-      await page.waitForTimeout(3000);
-    } else {
-      log('   ⚠️ Seção "CENTRO CUSTO" não encontrada, tentando prosseguir com checkboxes já visíveis...', LOG_LEVELS.WARN);
     }
     
     const MAX_TENTATIVAS_CENTRO_CUSTO = 3;
@@ -3269,7 +3299,84 @@ async function rodarRobo() {
         
         log(`Clicou: ${clickInfo}`, LOG_LEVELS.SUCCESS);
         
+        // ============================================
+        // NOVA VERSÃO MGF: Após clicar "Gerar", a página pode navegar para
+        // uma tela intermediária com os dados e um botão "Excel" para download.
+        // Esperar 15s para ver se download inicia, senão procurar botão Excel.
+        // ============================================
         log(`Aguardando captura híbrida (timeout: ${TIMEOUTS.DOWNLOAD_TOTAL / 60000} min)...`);
+        
+        // Aguardar 15s para dar chance ao download automático iniciar
+        await page.waitForTimeout(15000);
+        
+        // Verificar se há um botão Excel na tela (nova versão MGF)
+        const botaoExcelEncontrado = await page.evaluate(() => {
+          const normalizar = (t) => (t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+          
+          const candidatos = document.querySelectorAll('a, button, input[type="button"], input[type="submit"], [role="button"]');
+          for (const el of candidatos) {
+            const texto = normalizar(el.textContent || el.value || el.title || el.alt || '');
+            const href = (el.getAttribute('href') || '').toLowerCase();
+            const onclick = (el.getAttribute('onclick') || '').toLowerCase();
+            
+            if (texto.includes('EXCEL') || texto.includes('XLS') || texto.includes('PLANILHA') ||
+                href.includes('excel') || href.includes('.xls') ||
+                onclick.includes('excel') || onclick.includes('xls') || onclick.includes('export')) {
+              el.scrollIntoView({ block: 'center' });
+              return { found: true, text: texto, tag: el.tagName };
+            }
+          }
+          
+          // Procurar ícones de Excel (imagens com alt/title contendo excel)
+          const imgs = document.querySelectorAll('img[alt], img[title], a > img');
+          for (const img of imgs) {
+            const alt = normalizar(img.alt || img.title || '');
+            const parentText = normalizar(img.parentElement?.textContent || '');
+            if (alt.includes('EXCEL') || alt.includes('XLS') || parentText.includes('EXCEL')) {
+              const clickTarget = img.closest('a') || img.closest('button') || img;
+              clickTarget.scrollIntoView({ block: 'center' });
+              return { found: true, text: alt || parentText, tag: clickTarget.tagName };
+            }
+          }
+          
+          return { found: false };
+        });
+        
+        if (botaoExcelEncontrado.found) {
+          log(`✅ Nova versão MGF detectada! Botão Excel encontrado: "${botaoExcelEncontrado.text}" (${botaoExcelEncontrado.tag})`, LOG_LEVELS.SUCCESS);
+          log('Clicando no botão Excel para iniciar download...', LOG_LEVELS.INFO);
+          await saveDebugInfo(page, context, 'Nova versão MGF - clicando botão Excel');
+          
+          await page.evaluate(() => {
+            const normalizar = (t) => (t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+            const candidatos = document.querySelectorAll('a, button, input[type="button"], input[type="submit"], [role="button"]');
+            for (const el of candidatos) {
+              const texto = normalizar(el.textContent || el.value || el.title || el.alt || '');
+              const href = (el.getAttribute('href') || '').toLowerCase();
+              const onclick = (el.getAttribute('onclick') || '').toLowerCase();
+              if (texto.includes('EXCEL') || texto.includes('XLS') || texto.includes('PLANILHA') ||
+                  href.includes('excel') || href.includes('.xls') ||
+                  onclick.includes('excel') || onclick.includes('xls') || onclick.includes('export')) {
+                el.click();
+                return true;
+              }
+            }
+            const imgs = document.querySelectorAll('img[alt], img[title], a > img');
+            for (const img of imgs) {
+              const alt = normalizar(img.alt || img.title || '');
+              if (alt.includes('EXCEL') || alt.includes('XLS')) {
+                const target = img.closest('a') || img.closest('button') || img;
+                target.click();
+                return true;
+              }
+            }
+            return false;
+          });
+          
+          log('Botão Excel clicado. Aguardando download...', LOG_LEVELS.INFO);
+        } else {
+          log('Nenhum botão Excel detectado — download automático deve estar em andamento...', LOG_LEVELS.DEBUG);
+        }
         
         const result = await capturaHibridaPromise;
         
