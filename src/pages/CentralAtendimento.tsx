@@ -12,12 +12,16 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Search, Send, Check, CheckCheck, Clock, XCircle, User, Bot,
-  UserCheck, MessageCircle, Phone, MoreVertical, RefreshCw
+  UserCheck, MessageCircle, Phone, MoreVertical, RefreshCw, Plus
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 interface Contact {
   id: string;
@@ -54,6 +58,10 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
   const [loadingMessages, setLoadingMessages] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [showNewContact, setShowNewContact] = useState(false);
+  const [newContactName, setNewContactName] = useState('');
+  const [newContactPhone, setNewContactPhone] = useState('');
+  const [creatingContact, setCreatingContact] = useState(false);
 
   // Load contacts
   const loadContacts = useCallback(async () => {
@@ -175,6 +183,69 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
     }
   };
 
+  // Create new contact
+  const handleCreateContact = async () => {
+    if (!newContactPhone.trim()) {
+      toast.error('Informe o número do WhatsApp');
+      return;
+    }
+    setCreatingContact(true);
+    try {
+      const cleanPhone = newContactPhone.replace(/\D/g, '');
+      const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+
+      // Check if contact already exists by phone
+      const { data: existing } = await supabase
+        .from('whatsapp_contacts')
+        .select('id')
+        .eq('phone', formattedPhone)
+        .maybeSingle();
+
+      if (existing) {
+        toast.error('Contato já cadastrado com este número');
+        setCreatingContact(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('whatsapp_contacts')
+        .insert({
+          phone: formattedPhone,
+          name: newContactName.trim() || null,
+          profile_name: newContactName.trim() || null,
+        });
+
+      if (error) throw error;
+
+      // Also create in contatos table if it doesn't exist
+      const { data: existingContato } = await supabase
+        .from('contatos')
+        .select('id')
+        .eq('whatsapp', formattedPhone)
+        .maybeSingle();
+
+      if (!existingContato && newContactName.trim()) {
+        await supabase.from('contatos').insert({
+          nome: newContactName.trim(),
+          whatsapp: formattedPhone,
+          telefone: formattedPhone,
+          created_by: user?.id,
+        });
+      }
+
+      toast.success('Contato criado com sucesso');
+      setNewContactName('');
+      setNewContactPhone('');
+      setShowNewContact(false);
+      loadContacts();
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao criar contato');
+    } finally {
+      setCreatingContact(false);
+    }
+  };
+
   const filteredContacts = contacts.filter(c => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -211,9 +282,47 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
               <MessageCircle className="h-5 w-5 text-primary" />
               Central WhatsApp
             </h2>
-            <Button variant="ghost" size="icon" onClick={loadContacts}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Dialog open={showNewContact} onOpenChange={setShowNewContact}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Novo Contato WhatsApp</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
+                    <div className="space-y-2">
+                      <Label>Nome</Label>
+                      <Input
+                        placeholder="Nome do contato"
+                        value={newContactName}
+                        onChange={(e) => setNewContactName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>WhatsApp</Label>
+                      <Input
+                        placeholder="(00) 00000-0000"
+                        value={newContactPhone}
+                        onChange={(e) => setNewContactPhone(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowNewContact(false)}>Cancelar</Button>
+                    <Button onClick={handleCreateContact} disabled={creatingContact}>
+                      {creatingContact ? 'Criando...' : 'Criar Contato'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              <Button variant="ghost" size="icon" onClick={loadContacts}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
