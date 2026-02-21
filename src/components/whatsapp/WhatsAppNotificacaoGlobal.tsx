@@ -89,7 +89,7 @@ export function WhatsAppNotificacaoGlobal() {
           <div className="space-y-2">
             <Label>Número para notificação</Label>
             <Input
-              placeholder="(31) 99172-8585"
+              placeholder="(XX) XXXXX-XXXX"
               value={notificarNumero ? formatPhone(notificarNumero) : ''}
               onChange={(e) => setNotificarNumero(formatPhone(e.target.value))}
               maxLength={16}

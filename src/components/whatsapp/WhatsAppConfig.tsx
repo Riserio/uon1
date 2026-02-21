@@ -295,7 +295,7 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
                     {index + 1}
                   </div>
                   <Input
-                    placeholder="(31) 98313-1491"
+                    placeholder="(XX) XXXXX-XXXX"
                     value={phone.number}
                     onChange={(e) => updatePhoneNumber(index, 'number', formatPhone(e.target.value))}
                     className="flex-1"
