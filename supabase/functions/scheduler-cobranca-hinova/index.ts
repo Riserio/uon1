@@ -302,6 +302,21 @@ serve(async (req) => {
         if (currentHour !== agendadoHora || currentMinute !== agendadoMinuto) {
           continue;
         }
+
+        // Verificar dia da semana (dias_agendados em hinova_credenciais)
+        const currentDayOfWeek = brasiliaTime.getUTCDay(); // 0=Dom, 1=Seg, ..., 6=Sáb
+        const { data: credRow } = await supabase
+          .from("hinova_credenciais")
+          .select("dias_agendados")
+          .eq("corretora_id", config.corretora_id)
+          .maybeSingle();
+        
+        if (credRow?.dias_agendados && Array.isArray(credRow.dias_agendados) && credRow.dias_agendados.length > 0) {
+          if (!credRow.dias_agendados.includes(currentDayOfWeek)) {
+            console.log(`[Scheduler] ${config.corretora?.nome || config.corretora_id} não agendado para hoje (dia ${currentDayOfWeek}), pulando`);
+            continue;
+          }
+        }
       }
 
       // Verificar se já executou hoje (evitar duplicatas) - verificar qualquer tipo de disparo com sucesso

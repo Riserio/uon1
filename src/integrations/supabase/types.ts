@@ -2363,6 +2363,7 @@ export type Database = {
           ativo_mgf: boolean | null
           corretora_id: string
           created_at: string
+          dias_agendados: number[] | null
           hinova_codigo_cliente: string | null
           hinova_pass: string
           hinova_url: string
@@ -2383,6 +2384,7 @@ export type Database = {
           ativo_mgf?: boolean | null
           corretora_id: string
           created_at?: string
+          dias_agendados?: number[] | null
           hinova_codigo_cliente?: string | null
           hinova_pass?: string
           hinova_url?: string
@@ -2403,6 +2405,7 @@ export type Database = {
           ativo_mgf?: boolean | null
           corretora_id?: string
           created_at?: string
+          dias_agendados?: number[] | null
           hinova_codigo_cliente?: string | null
           hinova_pass?: string
           hinova_url?: string
