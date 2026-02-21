@@ -20,6 +20,7 @@ import { WhatsAppNotificacaoGlobal } from '@/components/whatsapp/WhatsAppNotific
 import { WhatsAppTemplates } from '@/components/whatsapp/WhatsAppTemplates';
 import { WhatsAppEnvioManual } from '@/components/whatsapp/WhatsAppEnvioManual';
 import { WhatsAppHistorico } from '@/components/whatsapp/WhatsAppHistorico';
+import WhatsAppDashboard from '@/components/whatsapp/WhatsAppDashboard';
 
 interface ResendConfig {
   from_email: string;
@@ -495,8 +496,12 @@ export default function Emails() {
 
           {/* =================== WHATSAPP TAB (unified) =================== */}
           <TabsContent value="whatsapp" className="space-y-6">
-            <Tabs defaultValue="config" className="space-y-4">
+            <Tabs defaultValue="dashboard" className="space-y-4">
               <TabsList>
+                <TabsTrigger value="dashboard" className="gap-1.5">
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  Dashboard
+                </TabsTrigger>
                 <TabsTrigger value="config" className="gap-1.5">
                   <Settings className="h-3.5 w-3.5" />
                   Config
@@ -518,6 +523,10 @@ export default function Emails() {
                   Histórico
                 </TabsTrigger>
               </TabsList>
+
+              <TabsContent value="dashboard">
+                <WhatsAppDashboard />
+              </TabsContent>
 
               <TabsContent value="config">
                 <div className="space-y-6">
