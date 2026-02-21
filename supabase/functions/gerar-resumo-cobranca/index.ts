@@ -22,6 +22,14 @@ serve(async (req) => {
       throw new Error('corretora_id é obrigatório');
     }
 
+    // Get corretora name
+    const { data: corretora } = await supabase
+      .from('corretoras')
+      .select('nome')
+      .eq('id', corretora_id)
+      .single();
+    const nomeAssociacao = corretora?.nome || 'Associação';
+
     // Get current month reference
     const now = new Date();
     const mesReferencia = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -139,8 +147,8 @@ serve(async (req) => {
     const formatCurrency = (value: number) => 
       new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 
-    // Build message with standard header
-    const resumo = `*Resumo VANGARD da sua operação!*
+    // Build message with standard header including association name
+    const resumo = `*Resumo VANGARD da sua operação - ${nomeAssociacao}*
 
 O BI de indicadores de resultados da sua associação foi atualizado.
 
