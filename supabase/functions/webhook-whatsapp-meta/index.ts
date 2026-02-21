@@ -149,6 +149,46 @@ serve(async (req) => {
           continue;
         }
 
+        // ---- NOTIFY EXTERNAL NUMBER ----
+        try {
+          const { data: notifConfigs } = await supabase
+            .from('whatsapp_config')
+            .select('notificar_numero, notificar_ativo')
+            .eq('notificar_ativo', true);
+
+          if (notifConfigs && notifConfigs.length > 0) {
+            const whatsappToken = Deno.env.get('META_WHATSAPP_TOKEN');
+            const phoneNumberId = Deno.env.get('META_WHATSAPP_PHONE_NUMBER_ID');
+
+            if (whatsappToken && phoneNumberId) {
+              for (const nc of notifConfigs) {
+                const notifNum = nc.notificar_numero?.replace(/\D/g, '');
+                if (!notifNum || notifNum === from) continue; // don't notify the sender
+
+                const contactName = profileName || from;
+                const notifBody = `📩 *Nova mensagem no WhatsApp*\n\nDe: ${contactName} (${from})\nMensagem: ${msgBody.substring(0, 200)}`;
+
+                await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${whatsappToken}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    messaging_product: 'whatsapp',
+                    to: notifNum,
+                    type: 'text',
+                    text: { body: notifBody },
+                  }),
+                });
+                console.log(`[webhook] Notificação enviada para ${notifNum}`);
+              }
+            }
+          }
+        } catch (notifErr) {
+          console.error('[webhook] Erro ao notificar:', notifErr);
+        }
+
         // Trigger flow engine if NOT in human mode
         if (!contact.human_mode) {
           try {

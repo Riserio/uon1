@@ -5769,6 +5769,8 @@ export type Database = {
           n8n_ativo: boolean | null
           n8n_webhook_url: string | null
           nome_exibicao: string | null
+          notificar_ativo: boolean | null
+          notificar_numero: string | null
           telefone_whatsapp: string
           ultimo_envio_automatico: string | null
           ultimo_erro_envio: string | null
@@ -5787,6 +5789,8 @@ export type Database = {
           n8n_ativo?: boolean | null
           n8n_webhook_url?: string | null
           nome_exibicao?: string | null
+          notificar_ativo?: boolean | null
+          notificar_numero?: string | null
           telefone_whatsapp: string
           ultimo_envio_automatico?: string | null
           ultimo_erro_envio?: string | null
@@ -5805,6 +5809,8 @@ export type Database = {
           n8n_ativo?: boolean | null
           n8n_webhook_url?: string | null
           nome_exibicao?: string | null
+          notificar_ativo?: boolean | null
+          notificar_numero?: string | null
           telefone_whatsapp?: string
           ultimo_envio_automatico?: string | null
           ultimo_erro_envio?: string | null
