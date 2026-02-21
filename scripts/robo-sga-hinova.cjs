@@ -1572,6 +1572,118 @@ async function main() {
       }
     }).catch(() => {});
 
+    // PASSO 2.7: Expandir "CENTRO CUSTO" e selecionar checkboxes com EVENTO(S)
+    log('Expandindo seção CENTRO CUSTO...', LOG_LEVELS.INFO);
+    const centroCustoExpandido = await page.evaluate(() => {
+      const normalizar = (t) => (t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      // Procurar header do accordion "CENTRO CUSTO"
+      const elementos = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
+      for (const el of elementos) {
+        const texto = normalizar(el.textContent || '');
+        // Verificar se é especificamente o header (não um container grande)
+        if ((texto === 'CENTRO CUSTO' || texto === 'CENTRO CUSTO' || texto === '▶ CENTRO CUSTO' || texto === '▼ CENTRO CUSTO') ||
+            (texto.includes('CENTRO CUSTO') && el.textContent.trim().length < 30)) {
+          el.click();
+          return true;
+        }
+      }
+      return false;
+    }).catch(() => false);
+
+    if (centroCustoExpandido) {
+      log('Seção CENTRO CUSTO expandida', LOG_LEVELS.SUCCESS);
+    } else {
+      log('Seção CENTRO CUSTO não encontrada ou já expandida', LOG_LEVELS.WARN);
+    }
+    await page.waitForTimeout(1500);
+
+    // Selecionar checkboxes com EVENTO/EVENTOS APENAS dentro de CENTRO CUSTO
+    const eventosResult = await page.evaluate(() => {
+      const normalizar = (t) => (t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      const result = { found: 0, selected: 0, labels: [] };
+
+      // Encontrar a seção CENTRO CUSTO no DOM
+      let centroCustoContainer = null;
+      const allElements = document.querySelectorAll('a, td, th, div, fieldset, legend, span, button');
+      for (const el of allElements) {
+        const texto = normalizar(el.textContent || '');
+        if (texto.includes('CENTRO CUSTO') && el.textContent.trim().length < 30) {
+          // O container é o pai ou o próximo sibling que contém os checkboxes
+          centroCustoContainer = el.closest('fieldset') || el.closest('table') || el.closest('div.panel') || el.closest('.collapse') || el.parentElement?.parentElement;
+          // Também tentar o próximo elemento irmão
+          if (centroCustoContainer) {
+            // Verificar se tem checkboxes aqui
+            const cbs = centroCustoContainer.querySelectorAll('input[type="checkbox"]');
+            if (cbs.length > 0) break;
+          }
+          // Tentar nextElementSibling
+          let sibling = el.nextElementSibling || el.parentElement?.nextElementSibling;
+          if (sibling) {
+            const sibCbs = sibling.querySelectorAll('input[type="checkbox"]');
+            if (sibCbs.length > 0) {
+              centroCustoContainer = sibling;
+              break;
+            }
+          }
+          // Subir mais um nível
+          let parent = el.parentElement?.parentElement?.parentElement;
+          if (parent) {
+            const nextDiv = parent.nextElementSibling;
+            if (nextDiv) {
+              const cbs2 = nextDiv.querySelectorAll('input[type="checkbox"]');
+              if (cbs2.length > 0) {
+                centroCustoContainer = nextDiv;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // Se não encontrou container específico, buscar em toda a página mas com cuidado
+      const searchContainer = centroCustoContainer || document;
+      const checkboxes = searchContainer.querySelectorAll('input[type="checkbox"]');
+
+      for (const cb of checkboxes) {
+        // Encontrar label associada
+        let labelText = '';
+        // Por for=id
+        if (cb.id) {
+          const label = document.querySelector(`label[for="${cb.id}"]`);
+          if (label) labelText = normalizar(label.textContent || '');
+        }
+        // Por container
+        if (!labelText) {
+          const parent = cb.closest('label') || cb.closest('td') || cb.parentElement;
+          if (parent) labelText = normalizar(parent.textContent || '');
+        }
+        // Por nextSibling text
+        if (!labelText && cb.nextSibling) {
+          labelText = normalizar(cb.nextSibling.textContent || '');
+        }
+
+        if (labelText.includes('EVENTO') || labelText.includes('EVENTOS')) {
+          result.found++;
+          if (!cb.checked) {
+            cb.checked = true;
+            cb.dispatchEvent(new Event('click', { bubbles: true }));
+            cb.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          result.selected++;
+          result.labels.push(labelText.substring(0, 50));
+        }
+      }
+
+      return result;
+    }).catch(() => ({ found: 0, selected: 0, labels: [] }));
+
+    if (eventosResult.selected > 0) {
+      log(`✅ ${eventosResult.selected} checkbox(es) EVENTO selecionado(s): ${eventosResult.labels.join(', ')}`, LOG_LEVELS.SUCCESS);
+    } else {
+      log('⚠️ Nenhum checkbox EVENTO encontrado no CENTRO CUSTO - prosseguindo sem filtro', LOG_LEVELS.WARN);
+    }
+    await page.waitForTimeout(500);
+
     // PASSO 3: Em Excel
     const excelOk = await selecionarFormaExibicaoEmExcel(page);
     if (!excelOk) {
@@ -1583,6 +1695,7 @@ async function main() {
     log(`=== RESUMO FILTROS ===`, LOG_LEVELS.INFO);
     log(`Datas: ${datasOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
     log(`Layout: ${layoutOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
+    log(`Centro Custo Eventos: ${eventosResult.selected > 0 ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
     log(`Excel: ${excelOk ? '✅' : '⚠️'}`, LOG_LEVELS.INFO);
 
     // ============================================
@@ -1595,7 +1708,7 @@ async function main() {
     const semanticName = generateSemanticFilename();
     log(`Diretório de download: ${downloadDir}`);
 
-    // Clicar Gerar
+    // Clicar Gerar Relatório
     log('Clicando em Gerar Relatório...');
 
     const btnGerar = page.locator('input[type="submit"]:has-text("Gerar"), button:has-text("Gerar"), input[value*="Gerar" i], button:has-text("Exportar")').first();
@@ -1613,14 +1726,83 @@ async function main() {
       log('Botão Gerar clicado via fallback', LOG_LEVELS.DEBUG);
     }
 
-    log('Aguardando download (multi-watcher)...', LOG_LEVELS.INFO);
+    log('Aguardando resultado (download direto ou tela de resultados)...', LOG_LEVELS.INFO);
 
-    // Aguardar download via sistema robusto multi-watcher
-    const downloadResult = await aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
+    // Esperar um pouco para ver se é download direto ou tela de resultados
+    let downloadResult = null;
+    let downloadIniciado = false;
 
-    if (!downloadResult.success) {
+    // Tentar capturar download direto por 15 segundos
+    const downloadPromise = aguardarDownloadHibrido(context, page, downloadDir, semanticName, 15000);
+    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ success: false, timeout: true }), 15000));
+    
+    const primeiroResultado = await Promise.race([downloadPromise, timeoutPromise]);
+
+    if (primeiroResultado.success) {
+      log('Download direto capturado!', LOG_LEVELS.SUCCESS);
+      downloadResult = primeiroResultado;
+      downloadIniciado = true;
+    } else {
+      // Não houve download direto - verificar se abriu tela de resultados com botão Excel
+      log('Download direto não iniciou - verificando tela de resultados...', LOG_LEVELS.INFO);
+      
+      // Aguardar carregamento da tela de resultados
+      await page.waitForTimeout(3000);
+      await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+      
+      // Procurar botão de Excel/XLS/Planilha na tela de resultados
+      const botaoExcelEncontrado = await page.evaluate(() => {
+        const normalizar = (t) => (t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        // Buscar em todas as abas/páginas
+        const candidatos = document.querySelectorAll('a, button, input[type="submit"], input[type="button"], [role="button"], img');
+        
+        for (const el of candidatos) {
+          const texto = normalizar(el.textContent || el.value || el.title || el.alt || '');
+          const href = (el.href || '').toLowerCase();
+          const classes = (el.className || '').toLowerCase();
+          
+          if (texto.includes('EXCEL') || texto.includes('XLS') || texto.includes('PLANILHA') ||
+              href.includes('excel') || href.includes('xls') || 
+              classes.includes('excel') || classes.includes('xls')) {
+            el.click();
+            return { found: true, text: texto.substring(0, 50) };
+          }
+        }
+        
+        // Tentar por ícones/imagens que possam representar Excel
+        const imgs = document.querySelectorAll('img');
+        for (const img of imgs) {
+          const src = (img.src || '').toLowerCase();
+          const alt = normalizar(img.alt || '');
+          const title = normalizar(img.title || '');
+          if (src.includes('excel') || src.includes('xls') || alt.includes('EXCEL') || title.includes('EXCEL')) {
+            const parent = img.closest('a') || img.closest('button') || img;
+            parent.click();
+            return { found: true, text: `img: ${alt || src.substring(src.lastIndexOf('/') + 1)}` };
+          }
+        }
+        
+        return { found: false };
+      }).catch(() => ({ found: false }));
+
+      if (botaoExcelEncontrado.found) {
+        log(`Botão Excel encontrado na tela de resultados: ${botaoExcelEncontrado.text}`, LOG_LEVELS.SUCCESS);
+        
+        // Agora aguardar o download real
+        downloadResult = await aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
+        downloadIniciado = downloadResult.success;
+      } else {
+        log('Nenhum botão Excel encontrado - tentando aguardar download completo...', LOG_LEVELS.WARN);
+        await saveDebugInfo(page, context, 'Sem botão Excel na tela de resultados');
+        // Tentar aguardar mais tempo como último recurso
+        downloadResult = await aguardarDownloadHibrido(context, page, downloadDir, semanticName, TIMEOUTS.DOWNLOAD_HARD);
+        downloadIniciado = downloadResult.success;
+      }
+    }
+
+    if (!downloadIniciado || !downloadResult || !downloadResult.success) {
       await saveDebugInfo(page, context, 'Timeout download');
-      throw downloadResult.error || new Error('Falha no download');
+      throw (downloadResult && downloadResult.error) || new Error('Falha no download');
     }
 
     const filePath = downloadResult.filePath;
