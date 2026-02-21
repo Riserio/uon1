@@ -55,6 +55,14 @@ const TRIGGER_TYPES = [
   { value: 'manual', label: 'Manual' },
 ];
 
+const AVAILABLE_VARIABLES = [
+  { name: 'nome', description: 'Nome do contato' },
+  { name: 'telefone', description: 'Telefone do contato' },
+  { name: 'mensagem', description: 'Última mensagem recebida' },
+  { name: 'data_atual', description: 'Data atual (DD/MM/AAAA)' },
+  { name: 'hora_atual', description: 'Hora atual (HH:MM)' },
+];
+
 export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean }) {
   const { user } = useAuth();
   const [flows, setFlows] = useState<Flow[]>([]);
@@ -66,6 +74,7 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
   const [newFlowKeywords, setNewFlowKeywords] = useState('');
   const [editingStep, setEditingStep] = useState<FlowStep | null>(null);
   const [showStepDialog, setShowStepDialog] = useState(false);
+  const [showVariablesInfo, setShowVariablesInfo] = useState(false);
 
   // Step form state
   const [stepType, setStepType] = useState('send_text');
@@ -353,7 +362,9 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm">{info.label}</span>
-                            <Badge variant="outline" className="text-[10px]">{step.step_key}</Badge>
+                            <Badge variant="outline" className="text-[10px]">
+                              {selectedFlow?.name} #{idx + 1}
+                            </Badge>
                           </div>
                           {step.config?.message && (
                             <p className="text-xs text-muted-foreground mt-0.5 truncate">
@@ -402,14 +413,47 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
             </div>
             {['send_text', 'ask_input', 'end', 'transfer_human'].includes(stepType) && (
               <div>
-                <Label>{stepType === 'ask_input' ? 'Pergunta' : 'Mensagem'}</Label>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>{stepType === 'ask_input' ? 'Pergunta' : 'Mensagem'}</Label>
+                  <Dialog open={showVariablesInfo} onOpenChange={setShowVariablesInfo}>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 text-muted-foreground">
+                        <Variable className="h-3 w-3" /> Variáveis
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-sm">
+                      <DialogHeader>
+                        <DialogTitle className="text-sm">Variáveis disponíveis</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          Use <code className="bg-muted px-1 rounded">{'{variavel}'}</code> no texto para inserir valores dinâmicos.
+                        </p>
+                        <div className="border rounded-md divide-y">
+                          {AVAILABLE_VARIABLES.map(v => (
+                            <div key={v.name} className="flex items-center justify-between p-2 text-sm">
+                              <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">{`{${v.name}}`}</code>
+                              <span className="text-xs text-muted-foreground">{v.description}</span>
+                            </div>
+                          ))}
+                          {steps.filter(s => s.config?.variable_name).map(s => (
+                            <div key={s.id} className="flex items-center justify-between p-2 text-sm">
+                              <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">{`{${s.config.variable_name}}`}</code>
+                              <span className="text-xs text-muted-foreground">Variável do passo "{selectedFlow?.name} #{steps.indexOf(s) + 1}"</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
                 <Textarea
                   value={stepMessage}
                   onChange={e => setStepMessage(e.target.value)}
-                  placeholder={stepType === 'ask_input' ? 'Qual seu nome?' : 'Olá! Bem-vindo...'}
+                  placeholder={stepType === 'ask_input' ? 'Qual seu nome?' : 'Olá, {nome}! Bem-vindo...'}
                   rows={3}
                 />
-                <p className="text-xs text-muted-foreground mt-1">Use {'{variavel}'} para inserir variáveis</p>
+                <p className="text-xs text-muted-foreground mt-1">Use {'{variavel}'} para inserir variáveis dinâmicas</p>
               </div>
             )}
             {['ask_input', 'set_variable'].includes(stepType) && (
@@ -419,13 +463,15 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
               </div>
             )}
             <div>
-              <Label>Próximo passo (step_key)</Label>
+              <Label>Próximo passo</Label>
               <Select value={stepNextKey || '__none__'} onValueChange={(v) => setStepNextKey(v === '__none__' ? '' : v)}>
                 <SelectTrigger><SelectValue placeholder="Nenhum (encerrar)" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Nenhum</SelectItem>
-                  {steps.filter(s => s.id !== editingStep?.id).map(s => (
-                    <SelectItem key={s.step_key} value={s.step_key}>{s.step_key} ({getStepTypeInfo(s.type).label})</SelectItem>
+                  {steps.filter(s => s.id !== editingStep?.id).map((s, i) => (
+                    <SelectItem key={s.step_key} value={s.step_key}>
+                      {selectedFlow?.name} #{steps.indexOf(s) + 1} ({getStepTypeInfo(s.type).label})
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
