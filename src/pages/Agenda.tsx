@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/ui/responsive-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import {
   Calendar as CalendarIcon,
@@ -217,16 +219,29 @@ export default function Agenda() {
       fetchIntegrations();
     } catch { toast.error('Erro ao sincronizar'); } finally { setSyncing(false); }
   };
+  const [disconnectDialog, setDisconnectDialog] = useState<{ open: boolean; integrationId: string; email: string }>({ open: false, integrationId: '', email: '' });
+  const [cleanupEvents, setCleanupEvents] = useState(false);
 
-  const disconnectAccount = async (integrationId: string) => {
+  const handleDisconnectClick = (integrationId: string, email: string) => {
+    setCleanupEvents(false);
+    setDisconnectDialog({ open: true, integrationId, email });
+  };
+
+  const disconnectAccount = async () => {
+    const { integrationId } = disconnectDialog;
     try {
+      if (cleanupEvents) {
+        await supabase.from('eventos').delete().eq('user_id', user?.id!).not('google_event_id', 'is', null);
+      }
       const { error } = await supabase.functions.invoke('google-calendar-auth', {
         body: { action: 'disconnect', integration_id: integrationId }
       });
       if (error) throw error;
-      toast.success('Conta desconectada');
+      toast.success(cleanupEvents ? 'Conta desconectada e eventos removidos' : 'Conta desconectada');
       fetchIntegrations();
+      if (cleanupEvents) fetchEventos();
     } catch { toast.error('Erro ao desconectar'); }
+    setDisconnectDialog({ open: false, integrationId: '', email: '' });
   };
 
   const toggleAccount = async (integrationId: string, ativo: boolean) => {
@@ -403,7 +418,7 @@ export default function Agenda() {
                             size="icon"
                             className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                             title="Desconectar"
-                            onClick={() => disconnectAccount(integration.id)}
+                            onClick={() => handleDisconnectClick(integration.id, integration.google_email || 'Conta Google')}
                           >
                             <Unlink2 className="h-3.5 w-3.5" />
                           </Button>
@@ -802,6 +817,34 @@ export default function Agenda() {
           </ResponsiveDialogContent>
         </ResponsiveDialog>
       </div>
+
+      {/* Disconnect Confirmation Dialog */}
+      <AlertDialog open={disconnectDialog.open} onOpenChange={(open) => !open && setDisconnectDialog({ open: false, integrationId: '', email: '' })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desconectar conta</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja desconectar <strong>{disconnectDialog.email}</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50">
+            <Checkbox
+              id="cleanup-events"
+              checked={cleanupEvents}
+              onCheckedChange={(checked) => setCleanupEvents(checked === true)}
+            />
+            <label htmlFor="cleanup-events" className="text-sm cursor-pointer">
+              Remover também todos os eventos importados do Google desta conta
+            </label>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={disconnectAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Desconectar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
