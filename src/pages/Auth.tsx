@@ -155,12 +155,15 @@ export default function Auth() {
         return;
       }
 
-      if (result.isParceiro) {
+      if (result.forcePasswordChange) {
+        toast.info("Por favor, atualize sua senha antes de continuar.");
+        navigate("/change-password", { replace: true });
+      } else if (result.isParceiro) {
         toast.success("Credenciais válidas! Verificando autenticação...");
 
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (userError || !userData.user) {
-          console.error("Erro ao obter usuário após login:", userError);
+        // Session is already established, get user from it directly
+        const session = (await supabase.auth.getSession()).data.session;
+        if (!session?.user) {
           toast.error("Erro ao carregar seus dados. Tente novamente.");
           setSubmitting(false);
           setLoginPhase("idle");
@@ -168,27 +171,15 @@ export default function Auth() {
         }
 
         const currentUser: MinimalUser = {
-          id: userData.user.id,
-          email: userData.user.email,
+          id: session.user.id,
+          email: session.user.email,
         };
 
         setLoginPhase("totp");
         await checkTOTPStatus(currentUser);
       } else {
-        // Check for force_password_change flag
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('force_password_change')
-          .eq('id', (await supabase.auth.getUser()).data.user?.id)
-          .single();
-
-        if (profile?.force_password_change) {
-          toast.info("Por favor, atualize sua senha antes de continuar.");
-          navigate("/change-password", { replace: true });
-        } else {
-          toast.success("Login realizado com sucesso!");
-          navigate("/dashboard", { replace: true });
-        }
+        toast.success("Login realizado com sucesso!");
+        navigate("/dashboard", { replace: true });
       }
     } catch (error) {
       if (error instanceof z.ZodError) {

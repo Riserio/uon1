@@ -9,7 +9,7 @@ interface AuthContextType {
   loading: boolean;
   userRole: string | null;
   isParceiro: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any; isParceiro?: boolean }>;
+  signIn: (email: string, password: string) => Promise<{ error: any; isParceiro?: boolean; forcePasswordChange?: boolean }>;
   signUp: (email: string, password: string, nome: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 }
@@ -104,12 +104,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (error) return { error };
     
-    // Check if user is approved
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('status')
-      .eq('id', data.user?.id)
-      .single();
+    // Fetch profile and role in parallel to speed up login
+    const userId = data.user.id;
+    const [profileResult, roleResult] = await Promise.all([
+      supabase.from('profiles').select('status, force_password_change').eq('id', userId).single(),
+      supabase.from('user_roles').select('role').eq('user_id', userId).single(),
+    ]);
+    
+    const profile = profileResult.data;
+    const roleData = roleResult.data;
     
     if (profile?.status === 'pendente') {
       await supabase.auth.signOut();
@@ -122,17 +125,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (profile?.status === 'primeiro_login') {
-      navigate('/change-password');
-      return { error: null };
+      return { error: null, isParceiro: false, forcePasswordChange: true };
     }
     
-    const { data: roleData } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', data.user.id)
-      .single();
-    
-    return { error: null, isParceiro: roleData?.role === 'parceiro' };
+    return { 
+      error: null, 
+      isParceiro: roleData?.role === 'parceiro',
+      forcePasswordChange: profile?.force_password_change === true,
+    };
   };
 
   const signUp = async (email: string, password: string, nome: string) => {
