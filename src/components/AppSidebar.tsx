@@ -291,7 +291,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink to="/talk" activeClassName="bg-primary text-primary-foreground">
                         <Video className="h-4 w-4" />
-                        {!collapsed && <span>UON1 Talk</span>}
+                        {!collapsed && <span>Uon1 Talk</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
