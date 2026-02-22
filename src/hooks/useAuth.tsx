@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, createContext, useContext, ReactNode, useCallback, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -23,52 +23,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isParceiro, setIsParceiro] = useState(false);
   const navigate = useNavigate();
+  const roleLoadedRef = useRef(false);
+
+  const fetchUserRole = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .single();
+      
+      if (!error && data) {
+        setUserRole(data.role);
+        setIsParceiro(data.role === 'parceiro');
+      } else {
+        setUserRole(null);
+        setIsParceiro(false);
+      }
+    } catch {
+      setUserRole(null);
+      setIsParceiro(false);
+    }
+    roleLoadedRef.current = true;
+  }, []);
 
   useEffect(() => {
+    let mounted = true;
+
+    // First get the initial session
+    supabase.auth.getSession().then(async ({ data: { session: initialSession } }) => {
+      if (!mounted) return;
+      
+      setSession(initialSession);
+      setUser(initialSession?.user ?? null);
+      
+      if (initialSession?.user) {
+        await fetchUserRole(initialSession.user.id);
+      }
+      
+      if (mounted) setLoading(false);
+    });
+
+    // Then listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      async (event, newSession) => {
+        if (!mounted) return;
         
-        if (session?.user) {
-          fetchUserRole(session.user.id);
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+        
+        if (newSession?.user) {
+          // Only refetch role if user changed or role not loaded yet
+          if (!roleLoadedRef.current || event === 'SIGNED_IN') {
+            await fetchUserRole(newSession.user.id);
+          }
         } else {
           setUserRole(null);
           setIsParceiro(false);
+          roleLoadedRef.current = false;
         }
         
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        fetchUserRole(session.user.id);
-      }
-      
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const fetchUserRole = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .single();
-    
-    if (!error && data) {
-      setUserRole(data.role);
-      setIsParceiro(data.role === 'parceiro');
-    } else {
-      setIsParceiro(false);
-    }
-  };
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [fetchUserRole]);
 
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -95,20 +118,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: { message: 'Sua conta está inativa.' } };
     }
 
-    // Check if user needs to change password (first login - if created by admin with temp password)
     if (profile?.status === 'primeiro_login') {
       navigate('/change-password');
       return { error: null };
     }
     
-    // Check if user is a parceiro (partner) - PORTAL PID
     const { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', data.user.id)
       .single();
     
-    // Return role info, but DON'T navigate yet - Auth.tsx will handle TOTP flow first
     return { error: null, isParceiro: roleData?.role === 'parceiro' };
   };
 
@@ -130,7 +150,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error };
     }
     
-    // Create/update profile with pending status (trigger may not exist)
     if (data?.user) {
       const { error: profileError } = await supabase
         .from('profiles')
@@ -147,8 +166,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     
-    // If there was an automatic login, sign out immediately
-    // User must wait for admin approval
     if (data?.session) {
       await supabase.auth.signOut();
       setUser(null);
@@ -159,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    roleLoadedRef.current = false;
     await supabase.auth.signOut();
     navigate('/auth');
   };
