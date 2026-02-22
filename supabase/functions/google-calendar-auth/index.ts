@@ -152,7 +152,34 @@ serve(async (req) => {
         );
       }
 
-      return new Response(`<html><body><script>window.close();</script><p>Conectado com sucesso!</p></body></html>`, {
+      const successHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conectado</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #f8fafc; color: #1e293b; }
+    .card { text-align: center; padding: 3rem 2rem; background: white; border-radius: 1.5rem; box-shadow: 0 4px 24px rgba(0,0,0,0.08); max-width: 380px; width: 90%; }
+    .icon { width: 64px; height: 64px; margin: 0 auto 1.5rem; background: #dcfce7; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .icon svg { width: 32px; height: 32px; color: #16a34a; }
+    h1 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; }
+    p { font-size: 0.875rem; color: #64748b; line-height: 1.5; }
+    .closing { margin-top: 1rem; font-size: 0.75rem; color: #94a3b8; }
+  </style>
+  <script>setTimeout(function(){ window.close(); }, 2500);</script>
+</head>
+<body>
+  <div class="card">
+    <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>
+    <h1>Conectado com sucesso!</h1>
+    <p>Sua conta Google Calendar foi vinculada. Esta janela fechará automaticamente.</p>
+    <p class="closing">Fechando...</p>
+  </div>
+</body>
+</html>`;
+      return new Response(successHtml, {
         headers: { ...corsHeaders, "Content-Type": "text/html" },
       });
     }
