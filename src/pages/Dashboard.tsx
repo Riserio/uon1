@@ -1,8 +1,12 @@
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { TrendingUp, Clock, CheckCircle2, AlertCircle, Megaphone, ExternalLink, Plus, Mail, Users, Check, Calendar, ClipboardList, Target } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer,
+} from "recharts";
+import {
+  TrendingUp, Clock, CheckCircle2, Megaphone, ExternalLink, Plus, Mail, Users, Check,
+  Calendar, ClipboardList, Target, BarChart3, Layers, Workflow,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Atendimento } from "@/types/atendimento";
@@ -12,7 +16,7 @@ import { UserProfile } from "@/components/UserProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
-import { format, isToday, parseISO, formatDistanceToNow, startOfDay, endOfDay } from "date-fns";
+import { format, parseISO, formatDistanceToNow, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,25 +24,76 @@ import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { usePendingUsers } from "@/hooks/usePendingUsers";
 import { useOverdueAtendimentos } from "@/hooks/useOverdueAtendimentos";
-const COLORS = {
-  novo: "hsl(var(--status-novo))",
-  andamento: "hsl(var(--status-andamento))",
-  aguardo: "hsl(var(--status-aguardo))",
-  concluido: "hsl(var(--status-concluido))",
-  alta: "hsl(var(--priority-alta))",
-  media: "hsl(var(--priority-media))",
-  baixa: "hsl(var(--priority-baixa))"
+
+const COLORS = [
+  "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#14b8a6",
+];
+
+const ttStyle = {
+  borderRadius: 10, fontSize: 12,
+  border: "1px solid hsl(var(--border))",
+  background: "hsl(var(--card))",
 };
-interface Evento {
-  id: string;
-  titulo: string;
-  descricao?: string;
-  data_inicio: string;
-  data_fim: string;
-  local?: string;
-  tipo: string;
-  cor: string;
+
+// ── Reusable Widget Components ──────────────────────────────────────
+
+function BarWidget({ data, total, isCurrency }: { data: { name: string; value: number }[]; total: number; isCurrency?: boolean }) {
+  if (!data.length) return <p className="text-xs text-muted-foreground text-center py-4">Sem dados</p>;
+  const maxVal = data[0]?.value || 1;
+  return (
+    <div className="space-y-2 pt-1">
+      {data.map((item, i) => {
+        const pct = isCurrency ? (item.value / maxVal) * 100 : (total > 0 ? (item.value / total) * 100 : 0);
+        const color = COLORS[i % COLORS.length];
+        return (
+          <div key={item.name} className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground truncate w-28 shrink-0" title={item.name}>{item.name}</span>
+            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(pct, 1)}%`, backgroundColor: color }} />
+            </div>
+            <span className="text-[11px] font-bold tabular-nums w-12 text-right">{item.value.toLocaleString("pt-BR")}</span>
+            <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">{pct.toFixed(0)}%</span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
+
+function MiniDonut({ data, total }: { data: { name: string; value: number }[]; total: number }) {
+  if (!data.length) return <p className="text-xs text-muted-foreground text-center py-4">Sem dados</p>;
+  const top6 = data.slice(0, 6);
+  return (
+    <div className="flex items-center gap-4">
+      <div className="shrink-0">
+        <ResponsiveContainer width={120} height={120}>
+          <PieChart>
+            <Pie data={top6} dataKey="value" innerRadius={32} outerRadius={54} paddingAngle={2} startAngle={90} endAngle={-270}>
+              {top6.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />)}
+            </Pie>
+            <Tooltip contentStyle={ttStyle} formatter={(v: any, n: string) => [v.toLocaleString("pt-BR"), n]} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex-1 space-y-1.5 min-w-0">
+        {top6.map((item, i) => {
+          const pct = total > 0 ? (item.value / total) * 100 : 0;
+          return (
+            <div key={item.name} className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+              <span className="text-[11px] text-muted-foreground truncate flex-1">{item.name}</span>
+              <span className="text-[11px] font-bold tabular-nums">{pct.toFixed(0)}%</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Interfaces ──────────────────────────────────────────────────────
+
 interface CompromissoItem {
   id: string;
   titulo: string;
@@ -46,922 +101,451 @@ interface CompromissoItem {
   horario_inicio: string;
   horario_fim?: string;
   local?: string;
-  tipo: 'evento' | 'atendimento';
+  tipo: "evento" | "atendimento";
   cor: string;
   prioridade?: string;
   status?: string;
   originalId: string;
 }
+
+// ── Main Dashboard ──────────────────────────────────────────────────
+
 export default function Dashboard() {
-  const {
-    user,
-    userRole
-  } = useAuth();
+  const { user, userRole } = useAuth();
   const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
   const [compromissos, setCompromissos] = useState<CompromissoItem[]>([]);
   const [comunicados, setComunicados] = useState<Comunicado[]>([]);
   const [loading, setLoading] = useState(true);
-  const [logoUrl] = useLocalStorage<string>('app-logo-url', '');
+  const [logoUrl] = useLocalStorage<string>("app-logo-url", "");
   const unreadMessages = useUnreadMessages();
   const pendingUsers = usePendingUsers();
-  const {
-    overdueCount,
-    overdueList
-  } = useOverdueAtendimentos();
+  const { overdueCount, overdueList } = useOverdueAtendimentos();
   const [statusFinalizados, setStatusFinalizados] = useState<Set<string>>(new Set());
   const [statusBacklog, setStatusBacklog] = useState<Set<string>>(new Set());
   const [statusEmAndamento, setStatusEmAndamento] = useState<Set<string>>(new Set());
+  const [profiles, setProfiles] = useState<Record<string, string>>({});
+
+  // ── Load status groups ──
   useEffect(() => {
-    const loadStatusGroups = async () => {
-      const {
-        data
-      } = await supabase.from('status_config').select('nome, tipo_etapa').eq('ativo', true);
+    const load = async () => {
+      const { data } = await supabase.from("status_config").select("nome, tipo_etapa").eq("ativo", true);
       if (data) {
-        setStatusFinalizados(new Set(data.filter(s => s.tipo_etapa === 'finalizado').map(s => s.nome)));
-        setStatusBacklog(new Set(data.filter(s => s.tipo_etapa === 'backlog').map(s => s.nome)));
-        setStatusEmAndamento(new Set(data.filter(s => s.tipo_etapa === 'em_andamento').map(s => s.nome)));
+        setStatusFinalizados(new Set(data.filter((s) => s.tipo_etapa === "finalizado").map((s) => s.nome)));
+        setStatusBacklog(new Set(data.filter((s) => s.tipo_etapa === "backlog").map((s) => s.nome)));
+        setStatusEmAndamento(new Set(data.filter((s) => s.tipo_etapa === "em_andamento").map((s) => s.nome)));
       }
     };
-    loadStatusGroups();
+    load();
   }, []);
 
-  // Capitalize user name
-  const userName = user?.user_metadata?.nome ? user.user_metadata.nome.charAt(0).toUpperCase() + user.user_metadata.nome.slice(1) : '';
+  // ── Load profiles ──
   useEffect(() => {
-    if (user) {
-      loadData();
+    const load = async () => {
+      const { data } = await supabase.from("profiles").select("id, nome");
+      if (data) {
+        setProfiles(data.reduce((acc, p) => { acc[p.id] = p.nome; return acc; }, {} as Record<string, string>));
+      }
+    };
+    load();
+  }, []);
 
-      // Subscribe to real-time changes for eventos
-      const eventosChannel = supabase.channel('dashboard_eventos_changes').on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'eventos'
-      }, () => {
-        loadCompromissos();
-      }).subscribe();
-
-      // Subscribe to real-time changes for atendimentos (for compromissos)
-      const atendimentosChannel = supabase.channel('dashboard_atendimentos_changes').on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'atendimentos'
-      }, () => {
-        loadAtendimentos();
-        loadCompromissos();
-      }).subscribe();
-
-      // Subscribe to real-time changes for comunicados
-      const comunicadosChannel = supabase.channel('dashboard_comunicados_changes').on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'comunicados'
-      }, () => {
-        loadComunicados();
-      }).subscribe();
-      return () => {
-        supabase.removeChannel(eventosChannel);
-        supabase.removeChannel(atendimentosChannel);
-        supabase.removeChannel(comunicadosChannel);
-      };
-    }
+  // ── Load data + realtime ──
+  useEffect(() => {
+    if (!user) return;
+    loadData();
+    const ch1 = supabase.channel("dash_eventos").on("postgres_changes", { event: "*", schema: "public", table: "eventos" }, () => loadCompromissos()).subscribe();
+    const ch2 = supabase.channel("dash_atendimentos").on("postgres_changes", { event: "*", schema: "public", table: "atendimentos" }, () => { loadAtendimentos(); loadCompromissos(); }).subscribe();
+    const ch3 = supabase.channel("dash_comunicados").on("postgres_changes", { event: "*", schema: "public", table: "comunicados" }, () => loadComunicados()).subscribe();
+    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(ch3); };
   }, [user]);
+
   const loadData = async () => {
     setLoading(true);
     await Promise.all([loadAtendimentos(), loadCompromissos(), loadComunicados()]);
     setLoading(false);
   };
+
   const loadAtendimentos = async () => {
     try {
-      const {
-        data,
-        error
-      } = await supabase.from("atendimentos").select("*").order("created_at", {
-        ascending: false
-      });
+      const { data, error } = await supabase.from("atendimentos").select("*").order("created_at", { ascending: false });
       if (error) throw error;
-      const mapped = data?.map(item => ({
-        id: item.id,
-        numero: item.numero,
-        assunto: item.assunto,
-        corretora: item.corretora_id || "",
-        contato: item.contato_id || "",
-        responsavel: item.responsavel_id || "",
-        prioridade: item.prioridade,
-        status: item.status,
-        tags: item.tags || [],
-        observacoes: item.observacoes || "",
-        dataRetorno: item.data_retorno,
-        dataConcluido: item.data_concluido,
-        fluxoConcluido: item.fluxo_concluido_nome,
-        fluxoConcluidoId: item.fluxo_concluido_id,
-        createdAt: item.created_at,
-        updatedAt: item.updated_at
-      })) || [];
-      setAtendimentos(mapped);
-    } catch (error) {
-      console.error("Erro ao carregar atendimentos:", error);
-    }
+      setAtendimentos(
+        data?.map((item) => ({
+          id: item.id, numero: item.numero, assunto: item.assunto,
+          corretora: item.corretora_id || "", contato: item.contato_id || "",
+          responsavel: item.responsavel_id || "", prioridade: item.prioridade,
+          status: item.status, tags: item.tags || [], observacoes: item.observacoes || "",
+          dataRetorno: item.data_retorno, dataConcluido: item.data_concluido,
+          fluxoConcluido: item.fluxo_concluido_nome, fluxoConcluidoId: item.fluxo_concluido_id,
+          fluxoId: item.fluxo_id, createdAt: item.created_at, updatedAt: item.updated_at,
+        })) || []
+      );
+    } catch (error) { console.error("Erro ao carregar atendimentos:", error); }
   };
+
   const loadCompromissos = async () => {
     try {
       const hoje = new Date();
       const inicioDia = startOfDay(hoje).toISOString();
       const fimDia = endOfDay(hoje).toISOString();
-
-      // Carregar eventos do dia
-      const {
-        data: eventosData,
-        error: eventosError
-      } = await supabase.from("eventos").select("*").eq("user_id", user?.id).gte("data_inicio", inicioDia).lte("data_inicio", fimDia).order("data_inicio", {
-        ascending: true
-      });
-      if (eventosError) throw eventosError;
-
-      // Carregar atendimentos com follow-up para hoje
-      const {
-        data: atendimentosData,
-        error: atendimentosError
-      } = await supabase.from("atendimentos").select("*").eq("user_id", user?.id).gte("data_retorno", inicioDia).lte("data_retorno", fimDia).neq("status", "concluido").order("data_retorno", {
-        ascending: true
-      });
-      if (atendimentosError) throw atendimentosError;
-
-      // Combinar e mapear os dados
+      const { data: eventosData } = await supabase.from("eventos").select("*").eq("user_id", user?.id).gte("data_inicio", inicioDia).lte("data_inicio", fimDia).order("data_inicio", { ascending: true });
+      const { data: atendimentosData } = await supabase.from("atendimentos").select("*").eq("user_id", user?.id).gte("data_retorno", inicioDia).lte("data_retorno", fimDia).neq("status", "concluido").order("data_retorno", { ascending: true });
       const items: CompromissoItem[] = [];
-
-      // Adicionar eventos
-      if (eventosData) {
-        eventosData.forEach(evento => {
-          items.push({
-            id: `evento-${evento.id}`,
-            originalId: evento.id,
-            titulo: evento.titulo,
-            descricao: evento.descricao,
-            horario_inicio: evento.data_inicio,
-            horario_fim: evento.data_fim,
-            local: evento.local,
-            tipo: 'evento',
-            cor: evento.cor || '#3b82f6'
-          });
-        });
-      }
-
-      // Adicionar atendimentos
-      if (atendimentosData) {
-        atendimentosData.forEach(atendimento => {
-          items.push({
-            id: `atendimento-${atendimento.id}`,
-            originalId: atendimento.id,
-            titulo: atendimento.assunto,
-            descricao: atendimento.observacoes,
-            horario_inicio: atendimento.data_retorno!,
-            tipo: 'atendimento',
-            cor: atendimento.prioridade === 'Alta' ? '#ef4444' : atendimento.prioridade === 'Média' ? '#f59e0b' : '#10b981',
-            prioridade: atendimento.prioridade,
-            status: atendimento.status
-          });
-        });
-      }
-
-      // Ordenar por horário
+      eventosData?.forEach((e) => items.push({ id: `evento-${e.id}`, originalId: e.id, titulo: e.titulo, descricao: e.descricao, horario_inicio: e.data_inicio, horario_fim: e.data_fim, local: e.local, tipo: "evento", cor: e.cor || "#3b82f6" }));
+      atendimentosData?.forEach((a) => items.push({ id: `atend-${a.id}`, originalId: a.id, titulo: a.assunto, descricao: a.observacoes, horario_inicio: a.data_retorno!, tipo: "atendimento", cor: a.prioridade === "Alta" ? "#ef4444" : a.prioridade === "Média" ? "#f59e0b" : "#10b981", prioridade: a.prioridade, status: a.status }));
       items.sort((a, b) => a.horario_inicio.localeCompare(b.horario_inicio));
       setCompromissos(items);
-    } catch (error) {
-      console.error("Erro ao carregar compromissos:", error);
-    }
+    } catch (error) { console.error("Erro ao carregar compromissos:", error); }
   };
+
   const loadComunicados = async () => {
     try {
-      const {
-        data,
-        error
-      } = await supabase.from("comunicados").select("*").eq("ativo", true).order("created_at", {
-        ascending: false
-      }).limit(3);
+      const { data, error } = await supabase.from("comunicados").select("*").eq("ativo", true).order("created_at", { ascending: false }).limit(3);
       if (error) throw error;
       setComunicados(data || []);
-    } catch (error) {
-      console.error("Erro ao carregar comunicados:", error);
-    }
+    } catch (error) { console.error("Erro ao carregar comunicados:", error); }
   };
-  const handleConcluirCompromisso = async (compromisso: CompromissoItem) => {
-    if (compromisso.tipo === 'evento') {
-      const {
-        error
-      } = await supabase.from("eventos").delete().eq("id", compromisso.originalId);
-      if (error) {
-        toast({
-          title: "Erro ao concluir compromisso",
-          variant: "destructive"
-        });
-        return;
-      }
+
+  const handleConcluirCompromisso = async (c: CompromissoItem) => {
+    if (c.tipo === "evento") {
+      const { error } = await supabase.from("eventos").delete().eq("id", c.originalId);
+      if (error) { toast({ title: "Erro ao concluir", variant: "destructive" }); return; }
     } else {
-      const {
-        error
-      } = await supabase.from("atendimentos").update({
-        status: 'concluido',
-        data_concluido: new Date().toISOString()
-      }).eq("id", compromisso.originalId);
-      if (error) {
-        toast({
-          title: "Erro ao concluir follow-up",
-          variant: "destructive"
-        });
-        return;
-      }
+      const { error } = await supabase.from("atendimentos").update({ status: "concluido", data_concluido: new Date().toISOString() }).eq("id", c.originalId);
+      if (error) { toast({ title: "Erro ao concluir", variant: "destructive" }); return; }
     }
-    setCompromissos(compromissos.filter(c => c.id !== compromisso.id));
-    toast({
-      title: "Compromisso concluído!"
-    });
+    setCompromissos(compromissos.filter((x) => x.id !== c.id));
+    toast({ title: "Compromisso concluído!" });
   };
 
-  // Métricas por Status - Agrupados por tipo de etapa
-  const statusData = [{
-    name: "Backlog",
-    value: atendimentos.filter(a => statusBacklog.has(a.status)).length,
-    color: COLORS.novo
-  }, {
-    name: "Em Andamento",
-    value: atendimentos.filter(a => statusEmAndamento.has(a.status)).length,
-    color: COLORS.andamento
-  }, {
-    name: "Finalizados",
-    value: atendimentos.filter(a => statusFinalizados.has(a.status)).length,
-    color: COLORS.concluido
-  }];
+  // ── Computed metrics ──
 
-  // Métricas por Prioridade
-  const priorityData = [{
-    name: "Alta",
-    value: atendimentos.filter(a => a.prioridade === "Alta").length,
-    color: COLORS.alta
-  }, {
-    name: "Média",
-    value: atendimentos.filter(a => a.prioridade === "Média").length,
-    color: COLORS.media
-  }, {
-    name: "Baixa",
-    value: atendimentos.filter(a => a.prioridade === "Baixa").length,
-    color: COLORS.baixa
-  }];
-
-  // Atendimentos por Responsável
-  const [profiles, setProfiles] = useState<Record<string, string>>({});
-  useEffect(() => {
-    const loadProfiles = async () => {
-      const {
-        data
-      } = await supabase.from('profiles').select('id, nome');
-      if (data) {
-        const profileMap = data.reduce((acc, p) => {
-          acc[p.id] = p.nome;
-          return acc;
-        }, {} as Record<string, string>);
-        setProfiles(profileMap);
-      }
-    };
-    loadProfiles();
-  }, []);
-  const responsavelMap = new Map<string, number>();
-  atendimentos.forEach(a => {
-    if (a.responsavel) {
-      const nomeResponsavel = profiles[a.responsavel] || 'Sem responsável';
-      responsavelMap.set(nomeResponsavel, (responsavelMap.get(nomeResponsavel) || 0) + 1);
-    }
-  });
-  const responsavelData = Array.from(responsavelMap.entries()).map(([name, value]) => ({
-    name,
-    value
-  })).sort((a, b) => b.value - a.value).slice(0, 10);
-
-  // Atendimentos concluídos por fluxo
-  const fluxoMap = new Map<string, number>();
-  atendimentos.filter(a => a.dataConcluido && a.fluxoConcluido).forEach(a => {
-    const nomeFluxo = a.fluxoConcluido || 'Sem fluxo';
-    fluxoMap.set(nomeFluxo, (fluxoMap.get(nomeFluxo) || 0) + 1);
-  });
-  const fluxosData = Array.from(fluxoMap.entries()).map(([name, value]) => ({
-    name,
-    value
-  })).sort((a, b) => b.value - a.value);
-
-  // Evolução nos últimos 30 dias
-  const last30Days = Array.from({
-    length: 30
-  }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (29 - i));
-    return date.toISOString().split('T')[0];
-  });
-  const evolutionData = last30Days.map(date => {
-    const created = atendimentos.filter(a => a.createdAt?.startsWith(date)).length;
-    const concluded = atendimentos.filter(a => statusFinalizados.has(a.status) && a.updatedAt?.startsWith(date)).length;
-    return {
-      date: new Date(date).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit'
-      }),
-      criados: created,
-      concluidos: concluded
-    };
-  });
-
-  // KPIs - Atualizado para usar is_final em vez de status fixo
   const totalAtendimentos = atendimentos.length;
-  const atendimentosConcluidos = atendimentos.filter(a => statusFinalizados.has(a.status)).length;
-  const atendimentosAbertos = atendimentos.filter(a => !statusFinalizados.has(a.status)).length;
-  const taxaConclusao = totalAtendimentos > 0 ? (atendimentosConcluidos / totalAtendimentos * 100).toFixed(1) : 0;
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Bom dia";
-    if (hour < 18) return "Boa tarde";
-    return "Boa noite";
-  };
-  const currentDate = format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy", {
-    locale: ptBR
-  });
-  return <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
-      <div className="container mx-auto p-8 space-y-4 md:space-y-6">
-        {/* Header with Welcome */}
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-primary/10 via-background to-background">
-          <CardContent className="p-4 md:p-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center gap-3 md:gap-4">
-                  {logoUrl ? <img src={logoUrl} alt="Logo" className="h-8 md:h-12 object-contain" /> : <div className="h-8 w-8 md:h-12 md:w-12 rounded-full bg-primary/20 flex items-center justify-center">
-                      <Target className="h-4 w-4 md:h-6 md:w-6 text-primary" />
-                    </div>}
-                  <div>
-                    <h1 className="text-xl md:text-3xl font-bold">
-                      {getGreeting()}, {userName || 'Usuário'}!
-                    </h1>
-                    <p className="text-xs md:text-sm text-muted-foreground capitalize">{currentDate}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 md:gap-3">
-                <AlertasDialog overdueCount={overdueCount} overdueList={overdueList} />
-                <UserProfile />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+  const atendimentosConcluidos = atendimentos.filter((a) => statusFinalizados.has(a.status)).length;
+  const atendimentosAbertos = atendimentos.filter((a) => !statusFinalizados.has(a.status)).length;
+  const atendimentosEmAndamento = atendimentos.filter((a) => statusEmAndamento.has(a.status)).length;
+  const taxaConclusao = totalAtendimentos > 0 ? (atendimentosConcluidos / totalAtendimentos * 100).toFixed(1) : "0";
 
-        {/* Compromissos e Comunicados */}
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Compromissos do Dia */}
-          <Card className="hover:shadow-xl transition-all duration-300 border-0 bg-gradient-to-br from-purple-500/5 to-background">
-            <CardHeader className="border-b bg-gradient-to-r from-purple-500/10 to-transparent">
+  const statusData = useMemo(() => [
+    { name: "Backlog", value: atendimentos.filter((a) => statusBacklog.has(a.status)).length },
+    { name: "Em Andamento", value: atendimentosEmAndamento },
+    { name: "Finalizados", value: atendimentosConcluidos },
+  ], [atendimentos, statusBacklog, statusEmAndamento, statusFinalizados]);
+
+  const priorityData = useMemo(() => [
+    { name: "Alta", value: atendimentos.filter((a) => a.prioridade === "Alta").length },
+    { name: "Média", value: atendimentos.filter((a) => a.prioridade === "Média").length },
+    { name: "Baixa", value: atendimentos.filter((a) => a.prioridade === "Baixa").length },
+  ], [atendimentos]);
+
+  const responsavelData = useMemo(() => {
+    const map = new Map<string, number>();
+    atendimentos.forEach((a) => {
+      if (a.responsavel) {
+        const nome = profiles[a.responsavel] || "Sem responsável";
+        map.set(nome, (map.get(nome) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
+  }, [atendimentos, profiles]);
+
+  const fluxosData = useMemo(() => {
+    const map = new Map<string, number>();
+    atendimentos.filter((a) => a.dataConcluido && a.fluxoConcluido).forEach((a) => {
+      const nome = a.fluxoConcluido || "Sem fluxo";
+      map.set(nome, (map.get(nome) || 0) + 1);
+    });
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [atendimentos]);
+
+  const evolutionData = useMemo(() => {
+    return Array.from({ length: 30 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (29 - i));
+      const key = date.toISOString().split("T")[0];
+      return {
+        date: date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+        criados: atendimentos.filter((a) => a.createdAt?.startsWith(key)).length,
+        concluidos: atendimentos.filter((a) => statusFinalizados.has(a.status) && a.updatedAt?.startsWith(key)).length,
+      };
+    });
+  }, [atendimentos, statusFinalizados]);
+
+  // ── Greeting ──
+  const userName = user?.user_metadata?.nome ? user.user_metadata.nome.charAt(0).toUpperCase() + user.user_metadata.nome.slice(1) : "";
+  const getGreeting = () => { const h = new Date().getHours(); return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"; };
+  const currentDate = format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
+
+  const totalNotifications = unreadMessages + ((userRole === "admin" || userRole === "superintendente" || userRole === "administrativo") ? pendingUsers : 0) + compromissos.length + overdueCount;
+
+  // ── Render ──
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6 space-y-4">
+        <Skeleton className="h-20 w-full rounded-2xl" />
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-48 rounded-2xl" />)}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto p-6 space-y-4">
+
+        {/* ── Header ── */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="h-10 object-contain" />
+            ) : (
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Target className="h-5 w-5 text-primary" />
+              </div>
+            )}
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold">{getGreeting()}, {userName || "Usuário"}!</h1>
+              <p className="text-xs text-muted-foreground capitalize">{currentDate}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <AlertasDialog overdueCount={overdueCount} overdueList={overdueList} />
+            <UserProfile />
+          </div>
+        </div>
+
+        {/* ── KPI Cards ── */}
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+          {[
+            { label: "Total", value: totalAtendimentos.toLocaleString("pt-BR"), icon: ClipboardList, cls: "text-primary bg-primary/5 border-primary/20" },
+            { label: "Em Aberto", value: atendimentosAbertos.toLocaleString("pt-BR"), icon: Clock, cls: "text-amber-600 bg-amber-500/5 border-amber-500/20" },
+            { label: "Concluídos", value: atendimentosConcluidos.toLocaleString("pt-BR"), icon: CheckCircle2, cls: "text-emerald-600 bg-emerald-500/5 border-emerald-500/20" },
+            { label: "Taxa Conclusão", value: `${taxaConclusao}%`, icon: TrendingUp, cls: "text-violet-600 bg-violet-500/5 border-violet-500/20" },
+          ].map(({ label, value, icon: Icon, cls }) => (
+            <Link key={label} to="/atendimentos">
+              <Card className={`rounded-2xl border ${cls} hover:shadow-md transition-all cursor-pointer`}>
+                <CardContent className="p-4">
+                  <div className={`flex items-center gap-1.5 text-[11px] font-medium mb-1.5 ${cls.split(" ")[0]}`}>
+                    <Icon className="h-3 w-3" />{label}
+                  </div>
+                  <div className="text-xl font-bold tracking-tight">{value}</div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+
+        {/* ── Row: Compromissos + Comunicados ── */}
+        <div className="grid gap-3 md:grid-cols-2">
+          {/* Compromissos */}
+          <Card className="rounded-2xl border-border/40">
+            <CardHeader className="pb-2 pt-4 px-5">
               <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <div className="h-8 w-8 rounded-lg bg-purple-500/20 flex items-center justify-center relative">
-                      <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                      {(unreadMessages > 0 || (userRole === 'admin' || userRole === 'superintendente' || userRole === 'administrativo') && pendingUsers > 0 || compromissos.length > 0 || overdueCount > 0) && <div className="absolute -top-1 -right-1 h-4 w-4 bg-destructive rounded-full flex items-center justify-center text-[9px] font-bold text-white">
-                          {unreadMessages + (userRole === 'admin' || userRole === 'superintendente' || userRole === 'administrativo' ? pendingUsers : 0) + compromissos.length + overdueCount}
-                        </div>}
-                    </div>
-                    <span>Compromissos de Hoje</span>
-                  </CardTitle>
-                  <CardDescription className="mt-1">Seus compromissos agendados para hoje</CardDescription>
-                </div>
                 <div className="flex items-center gap-2">
-                  {unreadMessages > 0 && <Link to="/mensagens">
-                      <Badge variant="destructive" className="cursor-pointer hover:bg-destructive/80">
-                        <Mail className="h-3 w-3 mr-1" />
-                        {unreadMessages}
+                  <Calendar className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-sm font-semibold">Compromissos de Hoje</CardTitle>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {unreadMessages > 0 && (
+                    <Link to="/mensagens">
+                      <Badge variant="destructive" className="cursor-pointer text-[10px] h-5 px-1.5">
+                        <Mail className="h-2.5 w-2.5 mr-0.5" />{unreadMessages}
                       </Badge>
-                    </Link>}
-                  {(userRole === 'admin' || userRole === 'superintendente' || userRole === 'administrativo') && pendingUsers > 0 && <Link to="/usuarios">
-                      <Badge variant="destructive" className="cursor-pointer hover:bg-destructive/80">
-                        <Users className="h-3 w-3 mr-1" />
-                        {pendingUsers}
+                    </Link>
+                  )}
+                  {(userRole === "admin" || userRole === "superintendente" || userRole === "administrativo") && pendingUsers > 0 && (
+                    <Link to="/usuarios">
+                      <Badge variant="destructive" className="cursor-pointer text-[10px] h-5 px-1.5">
+                        <Users className="h-2.5 w-2.5 mr-0.5" />{pendingUsers}
                       </Badge>
-                    </Link>}
-                  {compromissos.length > 0 && <Badge variant="destructive" className="cursor-pointer hover:bg-destructive/80">
-                      <Calendar className="h-3 w-3 mr-1" />
-                      {compromissos.length}
-                    </Badge>}
+                    </Link>
+                  )}
+                  {totalNotifications > 0 && (
+                    <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{totalNotifications}</Badge>
+                  )}
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-6">
-              {loading ? <div className="space-y-3">
-                  <Skeleton className="h-24 w-full rounded-lg" />
-                  <Skeleton className="h-24 w-full rounded-lg" />
-                </div> : compromissos.length === 0 ? <div className="text-center py-12">
-                  <div className="h-16 w-16 rounded-full bg-purple-500/10 flex items-center justify-center mx-auto mb-3">
-                    <Calendar className="h-8 w-8 text-purple-500/40" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">Nenhum compromisso para hoje</p>
-                </div> : <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2">
-                  {compromissos.map(compromisso => {
-                const horarioFormatado = format(parseISO(compromisso.horario_inicio), "HH:mm", {
-                  locale: ptBR
-                });
-                const horarioFimFormatado = compromisso.horario_fim ? format(parseISO(compromisso.horario_fim), "HH:mm", {
-                  locale: ptBR
-                }) : null;
-                return <Card key={compromisso.id} className="hover:shadow-md transition-all duration-200 border bg-card/50 backdrop-blur">
-                        <CardContent className="p-4">
-                          <div className="flex gap-3">
-                            <div className="w-1 rounded-full flex-shrink-0" style={{
-                        backgroundColor: compromisso.cor
-                      }} />
-                            <div className="flex-1 space-y-2 min-w-0">
-                              <div>
-                                <div className="flex items-center gap-2 justify-between">
-                                  <h4 className="font-semibold text-sm truncate flex-1">{compromisso.titulo}</h4>
-                                  {compromisso.tipo === 'atendimento' && compromisso.prioridade && <Badge variant={compromisso.prioridade === 'Alta' ? 'destructive' : compromisso.prioridade === 'Média' ? 'default' : 'secondary'} className="text-xs shrink-0">
-                                      {compromisso.prioridade}
-                                    </Badge>}
-                                </div>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
-                                  <Badge variant="secondary" className="text-xs px-2 py-0">
-                                    {horarioFormatado}
-                                  </Badge>
-                                  {horarioFimFormatado && <>
-                                      <span>-</span>
-                                      <Badge variant="secondary" className="text-xs px-2 py-0">
-                                        {horarioFimFormatado}
-                                      </Badge>
-                                    </>}
-                                  <Badge variant="outline" className="text-xs px-2 py-0">
-                                    {compromisso.tipo === 'evento' ? '📅 Evento' : '📞 Follow-up'}
-                                  </Badge>
-                                </div>
-                              </div>
-                              {compromisso.local && <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <span className="font-medium">📍</span>
-                                  {compromisso.local}
-                                </p>}
-                              {compromisso.descricao && <p className="text-xs text-muted-foreground line-clamp-2">
-                                  {compromisso.descricao}
-                                </p>}
-                              <Button size="icon" variant="default" className="h-8 w-8" onClick={() => handleConcluirCompromisso(compromisso)} title="Concluir">
-                                <Check className="h-4 w-4" />
-                              </Button>
-                            </div>
+            <CardContent className="px-4 pb-4">
+              {compromissos.length === 0 ? (
+                <div className="text-center py-10">
+                  <Calendar className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">Nenhum compromisso para hoje</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 scrollbar-hide">
+                  {compromissos.map((c) => {
+                    const hora = format(parseISO(c.horario_inicio), "HH:mm", { locale: ptBR });
+                    return (
+                      <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors group">
+                        <div className="w-1 h-10 rounded-full shrink-0" style={{ backgroundColor: c.cor }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{c.titulo}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{hora}</Badge>
+                            <span className="text-[10px] text-muted-foreground">{c.tipo === "evento" ? "📅 Evento" : "📞 Follow-up"}</span>
                           </div>
-                        </CardContent>
-                      </Card>;
-              })}
-                </div>}
+                        </div>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleConcluirCompromisso(c)}>
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* Comunicados */}
-          <Card className="hover:shadow-xl transition-all duration-300 border-0 bg-gradient-to-br from-amber-500/5 to-background">
-            <CardHeader className="border-b bg-gradient-to-r from-amber-500/10 to-transparent">
+          <Card className="rounded-2xl border-border/40">
+            <CardHeader className="pb-2 pt-4 px-5">
               <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <div className="h-8 w-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                      <Megaphone className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                    </div>
-                    Comunicados
-                  </CardTitle>
-                  <CardDescription className="mt-1">Últimos comunicados da equipe</CardDescription>
-                </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">
-                    {comunicados.length}
-                  </Badge>
-                  {userRole === 'admin' && <Link to="/comunicados">
-                      <Button size="sm" variant="outline" className="h-8 text-xs">
-                        <Plus className="h-3 w-3 mr-1" />
-                        Novo
+                  <Megaphone className="h-4 w-4 text-amber-500" />
+                  <CardTitle className="text-sm font-semibold">Comunicados</CardTitle>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{comunicados.length}</Badge>
+                  {userRole === "admin" && (
+                    <Link to="/comunicados">
+                      <Button size="sm" variant="outline" className="h-6 text-[10px] px-2">
+                        <Plus className="h-2.5 w-2.5 mr-0.5" />Novo
                       </Button>
-                    </Link>}
+                    </Link>
+                  )}
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-6">
-              {loading ? <div className="space-y-3">
-                  <Skeleton className="h-24 w-full rounded-lg" />
-                  <Skeleton className="h-24 w-full rounded-lg" />
-                </div> : comunicados.length === 0 ? <div className="text-center py-12">
-                  <div className="h-16 w-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
-                    <Megaphone className="h-8 w-8 text-amber-500/40" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">Nenhum comunicado no momento</p>
-                </div> : <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2">
-                  {comunicados.map(comunicado => <Card key={comunicado.id} className="hover:shadow-md transition-all duration-200 border bg-card/50 backdrop-blur">
-                      <CardContent className="p-4">
-                        <div className="flex gap-3">
-                          {comunicado.imagem_url && <img src={comunicado.imagem_url} alt={comunicado.titulo} className="h-16 w-16 rounded-lg object-cover flex-shrink-0 ring-1 ring-border" />}
-                          <div className="flex-1 space-y-1 min-w-0">
-                            <h4 className="font-semibold text-sm line-clamp-1">{comunicado.titulo}</h4>
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                              {comunicado.mensagem}
-                            </p>
-                            <div className="flex items-center justify-between pt-1">
-                              <span className="text-xs text-muted-foreground">
-                                {formatDistanceToNow(parseISO(comunicado.created_at), {
-                            addSuffix: true,
-                            locale: ptBR
-                          })}
-                              </span>
-                              {comunicado.link && <a href={comunicado.link} target="_blank" rel="noopener noreferrer">
-                                  <Button size="sm" variant="ghost" className="h-7 text-xs">
-                                    <ExternalLink className="h-3 w-3 mr-1" />
-                                    Ver mais
-                                  </Button>
-                                </a>}
-                            </div>
-                          </div>
+            <CardContent className="px-4 pb-4">
+              {comunicados.length === 0 ? (
+                <div className="text-center py-10">
+                  <Megaphone className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">Nenhum comunicado no momento</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 scrollbar-hide">
+                  {comunicados.map((c) => (
+                    <div key={c.id} className="flex items-start gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
+                      {c.imagem_url && <img src={c.imagem_url} alt="" className="h-10 w-10 rounded-lg object-cover shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium line-clamp-1">{c.titulo}</p>
+                        <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">{c.mensagem}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[10px] text-muted-foreground">
+                            {formatDistanceToNow(parseISO(c.created_at), { addSuffix: true, locale: ptBR })}
+                          </span>
+                          {c.link && (
+                            <a href={c.link} target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary hover:underline flex items-center gap-0.5">
+                              Ver mais <ExternalLink className="h-2.5 w-2.5" />
+                            </a>
+                          )}
                         </div>
-                      </CardContent>
-                    </Card>)}
-                </div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Análises e Métricas */}
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <ClipboardList className="h-6 w-6" />
-              Atendimentos
-            </h2>
-            <p className="text-sm text-muted-foreground">Indicadores de desempenho dos atendimentos</p>
-          </div>
-
-          {/* KPIs */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Link to="/atendimentos">
-            <Card className="hover:shadow-xl transition-all duration-300 border-0 bg-gradient-to-br from-primary/10 to-background overflow-hidden relative group cursor-pointer">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-                <CardTitle className="text-sm font-medium text-foreground">Total de Atendimentos</CardTitle>
-                <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                </div>
-              </CardHeader>
-              <CardContent className="relative">
-                <div className="text-3xl font-bold bg-gradient-to-br from-primary to-primary/60 bg-clip-text text-transparent">{totalAtendimentos}</div>
-                <p className="text-xs text-muted-foreground mt-1">Todos os registros</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link to="/atendimentos">
-            <Card className="hover:shadow-xl transition-all duration-300 border-0 bg-gradient-to-br from-orange-500/10 to-background overflow-hidden relative group cursor-pointer">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-                <CardTitle className="text-sm font-medium text-foreground">Em Aberto</CardTitle>
-                <div className="h-10 w-10 rounded-full bg-orange-500/20 flex items-center justify-center">
-                  <Clock className="h-5 w-5 text-orange-500" />
-                </div>
-              </CardHeader>
-              <CardContent className="relative">
-                <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">{atendimentosAbertos}</div>
-                <p className="text-xs text-muted-foreground mt-1">Aguardando ação</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link to="/atendimentos">
-            <Card className="hover:shadow-xl transition-all duration-300 border-0 bg-gradient-to-br from-green-500/10 to-background overflow-hidden relative group cursor-pointer">
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-                <CardTitle className="text-sm font-medium text-foreground">Concluídos</CardTitle>
-                <div className="h-10 w-10 rounded-full bg-green-500/20 flex items-center justify-center">
-                  <CheckCircle2 className="h-5 w-5 text-green-500" />
-                </div>
-              </CardHeader>
-              <CardContent className="relative">
-                <div className="text-3xl font-bold text-green-600 dark:text-green-400">{atendimentosConcluidos}</div>
-                <p className="text-xs text-muted-foreground mt-1">Finalizados</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link to="/atendimentos">
-            <Card className="hover:shadow-xl transition-all duration-300 border-0 bg-gradient-to-br from-blue-500/10 to-background overflow-hidden relative group cursor-pointer">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-                <CardTitle className="text-sm font-medium text-foreground">Taxa de Conclusão</CardTitle>
-                <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-                  <AlertCircle className="h-5 w-5 text-blue-500" />
-                </div>
-              </CardHeader>
-              <CardContent className="relative">
-                <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{taxaConclusao}%</div>
-                <p className="text-xs text-muted-foreground mt-1">Do total</p>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
+        {/* ── Section: Atendimentos Analytics ── */}
+        <div className="flex items-center gap-2 pt-2">
+          <BarChart3 className="h-4 w-4 text-primary" />
+          <h2 className="text-base font-semibold">Análise de Atendimentos</h2>
         </div>
 
-        {/* Charts Section */}
-        <Card className="border-0 shadow-lg overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent border-b">
-            <CardTitle className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
-                <TrendingUp className="h-4 w-4 text-primary" />
-              </div>
-              Gráficos e Visualizações
-            </CardTitle>
-            <CardDescription>Visualização detalhada dos dados de atendimentos</CardDescription>
-          </CardHeader>
-          <CardContent className="p-6">
-            <Tabs defaultValue="status" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-5 bg-muted/50">
-                <TabsTrigger value="status" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                  Status
-                </TabsTrigger>
-                <TabsTrigger value="priority" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                  Prioridade
-                </TabsTrigger>
-                <TabsTrigger value="team" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                  Equipe
-                </TabsTrigger>
-                <TabsTrigger value="fluxos" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                  Fluxos
-                </TabsTrigger>
-                <TabsTrigger value="evolution" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                  Evolução
-                </TabsTrigger>
-              </TabsList>
-
-          <TabsContent value="status" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card className="border-0 shadow-lg overflow-hidden">
-                <CardHeader className="bg-gradient-to-br from-chart-1/10 to-transparent">
-                  <CardTitle className="text-base">Distribuição por Status</CardTitle>
-                  <CardDescription>Visão geral em pizza</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[320px] pt-6">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <defs>
-                        {statusData.map((entry, index) => <linearGradient key={`gradient-${index}`} id={`statusGradient${index}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={entry.color} stopOpacity={0.9} />
-                            <stop offset="100%" stopColor={entry.color} stopOpacity={0.6} />
-                          </linearGradient>)}
-                      </defs>
-                      <Pie data={statusData} cx="50%" cy="50%" labelLine={false} label={({
-                          name,
-                          percent
-                        }) => `${name}: ${(percent * 100).toFixed(0)}%`} outerRadius={95} innerRadius={50} fill="#8884d8" dataKey="value" animationBegin={0} animationDuration={800}>
-                        {statusData.map((entry, index) => <Cell key={`cell-${index}`} fill={`url(#statusGradient${index})`} />)}
-                      </Pie>
-                      <Tooltip contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                          boxShadow: 'var(--shadow-lg)'
-                        }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 shadow-lg overflow-hidden">
-                <CardHeader className="bg-gradient-to-br from-chart-5/10 to-transparent">
-                  <CardTitle className="text-base">Distribuição por Fluxos</CardTitle>
-                  <CardDescription>Atendimentos por workflow</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[320px] pt-6">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <defs>
-                        {fluxosData.map((entry, index) => <linearGradient key={`gradient-fluxo-${index}`} id={`fluxoGradient${index}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={`hsl(var(--chart-${index % 5 + 1}))`} stopOpacity={0.9} />
-                            <stop offset="100%" stopColor={`hsl(var(--chart-${index % 5 + 1}))`} stopOpacity={0.6} />
-                          </linearGradient>)}
-                      </defs>
-                      <Pie data={fluxosData} cx="50%" cy="50%" labelLine={false} label={({
-                          name,
-                          percent
-                        }) => `${name}: ${(percent * 100).toFixed(0)}%`} outerRadius={95} innerRadius={50} fill="#8884d8" dataKey="value" animationBegin={0} animationDuration={800}>
-                        {fluxosData.map((entry, index) => <Cell key={`cell-fluxo-${index}`} fill={`url(#fluxoGradient${index})`} />)}
-                      </Pie>
-                      <Tooltip contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                          boxShadow: 'var(--shadow-lg)'
-                        }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 shadow-lg overflow-hidden">
-                <CardHeader className="bg-gradient-to-br from-chart-2/10 to-transparent">
-                  <CardTitle className="text-base">Atendimentos por Status</CardTitle>
-                  <CardDescription>Comparação quantitativa</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[320px] pt-6">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={statusData}>
-                      <defs>
-                        <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.9} />
-                          <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.4} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                      <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" tick={{
-                          fill: 'hsl(var(--muted-foreground))'
-                        }} />
-                      <YAxis stroke="hsl(var(--muted-foreground))" tick={{
-                          fill: 'hsl(var(--muted-foreground))'
-                        }} />
-                      <Tooltip contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                          boxShadow: 'var(--shadow-lg)'
-                        }} />
-                      <Bar dataKey="value" fill="url(#barGradient)" radius={[8, 8, 0, 0]} animationBegin={0} animationDuration={800} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
+        {/* ── Evolução (AreaChart) ── */}
+        <Card className="rounded-2xl border-border/40">
+          <CardHeader className="pb-2 pt-4 px-5">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-semibold">Evolução - Últimos 30 Dias</CardTitle>
             </div>
-          </TabsContent>
-
-          <TabsContent value="priority">
-            <Card className="border-0 shadow-lg overflow-hidden">
-              <CardHeader className="bg-gradient-to-br from-chart-3/10 to-transparent">
-                <CardTitle>Distribuição por Prioridade</CardTitle>
-                <CardDescription>Análise dos atendimentos por nível de urgência</CardDescription>
-              </CardHeader>
-              <CardContent className="h-[420px] pt-6">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={priorityData} layout="vertical">
-                    <defs>
-                      {priorityData.map((entry, index) => <linearGradient key={`priority-gradient-${index}`} id={`priorityGradient${index}`} x1="0" y1="0" x2="1" y2="0">
-                          <stop offset="0%" stopColor={entry.color} stopOpacity={0.9} />
-                          <stop offset="100%" stopColor={entry.color} stopOpacity={0.5} />
-                        </linearGradient>)}
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                    <XAxis type="number" stroke="hsl(var(--muted-foreground))" tick={{
-                        fill: 'hsl(var(--muted-foreground))'
-                      }} />
-                    <YAxis dataKey="name" type="category" stroke="hsl(var(--muted-foreground))" tick={{
-                        fill: 'hsl(var(--muted-foreground))'
-                      }} width={100} />
-                    <Tooltip contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                        boxShadow: 'var(--shadow-lg)'
-                      }} />
-                    <Bar dataKey="value" radius={[0, 8, 8, 0]} animationBegin={0} animationDuration={800}>
-                      {priorityData.map((entry, index) => <Cell key={`cell-${index}`} fill={`url(#priorityGradient${index})`} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="team">
-            <Card className="border-0 shadow-lg overflow-hidden">
-              <CardHeader className="bg-gradient-to-br from-chart-4/10 to-transparent">
-                <CardTitle>Top 10 Responsáveis</CardTitle>
-                <CardDescription>Membros da equipe com mais atendimentos</CardDescription>
-              </CardHeader>
-              <CardContent className="h-[420px] pt-6">
-                {responsavelData.length > 0 ? <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={responsavelData}>
-                      <defs>
-                        <linearGradient id="teamGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="hsl(var(--chart-4))" stopOpacity={0.9} />
-                          <stop offset="100%" stopColor="hsl(var(--chart-4))" stopOpacity={0.4} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                      <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" tick={{
-                        fill: 'hsl(var(--muted-foreground))',
-                        fontSize: 12
-                      }} angle={-45} textAnchor="end" height={80} />
-                      <YAxis stroke="hsl(var(--muted-foreground))" tick={{
-                        fill: 'hsl(var(--muted-foreground))'
-                      }} />
-                      <Tooltip contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                        boxShadow: 'var(--shadow-lg)'
-                      }} />
-                      <Legend wrapperStyle={{
-                        paddingTop: '20px'
-                      }} iconType="circle" />
-                      <Bar dataKey="value" name="Atendimentos" fill="url(#teamGradient)" radius={[8, 8, 0, 0]} animationBegin={0} animationDuration={800} />
-                    </BarChart>
-                  </ResponsiveContainer> : <div className="flex items-center justify-center h-full text-muted-foreground">
-                    Nenhum responsável atribuído ainda
-                  </div>}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="fluxos">
-            <Card className="border-0 shadow-lg overflow-hidden">
-              <CardHeader className="bg-gradient-to-br from-green-500/10 to-transparent">
-                <CardTitle>Atendimentos Concluídos por Fluxo</CardTitle>
-                <CardDescription>Visualização de conclusões em cada fluxo de trabalho</CardDescription>
-              </CardHeader>
-              <CardContent className="h-[420px] pt-6">
-                {fluxosData.length > 0 ? <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={fluxosData} layout="vertical">
-                      <defs>
-                        <linearGradient id="fluxoGradient" x1="0" y1="0" x2="1" y2="0">
-                          <stop offset="0%" stopColor="hsl(var(--status-concluido))" stopOpacity={0.9} />
-                          <stop offset="100%" stopColor="hsl(var(--status-concluido))" stopOpacity={0.5} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                      <XAxis type="number" stroke="hsl(var(--muted-foreground))" tick={{
-                        fill: 'hsl(var(--muted-foreground))'
-                      }} />
-                      <YAxis dataKey="name" type="category" stroke="hsl(var(--muted-foreground))" tick={{
-                        fill: 'hsl(var(--muted-foreground))'
-                      }} width={150} />
-                      <Tooltip contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                        boxShadow: 'var(--shadow-lg)'
-                      }} />
-                      <Legend wrapperStyle={{
-                        paddingTop: '20px'
-                      }} iconType="circle" />
-                      <Bar dataKey="value" name="Concluídos" fill="url(#fluxoGradient)" radius={[0, 8, 8, 0]} animationBegin={0} animationDuration={800} />
-                    </BarChart>
-                  </ResponsiveContainer> : <div className="flex items-center justify-center h-full text-muted-foreground">
-                    Nenhum atendimento concluído em fluxos ainda
-                  </div>}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="evolution">
-            <Card className="border-0 shadow-lg overflow-hidden">
-              <CardHeader className="bg-gradient-to-br from-chart-5/10 to-transparent">
-                <CardTitle>Evolução nos Últimos 30 Dias</CardTitle>
-                <CardDescription>Acompanhamento de criação e conclusão de atendimentos</CardDescription>
-              </CardHeader>
-              <CardContent className="h-[420px] pt-6">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={evolutionData}>
-                    <defs>
-                      <linearGradient id="lineGradient1" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="lineGradient2" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="hsl(var(--status-concluido))" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="hsl(var(--status-concluido))" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                    <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" tick={{
-                        fill: 'hsl(var(--muted-foreground))',
-                        fontSize: 11
-                      }} angle={-45} textAnchor="end" height={80} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" tick={{
-                        fill: 'hsl(var(--muted-foreground))'
-                      }} />
-                    <Tooltip contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                        boxShadow: 'var(--shadow-lg)'
-                      }} />
-                    <Legend wrapperStyle={{
-                        paddingTop: '20px'
-                      }} iconType="circle" />
-                    <Line type="monotone" dataKey="criados" stroke="hsl(var(--chart-1))" strokeWidth={2.5} name="Criados" dot={{
-                        fill: 'hsl(var(--chart-1))',
-                        r: 4
-                      }} activeDot={{
-                        r: 6
-                      }} fill="url(#lineGradient1)" animationBegin={0} animationDuration={1000} />
-                    <Line type="monotone" dataKey="concluidos" stroke="hsl(var(--status-concluido))" strokeWidth={2.5} name="Concluídos" dot={{
-                        fill: 'hsl(var(--status-concluido))',
-                        r: 4
-                      }} activeDot={{
-                        r: 6
-                      }} fill="url(#lineGradient2)" animationBegin={200} animationDuration={1000} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </TabsContent>
-            </Tabs>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={evolutionData} margin={{ top: 16, right: 8, bottom: 4, left: 0 }}>
+                <defs>
+                  <linearGradient id="gradCriados" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gradConcluidos" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
+                <Tooltip contentStyle={ttStyle} />
+                <Area type="monotone" dataKey="criados" stroke="hsl(var(--primary))" fill="url(#gradCriados)" strokeWidth={2} name="Criados" />
+                <Area type="monotone" dataKey="concluidos" stroke="#10b981" fill="url(#gradConcluidos)" strokeWidth={2} name="Concluídos" />
+              </AreaChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
+
+        {/* ── Status (Donut) + Prioridade (Donut) ── */}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Card className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5">
+              <CardTitle className="text-sm font-semibold">Distribuição por Status</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <MiniDonut data={statusData} total={totalAtendimentos} />
+            </CardContent>
+          </Card>
+          <Card className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5">
+              <CardTitle className="text-sm font-semibold">Distribuição por Prioridade</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <MiniDonut data={priorityData} total={totalAtendimentos} />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Responsáveis (Bars) + Fluxos (Bars) ── */}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Card className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5">
+              <div className="flex items-center gap-2">
+                <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                <CardTitle className="text-sm font-semibold">Top Responsáveis</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div className="overflow-y-auto max-h-[260px] pr-0.5">
+                <BarWidget data={responsavelData} total={totalAtendimentos} />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="rounded-2xl border-border/40">
+            <CardHeader className="pb-1 pt-4 px-5">
+              <div className="flex items-center gap-2">
+                <Workflow className="h-3.5 w-3.5 text-muted-foreground" />
+                <CardTitle className="text-sm font-semibold">Concluídos por Fluxo</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div className="overflow-y-auto max-h-[260px] pr-0.5">
+                {fluxosData.length > 0 ? (
+                  <BarWidget data={fluxosData} total={atendimentosConcluidos} />
+                ) : (
+                  <p className="text-xs text-muted-foreground text-center py-8">Nenhum atendimento concluído em fluxos</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
       </div>
-    </div>;
+    </div>
+  );
 }
