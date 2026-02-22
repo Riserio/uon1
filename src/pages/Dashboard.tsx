@@ -1,13 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer,
-} from "recharts";
+  AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from
+"recharts";
 import {
   TrendingUp, Clock, CheckCircle2, Megaphone, ExternalLink, Plus, Mail, Users, Check,
   Calendar, Target, BarChart3, Workflow, FileText, MessageSquare, Shield, Building2, UserCheck,
-  Video, AlertTriangle, ChevronLeft, ChevronRight, FileSignature, Link as LinkIcon,
-} from "lucide-react";
+  Video, AlertTriangle, ChevronLeft, ChevronRight, FileSignature, Link as LinkIcon } from
+"lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -20,8 +20,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import {
   format, parseISO, formatDistanceToNow, startOfDay, endOfDay,
-  startOfWeek, endOfWeek, addDays, isSameDay, addWeeks, subWeeks, isAfter, isBefore,
-} from "date-fns";
+  startOfWeek, endOfWeek, addDays, isSameDay, addWeeks, subWeeks, isAfter, isBefore } from
+"date-fns";
 import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,7 +37,7 @@ const JITSI_DOMAIN = "talk.uon1.com.br";
 
 // ── Mini Components ─────────────────────────────────────────
 
-function MiniDonut({ data, total }: { data: { name: string; value: number }[]; total: number }) {
+function MiniDonut({ data, total }: {data: {name: string;value: number;}[];total: number;}) {
   if (!data.length) return <p className="text-xs text-muted-foreground text-center py-4">Sem dados</p>;
   const top = data.slice(0, 5);
   return (
@@ -50,24 +50,24 @@ function MiniDonut({ data, total }: { data: { name: string; value: number }[]; t
         </PieChart>
       </ResponsiveContainer>
       <div className="flex-1 space-y-1 min-w-0">
-        {top.map((item, i) => (
-          <div key={item.name} className="flex items-center gap-2">
+        {top.map((item, i) =>
+        <div key={item.name} className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
             <span className="text-xs text-muted-foreground truncate flex-1">{item.name}</span>
             <span className="text-xs font-bold tabular-nums">{item.value}</span>
           </div>
-        ))}
+        )}
       </div>
-    </div>
-  );
+    </div>);
+
 }
 
-function BarWidget({ data, total }: { data: { name: string; value: number }[]; total: number }) {
+function BarWidget({ data, total }: {data: {name: string;value: number;}[];total: number;}) {
   if (!data.length) return <p className="text-xs text-muted-foreground text-center py-4">Sem dados</p>;
   return (
     <div className="space-y-2">
       {data.map((item, i) => {
-        const pct = total > 0 ? (item.value / total) * 100 : 0;
+        const pct = total > 0 ? item.value / total * 100 : 0;
         return (
           <div key={item.name} className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground truncate w-24 shrink-0">{item.name}</span>
@@ -75,29 +75,29 @@ function BarWidget({ data, total }: { data: { name: string; value: number }[]; t
               <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: COLORS[i % COLORS.length] }} />
             </div>
             <span className="text-xs font-bold tabular-nums w-8 text-right">{item.value}</span>
-          </div>
-        );
+          </div>);
+
       })}
-    </div>
-  );
+    </div>);
+
 }
 
 // ── Interfaces ──────────────────────────────────────────────
 
 interface CompromissoItem {
-  id: string; titulo: string; descricao?: string; horario_inicio: string;
-  horario_fim?: string; local?: string; tipo: "evento" | "atendimento";
-  cor: string; prioridade?: string; status?: string; originalId: string;
+  id: string;titulo: string;descricao?: string;horario_inicio: string;
+  horario_fim?: string;local?: string;tipo: "evento" | "atendimento";
+  cor: string;prioridade?: string;status?: string;originalId: string;
 }
 
 interface ContratoResumo {
-  id: string; numero: string; titulo: string; status: string;
-  data_fim: string | null; contratante_nome: string | null;
+  id: string;numero: string;titulo: string;status: string;
+  data_fim: string | null;contratante_nome: string | null;
 }
 
 interface ReuniaoResumo {
-  id: string; titulo: string; data_inicio: string; data_fim: string;
-  sala_id: string; status: string;
+  id: string;titulo: string;data_inicio: string;data_fim: string;
+  sala_id: string;status: string;
 }
 
 // ── Main Dashboard ──────────────────────────────────────────
@@ -124,7 +124,7 @@ export default function Dashboard() {
   const [syncErrorCount, setSyncErrorCount] = useState(0);
   const [calWeek, setCalWeek] = useState(new Date());
   const [atendimentoTab, setAtendimentoTab] = useState("administradora");
-  const [fluxos, setFluxos] = useState<{ id: string; nome: string }[]>([]);
+  const [fluxos, setFluxos] = useState<{id: string;nome: string;}[]>([]);
 
   // SGA atendimentos (Gestão Associação)
   const [sgaEventos, setSgaEventos] = useState<any[]>([]);
@@ -133,32 +133,32 @@ export default function Dashboard() {
     const load = async () => {
       try {
         const [statusRes, profilesRes, corretorasRes, contratosRes, reunioesRes, sgaRes, fluxosRes] = await Promise.all([
-          supabase.from("status_config").select("nome, tipo_etapa").eq("ativo", true),
-          supabase.from("profiles").select("id, nome"),
-          supabase.from("corretoras").select("id", { count: "exact", head: true }),
-          supabase.from("contratos").select("id, numero, titulo, status, data_fim, contratante_nome").eq("arquivado", false).order("created_at", { ascending: false }).limit(50),
-          supabase.from("reunioes").select("id, titulo, data_inicio, data_fim, sala_id, status").in("status", ["agendada", "em_andamento"]).gte("data_inicio", new Date().toISOString()).order("data_inicio", { ascending: true }).limit(5),
-          supabase.from("sga_eventos").select("id, protocolo, situacao_evento, data_evento, tipo_evento, associado_nome, corretora_id").order("created_at", { ascending: false }).limit(500),
-          supabase.from("fluxos").select("id, nome").eq("ativo", true).order("ordem", { ascending: true }),
-        ]);
+        supabase.from("status_config").select("nome, tipo_etapa").eq("ativo", true),
+        supabase.from("profiles").select("id, nome"),
+        supabase.from("corretoras").select("id", { count: "exact", head: true }),
+        supabase.from("contratos").select("id, numero, titulo, status, data_fim, contratante_nome").eq("arquivado", false).order("created_at", { ascending: false }).limit(50),
+        supabase.from("reunioes").select("id, titulo, data_inicio, data_fim, sala_id, status").in("status", ["agendada", "em_andamento"]).gte("data_inicio", new Date().toISOString()).order("data_inicio", { ascending: true }).limit(5),
+        supabase.from("sga_eventos").select("id, protocolo, situacao_evento, data_evento, tipo_evento, associado_nome, corretora_id").order("created_at", { ascending: false }).limit(500),
+        supabase.from("fluxos").select("id, nome").eq("ativo", true).order("ordem", { ascending: true })]
+        );
         if (statusRes.data) {
-          setStatusFinalizados(new Set(statusRes.data.filter(s => s.tipo_etapa === "finalizado").map(s => s.nome)));
-          setStatusBacklog(new Set(statusRes.data.filter(s => s.tipo_etapa === "backlog").map(s => s.nome)));
-          setStatusEmAndamento(new Set(statusRes.data.filter(s => s.tipo_etapa === "em_andamento").map(s => s.nome)));
+          setStatusFinalizados(new Set(statusRes.data.filter((s) => s.tipo_etapa === "finalizado").map((s) => s.nome)));
+          setStatusBacklog(new Set(statusRes.data.filter((s) => s.tipo_etapa === "backlog").map((s) => s.nome)));
+          setStatusEmAndamento(new Set(statusRes.data.filter((s) => s.tipo_etapa === "em_andamento").map((s) => s.nome)));
         }
-        if (profilesRes.data) setProfiles(profilesRes.data.reduce((a, p) => { a[p.id] = p.nome; return a; }, {} as Record<string, string>));
+        if (profilesRes.data) setProfiles(profilesRes.data.reduce((a, p) => {a[p.id] = p.nome;return a;}, {} as Record<string, string>));
         setTotalCorretoras(corretorasRes.count || 0);
         setContratos((contratosRes.data || []) as ContratoResumo[]);
         setReunioes((reunioesRes.data || []) as ReuniaoResumo[]);
         setSgaEventos(sgaRes.data || []);
-        setFluxos((fluxosRes.data || []) as { id: string; nome: string }[]);
+        setFluxos((fluxosRes.data || []) as {id: string;nome: string;}[]);
 
         // Count sync errors (just the total)
         const [cobErr, sgaErr, mgfErr] = await Promise.all([
-          supabase.from("cobranca_automacao_execucoes").select("id", { count: "exact", head: true }).eq("status", "erro"),
-          supabase.from("sga_automacao_execucoes").select("id", { count: "exact", head: true }).eq("status", "erro"),
-          supabase.from("mgf_automacao_execucoes").select("id", { count: "exact", head: true }).eq("status", "erro"),
-        ]);
+        supabase.from("cobranca_automacao_execucoes").select("id", { count: "exact", head: true }).eq("status", "erro"),
+        supabase.from("sga_automacao_execucoes").select("id", { count: "exact", head: true }).eq("status", "erro"),
+        supabase.from("mgf_automacao_execucoes").select("id", { count: "exact", head: true }).eq("status", "erro")]
+        );
         setSyncErrorCount((cobErr.count || 0) + (sgaErr.count || 0) + (mgfErr.count || 0));
       } catch (e) {
         console.error("[Dashboard] Error loading data:", e);
@@ -170,37 +170,37 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
     loadData();
-    const ch1 = supabase.channel("dash_ev").on("postgres_changes", { event: "*", schema: "public", table: "eventos" }, () => { loadCompromissos(); loadWeekCompromissos(); }).subscribe();
-    const ch2 = supabase.channel("dash_at").on("postgres_changes", { event: "*", schema: "public", table: "atendimentos" }, () => { loadAtendimentos(); loadCompromissos(); loadWeekCompromissos(); }).subscribe();
+    const ch1 = supabase.channel("dash_ev").on("postgres_changes", { event: "*", schema: "public", table: "eventos" }, () => {loadCompromissos();loadWeekCompromissos();}).subscribe();
+    const ch2 = supabase.channel("dash_at").on("postgres_changes", { event: "*", schema: "public", table: "atendimentos" }, () => {loadAtendimentos();loadCompromissos();loadWeekCompromissos();}).subscribe();
     const ch3 = supabase.channel("dash_co").on("postgres_changes", { event: "*", schema: "public", table: "comunicados" }, () => loadComunicados()).subscribe();
-    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(ch3); };
+    return () => {supabase.removeChannel(ch1);supabase.removeChannel(ch2);supabase.removeChannel(ch3);};
   }, [user]);
 
-  useEffect(() => { if (user) loadWeekCompromissos(); }, [calWeek, user]);
+  useEffect(() => {if (user) loadWeekCompromissos();}, [calWeek, user]);
 
-  const loadData = async () => { setLoading(true); await Promise.all([loadAtendimentos(), loadCompromissos(), loadWeekCompromissos(), loadComunicados()]); setLoading(false); };
+  const loadData = async () => {setLoading(true);await Promise.all([loadAtendimentos(), loadCompromissos(), loadWeekCompromissos(), loadComunicados()]);setLoading(false);};
 
   const loadAtendimentos = async () => {
     try {
       const { data, error } = await supabase.from("atendimentos").select("id, numero, assunto, corretora_id, contato_id, responsavel_id, prioridade, status, tags, observacoes, data_retorno, data_concluido, fluxo_concluido_nome, fluxo_concluido_id, fluxo_id, created_at, updated_at").order("created_at", { ascending: false });
       if (error) throw error;
-      setAtendimentos(data?.map(i => ({ id: i.id, numero: i.numero, assunto: i.assunto, corretora: i.corretora_id || "", corretoraId: i.corretora_id || undefined, contato: i.contato_id || "", responsavel: i.responsavel_id || "", prioridade: i.prioridade, status: i.status, tags: i.tags || [], observacoes: i.observacoes || "", dataRetorno: i.data_retorno, dataConcluido: i.data_concluido, fluxoConcluido: i.fluxo_concluido_nome, fluxoConcluidoId: i.fluxo_concluido_id, fluxoId: i.fluxo_id, createdAt: i.created_at, updatedAt: i.updated_at })) || []);
-    } catch (e) { console.error(e); }
+      setAtendimentos(data?.map((i) => ({ id: i.id, numero: i.numero, assunto: i.assunto, corretora: i.corretora_id || "", corretoraId: i.corretora_id || undefined, contato: i.contato_id || "", responsavel: i.responsavel_id || "", prioridade: i.prioridade, status: i.status, tags: i.tags || [], observacoes: i.observacoes || "", dataRetorno: i.data_retorno, dataConcluido: i.data_concluido, fluxoConcluido: i.fluxo_concluido_nome, fluxoConcluidoId: i.fluxo_concluido_id, fluxoId: i.fluxo_id, createdAt: i.created_at, updatedAt: i.updated_at })) || []);
+    } catch (e) {console.error(e);}
   };
 
   const loadCompromissos = async () => {
     try {
       const hoje = new Date();
       const [evRes, atRes] = await Promise.all([
-        supabase.from("eventos").select("id, titulo, descricao, data_inicio, data_fim, local, cor").eq("user_id", user?.id).gte("data_inicio", startOfDay(hoje).toISOString()).lte("data_inicio", endOfDay(hoje).toISOString()).order("data_inicio", { ascending: true }),
-        supabase.from("atendimentos").select("id, assunto, observacoes, data_retorno, prioridade, status").eq("user_id", user?.id).gte("data_retorno", startOfDay(hoje).toISOString()).lte("data_retorno", endOfDay(hoje).toISOString()).neq("status", "concluido").order("data_retorno", { ascending: true }),
-      ]);
+      supabase.from("eventos").select("id, titulo, descricao, data_inicio, data_fim, local, cor").eq("user_id", user?.id).gte("data_inicio", startOfDay(hoje).toISOString()).lte("data_inicio", endOfDay(hoje).toISOString()).order("data_inicio", { ascending: true }),
+      supabase.from("atendimentos").select("id, assunto, observacoes, data_retorno, prioridade, status").eq("user_id", user?.id).gte("data_retorno", startOfDay(hoje).toISOString()).lte("data_retorno", endOfDay(hoje).toISOString()).neq("status", "concluido").order("data_retorno", { ascending: true })]
+      );
       const items: CompromissoItem[] = [];
-      evRes.data?.forEach(e => items.push({ id: `ev-${e.id}`, originalId: e.id, titulo: e.titulo, descricao: e.descricao, horario_inicio: e.data_inicio, horario_fim: e.data_fim, local: e.local, tipo: "evento", cor: e.cor || "#3b82f6" }));
-      atRes.data?.forEach(a => items.push({ id: `at-${a.id}`, originalId: a.id, titulo: a.assunto, descricao: a.observacoes, horario_inicio: a.data_retorno!, tipo: "atendimento", cor: a.prioridade === "Alta" ? "#ef4444" : a.prioridade === "Média" ? "#f59e0b" : "#10b981", prioridade: a.prioridade, status: a.status }));
+      evRes.data?.forEach((e) => items.push({ id: `ev-${e.id}`, originalId: e.id, titulo: e.titulo, descricao: e.descricao, horario_inicio: e.data_inicio, horario_fim: e.data_fim, local: e.local, tipo: "evento", cor: e.cor || "#3b82f6" }));
+      atRes.data?.forEach((a) => items.push({ id: `at-${a.id}`, originalId: a.id, titulo: a.assunto, descricao: a.observacoes, horario_inicio: a.data_retorno!, tipo: "atendimento", cor: a.prioridade === "Alta" ? "#ef4444" : a.prioridade === "Média" ? "#f59e0b" : "#10b981", prioridade: a.prioridade, status: a.status }));
       items.sort((a, b) => a.horario_inicio.localeCompare(b.horario_inicio));
       setCompromissos(items);
-    } catch (e) { console.error(e); }
+    } catch (e) {console.error(e);}
   };
 
   const loadWeekCompromissos = async () => {
@@ -208,99 +208,99 @@ export default function Dashboard() {
       const wStart = startOfWeek(calWeek, { locale: ptBR });
       const wEnd = endOfWeek(calWeek, { locale: ptBR });
       const [evRes, atRes] = await Promise.all([
-        supabase.from("eventos").select("id, titulo, data_inicio, cor").eq("user_id", user?.id).gte("data_inicio", wStart.toISOString()).lte("data_inicio", wEnd.toISOString()),
-        supabase.from("atendimentos").select("id, assunto, data_retorno, prioridade").eq("user_id", user?.id).not("data_retorno", "is", null).gte("data_retorno", wStart.toISOString()).lte("data_retorno", wEnd.toISOString()).neq("status", "concluido"),
-      ]);
+      supabase.from("eventos").select("id, titulo, data_inicio, cor").eq("user_id", user?.id).gte("data_inicio", wStart.toISOString()).lte("data_inicio", wEnd.toISOString()),
+      supabase.from("atendimentos").select("id, assunto, data_retorno, prioridade").eq("user_id", user?.id).not("data_retorno", "is", null).gte("data_retorno", wStart.toISOString()).lte("data_retorno", wEnd.toISOString()).neq("status", "concluido")]
+      );
       const items: CompromissoItem[] = [];
-      evRes.data?.forEach(e => items.push({ id: `ev-${e.id}`, originalId: e.id, titulo: e.titulo, horario_inicio: e.data_inicio, tipo: "evento", cor: e.cor || "#3b82f6" }));
-      atRes.data?.forEach(a => items.push({ id: `at-${a.id}`, originalId: a.id, titulo: a.assunto, horario_inicio: a.data_retorno!, tipo: "atendimento", cor: a.prioridade === "Alta" ? "#ef4444" : a.prioridade === "Média" ? "#f59e0b" : "#10b981", prioridade: a.prioridade }));
+      evRes.data?.forEach((e) => items.push({ id: `ev-${e.id}`, originalId: e.id, titulo: e.titulo, horario_inicio: e.data_inicio, tipo: "evento", cor: e.cor || "#3b82f6" }));
+      atRes.data?.forEach((a) => items.push({ id: `at-${a.id}`, originalId: a.id, titulo: a.assunto, horario_inicio: a.data_retorno!, tipo: "atendimento", cor: a.prioridade === "Alta" ? "#ef4444" : a.prioridade === "Média" ? "#f59e0b" : "#10b981", prioridade: a.prioridade }));
       setWeekCompromissos(items);
-    } catch (e) { console.error(e); }
+    } catch (e) {console.error(e);}
   };
 
   const loadComunicados = async () => {
     try {
       const { data } = await supabase.from("comunicados").select("*").eq("ativo", true).order("created_at", { ascending: false }).limit(5);
       setComunicados(data || []);
-    } catch (e) { console.error(e); }
+    } catch (e) {console.error(e);}
   };
 
   const handleConcluir = async (c: CompromissoItem) => {
-    const { error } = c.tipo === "evento"
-      ? await supabase.from("eventos").delete().eq("id", c.originalId)
-      : await supabase.from("atendimentos").update({ status: "concluido", data_concluido: new Date().toISOString() }).eq("id", c.originalId);
-    if (error) { toast({ title: "Erro", variant: "destructive" }); return; }
-    setCompromissos(prev => prev.filter(x => x.id !== c.id));
+    const { error } = c.tipo === "evento" ?
+    await supabase.from("eventos").delete().eq("id", c.originalId) :
+    await supabase.from("atendimentos").update({ status: "concluido", data_concluido: new Date().toISOString() }).eq("id", c.originalId);
+    if (error) {toast({ title: "Erro", variant: "destructive" });return;}
+    setCompromissos((prev) => prev.filter((x) => x.id !== c.id));
     toast({ title: "Concluído!" });
   };
 
   // ── Computed ──
   // Fluxos finalizados (cancelado, negado, finalizado or similar)
   const FINALIZED_KEYWORDS = ["finaliz", "cancelad", "negad", "conclui", "encerrad"];
-  const isFluxoFinalizado = (nome: string) => FINALIZED_KEYWORDS.some(k => nome.toLowerCase().includes(k));
+  const isFluxoFinalizado = (nome: string) => FINALIZED_KEYWORDS.some((k) => nome.toLowerCase().includes(k));
 
-  const fluxoFinalizadoIds = useMemo(() => new Set(fluxos.filter(f => isFluxoFinalizado(f.nome)).map(f => f.id)), [fluxos]);
-  const fluxoNames = useMemo(() => fluxos.reduce((a, f) => { a[f.id] = f.nome; return a; }, {} as Record<string, string>), [fluxos]);
+  const fluxoFinalizadoIds = useMemo(() => new Set(fluxos.filter((f) => isFluxoFinalizado(f.nome)).map((f) => f.id)), [fluxos]);
+  const fluxoNames = useMemo(() => fluxos.reduce((a, f) => {a[f.id] = f.nome;return a;}, {} as Record<string, string>), [fluxos]);
 
   const total = atendimentos.length;
-  const finalizados = atendimentos.filter(a => a.fluxoId && fluxoFinalizadoIds.has(a.fluxoId)).length;
+  const finalizados = atendimentos.filter((a) => a.fluxoId && fluxoFinalizadoIds.has(a.fluxoId)).length;
   const emAndamento = total - finalizados;
-  const taxa = total > 0 ? ((finalizados / total) * 100).toFixed(1) : "0";
+  const taxa = total > 0 ? (finalizados / total * 100).toFixed(1) : "0";
 
   // SGA computed - same logic: finalized situacoes
   const SGA_FINALIZED = ["FINALIZ", "CANCELAD", "NEGAD", "CONCLUI", "ENCERRAD"];
-  const isSgaFinalizado = (s: string) => SGA_FINALIZED.some(k => s.toUpperCase().includes(k));
+  const isSgaFinalizado = (s: string) => SGA_FINALIZED.some((k) => s.toUpperCase().includes(k));
 
-  const sgaEmAndamento = useMemo(() => sgaEventos.filter(e => !isSgaFinalizado(e.situacao_evento || "")).length, [sgaEventos]);
-  const sgaFinalizados = useMemo(() => sgaEventos.filter(e => isSgaFinalizado(e.situacao_evento || "")).length, [sgaEventos]);
+  const sgaEmAndamento = useMemo(() => sgaEventos.filter((e) => !isSgaFinalizado(e.situacao_evento || "")).length, [sgaEventos]);
+  const sgaFinalizados = useMemo(() => sgaEventos.filter((e) => isSgaFinalizado(e.situacao_evento || "")).length, [sgaEventos]);
   const totalSga = sgaEventos.length;
-  const sgaTaxa = totalSga > 0 ? ((sgaFinalizados / totalSga) * 100).toFixed(1) : "0";
+  const sgaTaxa = totalSga > 0 ? (sgaFinalizados / totalSga * 100).toFixed(1) : "0";
 
   // Group by fluxo for donut
   const fluxoData = useMemo(() => {
     const m = new Map<string, number>();
-    atendimentos.forEach(a => {
-      const name = a.fluxoId ? (fluxoNames[a.fluxoId] || "Sem fluxo") : "Sem fluxo";
+    atendimentos.forEach((a) => {
+      const name = a.fluxoId ? fluxoNames[a.fluxoId] || "Sem fluxo" : "Sem fluxo";
       m.set(name, (m.get(name) || 0) + 1);
     });
     return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
   }, [atendimentos, fluxoNames]);
 
   const priorityData = useMemo(() => [
-    { name: "Alta", value: atendimentos.filter(a => a.prioridade === "Alta").length },
-    { name: "Média", value: atendimentos.filter(a => a.prioridade === "Média").length },
-    { name: "Baixa", value: atendimentos.filter(a => a.prioridade === "Baixa").length },
-  ], [atendimentos]);
+  { name: "Alta", value: atendimentos.filter((a) => a.prioridade === "Alta").length },
+  { name: "Média", value: atendimentos.filter((a) => a.prioridade === "Média").length },
+  { name: "Baixa", value: atendimentos.filter((a) => a.prioridade === "Baixa").length }],
+  [atendimentos]);
 
   const sgaSituacaoData = useMemo(() => {
     const m = new Map<string, number>();
-    sgaEventos.forEach(e => { const s = e.situacao_evento || "N/A"; m.set(s, (m.get(s) || 0) + 1); });
+    sgaEventos.forEach((e) => {const s = e.situacao_evento || "N/A";m.set(s, (m.get(s) || 0) + 1);});
     return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
   }, [sgaEventos]);
 
   const sgaTipoData = useMemo(() => {
     const m = new Map<string, number>();
-    sgaEventos.forEach(e => { const t = e.tipo_evento || "N/A"; m.set(t, (m.get(t) || 0) + 1); });
+    sgaEventos.forEach((e) => {const t = e.tipo_evento || "N/A";m.set(t, (m.get(t) || 0) + 1);});
     return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
   }, [sgaEventos]);
 
   const responsavelData = useMemo(() => {
     const m = new Map<string, number>();
-    atendimentos.forEach(a => { if (a.responsavel) { const n = profiles[a.responsavel] || "N/A"; m.set(n, (m.get(n) || 0) + 1); } });
+    atendimentos.forEach((a) => {if (a.responsavel) {const n = profiles[a.responsavel] || "N/A";m.set(n, (m.get(n) || 0) + 1);}});
     return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
   }, [atendimentos, profiles]);
 
   const evolutionData = useMemo(() => Array.from({ length: 30 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (29 - i));
+    const d = new Date();d.setDate(d.getDate() - (29 - i));
     const k = d.toISOString().split("T")[0];
-    return { date: d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), criados: atendimentos.filter(a => a.createdAt?.startsWith(k)).length, finalizados: atendimentos.filter(a => a.fluxoId && fluxoFinalizadoIds.has(a.fluxoId) && a.updatedAt?.startsWith(k)).length };
+    return { date: d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), criados: atendimentos.filter((a) => a.createdAt?.startsWith(k)).length, finalizados: atendimentos.filter((a) => a.fluxoId && fluxoFinalizadoIds.has(a.fluxoId) && a.updatedAt?.startsWith(k)).length };
   }), [atendimentos, fluxoFinalizadoIds]);
 
   // Contratos computed
-  const contratosPendentes = contratos.filter(c => c.status === "aguardando_assinatura");
+  const contratosPendentes = contratos.filter((c) => c.status === "aguardando_assinatura");
   const hoje = new Date();
   const em30dias = addDays(hoje, 30);
-  const contratosVencer = contratos.filter(c => c.data_fim && isAfter(parseISO(c.data_fim), hoje) && isBefore(parseISO(c.data_fim), em30dias));
+  const contratosVencer = contratos.filter((c) => c.data_fim && isAfter(parseISO(c.data_fim), hoje) && isBefore(parseISO(c.data_fim), em30dias));
 
   // Mini calendar week days
   const weekStart = startOfWeek(calWeek, { locale: ptBR });
@@ -312,7 +312,7 @@ export default function Dashboard() {
     if (user?.user_metadata?.nome) return user.user_metadata.nome.charAt(0).toUpperCase() + user.user_metadata.nome.slice(1);
     return "";
   }, [user, profiles]);
-  const greeting = (() => { const h = new Date().getHours(); return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"; })();
+  const greeting = (() => {const h = new Date().getHours();return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";})();
   const currentDate = format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR });
 
   if (loading) {
@@ -320,8 +320,8 @@ export default function Dashboard() {
       <div className="container mx-auto p-6 space-y-4">
         <Skeleton className="h-16 w-full rounded-2xl" />
         <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-36 rounded-2xl" />)}</div>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -333,7 +333,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             {logoUrl ? <img src={logoUrl} alt="Logo" className="h-12 object-contain" /> : <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center"><Target className="h-6 w-6 text-primary" /></div>}
             <div>
-              <h1 className="text-2xl font-bold">{greeting}, {userName || "Usuário"}!</h1>
+              <h1 className="font-bold text-3xl">{greeting}, {userName || "Usuário"}!</h1>
               <p className="text-sm text-muted-foreground capitalize">{currentDate}</p>
             </div>
           </div>
@@ -357,12 +357,12 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="px-6 pb-5 flex-1">
-              {comunicados.length === 0 ? (
-                <div className="text-center py-10"><Megaphone className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Nenhum comunicado</p></div>
-              ) : (
-                <div className="space-y-3 h-full overflow-y-auto scrollbar-hide">
-                  {comunicados.map(c => (
-                    <div key={c.id} className="flex items-start gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
+              {comunicados.length === 0 ?
+              <div className="text-center py-10"><Megaphone className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Nenhum comunicado</p></div> :
+
+              <div className="space-y-3 h-full overflow-y-auto scrollbar-hide">
+                  {comunicados.map((c) =>
+                <div key={c.id} className="flex items-start gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
                       {c.imagem_url && <img src={c.imagem_url} alt="" className="h-11 w-11 rounded-lg object-cover shrink-0" />}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium line-clamp-1">{c.titulo}</p>
@@ -373,9 +373,9 @@ export default function Dashboard() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                )}
                 </div>
-              )}
+              }
             </CardContent>
           </Card>
 
@@ -396,23 +396,23 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="px-6 pb-5 flex-1">
               <div className="grid grid-cols-7 gap-2 h-full">
-                {weekDays.map(day => {
+                {weekDays.map((day) => {
                   const isToday = isSameDay(day, new Date());
-                  const dayItems = weekCompromissos.filter(c => isSameDay(parseISO(c.horario_inicio), day));
+                  const dayItems = weekCompromissos.filter((c) => isSameDay(parseISO(c.horario_inicio), day));
                   return (
                     <div key={day.toISOString()} className={`flex flex-col items-center rounded-xl p-2.5 transition-colors ${isToday ? "bg-primary/10 ring-1 ring-primary/30" : "bg-muted/30"}`}>
                       <span className="text-xs text-muted-foreground uppercase font-semibold">{format(day, "EEE", { locale: ptBR })}</span>
                       <span className={`text-lg font-bold mt-1 ${isToday ? "text-primary" : ""}`}>{format(day, "dd")}</span>
                       <div className="flex-1 w-full mt-2 space-y-1.5 overflow-hidden">
-                        {dayItems.slice(0, 3).map(item => (
-                          <div key={item.id} className="w-full rounded px-1.5 py-1" style={{ backgroundColor: item.cor + "20", borderLeft: `2px solid ${item.cor}` }}>
+                        {dayItems.slice(0, 3).map((item) =>
+                        <div key={item.id} className="w-full rounded px-1.5 py-1" style={{ backgroundColor: item.cor + "20", borderLeft: `2px solid ${item.cor}` }}>
                             <p className="text-[10px] truncate font-medium" style={{ color: item.cor }}>{format(parseISO(item.horario_inicio), "HH:mm")}</p>
                           </div>
-                        ))}
+                        )}
                         {dayItems.length > 3 && <span className="text-[10px] text-muted-foreground text-center block">+{dayItems.length - 3}</span>}
                       </div>
-                    </div>
-                  );
+                    </div>);
+
                 })}
               </div>
             </CardContent>
@@ -438,8 +438,8 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="px-6 pb-5">
-              {atendimentoTab === "administradora" ? (
-                <div className="space-y-5">
+              {atendimentoTab === "administradora" ?
+              <div className="space-y-5">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold">{total}</p>
@@ -468,9 +468,9 @@ export default function Dashboard() {
                       <MiniDonut data={priorityData} total={total} />
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="space-y-5">
+                </div> :
+
+              <div className="space-y-5">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold">{totalSga}</p>
@@ -500,7 +500,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-              )}
+              }
             </CardContent>
           </Card>
 
@@ -514,12 +514,12 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="px-6 pb-5">
-              {compromissos.length === 0 ? (
-                <div className="text-center py-10"><Calendar className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Nenhum compromisso hoje</p></div>
-              ) : (
-                <div className="space-y-2.5 max-h-[320px] overflow-y-auto scrollbar-hide">
-                  {compromissos.map(c => (
-                    <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors group">
+              {compromissos.length === 0 ?
+              <div className="text-center py-10"><Calendar className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Nenhum compromisso hoje</p></div> :
+
+              <div className="space-y-2.5 max-h-[320px] overflow-y-auto scrollbar-hide">
+                  {compromissos.map((c) =>
+                <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors group">
                       <div className="w-1 h-10 rounded-full shrink-0" style={{ backgroundColor: c.cor }} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{c.titulo}</p>
@@ -530,9 +530,9 @@ export default function Dashboard() {
                       </div>
                       <Button size="icon" variant="ghost" className="h-8 w-8 opacity-0 group-hover:opacity-100" onClick={() => handleConcluir(c)}><Check className="h-4 w-4" /></Button>
                     </div>
-                  ))}
+                )}
                 </div>
-              )}
+              }
             </CardContent>
           </Card>
         </div>
@@ -549,21 +549,21 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="px-6 pb-5">
-              {contratosPendentes.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">Nenhum contrato pendente</p>
-              ) : (
-                <div className="space-y-2.5 max-h-[200px] overflow-y-auto scrollbar-hide">
-                  {contratosPendentes.slice(0, 5).map(c => (
-                    <Link key={c.id} to="/uon1-sign" className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors" onClick={e => e.stopPropagation()}>
+              {contratosPendentes.length === 0 ?
+              <p className="text-sm text-muted-foreground text-center py-8">Nenhum contrato pendente</p> :
+
+              <div className="space-y-2.5 max-h-[200px] overflow-y-auto scrollbar-hide">
+                  {contratosPendentes.slice(0, 5).map((c) =>
+                <Link key={c.id} to="/uon1-sign" className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors" onClick={(e) => e.stopPropagation()}>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{c.titulo}</p>
                         <p className="text-xs text-muted-foreground">{c.contratante_nome || c.numero}</p>
                       </div>
                       <Badge className="text-xs h-5 bg-amber-500/20 text-amber-600 border-0">Pendente</Badge>
                     </Link>
-                  ))}
+                )}
                 </div>
-              )}
+              }
             </CardContent>
           </Card>
 
@@ -577,21 +577,21 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="px-6 pb-5">
-              {contratosVencer.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">Nenhum contrato a vencer</p>
-              ) : (
-                <div className="space-y-2.5 max-h-[200px] overflow-y-auto scrollbar-hide">
-                  {contratosVencer.slice(0, 5).map(c => (
-                    <Link key={c.id} to="/uon1-sign" className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors" onClick={e => e.stopPropagation()}>
+              {contratosVencer.length === 0 ?
+              <p className="text-sm text-muted-foreground text-center py-8">Nenhum contrato a vencer</p> :
+
+              <div className="space-y-2.5 max-h-[200px] overflow-y-auto scrollbar-hide">
+                  {contratosVencer.slice(0, 5).map((c) =>
+                <Link key={c.id} to="/uon1-sign" className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors" onClick={(e) => e.stopPropagation()}>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{c.titulo}</p>
                         <p className="text-xs text-muted-foreground">{c.contratante_nome}</p>
                       </div>
                       <Badge className="text-xs h-5 bg-rose-500/20 text-rose-600 border-0">{format(parseISO(c.data_fim!), "dd/MM")}</Badge>
                     </Link>
-                  ))}
+                )}
                 </div>
-              )}
+              }
             </CardContent>
           </Card>
 
@@ -605,16 +605,16 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="px-6 pb-5">
-              {reunioes.length === 0 ? (
-                <div className="text-center py-8">
+              {reunioes.length === 0 ?
+              <div className="text-center py-8">
                   <Video className="h-9 w-9 text-muted-foreground/30 mx-auto mb-3" />
                   <p className="text-sm text-muted-foreground">Nenhuma reunião agendada</p>
                   <Link to="/talk"><Button size="sm" variant="outline" className="h-8 text-sm px-4 mt-3"><Plus className="h-4 w-4 mr-1" />Criar</Button></Link>
-                </div>
-              ) : (
-                <div className="space-y-2.5 max-h-[200px] overflow-y-auto scrollbar-hide">
-                  {reunioes.map(r => (
-                    <div key={r.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
+                </div> :
+
+              <div className="space-y-2.5 max-h-[200px] overflow-y-auto scrollbar-hide">
+                  {reunioes.map((r) =>
+                <div key={r.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{r.titulo}</p>
                         <p className="text-xs text-muted-foreground">{format(parseISO(r.data_inicio), "dd/MM HH:mm")}</p>
@@ -623,12 +623,12 @@ export default function Dashboard() {
                         <Button size="sm" variant="outline" className="h-8 text-sm px-3 text-violet-600"><LinkIcon className="h-3.5 w-3.5 mr-1" />Entrar</Button>
                       </a>
                     </div>
-                  ))}
+                )}
                   <Link to="/talk" className="block">
                     <Button size="sm" variant="ghost" className="w-full h-8 text-sm"><Plus className="h-4 w-4 mr-1" />Criar reunião</Button>
                   </Link>
                 </div>
-              )}
+              }
             </CardContent>
           </Card>
 
@@ -661,21 +661,21 @@ export default function Dashboard() {
                     <AlertTriangle className={`h-5 w-5 ${syncErrorCount > 0 ? "text-destructive" : "text-emerald-500"}`} />
                     <span className="text-sm font-medium">Sincronização</span>
                   </div>
-                  {syncErrorCount > 0 ? (
-                    <Badge variant="destructive" className="text-sm h-6 px-2.5 min-w-[30px] justify-center">{syncErrorCount}</Badge>
-                  ) : (
-                    <Badge variant="secondary" className="text-sm h-6 px-2.5 bg-emerald-500/10 text-emerald-600 border-0">OK</Badge>
-                  )}
+                  {syncErrorCount > 0 ?
+                  <Badge variant="destructive" className="text-sm h-6 px-2.5 min-w-[30px] justify-center">{syncErrorCount}</Badge> :
+
+                  <Badge variant="secondary" className="text-sm h-6 px-2.5 bg-emerald-500/10 text-emerald-600 border-0">OK</Badge>
+                  }
                 </div>
-                {(userRole === "admin" || userRole === "superintendente") && pendingUsers > 0 && (
-                  <Link to="/usuarios" className="flex items-center justify-between p-3 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 transition-colors">
+                {(userRole === "admin" || userRole === "superintendente") && pendingUsers > 0 &&
+                <Link to="/usuarios" className="flex items-center justify-between p-3 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 transition-colors">
                     <div className="flex items-center gap-2">
                       <Users className="h-5 w-5 text-amber-500" />
                       <span className="text-sm font-medium">Usuários pendentes</span>
                     </div>
                     <Badge className="text-sm h-6 px-2.5 min-w-[30px] justify-center bg-amber-500/20 text-amber-600 border-0">{pendingUsers}</Badge>
                   </Link>
-                )}
+                }
               </div>
             </CardContent>
           </Card>
@@ -746,6 +746,6 @@ export default function Dashboard() {
         </div>
 
       </div>
-    </div>
-  );
+    </div>);
+
 }
