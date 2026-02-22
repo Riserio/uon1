@@ -61,6 +61,17 @@ serve(async (req) => {
       const scope = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email";
       const state = `${user.id}:${crypto.randomUUID()}`;
 
+      // Detect the app origin from the Referer or Origin header for redirect after callback
+      const referer = req.headers.get("referer") || req.headers.get("origin") || "";
+      let appOrigin = "";
+      try {
+        const refUrl = new URL(referer);
+        appOrigin = refUrl.origin;
+      } catch { /* ignore */ }
+
+      // Store app origin in state so callback can redirect back
+      const statePayload = `${user.id}:${crypto.randomUUID()}:${appOrigin}`;
+
       const authUrl =
         `https://accounts.google.com/o/oauth2/v2/auth?` +
         `client_id=${GOOGLE_CLIENT_ID}&` +
@@ -69,7 +80,7 @@ serve(async (req) => {
         `scope=${encodeURIComponent(scope)}&` +
         `access_type=offline&` +
         `prompt=consent&` +
-        `state=${state}`;
+        `state=${encodeURIComponent(statePayload)}`;
 
       return new Response(JSON.stringify({ authUrl }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -82,17 +93,25 @@ serve(async (req) => {
       const state = url.searchParams.get("state");
       const error = url.searchParams.get("error");
 
-      if (error)
-        return new Response(`<html><body><script>window.close();</script><p>Autorização cancelada.</p></body></html>`, {
-          headers: { ...corsHeaders, "Content-Type": "text/html" },
+      if (error) {
+        return new Response(null, {
+          status: 302,
+          headers: { ...corsHeaders, "Location": "/agenda" },
         });
-      if (!code || !state || !state.includes(":"))
-        return new Response(`<html><body><script>window.close();</script><p>Erro na autorização.</p></body></html>`, {
-          headers: { ...corsHeaders, "Content-Type": "text/html" },
+      }
+      if (!code || !state) {
+        return new Response(null, {
+          status: 302,
+          headers: { ...corsHeaders, "Location": "/agenda" },
         });
+      }
 
-      const userId = state.split(":")[0];
+      // Parse state: userId:uuid:appOrigin
+      const stateParts = state.split(":");
+      const userId = stateParts[0];
+      const appOrigin = stateParts.slice(2).join(":"); // rejoin in case origin has colons
       const redirectUri = `${SUPABASE_URL}/functions/v1/google-calendar-auth?action=callback`;
+      const redirectBack = appOrigin ? `${appOrigin}/agenda?google_connected=true` : "/agenda?google_connected=true";
 
       const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
@@ -109,8 +128,9 @@ serve(async (req) => {
       if (!tokenResponse.ok) {
         const errorData = await tokenResponse.text();
         console.error("Token exchange failed:", errorData);
-        return new Response(`<html><body><script>window.close();</script><p>Falha ao conectar.</p></body></html>`, {
-          headers: { ...corsHeaders, "Content-Type": "text/html" },
+        return new Response(null, {
+          status: 302,
+          headers: { ...corsHeaders, "Location": redirectBack },
         });
       }
 
@@ -146,41 +166,11 @@ serve(async (req) => {
 
       if (dbError) {
         console.error("Failed to store tokens:", dbError);
-        return new Response(
-          `<html><body><script>window.close();</script><p>Erro ao salvar credenciais.</p></body></html>`,
-          { headers: { ...corsHeaders, "Content-Type": "text/html" } },
-        );
       }
 
-      const successHtml = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Conectado</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #f8fafc; color: #1e293b; }
-    .card { text-align: center; padding: 3rem 2rem; background: white; border-radius: 1.5rem; box-shadow: 0 4px 24px rgba(0,0,0,0.08); max-width: 380px; width: 90%; }
-    .icon { width: 64px; height: 64px; margin: 0 auto 1.5rem; background: #dcfce7; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-    .icon svg { width: 32px; height: 32px; color: #16a34a; }
-    h1 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; }
-    p { font-size: 0.875rem; color: #64748b; line-height: 1.5; }
-    .closing { margin-top: 1rem; font-size: 0.75rem; color: #94a3b8; }
-  </style>
-  <script>setTimeout(function(){ window.close(); }, 2500);</script>
-</head>
-<body>
-  <div class="card">
-    <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>
-    <h1>Conectado com sucesso!</h1>
-    <p>Sua conta Google Calendar foi vinculada. Esta janela fechará automaticamente.</p>
-    <p class="closing">Fechando...</p>
-  </div>
-</body>
-</html>`;
-      return new Response(successHtml, {
-        headers: { ...corsHeaders, "Content-Type": "text/html" },
+      return new Response(null, {
+        status: 302,
+        headers: { ...corsHeaders, "Location": redirectBack },
       });
     }
 
