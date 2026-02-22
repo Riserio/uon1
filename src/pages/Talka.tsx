@@ -29,9 +29,9 @@ interface Reuniao {
   created_at: string;
 }
 
-const JITSI_DOMAIN = 'meet.jit.si';
+const JITSI_DOMAIN = 'talk.uon1.com.br';
 
-export default function Talka() {
+export default function Talk() {
   const { user } = useAuth();
   const [reunioes, setReunioes] = useState<Reuniao[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,7 +178,7 @@ export default function Talka() {
   };
 
   const copiarLink = (reuniao: Reuniao) => {
-    const link = `https://${JITSI_DOMAIN}/uon1-talka-${reuniao.sala_id}`;
+    const link = `https://${JITSI_DOMAIN}/uon1-talk-${reuniao.sala_id}`;
     navigator.clipboard.writeText(link);
     toast.success('Link copiado!');
   };
@@ -201,10 +201,10 @@ export default function Talka() {
       const { error } = await supabase.from('eventos').insert([{
         user_id: user?.id,
         titulo: `🎥 ${reuniao.titulo}`,
-        descricao: `Reunião Uon1 Talka\n\nLink: https://${JITSI_DOMAIN}/uon1-talka-${reuniao.sala_id}\n\n${reuniao.descricao || ''}`,
+        descricao: `Reunião UON1 Talk\n\nLink: https://${JITSI_DOMAIN}/uon1-talk-${reuniao.sala_id}\n\n${reuniao.descricao || ''}`,
         data_inicio: reuniao.data_inicio,
         data_fim: reuniao.data_fim,
-        local: `https://${JITSI_DOMAIN}/uon1-talka-${reuniao.sala_id}`,
+        local: `https://${JITSI_DOMAIN}/uon1-talk-${reuniao.sala_id}`,
         tipo: 'reuniao',
         cor: '#8b5cf6',
         lembrete_minutos: [15, 5],
@@ -243,7 +243,7 @@ export default function Talka() {
             </div>
             <div>
               <h2 className="font-semibold text-sm">{salaAtiva.titulo}</h2>
-              <p className="text-xs text-muted-foreground">Uon1 Talka</p>
+              <p className="text-xs text-muted-foreground">Talk by UON1</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -256,10 +256,10 @@ export default function Talka() {
           </div>
         </div>
         <iframe
-          src={`https://${JITSI_DOMAIN}/uon1-talka-${salaAtiva.sala_id}#config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_WATERMARK_FOR_GUESTS=false&interfaceConfig.DEFAULT_BACKGROUND='#1a1a2e'`}
+          src={`https://${JITSI_DOMAIN}/uon1-talk-${salaAtiva.sala_id}#config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_WATERMARK_FOR_GUESTS=false&interfaceConfig.DEFAULT_BACKGROUND='#1a1a2e'`}
           allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
           className="flex-1 w-full border-0"
-          title="Uon1 Talka - Videoconferência"
+          title="UON1 Talk - Videoconferência"
         />
       </div>
     );
@@ -276,7 +276,7 @@ export default function Talka() {
               <div className="p-2 rounded-lg bg-primary/10">
                 <Video className="h-7 w-7 text-primary" />
               </div>
-              Uon1 Talka
+              UON1 Talk
             </h1>
             <p className="text-muted-foreground mt-1">Videoconferências e reuniões online</p>
           </div>

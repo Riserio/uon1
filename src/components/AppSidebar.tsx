@@ -286,12 +286,12 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
 
-                {/* Uon1 Talka */}
+                {/* UON1 Talk */}
                 {canView("talka") && <SidebarMenuItem>
                     <SidebarMenuButton asChild>
-                      <NavLink to="/talka" activeClassName="bg-primary text-primary-foreground">
+                      <NavLink to="/talk" activeClassName="bg-primary text-primary-foreground">
                         <Video className="h-4 w-4" />
-                        {!collapsed && <span>Uon1 Talka</span>}
+                        {!collapsed && <span>UON1 Talk</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
