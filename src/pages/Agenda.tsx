@@ -101,6 +101,7 @@ const coresEvento = [
 ];
 
 type CalendarView = 'month' | 'week' | 'day' | 'list';
+type ListTab = 'upcoming' | 'past';
 
 export default function Agenda() {
   const { user } = useAuth();
@@ -112,6 +113,7 @@ export default function Agenda() {
   const [syncing, setSyncing] = useState(false);
   const [activeView, setActiveView] = useState<CalendarView>('month');
   const [syncPopoverOpen, setSyncPopoverOpen] = useState(false);
+  const [listTab, setListTab] = useState<ListTab>('upcoming');
   const [formData, setFormData] = useState<Partial<Evento>>({
     tipo: 'reuniao',
     cor: '#3b82f6',
@@ -561,16 +563,50 @@ export default function Agenda() {
           {/* Calendar */}
           <Card className={`rounded-2xl border-0 shadow-sm ${activeView === 'list' ? 'lg:col-span-3' : 'lg:col-span-4'}`}>
             <CardContent className="p-4">
-              {activeView === 'list' ? (
-                <div className="space-y-1">
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-3">Todos os Eventos</h3>
-                  {eventos.length === 0 ? (
+              {activeView === 'list' ? (() => {
+                const eventosUpcoming = eventos
+                  .filter(e => new Date(e.data_inicio) >= hoje)
+                  .sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime());
+                const eventosPast = eventos
+                  .filter(e => new Date(e.data_inicio) < hoje)
+                  .sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime());
+                const listaAtual = listTab === 'upcoming' ? eventosUpcoming : eventosPast;
+
+                return (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-1 rounded-xl border bg-muted/30 p-0.5 w-fit">
+                    <button
+                      onClick={() => setListTab('upcoming')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        listTab === 'upcoming'
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Próximos ({eventosUpcoming.length})
+                    </button>
+                    <button
+                      onClick={() => setListTab('past')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        listTab === 'past'
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Passados ({eventosPast.length})
+                    </button>
+                  </div>
+
+                  {listaAtual.length === 0 ? (
                     <div className="py-12 text-center">
                       <CalendarDays className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-                      <p className="text-sm text-muted-foreground">Nenhum evento cadastrado</p>
+                      <p className="text-sm text-muted-foreground">
+                        {listTab === 'upcoming' ? 'Nenhum evento futuro' : 'Nenhum evento passado'}
+                      </p>
                     </div>
                   ) : (
-                    eventos.map(evento => {
+                    <div className="space-y-1">
+                    {listaAtual.map(evento => {
                       const d = new Date(evento.data_inicio);
                       const isPast = d < hoje;
                       return (
@@ -593,10 +629,12 @@ export default function Agenda() {
                           <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                         </button>
                       );
-                    })
+                    })}
+                    </div>
                   )}
                 </div>
-              ) : (
+                )
+              })() : (
                 <FullCalendar
                   ref={calendarRef}
                   plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
