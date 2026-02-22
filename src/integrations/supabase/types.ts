@@ -2323,9 +2323,12 @@ export type Database = {
       google_calendar_integrations: {
         Row: {
           access_token: string
+          ativo: boolean
           connected_at: string
           created_at: string
+          google_email: string | null
           id: string
+          label: string | null
           last_sync_at: string | null
           refresh_token: string
           token_expires_at: string
@@ -2334,9 +2337,12 @@ export type Database = {
         }
         Insert: {
           access_token: string
+          ativo?: boolean
           connected_at?: string
           created_at?: string
+          google_email?: string | null
           id?: string
+          label?: string | null
           last_sync_at?: string | null
           refresh_token: string
           token_expires_at: string
@@ -2345,9 +2351,12 @@ export type Database = {
         }
         Update: {
           access_token?: string
+          ativo?: boolean
           connected_at?: string
           created_at?: string
+          google_email?: string | null
           id?: string
+          label?: string | null
           last_sync_at?: string | null
           refresh_token?: string
           token_expires_at?: string
