@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isParceiro, setIsParceiro] = useState(false);
   const navigate = useNavigate();
   const roleLoadedRef = useRef(false);
+  const initializedRef = useRef(false);
 
   const fetchUserRole = useCallback(async (userId: string) => {
     try {
@@ -50,30 +51,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // First get the initial session
-    supabase.auth.getSession().then(async ({ data: { session: initialSession } }) => {
-      if (!mounted) return;
-      
-      setSession(initialSession);
-      setUser(initialSession?.user ?? null);
-      
-      if (initialSession?.user) {
-        await fetchUserRole(initialSession.user.id);
-      }
-      
-      if (mounted) setLoading(false);
-    });
-
-    // Then listen for auth changes
+    // Use onAuthStateChange as the SINGLE source of truth.
+    // Supabase v2 emits INITIAL_SESSION synchronously during setup,
+    // so we don't need a separate getSession() call that could race.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         if (!mounted) return;
-        
+
         setSession(newSession);
         setUser(newSession?.user ?? null);
-        
+
         if (newSession?.user) {
-          // Only refetch role if user changed or role not loaded yet
+          // Fetch role on initial load or sign-in
           if (!roleLoadedRef.current || event === 'SIGNED_IN') {
             await fetchUserRole(newSession.user.id);
           }
@@ -82,13 +71,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsParceiro(false);
           roleLoadedRef.current = false;
         }
-        
-        if (mounted) setLoading(false);
+
+        if (mounted) {
+          setLoading(false);
+          initializedRef.current = true;
+        }
       }
     );
 
+    // Safety net: if onAuthStateChange doesn't fire within 3s
+    // (e.g. network issues), stop blocking the UI.
+    const timeout = setTimeout(() => {
+      if (mounted && !initializedRef.current) {
+        console.warn('[Auth] Timeout waiting for session, unblocking UI');
+        setLoading(false);
+        initializedRef.current = true;
+      }
+    }, 3000);
+
     return () => {
       mounted = false;
+      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, [fetchUserRole]);
