@@ -22,7 +22,7 @@ interface Reuniao {
   data_fim: string;
   sala_id: string;
   status: string;
-  participantes: { nome: string; email: string }[];
+  participantes: {nome: string;email: string;}[];
   google_event_id?: string;
   link_convite?: string;
   max_participantes: number;
@@ -45,7 +45,7 @@ export default function Talk() {
     descricao: '',
     data_inicio: '',
     data_fim: '',
-    participantes: [] as { nome: string; email: string }[],
+    participantes: [] as {nome: string;email: string;}[]
   });
 
   useEffect(() => {
@@ -54,17 +54,17 @@ export default function Talk() {
 
   const fetchReunioes = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('reunioes')
-      .select('*')
-      .eq('user_id', user?.id)
-      .order('data_inicio', { ascending: false });
+    const { data, error } = await supabase.
+    from('reunioes').
+    select('*').
+    eq('user_id', user?.id).
+    order('data_inicio', { ascending: false });
 
     if (error) {
       console.error('Erro ao carregar reuniões:', error);
       toast.error('Erro ao carregar reuniões');
     } else {
-      setReunioes((data as unknown as Reuniao[]) || []);
+      setReunioes(data as unknown as Reuniao[] || []);
     }
     setLoading(false);
   };
@@ -78,7 +78,7 @@ export default function Talk() {
       descricao: '',
       data_inicio: toDateTimeLocal(now),
       data_fim: toDateTimeLocal(end),
-      participantes: [],
+      participantes: []
     });
     setDialogOpen(true);
   };
@@ -90,25 +90,25 @@ export default function Talk() {
       descricao: reuniao.descricao || '',
       data_inicio: toDateTimeLocal(reuniao.data_inicio),
       data_fim: toDateTimeLocal(reuniao.data_fim),
-      participantes: (reuniao.participantes as { nome: string; email: string }[]) || [],
+      participantes: reuniao.participantes as {nome: string;email: string;}[] || []
     });
     setDialogOpen(true);
   };
 
   const addParticipante = () => {
     if (!participanteNome || !participanteEmail) return;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      participantes: [...prev.participantes, { nome: participanteNome, email: participanteEmail }],
+      participantes: [...prev.participantes, { nome: participanteNome, email: participanteEmail }]
     }));
     setParticipanteNome('');
     setParticipanteEmail('');
   };
 
   const removeParticipante = (index: number) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      participantes: prev.participantes.filter((_, i) => i !== index),
+      participantes: prev.participantes.filter((_, i) => i !== index)
     }));
   };
 
@@ -126,20 +126,20 @@ export default function Talk() {
         data_inicio: toUTC(formData.data_inicio),
         data_fim: toUTC(formData.data_fim),
         participantes: formData.participantes,
-        user_id: user?.id!,
+        user_id: user?.id!
       };
 
       if (editingReuniao) {
-        const { error } = await supabase
-          .from('reunioes')
-          .update(payload)
-          .eq('id', editingReuniao.id);
+        const { error } = await supabase.
+        from('reunioes').
+        update(payload).
+        eq('id', editingReuniao.id);
         if (error) throw error;
         toast.success('Reunião atualizada!');
       } else {
-        const { error } = await supabase
-          .from('reunioes')
-          .insert([payload]);
+        const { error } = await supabase.
+        from('reunioes').
+        insert([payload]);
         if (error) throw error;
         toast.success('Reunião criada!');
       }
@@ -186,11 +186,11 @@ export default function Talk() {
   const salvarNoGoogle = async (reuniao: Reuniao) => {
     try {
       // Verificar se Google Calendar está conectado
-      const { data: integration } = await supabase
-        .from('google_calendar_integrations')
-        .select('id')
-        .eq('user_id', user?.id)
-        .single();
+      const { data: integration } = await supabase.
+      from('google_calendar_integrations').
+      select('id').
+      eq('user_id', user?.id).
+      single();
 
       if (!integration) {
         toast.error('Conecte o Google Calendar primeiro na Agenda');
@@ -207,7 +207,7 @@ export default function Talk() {
         local: `https://${JITSI_DOMAIN}/uon1-talk-${reuniao.sala_id}`,
         tipo: 'reuniao',
         cor: '#8b5cf6',
-        lembrete_minutos: [15, 5],
+        lembrete_minutos: [15, 5]
       }]);
 
       if (error) throw error;
@@ -219,18 +219,18 @@ export default function Talk() {
   };
 
   const getStatusBadge = (status: string) => {
-    const map: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+    const map: Record<string, {label: string;variant: 'default' | 'secondary' | 'destructive' | 'outline';}> = {
       agendada: { label: 'Agendada', variant: 'outline' },
       em_andamento: { label: 'Em andamento', variant: 'default' },
       finalizada: { label: 'Finalizada', variant: 'secondary' },
-      cancelada: { label: 'Cancelada', variant: 'destructive' },
+      cancelada: { label: 'Cancelada', variant: 'destructive' }
     };
     const info = map[status] || map.agendada;
     return <Badge variant={info.variant}>{info.label}</Badge>;
   };
 
-  const reunioesAgendadas = reunioes.filter(r => r.status === 'agendada' || r.status === 'em_andamento');
-  const reunioesPassadas = reunioes.filter(r => r.status === 'finalizada' || r.status === 'cancelada');
+  const reunioesAgendadas = reunioes.filter((r) => r.status === 'agendada' || r.status === 'em_andamento');
+  const reunioesPassadas = reunioes.filter((r) => r.status === 'finalizada' || r.status === 'cancelada');
 
   // ============= SALA JITSI ATIVA =============
   if (salaAtiva) {
@@ -259,10 +259,10 @@ export default function Talk() {
           src={`https://${JITSI_DOMAIN}/uon1-talk-${salaAtiva.sala_id}#config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_WATERMARK_FOR_GUESTS=false&interfaceConfig.DEFAULT_BACKGROUND='#1a1a2e'`}
           allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
           className="flex-1 w-full border-0"
-          title="UON1 Talk - Videoconferência"
-        />
-      </div>
-    );
+          title="UON1 Talk - Videoconferência" />
+
+      </div>);
+
   }
 
   // ============= PÁGINA PRINCIPAL =============
@@ -272,7 +272,7 @@ export default function Talk() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">Uon1 Talk
               <div className="p-2 rounded-lg bg-primary/10">
                 <Video className="h-7 w-7 text-primary" />
               </div>
@@ -299,12 +299,12 @@ export default function Talk() {
                   status: 'em_andamento',
                   participantes: [],
                   max_participantes: 50,
-                  created_at: new Date().toISOString(),
+                  created_at: new Date().toISOString()
                 };
                 setSalaAtiva(reuniaoInstantanea);
               }}
-              className="gap-2"
-            >
+              className="gap-2">
+
               <Phone className="h-4 w-4" /> Reunião Instantânea
             </Button>
           </div>
@@ -360,10 +360,10 @@ export default function Talk() {
           <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <Calendar className="h-5 w-5" /> Reuniões Ativas
           </h2>
-          {loading ? (
-            <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-          ) : reunioesAgendadas.length === 0 ? (
-            <Card>
+          {loading ?
+          <div className="text-center py-8 text-muted-foreground">Carregando...</div> :
+          reunioesAgendadas.length === 0 ?
+          <Card>
               <CardContent className="py-12 text-center">
                 <Video className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
                 <p className="text-muted-foreground">Nenhuma reunião agendada</p>
@@ -371,11 +371,11 @@ export default function Talk() {
                   <Plus className="h-4 w-4" /> Agendar Reunião
                 </Button>
               </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-3">
-              {reunioesAgendadas.map((reuniao) => (
-                <Card key={reuniao.id} className="hover:shadow-md transition-shadow">
+            </Card> :
+
+          <div className="grid gap-3">
+              {reunioesAgendadas.map((reuniao) =>
+            <Card key={reuniao.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
@@ -383,21 +383,21 @@ export default function Talk() {
                           <h3 className="font-semibold truncate">{reuniao.titulo}</h3>
                           {getStatusBadge(reuniao.status)}
                         </div>
-                        {reuniao.descricao && (
-                          <p className="text-sm text-muted-foreground line-clamp-1 mb-2">{reuniao.descricao}</p>
-                        )}
+                        {reuniao.descricao &&
+                    <p className="text-sm text-muted-foreground line-clamp-1 mb-2">{reuniao.descricao}</p>
+                    }
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
                             {new Date(reuniao.data_inicio).toLocaleDateString('pt-BR')} às{' '}
                             {new Date(reuniao.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                           </span>
-                          {(reuniao.participantes as any[])?.length > 0 && (
-                            <span className="flex items-center gap-1">
+                          {(reuniao.participantes as any[])?.length > 0 &&
+                      <span className="flex items-center gap-1">
                               <Users className="h-3 w-3" />
                               {(reuniao.participantes as any[]).length} participante(s)
                             </span>
-                          )}
+                      }
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -420,20 +420,20 @@ export default function Talk() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+            )}
             </div>
-          )}
+          }
         </div>
 
         {/* Reuniões Passadas */}
-        {reunioesPassadas.length > 0 && (
-          <div>
+        {reunioesPassadas.length > 0 &&
+        <div>
             <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
               <Clock className="h-5 w-5" /> Histórico
             </h2>
             <div className="grid gap-3">
-              {reunioesPassadas.map((reuniao) => (
-                <Card key={reuniao.id} className="opacity-70">
+              {reunioesPassadas.map((reuniao) =>
+            <Card key={reuniao.id} className="opacity-70">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
@@ -452,10 +452,10 @@ export default function Talk() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+            )}
             </div>
           </div>
-        )}
+        }
       </div>
 
       {/* Dialog Nova/Editar Reunião */}
@@ -469,18 +469,18 @@ export default function Talk() {
               <Label>Título *</Label>
               <Input
                 value={formData.titulo}
-                onChange={e => setFormData(prev => ({ ...prev, titulo: e.target.value }))}
-                placeholder="Ex: Reunião de alinhamento"
-              />
+                onChange={(e) => setFormData((prev) => ({ ...prev, titulo: e.target.value }))}
+                placeholder="Ex: Reunião de alinhamento" />
+
             </div>
             <div>
               <Label>Descrição</Label>
               <Textarea
                 value={formData.descricao}
-                onChange={e => setFormData(prev => ({ ...prev, descricao: e.target.value }))}
+                onChange={(e) => setFormData((prev) => ({ ...prev, descricao: e.target.value }))}
                 placeholder="Pauta da reunião..."
-                rows={3}
-              />
+                rows={3} />
+
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -488,16 +488,16 @@ export default function Talk() {
                 <Input
                   type="datetime-local"
                   value={formData.data_inicio}
-                  onChange={e => setFormData(prev => ({ ...prev, data_inicio: e.target.value }))}
-                />
+                  onChange={(e) => setFormData((prev) => ({ ...prev, data_inicio: e.target.value }))} />
+
               </div>
               <div>
                 <Label>Fim *</Label>
                 <Input
                   type="datetime-local"
                   value={formData.data_fim}
-                  onChange={e => setFormData(prev => ({ ...prev, data_fim: e.target.value }))}
-                />
+                  onChange={(e) => setFormData((prev) => ({ ...prev, data_fim: e.target.value }))} />
+
               </div>
             </div>
 
@@ -506,32 +506,32 @@ export default function Talk() {
             {/* Participantes */}
             <div>
               <Label className="mb-2 block">Participantes</Label>
-              {formData.participantes.length > 0 && (
-                <div className="space-y-1.5 mb-3">
-                  {formData.participantes.map((p, i) => (
-                    <div key={i} className="flex items-center justify-between text-sm bg-muted/50 rounded px-3 py-1.5">
+              {formData.participantes.length > 0 &&
+              <div className="space-y-1.5 mb-3">
+                  {formData.participantes.map((p, i) =>
+                <div key={i} className="flex items-center justify-between text-sm bg-muted/50 rounded px-3 py-1.5">
                       <span>{p.nome} ({p.email})</span>
                       <Button type="button" size="sm" variant="ghost" onClick={() => removeParticipante(i)}>
                         <X className="h-3 w-3" />
                       </Button>
                     </div>
-                  ))}
+                )}
                 </div>
-              )}
+              }
               <div className="flex gap-2">
                 <Input
                   placeholder="Nome"
                   value={participanteNome}
-                  onChange={e => setParticipanteNome(e.target.value)}
-                  className="flex-1"
-                />
+                  onChange={(e) => setParticipanteNome(e.target.value)}
+                  className="flex-1" />
+
                 <Input
                   placeholder="Email"
                   type="email"
                   value={participanteEmail}
-                  onChange={e => setParticipanteEmail(e.target.value)}
-                  className="flex-1"
-                />
+                  onChange={(e) => setParticipanteEmail(e.target.value)}
+                  className="flex-1" />
+
                 <Button type="button" variant="outline" onClick={addParticipante} size="sm">
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -549,6 +549,6 @@ export default function Talk() {
           </form>
         </ResponsiveDialogContent>
       </ResponsiveDialog>
-    </div>
-  );
+    </div>);
+
 }
