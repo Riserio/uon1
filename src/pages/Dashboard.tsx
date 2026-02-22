@@ -322,32 +322,32 @@ export default function Dashboard() {
         </div>
 
         {/* ── Row 1: Comunicados + Mini Calendário Semanal ── */}
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2 auto-rows-fr">
           {/* Comunicados */}
-          <Card className="rounded-2xl border-border/40 shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-5">
+          <Card className="rounded-2xl border-border/40 shadow-sm flex flex-col">
+            <CardHeader className="pb-3 pt-5 px-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Megaphone className="h-4 w-4 text-amber-500" />
-                  <CardTitle className="text-sm font-semibold">Comunicados</CardTitle>
+                  <Megaphone className="h-5 w-5 text-amber-500" />
+                  <CardTitle className="text-base font-semibold">Comunicados</CardTitle>
                 </div>
-                {userRole === "admin" && <Link to="/comunicados"><Button size="sm" variant="outline" className="h-7 text-xs px-2.5"><Plus className="h-3 w-3 mr-1" />Novo</Button></Link>}
+                {userRole === "admin" && <Link to="/comunicados"><Button size="sm" variant="outline" className="h-8 text-sm px-3"><Plus className="h-4 w-4 mr-1" />Novo</Button></Link>}
               </div>
             </CardHeader>
-            <CardContent className="px-5 pb-4">
+            <CardContent className="px-6 pb-5 flex-1">
               {comunicados.length === 0 ? (
-                <div className="text-center py-8"><Megaphone className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" /><p className="text-sm text-muted-foreground">Nenhum comunicado</p></div>
+                <div className="text-center py-10"><Megaphone className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Nenhum comunicado</p></div>
               ) : (
-                <div className="space-y-2 max-h-[220px] overflow-y-auto scrollbar-hide">
+                <div className="space-y-3 h-full overflow-y-auto scrollbar-hide">
                   {comunicados.map(c => (
                     <div key={c.id} className="flex items-start gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
-                      {c.imagem_url && <img src={c.imagem_url} alt="" className="h-10 w-10 rounded-lg object-cover shrink-0" />}
+                      {c.imagem_url && <img src={c.imagem_url} alt="" className="h-11 w-11 rounded-lg object-cover shrink-0" />}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium line-clamp-1">{c.titulo}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{c.mensagem}</p>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-[11px] text-muted-foreground">{formatDistanceToNow(parseISO(c.created_at), { addSuffix: true, locale: ptBR })}</span>
-                          {c.link && <a href={c.link} target="_blank" rel="noopener noreferrer" className="text-[11px] text-primary hover:underline flex items-center gap-0.5"><ExternalLink className="h-3 w-3" /></a>}
+                        <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">{c.mensagem}</p>
+                        <div className="flex items-center justify-between mt-1.5">
+                          <span className="text-xs text-muted-foreground">{formatDistanceToNow(parseISO(c.created_at), { addSuffix: true, locale: ptBR })}</span>
+                          {c.link && <a href={c.link} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-0.5"><ExternalLink className="h-3.5 w-3.5" /></a>}
                         </div>
                       </div>
                     </div>
@@ -358,36 +358,36 @@ export default function Dashboard() {
           </Card>
 
           {/* Mini Calendário Semanal */}
-          <Card className="rounded-2xl border-border/40 shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-5">
+          <Card className="rounded-2xl border-border/40 shadow-sm flex flex-col">
+            <CardHeader className="pb-3 pt-5 px-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-primary" />
-                  <CardTitle className="text-sm font-semibold">Compromissos da Semana</CardTitle>
+                  <Calendar className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-base font-semibold">Compromissos da Semana</CardTitle>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setCalWeek(subWeeks(calWeek, 1))}><ChevronLeft className="h-4 w-4" /></Button>
-                  <span className="text-xs text-muted-foreground font-medium px-1">{format(weekStart, "dd/MM")} - {format(addDays(weekStart, 6), "dd/MM")}</span>
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setCalWeek(addWeeks(calWeek, 1))}><ChevronRight className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setCalWeek(subWeeks(calWeek, 1))}><ChevronLeft className="h-4 w-4" /></Button>
+                  <span className="text-sm text-muted-foreground font-medium px-1">{format(weekStart, "dd/MM")} - {format(addDays(weekStart, 6), "dd/MM")}</span>
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setCalWeek(addWeeks(calWeek, 1))}><ChevronRight className="h-4 w-4" /></Button>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="px-5 pb-4">
-              <div className="grid grid-cols-7 gap-1.5">
+            <CardContent className="px-6 pb-5 flex-1">
+              <div className="grid grid-cols-7 gap-2 h-full">
                 {weekDays.map(day => {
                   const isToday = isSameDay(day, new Date());
                   const dayItems = weekCompromissos.filter(c => isSameDay(parseISO(c.horario_inicio), day));
                   return (
-                    <div key={day.toISOString()} className={`flex flex-col items-center rounded-xl p-2 min-h-[110px] transition-colors ${isToday ? "bg-primary/10 ring-1 ring-primary/30" : "bg-muted/30"}`}>
-                      <span className="text-[11px] text-muted-foreground uppercase font-medium">{format(day, "EEE", { locale: ptBR })}</span>
-                      <span className={`text-base font-bold mt-0.5 ${isToday ? "text-primary" : ""}`}>{format(day, "dd")}</span>
-                      <div className="flex-1 w-full mt-1.5 space-y-1 overflow-hidden">
+                    <div key={day.toISOString()} className={`flex flex-col items-center rounded-xl p-2.5 transition-colors ${isToday ? "bg-primary/10 ring-1 ring-primary/30" : "bg-muted/30"}`}>
+                      <span className="text-xs text-muted-foreground uppercase font-semibold">{format(day, "EEE", { locale: ptBR })}</span>
+                      <span className={`text-lg font-bold mt-1 ${isToday ? "text-primary" : ""}`}>{format(day, "dd")}</span>
+                      <div className="flex-1 w-full mt-2 space-y-1.5 overflow-hidden">
                         {dayItems.slice(0, 3).map(item => (
-                          <div key={item.id} className="w-full rounded px-1 py-0.5" style={{ backgroundColor: item.cor + "20", borderLeft: `2px solid ${item.cor}` }}>
-                            <p className="text-[9px] truncate font-medium" style={{ color: item.cor }}>{format(parseISO(item.horario_inicio), "HH:mm")}</p>
+                          <div key={item.id} className="w-full rounded px-1.5 py-1" style={{ backgroundColor: item.cor + "20", borderLeft: `2px solid ${item.cor}` }}>
+                            <p className="text-[10px] truncate font-medium" style={{ color: item.cor }}>{format(parseISO(item.horario_inicio), "HH:mm")}</p>
                           </div>
                         ))}
-                        {dayItems.length > 3 && <span className="text-[9px] text-muted-foreground text-center block">+{dayItems.length - 3}</span>}
+                        {dayItems.length > 3 && <span className="text-[10px] text-muted-foreground text-center block">+{dayItems.length - 3}</span>}
                       </div>
                     </div>
                   );
@@ -401,75 +401,75 @@ export default function Dashboard() {
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Atendimentos com Tabs */}
           <Card className="rounded-2xl border-border/40 shadow-sm lg:col-span-2">
-            <CardHeader className="pb-2 pt-4 px-5">
+            <CardHeader className="pb-3 pt-5 px-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-primary" />
-                  <CardTitle className="text-sm font-semibold">Atendimentos</CardTitle>
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-base font-semibold">Atendimentos</CardTitle>
                 </div>
                 <Tabs value={atendimentoTab} onValueChange={setAtendimentoTab}>
-                  <TabsList className="h-8">
-                    <TabsTrigger value="administradora" className="text-xs h-6 px-3">Administradora</TabsTrigger>
-                    <TabsTrigger value="associacao" className="text-xs h-6 px-3">Associações</TabsTrigger>
+                  <TabsList className="h-9">
+                    <TabsTrigger value="administradora" className="text-sm h-7 px-4">Administradora</TabsTrigger>
+                    <TabsTrigger value="associacao" className="text-sm h-7 px-4">Associações</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
             </CardHeader>
-            <CardContent className="px-5 pb-4">
+            <CardContent className="px-6 pb-5">
               {atendimentoTab === "administradora" ? (
-                <div className="space-y-4">
+                <div className="space-y-5">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold">{total}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Total</p>
+                      <p className="text-sm text-muted-foreground mt-1">Total</p>
                     </div>
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold text-amber-600">{abertos}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Em Aberto</p>
+                      <p className="text-sm text-muted-foreground mt-1">Em Aberto</p>
                     </div>
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold text-emerald-600">{concluidos}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Concluídos</p>
+                      <p className="text-sm text-muted-foreground mt-1">Concluídos</p>
                     </div>
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold text-primary">{taxa}%</p>
-                      <p className="text-xs text-muted-foreground mt-1">Taxa Conclusão</p>
+                      <p className="text-sm text-muted-foreground mt-1">Taxa Conclusão</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs font-semibold text-muted-foreground mb-2">Status</p>
+                      <p className="text-sm font-semibold text-muted-foreground mb-2">Status</p>
                       <MiniDonut data={statusData} total={total} />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-muted-foreground mb-2">Prioridade</p>
+                      <p className="text-sm font-semibold text-muted-foreground mb-2">Prioridade</p>
                       <MiniDonut data={priorityData} total={total} />
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-5">
                   <div className="grid grid-cols-3 gap-3">
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold">{totalSga}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Total Eventos</p>
+                      <p className="text-sm text-muted-foreground mt-1">Total Eventos</p>
                     </div>
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold text-amber-600">{sgaAbertos}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Em Aberto</p>
+                      <p className="text-sm text-muted-foreground mt-1">Em Aberto</p>
                     </div>
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold text-emerald-600">{sgaFinalizados}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Finalizados</p>
+                      <p className="text-sm text-muted-foreground mt-1">Finalizados</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs font-semibold text-muted-foreground mb-2">Por Situação</p>
+                      <p className="text-sm font-semibold text-muted-foreground mb-2">Por Situação</p>
                       <MiniDonut data={sgaSituacaoData} total={totalSga} />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-muted-foreground mb-2">Por Tipo de Evento</p>
+                      <p className="text-sm font-semibold text-muted-foreground mb-2">Por Tipo de Evento</p>
                       <MiniDonut data={sgaTipoData} total={totalSga} />
                     </div>
                   </div>
@@ -480,29 +480,29 @@ export default function Dashboard() {
 
           {/* Compromissos de Hoje */}
           <Card className="rounded-2xl border-border/40 shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-5">
+            <CardHeader className="pb-3 pt-5 px-6">
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-primary" />
-                <CardTitle className="text-sm font-semibold">Hoje</CardTitle>
-                <Badge variant="secondary" className="text-xs h-5 px-2 ml-auto">{compromissos.length}</Badge>
+                <Clock className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base font-semibold">Hoje</CardTitle>
+                <Badge variant="secondary" className="text-sm h-6 px-2.5 ml-auto">{compromissos.length}</Badge>
               </div>
             </CardHeader>
-            <CardContent className="px-5 pb-4">
+            <CardContent className="px-6 pb-5">
               {compromissos.length === 0 ? (
-                <div className="text-center py-8"><Calendar className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" /><p className="text-sm text-muted-foreground">Nenhum compromisso hoje</p></div>
+                <div className="text-center py-10"><Calendar className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Nenhum compromisso hoje</p></div>
               ) : (
-                <div className="space-y-2 max-h-[280px] overflow-y-auto scrollbar-hide">
+                <div className="space-y-2.5 max-h-[320px] overflow-y-auto scrollbar-hide">
                   {compromissos.map(c => (
                     <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors group">
                       <div className="w-1 h-10 rounded-full shrink-0" style={{ backgroundColor: c.cor }} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{c.titulo}</p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <Badge variant="secondary" className="text-[11px] h-5 px-1.5">{format(parseISO(c.horario_inicio), "HH:mm")}</Badge>
-                          <span className="text-xs text-muted-foreground">{c.tipo === "evento" ? "Evento" : "Follow-up"}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="secondary" className="text-xs h-5 px-2">{format(parseISO(c.horario_inicio), "HH:mm")}</Badge>
+                          <span className="text-sm text-muted-foreground">{c.tipo === "evento" ? "Evento" : "Follow-up"}</span>
                         </div>
                       </div>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => handleConcluir(c)}><Check className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 opacity-0 group-hover:opacity-100" onClick={() => handleConcluir(c)}><Check className="h-4 w-4" /></Button>
                     </div>
                   ))}
                 </div>
@@ -515,25 +515,25 @@ export default function Dashboard() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {/* Contratos Pendentes */}
           <Card className="rounded-2xl border-border/40 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => window.location.href = "/uon1-sign"}>
-            <CardHeader className="pb-2 pt-4 px-5">
+            <CardHeader className="pb-3 pt-5 px-6">
               <div className="flex items-center gap-2">
-                <FileSignature className="h-4 w-4 text-amber-500" />
-                <CardTitle className="text-sm font-semibold">Pendentes Assinatura</CardTitle>
-                <Badge variant="secondary" className="text-xs h-5 px-2 ml-auto">{contratosPendentes.length}</Badge>
+                <FileSignature className="h-5 w-5 text-amber-500" />
+                <CardTitle className="text-base font-semibold">Pendentes Assinatura</CardTitle>
+                <Badge variant="secondary" className="text-sm h-6 px-2.5 ml-auto">{contratosPendentes.length}</Badge>
               </div>
             </CardHeader>
-            <CardContent className="px-5 pb-4">
+            <CardContent className="px-6 pb-5">
               {contratosPendentes.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-6">Nenhum contrato pendente</p>
+                <p className="text-sm text-muted-foreground text-center py-8">Nenhum contrato pendente</p>
               ) : (
-                <div className="space-y-2 max-h-[160px] overflow-y-auto scrollbar-hide">
+                <div className="space-y-2.5 max-h-[200px] overflow-y-auto scrollbar-hide">
                   {contratosPendentes.slice(0, 5).map(c => (
-                    <Link key={c.id} to="/uon1-sign" className="flex items-center gap-2 p-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors" onClick={e => e.stopPropagation()}>
+                    <Link key={c.id} to="/uon1-sign" className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors" onClick={e => e.stopPropagation()}>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate">{c.titulo}</p>
-                        <p className="text-[11px] text-muted-foreground">{c.contratante_nome || c.numero}</p>
+                        <p className="text-sm font-medium truncate">{c.titulo}</p>
+                        <p className="text-xs text-muted-foreground">{c.contratante_nome || c.numero}</p>
                       </div>
-                      <Badge className="text-[10px] h-5 bg-amber-500/20 text-amber-600 border-0">Pendente</Badge>
+                      <Badge className="text-xs h-5 bg-amber-500/20 text-amber-600 border-0">Pendente</Badge>
                     </Link>
                   ))}
                 </div>
@@ -543,25 +543,25 @@ export default function Dashboard() {
 
           {/* Contratos a Vencer */}
           <Card className="rounded-2xl border-border/40 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => window.location.href = "/uon1-sign"}>
-            <CardHeader className="pb-2 pt-4 px-5">
+            <CardHeader className="pb-3 pt-5 px-6">
               <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-rose-500" />
-                <CardTitle className="text-sm font-semibold">Vencendo em 30d</CardTitle>
-                <Badge variant="secondary" className="text-xs h-5 px-2 ml-auto">{contratosVencer.length}</Badge>
+                <Shield className="h-5 w-5 text-rose-500" />
+                <CardTitle className="text-base font-semibold">Vencendo em 30d</CardTitle>
+                <Badge variant="secondary" className="text-sm h-6 px-2.5 ml-auto">{contratosVencer.length}</Badge>
               </div>
             </CardHeader>
-            <CardContent className="px-5 pb-4">
+            <CardContent className="px-6 pb-5">
               {contratosVencer.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-6">Nenhum contrato a vencer</p>
+                <p className="text-sm text-muted-foreground text-center py-8">Nenhum contrato a vencer</p>
               ) : (
-                <div className="space-y-2 max-h-[160px] overflow-y-auto scrollbar-hide">
+                <div className="space-y-2.5 max-h-[200px] overflow-y-auto scrollbar-hide">
                   {contratosVencer.slice(0, 5).map(c => (
-                    <Link key={c.id} to="/uon1-sign" className="flex items-center gap-2 p-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors" onClick={e => e.stopPropagation()}>
+                    <Link key={c.id} to="/uon1-sign" className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors" onClick={e => e.stopPropagation()}>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate">{c.titulo}</p>
-                        <p className="text-[11px] text-muted-foreground">{c.contratante_nome}</p>
+                        <p className="text-sm font-medium truncate">{c.titulo}</p>
+                        <p className="text-xs text-muted-foreground">{c.contratante_nome}</p>
                       </div>
-                      <Badge className="text-[10px] h-5 bg-rose-500/20 text-rose-600 border-0">{format(parseISO(c.data_fim!), "dd/MM")}</Badge>
+                      <Badge className="text-xs h-5 bg-rose-500/20 text-rose-600 border-0">{format(parseISO(c.data_fim!), "dd/MM")}</Badge>
                     </Link>
                   ))}
                 </div>
@@ -571,84 +571,83 @@ export default function Dashboard() {
 
           {/* Reuniões */}
           <Card className="rounded-2xl border-border/40 shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-5">
+            <CardHeader className="pb-3 pt-5 px-6">
               <div className="flex items-center gap-2">
-                <Video className="h-4 w-4 text-violet-500" />
-                <CardTitle className="text-sm font-semibold">Reuniões</CardTitle>
-                <Badge variant="secondary" className="text-xs h-5 px-2 ml-auto">{reunioes.length}</Badge>
+                <Video className="h-5 w-5 text-violet-500" />
+                <CardTitle className="text-base font-semibold">Reuniões</CardTitle>
+                <Badge variant="secondary" className="text-sm h-6 px-2.5 ml-auto">{reunioes.length}</Badge>
               </div>
             </CardHeader>
-            <CardContent className="px-5 pb-4">
+            <CardContent className="px-6 pb-5">
               {reunioes.length === 0 ? (
-                <div className="text-center py-6">
-                  <Video className="h-7 w-7 text-muted-foreground/30 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">Nenhuma reunião agendada</p>
-                  <Link to="/talka"><Button size="sm" variant="outline" className="h-7 text-xs px-3 mt-3"><Plus className="h-3 w-3 mr-1" />Criar</Button></Link>
+                <div className="text-center py-8">
+                  <Video className="h-9 w-9 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">Nenhuma reunião agendada</p>
+                  <Link to="/talk"><Button size="sm" variant="outline" className="h-8 text-sm px-4 mt-3"><Plus className="h-4 w-4 mr-1" />Criar</Button></Link>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[160px] overflow-y-auto scrollbar-hide">
+                <div className="space-y-2.5 max-h-[200px] overflow-y-auto scrollbar-hide">
                   {reunioes.map(r => (
-                    <div key={r.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
+                    <div key={r.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate">{r.titulo}</p>
-                        <p className="text-[11px] text-muted-foreground">{format(parseISO(r.data_inicio), "dd/MM HH:mm")}</p>
+                        <p className="text-sm font-medium truncate">{r.titulo}</p>
+                        <p className="text-xs text-muted-foreground">{format(parseISO(r.data_inicio), "dd/MM HH:mm")}</p>
                       </div>
                       <a href={`https://${JITSI_DOMAIN}/uon1-talk-${r.sala_id}`} target="_blank" rel="noopener noreferrer">
-                        <Button size="sm" variant="outline" className="h-7 text-xs px-2.5 text-violet-600"><LinkIcon className="h-3 w-3 mr-1" />Entrar</Button>
+                        <Button size="sm" variant="outline" className="h-8 text-sm px-3 text-violet-600"><LinkIcon className="h-3.5 w-3.5 mr-1" />Entrar</Button>
                       </a>
                     </div>
                   ))}
+                  <Link to="/talk" className="block">
+                    <Button size="sm" variant="ghost" className="w-full h-8 text-sm"><Plus className="h-4 w-4 mr-1" />Criar reunião</Button>
+                  </Link>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Alertas Operacionais - Compact with numbers only */}
+          {/* Alertas Operacionais */}
           <Card className="rounded-2xl border-border/40 shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-5">
+            <CardHeader className="pb-3 pt-5 px-6">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-destructive" />
-                <CardTitle className="text-sm font-semibold">Alertas</CardTitle>
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                <CardTitle className="text-base font-semibold">Alertas</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="px-5 pb-4">
-              <div className="space-y-2.5">
-                {/* WhatsApp */}
-                <Link to="/central-atendimento" className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
+            <CardContent className="px-6 pb-5">
+              <div className="space-y-3">
+                <Link to="/central-atendimento" className="flex items-center justify-between p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
                   <div className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4 text-emerald-500" />
-                    <span className="text-xs font-medium">WhatsApp</span>
+                    <MessageSquare className="h-5 w-5 text-emerald-500" />
+                    <span className="text-sm font-medium">WhatsApp</span>
                   </div>
-                  <Badge variant={whatsappUnread > 0 ? "destructive" : "secondary"} className="text-xs h-6 px-2.5 min-w-[28px] justify-center">{whatsappUnread}</Badge>
+                  <Badge variant={whatsappUnread > 0 ? "destructive" : "secondary"} className="text-sm h-6 px-2.5 min-w-[30px] justify-center">{whatsappUnread}</Badge>
                 </Link>
-                {/* Mensagens internas */}
-                <Link to="/mensagens" className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
+                <Link to="/mensagens" className="flex items-center justify-between p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
                   <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-blue-500" />
-                    <span className="text-xs font-medium">Mensagens</span>
+                    <Mail className="h-5 w-5 text-blue-500" />
+                    <span className="text-sm font-medium">Mensagens</span>
                   </div>
-                  <Badge variant={unreadMessages > 0 ? "destructive" : "secondary"} className="text-xs h-6 px-2.5 min-w-[28px] justify-center">{unreadMessages}</Badge>
+                  <Badge variant={unreadMessages > 0 ? "destructive" : "secondary"} className="text-sm h-6 px-2.5 min-w-[30px] justify-center">{unreadMessages}</Badge>
                 </Link>
-                {/* Sync Errors - number only */}
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40">
                   <div className="flex items-center gap-2">
-                    <AlertTriangle className={`h-4 w-4 ${syncErrorCount > 0 ? "text-destructive" : "text-emerald-500"}`} />
-                    <span className="text-xs font-medium">Sincronização</span>
+                    <AlertTriangle className={`h-5 w-5 ${syncErrorCount > 0 ? "text-destructive" : "text-emerald-500"}`} />
+                    <span className="text-sm font-medium">Sincronização</span>
                   </div>
                   {syncErrorCount > 0 ? (
-                    <Badge variant="destructive" className="text-xs h-6 px-2.5 min-w-[28px] justify-center">{syncErrorCount}</Badge>
+                    <Badge variant="destructive" className="text-sm h-6 px-2.5 min-w-[30px] justify-center">{syncErrorCount}</Badge>
                   ) : (
-                    <Badge variant="secondary" className="text-xs h-6 px-2.5 bg-emerald-500/10 text-emerald-600 border-0">OK</Badge>
+                    <Badge variant="secondary" className="text-sm h-6 px-2.5 bg-emerald-500/10 text-emerald-600 border-0">OK</Badge>
                   )}
                 </div>
-                {/* Pending Users */}
                 {(userRole === "admin" || userRole === "superintendente") && pendingUsers > 0 && (
-                  <Link to="/usuarios" className="flex items-center justify-between p-2.5 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 transition-colors">
+                  <Link to="/usuarios" className="flex items-center justify-between p-3 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 transition-colors">
                     <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-amber-500" />
-                      <span className="text-xs font-medium">Usuários pendentes</span>
+                      <Users className="h-5 w-5 text-amber-500" />
+                      <span className="text-sm font-medium">Usuários pendentes</span>
                     </div>
-                    <Badge className="text-xs h-6 px-2.5 min-w-[28px] justify-center bg-amber-500/20 text-amber-600 border-0">{pendingUsers}</Badge>
+                    <Badge className="text-sm h-6 px-2.5 min-w-[30px] justify-center bg-amber-500/20 text-amber-600 border-0">{pendingUsers}</Badge>
                   </Link>
                 )}
               </div>
@@ -660,21 +659,21 @@ export default function Dashboard() {
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Evolução 30 dias */}
           <Card className="rounded-2xl border-border/40 shadow-sm lg:col-span-2">
-            <CardHeader className="pb-2 pt-4 px-5">
+            <CardHeader className="pb-3 pt-5 px-6">
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
-                <CardTitle className="text-sm font-semibold">Evolução 30 Dias</CardTitle>
+                <TrendingUp className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base font-semibold">Evolução 30 Dias</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <ResponsiveContainer width="100%" height={200}>
+            <CardContent className="px-5 pb-5">
+              <ResponsiveContainer width="100%" height={220}>
                 <AreaChart data={evolutionData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                   <defs>
                     <linearGradient id="gC" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.2} /><stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} /></linearGradient>
                     <linearGradient id="gD" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity={0.2} /><stop offset="100%" stopColor="#10b981" stopOpacity={0} /></linearGradient>
                   </defs>
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={4} />
-                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={24} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} interval={4} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={28} />
                   <Tooltip contentStyle={ttStyle} />
                   <Area type="monotone" dataKey="criados" stroke="hsl(var(--primary))" fill="url(#gC)" strokeWidth={2} name="Criados" />
                   <Area type="monotone" dataKey="concluidos" stroke="#10b981" fill="url(#gD)" strokeWidth={2} name="Concluídos" />
@@ -685,37 +684,35 @@ export default function Dashboard() {
 
           {/* Associações + Top Responsáveis */}
           <Card className="rounded-2xl border-border/40 shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-5">
+            <CardHeader className="pb-3 pt-5 px-6">
               <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-violet-500" />
-                <CardTitle className="text-sm font-semibold">Painel Operacional</CardTitle>
+                <Building2 className="h-5 w-5 text-violet-500" />
+                <CardTitle className="text-base font-semibold">Painel Operacional</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="px-5 pb-4 space-y-3">
-              {/* Associações */}
+            <CardContent className="px-6 pb-5 space-y-3">
               <Link to="/corretoras" className="flex items-center justify-between p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
                 <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-violet-500" />
+                  <Building2 className="h-5 w-5 text-violet-500" />
                   <div>
-                    <p className="text-xs font-medium">Associações</p>
-                    <p className="text-[11px] text-muted-foreground">Cadastradas</p>
+                    <p className="text-sm font-medium">Associações</p>
+                    <p className="text-xs text-muted-foreground">Cadastradas</p>
                   </div>
                 </div>
                 <span className="text-xl font-bold">{totalCorretoras}</span>
               </Link>
               <Link to="/uon1-sign" className="flex items-center justify-between p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
                 <div className="flex items-center gap-2">
-                  <FileSignature className="h-4 w-4 text-primary" />
+                  <FileSignature className="h-5 w-5 text-primary" />
                   <div>
-                    <p className="text-xs font-medium">Contratos</p>
-                    <p className="text-[11px] text-muted-foreground">Total cadastrados</p>
+                    <p className="text-sm font-medium">Contratos</p>
+                    <p className="text-xs text-muted-foreground">Total cadastrados</p>
                   </div>
                 </div>
                 <span className="text-xl font-bold">{contratos.length}</span>
               </Link>
-              {/* Top Responsáveis compacto */}
               <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-2">Top Responsáveis</p>
+                <p className="text-sm font-semibold text-muted-foreground mb-2">Top Responsáveis</p>
                 <BarWidget data={responsavelData} total={total} />
               </div>
             </CardContent>
