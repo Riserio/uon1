@@ -25,16 +25,16 @@ import {
   ArrowRight,
   AlertTriangle,
   CalendarDays,
-  Archive,
-} from "lucide-react";
+  Archive } from
+"lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+  DropdownMenuSeparator } from
+"@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format, differenceInDays, isPast, isSameDay } from "date-fns";
@@ -62,37 +62,37 @@ const getVigenciaBadge = (dataFim: string | null, status: string) => {
   return { label: "Vigente", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200", icon: <CheckCircle2 className="h-3 w-3" /> };
 };
 
-const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode; bgClass: string }> = {
+const statusConfig: Record<string, {label: string;color: string;icon: React.ReactNode;bgClass: string;}> = {
   rascunho: {
     label: "Rascunho",
     color: "text-muted-foreground",
     bgClass: "bg-muted/50",
-    icon: <FileText className="h-4 w-4" />,
+    icon: <FileText className="h-4 w-4" />
   },
   aguardando_assinatura: {
     label: "Aguardando",
     color: "text-amber-600 dark:text-amber-400",
     bgClass: "bg-amber-500/10",
-    icon: <Clock className="h-4 w-4" />,
+    icon: <Clock className="h-4 w-4" />
   },
   assinado: {
     label: "Assinado",
     color: "text-emerald-600 dark:text-emerald-400",
     bgClass: "bg-emerald-500/10",
-    icon: <CheckCircle2 className="h-4 w-4" />,
+    icon: <CheckCircle2 className="h-4 w-4" />
   },
   cancelado: {
     label: "Cancelado",
     color: "text-red-600 dark:text-red-400",
     bgClass: "bg-red-500/10",
-    icon: <XCircle className="h-4 w-4" />,
+    icon: <XCircle className="h-4 w-4" />
   },
   expirado: {
     label: "Expirado",
     color: "text-gray-600 dark:text-gray-400",
     bgClass: "bg-gray-500/10",
-    icon: <XCircle className="h-4 w-4" />,
-  },
+    icon: <XCircle className="h-4 w-4" />
+  }
 };
 
 export default function Uon1Sign() {
@@ -108,10 +108,10 @@ export default function Uon1Sign() {
   const { data: contratos, isLoading } = useQuery({
     queryKey: ["contratos", statusFilter, showArchived],
     queryFn: async () => {
-      let query = supabase
-        .from("contratos")
-        .select(`*, contrato_assinaturas(*), contrato_templates:template_id(logo_url)`)
-        .order("created_at", { ascending: false });
+      let query = supabase.
+      from("contratos").
+      select(`*, contrato_assinaturas(*), contrato_templates:template_id(logo_url)`).
+      order("created_at", { ascending: false });
 
       query = query.eq("arquivado", showArchived);
 
@@ -122,7 +122,7 @@ export default function Uon1Sign() {
       const { data, error } = await query;
       if (error) throw error;
       return data;
-    },
+    }
   });
 
   const { data: templates } = useQuery({
@@ -131,25 +131,25 @@ export default function Uon1Sign() {
       const { data, error } = await supabase.from("contrato_templates").select("*").eq("ativo", true).order("titulo");
       if (error) throw error;
       return data;
-    },
+    }
   });
 
   const enviarParaAssinatura = useMutation({
     mutationFn: async (contratoId: string) => {
-      const { error } = await supabase
-        .from("contratos")
-        .update({
-          status: "aguardando_assinatura",
-          link_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        })
-        .eq("id", contratoId);
+      const { error } = await supabase.
+      from("contratos").
+      update({
+        status: "aguardando_assinatura",
+        link_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      }).
+      eq("id", contratoId);
       if (error) throw error;
 
       await supabase.from("contrato_historico").insert({
         contrato_id: contratoId,
         acao: "enviado",
         descricao: "Contrato enviado para assinatura",
-        user_id: user?.id,
+        user_id: user?.id
       });
     },
     onSuccess: () => {
@@ -158,22 +158,22 @@ export default function Uon1Sign() {
     },
     onError: (error) => {
       toast.error("Erro ao enviar contrato: " + error.message);
-    },
+    }
   });
 
   const cancelarContrato = useMutation({
     mutationFn: async (contratoId: string) => {
-      const { error } = await supabase
-        .from("contratos")
-        .update({ status: "cancelado" })
-        .eq("id", contratoId);
+      const { error } = await supabase.
+      from("contratos").
+      update({ status: "cancelado" }).
+      eq("id", contratoId);
       if (error) throw error;
 
       await supabase.from("contrato_historico").insert({
         contrato_id: contratoId,
         acao: "cancelado",
         descricao: "Contrato cancelado pelo usuário",
-        user_id: user?.id,
+        user_id: user?.id
       });
     },
     onSuccess: () => {
@@ -182,15 +182,15 @@ export default function Uon1Sign() {
     },
     onError: (error) => {
       toast.error("Erro ao cancelar contrato: " + error.message);
-    },
+    }
   });
 
   const arquivarContrato = useMutation({
-    mutationFn: async ({ id, arquivado }: { id: string; arquivado: boolean }) => {
-      const { error } = await supabase
-        .from("contratos")
-        .update({ arquivado })
-        .eq("id", id);
+    mutationFn: async ({ id, arquivado }: {id: string;arquivado: boolean;}) => {
+      const { error } = await supabase.
+      from("contratos").
+      update({ arquivado }).
+      eq("id", id);
       if (error) throw error;
     },
     onSuccess: (_, { arquivado }) => {
@@ -199,7 +199,7 @@ export default function Uon1Sign() {
     },
     onError: (error) => {
       toast.error("Erro: " + error.message);
-    },
+    }
   });
 
   const copyLink = (contrato: any) => {
@@ -232,7 +232,7 @@ export default function Uon1Sign() {
     const link = `${window.location.origin}/contrato/${contrato.link_token}`;
     const subject = encodeURIComponent(`Contrato para assinatura: ${contrato.titulo}`);
     const body = encodeURIComponent(
-      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`,
+      `Olá ${contrato.contratante_nome || ""}!\n\nSegue o link para assinatura do contrato "${contrato.titulo}":\n\n${link}\n\nAtenciosamente.`
     );
     const mailtoUrl = `mailto:${contrato.contratante_email || ""}?subject=${subject}&body=${body}`;
     window.open(mailtoUrl, "_blank");
@@ -244,15 +244,15 @@ export default function Uon1Sign() {
     return (
       c.numero?.toLowerCase().includes(searchLower) ||
       c.titulo?.toLowerCase().includes(searchLower) ||
-      c.contratante_nome?.toLowerCase().includes(searchLower)
-    );
+      c.contratante_nome?.toLowerCase().includes(searchLower));
+
   });
 
   const stats = {
     total: contratos?.length || 0,
     rascunho: contratos?.filter((c) => c.status === "rascunho").length || 0,
     aguardando: contratos?.filter((c) => c.status === "aguardando_assinatura").length || 0,
-    assinados: contratos?.filter((c) => c.status === "assinado").length || 0,
+    assinados: contratos?.filter((c) => c.status === "assinado").length || 0
   };
 
   return (
@@ -265,7 +265,7 @@ export default function Uon1Sign() {
               <FileSignature className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Uon1Sign</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Uon 1Sign</h1>
               <p className="text-muted-foreground">Gestão de contratos e assinaturas digitais</p>
             </div>
           </div>
@@ -339,8 +339,8 @@ export default function Uon1Sign() {
                 placeholder="Buscar por número, título ou contratante..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-10 bg-card/50 border-border/50"
-              />
+                className="pl-10 bg-card/50 border-border/50" />
+
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[160px] bg-card/50 border-border/50">
@@ -360,8 +360,8 @@ export default function Uon1Sign() {
               size="sm"
               onClick={() => setShowArchived(!showArchived)}
               className={showArchived ? "" : "bg-card/50"}
-              title={showArchived ? "Ocultar arquivados" : "Mostrar arquivados"}
-            >
+              title={showArchived ? "Ocultar arquivados" : "Mostrar arquivados"}>
+
               <Archive className="h-4 w-4 mr-2" />
               {showArchived ? "Arquivados" : "Arquivo"}
             </Button>
@@ -380,15 +380,15 @@ export default function Uon1Sign() {
 
         {/* Contracts List */}
         <div className="space-y-3">
-          {isLoading ? (
-            <div className="text-center py-16">
+          {isLoading ?
+          <div className="text-center py-16">
               <div className="animate-pulse flex flex-col items-center gap-4">
                 <div className="h-12 w-12 rounded-full bg-muted"></div>
                 <div className="h-4 w-32 bg-muted rounded"></div>
               </div>
-            </div>
-          ) : filteredContratos?.length === 0 ? (
-            <Card className="border-dashed border-2">
+            </div> :
+          filteredContratos?.length === 0 ?
+          <Card className="border-dashed border-2">
               <CardContent className="py-16 text-center">
                 <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
                   <FileSignature className="h-8 w-8 text-muted-foreground" />
@@ -400,26 +400,26 @@ export default function Uon1Sign() {
                   Criar Contrato
                 </Button>
               </CardContent>
-            </Card>
-          ) : (
-            filteredContratos?.map((contrato) => {
-              const status = statusConfig[contrato.status] || statusConfig.rascunho;
-              const assinaturas = contrato.contrato_assinaturas || [];
-              const assinaturasCompletas = assinaturas.filter((a: any) => a.status === "assinado").length;
-              const hasLink = contrato.status === "aguardando_assinatura" || contrato.link_token;
-              const vigenciaBadge = getVigenciaBadge(contrato.data_fim, contrato.status);
+            </Card> :
 
-              return (
-                <Card
-                  key={contrato.id}
-                  className="group hover:shadow-md transition-all duration-200 border-border/50 bg-card/80 backdrop-blur-sm"
-                >
+          filteredContratos?.map((contrato) => {
+            const status = statusConfig[contrato.status] || statusConfig.rascunho;
+            const assinaturas = contrato.contrato_assinaturas || [];
+            const assinaturasCompletas = assinaturas.filter((a: any) => a.status === "assinado").length;
+            const hasLink = contrato.status === "aguardando_assinatura" || contrato.link_token;
+            const vigenciaBadge = getVigenciaBadge(contrato.data_fim, contrato.status);
+
+            return (
+              <Card
+                key={contrato.id}
+                className="group hover:shadow-md transition-all duration-200 border-border/50 bg-card/80 backdrop-blur-sm">
+
                   <CardContent className="p-5">
                     <div className="flex items-start gap-4">
                       {/* Status Icon */}
                       <div
-                        className={`h-10 w-10 rounded-lg ${status.bgClass} flex items-center justify-center shrink-0`}
-                      >
+                      className={`h-10 w-10 rounded-lg ${status.bgClass} flex items-center justify-center shrink-0`}>
+
                         <span className={status.color}>{status.icon}</span>
                       </div>
 
@@ -432,47 +432,47 @@ export default function Uon1Sign() {
                           <Badge variant="outline" className={`${status.color} border-current/20`}>
                             {status.label}
                           </Badge>
-                          {vigenciaBadge && (
-                            <Badge variant="outline" className={`${vigenciaBadge.className} flex items-center gap-1 text-xs`}>
+                          {vigenciaBadge &&
+                        <Badge variant="outline" className={`${vigenciaBadge.className} flex items-center gap-1 text-xs`}>
                               {vigenciaBadge.icon}
                               {vigenciaBadge.label}
                             </Badge>
-                          )}
+                        }
                         </div>
 
                         <h3 className="font-semibold text-foreground truncate mb-2">{contrato.titulo}</h3>
 
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                          {contrato.contratante_nome && (
-                            <span className="flex items-center gap-1">
+                          {contrato.contratante_nome &&
+                        <span className="flex items-center gap-1">
                               <span className="font-medium">Contratante:</span> {contrato.contratante_nome}
                             </span>
-                          )}
-                          {contrato.valor_contrato && (
-                            <span className="flex items-center gap-1">
+                        }
+                          {contrato.valor_contrato &&
+                        <span className="flex items-center gap-1">
                               <span className="font-medium">Valor:</span>{" "}
                               {new Intl.NumberFormat("pt-BR", {
-                                style: "currency",
-                                currency: "BRL",
-                              }).format(contrato.valor_contrato)}
+                            style: "currency",
+                            currency: "BRL"
+                          }).format(contrato.valor_contrato)}
                             </span>
-                          )}
-                          {assinaturas.length > 0 && (
-                            <span className="flex items-center gap-1">
+                        }
+                          {assinaturas.length > 0 &&
+                        <span className="flex items-center gap-1">
                               <span className="font-medium">Assinaturas:</span> {assinaturasCompletas}/
                               {assinaturas.length}
                             </span>
-                          )}
+                        }
                         </div>
 
-                        {(contrato.data_inicio || contrato.data_fim) && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5">
+                        {(contrato.data_inicio || contrato.data_fim) &&
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5">
                             <CalendarDays className="h-3 w-3" />
                             <span>
                               Vigência: {contrato.data_inicio ? format(new Date(contrato.data_inicio), "dd/MM/yyyy") : "—"} a {contrato.data_fim ? format(new Date(contrato.data_fim), "dd/MM/yyyy") : "—"}
                             </span>
                           </div>
-                        )}
+                      }
 
                         <p className="text-xs text-muted-foreground mt-1.5">
                           Criado em {format(new Date(contrato.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
@@ -482,26 +482,26 @@ export default function Uon1Sign() {
                       {/* Actions */}
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setVisualizarContrato(contrato)}
-                          title="Visualizar"
-                        >
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setVisualizarContrato(contrato)}
+                        title="Visualizar">
+
                           <Eye className="h-4 w-4" />
                         </Button>
 
-                        {contrato.status === "rascunho" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => enviarParaAssinatura.mutate(contrato.id)}
-                            disabled={enviarParaAssinatura.isPending}
-                            title="Liberar para Assinatura"
-                            className="text-primary hover:text-primary"
-                          >
+                        {contrato.status === "rascunho" &&
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => enviarParaAssinatura.mutate(contrato.id)}
+                        disabled={enviarParaAssinatura.isPending}
+                        title="Liberar para Assinatura"
+                        className="text-primary hover:text-primary">
+
                             <Send className="h-4 w-4" />
                           </Button>
-                        )}
+                      }
 
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -518,8 +518,8 @@ export default function Uon1Sign() {
                               <Download className="h-4 w-4 mr-2" />
                               Baixar PDF
                             </DropdownMenuItem>
-                            {hasLink && (
-                              <>
+                            {hasLink &&
+                          <>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => copyLink(contrato)}>
                                   <Copy className="h-4 w-4 mr-2" />
@@ -534,27 +534,27 @@ export default function Uon1Sign() {
                                   Enviar E-mail
                                 </DropdownMenuItem>
                               </>
-                            )}
-                            {(contrato.status === "aguardando_assinatura" || contrato.status === "rascunho") && (
-                              <>
+                          }
+                            {(contrato.status === "aguardando_assinatura" || contrato.status === "rascunho") &&
+                          <>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
-                                  onClick={() => {
-                                    if (confirm("Tem certeza que deseja cancelar este contrato?")) {
-                                      cancelarContrato.mutate(contrato.id);
-                                    }
-                                  }}
-                                  className="text-red-600 dark:text-red-400"
-                                >
+                              onClick={() => {
+                                if (confirm("Tem certeza que deseja cancelar este contrato?")) {
+                                  cancelarContrato.mutate(contrato.id);
+                                }
+                              }}
+                              className="text-red-600 dark:text-red-400">
+
                                   <XCircle className="h-4 w-4 mr-2" />
                                   Cancelar Contrato
                                 </DropdownMenuItem>
                               </>
-                            )}
+                          }
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() => arquivarContrato.mutate({ id: contrato.id, arquivado: !contrato.arquivado })}
-                            >
+                            onClick={() => arquivarContrato.mutate({ id: contrato.id, arquivado: !contrato.arquivado })}>
+
                               <Archive className="h-4 w-4 mr-2" />
                               {contrato.arquivado ? "Desarquivar" : "Arquivar"}
                             </DropdownMenuItem>
@@ -563,23 +563,23 @@ export default function Uon1Sign() {
                       </div>
                     </div>
                   </CardContent>
-                </Card>
-              );
-            })
-          )}
+                </Card>);
+
+          })
+          }
         </div>
       </div>
 
       {/* Dialogs */}
       <NovoContratoDialog open={novoContratoOpen} onOpenChange={setNovoContratoOpen} templates={templates || []} />
       <TemplateContratoDialog open={templateOpen} onOpenChange={setTemplateOpen} />
-      {visualizarContrato && (
-        <VisualizarContratoDialog
-          contrato={visualizarContrato}
-          open={!!visualizarContrato}
-          onOpenChange={() => setVisualizarContrato(null)}
-        />
-      )}
-    </div>
-  );
+      {visualizarContrato &&
+      <VisualizarContratoDialog
+        contrato={visualizarContrato}
+        open={!!visualizarContrato}
+        onOpenChange={() => setVisualizarContrato(null)} />
+
+      }
+    </div>);
+
 }
