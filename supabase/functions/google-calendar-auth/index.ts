@@ -17,6 +17,7 @@ serve(async (req) => {
     const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     // ====== DEBUG - VERIFICAÇÃO DE VARIÁVEIS ======
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
@@ -136,7 +137,9 @@ serve(async (req) => {
       const tokens = await tokenResponse.json();
       const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
 
-      const { error: dbError } = await supabase.from("google_calendar_integrations").upsert({
+      // Use service role client to bypass RLS for callback (no user token available)
+      const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const { error: dbError } = await supabaseAdmin.from("google_calendar_integrations").upsert({
         user_id: userId,
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
