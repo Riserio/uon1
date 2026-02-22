@@ -145,11 +145,13 @@ export default function Agenda() {
           popup.location.href = data.authUrl;
         }
         
-        const checkPopup = setInterval(() => {
+        const checkPopup = setInterval(async () => {
           if (popup?.closed) {
             clearInterval(checkPopup);
-            checkGoogleConnection();
+            await checkGoogleConnection();
             toast.success('Google Calendar conectado!');
+            // Auto-sync after connecting
+            syncWithGoogle();
           }
         }, 1000);
       }
@@ -162,22 +164,15 @@ export default function Agenda() {
   const syncWithGoogle = async () => {
     setSyncing(true);
     try {
-      const { data: session } = await supabase.auth.getSession();
-      
-      if (!session.session) {
-        toast.error('Você precisa estar autenticado');
-        return;
+      const { data, error } = await supabase.functions.invoke('google-calendar-sync');
+
+      if (error) {
+        console.error('Sync error details:', error);
+        throw error;
       }
 
-      const { error } = await supabase.functions.invoke('google-calendar-sync', {
-        headers: {
-          Authorization: `Bearer ${session.session.access_token}`
-        }
-      });
-
-      if (error) throw error;
-
-      toast.success('Sincronização concluída!');
+      console.log('Sync result:', data);
+      toast.success(`Sincronização concluída! ${data?.imported || 0} importados, ${data?.synced || 0} exportados.`);
       fetchEventos();
     } catch (error) {
       console.error('Erro ao sincronizar:', error);
