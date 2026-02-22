@@ -32,7 +32,7 @@ import {
   List,
   CalendarRange,
   ChevronRight,
-  MoreVertical,
+  
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import FullCalendar from '@fullcalendar/react';
@@ -40,13 +40,6 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { toUTC, toDateTimeLocal } from '@/utils/dateUtils';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Popover,
   PopoverContent,
@@ -111,7 +104,7 @@ export default function Agenda() {
   const [editingEvento, setEditingEvento] = useState<Evento | null>(null);
   const [integrations, setIntegrations] = useState<GoogleIntegration[]>([]);
   const [syncing, setSyncing] = useState(false);
-  const [activeView, setActiveView] = useState<CalendarView>('month');
+  const [activeView, setActiveView] = useState<CalendarView>('list');
   const [syncPopoverOpen, setSyncPopoverOpen] = useState(false);
   const [listTab, setListTab] = useState<ListTab>('upcoming');
   const [formData, setFormData] = useState<Partial<Evento>>({
@@ -318,10 +311,10 @@ export default function Agenda() {
   }, 0);
 
   const viewButtons: { value: CalendarView; icon: React.ReactNode; label: string }[] = [
+    { value: 'list', icon: <List className="h-4 w-4" />, label: 'Lista' },
     { value: 'month', icon: <LayoutGrid className="h-4 w-4" />, label: 'Mês' },
     { value: 'week', icon: <CalendarRange className="h-4 w-4" />, label: 'Semana' },
     { value: 'day', icon: <CalendarDays className="h-4 w-4" />, label: 'Dia' },
-    { value: 'list', icon: <List className="h-4 w-4" />, label: 'Lista' },
   ];
 
   return (
@@ -405,22 +398,15 @@ export default function Agenda() {
                             onCheckedChange={(checked) => toggleAccount(integration.id, checked)}
                             className="scale-75"
                           />
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7">
-                                <MoreVertical className="h-3.5 w-3.5" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="rounded-xl">
-                              <DropdownMenuItem
-                                onClick={() => disconnectAccount(integration.id)}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                <Unlink2 className="h-3.5 w-3.5 mr-2" />
-                                Desconectar
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            title="Desconectar"
+                            onClick={() => disconnectAccount(integration.id)}
+                          >
+                            <Unlink2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       ))}
                     </div>
