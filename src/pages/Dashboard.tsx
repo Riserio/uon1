@@ -334,7 +334,7 @@ export default function Dashboard() {
             {logoUrl ? <img src={logoUrl} alt="Logo" className="h-12 object-contain" /> : <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center"><Target className="h-6 w-6 text-primary" /></div>}
             <div>
               <h1 className="font-bold text-3xl">{greeting}, {userName || "Usuário"}!</h1>
-              <p className="text-sm text-muted-foreground capitalize">{currentDate}</p>
+              <p className="text-muted-foreground capitalize text-base">{currentDate}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
