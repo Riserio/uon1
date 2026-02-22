@@ -124,6 +124,7 @@ export default function Dashboard() {
   const [syncErrorCount, setSyncErrorCount] = useState(0);
   const [calWeek, setCalWeek] = useState(new Date());
   const [atendimentoTab, setAtendimentoTab] = useState("administradora");
+  const [fluxos, setFluxos] = useState<{ id: string; nome: string }[]>([]);
 
   // SGA atendimentos (Gestão Associação)
   const [sgaEventos, setSgaEventos] = useState<any[]>([]);
@@ -131,13 +132,14 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [statusRes, profilesRes, corretorasRes, contratosRes, reunioesRes, sgaRes] = await Promise.all([
+        const [statusRes, profilesRes, corretorasRes, contratosRes, reunioesRes, sgaRes, fluxosRes] = await Promise.all([
           supabase.from("status_config").select("nome, tipo_etapa").eq("ativo", true),
           supabase.from("profiles").select("id, nome"),
           supabase.from("corretoras").select("id", { count: "exact", head: true }),
           supabase.from("contratos").select("id, numero, titulo, status, data_fim, contratante_nome").eq("arquivado", false).order("created_at", { ascending: false }).limit(50),
           supabase.from("reunioes").select("id, titulo, data_inicio, data_fim, sala_id, status").in("status", ["agendada", "em_andamento"]).gte("data_inicio", new Date().toISOString()).order("data_inicio", { ascending: true }).limit(5),
           supabase.from("sga_eventos").select("id, protocolo, situacao_evento, data_evento, tipo_evento, associado_nome, corretora_id").order("created_at", { ascending: false }).limit(500),
+          supabase.from("fluxos").select("id, nome").eq("ativo", true).order("ordem", { ascending: true }),
         ]);
         if (statusRes.data) {
           setStatusFinalizados(new Set(statusRes.data.filter(s => s.tipo_etapa === "finalizado").map(s => s.nome)));
@@ -149,6 +151,7 @@ export default function Dashboard() {
         setContratos((contratosRes.data || []) as ContratoResumo[]);
         setReunioes((reunioesRes.data || []) as ReuniaoResumo[]);
         setSgaEventos(sgaRes.data || []);
+        setFluxos((fluxosRes.data || []) as { id: string; nome: string }[]);
 
         // Count sync errors (just the total)
         const [cobErr, sgaErr, mgfErr] = await Promise.all([
@@ -232,22 +235,36 @@ export default function Dashboard() {
   };
 
   // ── Computed ──
+  // Fluxos finalizados (cancelado, negado, finalizado or similar)
+  const FINALIZED_KEYWORDS = ["finaliz", "cancelad", "negad", "conclui", "encerrad"];
+  const isFluxoFinalizado = (nome: string) => FINALIZED_KEYWORDS.some(k => nome.toLowerCase().includes(k));
+
+  const fluxoFinalizadoIds = useMemo(() => new Set(fluxos.filter(f => isFluxoFinalizado(f.nome)).map(f => f.id)), [fluxos]);
+  const fluxoNames = useMemo(() => fluxos.reduce((a, f) => { a[f.id] = f.nome; return a; }, {} as Record<string, string>), [fluxos]);
+
   const total = atendimentos.length;
-  const concluidos = atendimentos.filter(a => statusFinalizados.has(a.status)).length;
-  const abertos = total - concluidos;
-  const emAndamento = atendimentos.filter(a => statusEmAndamento.has(a.status)).length;
-  const taxa = total > 0 ? ((concluidos / total) * 100).toFixed(1) : "0";
+  const finalizados = atendimentos.filter(a => a.fluxoId && fluxoFinalizadoIds.has(a.fluxoId)).length;
+  const emAndamento = total - finalizados;
+  const taxa = total > 0 ? ((finalizados / total) * 100).toFixed(1) : "0";
 
-  // SGA computed
-  const sgaAbertos = useMemo(() => sgaEventos.filter(e => e.situacao_evento === "ABERTO" || e.situacao_evento === "EM ANÁLISE" || e.situacao_evento === "EM ANDAMENTO").length, [sgaEventos]);
-  const sgaFinalizados = useMemo(() => sgaEventos.filter(e => e.situacao_evento === "FINALIZADO" || e.situacao_evento === "CONCLUÍDO" || e.situacao_evento === "ENCERRADO").length, [sgaEventos]);
+  // SGA computed - same logic: finalized situacoes
+  const SGA_FINALIZED = ["FINALIZ", "CANCELAD", "NEGAD", "CONCLUI", "ENCERRAD"];
+  const isSgaFinalizado = (s: string) => SGA_FINALIZED.some(k => s.toUpperCase().includes(k));
+
+  const sgaEmAndamento = useMemo(() => sgaEventos.filter(e => !isSgaFinalizado(e.situacao_evento || "")).length, [sgaEventos]);
+  const sgaFinalizados = useMemo(() => sgaEventos.filter(e => isSgaFinalizado(e.situacao_evento || "")).length, [sgaEventos]);
   const totalSga = sgaEventos.length;
+  const sgaTaxa = totalSga > 0 ? ((sgaFinalizados / totalSga) * 100).toFixed(1) : "0";
 
-  const statusData = useMemo(() => [
-    { name: "Backlog", value: atendimentos.filter(a => statusBacklog.has(a.status)).length },
-    { name: "Em Andamento", value: emAndamento },
-    { name: "Finalizados", value: concluidos },
-  ], [atendimentos, statusBacklog, statusEmAndamento, statusFinalizados]);
+  // Group by fluxo for donut
+  const fluxoData = useMemo(() => {
+    const m = new Map<string, number>();
+    atendimentos.forEach(a => {
+      const name = a.fluxoId ? (fluxoNames[a.fluxoId] || "Sem fluxo") : "Sem fluxo";
+      m.set(name, (m.get(name) || 0) + 1);
+    });
+    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
+  }, [atendimentos, fluxoNames]);
 
   const priorityData = useMemo(() => [
     { name: "Alta", value: atendimentos.filter(a => a.prioridade === "Alta").length },
@@ -276,8 +293,8 @@ export default function Dashboard() {
   const evolutionData = useMemo(() => Array.from({ length: 30 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (29 - i));
     const k = d.toISOString().split("T")[0];
-    return { date: d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), criados: atendimentos.filter(a => a.createdAt?.startsWith(k)).length, concluidos: atendimentos.filter(a => statusFinalizados.has(a.status) && a.updatedAt?.startsWith(k)).length };
-  }), [atendimentos, statusFinalizados]);
+    return { date: d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), criados: atendimentos.filter(a => a.createdAt?.startsWith(k)).length, finalizados: atendimentos.filter(a => a.fluxoId && fluxoFinalizadoIds.has(a.fluxoId) && a.updatedAt?.startsWith(k)).length };
+  }), [atendimentos, fluxoFinalizadoIds]);
 
   // Contratos computed
   const contratosPendentes = contratos.filter(c => c.status === "aguardando_assinatura");
@@ -289,7 +306,12 @@ export default function Dashboard() {
   const weekStart = startOfWeek(calWeek, { locale: ptBR });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  const userName = user?.user_metadata?.nome ? user.user_metadata.nome.charAt(0).toUpperCase() + user.user_metadata.nome.slice(1) : "";
+  const userName = useMemo(() => {
+    // Try profile name first, then user metadata
+    if (user?.id && profiles[user.id]) return profiles[user.id];
+    if (user?.user_metadata?.nome) return user.user_metadata.nome.charAt(0).toUpperCase() + user.user_metadata.nome.slice(1);
+    return "";
+  }, [user, profiles]);
   const greeting = (() => { const h = new Date().getHours(); return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"; })();
   const currentDate = format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR });
 
@@ -309,10 +331,10 @@ export default function Dashboard() {
         {/* ── Header ── */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {logoUrl ? <img src={logoUrl} alt="Logo" className="h-10 object-contain" /> : <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center"><Target className="h-5 w-5 text-primary" /></div>}
+            {logoUrl ? <img src={logoUrl} alt="Logo" className="h-12 object-contain" /> : <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center"><Target className="h-6 w-6 text-primary" /></div>}
             <div>
-              <h1 className="text-xl font-bold">{greeting}, {userName || "Usuário"}!</h1>
-              <p className="text-xs text-muted-foreground capitalize">{currentDate}</p>
+              <h1 className="text-2xl font-bold">{greeting}, {userName || "Usuário"}!</h1>
+              <p className="text-sm text-muted-foreground capitalize">{currentDate}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -424,12 +446,12 @@ export default function Dashboard() {
                       <p className="text-sm text-muted-foreground mt-1">Total</p>
                     </div>
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-bold text-amber-600">{abertos}</p>
-                      <p className="text-sm text-muted-foreground mt-1">Em Aberto</p>
+                      <p className="text-2xl font-bold text-amber-600">{emAndamento}</p>
+                      <p className="text-sm text-muted-foreground mt-1">Em Andamento</p>
                     </div>
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-bold text-emerald-600">{concluidos}</p>
-                      <p className="text-sm text-muted-foreground mt-1">Concluídos</p>
+                      <p className="text-2xl font-bold text-emerald-600">{finalizados}</p>
+                      <p className="text-sm text-muted-foreground mt-1">Finalizados</p>
                     </div>
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold text-primary">{taxa}%</p>
@@ -438,8 +460,8 @@ export default function Dashboard() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm font-semibold text-muted-foreground mb-2">Status</p>
-                      <MiniDonut data={statusData} total={total} />
+                      <p className="text-sm font-semibold text-muted-foreground mb-2">Por Fluxo</p>
+                      <MiniDonut data={fluxoData} total={total} />
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-muted-foreground mb-2">Prioridade</p>
@@ -449,18 +471,22 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="space-y-5">
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold">{totalSga}</p>
                       <p className="text-sm text-muted-foreground mt-1">Total Eventos</p>
                     </div>
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-bold text-amber-600">{sgaAbertos}</p>
-                      <p className="text-sm text-muted-foreground mt-1">Em Aberto</p>
+                      <p className="text-2xl font-bold text-amber-600">{sgaEmAndamento}</p>
+                      <p className="text-sm text-muted-foreground mt-1">Em Andamento</p>
                     </div>
                     <div className="bg-muted/40 rounded-xl p-4 text-center">
                       <p className="text-2xl font-bold text-emerald-600">{sgaFinalizados}</p>
                       <p className="text-sm text-muted-foreground mt-1">Finalizados</p>
+                    </div>
+                    <div className="bg-muted/40 rounded-xl p-4 text-center">
+                      <p className="text-2xl font-bold text-primary">{sgaTaxa}%</p>
+                      <p className="text-sm text-muted-foreground mt-1">Taxa Conclusão</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -676,7 +702,7 @@ export default function Dashboard() {
                   <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={28} />
                   <Tooltip contentStyle={ttStyle} />
                   <Area type="monotone" dataKey="criados" stroke="hsl(var(--primary))" fill="url(#gC)" strokeWidth={2} name="Criados" />
-                  <Area type="monotone" dataKey="concluidos" stroke="#10b981" fill="url(#gD)" strokeWidth={2} name="Concluídos" />
+                  <Area type="monotone" dataKey="finalizados" stroke="#10b981" fill="url(#gD)" strokeWidth={2} name="Finalizados" />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
@@ -686,7 +712,7 @@ export default function Dashboard() {
           <Card className="rounded-2xl border-border/40 shadow-sm">
             <CardHeader className="pb-3 pt-5 px-6">
               <div className="flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-violet-500" />
+                <Workflow className="h-5 w-5 text-violet-500" />
                 <CardTitle className="text-base font-semibold">Painel Operacional</CardTitle>
               </div>
             </CardHeader>
