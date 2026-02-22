@@ -265,7 +265,7 @@ export default function Uon1Sign() {
               <FileSignature className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Uon 1Sign</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Uon1 Sign</h1>
               <p className="text-muted-foreground">Gestão de contratos e assinaturas digitais</p>
             </div>
           </div>
