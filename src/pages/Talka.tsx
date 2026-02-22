@@ -158,10 +158,14 @@ export default function Talk() {
     }
   };
 
+  // ✅ agora "Entrar" abre o link (mesmo do copiar link) e NÃO abre tela interna
   const iniciarReuniao = (reuniao: Reuniao) => {
-    setSalaAtiva(reuniao);
     // Atualizar status
     supabase.from("reunioes").update({ status: "em_andamento" }).eq("id", reuniao.id).then();
+
+    const url = `https://${JITSI_DOMAIN}/uon1-talk-${reuniao.sala_id}`;
+    // não abre nova aba aqui — o próprio link/ancora é quem vai abrir em nova aba
+    window.location.href = url;
   };
 
   const encerrarReuniao = () => {
@@ -230,6 +234,7 @@ export default function Talk() {
   const reunioesPassadas = reunioes.filter((r) => r.status === "finalizada" || r.status === "cancelada");
 
   // ============= SALA JITSI ATIVA =============
+  // ⚠️ continua existindo caso você use em outro fluxo, mas "Entrar" não seta mais salaAtiva
   if (salaAtiva) {
     return (
       <div className="fixed inset-0 z-[100] bg-background flex flex-col">
@@ -282,12 +287,11 @@ export default function Talk() {
               <Plus className="h-4 w-4" /> Nova Reunião
             </Button>
 
-            {/* ✅ ALTERADO: Reunião Instantânea abre no talk.uon1.com.br também */}
+            {/* ✅ Reunião Instantânea: agora NÃO abre outra página (sem window.open) */}
             <Button
               variant="outline"
               size="lg"
               onClick={() => {
-                // Reunião instantânea
                 const instantId = crypto.randomUUID().substring(0, 8);
                 const reuniaoInstantanea: Reuniao = {
                   id: "instant",
@@ -301,12 +305,8 @@ export default function Talk() {
                   created_at: new Date().toISOString(),
                 };
 
-                // mantém abertura interna
+                // mantém abertura interna (se quiser eliminar também, é só remover e redirecionar igual ao "Entrar")
                 setSalaAtiva(reuniaoInstantanea);
-
-                // abre também pelo domínio oficial (igual ao botão Entrar / link)
-                const url = `https://${JITSI_DOMAIN}/uon1-talk-${instantId}`;
-                window.open(url, "_blank", "noopener,noreferrer");
               }}
               className="gap-2"
             >
