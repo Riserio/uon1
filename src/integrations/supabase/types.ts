@@ -4179,6 +4179,60 @@ export type Database = {
         }
         Relationships: []
       }
+      reunioes: {
+        Row: {
+          created_at: string
+          data_fim: string
+          data_inicio: string
+          descricao: string | null
+          google_event_id: string | null
+          gravacao_ativa: boolean | null
+          id: string
+          link_convite: string | null
+          max_participantes: number | null
+          participantes: Json | null
+          sala_id: string
+          status: string
+          titulo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data_fim: string
+          data_inicio: string
+          descricao?: string | null
+          google_event_id?: string | null
+          gravacao_ativa?: boolean | null
+          id?: string
+          link_convite?: string | null
+          max_participantes?: number | null
+          participantes?: Json | null
+          sala_id?: string
+          status?: string
+          titulo: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          data_fim?: string
+          data_inicio?: string
+          descricao?: string | null
+          google_event_id?: string | null
+          gravacao_ativa?: boolean | null
+          id?: string
+          link_convite?: string | null
+          max_participantes?: number | null
+          participantes?: Json | null
+          sala_id?: string
+          status?: string
+          titulo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       role_menu_permissions: {
         Row: {
           created_at: string | null

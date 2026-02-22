@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Palette, Briefcase, Headset } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Calendar, LogOut, FileText, MessageCircle, ClipboardList, AlertTriangle, TrendingUp, DollarSign, Settings, Megaphone, FileSignature, PanelLeftClose, PanelLeftOpen, Palette, Briefcase, Headset, Video } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
@@ -282,6 +282,16 @@ export function AppSidebar() {
                       <NavLink to="/uon1sign" activeClassName="bg-primary text-primary-foreground">
                         <FileSignature className="h-4 w-4" />
                         {!collapsed && <span>Uon1Sign</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>}
+
+                {/* Uon1 Talka */}
+                {canView("talka") && <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/talka" activeClassName="bg-primary text-primary-foreground">
+                        <Video className="h-4 w-4" />
+                        {!collapsed && <span>Uon1 Talka</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>}
