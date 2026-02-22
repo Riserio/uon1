@@ -281,6 +281,8 @@ export default function Talk() {
             <Button onClick={openNewDialog} size="lg" className="gap-2">
               <Plus className="h-4 w-4" /> Nova Reunião
             </Button>
+
+            {/* ✅ ALTERADO: Reunião Instantânea abre no talk.uon1.com.br também */}
             <Button
               variant="outline"
               size="lg"
@@ -298,7 +300,13 @@ export default function Talk() {
                   max_participantes: 50,
                   created_at: new Date().toISOString(),
                 };
+
+                // mantém abertura interna
                 setSalaAtiva(reuniaoInstantanea);
+
+                // abre também pelo domínio oficial (igual ao botão Entrar / link)
+                const url = `https://${JITSI_DOMAIN}/uon1-talk-${instantId}`;
+                window.open(url, "_blank", "noopener,noreferrer");
               }}
               className="gap-2"
             >
