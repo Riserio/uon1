@@ -191,23 +191,25 @@ export default function Agenda() {
     try {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session) { toast.error('Você precisa estar autenticado'); return; }
-      const w = 600, h = 700;
-      const popup = window.open('about:blank', 'google_oauth', `width=${w},height=${h},left=${(screen.width - w) / 2},top=${(screen.height - h) / 2}`);
       const { data, error } = await supabase.functions.invoke('google-calendar-auth', { body: { action: 'authorize' } });
-      if (error) { popup?.close(); toast.error('Erro ao conectar'); return; }
-      if (data?.authUrl && popup && !popup.closed) {
-        popup.location.href = data.authUrl;
-        const check = setInterval(async () => {
-          if (popup?.closed) {
-            clearInterval(check);
-            await fetchIntegrations();
-            toast.success('Google Calendar conectado!');
-            syncWithGoogle();
-          }
-        }, 1000);
+      if (error) { toast.error('Erro ao conectar'); return; }
+      if (data?.authUrl) {
+        window.location.href = data.authUrl;
       }
     } catch { toast.error('Erro ao conectar com Google Calendar'); }
   };
+
+  // Check for google_connected query param on mount (redirect callback)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('google_connected') === 'true') {
+      toast.success('Google Calendar conectado!');
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+      fetchIntegrations();
+      syncWithGoogle();
+    }
+  }, []);
 
   const syncWithGoogle = async () => {
     setSyncing(true);
