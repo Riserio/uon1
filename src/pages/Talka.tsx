@@ -273,7 +273,7 @@ export default function Talk() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
           <div>
             <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-Uon1 Talk<div className="p-2 rounded-lg bg-primary/10">
+UON1 Talk<div className="p-2 rounded-lg bg-primary/10">
                 <Video className="h-7 w-7 text-primary" />
               </div>
               UON1 Talk
