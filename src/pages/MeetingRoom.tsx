@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,18 +10,42 @@ import { toast } from "sonner";
 import {
   Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, ChevronRight
 } from "lucide-react";
-import {
-  LiveKitRoom,
-  VideoTrack,
-  AudioTrack,
-  useRoomContext,
-  useTracks,
-  useParticipants,
-  useLocalParticipant,
-  TrackToggle,
-} from "@livekit/components-react";
-import "@livekit/components-styles";
-import { Track, RoomEvent } from "livekit-client";
+
+// Lazy-load LiveKit to avoid module import crashes
+let LiveKitRoom: any;
+let VideoTrack: any;
+let AudioTrack: any;
+let useTracks: any;
+let useParticipants: any;
+let TrackToggle: any;
+let Track: any;
+let livekitLoaded = false;
+let livekitLoadError: string | null = null;
+
+const loadLiveKit = async () => {
+  if (livekitLoaded) return true;
+  try {
+    const [componentsReact, livekitClient] = await Promise.all([
+      import("@livekit/components-react"),
+      import("livekit-client"),
+    ]);
+    LiveKitRoom = componentsReact.LiveKitRoom;
+    VideoTrack = componentsReact.VideoTrack;
+    AudioTrack = componentsReact.AudioTrack;
+    useTracks = componentsReact.useTracks;
+    useParticipants = componentsReact.useParticipants;
+    TrackToggle = componentsReact.TrackToggle;
+    Track = livekitClient.Track;
+    // Load styles
+    await import("@livekit/components-styles");
+    livekitLoaded = true;
+    return true;
+  } catch (e: any) {
+    console.error("Failed to load LiveKit modules:", e);
+    livekitLoadError = e.message || "Falha ao carregar módulos de vídeo";
+    return false;
+  }
+};
 
 interface RoomData {
   id: string;
@@ -53,12 +77,21 @@ export default function MeetingRoomPage() {
   const [participantStatus, setParticipantStatus] = useState<string>("pending");
   const [loading, setLoading] = useState(true);
 
+  const [livekitReady, setLivekitReady] = useState(false);
+  const [livekitError, setLivekitError] = useState<string | null>(null);
+
   useEffect(() => {
-    if (user && roomId) joinRoom();
-  }, [user, roomId]);
+    loadLiveKit().then((ok) => {
+      if (ok) setLivekitReady(true);
+      else setLivekitError(livekitLoadError || "Falha ao carregar módulos de vídeo");
+    });
+  }, []);
+
+  useEffect(() => {
+    if (user && roomId && livekitReady) joinRoom();
+  }, [user, roomId, livekitReady]);
 
   const joinRoom = async () => {
-    setLoading(true);
     try {
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=getToken`,
@@ -89,12 +122,18 @@ export default function MeetingRoomPage() {
     navigate("/video");
   };
 
-  if (loading) {
+  if (loading || !livekitReady) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-muted-foreground">Conectando à sala...</p>
+          <p className="text-muted-foreground">{livekitError ? "Erro ao carregar" : "Conectando à sala..."}</p>
+          {livekitError && (
+            <div className="space-y-2">
+              <p className="text-sm text-destructive">{livekitError}</p>
+              <Button variant="outline" onClick={() => window.location.reload()}>Tentar novamente</Button>
+            </div>
+          )}
         </div>
       </div>
     );
