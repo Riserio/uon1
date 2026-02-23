@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.whatsapp-send-message]
 verify_jwt = false
+
+[functions.livekit-rooms]
+verify_jwt = false
