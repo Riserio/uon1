@@ -46,18 +46,14 @@ export default function VideoRooms() {
   const fetchRooms = async () => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=listRooms`,
-        {
-          headers: {
-            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setRooms(data.rooms || []);
+      // Use direct Supabase query for reliability instead of edge function
+      const { data, error } = await supabase
+        .from("meeting_rooms")
+        .select("*, meeting_participants(id, display_name, status, is_host)")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setRooms((data || []) as unknown as MeetingRoom[]);
     } catch (e: any) {
       toast.error(e.message || "Erro ao carregar salas");
     }

@@ -188,6 +188,27 @@ export default function CriarReuniaoDialog({ open, onOpenChange, onCreated }: Pr
         }
       }
 
+      // 3. Save as evento in agenda
+      if (form.agendado_para) {
+        try {
+          const duracaoMs = (parseInt(form.duracao_minutos) || 60) * 60 * 1000;
+          const dataInicio = new Date(form.agendado_para);
+          const dataFim = new Date(dataInicio.getTime() + duracaoMs);
+
+          await supabase.from("eventos").insert({
+            user_id: user?.id,
+            titulo: `📹 ${form.nome}`,
+            descricao: form.descricao || `Reunião - ${convidados.length} convidado(s)`,
+            data_inicio: dataInicio.toISOString(),
+            data_fim: dataFim.toISOString(),
+            tipo: "reuniao",
+            cor: "#7c3aed",
+          });
+        } catch (evErr) {
+          console.error("Erro ao salvar na agenda:", evErr);
+        }
+      }
+
       toast.success("Reunião criada com sucesso!");
       onOpenChange(false);
       resetForm();
