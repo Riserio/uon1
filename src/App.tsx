@@ -183,6 +183,14 @@ function DomainBasedRoute() {
   return <Navigate to="/auth" replace />;
 }
 
+// Global safety net for uncaught promise rejections
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    console.error('[Global] Unhandled promise rejection:', event.reason);
+    event.preventDefault();
+  });
+}
+
 const App = () => (
   <BrowserRouter>
     <QueryClientProvider client={queryClient}>

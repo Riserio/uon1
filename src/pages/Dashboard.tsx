@@ -168,17 +168,33 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     loadData();
     const ch1 = supabase.channel("dash_ev").on("postgres_changes", { event: "*", schema: "public", table: "eventos" }, () => {loadCompromissos();loadWeekCompromissos();}).subscribe();
     const ch2 = supabase.channel("dash_at").on("postgres_changes", { event: "*", schema: "public", table: "atendimentos" }, () => {loadAtendimentos();loadCompromissos();loadWeekCompromissos();}).subscribe();
     const ch3 = supabase.channel("dash_co").on("postgres_changes", { event: "*", schema: "public", table: "comunicados" }, () => loadComunicados()).subscribe();
-    return () => {supabase.removeChannel(ch1);supabase.removeChannel(ch2);supabase.removeChannel(ch3);};
+    // Safety: if loading is still true after 15s, force it off
+    const safetyTimeout = setTimeout(() => {
+      setLoading((prev) => { if (prev) console.warn("[Dashboard] Safety timeout - forcing loading off"); return false; });
+    }, 15000);
+    return () => {supabase.removeChannel(ch1);supabase.removeChannel(ch2);supabase.removeChannel(ch3);clearTimeout(safetyTimeout);};
   }, [user]);
 
   useEffect(() => {if (user) loadWeekCompromissos();}, [calWeek, user]);
 
-  const loadData = async () => {setLoading(true);await Promise.all([loadAtendimentos(), loadCompromissos(), loadWeekCompromissos(), loadComunicados()]);setLoading(false);};
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([loadAtendimentos(), loadCompromissos(), loadWeekCompromissos(), loadComunicados()]);
+    } catch (e) {
+      console.error("[Dashboard] loadData error:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadAtendimentos = async () => {
     try {

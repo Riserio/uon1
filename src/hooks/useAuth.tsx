@@ -38,10 +38,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserRole(data.role);
         setIsParceiro(data.role === 'parceiro');
       } else {
+        console.warn('[Auth] Failed to fetch user role:', error?.message);
         setUserRole(null);
         setIsParceiro(false);
       }
-    } catch {
+    } catch (err) {
+      console.error('[Auth] Unexpected error fetching role:', err);
       setUserRole(null);
       setIsParceiro(false);
     }
