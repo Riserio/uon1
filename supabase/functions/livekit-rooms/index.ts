@@ -312,6 +312,51 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── UPDATE ROOM ──
+    if (action === "updateRoom") {
+      const user = await getUser();
+      const body = await req.json();
+      const { roomId, nome, descricao, tipo, agendado_para, duracao_minutos, convidados } = body;
+
+      const updateData: Record<string, unknown> = {};
+      if (nome !== undefined) updateData.nome = nome;
+      if (descricao !== undefined) updateData.descricao = descricao;
+      if (tipo !== undefined) updateData.tipo = tipo;
+      if (agendado_para !== undefined) updateData.agendado_para = agendado_para;
+      if (duracao_minutos !== undefined) updateData.duracao_minutos = duracao_minutos;
+      if (convidados !== undefined) updateData.convidados = convidados;
+
+      const { data, error } = await supabaseAdmin
+        .from("meeting_rooms")
+        .update(updateData)
+        .eq("id", roomId)
+        .eq("host_id", user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return new Response(JSON.stringify({ room: data }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── DELETE ROOM (permanent) ──
+    if (action === "deleteRoom") {
+      const user = await getUser();
+      const body = await req.json();
+
+      await supabaseAdmin
+        .from("meeting_rooms")
+        .delete()
+        .eq("id", body.roomId)
+        .eq("host_id", user.id);
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ── END ROOM ──
     if (action === "endRoom") {
       const user = await getUser();
