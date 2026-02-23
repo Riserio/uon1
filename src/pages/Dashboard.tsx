@@ -138,7 +138,7 @@ export default function Dashboard() {
         supabase.from("profiles").select("id, nome"),
         supabase.from("corretoras").select("id", { count: "exact", head: true }),
         supabase.from("contratos").select("id, numero, titulo, status, data_fim, contratante_nome").eq("arquivado", false).order("created_at", { ascending: false }).limit(50),
-        supabase.from("meeting_rooms").select("id, nome, descricao, agendado_para, status, duracao_minutos").not("agendado_para", "is", null).gte("agendado_para", startOfDay(new Date()).toISOString()).order("agendado_para", { ascending: true }).limit(10),
+        supabase.from("meeting_rooms").select("id, nome, descricao, agendado_para, status, duracao_minutos").not("agendado_para", "is", null).neq("status", "finalizada").gte("agendado_para", startOfDay(new Date()).toISOString()).order("agendado_para", { ascending: true }).limit(10),
         supabase.from("sga_eventos").select("id, protocolo, situacao_evento, data_evento, tipo_evento, associado_nome, corretora_id").order("created_at", { ascending: false }).limit(500),
         supabase.from("fluxos").select("id, nome").eq("ativo", true).order("ordem", { ascending: true })]
         );

@@ -286,17 +286,17 @@ export function AppSidebar() {
                           <div className="flex items-center gap-2">
                             <div className="relative">
                               <FileSignature className="h-4 w-4" />
-                              {collapsed && signedContracts > 0 &&
+                              {collapsed && signedContracts.count > 0 &&
                           <span className="absolute -top-1.5 -right-1.5 bg-emerald-500 text-white h-4 min-w-4 flex items-center justify-center text-[9px] rounded-full px-1 font-bold">
-                                  {signedContracts > 99 ? '99+' : signedContracts}
+                                  {signedContracts.count > 99 ? '99+' : signedContracts.count}
                                 </span>
                           }
                             </div>
                             {!collapsed && <span>Uon1 Sign</span>}
                           </div>
-                          {!collapsed && signedContracts > 0 &&
+                          {!collapsed && signedContracts.count > 0 &&
                       <Badge className="bg-emerald-500 text-white h-5 min-w-5 flex items-center justify-center text-[10px] rounded-full px-1.5">
-                              {signedContracts}
+                              {signedContracts.count}
                             </Badge>
                       }
                         </div>

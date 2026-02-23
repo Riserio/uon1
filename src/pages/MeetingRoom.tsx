@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, ChevronRight, MessageCircle, Send
+  Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, ChevronRight, ChevronUp, MessageCircle, Send
 } from "lucide-react";
 
 // Lazy-load LiveKit to avoid module import crashes
@@ -302,41 +302,61 @@ function VideoGrid() {
 
 // ── Control Bar (Google Meet style) ──
 function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
+  const meetBtnBase = "h-12 w-12 rounded-full flex items-center justify-center transition-colors border-0 outline-none focus:outline-none";
+  const meetBtnDark = `${meetBtnBase} bg-[#3c4043] hover:bg-[#4a4d51] text-white`;
+
   return (
-    <div className="flex items-center justify-center gap-3 p-4 bg-[#202124]">
-      <TrackToggle
-        source={Track.Source.Microphone}
-        className="h-12 w-12 rounded-full bg-[#3c4043] hover:bg-[#4a4d51] text-white transition-colors flex items-center justify-center border-0"
-      >
-        <Mic className="h-5 w-5" />
-      </TrackToggle>
-      <TrackToggle
-        source={Track.Source.Camera}
-        className="h-12 w-12 rounded-full bg-[#3c4043] hover:bg-[#4a4d51] text-white transition-colors flex items-center justify-center border-0"
-      >
-        <Video className="h-5 w-5" />
-      </TrackToggle>
+    <div className="flex items-center justify-center gap-2 px-4 py-3 bg-[#202124]">
+      {/* Mic with caret */}
+      <div className="flex items-center gap-0.5">
+        <button className="h-10 w-10 rounded-full bg-[#3c4043] hover:bg-[#4a4d51] text-white flex items-center justify-center transition-colors">
+          <ChevronUp className="h-4 w-4 opacity-70" />
+        </button>
+        <TrackToggle
+          source={Track.Source.Microphone}
+          className={meetBtnDark}
+        >
+          <Mic className="h-5 w-5" />
+        </TrackToggle>
+      </div>
+
+      {/* Camera with caret */}
+      <div className="flex items-center gap-0.5">
+        <button className="h-10 w-10 rounded-full bg-[#3c4043] hover:bg-[#4a4d51] text-white flex items-center justify-center transition-colors">
+          <ChevronUp className="h-4 w-4 opacity-70" />
+        </button>
+        <TrackToggle
+          source={Track.Source.Camera}
+          className={meetBtnDark}
+        >
+          <Video className="h-5 w-5" />
+        </TrackToggle>
+      </div>
+
+      {/* Screen share */}
       <TrackToggle
         source={Track.Source.ScreenShare}
-        className="h-12 w-12 rounded-full bg-[#3c4043] hover:bg-[#4a4d51] text-white transition-colors flex items-center justify-center border-0"
+        className={meetBtnDark}
       >
         <MonitorUp className="h-5 w-5" />
       </TrackToggle>
-      <Button
-        variant="ghost"
-        size="icon"
+
+      {/* Chat */}
+      <button
         onClick={onToggleChat}
-        className={`h-12 w-12 rounded-full transition-colors border-0 ${
+        className={`${meetBtnBase} ${
           chatOpen
             ? "bg-[#8ab4f8] text-[#202124] hover:bg-[#aecbfa]"
             : "bg-[#3c4043] text-white hover:bg-[#4a4d51]"
         }`}
       >
         <MessageCircle className="h-5 w-5" />
-      </Button>
+      </button>
+
+      {/* Leave – pill shaped like Google Meet */}
       <button
         onClick={onLeave}
-        className="h-12 w-12 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white transition-colors flex items-center justify-center ml-2"
+        className="h-12 px-5 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white transition-colors flex items-center justify-center ml-2"
       >
         <Phone className="h-5 w-5 rotate-[135deg]" />
       </button>

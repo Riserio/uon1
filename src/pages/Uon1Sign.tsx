@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSignedContracts } from "@/hooks/useSignedContracts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -97,6 +98,7 @@ const statusConfig: Record<string, {label: string;color: string;icon: React.Reac
 
 export default function Uon1Sign() {
   const { user } = useAuth();
+  const { markAsViewed } = useSignedContracts();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -484,7 +486,7 @@ export default function Uon1Sign() {
                         <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => setVisualizarContrato(contrato)}
+                        onClick={() => { markAsViewed(contrato.id); setVisualizarContrato(contrato); }}
                         title="Visualizar">
 
                           <Eye className="h-4 w-4" />
@@ -510,7 +512,7 @@ export default function Uon1Sign() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setVisualizarContrato(contrato)}>
+                            <DropdownMenuItem onClick={() => { markAsViewed(contrato.id); setVisualizarContrato(contrato); }}>
                               <Eye className="h-4 w-4 mr-2" />
                               Visualizar
                             </DropdownMenuItem>
