@@ -2,17 +2,15 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Video, Plus, Copy, Trash2, Calendar, Users, Clock, Eye, Link2 } from "lucide-react";
+import { Video, Plus, Copy, Trash2, Calendar, Users, Clock, Link2, MessageSquare } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import CriarReuniaoDialog from "@/components/CriarReuniaoDialog";
 
 interface MeetingRoom {
   id: string;
@@ -24,6 +22,8 @@ interface MeetingRoom {
   livekit_room_name: string;
   max_participantes: number;
   created_at: string;
+  agendado_para: string | null;
+  convidados: any[] | null;
   meeting_participants?: { id: string; display_name: string; status: string; is_host: boolean }[];
 }
 
@@ -36,7 +36,6 @@ export default function VideoRooms() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState("");
-  const [form, setForm] = useState({ nome: "", descricao: "", tipo: "privada" });
 
   useEffect(() => {
     if (user) fetchRooms();
@@ -63,30 +62,6 @@ export default function VideoRooms() {
     setLoading(false);
   };
 
-  const handleCreate = async () => {
-    if (!form.nome.trim()) { toast.error("Informe o nome da sala"); return; }
-    try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=createRoom`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(form),
-        }
-      );
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      toast.success("Sala criada!");
-      setCreateOpen(false);
-      setForm({ nome: "", descricao: "", tipo: "privada" });
-      fetchRooms();
-    } catch (e: any) {
-      toast.error(e.message || "Erro ao criar sala");
-    }
-  };
 
   const handleDelete = async (roomId: string) => {
     if (!confirm("Encerrar esta sala?")) return;
@@ -247,15 +222,27 @@ export default function VideoRooms() {
                           <Badge variant="outline">{room.tipo}</Badge>
                         </div>
                         {room.descricao && <p className="text-sm text-muted-foreground line-clamp-1 mb-2">{room.descricao}</p>}
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                          {room.agendado_para && (
+                            <span className="flex items-center gap-1 text-primary font-medium">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(room.agendado_para).toLocaleDateString("pt-BR")} às {new Date(room.agendado_para).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          )}
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {new Date(room.created_at).toLocaleDateString("pt-BR")} às {new Date(room.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            Criada em {new Date(room.created_at).toLocaleDateString("pt-BR")}
                           </span>
                           <span className="flex items-center gap-1">
                             <Users className="h-3 w-3" />
                             {room.meeting_participants?.filter(p => p.status === "approved").length || 0} participante(s)
                           </span>
+                          {room.convidados && (room.convidados as any[]).length > 0 && (
+                            <span className="flex items-center gap-1">
+                              <MessageSquare className="h-3 w-3" />
+                              {(room.convidados as any[]).length} convidado(s)
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -309,37 +296,7 @@ export default function VideoRooms() {
       </div>
 
       {/* Create Room Dialog */}
-      <ResponsiveDialog open={createOpen} onOpenChange={setCreateOpen}>
-        <ResponsiveDialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Nova Sala</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Nome da Sala *</Label>
-              <Input value={form.nome} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} placeholder="Ex: Reunião de alinhamento" />
-            </div>
-            <div>
-              <Label>Descrição</Label>
-              <Textarea value={form.descricao} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} placeholder="Pauta da reunião..." rows={3} />
-            </div>
-            <div>
-              <Label>Tipo</Label>
-              <Select value={form.tipo} onValueChange={(v) => setForm((p) => ({ ...p, tipo: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="privada">Privada</SelectItem>
-                  <SelectItem value="publica">Pública</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
-              <Button onClick={handleCreate}>Criar Sala</Button>
-            </div>
-          </div>
-        </ResponsiveDialogContent>
-      </ResponsiveDialog>
+      <CriarReuniaoDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={fetchRooms} />
 
       {/* Invite Link Dialog */}
       <ResponsiveDialog open={inviteOpen} onOpenChange={setInviteOpen}>

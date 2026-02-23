@@ -2830,6 +2830,50 @@ export type Database = {
           },
         ]
       }
+      meeting_notifications: {
+        Row: {
+          created_at: string | null
+          destinatario: string
+          enviado_em: string | null
+          erro: string | null
+          id: string
+          nome_destinatario: string | null
+          room_id: string
+          status: string | null
+          tipo: string
+        }
+        Insert: {
+          created_at?: string | null
+          destinatario: string
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          nome_destinatario?: string | null
+          room_id: string
+          status?: string | null
+          tipo: string
+        }
+        Update: {
+          created_at?: string | null
+          destinatario?: string
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          nome_destinatario?: string | null
+          room_id?: string
+          status?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_notifications_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_participants: {
         Row: {
           created_at: string
@@ -2892,6 +2936,8 @@ export type Database = {
       }
       meeting_rooms: {
         Row: {
+          agendado_para: string | null
+          convidados: Json | null
           created_at: string
           descricao: string | null
           host_id: string
@@ -2904,6 +2950,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          agendado_para?: string | null
+          convidados?: Json | null
           created_at?: string
           descricao?: string | null
           host_id: string
@@ -2916,6 +2964,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          agendado_para?: string | null
+          convidados?: Json | null
           created_at?: string
           descricao?: string | null
           host_id?: string
