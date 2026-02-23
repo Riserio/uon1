@@ -178,16 +178,40 @@ export default function MeetingRoomPage() {
 
 // ── Waiting Room for pending participants ──
 function WaitingRoom({ room, roomId, onApproved, onDenied }: { room: RoomData; roomId: string; onApproved: (token: string) => void; onDenied: () => void }) {
+  const { user } = useAuth();
+
+  const fetchNewToken = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=getToken`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ roomId }),
+        }
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast.success("Você foi aprovado! Entrando na sala...");
+      onApproved(data.token);
+    } catch (e: any) {
+      console.error("[WaitingRoom] Error fetching new token:", e);
+      toast.error("Erro ao entrar na sala após aprovação");
+    }
+  }, [roomId, onApproved]);
+
   useEffect(() => {
     const channel = supabase
       .channel(`meeting-participant-${roomId}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "meeting_participants", filter: `room_id=eq.${roomId}` }, (payload) => {
         const updated = payload.new as any;
+        // Only react to our own participant update
+        if (updated.user_id !== user?.id) return;
         if (updated.status === "approved") {
-          // Re-fetch token
-          toast.success("Você foi aprovado! Entrando na sala...");
-          // For simplicity, reload
-          window.location.reload();
+          fetchNewToken();
         } else if (updated.status === "denied") {
           toast.error("Sua entrada foi recusada");
           onDenied();
@@ -196,7 +220,7 @@ function WaitingRoom({ room, roomId, onApproved, onDenied }: { room: RoomData; r
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [roomId]);
+  }, [roomId, user?.id, fetchNewToken, onDenied]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -308,27 +332,30 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
     <div className="flex items-center justify-center gap-2 px-6 py-3 border-t bg-card/80 backdrop-blur-sm">
       <TrackToggle
         source={Track.Source.Microphone}
-        className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm border-0 bg-muted text-muted-foreground hover:bg-muted/80 data-[lk-enabled=true]:bg-primary data-[lk-enabled=true]:text-primary-foreground data-[lk-enabled=true]:hover:bg-primary/90"
+        showIcon={true}
+        className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm bg-primary text-primary-foreground hover:bg-primary/90 data-[lk-muted=true]:bg-transparent data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:border data-[lk-muted=true]:border-border data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-muted/50"
       />
 
       <TrackToggle
         source={Track.Source.Camera}
-        className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm border-0 bg-muted text-muted-foreground hover:bg-muted/80 data-[lk-enabled=true]:bg-primary data-[lk-enabled=true]:text-primary-foreground data-[lk-enabled=true]:hover:bg-primary/90"
+        showIcon={true}
+        className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm bg-primary text-primary-foreground hover:bg-primary/90 data-[lk-muted=true]:bg-transparent data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:border data-[lk-muted=true]:border-border data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-muted/50"
       />
 
       <TrackToggle
         source={Track.Source.ScreenShare}
-        className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm border-0 bg-muted text-muted-foreground hover:bg-muted/80 data-[lk-enabled=true]:bg-primary data-[lk-enabled=true]:text-primary-foreground data-[lk-enabled=true]:hover:bg-primary/90"
+        showIcon={true}
+        className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm bg-primary text-primary-foreground hover:bg-primary/90 data-[lk-muted=true]:bg-transparent data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:border data-[lk-muted=true]:border-border data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-muted/50"
       />
 
       <div className="w-px h-6 bg-border mx-1" />
 
       <button
         onClick={onToggleChat}
-        className={`h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm border-0 ${
+        className={`h-10 w-10 rounded-full flex items-center justify-center transition-all ${
           chatOpen
-            ? "bg-primary text-primary-foreground hover:bg-primary/90"
-            : "bg-muted text-muted-foreground hover:bg-muted/80"
+            ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+            : "bg-transparent text-muted-foreground border border-border hover:bg-muted/50"
         }`}
       >
         <MessageCircle className="h-4 w-4" />
