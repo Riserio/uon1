@@ -91,6 +91,8 @@ Deno.serve(async (req) => {
         host_id: user.id,
         livekit_room_name: roomName,
         max_participantes: body.max_participantes || 50,
+        agendado_para: body.agendado_para || null,
+        convidados: body.convidados || [],
       }).select().single();
 
       if (error) throw error;
@@ -344,6 +346,130 @@ Deno.serve(async (req) => {
         JSON.stringify({ valid: true, room: invite.meeting_rooms }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // ── NOTIFY MEETING (email + whatsapp) ──
+    if (action === "notifyMeeting") {
+      const user = await getUser();
+      const body = await req.json();
+      const { roomId, roomName, agendadoPara, descricao, meetingLink, convidados, enviarEmail, enviarWhatsApp } = body;
+
+      const { data: profile } = await supabaseAdmin.from("profiles").select("nome").eq("id", user.id).single();
+      const hostName = profile?.nome || user.email || "Organizador";
+
+      const dataFormatada = agendadoPara
+        ? new Date(agendadoPara).toLocaleString("pt-BR", { dateStyle: "long", timeStyle: "short", timeZone: "America/Sao_Paulo" })
+        : "Imediata";
+
+      const results: { tipo: string; destinatario: string; status: string; erro?: string }[] = [];
+
+      for (const convidado of convidados || []) {
+        // Email
+        if (enviarEmail && convidado.email) {
+          try {
+            // Get SMTP config for the user
+            const { data: smtpConfig } = await supabaseAdmin
+              .from("email_config")
+              .select("*")
+              .eq("user_id", user.id)
+              .single();
+
+            if (smtpConfig) {
+              const { SMTPClient } = await import("https://deno.land/x/denomailer@1.6.0/mod.ts");
+              const useSsl = smtpConfig.smtp_port === 465;
+              const client = new SMTPClient({
+                connection: {
+                  hostname: smtpConfig.smtp_host,
+                  port: smtpConfig.smtp_port,
+                  tls: true,
+                  auth: { username: smtpConfig.smtp_user, password: smtpConfig.smtp_password },
+                },
+              });
+
+              const subject = `Convite: ${roomName} - ${dataFormatada}`;
+              const htmlBody = `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+                  <h2 style="color:#333;">📹 Convite para Reunião</h2>
+                  <p>Olá <strong>${convidado.nome || ""}</strong>,</p>
+                  <p><strong>${hostName}</strong> convidou você para uma reunião:</p>
+                  <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+                    <tr><td style="padding:8px;font-weight:bold;color:#555;">Reunião:</td><td style="padding:8px;">${roomName}</td></tr>
+                    <tr><td style="padding:8px;font-weight:bold;color:#555;">Data/Hora:</td><td style="padding:8px;">${dataFormatada}</td></tr>
+                    ${descricao ? `<tr><td style="padding:8px;font-weight:bold;color:#555;">Pauta:</td><td style="padding:8px;">${descricao}</td></tr>` : ""}
+                  </table>
+                  <p style="margin:24px 0;"><a href="${meetingLink}" style="background:#2563eb;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">Entrar na Reunião</a></p>
+                  <p style="color:#888;font-size:12px;">Ou acesse: ${meetingLink}</p>
+                </div>
+              `;
+
+              await client.send({
+                from: `${smtpConfig.from_name} <${smtpConfig.from_email}>`,
+                to: convidado.email,
+                subject,
+                html: htmlBody,
+              });
+              await client.close();
+
+              results.push({ tipo: "email", destinatario: convidado.email, status: "enviado" });
+            } else {
+              results.push({ tipo: "email", destinatario: convidado.email, status: "erro", erro: "SMTP não configurado" });
+            }
+          } catch (emailErr: any) {
+            results.push({ tipo: "email", destinatario: convidado.email, status: "erro", erro: emailErr.message });
+          }
+        }
+
+        // WhatsApp
+        if (enviarWhatsApp && convidado.telefone) {
+          try {
+            const metaToken = Deno.env.get("META_WHATSAPP_TOKEN");
+            const metaPhoneNumberId = Deno.env.get("META_WHATSAPP_PHONE_NUMBER_ID");
+            if (!metaToken || !metaPhoneNumberId) throw new Error("WhatsApp não configurado");
+
+            const phone = convidado.telefone.replace(/\D/g, "");
+            const formattedPhone = phone.startsWith("55") ? phone : `55${phone}`;
+
+            const msg = `📹 *Convite para Reunião*\n\n*${roomName}*\n📅 ${dataFormatada}\n${descricao ? `📋 ${descricao}\n` : ""}\n👤 Organizador: ${hostName}\n\n🔗 Acesse: ${meetingLink}`;
+
+            const metaRes = await fetch(
+              `https://graph.facebook.com/v22.0/${metaPhoneNumberId}/messages`,
+              {
+                method: "POST",
+                headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  messaging_product: "whatsapp",
+                  to: formattedPhone,
+                  type: "text",
+                  text: { preview_url: true, body: msg },
+                }),
+              }
+            );
+            const metaData = await metaRes.json();
+            if (!metaRes.ok) throw new Error(metaData?.error?.message || "Erro Meta API");
+
+            results.push({ tipo: "whatsapp", destinatario: formattedPhone, status: "enviado" });
+          } catch (wpErr: any) {
+            results.push({ tipo: "whatsapp", destinatario: convidado.telefone, status: "erro", erro: wpErr.message });
+          }
+        }
+
+        // Log notification
+        for (const r of results.filter(r2 => r2.destinatario === convidado.email || r2.destinatario === convidado.telefone?.replace(/\D/g, "") || r2.destinatario === `55${convidado.telefone?.replace(/\D/g, "")}`)) {
+          await supabaseAdmin.from("meeting_notifications").insert({
+            room_id: roomId,
+            tipo: r.tipo,
+            destinatario: r.destinatario,
+            nome_destinatario: convidado.nome || null,
+            status: r.status === "enviado" ? "enviado" : "erro",
+            erro: r.erro || null,
+            enviado_em: r.status === "enviado" ? new Date().toISOString() : null,
+          });
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, results }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(JSON.stringify({ error: "Ação inválida" }), {
