@@ -26,7 +26,8 @@ import {
   ArrowRight,
   AlertTriangle,
   CalendarDays,
-  Archive } from
+  Archive,
+  EyeOff } from
 "lucide-react";
 import { openWhatsApp } from "@/utils/whatsapp";
 import {
@@ -98,7 +99,7 @@ const statusConfig: Record<string, {label: string;color: string;icon: React.Reac
 
 export default function Uon1Sign() {
   const { user } = useAuth();
-  const { markAsViewed } = useSignedContracts();
+  const { markAsViewed, isViewed } = useSignedContracts();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -516,6 +517,12 @@ export default function Uon1Sign() {
                               <Eye className="h-4 w-4 mr-2" />
                               Visualizar
                             </DropdownMenuItem>
+                            {contrato.status === "assinado" && !isViewed(contrato.id) &&
+                              <DropdownMenuItem onClick={() => markAsViewed(contrato.id)}>
+                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                Marcar como visto
+                              </DropdownMenuItem>
+                            }
                             <DropdownMenuItem onClick={() => downloadContratoPDF(contrato, contrato?.contrato_templates?.logo_url)}>
                               <Download className="h-4 w-4 mr-2" />
                               Baixar PDF

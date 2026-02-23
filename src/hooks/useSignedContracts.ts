@@ -53,5 +53,7 @@ export function useSignedContracts() {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
-  return { count, markAsViewed };
+  const isViewed = (contractId: string) => getViewedIds().includes(contractId);
+
+  return { count, markAsViewed, isViewed };
 }
