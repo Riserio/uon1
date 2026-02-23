@@ -60,7 +60,7 @@ export function AlertasDialog({ overdueCount = 0, overdueList = [] }: AlertasDia
   const unreadMessages = useUnreadMessages();
   const pendingUsers = usePendingUsers();
 
-  const totalNotifications = unreadMessages + pendingUsers + overdueCount;
+  const totalNotifications = unreadMessages + pendingUsers + overdueCount + compromissos.length;
 
   useEffect(() => {
     const loadCompromissos = async () => {
