@@ -308,21 +308,21 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
     <div className="flex items-center justify-center gap-2 px-6 py-3 border-t bg-card/80 backdrop-blur-sm">
       <TrackToggle
         source={Track.Source.Microphone}
-        className="h-10 w-10 rounded-full flex items-center justify-center transition-all bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm border-0 data-[lk-muted=true]:bg-muted data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:hover:bg-muted/80"
+        className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm border-0 bg-muted text-muted-foreground hover:bg-muted/80 data-[lk-enabled=true]:bg-primary data-[lk-enabled=true]:text-primary-foreground data-[lk-enabled=true]:hover:bg-primary/90"
       >
         {(enabled: boolean) => enabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
       </TrackToggle>
 
       <TrackToggle
         source={Track.Source.Camera}
-        className="h-10 w-10 rounded-full flex items-center justify-center transition-all bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm border-0 data-[lk-muted=true]:bg-muted data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:hover:bg-muted/80"
+        className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm border-0 bg-muted text-muted-foreground hover:bg-muted/80 data-[lk-enabled=true]:bg-primary data-[lk-enabled=true]:text-primary-foreground data-[lk-enabled=true]:hover:bg-primary/90"
       >
         {(enabled: boolean) => enabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
       </TrackToggle>
 
       <TrackToggle
         source={Track.Source.ScreenShare}
-        className="h-10 w-10 rounded-full flex items-center justify-center transition-all bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm border-0 data-[lk-muted=true]:bg-muted data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:hover:bg-muted/80"
+        className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm border-0 bg-muted text-muted-foreground hover:bg-muted/80 data-[lk-enabled=true]:bg-primary data-[lk-enabled=true]:text-primary-foreground data-[lk-enabled=true]:hover:bg-primary/90"
       >
         <MonitorUp className="h-4 w-4" />
       </TrackToggle>
