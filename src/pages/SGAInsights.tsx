@@ -304,6 +304,10 @@ export default function SGAInsights() {
   useEffect(() => {
     if (selectedAssociacao) {
       fetchEventos();
+    } else {
+      setEventos([]);
+      setImportacaoAtiva(null);
+      setLoading(false);
     }
   }, [selectedAssociacao]);
 

@@ -271,6 +271,10 @@ export default function MGFInsights() {
   useEffect(() => {
     if (selectedAssociacao) {
       fetchDados();
+    } else {
+      setDados([]);
+      setImportacaoAtiva(null);
+      setLoading(false);
     }
   }, [selectedAssociacao]);
 
