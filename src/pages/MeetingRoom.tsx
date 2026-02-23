@@ -1,15 +1,15 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import {
-  Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, ChevronRight, MessageCircle, Send
+  Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, MessageCircle, Send
 } from "lucide-react";
 
 // Lazy-load LiveKit to avoid module import crashes
@@ -37,7 +37,6 @@ const loadLiveKit = async () => {
     useParticipants = componentsReact.useParticipants;
     TrackToggle = componentsReact.TrackToggle;
     Track = livekitClient.Track;
-    // Load styles
     await import("@livekit/components-styles");
     livekitLoaded = true;
     return true;
@@ -77,7 +76,6 @@ export default function MeetingRoomPage() {
   const [isHost, setIsHost] = useState(false);
   const [participantStatus, setParticipantStatus] = useState<string>("pending");
   const [loading, setLoading] = useState(true);
-
   const [livekitReady, setLivekitReady] = useState(false);
   const [livekitError, setLivekitError] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
@@ -120,20 +118,18 @@ export default function MeetingRoomPage() {
     setLoading(false);
   };
 
-  const handleDisconnect = () => {
-    navigate("/video");
-  };
+  const handleDisconnect = () => navigate("/video");
 
   if (loading || !livekitReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-muted-foreground">{livekitError ? "Erro ao carregar" : "Conectando à sala..."}</p>
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-muted-foreground text-sm">{livekitError ? "Erro ao carregar" : "Conectando à sala..."}</p>
           {livekitError && (
             <div className="space-y-2">
               <p className="text-sm text-destructive">{livekitError}</p>
-              <Button variant="outline" onClick={() => window.location.reload()}>Tentar novamente</Button>
+              <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Tentar novamente</Button>
             </div>
           )}
         </div>
@@ -143,17 +139,15 @@ export default function MeetingRoomPage() {
 
   if (!token || !livekitUrl || !room) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <p className="text-muted-foreground">Sala não encontrada</p>
       </div>
     );
   }
 
-  // If pending, show waiting screen
   if (participantStatus === "pending" && !isHost) {
     return <WaitingRoom room={room} roomId={roomId!} onApproved={(t) => { setToken(t); setParticipantStatus("approved"); }} onDenied={() => navigate("/video")} />;
   }
-
 
   return (
     <div className="fixed inset-0 z-[100] bg-background flex flex-col">
@@ -176,7 +170,7 @@ export default function MeetingRoomPage() {
   );
 }
 
-// ── Waiting Room for pending participants ──
+// ── Waiting Room ──
 function WaitingRoom({ room, roomId, onApproved, onDenied }: { room: RoomData; roomId: string; onApproved: (token: string) => void; onDenied: () => void }) {
   const { user } = useAuth();
 
@@ -208,7 +202,6 @@ function WaitingRoom({ room, roomId, onApproved, onDenied }: { room: RoomData; r
       .channel(`meeting-participant-${roomId}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "meeting_participants", filter: `room_id=eq.${roomId}` }, (payload) => {
         const updated = payload.new as any;
-        // Only react to our own participant update
         if (updated.user_id !== user?.id) return;
         if (updated.status === "approved") {
           fetchNewToken();
@@ -224,14 +217,14 @@ function WaitingRoom({ room, roomId, onApproved, onDenied }: { room: RoomData; r
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <Card className="max-w-md w-full mx-4">
-        <CardContent className="p-8 text-center space-y-4">
+      <Card className="max-w-md w-full mx-4 shadow-lg border-border/50">
+        <CardContent className="p-8 text-center space-y-5">
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
             <Users className="h-8 w-8 text-primary" />
           </div>
-          <h2 className="text-xl font-semibold">Sala de Espera</h2>
-          <p className="text-muted-foreground">
-            Aguardando aprovação do moderador para entrar em <strong>{room.nome}</strong>
+          <h2 className="text-xl font-semibold text-foreground">Sala de Espera</h2>
+          <p className="text-muted-foreground text-sm">
+            Aguardando aprovação do moderador para entrar em <strong className="text-foreground">{room.nome}</strong>
           </p>
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-xs text-muted-foreground">O moderador será notificado da sua presença</p>
@@ -251,18 +244,18 @@ function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost:
   };
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 bg-card border-b">
+    <div className="flex items-center justify-between px-4 py-2.5 bg-card border-b border-border/50 shadow-sm">
       <div className="flex items-center gap-3">
-        <img src="/images/logo-full.png" alt="UON1" className="h-8 w-auto" />
-        <div className="h-6 w-px bg-border" />
-        <img src="/images/logo-vg.png" alt="Vangard" className="h-8 w-auto" />
-        <div className="h-6 w-px bg-border" />
+        <img src="/images/logo-full.png" alt="UON1" className="h-7 w-auto" />
+        <div className="h-5 w-px bg-border/50" />
+        <img src="/images/logo-vg.png" alt="Vangard" className="h-7 w-auto" />
+        <div className="h-5 w-px bg-border/50" />
         <div>
           <h2 className="font-semibold text-sm flex items-center gap-1.5">
             <span className="text-primary">Talk</span>
             <span className="text-[10px] text-muted-foreground font-normal">by Uon1</span>
             <span className="mx-1 text-muted-foreground">•</span>
-            {room.nome}
+            <span className="text-foreground">{room.nome}</span>
           </h2>
           <p className="text-xs text-muted-foreground">
             {participants.length} participante(s) • {isHost ? "Moderador" : "Participante"}
@@ -270,11 +263,8 @@ function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost:
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" onClick={copyLink}>
-          <Copy className="h-3.5 w-3.5 mr-1" /> Copiar Link
-        </Button>
-        <Button size="sm" variant="destructive" onClick={onLeave}>
-          <Phone className="h-3.5 w-3.5 mr-1" /> Sair
+        <Button size="sm" variant="outline" onClick={copyLink} className="h-8 text-xs rounded-lg">
+          <Copy className="h-3.5 w-3.5 mr-1.5" /> Copiar Link
         </Button>
       </div>
     </div>
@@ -288,35 +278,44 @@ function VideoGrid() {
     { source: Track.Source.ScreenShare, withPlaceholder: false },
   ]);
 
+  const count = tracks.length;
+  const gridClass = count <= 1
+    ? "grid-cols-1 max-w-3xl mx-auto"
+    : count <= 2
+      ? "grid-cols-1 md:grid-cols-2 max-w-5xl mx-auto"
+      : count <= 4
+        ? "grid-cols-1 md:grid-cols-2 max-w-5xl mx-auto"
+        : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
+
   return (
-    <div className="flex-1 p-4 overflow-auto">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 auto-rows-fr" style={{ minHeight: "100%" }}>
+    <div className="flex-1 p-3 overflow-auto flex items-center">
+      <div className={`grid ${gridClass} gap-3 w-full`}>
         {tracks.map((trackRef) => {
           const hasTrack = trackRef.publication && trackRef.publication.track;
           const trackRefAny = trackRef as any;
           return (
-          <div
-            key={trackRef.participant.sid + (trackRef.publication?.trackSid || "placeholder")}
-            className="relative bg-muted rounded-lg overflow-hidden aspect-video flex items-center justify-center"
-          >
-            {hasTrack ? (
-              trackRef.source === Track.Source.Camera || trackRef.source === Track.Source.ScreenShare ? (
-                <VideoTrack trackRef={trackRefAny} className="w-full h-full object-cover" />
+            <div
+              key={trackRef.participant.sid + (trackRef.publication?.trackSid || "placeholder")}
+              className="relative bg-muted/50 rounded-xl overflow-hidden aspect-video flex items-center justify-center border border-border/30"
+            >
+              {hasTrack ? (
+                trackRef.source === Track.Source.Camera || trackRef.source === Track.Source.ScreenShare ? (
+                  <VideoTrack trackRef={trackRefAny} className="w-full h-full object-cover" />
+                ) : (
+                  <AudioTrack trackRef={trackRefAny} />
+                )
               ) : (
-                <AudioTrack trackRef={trackRefAny} />
-              )
-            ) : (
-              <div className="flex flex-col items-center gap-2">
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                  <VideoOff className="h-6 w-6 text-primary" />
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center">
+                    <VideoOff className="h-6 w-6 text-primary/70" />
+                  </div>
+                  <span className="text-xs text-muted-foreground font-medium">{trackRef.participant.name || trackRef.participant.identity}</span>
                 </div>
-                <span className="text-xs text-muted-foreground">{trackRef.participant.name || trackRef.participant.identity}</span>
+              )}
+              <div className="absolute bottom-2 left-2 px-2.5 py-1 bg-background/80 backdrop-blur-sm rounded-md text-xs text-foreground font-medium border border-border/20">
+                {trackRef.participant.name || trackRef.participant.identity}
               </div>
-            )}
-            <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-foreground/60 rounded text-xs text-background">
-              {trackRef.participant.name || trackRef.participant.identity}
             </div>
-          </div>
           );
         })}
       </div>
@@ -328,62 +327,84 @@ function VideoGrid() {
 function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
   const [confirmLeave, setConfirmLeave] = useState(false);
 
+  const toggleBtnBase = "h-11 w-11 rounded-full flex items-center justify-center transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  const toggleActive = "bg-primary text-primary-foreground shadow-md hover:bg-primary/90";
+  const toggleInactive = "bg-card text-muted-foreground border border-border hover:bg-accent hover:text-accent-foreground";
+
   return (
-    <div className="flex items-center justify-center gap-2 px-6 py-3 border-t bg-card/80 backdrop-blur-sm">
-      <TrackToggle
-        source={Track.Source.Microphone}
-        showIcon={true}
-        className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm bg-primary text-primary-foreground hover:bg-primary/90 data-[lk-muted=true]:bg-transparent data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:border data-[lk-muted=true]:border-border data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-muted/50"
-      />
+    <TooltipProvider delayDuration={300}>
+      <div className="flex items-center justify-center gap-3 px-6 py-3.5 border-t border-border/50 bg-card/90 backdrop-blur-md">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <TrackToggle
+              source={Track.Source.Microphone}
+              showIcon={true}
+              className={`${toggleBtnBase} ${toggleActive} data-[lk-muted=true]:bg-card data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:border data-[lk-muted=true]:border-border data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-accent data-[lk-muted=true]:hover:text-accent-foreground`}
+            />
+          </TooltipTrigger>
+          <TooltipContent side="top"><p>Microfone</p></TooltipContent>
+        </Tooltip>
 
-      <TrackToggle
-        source={Track.Source.Camera}
-        showIcon={true}
-        className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm bg-primary text-primary-foreground hover:bg-primary/90 data-[lk-muted=true]:bg-transparent data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:border data-[lk-muted=true]:border-border data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-muted/50"
-      />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <TrackToggle
+              source={Track.Source.Camera}
+              showIcon={true}
+              className={`${toggleBtnBase} ${toggleActive} data-[lk-muted=true]:bg-card data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:border data-[lk-muted=true]:border-border data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-accent data-[lk-muted=true]:hover:text-accent-foreground`}
+            />
+          </TooltipTrigger>
+          <TooltipContent side="top"><p>Câmera</p></TooltipContent>
+        </Tooltip>
 
-      <TrackToggle
-        source={Track.Source.ScreenShare}
-        showIcon={true}
-        className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm bg-primary text-primary-foreground hover:bg-primary/90 data-[lk-muted=true]:bg-transparent data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:border data-[lk-muted=true]:border-border data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-muted/50"
-      />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <TrackToggle
+              source={Track.Source.ScreenShare}
+              showIcon={true}
+              className={`${toggleBtnBase} ${toggleActive} data-[lk-muted=true]:bg-card data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:border data-[lk-muted=true]:border-border data-[lk-muted=true]:shadow-none data-[lk-muted=true]:hover:bg-accent data-[lk-muted=true]:hover:text-accent-foreground`}
+            />
+          </TooltipTrigger>
+          <TooltipContent side="top"><p>Compartilhar tela</p></TooltipContent>
+        </Tooltip>
 
-      <div className="w-px h-6 bg-border mx-1" />
+        <div className="w-px h-7 bg-border/50 mx-1" />
 
-      <button
-        onClick={onToggleChat}
-        className={`h-10 w-10 rounded-full flex items-center justify-center transition-all ${
-          chatOpen
-            ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
-            : "bg-transparent text-muted-foreground border border-border hover:bg-muted/50"
-        }`}
-      >
-        <MessageCircle className="h-4 w-4" />
-      </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={onToggleChat}
+              className={`${toggleBtnBase} ${chatOpen ? toggleActive : toggleInactive}`}
+            >
+              <MessageCircle className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top"><p>Chat</p></TooltipContent>
+        </Tooltip>
 
-      <div className="w-px h-6 bg-border mx-1" />
+        <div className="w-px h-7 bg-border/50 mx-1" />
 
-      {confirmLeave ? (
-        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-          <span className="text-sm text-muted-foreground">Tem certeza?</span>
-          <Button size="sm" variant="destructive" onClick={onLeave} className="rounded-full h-9 px-4 text-xs">
-            Sim, finalizar
+        {confirmLeave ? (
+          <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+            <span className="text-sm text-muted-foreground">Tem certeza?</span>
+            <Button size="sm" variant="destructive" onClick={onLeave} className="rounded-full h-9 px-4 text-xs">
+              Sim, finalizar
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setConfirmLeave(false)} className="rounded-full h-9 px-4 text-xs">
+              Cancelar
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="destructive"
+            onClick={() => setConfirmLeave(true)}
+            className="rounded-full h-11 px-6 text-sm font-medium gap-2 shadow-md"
+          >
+            <Phone className="h-4 w-4 rotate-[135deg]" />
+            Finalizar
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setConfirmLeave(false)} className="rounded-full h-9 px-4 text-xs">
-            Cancelar
-          </Button>
-        </div>
-      ) : (
-        <Button
-          variant="destructive"
-          onClick={() => setConfirmLeave(true)}
-          className="rounded-full h-10 px-5 text-sm font-medium gap-2"
-        >
-          <Phone className="h-4 w-4 rotate-[135deg]" />
-          Finalizar reunião
-        </Button>
-      )}
-    </div>
+        )}
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -391,10 +412,8 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
 function ChatPanel({ roomId, userId, userName }: { roomId: string; userId: string; userName: string }) {
   const [messages, setMessages] = useState<{ id: string; sender_name: string; sender_id: string; message: string; created_at: string }[]>([]);
   const [text, setText] = useState("");
-  const scrollRef = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    // Load existing messages
     const load = async () => {
       const { data } = await supabase
         .from("meeting_messages")
@@ -406,7 +425,6 @@ function ChatPanel({ roomId, userId, userName }: { roomId: string; userId: strin
     };
     load();
 
-    // Subscribe to new messages
     const channel = supabase
       .channel(`chat-${roomId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "meeting_messages", filter: `room_id=eq.${roomId}` }, (payload) => {
@@ -430,18 +448,18 @@ function ChatPanel({ roomId, userId, userName }: { roomId: string; userId: strin
   };
 
   return (
-    <div className="w-72 border-l bg-card flex flex-col">
-      <div className="p-3 border-b">
-        <h3 className="font-semibold text-sm flex items-center gap-2">
-          <MessageCircle className="h-4 w-4" /> Chat
+    <div className="w-72 border-l border-border/50 bg-card flex flex-col">
+      <div className="p-3 border-b border-border/50">
+        <h3 className="font-semibold text-sm flex items-center gap-2 text-foreground">
+          <MessageCircle className="h-4 w-4 text-primary" /> Chat
         </h3>
       </div>
       <ScrollArea className="flex-1 p-3">
-        <div className="space-y-2">
+        <div className="space-y-3">
           {messages.map((m) => (
             <div key={m.id} className={`text-xs ${m.sender_id === userId ? "text-right" : ""}`}>
-              <span className="font-semibold text-primary">{m.sender_id === userId ? "Eu" : m.sender_name}</span>
-              <p className={`mt-0.5 p-2 rounded-lg inline-block max-w-[90%] ${m.sender_id === userId ? "bg-primary/10 text-foreground" : "bg-muted text-foreground"}`}>
+              <span className="font-semibold text-primary text-[11px]">{m.sender_id === userId ? "Eu" : m.sender_name}</span>
+              <p className={`mt-0.5 p-2 rounded-lg inline-block max-w-[90%] text-foreground ${m.sender_id === userId ? "bg-primary/10" : "bg-muted"}`}>
                 {m.message}
               </p>
               <p className="text-[9px] text-muted-foreground mt-0.5">
@@ -451,7 +469,7 @@ function ChatPanel({ roomId, userId, userName }: { roomId: string; userId: strin
           ))}
         </div>
       </ScrollArea>
-      <div className="p-2 border-t flex gap-1.5">
+      <div className="p-2 border-t border-border/50 flex gap-1.5">
         <Input
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -459,7 +477,7 @@ function ChatPanel({ roomId, userId, userName }: { roomId: string; userId: strin
           className="text-xs h-8"
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
         />
-        <Button size="sm" className="h-8 w-8 p-0" onClick={sendMessage}>
+        <Button size="sm" className="h-8 w-8 p-0 rounded-lg" onClick={sendMessage}>
           <Send className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -517,21 +535,31 @@ function PendingRequestsPanel({ roomId }: { roomId: string }) {
   if (pending.length === 0) return null;
 
   return (
-    <div className="w-72 border-l bg-card p-4 flex flex-col">
-      <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
-        <Users className="h-4 w-4" /> Solicitações ({pending.length})
+    <div className="w-72 border-l border-border/50 bg-card p-4 flex flex-col">
+      <h3 className="font-semibold text-sm mb-3 flex items-center gap-2 text-foreground">
+        <Users className="h-4 w-4 text-primary" /> Solicitações ({pending.length})
       </h3>
       <ScrollArea className="flex-1">
         <div className="space-y-2">
           {pending.map((p) => (
-            <div key={p.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
-              <span className="text-sm truncate flex-1">{p.display_name}</span>
-              <div className="flex gap-1">
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-primary" onClick={() => handleAction(p.id, "approveParticipant")}>
-                  <Check className="h-4 w-4" />
+            <div key={p.id} className="flex items-center justify-between p-2.5 bg-muted/40 rounded-lg border border-border/30">
+              <span className="text-sm truncate flex-1 text-foreground">{p.display_name}</span>
+              <div className="flex gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 w-7 p-0 rounded-full border-primary/30 text-primary hover:bg-primary hover:text-primary-foreground"
+                  onClick={() => handleAction(p.id, "approveParticipant")}
+                >
+                  <Check className="h-3.5 w-3.5" />
                 </Button>
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => handleAction(p.id, "denyParticipant")}>
-                  <X className="h-4 w-4" />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 w-7 p-0 rounded-full border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  onClick={() => handleAction(p.id, "denyParticipant")}
+                >
+                  <X className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>

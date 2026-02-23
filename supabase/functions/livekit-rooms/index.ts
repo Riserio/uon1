@@ -148,21 +148,36 @@ Deno.serve(async (req) => {
         .single();
       const displayName = profile?.nome || user.email || "Participante";
 
-      // Upsert participant
-      await supabaseAdmin.from("meeting_participants").upsert(
-        {
+      // Check if participant already exists
+      const { data: existingParticipant } = await supabaseAdmin
+        .from("meeting_participants")
+        .select("id, status")
+        .eq("room_id", roomId)
+        .eq("identity", user.id)
+        .single();
+
+      let participantStatus: string;
+      if (existingParticipant) {
+        // Keep existing status (don't reset approved back to pending)
+        participantStatus = existingParticipant.status;
+        await supabaseAdmin.from("meeting_participants").update({
+          display_name: displayName,
+          joined_at: new Date().toISOString(),
+        }).eq("id", existingParticipant.id);
+      } else {
+        participantStatus = isHost ? "approved" : "pending";
+        await supabaseAdmin.from("meeting_participants").insert({
           room_id: roomId,
           user_id: user.id,
           identity: user.id,
           display_name: displayName,
-          status: isHost ? "approved" : "pending",
+          status: participantStatus,
           is_host: isHost,
           joined_at: new Date().toISOString(),
-        },
-        { onConflict: "room_id,identity", ignoreDuplicates: false }
-      );
+        });
+      }
 
-      const canPublish = isHost; // guests start muted until approved
+      const canPublish = isHost || participantStatus === "approved";
       const token = await createLiveKitToken(livekitApiKey, livekitApiSecret, user.id, room.livekit_room_name, {
         roomJoin: true,
         room: room.livekit_room_name,
@@ -173,7 +188,7 @@ Deno.serve(async (req) => {
       });
 
       return new Response(
-        JSON.stringify({ token, livekitUrl, room, isHost, participantStatus: isHost ? "approved" : "pending" }),
+        JSON.stringify({ token, livekitUrl, room, isHost, participantStatus }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
