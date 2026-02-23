@@ -229,9 +229,10 @@ function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost:
   return (
     <div className="flex items-center justify-between px-4 py-2 bg-card border-b">
       <div className="flex items-center gap-3">
-        <img src="/images/logo-collapsed.png" alt="UON1" className="h-8 w-auto" />
-        <img src="/images/vangard-logo.png" alt="Vangard" className="h-8 w-auto dark:invert" />
-        <div className="h-6 w-px bg-border mx-1" />
+        <img src="/images/logo-full.png" alt="UON1" className="h-8 w-auto" />
+        <div className="h-6 w-px bg-border" />
+        <img src="/images/logo-vg.png" alt="Vangard" className="h-8 w-auto" />
+        <div className="h-6 w-px bg-border" />
         <div>
           <h2 className="font-semibold text-sm flex items-center gap-1.5">
             <span className="text-primary">Talk</span>
@@ -302,41 +303,31 @@ function VideoGrid() {
 // ── Control Bar ──
 function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
   return (
-    <div className="flex items-center justify-center gap-4 p-4 bg-card border-t">
-      <div className="flex flex-col items-center gap-1">
-        <TrackToggle source={Track.Source.Microphone} className="px-4 py-2.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
-          <Mic className="h-5 w-5" />
+    <div className="flex items-center justify-center gap-2 p-3 bg-card border-t">
+      <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1">
+        <TrackToggle source={Track.Source.Microphone} className="h-10 w-10 rounded-lg bg-background hover:bg-accent transition-colors flex items-center justify-center">
+          <Mic className="h-4 w-4" />
         </TrackToggle>
-        <span className="text-[10px] text-muted-foreground">Microfone</span>
-      </div>
-      <div className="flex flex-col items-center gap-1">
-        <TrackToggle source={Track.Source.Camera} className="px-4 py-2.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
-          <Video className="h-5 w-5" />
+        <TrackToggle source={Track.Source.Camera} className="h-10 w-10 rounded-lg bg-background hover:bg-accent transition-colors flex items-center justify-center">
+          <Video className="h-4 w-4" />
         </TrackToggle>
-        <span className="text-[10px] text-muted-foreground">Câmera</span>
-      </div>
-      <div className="flex flex-col items-center gap-1">
-        <TrackToggle source={Track.Source.ScreenShare} className="px-4 py-2.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
-          <MonitorUp className="h-5 w-5" />
+        <TrackToggle source={Track.Source.ScreenShare} className="h-10 w-10 rounded-lg bg-background hover:bg-accent transition-colors flex items-center justify-center">
+          <MonitorUp className="h-4 w-4" />
         </TrackToggle>
-        <span className="text-[10px] text-muted-foreground">Compartilhar Tela</span>
       </div>
-      <div className="flex flex-col items-center gap-1">
-        <Button
-          variant={chatOpen ? "default" : "outline"}
-          onClick={onToggleChat}
-          className="px-4 py-2.5"
-        >
-          <MessageCircle className="h-5 w-5" />
-        </Button>
-        <span className="text-[10px] text-muted-foreground">Chat</span>
-      </div>
-      <div className="flex flex-col items-center gap-1">
-        <Button variant="destructive" onClick={onLeave} className="px-4 py-2.5">
-          <Phone className="h-5 w-5" />
-        </Button>
-        <span className="text-[10px] text-destructive">Sair</span>
-      </div>
+      <div className="h-8 w-px bg-border mx-1" />
+      <Button
+        variant={chatOpen ? "default" : "ghost"}
+        size="icon"
+        onClick={onToggleChat}
+        className="h-10 w-10 rounded-lg"
+      >
+        <MessageCircle className="h-4 w-4" />
+      </Button>
+      <div className="h-8 w-px bg-border mx-1" />
+      <Button variant="destructive" onClick={onLeave} className="h-10 px-5 rounded-lg gap-2">
+        <Phone className="h-4 w-4" /> Sair
+      </Button>
     </div>
   );
 }
