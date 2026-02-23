@@ -239,7 +239,7 @@ export default function CriarReuniaoDialog({ open, onOpenChange, onCreated }: Pr
 
         <div className="space-y-5">
           {/* Basic Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <Label>Nome da Reunião *</Label>
               <Input
@@ -249,12 +249,34 @@ export default function CriarReuniaoDialog({ open, onOpenChange, onCreated }: Pr
               />
             </div>
             <div>
-              <Label>Data e Hora</Label>
+              <Label>Data</Label>
               <Input
-                type="datetime-local"
-                value={form.agendado_para}
-                onChange={(e) => setForm((p) => ({ ...p, agendado_para: e.target.value }))}
+                type="date"
+                value={form.agendado_para ? form.agendado_para.split("T")[0] : ""}
+                onChange={(e) => {
+                  const time = form.agendado_para ? form.agendado_para.split("T")[1] || "09:00" : "09:00";
+                  setForm((p) => ({ ...p, agendado_para: e.target.value ? `${e.target.value}T${time}` : "" }));
+                }}
               />
+            </div>
+            <div>
+              <Label>Horário</Label>
+              <Select
+                value={form.agendado_para ? form.agendado_para.split("T")[1]?.substring(0, 5) || "09:00" : "09:00"}
+                onValueChange={(v) => {
+                  const date = form.agendado_para ? form.agendado_para.split("T")[0] : new Date().toISOString().split("T")[0];
+                  setForm((p) => ({ ...p, agendado_para: `${date}T${v}` }));
+                }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {Array.from({ length: 48 }, (_, i) => {
+                    const h = String(Math.floor(i / 2)).padStart(2, "0");
+                    const m = i % 2 === 0 ? "00" : "30";
+                    return <SelectItem key={`${h}:${m}`} value={`${h}:${m}`}>{`${h}:${m}`}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Duração</Label>

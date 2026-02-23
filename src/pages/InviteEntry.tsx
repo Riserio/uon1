@@ -16,7 +16,6 @@ export default function InviteEntry() {
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // LiveKit state for after joining
   const [token, setToken] = useState<string | null>(null);
   const [livekitUrl, setLivekitUrl] = useState<string>("");
 
@@ -55,13 +54,20 @@ export default function InviteEntry() {
       if (data.error) throw new Error(data.error);
       setToken(data.token);
       setLivekitUrl(data.livekitUrl);
-      // Redirect to a waiting page or embed LiveKit
       toast.success("Conectando... Aguarde aprovação do moderador.");
     } catch (e: any) {
       toast.error(e.message || "Erro ao entrar");
     }
     setJoining(false);
   };
+
+  const LogoBanner = () => (
+    <div className="flex items-center justify-center gap-3">
+      <img src="/images/logo-full.png" alt="UON1" className="h-8 w-auto" />
+      <div className="h-6 w-px bg-border" />
+      <img src="/images/logo-vg.png" alt="Vangard" className="h-8 w-auto" />
+    </div>
+  );
 
   if (loading) {
     return (
@@ -76,7 +82,8 @@ export default function InviteEntry() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
         <Card className="max-w-md w-full mx-4">
           <CardContent className="p-8 text-center space-y-4">
-            <Video className="h-12 w-12 mx-auto text-destructive" />
+            <LogoBanner />
+            <Video className="h-10 w-10 mx-auto text-destructive" />
             <h2 className="text-xl font-semibold">Convite Inválido</h2>
             <p className="text-muted-foreground">{error}</p>
           </CardContent>
@@ -85,12 +92,12 @@ export default function InviteEntry() {
     );
   }
 
-  // If we have a token, show waiting screen
   if (token && livekitUrl) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
         <Card className="max-w-md w-full mx-4">
           <CardContent className="p-8 text-center space-y-4">
+            <LogoBanner />
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
               <Users className="h-8 w-8 text-primary" />
             </div>
@@ -110,15 +117,18 @@ export default function InviteEntry() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30">
       <Card className="max-w-md w-full mx-4">
         <CardContent className="p-8 space-y-6">
-          <div className="text-center space-y-2">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-              <Video className="h-8 w-8 text-primary" />
+          <div className="text-center space-y-3">
+            <LogoBanner />
+            <div className="pt-1">
+              <h2 className="text-lg font-semibold flex items-center justify-center gap-1.5">
+                <span className="text-primary">Talk</span>
+                <span className="text-xs text-muted-foreground font-normal">by Uon1</span>
+              </h2>
+              <p className="text-muted-foreground mt-1">
+                Você foi convidado para: <strong>{roomInfo?.nome}</strong>
+              </p>
+              {roomInfo?.descricao && <p className="text-sm text-muted-foreground">{roomInfo.descricao}</p>}
             </div>
-            <h2 className="text-xl font-semibold">Uon1 Talk</h2>
-            <p className="text-muted-foreground">
-              Você foi convidado para: <strong>{roomInfo?.nome}</strong>
-            </p>
-            {roomInfo?.descricao && <p className="text-sm text-muted-foreground">{roomInfo.descricao}</p>}
           </div>
 
           <div>
