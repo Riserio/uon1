@@ -300,34 +300,46 @@ function VideoGrid() {
   );
 }
 
-// ── Control Bar ──
+// ── Control Bar (Google Meet style) ──
 function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
   return (
-    <div className="flex items-center justify-center gap-2 p-3 bg-card border-t">
-      <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1">
-        <TrackToggle source={Track.Source.Microphone} className="h-10 w-10 rounded-lg bg-background hover:bg-accent transition-colors flex items-center justify-center">
-          <Mic className="h-4 w-4" />
-        </TrackToggle>
-        <TrackToggle source={Track.Source.Camera} className="h-10 w-10 rounded-lg bg-background hover:bg-accent transition-colors flex items-center justify-center">
-          <Video className="h-4 w-4" />
-        </TrackToggle>
-        <TrackToggle source={Track.Source.ScreenShare} className="h-10 w-10 rounded-lg bg-background hover:bg-accent transition-colors flex items-center justify-center">
-          <MonitorUp className="h-4 w-4" />
-        </TrackToggle>
-      </div>
-      <div className="h-8 w-px bg-border mx-1" />
+    <div className="flex items-center justify-center gap-3 p-4 bg-[#202124]">
+      <TrackToggle
+        source={Track.Source.Microphone}
+        className="h-12 w-12 rounded-full bg-[#3c4043] hover:bg-[#4a4d51] text-white transition-colors flex items-center justify-center border-0"
+      >
+        <Mic className="h-5 w-5" />
+      </TrackToggle>
+      <TrackToggle
+        source={Track.Source.Camera}
+        className="h-12 w-12 rounded-full bg-[#3c4043] hover:bg-[#4a4d51] text-white transition-colors flex items-center justify-center border-0"
+      >
+        <Video className="h-5 w-5" />
+      </TrackToggle>
+      <TrackToggle
+        source={Track.Source.ScreenShare}
+        className="h-12 w-12 rounded-full bg-[#3c4043] hover:bg-[#4a4d51] text-white transition-colors flex items-center justify-center border-0"
+      >
+        <MonitorUp className="h-5 w-5" />
+      </TrackToggle>
       <Button
-        variant={chatOpen ? "default" : "ghost"}
+        variant="ghost"
         size="icon"
         onClick={onToggleChat}
-        className="h-10 w-10 rounded-lg"
+        className={`h-12 w-12 rounded-full transition-colors border-0 ${
+          chatOpen
+            ? "bg-[#8ab4f8] text-[#202124] hover:bg-[#aecbfa]"
+            : "bg-[#3c4043] text-white hover:bg-[#4a4d51]"
+        }`}
       >
-        <MessageCircle className="h-4 w-4" />
+        <MessageCircle className="h-5 w-5" />
       </Button>
-      <div className="h-8 w-px bg-border mx-1" />
-      <Button variant="destructive" onClick={onLeave} className="h-10 px-5 rounded-lg gap-2">
-        <Phone className="h-4 w-4" /> Sair
-      </Button>
+      <button
+        onClick={onLeave}
+        className="h-12 w-12 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white transition-colors flex items-center justify-center ml-2"
+      >
+        <Phone className="h-5 w-5 rotate-[135deg]" />
+      </button>
     </div>
   );
 }
