@@ -309,23 +309,17 @@ function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; 
       <TrackToggle
         source={Track.Source.Microphone}
         className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm border-0 bg-muted text-muted-foreground hover:bg-muted/80 data-[lk-enabled=true]:bg-primary data-[lk-enabled=true]:text-primary-foreground data-[lk-enabled=true]:hover:bg-primary/90"
-      >
-        {(enabled: boolean) => enabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-      </TrackToggle>
+      />
 
       <TrackToggle
         source={Track.Source.Camera}
         className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm border-0 bg-muted text-muted-foreground hover:bg-muted/80 data-[lk-enabled=true]:bg-primary data-[lk-enabled=true]:text-primary-foreground data-[lk-enabled=true]:hover:bg-primary/90"
-      >
-        {(enabled: boolean) => enabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
-      </TrackToggle>
+      />
 
       <TrackToggle
         source={Track.Source.ScreenShare}
         className="h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm border-0 bg-muted text-muted-foreground hover:bg-muted/80 data-[lk-enabled=true]:bg-primary data-[lk-enabled=true]:text-primary-foreground data-[lk-enabled=true]:hover:bg-primary/90"
-      >
-        <MonitorUp className="h-4 w-4" />
-      </TrackToggle>
+      />
 
       <div className="w-px h-6 bg-border mx-1" />
 
