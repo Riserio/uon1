@@ -33,7 +33,7 @@ import { useWhatsAppUnread } from "@/hooks/useWhatsAppUnread";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 const ttStyle = { borderRadius: 10, fontSize: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" };
-const JITSI_DOMAIN = "talk.uon1.com.br";
+
 
 // ── Mini Components ─────────────────────────────────────────
 
@@ -96,8 +96,9 @@ interface ContratoResumo {
 }
 
 interface ReuniaoResumo {
-  id: string;titulo: string;data_inicio: string;data_fim: string;
-  sala_id: string;status: string;
+  id: string;nome: string;descricao: string | null;
+  agendado_para: string | null;status: string;
+  duracao_minutos: number;
 }
 
 // ── Main Dashboard ──────────────────────────────────────────
@@ -137,7 +138,7 @@ export default function Dashboard() {
         supabase.from("profiles").select("id, nome"),
         supabase.from("corretoras").select("id", { count: "exact", head: true }),
         supabase.from("contratos").select("id, numero, titulo, status, data_fim, contratante_nome").eq("arquivado", false).order("created_at", { ascending: false }).limit(50),
-        supabase.from("reunioes").select("id, titulo, data_inicio, data_fim, sala_id, status").in("status", ["agendada", "em_andamento"]).gte("data_inicio", new Date().toISOString()).order("data_inicio", { ascending: true }).limit(5),
+        supabase.from("meeting_rooms").select("id, nome, descricao, agendado_para, status, duracao_minutos").not("agendado_para", "is", null).gte("agendado_para", new Date().toISOString()).order("agendado_para", { ascending: true }).limit(10),
         supabase.from("sga_eventos").select("id, protocolo, situacao_evento, data_evento, tipo_evento, associado_nome, corretora_id").order("created_at", { ascending: false }).limit(500),
         supabase.from("fluxos").select("id, nome").eq("ativo", true).order("ordem", { ascending: true })]
         );
@@ -419,13 +420,12 @@ export default function Dashboard() {
                     <div key={day.toISOString()} className={`flex flex-col items-center rounded-xl p-2.5 transition-colors ${isToday ? "bg-primary/10 ring-1 ring-primary/30" : "bg-muted/30"}`}>
                       <span className="text-xs text-muted-foreground uppercase font-semibold">{format(day, "EEE", { locale: ptBR })}</span>
                       <span className={`text-lg font-bold mt-1 ${isToday ? "text-primary" : ""}`}>{format(day, "dd")}</span>
-                      <div className="flex-1 w-full mt-2 space-y-1.5 overflow-hidden">
-                        {dayItems.slice(0, 3).map((item) =>
-                        <div key={item.id} className="w-full rounded px-1.5 py-1" style={{ backgroundColor: item.cor + "20", borderLeft: `2px solid ${item.cor}` }}>
+                      <div className="flex-1 w-full mt-2 space-y-1 overflow-y-auto scrollbar-hide">
+                        {dayItems.map((item) =>
+                        <div key={item.id} className="w-full rounded px-1.5 py-0.5" style={{ backgroundColor: item.cor + "20", borderLeft: `2px solid ${item.cor}` }}>
                             <p className="text-[10px] truncate font-medium" style={{ color: item.cor }}>{format(parseISO(item.horario_inicio), "HH:mm")}</p>
                           </div>
                         )}
-                        {dayItems.length > 3 && <span className="text-[10px] text-muted-foreground text-center block">+{dayItems.length - 3}</span>}
                       </div>
                     </div>);
 
@@ -630,15 +630,13 @@ export default function Dashboard() {
 
               <div className="space-y-2.5 max-h-[200px] overflow-y-auto scrollbar-hide">
                   {reunioes.map((r) =>
-                <div key={r.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
+                <Link key={r.id} to={`/video/${r.id}`} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{r.titulo}</p>
-                        <p className="text-xs text-muted-foreground">{format(parseISO(r.data_inicio), "dd/MM HH:mm")}</p>
+                        <p className="text-sm font-medium truncate">{r.nome}</p>
+                        <p className="text-xs text-muted-foreground">{r.agendado_para ? format(parseISO(r.agendado_para), "dd/MM HH:mm") : "Sem data"}</p>
                       </div>
-                      <a href={`https://${JITSI_DOMAIN}/uon1-talk-${r.sala_id}`} target="_blank" rel="noopener noreferrer">
-                        <Button size="sm" variant="outline" className="h-8 text-sm px-3 text-violet-600"><LinkIcon className="h-3.5 w-3.5 mr-1" />Entrar</Button>
-                      </a>
-                    </div>
+                      <Button size="sm" variant="outline" className="h-8 text-sm px-3 text-violet-600" onClick={(e) => e.preventDefault()}><Video className="h-3.5 w-3.5 mr-1" />Entrar</Button>
+                    </Link>
                 )}
                   <Link to="/video" className="block">
                     <Button size="sm" variant="ghost" className="w-full h-8 text-sm"><Plus className="h-4 w-4 mr-1" />Criar reunião</Button>
