@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
@@ -36,27 +36,40 @@ export function useAppConfig() {
   const { user } = useAuth();
   const [config, setConfig] = useState<AppConfig>({ colors: defaultColors });
   const [loading, setLoading] = useState(true);
+  // Track whether we've already loaded config successfully to avoid
+  // re-fetching (and potentially failing) on token refresh cycles.
+  const configLoadedForUserRef = useRef<string | null>(null);
+  // Cache the last successfully applied colors so we never lose them.
+  const appliedColorsRef = useRef<AppColors | null>(null);
 
   useEffect(() => {
     if (user) {
-      loadConfig();
+      // Only fetch config if we haven't already loaded for this user.
+      // Token refreshes change the user object reference but keep the same id.
+      if (configLoadedForUserRef.current !== user.id) {
+        loadConfig(user.id);
+      } else {
+        setLoading(false);
+      }
     } else {
       setLoading(false);
     }
   }, [user]);
 
-  const loadConfig = async () => {
-    if (!user) return;
-
+  const loadConfig = async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('app_config')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error loading config:', error);
+        // If we had previously applied colors, keep them
+        if (appliedColorsRef.current) {
+          applyColors(appliedColorsRef.current);
+        }
         return;
       }
 
@@ -70,10 +83,16 @@ export function useAppConfig() {
           colors: mergedColors,
         });
         applyColors(mergedColors);
+        appliedColorsRef.current = mergedColors;
       }
       // Don't apply default colors — keep CSS index.css defaults intact
+      configLoadedForUserRef.current = userId;
     } catch (error) {
       console.error('Error in loadConfig:', error);
+      // Restore cached colors on error
+      if (appliedColorsRef.current) {
+        applyColors(appliedColorsRef.current);
+      }
     } finally {
       setLoading(false);
     }
@@ -151,6 +170,7 @@ export function useAppConfig() {
 
       if (newConfig.colors) {
         applyColors(newConfig.colors);
+        appliedColorsRef.current = { ...defaultColors, ...newConfig.colors };
       }
 
       setConfig({ ...config, ...newConfig });

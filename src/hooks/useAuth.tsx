@@ -60,6 +60,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (event, newSession) => {
         if (!mounted) return;
 
+        // On TOKEN_REFRESHED, only update session/user refs but don't
+        // reset state or re-fetch role — the user hasn't changed.
+        if (event === 'TOKEN_REFRESHED') {
+          setSession(newSession);
+          setUser(newSession?.user ?? null);
+          if (!mounted) return;
+          setLoading(false);
+          initializedRef.current = true;
+          return;
+        }
+
         setSession(newSession);
         setUser(newSession?.user ?? null);
 

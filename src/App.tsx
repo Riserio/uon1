@@ -1,3 +1,4 @@
+import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -79,10 +80,24 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5,
-      retry: 1,
+      retry: 2,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
     },
   },
 });
+
+// Re-fetch all active queries when the auth token is refreshed,
+// so components don't get stuck with stale/failed data from the old token.
+if (typeof window !== 'undefined') {
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === 'TOKEN_REFRESHED') {
+      // Small delay to let the new token propagate to the client
+      setTimeout(() => {
+        queryClient.invalidateQueries();
+      }, 250);
+    }
+  });
+}
 
 function MainContent({ children }: { children: React.ReactNode }) {
   const { state } = useSidebar();
