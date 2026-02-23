@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, ChevronRight, ChevronUp, MessageCircle, Send
+  Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, ChevronRight, MessageCircle, Send
 } from "lucide-react";
 
 // Lazy-load LiveKit to avoid module import crashes
@@ -300,65 +300,55 @@ function VideoGrid() {
   );
 }
 
-// ── Control Bar (Google Meet style) ──
+// ── Control Bar ──
 function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
-  const meetBtnBase = "h-12 w-12 rounded-full flex items-center justify-center transition-colors border-0 outline-none focus:outline-none";
-  const meetBtnDark = `${meetBtnBase} bg-[#3c4043] hover:bg-[#4a4d51] text-white`;
+  const btnBase = "h-11 w-11 rounded-full flex items-center justify-center transition-all duration-200 border border-border shadow-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2";
+  const btnDefault = `${btnBase} bg-card hover:bg-accent text-foreground`;
 
   return (
-    <div className="flex items-center justify-center gap-2 px-4 py-3 bg-[#202124]">
-      {/* Mic with caret */}
-      <div className="flex items-center gap-0.5">
-        <button className="h-10 w-10 rounded-full bg-[#3c4043] hover:bg-[#4a4d51] text-white flex items-center justify-center transition-colors">
-          <ChevronUp className="h-4 w-4 opacity-70" />
-        </button>
-        <TrackToggle
-          source={Track.Source.Microphone}
-          className={meetBtnDark}
-        >
-          <Mic className="h-5 w-5" />
-        </TrackToggle>
-      </div>
-
-      {/* Camera with caret */}
-      <div className="flex items-center gap-0.5">
-        <button className="h-10 w-10 rounded-full bg-[#3c4043] hover:bg-[#4a4d51] text-white flex items-center justify-center transition-colors">
-          <ChevronUp className="h-4 w-4 opacity-70" />
-        </button>
-        <TrackToggle
-          source={Track.Source.Camera}
-          className={meetBtnDark}
-        >
-          <Video className="h-5 w-5" />
-        </TrackToggle>
-      </div>
-
-      {/* Screen share */}
+    <div className="flex items-center justify-center gap-3 px-6 py-3 border-t bg-card/80 backdrop-blur-sm">
       <TrackToggle
-        source={Track.Source.ScreenShare}
-        className={meetBtnDark}
+        source={Track.Source.Microphone}
+        className={btnDefault}
       >
-        <MonitorUp className="h-5 w-5" />
+        <Mic className="h-4 w-4" />
       </TrackToggle>
 
-      {/* Chat */}
+      <TrackToggle
+        source={Track.Source.Camera}
+        className={btnDefault}
+      >
+        <Video className="h-4 w-4" />
+      </TrackToggle>
+
+      <TrackToggle
+        source={Track.Source.ScreenShare}
+        className={btnDefault}
+      >
+        <MonitorUp className="h-4 w-4" />
+      </TrackToggle>
+
+      <div className="w-px h-7 bg-border mx-1" />
+
       <button
         onClick={onToggleChat}
-        className={`${meetBtnBase} ${
+        className={`${btnBase} ${
           chatOpen
-            ? "bg-[#8ab4f8] text-[#202124] hover:bg-[#aecbfa]"
-            : "bg-[#3c4043] text-white hover:bg-[#4a4d51]"
+            ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+            : "bg-card hover:bg-accent text-foreground"
         }`}
       >
-        <MessageCircle className="h-5 w-5" />
+        <MessageCircle className="h-4 w-4" />
       </button>
 
-      {/* Leave – pill shaped like Google Meet */}
+      <div className="w-px h-7 bg-border mx-1" />
+
       <button
         onClick={onLeave}
-        className="h-12 px-5 rounded-full bg-[#ea4335] hover:bg-[#d93025] text-white transition-colors flex items-center justify-center ml-2"
+        className="h-11 px-6 rounded-full bg-destructive hover:bg-destructive/90 text-destructive-foreground transition-all duration-200 flex items-center gap-2 shadow-sm font-medium text-sm"
       >
-        <Phone className="h-5 w-5 rotate-[135deg]" />
+        <Phone className="h-4 w-4 rotate-[135deg]" />
+        Sair
       </button>
     </div>
   );
