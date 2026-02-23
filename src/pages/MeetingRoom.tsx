@@ -302,54 +302,66 @@ function VideoGrid() {
 
 // ── Control Bar ──
 function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
-  const btnBase = "h-11 w-11 rounded-full flex items-center justify-center transition-all duration-200 border border-border shadow-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2";
-  const btnDefault = `${btnBase} bg-card hover:bg-accent text-foreground`;
+  const [confirmLeave, setConfirmLeave] = useState(false);
 
   return (
-    <div className="flex items-center justify-center gap-3 px-6 py-3 border-t bg-card/80 backdrop-blur-sm">
+    <div className="flex items-center justify-center gap-2 px-6 py-3 border-t bg-card/80 backdrop-blur-sm">
       <TrackToggle
         source={Track.Source.Microphone}
-        className={btnDefault}
+        className="h-10 w-10 rounded-full flex items-center justify-center transition-all bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm border-0 data-[lk-muted=true]:bg-muted data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:hover:bg-muted/80"
       >
-        <Mic className="h-4 w-4" />
+        {(enabled: boolean) => enabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
       </TrackToggle>
 
       <TrackToggle
         source={Track.Source.Camera}
-        className={btnDefault}
+        className="h-10 w-10 rounded-full flex items-center justify-center transition-all bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm border-0 data-[lk-muted=true]:bg-muted data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:hover:bg-muted/80"
       >
-        <Video className="h-4 w-4" />
+        {(enabled: boolean) => enabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
       </TrackToggle>
 
       <TrackToggle
         source={Track.Source.ScreenShare}
-        className={btnDefault}
+        className="h-10 w-10 rounded-full flex items-center justify-center transition-all bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm border-0 data-[lk-muted=true]:bg-muted data-[lk-muted=true]:text-muted-foreground data-[lk-muted=true]:hover:bg-muted/80"
       >
         <MonitorUp className="h-4 w-4" />
       </TrackToggle>
 
-      <div className="w-px h-7 bg-border mx-1" />
+      <div className="w-px h-6 bg-border mx-1" />
 
       <button
         onClick={onToggleChat}
-        className={`${btnBase} ${
+        className={`h-10 w-10 rounded-full flex items-center justify-center transition-all shadow-sm border-0 ${
           chatOpen
-            ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
-            : "bg-card hover:bg-accent text-foreground"
+            ? "bg-primary text-primary-foreground hover:bg-primary/90"
+            : "bg-muted text-muted-foreground hover:bg-muted/80"
         }`}
       >
         <MessageCircle className="h-4 w-4" />
       </button>
 
-      <div className="w-px h-7 bg-border mx-1" />
+      <div className="w-px h-6 bg-border mx-1" />
 
-      <button
-        onClick={onLeave}
-        className="h-11 px-6 rounded-full bg-destructive hover:bg-destructive/90 text-destructive-foreground transition-all duration-200 flex items-center gap-2 shadow-sm font-medium text-sm"
-      >
-        <Phone className="h-4 w-4 rotate-[135deg]" />
-        Sair
-      </button>
+      {confirmLeave ? (
+        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+          <span className="text-sm text-muted-foreground">Tem certeza?</span>
+          <Button size="sm" variant="destructive" onClick={onLeave} className="rounded-full h-9 px-4 text-xs">
+            Sim, finalizar
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setConfirmLeave(false)} className="rounded-full h-9 px-4 text-xs">
+            Cancelar
+          </Button>
+        </div>
+      ) : (
+        <Button
+          variant="destructive"
+          onClick={() => setConfirmLeave(true)}
+          className="rounded-full h-10 px-5 text-sm font-medium gap-2"
+        >
+          <Phone className="h-4 w-4 rotate-[135deg]" />
+          Finalizar reunião
+        </Button>
+      )}
     </div>
   );
 }
