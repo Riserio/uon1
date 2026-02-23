@@ -53,54 +53,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Use onAuthStateChange as the SINGLE source of truth.
-    // Supabase v2 emits INITIAL_SESSION synchronously during setup,
-    // so we don't need a separate getSession() call that could race.
+    // IMPORTANT: Never await Supabase calls inside onAuthStateChange
+    // as it causes LockManager deadlocks. Use setTimeout to defer.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      (event, newSession) => {
         if (!mounted) return;
-
-        // On TOKEN_REFRESHED, only update session/user refs but don't
-        // reset state or re-fetch role — the user hasn't changed.
-        if (event === 'TOKEN_REFRESHED') {
-          setSession(newSession);
-          setUser(newSession?.user ?? null);
-          if (!mounted) return;
-          setLoading(false);
-          initializedRef.current = true;
-          return;
-        }
 
         setSession(newSession);
         setUser(newSession?.user ?? null);
 
+        if (event === 'TOKEN_REFRESHED') {
+          // Token refreshed — user hasn't changed, no role re-fetch needed
+          return;
+        }
+
         if (newSession?.user) {
-          // Fetch role on initial load or sign-in
           if (!roleLoadedRef.current || event === 'SIGNED_IN') {
-            await fetchUserRole(newSession.user.id);
+            // Defer async work to avoid LockManager deadlock
+            setTimeout(() => {
+              if (!mounted) return;
+              fetchUserRole(newSession.user.id);
+            }, 0);
           }
         } else {
           setUserRole(null);
           setIsParceiro(false);
           roleLoadedRef.current = false;
         }
+      }
+    );
 
+    // INITIAL load — controls loading state, runs outside the listener
+    const initializeAuth = async () => {
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (!mounted) return;
+
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+
+        if (currentSession?.user) {
+          await fetchUserRole(currentSession.user.id);
+        }
+      } catch (err) {
+        console.error('[Auth] Init error:', err);
+      } finally {
         if (mounted) {
           setLoading(false);
           initializedRef.current = true;
         }
       }
-    );
+    };
 
-    // Safety net: if onAuthStateChange doesn't fire within 3s
-    // (e.g. network issues), stop blocking the UI.
+    initializeAuth();
+
+    // Safety net
     const timeout = setTimeout(() => {
       if (mounted && !initializedRef.current) {
         console.warn('[Auth] Timeout waiting for session, unblocking UI');
         setLoading(false);
         initializedRef.current = true;
       }
-    }, 3000);
+    }, 5000);
 
     return () => {
       mounted = false;
