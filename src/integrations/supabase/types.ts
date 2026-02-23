@@ -2786,6 +2786,149 @@ export type Database = {
         }
         Relationships: []
       }
+      meeting_invites: {
+        Row: {
+          created_at: string
+          criado_por: string
+          email_convidado: string | null
+          expires_at: string
+          id: string
+          invite_token: string
+          nome_convidado: string | null
+          room_id: string
+          usado: boolean
+        }
+        Insert: {
+          created_at?: string
+          criado_por: string
+          email_convidado?: string | null
+          expires_at?: string
+          id?: string
+          invite_token?: string
+          nome_convidado?: string | null
+          room_id: string
+          usado?: boolean
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string
+          email_convidado?: string | null
+          expires_at?: string
+          id?: string
+          invite_token?: string
+          nome_convidado?: string | null
+          room_id?: string
+          usado?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_invites_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_participants: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          identity: string
+          invite_id: string | null
+          is_host: boolean
+          joined_at: string | null
+          left_at: string | null
+          room_id: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          identity: string
+          invite_id?: string | null
+          is_host?: boolean
+          joined_at?: string | null
+          left_at?: string | null
+          room_id: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          identity?: string
+          invite_id?: string | null
+          is_host?: boolean
+          joined_at?: string | null
+          left_at?: string | null
+          room_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_participants_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_invites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_participants_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_rooms: {
+        Row: {
+          created_at: string
+          descricao: string | null
+          host_id: string
+          id: string
+          livekit_room_name: string
+          max_participantes: number
+          nome: string
+          status: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          descricao?: string | null
+          host_id: string
+          id?: string
+          livekit_room_name: string
+          max_participantes?: number
+          nome: string
+          status?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          descricao?: string | null
+          host_id?: string
+          id?: string
+          livekit_room_name?: string
+          max_participantes?: number
+          nome?: string
+          status?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mensagens: {
         Row: {
           anexos: Json | null
