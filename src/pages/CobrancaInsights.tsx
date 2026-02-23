@@ -289,6 +289,10 @@ export default function CobrancaInsights() {
   useEffect(() => {
     if (selectedAssociacao) {
       fetchBoletos();
+    } else {
+      setBoletos([]);
+      setImportacaoAtiva(null);
+      setLoading(false);
     }
   }, [selectedAssociacao]);
 

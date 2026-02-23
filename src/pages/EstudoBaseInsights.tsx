@@ -217,6 +217,10 @@ export default function EstudoBaseInsights() {
     if (selectedAssociacao) {
       fetchRegistros();
       setTabelaPage(1);
+    } else {
+      setRegistros([]);
+      setImportacaoAtiva(null);
+      setLoading(false);
     }
   }, [selectedAssociacao, fetchRegistros]);
 
