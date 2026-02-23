@@ -225,9 +225,10 @@ function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost:
   return (
     <div className="flex items-center justify-between px-4 py-2 bg-card border-b">
       <div className="flex items-center gap-3">
-        <div className="p-1.5 rounded-lg bg-primary/10">
-          <Video className="h-5 w-5 text-primary" />
-        </div>
+        {/* Logos UON1 e Vangard */}
+        <img src="/images/logo-collapsed.png" alt="UON1" className="h-8 w-auto" />
+        <img src="/images/vangard-logo.png" alt="Vangard" className="h-8 w-auto" />
+        <div className="h-6 w-px bg-border mx-1" />
         <div>
           <h2 className="font-semibold text-sm">{room.nome}</h2>
           <p className="text-xs text-muted-foreground">
@@ -293,19 +294,31 @@ function VideoGrid() {
 // ── Control Bar ──
 function ControlBar({ onLeave }: { onLeave: () => void }) {
   return (
-    <div className="flex items-center justify-center gap-3 p-3 bg-card border-t">
-      <TrackToggle source={Track.Source.Microphone} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
-        <Mic className="h-5 w-5" />
-      </TrackToggle>
-      <TrackToggle source={Track.Source.Camera} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
-        <Video className="h-5 w-5" />
-      </TrackToggle>
-      <TrackToggle source={Track.Source.ScreenShare} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
-        <MonitorUp className="h-5 w-5" />
-      </TrackToggle>
-      <Button variant="destructive" onClick={onLeave} className="gap-2">
-        <Phone className="h-5 w-5" /> Sair
-      </Button>
+    <div className="flex items-center justify-center gap-4 p-4 bg-card border-t">
+      <div className="flex flex-col items-center gap-1">
+        <TrackToggle source={Track.Source.Microphone} className="px-4 py-2.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
+          <Mic className="h-5 w-5" />
+        </TrackToggle>
+        <span className="text-[10px] text-muted-foreground">Microfone</span>
+      </div>
+      <div className="flex flex-col items-center gap-1">
+        <TrackToggle source={Track.Source.Camera} className="px-4 py-2.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
+          <Video className="h-5 w-5" />
+        </TrackToggle>
+        <span className="text-[10px] text-muted-foreground">Câmera</span>
+      </div>
+      <div className="flex flex-col items-center gap-1">
+        <TrackToggle source={Track.Source.ScreenShare} className="px-4 py-2.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
+          <MonitorUp className="h-5 w-5" />
+        </TrackToggle>
+        <span className="text-[10px] text-muted-foreground">Compartilhar Tela</span>
+      </div>
+      <div className="flex flex-col items-center gap-1">
+        <Button variant="destructive" onClick={onLeave} className="px-4 py-2.5">
+          <Phone className="h-5 w-5" />
+        </Button>
+        <span className="text-[10px] text-destructive">Sair</span>
+      </div>
     </div>
   );
 }
