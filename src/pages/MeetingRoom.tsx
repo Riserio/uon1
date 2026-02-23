@@ -3,12 +3,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, ChevronRight
+  Video, VideoOff, Mic, MicOff, MonitorUp, Phone, Copy, Users, Check, X, ChevronRight, MessageCircle, Send
 } from "lucide-react";
 
 // Lazy-load LiveKit to avoid module import crashes
@@ -79,6 +80,7 @@ export default function MeetingRoomPage() {
 
   const [livekitReady, setLivekitReady] = useState(false);
   const [livekitError, setLivekitError] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     loadLiveKit().then((ok) => {
@@ -152,6 +154,7 @@ export default function MeetingRoomPage() {
     return <WaitingRoom room={room} roomId={roomId!} onApproved={(t) => { setToken(t); setParticipantStatus("approved"); }} onDenied={() => navigate("/video")} />;
   }
 
+
   return (
     <div className="fixed inset-0 z-[100] bg-background flex flex-col">
       <LiveKitRoom
@@ -164,9 +167,10 @@ export default function MeetingRoomPage() {
         <RoomHeader room={room} isHost={isHost} roomId={roomId!} onLeave={handleDisconnect} />
         <div className="flex flex-1 overflow-hidden">
           <VideoGrid />
+          {chatOpen && <ChatPanel roomId={roomId!} userId={user?.id || ""} userName={user?.user_metadata?.nome || user?.email || "Eu"} />}
           {isHost && <PendingRequestsPanel roomId={roomId!} />}
         </div>
-        <ControlBar onLeave={handleDisconnect} />
+        <ControlBar onLeave={handleDisconnect} chatOpen={chatOpen} onToggleChat={() => setChatOpen(!chatOpen)} />
       </LiveKitRoom>
     </div>
   );
@@ -225,12 +229,16 @@ function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost:
   return (
     <div className="flex items-center justify-between px-4 py-2 bg-card border-b">
       <div className="flex items-center gap-3">
-        {/* Logos UON1 e Vangard */}
         <img src="/images/logo-collapsed.png" alt="UON1" className="h-8 w-auto" />
-        <img src="/images/vangard-logo.png" alt="Vangard" className="h-8 w-auto" />
+        <img src="/images/vangard-logo.png" alt="Vangard" className="h-8 w-auto dark:invert" />
         <div className="h-6 w-px bg-border mx-1" />
         <div>
-          <h2 className="font-semibold text-sm">{room.nome}</h2>
+          <h2 className="font-semibold text-sm flex items-center gap-1.5">
+            <span className="text-primary">Talk</span>
+            <span className="text-[10px] text-muted-foreground font-normal">by Uon1</span>
+            <span className="mx-1 text-muted-foreground">•</span>
+            {room.nome}
+          </h2>
           <p className="text-xs text-muted-foreground">
             {participants.length} participante(s) • {isHost ? "Moderador" : "Participante"}
           </p>
@@ -292,7 +300,7 @@ function VideoGrid() {
 }
 
 // ── Control Bar ──
-function ControlBar({ onLeave }: { onLeave: () => void }) {
+function ControlBar({ onLeave, chatOpen, onToggleChat }: { onLeave: () => void; chatOpen: boolean; onToggleChat: () => void }) {
   return (
     <div className="flex items-center justify-center gap-4 p-4 bg-card border-t">
       <div className="flex flex-col items-center gap-1">
@@ -314,10 +322,100 @@ function ControlBar({ onLeave }: { onLeave: () => void }) {
         <span className="text-[10px] text-muted-foreground">Compartilhar Tela</span>
       </div>
       <div className="flex flex-col items-center gap-1">
+        <Button
+          variant={chatOpen ? "default" : "outline"}
+          onClick={onToggleChat}
+          className="px-4 py-2.5"
+        >
+          <MessageCircle className="h-5 w-5" />
+        </Button>
+        <span className="text-[10px] text-muted-foreground">Chat</span>
+      </div>
+      <div className="flex flex-col items-center gap-1">
         <Button variant="destructive" onClick={onLeave} className="px-4 py-2.5">
           <Phone className="h-5 w-5" />
         </Button>
         <span className="text-[10px] text-destructive">Sair</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Chat Panel ──
+function ChatPanel({ roomId, userId, userName }: { roomId: string; userId: string; userName: string }) {
+  const [messages, setMessages] = useState<{ id: string; sender_name: string; sender_id: string; message: string; created_at: string }[]>([]);
+  const [text, setText] = useState("");
+  const scrollRef = useState<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    // Load existing messages
+    const load = async () => {
+      const { data } = await supabase
+        .from("meeting_messages")
+        .select("*")
+        .eq("room_id", roomId)
+        .order("created_at", { ascending: true })
+        .limit(200);
+      setMessages((data as any[]) || []);
+    };
+    load();
+
+    // Subscribe to new messages
+    const channel = supabase
+      .channel(`chat-${roomId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "meeting_messages", filter: `room_id=eq.${roomId}` }, (payload) => {
+        setMessages((prev) => [...prev, payload.new as any]);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [roomId]);
+
+  const sendMessage = async () => {
+    if (!text.trim()) return;
+    const msg = text.trim();
+    setText("");
+    await supabase.from("meeting_messages").insert({
+      room_id: roomId,
+      sender_id: userId,
+      sender_name: userName,
+      message: msg,
+    });
+  };
+
+  return (
+    <div className="w-72 border-l bg-card flex flex-col">
+      <div className="p-3 border-b">
+        <h3 className="font-semibold text-sm flex items-center gap-2">
+          <MessageCircle className="h-4 w-4" /> Chat
+        </h3>
+      </div>
+      <ScrollArea className="flex-1 p-3">
+        <div className="space-y-2">
+          {messages.map((m) => (
+            <div key={m.id} className={`text-xs ${m.sender_id === userId ? "text-right" : ""}`}>
+              <span className="font-semibold text-primary">{m.sender_id === userId ? "Eu" : m.sender_name}</span>
+              <p className={`mt-0.5 p-2 rounded-lg inline-block max-w-[90%] ${m.sender_id === userId ? "bg-primary/10 text-foreground" : "bg-muted text-foreground"}`}>
+                {m.message}
+              </p>
+              <p className="text-[9px] text-muted-foreground mt-0.5">
+                {new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+      <div className="p-2 border-t flex gap-1.5">
+        <Input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Mensagem..."
+          className="text-xs h-8"
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+        />
+        <Button size="sm" className="h-8 w-8 p-0" onClick={sendMessage}>
+          <Send className="h-3.5 w-3.5" />
+        </Button>
       </div>
     </div>
   );

@@ -2830,6 +2830,41 @@ export type Database = {
           },
         ]
       }
+      meeting_messages: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          room_id: string
+          sender_id: string
+          sender_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          room_id: string
+          sender_id: string
+          sender_name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          room_id?: string
+          sender_id?: string
+          sender_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_notifications: {
         Row: {
           created_at: string | null
@@ -2940,6 +2975,7 @@ export type Database = {
           convidados: Json | null
           created_at: string
           descricao: string | null
+          duracao_minutos: number | null
           host_id: string
           id: string
           livekit_room_name: string
@@ -2954,6 +2990,7 @@ export type Database = {
           convidados?: Json | null
           created_at?: string
           descricao?: string | null
+          duracao_minutos?: number | null
           host_id: string
           id?: string
           livekit_room_name: string
@@ -2968,6 +3005,7 @@ export type Database = {
           convidados?: Json | null
           created_at?: string
           descricao?: string | null
+          duracao_minutos?: number | null
           host_id?: string
           id?: string
           livekit_room_name?: string

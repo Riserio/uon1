@@ -44,6 +44,7 @@ export default function CriarReuniaoDialog({ open, onOpenChange, onCreated }: Pr
     descricao: "",
     tipo: "privada",
     agendado_para: "",
+    duracao_minutos: "60",
   });
   const [convidados, setConvidados] = useState<Convidado[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -147,6 +148,7 @@ export default function CriarReuniaoDialog({ open, onOpenChange, onCreated }: Pr
           body: JSON.stringify({
             ...form,
             agendado_para: form.agendado_para || null,
+            duracao_minutos: parseInt(form.duracao_minutos) || 60,
             convidados,
           }),
         }
@@ -197,7 +199,7 @@ export default function CriarReuniaoDialog({ open, onOpenChange, onCreated }: Pr
   };
 
   const resetForm = () => {
-    setForm({ nome: "", descricao: "", tipo: "privada", agendado_para: "" });
+    setForm({ nome: "", descricao: "", tipo: "privada", agendado_para: "", duracao_minutos: "60" });
     setConvidados([]);
     setSearchTerm("");
     setShowAddNew(false);
@@ -232,6 +234,21 @@ export default function CriarReuniaoDialog({ open, onOpenChange, onCreated }: Pr
                 value={form.agendado_para}
                 onChange={(e) => setForm((p) => ({ ...p, agendado_para: e.target.value }))}
               />
+            </div>
+            <div>
+              <Label>Duração</Label>
+              <Select value={form.duracao_minutos} onValueChange={(v) => setForm((p) => ({ ...p, duracao_minutos: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15 min</SelectItem>
+                  <SelectItem value="30">30 min</SelectItem>
+                  <SelectItem value="45">45 min</SelectItem>
+                  <SelectItem value="60">1 hora</SelectItem>
+                  <SelectItem value="90">1h30</SelectItem>
+                  <SelectItem value="120">2 horas</SelectItem>
+                  <SelectItem value="180">3 horas</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Tipo</Label>

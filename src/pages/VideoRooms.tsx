@@ -7,10 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/responsive-dialog";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Video, Plus, Copy, Trash2, Calendar, Users, Clock, Link2, MessageSquare } from "lucide-react";
+import { Video, Plus, Copy, Trash2, Calendar, Users, Clock, Link2, MessageSquare, Pencil } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import CriarReuniaoDialog from "@/components/CriarReuniaoDialog";
+import EditarReuniaoDialog from "@/components/EditarReuniaoDialog";
 
 interface MeetingRoom {
   id: string;
@@ -36,6 +37,7 @@ export default function VideoRooms() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState("");
+  const [editRoom, setEditRoom] = useState<MeetingRoom | null>(null);
 
   useEffect(() => {
     if (user) fetchRooms();
@@ -63,7 +65,7 @@ export default function VideoRooms() {
   };
 
 
-  const handleDelete = async (roomId: string) => {
+  const handleEndRoom = async (roomId: string) => {
     if (!confirm("Encerrar esta sala?")) return;
     try {
       const res = await fetch(
@@ -80,6 +82,29 @@ export default function VideoRooms() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       toast.success("Sala encerrada");
+      fetchRooms();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const handleDeleteRoom = async (roomId: string) => {
+    if (!confirm("Apagar permanentemente esta reunião do histórico?")) return;
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=deleteRoom`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ roomId }),
+        }
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast.success("Reunião apagada");
       fetchRooms();
     } catch (e: any) {
       toast.error(e.message);
@@ -249,11 +274,16 @@ export default function VideoRooms() {
                         <Button size="sm" onClick={() => navigate(`/video/${room.id}`)} className="gap-1.5">
                           <Video className="h-3.5 w-3.5" /> Entrar
                         </Button>
+                        {room.host_id === user?.id && (
+                          <Button size="sm" variant="outline" onClick={() => setEditRoom(room)} title="Editar">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         <Button size="sm" variant="outline" onClick={() => handleCreateInvite(room.id)} title="Gerar convite">
                           <Link2 className="h-3.5 w-3.5" />
                         </Button>
                         {room.host_id === user?.id && (
-                          <Button size="sm" variant="ghost" onClick={() => handleDelete(room.id)} className="text-destructive hover:text-destructive">
+                          <Button size="sm" variant="ghost" onClick={() => handleEndRoom(room.id)} className="text-destructive hover:text-destructive">
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         )}
@@ -286,6 +316,11 @@ export default function VideoRooms() {
                           {new Date(room.created_at).toLocaleDateString("pt-BR")}
                         </p>
                       </div>
+                      {room.host_id === user?.id && (
+                        <Button size="sm" variant="ghost" onClick={() => handleDeleteRoom(room.id)} className="text-destructive hover:text-destructive" title="Apagar do histórico">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -297,6 +332,11 @@ export default function VideoRooms() {
 
       {/* Create Room Dialog */}
       <CriarReuniaoDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={fetchRooms} />
+
+      {/* Edit Room Dialog */}
+      {editRoom && (
+        <EditarReuniaoDialog room={editRoom} open={!!editRoom} onOpenChange={(v) => !v && setEditRoom(null)} onUpdated={fetchRooms} />
+      )}
 
       {/* Invite Link Dialog */}
       <ResponsiveDialog open={inviteOpen} onOpenChange={setInviteOpen}>
