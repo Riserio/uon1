@@ -11,6 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Pencil, Search, X, Plus, UserPlus, Loader2 } from "lucide-react";
 
+// Convert UTC ISO string to local datetime-local input value (YYYY-MM-DDTHH:mm)
+function formatDateTimeLocal(isoString: string): string {
+  const d = new Date(isoString);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 interface Contato {
   id: string;
   nome: string;
@@ -49,7 +56,7 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
     nome: room.nome,
     descricao: room.descricao || "",
     tipo: room.tipo,
-    agendado_para: room.agendado_para ? new Date(room.agendado_para).toISOString().slice(0, 16) : "",
+    agendado_para: room.agendado_para ? formatDateTimeLocal(room.agendado_para) : "",
     duracao_minutos: "60",
   });
   const [convidados, setConvidados] = useState<Convidado[]>((room.convidados as Convidado[]) || []);
@@ -65,7 +72,7 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
       nome: room.nome,
       descricao: room.descricao || "",
       tipo: room.tipo,
-      agendado_para: room.agendado_para ? new Date(room.agendado_para).toISOString().slice(0, 16) : "",
+      agendado_para: room.agendado_para ? formatDateTimeLocal(room.agendado_para) : "",
       duracao_minutos: "60",
     });
     setConvidados((room.convidados as Convidado[]) || []);
@@ -137,7 +144,7 @@ export default function EditarReuniaoDialog({ room, open, onOpenChange, onUpdate
             nome: form.nome,
             descricao: form.descricao || null,
             tipo: form.tipo,
-            agendado_para: form.agendado_para || null,
+            agendado_para: form.agendado_para ? new Date(form.agendado_para).toISOString() : null,
             duracao_minutos: parseInt(form.duracao_minutos) || 60,
             convidados,
           }),

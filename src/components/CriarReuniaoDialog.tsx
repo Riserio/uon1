@@ -147,7 +147,7 @@ export default function CriarReuniaoDialog({ open, onOpenChange, onCreated }: Pr
           },
           body: JSON.stringify({
             ...form,
-            agendado_para: form.agendado_para || null,
+            agendado_para: form.agendado_para ? new Date(form.agendado_para).toISOString() : null,
             duracao_minutos: parseInt(form.duracao_minutos) || 60,
             convidados,
           }),
