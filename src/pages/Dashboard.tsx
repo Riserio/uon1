@@ -609,7 +609,7 @@ export default function Dashboard() {
               <div className="text-center py-8">
                   <Video className="h-9 w-9 text-muted-foreground/30 mx-auto mb-3" />
                   <p className="text-sm text-muted-foreground">Nenhuma reunião agendada</p>
-                  <Link to="/talk"><Button size="sm" variant="outline" className="h-8 text-sm px-4 mt-3"><Plus className="h-4 w-4 mr-1" />Criar</Button></Link>
+                  <Link to="/video"><Button size="sm" variant="outline" className="h-8 text-sm px-4 mt-3"><Plus className="h-4 w-4 mr-1" />Criar</Button></Link>
                 </div> :
 
               <div className="space-y-2.5 max-h-[200px] overflow-y-auto scrollbar-hide">
@@ -624,7 +624,7 @@ export default function Dashboard() {
                       </a>
                     </div>
                 )}
-                  <Link to="/talk" className="block">
+                  <Link to="/video" className="block">
                     <Button size="sm" variant="ghost" className="w-full h-8 text-sm"><Plus className="h-4 w-4 mr-1" />Criar reunião</Button>
                   </Link>
                 </div>

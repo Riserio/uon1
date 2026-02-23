@@ -289,7 +289,7 @@ export function AppSidebar() {
                 {/* UON1 Talk */}
                 {canView("talka") && <SidebarMenuItem>
                     <SidebarMenuButton asChild>
-                      <NavLink to="/talk" activeClassName="bg-primary text-primary-foreground">
+                      <NavLink to="/video" activeClassName="bg-primary text-primary-foreground">
                         <Video className="h-4 w-4" />
                         {!collapsed && <span>Uon1 Talk</span>}
                       </NavLink>
