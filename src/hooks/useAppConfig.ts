@@ -40,6 +40,8 @@ export function useAppConfig() {
   useEffect(() => {
     if (user) {
       loadConfig();
+    } else {
+      setLoading(false);
     }
   }, [user]);
 
@@ -59,17 +61,17 @@ export function useAppConfig() {
       }
 
       if (data) {
+        const mergedColors = { ...defaultColors, ...(data.colors as any) };
         setConfig({
           id: data.id,
           user_id: data.user_id,
           logo_url: data.logo_url || undefined,
           login_image_url: data.login_image_url || undefined,
-          colors: { ...defaultColors, ...(data.colors as any) },
+          colors: mergedColors,
         });
-        applyColors(data.colors as any);
-      } else {
-        applyColors(defaultColors);
+        applyColors(mergedColors);
       }
+      // Don't apply default colors — keep CSS index.css defaults intact
     } catch (error) {
       console.error('Error in loadConfig:', error);
     } finally {

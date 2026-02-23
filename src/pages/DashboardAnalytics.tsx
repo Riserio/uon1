@@ -67,8 +67,13 @@ export default function DashboardAnalytics() {
   }, [selectedPeriod, customStartDate, customEndDate]);
   const loadData = async () => {
     setLoading(true);
-    await Promise.all([loadAtendimentos(), loadStatusConfigs()]);
-    setLoading(false);
+    try {
+      await Promise.all([loadAtendimentos(), loadStatusConfigs()]);
+    } catch (e) {
+      console.error("[DashboardAnalytics] loadData error:", e);
+    } finally {
+      setLoading(false);
+    }
   };
   const loadAtendimentos = async () => {
     try {
