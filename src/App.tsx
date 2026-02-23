@@ -68,7 +68,9 @@ const Uon1Sign = lazy(() => import("./pages/Uon1Sign"));
 const ContratoAssinatura = lazy(() => import("./pages/ContratoAssinatura"));
 const CentralAtendimento = lazy(() => import("./pages/CentralAtendimento"));
 const WhatsAppFlows = lazy(() => import("./pages/WhatsAppFlows"));
-const Talk = lazy(() => import("./pages/Talka"));
+const VideoRooms = lazy(() => import("./pages/VideoRooms"));
+const MeetingRoom = lazy(() => import("./pages/MeetingRoom"));
+const InviteEntry = lazy(() => import("./pages/InviteEntry"));
 const PortalGestaoAssociacao = lazy(() => import("./pages/portal/PortalGestaoAssociacao"));
 const PortalLayout = lazy(() => import("./components/portal/PortalLayout"));
 const PortalAcompanhamentoEventos = lazy(() => import("./pages/portal/PortalAcompanhamentoEventos"));
@@ -250,7 +252,10 @@ const App = () => (
               </Route>
               <Route path="/gestao" element={<ProtectedRoute><Gestao /></ProtectedRoute>} />
               <Route path="/uon1sign" element={<ProtectedRoute><Uon1Sign /></ProtectedRoute>} />
-              <Route path="/talk" element={<ProtectedRoute><Talk /></ProtectedRoute>} />
+              <Route path="/talk" element={<Navigate to="/video" replace />} />
+              <Route path="/video" element={<ProtectedRoute><VideoRooms /></ProtectedRoute>} />
+              <Route path="/video/:roomId" element={<ProtectedRoute><MeetingRoom /></ProtectedRoute>} />
+              <Route path="/invite/:inviteId" element={<InviteEntry />} />
               <Route path="/portal" element={<PortalRoute><PortalLayout /></PortalRoute>}>
                 <Route index element={<Portal />} />
                 <Route path="sga-insights" element={<SGAInsights />} />
