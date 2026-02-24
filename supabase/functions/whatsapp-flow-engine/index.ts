@@ -835,11 +835,22 @@ async function triggerReportGeneration(
     });
 
     if (!reportResp.ok) {
-      console.error('[flow-engine] Report generation failed');
+      console.error(`[flow-engine] Report generation failed: ${reportResp.status}`);
       await sendWhatsAppMessage(supabase, contactId, phone, '⚠️ Não foi possível gerar o relatório no momento. Tente novamente mais tarde.', token, phoneNumberId);
+      return;
+    }
+
+    const reportData = await reportResp.json();
+    if (reportData.success && reportData.resumo) {
+      console.log(`[flow-engine] Report generated successfully, sending to ${phone}`);
+      await sendWhatsAppMessage(supabase, contactId, phone, reportData.resumo, token, phoneNumberId);
+    } else {
+      console.error(`[flow-engine] Report returned error: ${reportData.error || 'unknown'}`);
+      await sendWhatsAppMessage(supabase, contactId, phone, `⚠️ Erro ao gerar relatório: ${reportData.error || 'Tente novamente mais tarde.'}`, token, phoneNumberId);
     }
   } catch (err) {
     console.error('[flow-engine] Report error:', err);
+    await sendWhatsAppMessage(supabase, contactId, phone, '⚠️ Erro inesperado ao gerar relatório. Tente novamente mais tarde.', token, phoneNumberId);
   }
 }
 
