@@ -4,18 +4,20 @@ import { toast } from 'sonner';
 
 export function useWhatsAppUnread() {
   const [unreadCount, setUnreadCount] = useState(0);
-  const prevCountRef = useRef(0);
+  const prevCountRef = useRef(-1); // -1 = not loaded yet
+  const initialLoadDoneRef = useRef(false);
 
   useEffect(() => {
     const loadUnread = async () => {
       const { data } = await supabase
         .from('whatsapp_contacts')
-        .select('unread_count');
+        .select('unread_count')
+        .gt('unread_count', 0);
       if (data) {
-        const total = data.reduce((sum, c) => sum + ((c as any).unread_count || 0), 0);
+        const total = data.reduce((sum, c) => sum + (Number((c as any).unread_count) || 0), 0);
         
-        // Show toast if count increased (new message arrived)
-        if (total > prevCountRef.current && prevCountRef.current >= 0) {
+        // Show toast only if count increased AND initial load is done
+        if (initialLoadDoneRef.current && total > prevCountRef.current && prevCountRef.current >= 0) {
           toast.info('📩 Nova mensagem no WhatsApp', {
             description: 'Você recebeu uma nova mensagem na Central de Atendimento',
             duration: 5000,
@@ -24,6 +26,8 @@ export function useWhatsAppUnread() {
         
         prevCountRef.current = total;
         setUnreadCount(total);
+      } else {
+        setUnreadCount(0);
       }
     };
 
@@ -31,12 +35,16 @@ export function useWhatsAppUnread() {
     const initialLoad = async () => {
       const { data } = await supabase
         .from('whatsapp_contacts')
-        .select('unread_count');
+        .select('unread_count')
+        .gt('unread_count', 0);
       if (data) {
-        const total = data.reduce((sum, c) => sum + ((c as any).unread_count || 0), 0);
+        const total = data.reduce((sum, c) => sum + (Number((c as any).unread_count) || 0), 0);
         prevCountRef.current = total;
         setUnreadCount(total);
+      } else {
+        setUnreadCount(0);
       }
+      initialLoadDoneRef.current = true;
     };
 
     initialLoad();
