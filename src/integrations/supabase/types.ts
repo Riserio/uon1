@@ -6178,6 +6178,7 @@ export type Database = {
         Row: {
           archived: boolean
           assigned_to: string | null
+          audio_blocked: boolean
           avatar_url: string | null
           corretora_id: string | null
           created_at: string
@@ -6198,6 +6199,7 @@ export type Database = {
         Insert: {
           archived?: boolean
           assigned_to?: string | null
+          audio_blocked?: boolean
           avatar_url?: string | null
           corretora_id?: string | null
           created_at?: string
@@ -6218,6 +6220,7 @@ export type Database = {
         Update: {
           archived?: boolean
           assigned_to?: string | null
+          audio_blocked?: boolean
           avatar_url?: string | null
           corretora_id?: string | null
           created_at?: string

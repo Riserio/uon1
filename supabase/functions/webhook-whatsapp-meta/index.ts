@@ -70,11 +70,29 @@ serve(async (req) => {
           } else if (msg.interactive?.type === 'list_reply') {
             msgBody = msg.interactive.list_reply?.title || '';
           }
-        } else if (['image', 'audio', 'video', 'document'].includes(msg.type)) {
+        } else if (['image', 'audio', 'video', 'document', 'sticker'].includes(msg.type)) {
           msgType = msg.type;
           msgBody = msg[msg.type]?.caption || `[${msg.type}]`;
-          mediaUrl = msg[msg.type]?.id || null; // media ID - would need download
+          const mediaId = msg[msg.type]?.id || null;
           mediaMime = msg[msg.type]?.mime_type || null;
+
+          // Download media URL from Meta API
+          if (mediaId) {
+            try {
+              const whatsappToken = Deno.env.get('META_WHATSAPP_TOKEN');
+              if (whatsappToken) {
+                const mediaRes = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
+                  headers: { 'Authorization': `Bearer ${whatsappToken}` },
+                });
+                const mediaData = await mediaRes.json();
+                if (mediaData.url) {
+                  mediaUrl = mediaData.url;
+                }
+              }
+            } catch (mediaErr) {
+              console.error('[webhook] Erro ao obter URL da mídia:', mediaErr);
+            }
+          }
         } else if (msg.type === 'reaction') {
           msgType = 'reaction';
           msgBody = msg.reaction?.emoji || '';
@@ -110,7 +128,7 @@ serve(async (req) => {
             },
             { onConflict: 'phone' }
           )
-          .select('id, human_mode, unread_count')
+          .select('id, human_mode, unread_count, audio_blocked')
           .single();
 
         if (contactError || !contact) {
@@ -147,6 +165,41 @@ serve(async (req) => {
         if (msgError) {
           console.error('[webhook] Erro ao inserir msg:', msgError);
           continue;
+        }
+
+        // ---- AUTO-REPLY IF AUDIO IS BLOCKED ----
+        if (msgType === 'audio' && contact.audio_blocked) {
+          try {
+            const whatsappToken = Deno.env.get('META_WHATSAPP_TOKEN');
+            const phoneNumberId = Deno.env.get('META_WHATSAPP_PHONE_NUMBER_ID');
+            if (whatsappToken && phoneNumberId) {
+              const replyBody = '⚠️ Este número não está habilitado para receber mensagens de áudio. Por favor, envie sua mensagem por texto.';
+              await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${whatsappToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  messaging_product: 'whatsapp',
+                  to: from,
+                  type: 'text',
+                  text: { body: replyBody },
+                }),
+              });
+              await supabase.from('whatsapp_messages').insert({
+                contact_id: contact.id,
+                direction: 'out',
+                body: replyBody,
+                type: 'text',
+                status: 'sent',
+                sent_by: 'system',
+              });
+              console.log(`[webhook] Auto-reply: áudio bloqueado para ${from}`);
+            }
+          } catch (audioErr) {
+            console.error('[webhook] Erro ao responder bloqueio de áudio:', audioErr);
+          }
         }
 
         // ---- NOTIFY EXTERNAL NUMBER (global, not per-corretora) ----
