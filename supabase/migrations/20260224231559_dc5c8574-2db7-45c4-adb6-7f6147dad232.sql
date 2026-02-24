@@ -1,0 +1,1 @@
+UPDATE email_config SET smtp_host = 'smtp.vangardgestora.com.br' WHERE smtp_host = 'mail.vangardgestora.com.br';
