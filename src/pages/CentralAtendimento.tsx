@@ -116,12 +116,19 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
     if (!selectedContact) return;
     loadMessages(selectedContact.id);
 
-    // Mark as read
-    supabase
-      .from('whatsapp_contacts')
-      .update({ unread_count: 0 })
-      .eq('id', selectedContact.id)
-      .then();
+    // Mark as read and immediately update local state
+    if (selectedContact.unread_count > 0) {
+      supabase
+        .from('whatsapp_contacts')
+        .update({ unread_count: 0 })
+        .eq('id', selectedContact.id)
+        .then(() => {
+          // Update local contacts list immediately
+          setContacts(prev => prev.map(c => 
+            c.id === selectedContact.id ? { ...c, unread_count: 0 } : c
+          ));
+        });
+    }
 
     // Realtime messages — incremental updates to avoid flickering
     const msgChannel = supabase
