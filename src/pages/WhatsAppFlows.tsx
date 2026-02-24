@@ -738,7 +738,7 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
 
         {/* Step Dialog */}
         <Dialog open={showStepDialog} onOpenChange={setShowStepDialog}>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 {editingStep ? <Edit className="h-5 w-5 text-primary" /> : <Plus className="h-5 w-5 text-primary" />}
@@ -746,6 +746,7 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
               </DialogTitle>
               <DialogDescription>Configure o tipo e conteúdo do passo</DialogDescription>
             </DialogHeader>
+            <ScrollArea className="flex-1 max-h-[60vh] pr-4">
             <div className="space-y-5 pt-2">
               {/* Step type selection with cards */}
               <div className="space-y-2">
@@ -993,7 +994,8 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                 </div>
               )}
             </div>
-            <DialogFooter className="pt-4">
+            </ScrollArea>
+            <DialogFooter className="pt-4 shrink-0">
               <Button variant="outline" onClick={() => setShowStepDialog(false)}>Cancelar</Button>
               <Button onClick={handleSaveStep} className="gap-2 shadow-sm"><Save className="h-4 w-4" /> Salvar Passo</Button>
             </DialogFooter>
