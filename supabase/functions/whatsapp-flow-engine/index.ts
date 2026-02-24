@@ -155,6 +155,52 @@ async function processFlowStep(
 ) {
   const flowId = state.flow_id;
 
+  // Handle virtual step: corretora selection for multi-association reports
+  if (state.current_step_key === '__select_corretora_report') {
+    const corretoras = JSON.parse(state.variables?._pending_report_corretoras || '[]');
+    const reportType = state.variables?._pending_report_type || 'cobranca';
+    const nextStepKey = state.variables?._pending_report_step_next || null;
+    const trimmed = messageBody.trim();
+    const optionIndex = parseInt(trimmed, 10) - 1;
+
+    if (isNaN(optionIndex) || optionIndex < 0 || optionIndex >= corretoras.length) {
+      let retryMsg = '❌ Opção inválida. Digite o número da associação:\n';
+      corretoras.forEach((c: any, i: number) => { retryMsg += `\n${i + 1}. ${c.nome}`; });
+      await sendWhatsAppMessage(supabase, contactId, phone, retryMsg, token, phoneNumberId);
+      return;
+    }
+
+    const selected = corretoras[optionIndex];
+    console.log(`[flow-engine] User selected corretora: ${selected.nome} (${selected.id})`);
+
+    await sendWhatsAppMessage(supabase, contactId, phone, `📊 Gerando relatório de *${selected.nome}*...`, token, phoneNumberId);
+    await triggerReportGeneration(supabase, reportType, selected.id, phone, contactId, token, phoneNumberId);
+
+    // Clean up variables and advance
+    const cleanVars = { ...(state.variables || {}) };
+    delete cleanVars._pending_report_corretoras;
+    delete cleanVars._pending_report_type;
+    delete cleanVars._pending_report_step_next;
+    cleanVars.corretora_selecionada = selected.nome;
+
+    if (nextStepKey) {
+      const { data: nextStep } = await supabase
+        .from('whatsapp_flow_steps').select('*')
+        .eq('flow_id', flowId).eq('step_key', nextStepKey).single();
+      if (nextStep) {
+        await supabase.from('whatsapp_contact_flow_state')
+          .update({ current_step_key: nextStepKey, variables: cleanVars, last_interaction_at: new Date().toISOString() })
+          .eq('id', state.id);
+        await executeStep(supabase, nextStep, { ...state, variables: cleanVars, current_step_key: nextStepKey }, contactId, phone, token, phoneNumberId);
+      } else {
+        await completeFlow(supabase, state.id);
+      }
+    } else {
+      await completeFlow(supabase, state.id);
+    }
+    return;
+  }
+
   const { data: currentStep } = await supabase
     .from('whatsapp_flow_steps')
     .select('*')
@@ -385,9 +431,8 @@ async function executeStep(
     }
 
     case 'request_report': {
-      // Check if phone is authorized (registered in whatsapp_config destination numbers)
+      // Check if phone is authorized - collect ALL matching associations
       const cleanPhone = phone.replace(/\D/g, '');
-      // Extract last 10 and 11 digits for flexible matching
       const phoneLast11 = cleanPhone.slice(-11);
       const phoneLast10 = cleanPhone.slice(-10);
 
@@ -395,70 +440,72 @@ async function executeStep(
 
       const { data: configs } = await supabase
         .from('whatsapp_config')
-        .select('telefone_whatsapp, corretora_id')
+        .select('telefone_whatsapp, corretora_id, corretoras(nome)')
         .eq('ativo', true);
 
-      let authorized = false;
-      let corretoraId: string | null = null;
+      // Collect all matching corretoras
+      const matchedCorretoras: { id: string; nome: string }[] = [];
 
       if (configs) {
         for (const cfg of configs) {
           const numbers = (cfg.telefone_whatsapp || '').split(',').map((n: string) => n.replace(/\D/g, '').trim());
-          console.log(`[flow-engine] Config numbers: ${JSON.stringify(numbers)}`);
           for (const n of numbers) {
             if (!n) continue;
             const nLast11 = n.slice(-11);
             const nLast10 = n.slice(-10);
-            // Match by last 11 digits (area+number) or last 10 digits (number without 9th digit)
             if (nLast11 === phoneLast11 || nLast10 === phoneLast10 || n === cleanPhone) {
-              authorized = true;
-              corretoraId = cfg.corretora_id;
+              const nome = (cfg as any).corretoras?.nome || 'Associação';
+              // Avoid duplicates
+              if (!matchedCorretoras.find(c => c.id === cfg.corretora_id)) {
+                matchedCorretoras.push({ id: cfg.corretora_id, nome });
+              }
               break;
             }
           }
-          if (authorized) break;
         }
       }
-      console.log(`[flow-engine] Auth result: authorized=${authorized}, corretoraId=${corretoraId}`);
+      console.log(`[flow-engine] Auth result: matched=${matchedCorretoras.length} corretoras`);
 
-      if (!authorized) {
+      if (matchedCorretoras.length === 0) {
         const denyMsg = replaceVariables(step.config?.deny_message || '⚠️ Você não tem permissão para solicitar relatórios. Entre em contato com sua associação para liberação.', state.variables || {});
         await sendWhatsAppMessage(supabase, contactId, phone, denyMsg, token, phoneNumberId);
         await completeFlow(supabase, state.id);
         return;
       }
 
-      // Send confirmation
-      const confirmMsg = replaceVariables(step.config?.message || '📊 Gerando relatório...', state.variables || {});
-      await sendWhatsAppMessage(supabase, contactId, phone, confirmMsg, token, phoneNumberId);
-
-      // Trigger report generation
       const reportType = step.config?.report_type || 'cobranca';
-      try {
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-        let fnName = '';
-        if (reportType === 'cobranca') fnName = 'gerar-resumo-cobranca';
-        else if (reportType === 'eventos') fnName = 'gerar-resumo-eventos';
-        else fnName = 'gerar-resumo-cobranca';
-
-        const reportResp = await fetch(`${supabaseUrl}/functions/v1/${fnName}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': serviceKey,
-            'Authorization': `Bearer ${serviceKey}`,
-          },
-          body: JSON.stringify({ corretora_id: corretoraId, phone, contact_id: contactId }),
+      if (matchedCorretoras.length === 1) {
+        // Single association - generate directly
+        const corretoraId = matchedCorretoras[0].id;
+        const confirmMsg = replaceVariables(step.config?.message || '📊 Gerando relatório...', state.variables || {});
+        await sendWhatsAppMessage(supabase, contactId, phone, confirmMsg, token, phoneNumberId);
+        await triggerReportGeneration(supabase, reportType, corretoraId, phone, contactId, token, phoneNumberId);
+      } else {
+        // Multiple associations - present selection menu
+        let menuMsg = '📋 Você está vinculado a múltiplas associações. Qual deseja o relatório?\n';
+        matchedCorretoras.forEach((c, i) => {
+          menuMsg += `\n${i + 1}. ${c.nome}`;
         });
+        menuMsg += '\n\nDigite o número da opção desejada.';
 
-        if (!reportResp.ok) {
-          console.error('[flow-engine] Report generation failed');
-          await sendWhatsAppMessage(supabase, contactId, phone, '⚠️ Não foi possível gerar o relatório no momento. Tente novamente mais tarde.', token, phoneNumberId);
-        }
-      } catch (err) {
-        console.error('[flow-engine] Report error:', err);
+        // Save matched corretoras and report type in state variables for selection handling
+        const vars = {
+          ...(state.variables || {}),
+          _pending_report_corretoras: JSON.stringify(matchedCorretoras),
+          _pending_report_type: reportType,
+          _pending_report_step_next: step.next_step_key || '',
+        };
+        await supabase.from('whatsapp_contact_flow_state')
+          .update({
+            variables: vars,
+            current_step_key: '__select_corretora_report',
+            last_interaction_at: new Date().toISOString(),
+          })
+          .eq('id', state.id);
+
+        await sendWhatsAppMessage(supabase, contactId, phone, menuMsg, token, phoneNumberId);
+        return; // Wait for user response
       }
 
       if (step.next_step_key) {
@@ -577,6 +624,38 @@ async function executeStep(
       }
       break;
     }
+  }
+}
+
+async function triggerReportGeneration(
+  supabase: any, reportType: string, corretoraId: string,
+  phone: string, contactId: string, token: string, phoneNumberId: string
+) {
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    let fnName = '';
+    if (reportType === 'cobranca') fnName = 'gerar-resumo-cobranca';
+    else if (reportType === 'eventos') fnName = 'gerar-resumo-eventos';
+    else fnName = 'gerar-resumo-cobranca';
+
+    const reportResp = await fetch(`${supabaseUrl}/functions/v1/${fnName}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ corretora_id: corretoraId, phone, contact_id: contactId }),
+    });
+
+    if (!reportResp.ok) {
+      console.error('[flow-engine] Report generation failed');
+      await sendWhatsAppMessage(supabase, contactId, phone, '⚠️ Não foi possível gerar o relatório no momento. Tente novamente mais tarde.', token, phoneNumberId);
+    }
+  } catch (err) {
+    console.error('[flow-engine] Report error:', err);
   }
 }
 
