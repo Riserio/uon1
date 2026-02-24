@@ -13,7 +13,7 @@ import { ptBR } from 'date-fns/locale';
 import {
   Search, Send, Check, CheckCheck, Clock, XCircle, User, Bot,
   UserCheck, MessageCircle, Phone, MoreVertical, RefreshCw, Plus, Archive, ArchiveRestore,
-  MicOff, Mic, Image, FileAudio, FileVideo, File
+  MicOff, Mic, Image, FileAudio, FileVideo, File, Timer
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator
@@ -73,6 +73,7 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
   const [contatosSearch, setContatosSearch] = useState('');
   const [startingConversation, setStartingConversation] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [, setTick] = useState(0);
 
   // Load contacts (only those with messages)
   const loadContacts = useCallback(async () => {
@@ -401,6 +402,28 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
     return name.substring(0, 2).toUpperCase();
   };
 
+  // 24h window countdown
+  const get24hWindowInfo = (contact: Contact) => {
+    if (!contact.last_message_at) return null;
+    // Find last INCOMING message time from messages
+    const lastIncoming = [...messages].reverse().find(m => m.direction === 'in');
+    if (!lastIncoming) return null;
+    const lastInTime = new Date(lastIncoming.created_at).getTime();
+    const now = Date.now();
+    const windowEnd = lastInTime + 24 * 60 * 60 * 1000;
+    const remaining = windowEnd - now;
+    if (remaining <= 0) return { expired: true, text: 'Janela expirada', hours: 0, minutes: 0 };
+    const hours = Math.floor(remaining / (1000 * 60 * 60));
+    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+    return { expired: false, text: `${hours}h ${minutes}m`, hours, minutes };
+  };
+
+  // Refresh 24h counter every minute
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <div className="flex h-[calc(100vh-2rem)] m-4 rounded-xl border bg-card overflow-hidden shadow-lg">
       {/* LEFT: Contact list */}
@@ -607,6 +630,26 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                         <UserCheck className="h-2.5 w-2.5 mr-0.5" /> Humano
                       </Badge>
                     )}
+                    {(() => {
+                      const windowInfo = get24hWindowInfo(selectedContact);
+                      if (!windowInfo) return null;
+                      return (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "ml-2 text-[10px] py-0 h-4 gap-0.5",
+                            windowInfo.expired
+                              ? "border-destructive/50 text-destructive"
+                              : windowInfo.hours < 2
+                                ? "border-amber-400 text-amber-600"
+                                : "border-emerald-400 text-emerald-600"
+                          )}
+                        >
+                          <Timer className="h-2.5 w-2.5" />
+                          {windowInfo.text}
+                        </Badge>
+                      );
+                    })()}
                   </p>
                 </div>
               </div>
