@@ -1,0 +1,1 @@
+UPDATE email_config SET smtp_port = 465 WHERE smtp_port = 587;

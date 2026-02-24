@@ -14,35 +14,17 @@ interface EmailRequest {
   contatoId?: string;
 }
 
-async function sendViaResend(apiKey: string, from: string, to: string, subject: string, html: string): Promise<{ success: boolean; error?: string }> {
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ from, to, subject, html }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    return { success: false, error: errorData?.message || `Resend HTTP ${response.status}` };
-  }
-
-  return { success: true };
-}
-
 async function sendViaSmtp(config: any, to: string, subject: string, message: string, html: string): Promise<{ success: boolean; error?: string }> {
   try {
-    // Dynamic import to avoid crashing the runtime if denomailer fails to load
     const { SMTPClient } = await import("https://deno.land/x/denomailer@1.6.0/mod.ts");
     
-    const useImplicitTls = config.smtp_port === 465;
+    // Force port 465 with implicit TLS to avoid STARTTLS crashes
+    const port = config.smtp_port === 587 ? 465 : config.smtp_port;
     const client = new SMTPClient({
       connection: {
         hostname: config.smtp_host,
-        port: config.smtp_port,
-        tls: useImplicitTls,
+        port: port,
+        tls: true, // Always use implicit TLS
         auth: {
           username: config.smtp_user,
           password: config.smtp_password,
@@ -101,61 +83,35 @@ const handler = async (req: Request): Promise<Response> => {
     const { to, subject, message }: EmailRequest = await req.json();
     const emailHtml = message.replace(/\n/g, '<br>');
 
-    // Get configs
+    // Get SMTP config
     const { data: smtpConfig } = await supabase
       .from('email_config')
       .select('*')
       .eq('user_id', user.id)
       .single();
 
-    const { data: resendConfig } = await supabase
-      .from('resend_config')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+    if (!smtpConfig) {
+      return new Response(JSON.stringify({ error: 'Configuração SMTP não encontrada. Configure seu servidor SMTP nas configurações.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
     const results = [];
 
     for (const recipient of to) {
-      let emailSent = false;
+      console.log(`Sending via SMTP to ${recipient} (${smtpConfig.smtp_host}:465 TLS)...`);
+      const result = await sendViaSmtp(smtpConfig, recipient, subject, message, emailHtml);
+
       let method = '';
       let errorMessage = '';
 
-      // Try Resend first (more reliable in edge functions)
-      if (resendApiKey) {
-        const fromEmail = resendConfig
-          ? `${resendConfig.from_name} <${resendConfig.from_email}>`
-          : smtpConfig
-            ? `${smtpConfig.from_name} <onboarding@resend.dev>`
-            : 'Atendimentos <onboarding@resend.dev>';
-
-        console.log(`Trying Resend for ${recipient}...`);
-        const result = await sendViaResend(resendApiKey, fromEmail, recipient, subject, emailHtml);
-        
-        if (result.success) {
-          emailSent = true;
-          method = 'Resend';
-          console.log(`Email sent via Resend to ${recipient}`);
-        } else {
-          errorMessage = `Resend: ${result.error}`;
-          console.error(`Resend failed: ${result.error}`);
-        }
-      }
-
-      // Fallback to SMTP
-      if (!emailSent && smtpConfig) {
-        console.log(`Trying SMTP for ${recipient} (${smtpConfig.smtp_host}:${smtpConfig.smtp_port})...`);
-        const result = await sendViaSmtp(smtpConfig, recipient, subject, message, emailHtml);
-        
-        if (result.success) {
-          emailSent = true;
-          method = 'SMTP';
-          console.log(`Email sent via SMTP to ${recipient}`);
-        } else {
-          errorMessage = errorMessage ? `${errorMessage}; SMTP: ${result.error}` : `SMTP: ${result.error}`;
-          console.error(`SMTP failed: ${result.error}`);
-        }
+      if (result.success) {
+        method = 'SMTP';
+        console.log(`Email sent via SMTP to ${recipient}`);
+      } else {
+        errorMessage = `SMTP: ${result.error}`;
+        console.error(`SMTP failed for ${recipient}: ${result.error}`);
       }
 
       // Log to history
@@ -164,16 +120,16 @@ const handler = async (req: Request): Promise<Response> => {
         assunto: subject,
         corpo: `[${method || 'FALHA'}] ${message}`,
         enviado_por: user.id,
-        status: emailSent ? 'enviado' : 'erro',
-        erro_mensagem: emailSent ? null : errorMessage,
+        status: result.success ? 'enviado' : 'erro',
+        erro_mensagem: result.success ? null : errorMessage,
         atendimento_id: '00000000-0000-0000-0000-000000000000',
       });
 
       results.push({
         email: recipient,
-        status: emailSent ? 'enviado' : 'erro',
+        status: result.success ? 'enviado' : 'erro',
         method: method || 'nenhum',
-        error: emailSent ? undefined : errorMessage,
+        error: result.success ? undefined : errorMessage,
       });
     }
 
