@@ -352,7 +352,7 @@ async function executeStep(
       const reportType = step.config?.report_type || 'cobranca';
       try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
         let fnName = '';
         if (reportType === 'cobranca') fnName = 'gerar-resumo-cobranca';
@@ -363,10 +363,10 @@ async function executeStep(
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': anonKey,
-            'Authorization': `Bearer ${anonKey}`,
+            'apikey': serviceKey,
+            'Authorization': `Bearer ${serviceKey}`,
           },
-          body: JSON.stringify({ corretora_id: corretoraId }),
+          body: JSON.stringify({ corretora_id: corretoraId, phone, contact_id: contactId }),
         });
 
         if (!reportResp.ok) {
