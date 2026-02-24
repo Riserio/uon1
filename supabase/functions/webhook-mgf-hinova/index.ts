@@ -629,141 +629,79 @@ serve(async (req) => {
         if (waConfig?.envio_automatico_mgf) {
           console.log("[Webhook MGF] Envio automático de WhatsApp ativado, disparando...");
           
-          // Buscar nome da associação/corretora
-          const { data: corretoraData } = await supabase
-            .from("corretoras")
-            .select("nome")
-            .eq("id", corretora_id)
-            .single();
-          const nomeAssociacao = corretoraData?.nome || "Associação";
-
-          // Buscar template do banco de dados
-          const { data: templateData } = await supabase
-            .from("whatsapp_templates")
-            .select("mensagem")
-            .eq("tipo", "mgf")
-            .eq("ativo", true)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          // Calcular dados do resumo MGF a partir dos registros importados
-          const now = new Date();
-          const mesRef = now.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-          const totalLancamentos = records.length;
-          
-          // Somar valores
-          let valorTotal = 0;
-          const categoriaContagem: Record<string, number> = {};
-          for (const rec of records) {
-            const val = typeof rec.valor === "number" ? rec.valor : (typeof rec.valor_total_lancamento === "number" ? rec.valor_total_lancamento : 0);
-            valorTotal += val;
-            const cat = (rec.centro_custo as string) || (rec.operacao as string) || "Outros";
-            categoriaContagem[cat] = (categoriaContagem[cat] || 0) + 1;
-          }
-
-          // Formatar lançamentos por categoria
-          const lancamentosPorCategoria = Object.entries(categoriaContagem)
-            .sort((a, b) => b[1] - a[1])
-            .map(([cat, qtd]) => `• ${cat}: *${qtd}*`)
-            .join("\n");
-
-          const valorTotalFormatado = valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-          let messageContent: string;
-          
-          if (templateData?.mensagem) {
-            // Usar template do banco substituindo as tags
-            messageContent = templateData.mensagem
-              .replace(/\{nome_associacao\}/g, nomeAssociacao)
-              .replace(/\{mes_referencia\}/g, mesRef)
-              .replace(/\{total_lancamentos\}/g, String(totalLancamentos))
-              .replace(/\{valor_total\}/g, valorTotalFormatado)
-              .replace(/\{lancamentos_por_categoria\}/g, lancamentosPorCategoria)
-              .replace(/\{data_atual\}/g, now.toLocaleDateString("pt-BR"));
-            console.log("[Webhook MGF] Usando template do banco de dados");
-          } else {
-            // Fallback caso não tenha template cadastrado
-            messageContent = `*Resumo VANGARD da sua operação - ${nomeAssociacao}*\n\nO BI de indicadores de resultados da sua associação foi atualizado.\n\nSeguem abaixo informações importantes para sua gestão:\n\n📊 *RESUMO MGF*\n📅 *${mesRef}*\n\n💰 Total lançamentos: *${totalLancamentos}*\n💵 Valor total: *R$ ${valorTotalFormatado}*\n\n📊 *Por categoria:*\n${lancamentosPorCategoria}`;
-            console.log("[Webhook MGF] Nenhum template encontrado, usando fallback");
-          }
-
+          const fluxoId = (waConfig as any).fluxo_mgf_id;
           const phoneNumbers = (waConfig.telefone_whatsapp || "").split(",").map((p: string) => p.trim()).filter(Boolean);
-
           const metaToken = Deno.env.get("META_WHATSAPP_TOKEN");
           const metaPhoneNumberId = Deno.env.get("META_WHATSAPP_PHONE_NUMBER_ID");
 
-          if (metaToken && metaPhoneNumberId && phoneNumbers.length > 0) {
+          if (fluxoId && phoneNumbers.length > 0) {
             for (const phone of phoneNumbers) {
               const cleanPhone = phone.replace(/\D/g, "");
               const formattedPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
-
               try {
-                const metaResponse = await fetch(
-                  `https://graph.facebook.com/v22.0/${metaPhoneNumberId}/messages`,
-                  {
-                    method: "POST",
-                    headers: {
-                      Authorization: `Bearer ${metaToken}`,
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                      messaging_product: "whatsapp",
-                      to: formattedPhone,
-                      type: "text",
-                      text: { preview_url: false, body: messageContent },
-                    }),
-                  }
-                );
+                await supabase.functions.invoke("whatsapp-flow-engine", {
+                  body: { contact_phone: formattedPhone, flow_id: fluxoId, trigger: "auto_import" },
+                });
+                console.log(`[Webhook MGF] Flow disparado para ${formattedPhone}`);
+              } catch (flowErr) {
+                console.error(`[Webhook MGF] Erro ao disparar flow para ${formattedPhone}:`, flowErr);
+              }
+            }
+            await supabase.from("whatsapp_config").update({ ultimo_envio_automatico: new Date().toISOString(), ultimo_erro_envio: null }).eq("id", waConfig.id);
+          } else if (metaToken && metaPhoneNumberId && phoneNumbers.length > 0) {
+            // Legacy fallback: build message from records
+            const { data: corretoraData } = await supabase.from("corretoras").select("nome").eq("id", corretora_id).single();
+            const nomeAssociacao = corretoraData?.nome || "Associação";
+            const { data: templateData } = await supabase.from("whatsapp_templates").select("mensagem").eq("tipo", "mgf").eq("ativo", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
 
+            const now = new Date();
+            const mesRef = now.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+            const totalLancamentos = records.length;
+            let valorTotal = 0;
+            const categoriaContagem: Record<string, number> = {};
+            for (const rec of records) {
+              const val = typeof rec.valor === "number" ? rec.valor : (typeof rec.valor_total_lancamento === "number" ? rec.valor_total_lancamento : 0);
+              valorTotal += val;
+              const cat = (rec.centro_custo as string) || (rec.operacao as string) || "Outros";
+              categoriaContagem[cat] = (categoriaContagem[cat] || 0) + 1;
+            }
+            const lancamentosPorCategoria = Object.entries(categoriaContagem).sort((a, b) => b[1] - a[1]).map(([cat, qtd]) => `• ${cat}: *${qtd}*`).join("\n");
+            const valorTotalFormatado = valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            let messageContent: string;
+            if (templateData?.mensagem) {
+              messageContent = templateData.mensagem
+                .replace(/\{nome_associacao\}/g, nomeAssociacao).replace(/\{mes_referencia\}/g, mesRef)
+                .replace(/\{total_lancamentos\}/g, String(totalLancamentos)).replace(/\{valor_total\}/g, valorTotalFormatado)
+                .replace(/\{lancamentos_por_categoria\}/g, lancamentosPorCategoria).replace(/\{data_atual\}/g, now.toLocaleDateString("pt-BR"));
+            } else {
+              messageContent = `*Resumo VANGARD da sua operação - ${nomeAssociacao}*\n\nO BI de indicadores de resultados da sua associação foi atualizado.\n\n📊 *RESUMO MGF*\n📅 *${mesRef}*\n\n💰 Total lançamentos: *${totalLancamentos}*\n💵 Valor total: *R$ ${valorTotalFormatado}*\n\n📊 *Por categoria:*\n${lancamentosPorCategoria}`;
+            }
+
+            for (const phone of phoneNumbers) {
+              const cleanPhone = phone.replace(/\D/g, "");
+              const formattedPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
+              try {
+                const metaResponse = await fetch(`https://graph.facebook.com/v22.0/${metaPhoneNumberId}/messages`, {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({ messaging_product: "whatsapp", to: formattedPhone, type: "text", text: { preview_url: false, body: messageContent } }),
+                });
                 const metaData = await metaResponse.json();
                 const metaMessageId = metaData?.messages?.[0]?.id || null;
 
-                await supabase.from("whatsapp_historico").insert({
-                  corretora_id,
-                  telefone_destino: formattedPhone,
-                  mensagem: messageContent,
-                  tipo: "mgf",
-                  status: metaResponse.ok ? "enviado" : "erro",
-                  status_entrega: metaResponse.ok ? "enviado" : "erro",
-                  meta_message_id: metaMessageId,
-                  enviado_em: new Date().toISOString(),
-                  enviado_por: null,
-                });
-
-                const { data: waContact } = await supabase
-                  .from("whatsapp_contacts")
-                  .select("id")
-                  .eq("phone", formattedPhone)
-                  .maybeSingle();
-
+                await supabase.from("whatsapp_historico").insert({ corretora_id, telefone_destino: formattedPhone, mensagem: messageContent, tipo: "mgf", status: metaResponse.ok ? "enviado" : "erro", status_entrega: metaResponse.ok ? "enviado" : "erro", meta_message_id: metaMessageId, enviado_em: new Date().toISOString(), enviado_por: null });
+                const { data: waContact } = await supabase.from("whatsapp_contacts").select("id").eq("phone", formattedPhone).maybeSingle();
                 if (waContact) {
-                  await supabase.from("whatsapp_messages").insert({
-                    contact_id: waContact.id,
-                    direction: "out",
-                    body: messageContent,
-                    type: "text",
-                    status: metaResponse.ok ? "sent" : "failed",
-                    meta_message_id: metaMessageId,
-                    sent_by: null,
-                  });
-
-                  await supabase.from("whatsapp_contacts").update({
-                    last_message_at: new Date().toISOString(),
-                    last_message_preview: messageContent.substring(0, 100),
-                  }).eq("id", waContact.id);
+                  await supabase.from("whatsapp_messages").insert({ contact_id: waContact.id, direction: "out", body: messageContent, type: "text", status: metaResponse.ok ? "sent" : "failed", meta_message_id: metaMessageId, sent_by: null });
+                  await supabase.from("whatsapp_contacts").update({ last_message_at: new Date().toISOString(), last_message_preview: messageContent.substring(0, 100) }).eq("id", waContact.id);
                 }
-
                 console.log(`[Webhook MGF] WhatsApp enviado para ${formattedPhone}: ${metaResponse.ok ? "sucesso" : "erro"}`);
               } catch (sendErr) {
                 console.error(`[Webhook MGF] Erro ao enviar WhatsApp para ${formattedPhone}:`, sendErr);
               }
             }
-
-            await supabase.from("whatsapp_config").update({
-              ultimo_envio_automatico: new Date().toISOString(),
-              ultimo_erro_envio: null,
-            }).eq("id", waConfig.id);
+            await supabase.from("whatsapp_config").update({ ultimo_envio_automatico: new Date().toISOString(), ultimo_erro_envio: null }).eq("id", waConfig.id);
           }
         }
       } catch (waError) {

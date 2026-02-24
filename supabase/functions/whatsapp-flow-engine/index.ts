@@ -7,10 +7,14 @@ const corsHeaders = {
 };
 
 interface FlowEngineRequest {
-  contact_id: string;
-  message_body: string;
-  message_type: string;
-  phone: string;
+  contact_id?: string;
+  message_body?: string;
+  message_type?: string;
+  phone?: string;
+  // Auto-import trigger fields
+  contact_phone?: string;
+  flow_id?: string;
+  trigger?: string;
 }
 
 serve(async (req) => {
@@ -26,7 +30,87 @@ serve(async (req) => {
     const metaToken = Deno.env.get('META_WHATSAPP_TOKEN');
     const metaPhoneNumberId = Deno.env.get('META_WHATSAPP_PHONE_NUMBER_ID');
 
-    const { contact_id, message_body, message_type, phone }: FlowEngineRequest = await req.json();
+    const body: FlowEngineRequest = await req.json();
+
+    // ========== AUTO-IMPORT TRIGGER MODE ==========
+    if (body.trigger === 'auto_import' && body.flow_id && body.contact_phone) {
+      console.log(`[flow-engine] Auto-import trigger for flow ${body.flow_id}, phone ${body.contact_phone}`);
+      
+      const cleanPhone = body.contact_phone.replace(/\D/g, '');
+      const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+
+      // Find or create contact
+      let contactId: string;
+      const { data: existingContact } = await supabase
+        .from('whatsapp_contacts')
+        .select('id')
+        .eq('phone', formattedPhone)
+        .maybeSingle();
+
+      if (existingContact) {
+        contactId = existingContact.id;
+      } else {
+        const { data: newContact } = await supabase
+          .from('whatsapp_contacts')
+          .insert({ phone: formattedPhone, name: formattedPhone })
+          .select('id')
+          .single();
+        if (!newContact) {
+          throw new Error('Failed to create contact');
+        }
+        contactId = newContact.id;
+      }
+
+      // Load flow and first step
+      const { data: flow } = await supabase
+        .from('whatsapp_flows')
+        .select('*, whatsapp_flow_steps(*)')
+        .eq('id', body.flow_id)
+        .single();
+
+      if (!flow) {
+        console.error(`[flow-engine] Flow ${body.flow_id} not found`);
+        return new Response(JSON.stringify({ ok: false, error: 'Flow not found' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const steps = flow.whatsapp_flow_steps || [];
+      const firstStep = steps.sort((a: any, b: any) => a.step_order - b.step_order)[0];
+      if (!firstStep) {
+        return new Response(JSON.stringify({ ok: false, error: 'No steps in flow' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Create flow state and execute
+      const { data: newState } = await supabase
+        .from('whatsapp_contact_flow_state')
+        .insert({
+          contact_id: contactId,
+          flow_id: flow.id,
+          current_step_key: firstStep.step_key,
+          status: 'active',
+        })
+        .select()
+        .single();
+
+      if (newState) {
+        await executeStep(supabase, firstStep, newState, contactId, formattedPhone, metaToken!, metaPhoneNumberId!);
+      }
+
+      return new Response(JSON.stringify({ ok: true, mode: 'auto_import' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ========== NORMAL MESSAGE PROCESSING MODE ==========
+    const { contact_id, message_body, phone } = body;
+    if (!contact_id || !message_body || !phone) {
+      return new Response(JSON.stringify({ ok: false, error: 'Missing required fields' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     console.log(`[flow-engine] Processing msg for contact ${contact_id}: "${message_body.substring(0, 50)}"`);
 
     // Check for active flow state
@@ -689,23 +773,34 @@ async function scheduleMessage(
   message: string, scheduleTime: string, flowId: string, stepKey: string
 ): Promise<boolean> {
   try {
-    // Parse schedule_time (HH:MM) - use Sao Paulo timezone
-    const [hours, minutes] = scheduleTime.split(':').map(Number);
-    const now = new Date();
+    // Parse delay format: "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h"
+    // Also support legacy HH:MM format for backwards compatibility
+    let delayMs = 0;
     
-    // Create scheduled datetime for today in SP timezone
-    const scheduled = new Date();
-    // Adjust for Brazil timezone (UTC-3)
-    const spOffset = -3;
-    const utcHours = hours - spOffset;
-    scheduled.setUTCHours(utcHours, minutes, 0, 0);
-    
-    // If time already passed today, schedule for tomorrow
-    if (scheduled <= now) {
-      scheduled.setDate(scheduled.getDate() + 1);
+    if (scheduleTime.includes(':')) {
+      // Legacy HH:MM format - convert to delay from now
+      const [hours, minutes] = scheduleTime.split(':').map(Number);
+      const scheduled = new Date();
+      const spOffset = -3;
+      const utcHours = hours - spOffset;
+      scheduled.setUTCHours(utcHours, minutes, 0, 0);
+      if (scheduled <= new Date()) {
+        scheduled.setDate(scheduled.getDate() + 1);
+      }
+      delayMs = scheduled.getTime() - Date.now();
+    } else {
+      // New delay format: e.g. "5m", "1h"
+      const match = scheduleTime.match(/^(\d+)(m|h)$/);
+      if (!match) {
+        console.error(`[flow-engine] Invalid schedule format: ${scheduleTime}`);
+        return false;
+      }
+      const value = parseInt(match[1]);
+      const unit = match[2];
+      delayMs = unit === 'h' ? value * 60 * 60 * 1000 : value * 60 * 1000;
     }
 
-    // Check 24h window: verify last incoming message
+    // Calculate scheduled time based on last incoming message + delay
     const { data: lastIncoming } = await supabase
       .from('whatsapp_messages')
       .select('created_at')
@@ -715,23 +810,36 @@ async function scheduleMessage(
       .limit(1)
       .maybeSingle();
 
+    let scheduledTime: Date;
     if (lastIncoming) {
-      const windowEnd = new Date(lastIncoming.created_at).getTime() + 24 * 60 * 60 * 1000;
-      if (scheduled.getTime() > windowEnd) {
-        console.log(`[flow-engine] Schedule ${scheduleTime} outside 24h window, sending immediately`);
-        return false; // Will send immediately
+      scheduledTime = new Date(new Date(lastIncoming.created_at).getTime() + delayMs);
+      // If scheduled time is in the past (delay already elapsed), send immediately
+      if (scheduledTime <= new Date()) {
+        console.log(`[flow-engine] Delay ${scheduleTime} already elapsed, sending immediately`);
+        return false;
       }
+      // Check 24h window
+      const windowEnd = new Date(lastIncoming.created_at).getTime() + 24 * 60 * 60 * 1000;
+      if (scheduledTime.getTime() > windowEnd) {
+        console.log(`[flow-engine] Delay ${scheduleTime} would exceed 24h window, sending immediately`);
+        return false;
+      }
+    } else {
+      // No incoming message, can't schedule relative delay
+      console.log(`[flow-engine] No incoming message found, sending immediately`);
+      return false;
     }
 
     await supabase.from('whatsapp_scheduled_messages').insert({
       contact_id: contactId,
       phone,
       message,
-      scheduled_for: scheduled.toISOString(),
+      scheduled_for: scheduledTime.toISOString(),
       flow_id: flowId,
       step_key: stepKey,
     });
 
+    console.log(`[flow-engine] Message scheduled for ${scheduledTime.toISOString()} (delay: ${scheduleTime})`);
     return true;
   } catch (err) {
     console.error('[flow-engine] Schedule error:', err);
