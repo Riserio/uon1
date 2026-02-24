@@ -128,6 +128,10 @@ serve(async (req) => {
     }
     console.log(`[flow-engine] Processing msg for contact ${contact_id}: "${message_body.substring(0, 50)}"`);
 
+    // Reset keywords - user can type these to restart / exit any active flow
+    const RESET_KEYWORDS = ['reiniciar', 'menu', 'voltar', 'sair', '0'];
+    const isResetCommand = RESET_KEYWORDS.includes(normalizeText(message_body));
+
     // Check for active flow state
     const { data: activeState } = await supabase
       .from('whatsapp_contact_flow_state')
@@ -136,11 +140,20 @@ serve(async (req) => {
       .eq('status', 'active')
       .maybeSingle();
 
-    // Auto-expire stale active states (no interaction for 2+ hours)
-    if (activeState) {
+    // Handle reset command: expire active state and fall through to trigger matching
+    if (activeState && isResetCommand) {
+      console.log(`[flow-engine] Reset command "${message_body}" — expiring state ${activeState.id}`);
+      await supabase.from('whatsapp_contact_flow_state')
+        .update({ status: 'expired', completed_at: new Date().toISOString() })
+        .eq('id', activeState.id);
+      await sendWhatsAppMessage(supabase, contact_id, phone, '🔄 Fluxo reiniciado! Aguarde...', metaToken!, metaPhoneNumberId!);
+      // Fall through to try matching new triggers below
+    }
+    // Auto-expire stale active states (no interaction for 30 minutes)
+    else if (activeState) {
       const lastInteraction = activeState.last_interaction_at || activeState.created_at;
       const staleMs = Date.now() - new Date(lastInteraction).getTime();
-      const STALE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours
+      const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
       if (staleMs > STALE_THRESHOLD_MS) {
         console.log(`[flow-engine] Auto-expiring stale state ${activeState.id} (${Math.round(staleMs / 60000)}min old)`);
         await supabase.from('whatsapp_contact_flow_state')
