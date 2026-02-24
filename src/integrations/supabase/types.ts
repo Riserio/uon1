@@ -6061,6 +6061,9 @@ export type Database = {
           envio_automatico_cobranca: boolean | null
           envio_automatico_eventos: boolean | null
           envio_automatico_mgf: boolean | null
+          fluxo_cobranca_id: string | null
+          fluxo_eventos_id: string | null
+          fluxo_mgf_id: string | null
           horario_envio: string | null
           id: string
           n8n_ativo: boolean | null
@@ -6081,6 +6084,9 @@ export type Database = {
           envio_automatico_cobranca?: boolean | null
           envio_automatico_eventos?: boolean | null
           envio_automatico_mgf?: boolean | null
+          fluxo_cobranca_id?: string | null
+          fluxo_eventos_id?: string | null
+          fluxo_mgf_id?: string | null
           horario_envio?: string | null
           id?: string
           n8n_ativo?: boolean | null
@@ -6101,6 +6107,9 @@ export type Database = {
           envio_automatico_cobranca?: boolean | null
           envio_automatico_eventos?: boolean | null
           envio_automatico_mgf?: boolean | null
+          fluxo_cobranca_id?: string | null
+          fluxo_eventos_id?: string | null
+          fluxo_mgf_id?: string | null
           horario_envio?: string | null
           id?: string
           n8n_ativo?: boolean | null
@@ -6119,6 +6128,27 @@ export type Database = {
             columns: ["corretora_id"]
             isOneToOne: true
             referencedRelation: "corretoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_config_fluxo_cobranca_id_fkey"
+            columns: ["fluxo_cobranca_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_config_fluxo_eventos_id_fkey"
+            columns: ["fluxo_eventos_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_config_fluxo_mgf_id_fkey"
+            columns: ["fluxo_mgf_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_flows"
             referencedColumns: ["id"]
           },
         ]

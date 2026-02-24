@@ -28,6 +28,9 @@ interface WhatsAppConfigData {
   envio_automatico_cobranca: boolean;
   envio_automatico_eventos: boolean;
   envio_automatico_mgf: boolean;
+  fluxo_cobranca_id: string;
+  fluxo_eventos_id: string;
+  fluxo_mgf_id: string;
   horario_envio: string;
   n8n_webhook_url: string;
   n8n_ativo: boolean;
@@ -35,6 +38,11 @@ interface WhatsAppConfigData {
   ultimo_erro_envio?: string;
   notificar_numero: string;
   notificar_ativo: boolean;
+}
+
+interface FlowOption {
+  id: string;
+  name: string;
 }
 
 export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
@@ -45,6 +53,9 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
     envio_automatico_cobranca: false,
     envio_automatico_eventos: false,
     envio_automatico_mgf: false,
+    fluxo_cobranca_id: '',
+    fluxo_eventos_id: '',
+    fluxo_mgf_id: '',
     horario_envio: '08:00',
     n8n_webhook_url: '',
     n8n_ativo: false,
@@ -54,11 +65,13 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneEntry[]>([{ number: '', label: '' }]);
   const [corretoras, setCorretoras] = useState<{ id: string; nome: string }[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState<string>(corretoraId || '');
+  const [flows, setFlows] = useState<FlowOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     loadCorretoras();
+    loadFlows();
   }, []);
 
   useEffect(() => {
@@ -79,6 +92,15 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
         setSelectedCorretora(data[0].id);
       }
     }
+  };
+
+  const loadFlows = async () => {
+    const { data } = await supabase
+      .from('whatsapp_flows')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('name');
+    if (data) setFlows(data);
   };
 
   const parsePhoneNumbers = (telefone: string, nome: string): PhoneEntry[] => {
@@ -107,6 +129,9 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
         envio_automatico_cobranca: data.envio_automatico_cobranca ?? false,
         envio_automatico_eventos: data.envio_automatico_eventos ?? false,
         envio_automatico_mgf: data.envio_automatico_mgf ?? false,
+        fluxo_cobranca_id: (data as any).fluxo_cobranca_id || '',
+        fluxo_eventos_id: (data as any).fluxo_eventos_id || '',
+        fluxo_mgf_id: (data as any).fluxo_mgf_id || '',
         horario_envio: data.horario_envio || '08:00',
         n8n_webhook_url: data.n8n_webhook_url || '',
         n8n_ativo: data.n8n_ativo ?? false,
@@ -124,6 +149,9 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
         envio_automatico_cobranca: false,
         envio_automatico_eventos: false,
         envio_automatico_mgf: false,
+        fluxo_cobranca_id: '',
+        fluxo_eventos_id: '',
+        fluxo_mgf_id: '',
         horario_envio: '08:00',
         n8n_webhook_url: '',
         n8n_ativo: false,
@@ -175,6 +203,9 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
         envio_automatico_cobranca: config.envio_automatico_cobranca,
         envio_automatico_eventos: config.envio_automatico_eventos,
         envio_automatico_mgf: config.envio_automatico_mgf,
+        fluxo_cobranca_id: config.fluxo_cobranca_id || null,
+        fluxo_eventos_id: config.fluxo_eventos_id || null,
+        fluxo_mgf_id: config.fluxo_mgf_id || null,
         horario_envio: config.horario_envio,
         n8n_webhook_url: config.n8n_webhook_url,
         n8n_ativo: config.n8n_ativo,
@@ -375,47 +406,89 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
             </h4>
 
             <p className="text-xs text-muted-foreground">
-              O envio ocorre automaticamente assim que a importação do relatório for concluída.
+              Ao ativar, selecione o fluxo de automação que será disparado automaticamente após a importação.
             </p>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Resumo de Cobrança</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Enviar automaticamente após atualização de cobrança
-                  </p>
+            <div className="space-y-4">
+              <div className="space-y-2 border rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Resumo de Cobrança</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Enviar automaticamente após atualização de cobrança
+                    </p>
+                  </div>
+                  <Switch
+                    checked={config.envio_automatico_cobranca}
+                    onCheckedChange={(checked) => setConfig({ ...config, envio_automatico_cobranca: checked })}
+                  />
                 </div>
-                <Switch
-                  checked={config.envio_automatico_cobranca}
-                  onCheckedChange={(checked) => setConfig({ ...config, envio_automatico_cobranca: checked })}
-                />
+                {config.envio_automatico_cobranca && (
+                  <Select value={config.fluxo_cobranca_id} onValueChange={(v) => setConfig({ ...config, fluxo_cobranca_id: v })}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o fluxo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {flows.map(f => (
+                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Resumo de Eventos</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Enviar automaticamente após atualização de eventos
-                  </p>
+              <div className="space-y-2 border rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Resumo de Eventos</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Enviar automaticamente após atualização de eventos
+                    </p>
+                  </div>
+                  <Switch
+                    checked={config.envio_automatico_eventos}
+                    onCheckedChange={(checked) => setConfig({ ...config, envio_automatico_eventos: checked })}
+                  />
                 </div>
-                <Switch
-                  checked={config.envio_automatico_eventos}
-                  onCheckedChange={(checked) => setConfig({ ...config, envio_automatico_eventos: checked })}
-                />
+                {config.envio_automatico_eventos && (
+                  <Select value={config.fluxo_eventos_id} onValueChange={(v) => setConfig({ ...config, fluxo_eventos_id: v })}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o fluxo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {flows.map(f => (
+                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Resumo MGF</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Enviar automaticamente após atualização de MGF
-                  </p>
+              <div className="space-y-2 border rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Resumo MGF</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Enviar automaticamente após atualização de MGF
+                    </p>
+                  </div>
+                  <Switch
+                    checked={config.envio_automatico_mgf}
+                    onCheckedChange={(checked) => setConfig({ ...config, envio_automatico_mgf: checked })}
+                  />
                 </div>
-                <Switch
-                  checked={config.envio_automatico_mgf}
-                  onCheckedChange={(checked) => setConfig({ ...config, envio_automatico_mgf: checked })}
-                />
+                {config.envio_automatico_mgf && (
+                  <Select value={config.fluxo_mgf_id} onValueChange={(v) => setConfig({ ...config, fluxo_mgf_id: v })}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o fluxo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {flows.map(f => (
+                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
           </div>
