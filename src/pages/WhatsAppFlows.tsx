@@ -1050,6 +1050,7 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                       <SelectItem value="4h">4 horas</SelectItem>
                       <SelectItem value="6h">6 horas</SelectItem>
                       <SelectItem value="12h">12 horas</SelectItem>
+                      <SelectItem value="window_end_10m">Últimos 10min da janela 24h</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
