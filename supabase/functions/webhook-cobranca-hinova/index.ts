@@ -1037,93 +1037,69 @@ serve(async (req) => {
         if (waConfig?.envio_automatico_cobranca) {
           console.log("[Webhook Cobrança] Envio automático de WhatsApp ativado, disparando...");
           
-          // Generate summary and send via Meta API
-          const { data: resumoData } = await supabase.functions.invoke("gerar-resumo-cobranca", {
-            body: { corretora_id: corretoraId },
-          });
-
-          const messageContent = resumoData?.resumo || "Resumo de cobrança não disponível";
-
-          // Parse multiple phone numbers
+          const fluxoId = (waConfig as any).fluxo_cobranca_id;
           const phoneNumbers = (waConfig.telefone_whatsapp || "").split(",").map((p: string) => p.trim()).filter(Boolean);
-
           const metaToken = Deno.env.get("META_WHATSAPP_TOKEN");
           const metaPhoneNumberId = Deno.env.get("META_WHATSAPP_PHONE_NUMBER_ID");
 
-          if (metaToken && metaPhoneNumberId && phoneNumbers.length > 0) {
+          if (fluxoId && phoneNumbers.length > 0) {
+            // Trigger saved flow for each phone number
             for (const phone of phoneNumbers) {
               const cleanPhone = phone.replace(/\D/g, "");
               const formattedPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
+              try {
+                await supabase.functions.invoke("whatsapp-flow-engine", {
+                  body: { contact_phone: formattedPhone, flow_id: fluxoId, trigger: "auto_import" },
+                });
+                console.log(`[Webhook Cobrança] Flow disparado para ${formattedPhone}`);
+              } catch (flowErr) {
+                console.error(`[Webhook Cobrança] Erro ao disparar flow para ${formattedPhone}:`, flowErr);
+              }
+            }
+            await supabase.from("whatsapp_config").update({
+              ultimo_envio_automatico: new Date().toISOString(),
+              ultimo_erro_envio: null,
+            }).eq("id", waConfig.id);
+          } else if (metaToken && metaPhoneNumberId && phoneNumbers.length > 0) {
+            // Fallback: direct report send (legacy behavior)
+            const { data: resumoData } = await supabase.functions.invoke("gerar-resumo-cobranca", {
+              body: { corretora_id: corretoraId },
+            });
+            const messageContent = resumoData?.resumo || "Resumo de cobrança não disponível";
 
+            for (const phone of phoneNumbers) {
+              const cleanPhone = phone.replace(/\D/g, "");
+              const formattedPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
               try {
                 const metaResponse = await fetch(
                   `https://graph.facebook.com/v22.0/${metaPhoneNumberId}/messages`,
                   {
                     method: "POST",
-                    headers: {
-                      Authorization: `Bearer ${metaToken}`,
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                      messaging_product: "whatsapp",
-                      to: formattedPhone,
-                      type: "text",
-                      text: { preview_url: false, body: messageContent },
-                    }),
+                    headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ messaging_product: "whatsapp", to: formattedPhone, type: "text", text: { preview_url: false, body: messageContent } }),
                   }
                 );
-
                 const metaData = await metaResponse.json();
                 const metaMessageId = metaData?.messages?.[0]?.id || null;
 
-                // Log in whatsapp_historico
                 await supabase.from("whatsapp_historico").insert({
-                  corretora_id: corretoraId,
-                  telefone_destino: formattedPhone,
-                  mensagem: messageContent,
-                  tipo: "cobranca",
-                  status: metaResponse.ok ? "enviado" : "erro",
-                  status_entrega: metaResponse.ok ? "enviado" : "erro",
-                  meta_message_id: metaMessageId,
-                  enviado_em: new Date().toISOString(),
-                  enviado_por: null,
+                  corretora_id: corretoraId, telefone_destino: formattedPhone, mensagem: messageContent,
+                  tipo: "cobranca", status: metaResponse.ok ? "enviado" : "erro",
+                  status_entrega: metaResponse.ok ? "enviado" : "erro", meta_message_id: metaMessageId,
+                  enviado_em: new Date().toISOString(), enviado_por: null,
                 });
 
-                // Also save to whatsapp_messages via contact
-                const { data: waContact } = await supabase
-                  .from("whatsapp_contacts")
-                  .select("id")
-                  .eq("phone", formattedPhone)
-                  .maybeSingle();
-
+                const { data: waContact } = await supabase.from("whatsapp_contacts").select("id").eq("phone", formattedPhone).maybeSingle();
                 if (waContact) {
-                  await supabase.from("whatsapp_messages").insert({
-                    contact_id: waContact.id,
-                    direction: "out",
-                    body: messageContent,
-                    type: "text",
-                    status: metaResponse.ok ? "sent" : "failed",
-                    meta_message_id: metaMessageId,
-                    sent_by: null,
-                  });
-
-                  await supabase.from("whatsapp_contacts").update({
-                    last_message_at: new Date().toISOString(),
-                    last_message_preview: messageContent.substring(0, 100),
-                  }).eq("id", waContact.id);
+                  await supabase.from("whatsapp_messages").insert({ contact_id: waContact.id, direction: "out", body: messageContent, type: "text", status: metaResponse.ok ? "sent" : "failed", meta_message_id: metaMessageId, sent_by: null });
+                  await supabase.from("whatsapp_contacts").update({ last_message_at: new Date().toISOString(), last_message_preview: messageContent.substring(0, 100) }).eq("id", waContact.id);
                 }
-
                 console.log(`[Webhook Cobrança] WhatsApp enviado para ${formattedPhone}: ${metaResponse.ok ? "sucesso" : "erro"}`);
               } catch (sendErr) {
                 console.error(`[Webhook Cobrança] Erro ao enviar WhatsApp para ${formattedPhone}:`, sendErr);
               }
             }
-
-            // Update whatsapp_config with last send
-            await supabase.from("whatsapp_config").update({
-              ultimo_envio_automatico: new Date().toISOString(),
-              ultimo_erro_envio: null,
-            }).eq("id", waConfig.id);
+            await supabase.from("whatsapp_config").update({ ultimo_envio_automatico: new Date().toISOString(), ultimo_erro_envio: null }).eq("id", waConfig.id);
           }
         }
       } catch (waError) {

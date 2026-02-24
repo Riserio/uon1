@@ -697,7 +697,7 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                                   {step.config?.schedule_time && (
                                     <Badge variant="outline" className="text-[10px] font-normal mt-2 gap-1">
                                       <Clock className="h-3 w-3" />
-                                      Agendado: {step.config.schedule_time}
+                                      Delay: {step.config.schedule_time}
                                     </Badge>
                                   )}
                                 </div>
@@ -1029,22 +1029,31 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                 </div>
               )}
 
-              {/* Schedule time */}
+              {/* Schedule delay */}
               {['send_text', 'request_report'].includes(stepType) && (
                 <div className="space-y-1.5">
                   <Label className="font-medium flex items-center gap-1.5">
                     <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                    Horário programado (opcional)
+                    Delay após última mensagem do cliente (opcional)
                   </Label>
-                  <Input
-                    type="time"
-                    value={stepScheduleTime}
-                    onChange={e => setStepScheduleTime(e.target.value)}
-                    className="w-40"
-                  />
+                  <Select value={stepScheduleTime || '__none__'} onValueChange={(v) => setStepScheduleTime(v === '__none__' ? '' : v)}>
+                    <SelectTrigger className="w-56">
+                      <SelectValue placeholder="Enviar imediatamente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Enviar imediatamente</SelectItem>
+                      <SelectItem value="5m">5 minutos</SelectItem>
+                      <SelectItem value="15m">15 minutos</SelectItem>
+                      <SelectItem value="30m">30 minutos</SelectItem>
+                      <SelectItem value="1h">1 hora</SelectItem>
+                      <SelectItem value="2h">2 horas</SelectItem>
+                      <SelectItem value="4h">4 horas</SelectItem>
+                      <SelectItem value="6h">6 horas</SelectItem>
+                      <SelectItem value="12h">12 horas</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <p className="text-xs text-muted-foreground">
-                    Se definido, a mensagem será enviada neste horário (dentro da janela de 24h do WhatsApp).
-                    Deixe vazio para enviar imediatamente.
+                    A mensagem será enviada após o tempo definido desde a última mensagem recebida do cliente, respeitando a janela de 24h do WhatsApp.
                   </p>
                 </div>
               )}
