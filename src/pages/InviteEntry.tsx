@@ -136,6 +136,17 @@ export default function InviteEntry() {
   const handleJoin = async () => {
     if (!displayName.trim()) { toast.error("Informe seu nome"); return; }
     setJoining(true);
+    
+    // Request media permissions NOW (during user gesture) so they persist after approval
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      // Stop tracks immediately - we just needed the permission grant
+      stream.getTracks().forEach(t => t.stop());
+    } catch (e) {
+      console.warn("Media permission not granted upfront:", e);
+      // Continue anyway - user can enable later
+    }
+
     try {
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-rooms?action=joinViaInvite`,
@@ -194,6 +205,7 @@ export default function InviteEntry() {
     return (
       <div className="fixed inset-0 z-[100] bg-background flex flex-col">
         <LiveKitRoom
+          key={token}
           serverUrl={livekitUrl}
           token={token}
           connect={true}
@@ -301,14 +313,18 @@ export default function InviteEntry() {
 function GuestVideoGrid() {
   const tracks = useTracks([
     { source: Track.Source.Camera, withPlaceholder: true },
+    { source: Track.Source.Microphone, withPlaceholder: false },
     { source: Track.Source.ScreenShare, withPlaceholder: false },
   ]);
 
   const [enlargedSid, setEnlargedSid] = useState<string | null>(null);
   const [pipSid, setPipSid] = useState<string | null>(null);
 
+  const audioTracks = tracks.filter((t: any) => t.source === Track.Source.Microphone);
+  const visualTracks = tracks.filter((t: any) => t.source !== Track.Source.Microphone);
+
   const seen = new Set<string>();
-  const dedupedTracks = tracks.filter((trackRef: any) => {
+  const dedupedTracks = visualTracks.filter((trackRef: any) => {
     if (trackRef.source === Track.Source.ScreenShare) return true;
     const pid = trackRef.participant.sid;
     if (seen.has(pid)) return false;
@@ -396,6 +412,12 @@ function GuestVideoGrid() {
 
   return (
     <div className="flex-1 p-2 overflow-hidden flex flex-col">
+      {/* Invisible audio tracks */}
+      {audioTracks.map((trackRef: any) => (
+        trackRef.publication?.track ? (
+          <AudioTrack key={trackRef.participant.sid + '-audio'} trackRef={trackRef} />
+        ) : null
+      ))}
       {enlargedTrack && (
         <div className="flex-1 min-h-0 mb-2">
           {renderTile(enlargedTrack, true)}

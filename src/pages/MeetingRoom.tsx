@@ -153,6 +153,7 @@ export default function MeetingRoomPage() {
   return (
     <div className="fixed inset-0 z-[100] bg-background flex flex-col">
       <LiveKitRoom
+        key={token}
         serverUrl={livekitUrl}
         token={token}
         connect={true}
@@ -279,15 +280,20 @@ function VideoGrid() {
   const participants = useParticipants();
   const tracks = useTracks([
     { source: Track.Source.Camera, withPlaceholder: true },
+    { source: Track.Source.Microphone, withPlaceholder: false },
     { source: Track.Source.ScreenShare, withPlaceholder: false },
   ]);
 
   const [enlargedSid, setEnlargedSid] = useState<string | null>(null);
   const [pipSid, setPipSid] = useState<string | null>(null);
 
+  // Separate audio tracks to render invisibly, visual tracks for grid
+  const audioTracks = tracks.filter((t) => t.source === Track.Source.Microphone);
+  const visualTracks = tracks.filter((t) => t.source !== Track.Source.Microphone);
+  
   // Deduplicate: show one tile per participant (camera), plus screen shares
   const seen = new Set<string>();
-  const dedupedTracks = tracks.filter((trackRef) => {
+  const dedupedTracks = visualTracks.filter((trackRef) => {
     if (trackRef.source === Track.Source.ScreenShare) return true;
     const pid = trackRef.participant.sid;
     if (seen.has(pid)) return false;
@@ -391,6 +397,12 @@ function VideoGrid() {
 
   return (
     <div className="flex-1 p-2 overflow-hidden flex flex-col">
+      {/* Invisible audio tracks */}
+      {audioTracks.map((trackRef) => (
+        trackRef.publication?.track ? (
+          <AudioTrack key={trackRef.participant.sid + '-audio'} trackRef={trackRef} />
+        ) : null
+      ))}
       {/* Enlarged view */}
       {enlargedTrack && (
         <div className="flex-1 min-h-0 mb-2">
