@@ -791,15 +791,15 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
 
         {/* Step Dialog */}
         <Dialog open={showStepDialog} onOpenChange={setShowStepDialog}>
-          <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
-            <DialogHeader>
+          <DialogContent className="max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+            <DialogHeader className="shrink-0">
               <DialogTitle className="flex items-center gap-2">
                 {editingStep ? <Edit className="h-5 w-5 text-primary" /> : <Plus className="h-5 w-5 text-primary" />}
                 {editingStep ? 'Editar Passo' : 'Novo Passo'}
               </DialogTitle>
               <DialogDescription>Configure o tipo e conteúdo do passo</DialogDescription>
             </DialogHeader>
-            <ScrollArea className="flex-1 max-h-[60vh] pr-4">
+            <ScrollArea className="flex-1 min-h-0 pr-4">
             <div className="space-y-5 pt-2">
               {/* Step type selection with cards */}
               <div className="space-y-2">
