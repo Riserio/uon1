@@ -12,10 +12,11 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Search, Send, Check, CheckCheck, Clock, XCircle, User, Bot,
-  UserCheck, MessageCircle, Phone, MoreVertical, RefreshCw, Plus, Archive, ArchiveRestore
+  UserCheck, MessageCircle, Phone, MoreVertical, RefreshCw, Plus, Archive, ArchiveRestore,
+  MicOff, Mic, Image, FileAudio, FileVideo, File
 } from 'lucide-react';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import {
@@ -34,6 +35,7 @@ interface Contact {
   unread_count: number;
   human_mode: boolean;
   archived: boolean;
+  audio_blocked: boolean;
   tags: string[];
 }
 
@@ -45,6 +47,8 @@ interface Message {
   type: string;
   status: string | null;
   meta_message_id: string | null;
+  media_url: string | null;
+  media_mime_type: string | null;
   created_at: string;
   sent_by: string | null;
 }
@@ -302,6 +306,19 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
     toast.success(newArchived ? 'Conversa arquivada' : 'Conversa desarquivada');
     if (selectedContact?.id === contact.id) {
       setSelectedContact(null);
+    }
+    loadContacts();
+  };
+
+  const toggleAudioBlocked = async (contact: Contact) => {
+    const newBlocked = !contact.audio_blocked;
+    await supabase
+      .from('whatsapp_contacts')
+      .update({ audio_blocked: newBlocked } as any)
+      .eq('id', contact.id);
+    toast.success(newBlocked ? 'Áudio bloqueado para este contato' : 'Áudio permitido para este contato');
+    if (selectedContact?.id === contact.id) {
+      setSelectedContact({ ...contact, audio_blocked: newBlocked });
     }
     loadContacts();
   };
@@ -614,6 +631,14 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                       <><Archive className="h-4 w-4 mr-2" /> Arquivar conversa</>
                     )}
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => toggleAudioBlocked(selectedContact)}>
+                    {selectedContact.audio_blocked ? (
+                      <><Mic className="h-4 w-4 mr-2" /> Permitir áudio</>
+                    ) : (
+                      <><MicOff className="h-4 w-4 mr-2" /> Bloquear áudio</>
+                    )}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -647,7 +672,56 @@ export default function CentralAtendimento({ embedded }: { embedded?: boolean })
                             {msg.type}
                           </Badge>
                         )}
-                        <p className="text-sm whitespace-pre-wrap break-words">{msg.body}</p>
+                        {/* Media rendering */}
+                        {msg.type === 'image' && msg.media_url && (
+                          <img
+                            src={msg.media_url}
+                            alt="Imagem"
+                            className="max-w-full rounded-lg mb-1 cursor-pointer"
+                            onClick={() => window.open(msg.media_url!, '_blank')}
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        )}
+                        {msg.type === 'video' && msg.media_url && (
+                          <video
+                            src={msg.media_url}
+                            controls
+                            className="max-w-full rounded-lg mb-1"
+                            onError={(e) => { (e.target as HTMLVideoElement).style.display = 'none'; }}
+                          />
+                        )}
+                        {msg.type === 'audio' && msg.media_url && (
+                          <audio
+                            src={msg.media_url}
+                            controls
+                            className="w-full mb-1"
+                            onError={(e) => { (e.target as HTMLAudioElement).style.display = 'none'; }}
+                          />
+                        )}
+                        {msg.type === 'sticker' && msg.media_url && (
+                          <img
+                            src={msg.media_url}
+                            alt="Sticker"
+                            className="max-w-[150px] mb-1"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        )}
+                        {msg.type === 'document' && msg.media_url && (
+                          <a
+                            href={msg.media_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-xs underline mb-1"
+                          >
+                            <File className="h-4 w-4" /> Abrir documento
+                          </a>
+                        )}
+                        {msg.body && msg.body !== `[${msg.type}]` && (
+                          <p className="text-sm whitespace-pre-wrap break-words">{msg.body}</p>
+                        )}
+                        {(!msg.body || msg.body === `[${msg.type}]`) && !msg.media_url && (
+                          <p className="text-sm whitespace-pre-wrap break-words">{msg.body || ''}</p>
+                        )}
                         <div className={cn(
                           'flex items-center justify-end gap-1 mt-1',
                           msg.direction === 'out' ? 'text-primary-foreground/60' : 'text-muted-foreground'

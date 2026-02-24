@@ -10,7 +10,7 @@ import { ResponsiveDialog, ResponsiveDialogContent } from "@/components/ui/respo
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Video, Plus, Copy, ExternalLink, Trash2, Calendar, Users, Clock, Phone, X, CalendarPlus } from "lucide-react";
+import { Video, Plus, Copy, ExternalLink, Trash2, Calendar, Users, Clock, Phone, X, CalendarPlus, CheckCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toUTC, toDateTimeLocal } from "@/utils/dateUtils";
 
@@ -154,6 +154,16 @@ export default function Talk() {
       toast.error("Erro ao excluir");
     } else {
       toast.success("Reunião excluída");
+      fetchReunioes();
+    }
+  };
+
+  const handleConcluir = async (id: string) => {
+    const { error } = await supabase.from("reunioes").update({ status: "finalizada" }).eq("id", id);
+    if (error) {
+      toast.error("Erro ao concluir");
+    } else {
+      toast.success("Reunião concluída");
       fetchReunioes();
     }
   };
@@ -428,11 +438,12 @@ export default function Talk() {
                         </Button>
                         <Button
                           size="sm"
-                          variant="ghost"
-                          onClick={() => handleDelete(reuniao.id)}
-                          className="text-destructive hover:text-destructive"
+                          variant="outline"
+                          onClick={() => handleConcluir(reuniao.id)}
+                          title="Concluir reunião"
+                          className="text-emerald-600 hover:text-emerald-700 border-emerald-200 hover:border-emerald-300"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <CheckCircle className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
