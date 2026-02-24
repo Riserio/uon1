@@ -799,7 +799,7 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
               </DialogTitle>
               <DialogDescription>Configure o tipo e conteúdo do passo</DialogDescription>
             </DialogHeader>
-            <ScrollArea className="flex-1 min-h-0 pr-4">
+            <div className="flex-1 overflow-y-auto min-h-0 pr-2">
             <div className="space-y-5 pt-2">
               {/* Step type selection with cards */}
               <div className="space-y-2">
@@ -1067,7 +1067,7 @@ export default function WhatsAppFlowEditor({ embedded }: { embedded?: boolean })
                 </div>
               )}
             </div>
-            </ScrollArea>
+            </div>
             <DialogFooter className="pt-4 shrink-0">
               <Button variant="outline" onClick={() => setShowStepDialog(false)}>Cancelar</Button>
               <Button onClick={handleSaveStep} className="gap-2 shadow-sm"><Save className="h-4 w-4" /> Salvar Passo</Button>
