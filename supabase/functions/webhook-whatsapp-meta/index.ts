@@ -278,7 +278,7 @@ serve(async (req) => {
         // Trigger flow engine if NOT in human mode
         if (!contact.human_mode) {
           try {
-            await supabase.functions.invoke('whatsapp-flow-engine', {
+            const { data: flowResult, error: flowError } = await supabase.functions.invoke('whatsapp-flow-engine', {
               body: {
                 contact_id: contact.id,
                 message_body: msgBody,
@@ -286,6 +286,11 @@ serve(async (req) => {
                 phone: from,
               },
             });
+            if (flowError) {
+              console.error(`[webhook] Flow engine invoke error for contact ${contact.id}:`, flowError);
+            } else {
+              console.log(`[webhook] Flow engine result for ${from}:`, JSON.stringify(flowResult).substring(0, 200));
+            }
           } catch (flowErr) {
             console.error('[webhook] Erro ao disparar flow engine:', flowErr);
           }
