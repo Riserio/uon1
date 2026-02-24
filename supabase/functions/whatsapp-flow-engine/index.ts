@@ -862,34 +862,10 @@ async function scheduleMessage(
   message: string, scheduleTime: string, flowId: string, stepKey: string
 ): Promise<boolean> {
   try {
-    // Parse delay format: "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h"
+    // Parse delay format: "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "window_end_10m"
     // Also support legacy HH:MM format for backwards compatibility
-    let delayMs = 0;
-    
-    if (scheduleTime.includes(':')) {
-      // Legacy HH:MM format - convert to delay from now
-      const [hours, minutes] = scheduleTime.split(':').map(Number);
-      const scheduled = new Date();
-      const spOffset = -3;
-      const utcHours = hours - spOffset;
-      scheduled.setUTCHours(utcHours, minutes, 0, 0);
-      if (scheduled <= new Date()) {
-        scheduled.setDate(scheduled.getDate() + 1);
-      }
-      delayMs = scheduled.getTime() - Date.now();
-    } else {
-      // New delay format: e.g. "5m", "1h"
-      const match = scheduleTime.match(/^(\d+)(m|h)$/);
-      if (!match) {
-        console.error(`[flow-engine] Invalid schedule format: ${scheduleTime}`);
-        return false;
-      }
-      const value = parseInt(match[1]);
-      const unit = match[2];
-      delayMs = unit === 'h' ? value * 60 * 60 * 1000 : value * 60 * 1000;
-    }
 
-    // Calculate scheduled time based on last incoming message + delay
+    // First, get last incoming message (needed for all modes)
     const { data: lastIncoming } = await supabase
       .from('whatsapp_messages')
       .select('created_at')
@@ -899,24 +875,56 @@ async function scheduleMessage(
       .limit(1)
       .maybeSingle();
 
+    if (!lastIncoming) {
+      console.log(`[flow-engine] No incoming message found, sending immediately`);
+      return false;
+    }
+
+    const lastMsgTime = new Date(lastIncoming.created_at).getTime();
+    const windowEnd = lastMsgTime + 24 * 60 * 60 * 1000;
     let scheduledTime: Date;
-    if (lastIncoming) {
-      scheduledTime = new Date(new Date(lastIncoming.created_at).getTime() + delayMs);
-      // If scheduled time is in the past (delay already elapsed), send immediately
+
+    if (scheduleTime === 'window_end_10m') {
+      // Schedule for 10 minutes before the 24h window closes
+      scheduledTime = new Date(windowEnd - 10 * 60 * 1000);
+      if (scheduledTime <= new Date()) {
+        console.log(`[flow-engine] Window end -10min already passed, sending immediately`);
+        return false;
+      }
+    } else {
+      let delayMs = 0;
+      
+      if (scheduleTime.includes(':')) {
+        // Legacy HH:MM format
+        const [hours, minutes] = scheduleTime.split(':').map(Number);
+        const scheduled = new Date();
+        const spOffset = -3;
+        const utcHours = hours - spOffset;
+        scheduled.setUTCHours(utcHours, minutes, 0, 0);
+        if (scheduled <= new Date()) {
+          scheduled.setDate(scheduled.getDate() + 1);
+        }
+        delayMs = scheduled.getTime() - Date.now();
+      } else {
+        const match = scheduleTime.match(/^(\d+)(m|h)$/);
+        if (!match) {
+          console.error(`[flow-engine] Invalid schedule format: ${scheduleTime}`);
+          return false;
+        }
+        const value = parseInt(match[1]);
+        const unit = match[2];
+        delayMs = unit === 'h' ? value * 60 * 60 * 1000 : value * 60 * 1000;
+      }
+
+      scheduledTime = new Date(lastMsgTime + delayMs);
       if (scheduledTime <= new Date()) {
         console.log(`[flow-engine] Delay ${scheduleTime} already elapsed, sending immediately`);
         return false;
       }
-      // Check 24h window
-      const windowEnd = new Date(lastIncoming.created_at).getTime() + 24 * 60 * 60 * 1000;
       if (scheduledTime.getTime() > windowEnd) {
         console.log(`[flow-engine] Delay ${scheduleTime} would exceed 24h window, sending immediately`);
         return false;
       }
-    } else {
-      // No incoming message, can't schedule relative delay
-      console.log(`[flow-engine] No incoming message found, sending immediately`);
-      return false;
     }
 
     await supabase.from('whatsapp_scheduled_messages').insert({

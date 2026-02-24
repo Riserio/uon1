@@ -115,16 +115,43 @@ serve(async (req) => {
           continue;
         }
 
-        // Upsert contact (find or create)
+        // Upsert contact (find or create) — handles 9th digit variation
         let contact: any;
-        const { data: existingContact } = await supabase
+        
+        // First try exact match
+        const { data: exactContact } = await supabase
           .from('whatsapp_contacts')
-          .select('id, human_mode, unread_count, audio_blocked')
+          .select('id, human_mode, unread_count, audio_blocked, phone')
           .eq('phone', from)
           .maybeSingle();
 
-        if (existingContact) {
-          contact = existingContact;
+        if (exactContact) {
+          contact = exactContact;
+        } else {
+          // Try matching with 9th digit variation (e.g. 553183131491 vs 5531983131491)
+          const digits = from.replace(/\D/g, '');
+          const last8 = digits.slice(-8);
+          const areaCode = digits.length >= 10 ? digits.slice(-10, -8) : '';
+          
+          if (areaCode && last8) {
+            // Search for contacts that could match (with or without 9th digit)
+            const pattern9 = `55${areaCode}9${last8}`;
+            const patternNo9 = `55${areaCode}${last8}`;
+            
+            const { data: altContacts } = await supabase
+              .from('whatsapp_contacts')
+              .select('id, human_mode, unread_count, audio_blocked, phone')
+              .or(`phone.eq.${pattern9},phone.eq.${patternNo9}`)
+              .limit(1);
+            
+            if (altContacts && altContacts.length > 0) {
+              contact = altContacts[0];
+              console.log(`[webhook] Phone match via 9th digit: ${from} → existing ${contact.phone}`);
+            }
+          }
+        }
+
+        if (contact) {
           // Update unread count, last message, and profile name
           await supabase
             .from('whatsapp_contacts')
@@ -132,9 +159,9 @@ serve(async (req) => {
               profile_name: profileName || undefined,
               last_message_at: timestamp,
               last_message_preview: msgBody.substring(0, 100),
-              unread_count: (existingContact.unread_count || 0) + 1,
+              unread_count: (contact.unread_count || 0) + 1,
             })
-            .eq('id', existingContact.id);
+            .eq('id', contact.id);
         } else {
           // Create new contact
           const { data: newContact, error: contactError } = await supabase
