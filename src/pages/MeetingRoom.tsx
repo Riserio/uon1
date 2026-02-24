@@ -248,26 +248,26 @@ function RoomHeader({ room, isHost, roomId, onLeave }: { room: RoomData; isHost:
   };
 
   return (
-    <div className="flex items-center justify-between px-4 py-2.5 bg-[#0d1117] border-b border-white/10">
+    <div className="flex items-center justify-between px-4 py-2.5 bg-card border-b border-border/50 shadow-sm">
       <div className="flex items-center gap-3">
-        <img src="/images/logo-full.png" alt="UON1" className="h-7 w-auto brightness-0 invert" />
-        <div className="h-5 w-px bg-white/20" />
-        <img src="/images/logo-vg.png" alt="Vangard" className="h-7 w-auto brightness-0 invert" />
-        <div className="h-5 w-px bg-white/20 hidden sm:block" />
-        <div className="hidden sm:block">
+        <img src="/images/logo-full.png" alt="UON1" className="h-7 w-auto" />
+        <div className="h-5 w-px bg-border/50" />
+        <img src="/images/logo-vg.png" alt="Vangard" className="h-7 w-auto" />
+        <div className="h-5 w-px bg-border/50" />
+        <div>
           <h2 className="font-semibold text-sm flex items-center gap-1.5">
             <span className="text-primary">Talk</span>
-            <span className="text-[10px] text-white/50 font-normal">by Uon1</span>
-            <span className="mx-1 text-white/30">•</span>
-            <span className="text-white">{room.nome}</span>
+            <span className="text-[10px] text-muted-foreground font-normal">by Uon1</span>
+            <span className="mx-1 text-muted-foreground">•</span>
+            <span className="text-foreground">{room.nome}</span>
           </h2>
-          <p className="text-xs text-white/50">
+          <p className="text-xs text-muted-foreground">
             {participants.length} participante(s) • {isHost ? "Moderador" : "Participante"}
           </p>
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" onClick={copyLink} className="h-8 text-xs rounded-lg border-white/20 text-white hover:bg-white/10 bg-transparent">
+        <Button size="sm" variant="outline" onClick={copyLink} className="h-8 text-xs rounded-lg">
           <Copy className="h-3.5 w-3.5 mr-1.5" /> Copiar Link
         </Button>
       </div>
