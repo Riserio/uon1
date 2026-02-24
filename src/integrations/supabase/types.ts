@@ -6578,6 +6578,63 @@ export type Database = {
           },
         ]
       }
+      whatsapp_scheduled_messages: {
+        Row: {
+          contact_id: string
+          created_at: string
+          error_message: string | null
+          flow_id: string | null
+          id: string
+          message: string
+          phone: string
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          step_key: string | null
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          error_message?: string | null
+          flow_id?: string | null
+          id?: string
+          message: string
+          phone: string
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+          step_key?: string | null
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          error_message?: string | null
+          flow_id?: string | null
+          id?: string
+          message?: string
+          phone?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          step_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_scheduled_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_scheduled_messages_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_templates: {
         Row: {
           ativo: boolean | null

@@ -263,6 +263,45 @@ async function executeStep(
 ) {
   console.log(`[flow-engine] Executing step: ${step.step_key} (${step.type})`);
 
+  // Check if step has schedule_time - queue instead of sending immediately
+  const scheduleTime = step.config?.schedule_time;
+  if (scheduleTime && ['send_text', 'request_report'].includes(step.type)) {
+    const text = replaceVariables(step.config?.message || '', state.variables || {});
+    const scheduled = await scheduleMessage(supabase, contactId, phone, text, scheduleTime, state.flow_id, step.step_key);
+    if (scheduled) {
+      console.log(`[flow-engine] Message scheduled for ${scheduleTime}`);
+      // Advance to next step without sending
+      if (step.next_step_key) {
+        const { data: nextStep } = await supabase
+          .from('whatsapp_flow_steps').select('*')
+          .eq('flow_id', state.flow_id).eq('step_key', step.next_step_key).single();
+        if (nextStep) {
+          await supabase.from('whatsapp_contact_flow_state')
+            .update({ current_step_key: step.next_step_key }).eq('id', state.id);
+          if (!['ask_input', 'ask_options'].includes(nextStep.type)) {
+            await executeStep(supabase, nextStep, { ...state, current_step_key: step.next_step_key }, contactId, phone, token, phoneNumberId);
+          } else if (nextStep.type === 'ask_input') {
+            const question = replaceVariables(nextStep.config?.message || '', state.variables || {});
+            await sendWhatsAppMessage(supabase, contactId, phone, question, token, phoneNumberId);
+          } else if (nextStep.type === 'ask_options') {
+            let optionsMsg = replaceVariables(nextStep.config?.message || '', state.variables || {});
+            const options = nextStep.config?.options || [];
+            if (options.length > 0) {
+              optionsMsg += '\n';
+              options.forEach((o: any, i: number) => { optionsMsg += `\n${i + 1}. ${o.label}`; });
+            }
+            await sendWhatsAppMessage(supabase, contactId, phone, optionsMsg, token, phoneNumberId);
+          }
+        } else {
+          await completeFlow(supabase, state.id);
+        }
+      } else {
+        await completeFlow(supabase, state.id);
+      }
+      return;
+    }
+  }
+
   switch (step.type) {
     case 'send_text': {
       const text = replaceVariables(step.config?.message || '', state.variables || {});
@@ -532,6 +571,61 @@ async function completeFlow(supabase: any, stateId: string) {
     .from('whatsapp_contact_flow_state')
     .update({ status: 'completed', completed_at: new Date().toISOString() })
     .eq('id', stateId);
+}
+
+async function scheduleMessage(
+  supabase: any, contactId: string, phone: string,
+  message: string, scheduleTime: string, flowId: string, stepKey: string
+): Promise<boolean> {
+  try {
+    // Parse schedule_time (HH:MM) - use Sao Paulo timezone
+    const [hours, minutes] = scheduleTime.split(':').map(Number);
+    const now = new Date();
+    
+    // Create scheduled datetime for today in SP timezone
+    const scheduled = new Date();
+    // Adjust for Brazil timezone (UTC-3)
+    const spOffset = -3;
+    const utcHours = hours - spOffset;
+    scheduled.setUTCHours(utcHours, minutes, 0, 0);
+    
+    // If time already passed today, schedule for tomorrow
+    if (scheduled <= now) {
+      scheduled.setDate(scheduled.getDate() + 1);
+    }
+
+    // Check 24h window: verify last incoming message
+    const { data: lastIncoming } = await supabase
+      .from('whatsapp_messages')
+      .select('created_at')
+      .eq('contact_id', contactId)
+      .eq('direction', 'in')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastIncoming) {
+      const windowEnd = new Date(lastIncoming.created_at).getTime() + 24 * 60 * 60 * 1000;
+      if (scheduled.getTime() > windowEnd) {
+        console.log(`[flow-engine] Schedule ${scheduleTime} outside 24h window, sending immediately`);
+        return false; // Will send immediately
+      }
+    }
+
+    await supabase.from('whatsapp_scheduled_messages').insert({
+      contact_id: contactId,
+      phone,
+      message,
+      scheduled_for: scheduled.toISOString(),
+      flow_id: flowId,
+      step_key: stepKey,
+    });
+
+    return true;
+  } catch (err) {
+    console.error('[flow-engine] Schedule error:', err);
+    return false;
+  }
 }
 
 async function sendWhatsAppMessage(
