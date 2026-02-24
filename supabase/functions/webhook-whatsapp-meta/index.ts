@@ -115,36 +115,47 @@ serve(async (req) => {
           continue;
         }
 
-        // Upsert contact
-        const { data: contact, error: contactError } = await supabase
+        // Upsert contact (find or create)
+        let contact: any;
+        const { data: existingContact } = await supabase
           .from('whatsapp_contacts')
-          .upsert(
-            {
+          .select('id, human_mode, unread_count, audio_blocked')
+          .eq('phone', from)
+          .maybeSingle();
+
+        if (existingContact) {
+          contact = existingContact;
+          // Update unread count, last message, and profile name
+          await supabase
+            .from('whatsapp_contacts')
+            .update({
+              profile_name: profileName || undefined,
+              last_message_at: timestamp,
+              last_message_preview: msgBody.substring(0, 100),
+              unread_count: (existingContact.unread_count || 0) + 1,
+            })
+            .eq('id', existingContact.id);
+        } else {
+          // Create new contact
+          const { data: newContact, error: contactError } = await supabase
+            .from('whatsapp_contacts')
+            .insert({
               phone: from,
               profile_name: profileName,
               name: profileName,
               last_message_at: timestamp,
               last_message_preview: msgBody.substring(0, 100),
-            },
-            { onConflict: 'phone' }
-          )
-          .select('id, human_mode, unread_count, audio_blocked')
-          .single();
+              unread_count: 1,
+            })
+            .select('id, human_mode, unread_count, audio_blocked')
+            .single();
 
-        if (contactError || !contact) {
-          console.error('[webhook] Erro ao upsert contato:', contactError);
-          continue;
+          if (contactError || !newContact) {
+            console.error('[webhook] Erro ao criar contato:', contactError);
+            continue;
+          }
+          contact = newContact;
         }
-
-        // Update unread count and last message
-        await supabase
-          .from('whatsapp_contacts')
-          .update({
-            unread_count: (contact.unread_count || 0) + 1,
-            last_message_at: timestamp,
-            last_message_preview: msgBody.substring(0, 100),
-          })
-          .eq('id', contact.id);
 
         // Insert message
         const { error: msgError } = await supabase
