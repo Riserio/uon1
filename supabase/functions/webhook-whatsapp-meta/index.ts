@@ -118,36 +118,31 @@ serve(async (req) => {
         // Upsert contact (find or create) — handles 9th digit variation
         let contact: any;
         
-        // First try exact match
-        const { data: exactContact } = await supabase
+        // Build all possible phone variants for this number
+        const digits = from.replace(/\D/g, '');
+        const last8 = digits.slice(-8);
+        const areaCode = digits.length >= 10 ? digits.slice(-10, -8) : '';
+        const pattern9 = areaCode ? `55${areaCode}9${last8}` : '';
+        const patternNo9 = areaCode ? `55${areaCode}${last8}` : '';
+        
+        // Search for ALL matching contacts (exact + 9th digit variants) in one query
+        const phoneVariants = [from];
+        if (pattern9 && pattern9 !== from) phoneVariants.push(pattern9);
+        if (patternNo9 && patternNo9 !== from) phoneVariants.push(patternNo9);
+        
+        const { data: matchingContacts } = await supabase
           .from('whatsapp_contacts')
           .select('id, human_mode, unread_count, audio_blocked, phone')
-          .eq('phone', from)
-          .maybeSingle();
-
-        if (exactContact) {
-          contact = exactContact;
-        } else {
-          // Try matching with 9th digit variation (e.g. 553183131491 vs 5531983131491)
-          const digits = from.replace(/\D/g, '');
-          const last8 = digits.slice(-8);
-          const areaCode = digits.length >= 10 ? digits.slice(-10, -8) : '';
+          .in('phone', phoneVariants);
+        
+        if (matchingContacts && matchingContacts.length > 0) {
+          // Prefer the canonical number (with 9th digit), then exact match
+          contact = matchingContacts.find((c: any) => c.phone === pattern9)
+            || matchingContacts.find((c: any) => c.phone === from)
+            || matchingContacts[0];
           
-          if (areaCode && last8) {
-            // Search for contacts that could match (with or without 9th digit)
-            const pattern9 = `55${areaCode}9${last8}`;
-            const patternNo9 = `55${areaCode}${last8}`;
-            
-            const { data: altContacts } = await supabase
-              .from('whatsapp_contacts')
-              .select('id, human_mode, unread_count, audio_blocked, phone')
-              .or(`phone.eq.${pattern9},phone.eq.${patternNo9}`)
-              .limit(1);
-            
-            if (altContacts && altContacts.length > 0) {
-              contact = altContacts[0];
-              console.log(`[webhook] Phone match via 9th digit: ${from} → existing ${contact.phone}`);
-            }
+          if (matchingContacts.length > 1) {
+            console.log(`[webhook] Found ${matchingContacts.length} contacts for ${from}, using ${contact.phone}`);
           }
         }
 
