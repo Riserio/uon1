@@ -83,19 +83,20 @@ serve(async (req) => {
         });
       }
 
-      // Check for existing active state to prevent duplicates from concurrent triggers
-      const { data: existingState } = await supabase
+      // Expire any existing active state so the new import flow can start fresh
+      const { data: existingStates } = await supabase
         .from('whatsapp_contact_flow_state')
         .select('id')
         .eq('contact_id', contactId)
-        .eq('status', 'active')
-        .maybeSingle();
+        .eq('status', 'active');
 
-      if (existingState) {
-        console.log(`[flow-engine] Skipping auto-import: contact ${contactId} already has active state ${existingState.id}`);
-        return new Response(JSON.stringify({ ok: true, mode: 'auto_import', skipped: true }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      if (existingStates && existingStates.length > 0) {
+        const ids = existingStates.map((s: any) => s.id);
+        console.log(`[flow-engine] Auto-import: expiring ${ids.length} existing active state(s) for contact ${contactId}`);
+        await supabase
+          .from('whatsapp_contact_flow_state')
+          .update({ status: 'expired', completed_at: new Date().toISOString() })
+          .in('id', ids);
       }
 
       // Create flow state and execute
