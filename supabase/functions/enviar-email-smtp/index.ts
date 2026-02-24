@@ -120,7 +120,7 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    await client.close();
+    try { await client.close(); } catch (_) { /* connection may not have been established */ }
 
     return new Response(JSON.stringify({ results }), {
       status: 200,
