@@ -136,8 +136,26 @@ export default function Emails() {
       )
       .subscribe();
 
+    // Subscribe to realtime changes for email_historico so dashboard updates
+    const emailHistChannel = supabase
+      .channel("email_historico_realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "email_historico",
+        },
+        () => {
+          loadHistorico();
+          loadStats();
+        },
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(emailHistChannel);
     };
   }, [user]);
 
