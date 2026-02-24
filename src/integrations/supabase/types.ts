@@ -6071,7 +6071,9 @@ export type Database = {
           nome_exibicao: string | null
           notificar_ativo: boolean | null
           notificar_numero: string | null
+          reset_keywords: string[] | null
           telefone_whatsapp: string
+          timeout_minutos: number | null
           ultimo_envio_automatico: string | null
           ultimo_erro_envio: string | null
           updated_at: string | null
@@ -6094,7 +6096,9 @@ export type Database = {
           nome_exibicao?: string | null
           notificar_ativo?: boolean | null
           notificar_numero?: string | null
+          reset_keywords?: string[] | null
           telefone_whatsapp: string
+          timeout_minutos?: number | null
           ultimo_envio_automatico?: string | null
           ultimo_erro_envio?: string | null
           updated_at?: string | null
@@ -6117,7 +6121,9 @@ export type Database = {
           nome_exibicao?: string | null
           notificar_ativo?: boolean | null
           notificar_numero?: string | null
+          reset_keywords?: string[] | null
           telefone_whatsapp?: string
+          timeout_minutos?: number | null
           ultimo_envio_automatico?: string | null
           ultimo_erro_envio?: string | null
           updated_at?: string | null

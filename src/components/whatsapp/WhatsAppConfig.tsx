@@ -38,6 +38,8 @@ interface WhatsAppConfigData {
   ultimo_erro_envio?: string;
   notificar_numero: string;
   notificar_ativo: boolean;
+  reset_keywords: string[];
+  timeout_minutos: number;
 }
 
 interface FlowOption {
@@ -61,7 +63,10 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
     n8n_ativo: false,
     notificar_numero: '',
     notificar_ativo: false,
+    reset_keywords: ['reiniciar', 'menu', 'voltar', 'sair', '0'],
+    timeout_minutos: 30,
   });
+  const [keywordInput, setKeywordInput] = useState('');
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneEntry[]>([{ number: '', label: '' }]);
   const [corretoras, setCorretoras] = useState<{ id: string; nome: string }[]>([]);
   const [selectedCorretora, setSelectedCorretora] = useState<string>(corretoraId || '');
@@ -139,6 +144,8 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
         ultimo_erro_envio: data.ultimo_erro_envio,
         notificar_numero: (data as any).notificar_numero || '',
         notificar_ativo: (data as any).notificar_ativo ?? false,
+        reset_keywords: (data as any).reset_keywords || ['reiniciar', 'menu', 'voltar', 'sair', '0'],
+        timeout_minutos: (data as any).timeout_minutos ?? 30,
       });
     } else {
       setPhoneNumbers([{ number: '', label: '' }]);
@@ -157,6 +164,8 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
         n8n_ativo: false,
         notificar_numero: '',
         notificar_ativo: false,
+        reset_keywords: ['reiniciar', 'menu', 'voltar', 'sair', '0'],
+        timeout_minutos: 30,
       });
     }
   };
@@ -209,6 +218,8 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
         horario_envio: config.horario_envio,
         n8n_webhook_url: config.n8n_webhook_url,
         n8n_ativo: config.n8n_ativo,
+        reset_keywords: config.reset_keywords,
+        timeout_minutos: config.timeout_minutos,
         created_by: user?.id,
       };
 
@@ -490,6 +501,94 @@ export function WhatsAppConfig({ corretoraId }: WhatsAppConfigProps) {
                   </Select>
                 )}
               </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <Button onClick={handleSave} disabled={loading}>
+              <Save className="h-4 w-4 mr-2" />
+              {loading ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Reset & Timeout Config */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-orange-500" />
+            Reinício de Fluxo
+          </CardTitle>
+          <CardDescription>
+            Configure o tempo de expiração automática e as palavras-chave que reiniciam o fluxo
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label>Tempo de expiração (minutos)</Label>
+            <p className="text-xs text-muted-foreground">
+              Se o contato ficar sem interagir por esse tempo, o fluxo expira automaticamente e pode ser reiniciado.
+            </p>
+            <Input
+              type="number"
+              min={1}
+              max={1440}
+              value={config.timeout_minutos}
+              onChange={(e) => setConfig({ ...config, timeout_minutos: parseInt(e.target.value) || 30 })}
+              className="w-40"
+            />
+          </div>
+
+          <div className="space-y-2 border-t pt-4">
+            <Label>Palavras-chave de reinício</Label>
+            <p className="text-xs text-muted-foreground">
+              Quando o contato enviar uma dessas palavras, o fluxo ativo será encerrado e poderá iniciar um novo.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {config.reset_keywords.map((kw, i) => (
+                <span key={i} className="inline-flex items-center gap-1 bg-muted px-2.5 py-1 rounded-full text-sm">
+                  {kw}
+                  <button
+                    type="button"
+                    onClick={() => setConfig({ ...config, reset_keywords: config.reset_keywords.filter((_, idx) => idx !== i) })}
+                    className="text-muted-foreground hover:text-destructive ml-1"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Nova palavra-chave..."
+                value={keywordInput}
+                onChange={(e) => setKeywordInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && keywordInput.trim()) {
+                    e.preventDefault();
+                    if (!config.reset_keywords.includes(keywordInput.trim().toLowerCase())) {
+                      setConfig({ ...config, reset_keywords: [...config.reset_keywords, keywordInput.trim().toLowerCase()] });
+                    }
+                    setKeywordInput('');
+                  }
+                }}
+                className="flex-1"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (keywordInput.trim() && !config.reset_keywords.includes(keywordInput.trim().toLowerCase())) {
+                    setConfig({ ...config, reset_keywords: [...config.reset_keywords, keywordInput.trim().toLowerCase()] });
+                  }
+                  setKeywordInput('');
+                }}
+                disabled={!keywordInput.trim()}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Adicionar
+              </Button>
             </div>
           </div>
 
